@@ -16,7 +16,8 @@
       "Bash(chmod +x:*)",
       "WebFetch(domain:addons.mozilla.org)",
       "Bash(curl -L -o \"C:/github/AphroArchive/vdh.xpi\" \"https://addons.mozilla.org/firefox/downloads/file/4714322/video_downloadhelper-10.2.5.2.xpi\" --progress-bar)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(wc -l C:/github/AphroArchive/public/modules/*.js)"
     ]
   }
 }

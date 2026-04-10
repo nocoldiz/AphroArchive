@@ -1,0 +1,36 @@
+// ─── Global State ───
+let V = [], cats = [], sort = 'date', cat = '', q = '', favM = false, curV = null, renId = null;
+let srcFilter = 'both'; // 'both' | 'local' | 'remote'
+let recentMode = false, recentVids = [];
+let movId = null, movCurCat = '', shuf = false, dupMode = false;
+let pinnedV = null, pinnedPl = [], pinnedIdx = 0;
+let mosaicOn = false, mosaicTimer = null, mosaicIv = 8;
+let vaultMode = false, vaultSelMode = false, scraperMode = false, foldersMode = false, importFavsMode = false;
+const vaultSel = new Set();
+let vaultFiles = [], vaultPl = [], vaultPlIdx = 0, vaultQ = '', vaultSort = 'date';
+const VAULT_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);
+const VAULT_IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);
+let studioMode = false, curStudio = null;
+let actorMode = false, curActor = null;
+let curTag = null;
+const thumbMap = {}, thumbQueue = [];
+let thumbRunning = 0, thumbObs = null, hoverTimer = null, hoverEl = null, hoverIdx = 0;
+let zapOn = false, zapTimer = null, zapIv = 8, zapLock = false;
+let zapNextVid = null, zapNextTime = 0;
+let activePlayer = 'vP';
+const bookmarkVidIds = new Set();
+const bmMatchedUrls = new Set();
+let collectionsMode = false, curCollection = null;
+let settingsMode = false;
+let dbMode = false, dbTab = 'actors', _dbData = {};
+let curVTags = [], curVAllCategories = [], curVActors = [];
+let curVRating = null;
+let mosTileCount = 6, mosHoveredIdx = -1, mosTilesState = [];
+const playlistSkipped = new Set();
+let bmThumbObs = null;
+let acTerms = [];
+let _bfCats = [];
+let _bfItems = [], _bfMatchedCount = 0, _bfVisible = [];
+let _bfViewMode = 'list';
+let dlPoller = null;
+let cvTargetId = null;
