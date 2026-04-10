@@ -1,0 +1,9 @@
+.AphroArchive-thumbs
+videos
+# Generated data files
+settings/*.json
+.AphroArchive-thumbs/
+.AphroArchive-actor-photos/
+node_modules/
+dist/
+bookmark_downloader/download_queue.txt

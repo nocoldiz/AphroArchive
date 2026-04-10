@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const fs = require\\(''''fs''''\\); console.log\\(''''actors.txt exists:'''', fs.existsSync\\(''''actors.txt''''\\)\\); try { require\\(''''./server.js''''\\); } catch\\(e\\) { console.error\\(''''server.js error:'''', e.message\\); }\")",
+      "Bash(node --check server.js)",
+      "Bash(node --check public/app.js)",
+      "Bash(find . -type f -name *.json -o -name README* -o -name *.md)",
+      "Bash(ls C:/github/AphroArchive/*.txt C:/github/AphroArchive/*.json)",
+      "Bash(ls C:/github/AphroArchive/.*.json)",
+      "Bash(npm --version)",
+      "Bash(npm install:*)",
+      "Bash(npx pkg:*)",
+      "Bash(timeout 4 ./AphroArchive.exe)",
+      "Bash(node:*)",
+      "Bash(curl -sL \"https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js\" -o /c/github/AphroArchive/public/qrcode.min.js)",
+      "Bash(chmod +x:*)",
+      "WebFetch(domain:addons.mozilla.org)",
+      "Bash(curl -L -o \"C:/github/AphroArchive/vdh.xpi\" \"https://addons.mozilla.org/firefox/downloads/file/4714322/video_downloadhelper-10.2.5.2.xpi\" --progress-bar)",
+      "Bash(ls:*)"
+    ]
+  }
+}

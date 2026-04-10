@@ -1,0 +1,21 @@
+{
+  "name": "AphroArchive",
+  "version": "1.0.0",
+  "description": "Zero-dependency local video organizer",
+  "main": "server.js",
+  "bin": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build:win": "pkg . --targets node20-win-x64 --output dist/AphroArchive.exe --compress GZip"
+  },
+  "pkg": {
+    "assets": [
+      "public/**/*"
+    ],
+    "targets": ["node20-win-x64"],
+    "outputPath": "dist"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^5.12.0"
+  }
+}
