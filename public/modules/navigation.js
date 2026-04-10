@@ -64,11 +64,13 @@ function goHome() {
   document.getElementById('collectionsSB').classList.remove('on');
   if (document.getElementById('foldersV')) document.getElementById('foldersV').classList.remove('on');
   if (document.getElementById('foldersSB')) document.getElementById('foldersSB').classList.remove('on');
+  if (document.getElementById('booksV')) document.getElementById('booksV').classList.remove('on');
+  if (document.getElementById('booksSB')) document.getElementById('booksSB').classList.remove('on');
   document.getElementById('settingsV').classList.remove('on');
   document.getElementById('settingsSB').classList.remove('on');
   if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
   if (document.getElementById('databaseSB')) document.getElementById('databaseSB').classList.remove('on');
-  vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
+  vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false;
   curCollection = null;
   document.getElementById('bv').classList.remove('off');
   document.getElementById('pv').classList.remove('on');
@@ -110,6 +112,7 @@ function closeAllViews() {
     'dv','dupSB','sv','sdv','studioSB','av','adv','actorSB','tagDV',
     'vaultV','vaultSB','scraperV','scraperSB',
     'collectionsV','collectionsSB','foldersV','foldersSB',
+    'booksV','booksSB',
     'importFavsV','importFavsSB','settingsV','settingsSB','recentSB'
   ].forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('on'); });
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
@@ -117,7 +120,7 @@ function closeAllViews() {
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
-  foldersMode = false; importFavsMode = false;
+  foldersMode = false; importFavsMode = false; booksMode = false;
   settingsMode = false; recentMode = false; recentVids = [];
   curTag = null;
 }
@@ -310,6 +313,7 @@ async function routeToPath(path) {
   if (path === '/recent') { showRecent(); return; }
   if (path === '/collections') { showCollections(); return; }
   if (path === '/scraper') { showScraper(); return; }
+  if (path === '/books') { showBooks(); return; }
   if (path === '/settings') { showSettings(); return; }
   if (path === '/database') { showDatabase(); return; }
   if (path === '/actors') { showActors(); return; }

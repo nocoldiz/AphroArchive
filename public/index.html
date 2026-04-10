@@ -59,6 +59,9 @@
   <div class="ci" id="collectionsSB" onclick="showCollections()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>Collections</span>
     </div>
+    <div class="ci" id="booksSB" onclick="showBooks()">
+      <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Books</span>
+    </div>
     <div class="ci" id="scraperSB" onclick="showScraper()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Actor Scraper</span>
     </div>
@@ -231,6 +234,45 @@
       </div>
       <div class="merr" id="folderErr" style="display:none;margin-bottom:12px"></div>
       <div id="folderList"></div>
+    </div>
+
+    <!-- Books View -->
+    <div class="booksV" id="booksV">
+      <div class="sh"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Books</h2></div>
+
+      <div class="bk-import-row">
+        <div class="bk-import-card">
+          <div class="bk-import-hd"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Files</div>
+          <label class="bpr bk-file-label" for="booksFileIn">Choose PDF / TXT / DOC / MD</label>
+          <input type="file" id="booksFileIn" multiple accept=".pdf,.txt,.doc,.docx,.md,.epub" style="display:none" onchange="uploadBookFiles()">
+        </div>
+        <div class="bk-import-card">
+          <div class="bk-import-hd"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Import from URL</div>
+          <div class="bk-url-row">
+            <input type="text" id="booksUrlInput" placeholder="https://www.fanfiction.net/s/… or any URL" autocomplete="off" onkeydown="if(event.key==='Enter')importBookUrl()">
+            <button class="bpr" id="booksUrlBtn" onclick="importBookUrl()">Import</button>
+          </div>
+          <div class="merr" id="booksUrlErr" style="display:none"></div>
+          <p class="bk-hint">Supports FanFiction.net stories (saved as .md) and generic web pages.</p>
+        </div>
+      </div>
+
+      <div id="booksGrid" class="bk-grid"></div>
+      <div class="es" id="booksEmpty" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <h3>No books yet</h3><p>Upload a file or import from a URL above</p>
+      </div>
+    </div>
+
+    <!-- Books Reader -->
+    <div class="booksReader" id="booksReader">
+      <div class="bk-reader-bar">
+        <button class="bbk" onclick="closeBookReader()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Library
+        </button>
+        <span id="booksReaderTitle"></span>
+      </div>
+      <div class="bk-reader-content" id="booksReaderBody"></div>
     </div>
 
     <!-- Bookmarks View -->
@@ -739,6 +781,7 @@
 <script src="/modules/mosaic.js"></script>
 <script src="/modules/zap.js"></script>
 <script src="/modules/folders.js"></script>
+<script src="/modules/books.js"></script>
 <script src="/modules/data.js"></script>
 <script src="/modules/navigation.js"></script>
 </body>

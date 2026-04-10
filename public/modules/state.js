@@ -5,7 +5,7 @@ let recentMode = false, recentVids = [];
 let movId = null, movCurCat = '', shuf = false, dupMode = false;
 let pinnedV = null, pinnedPl = [], pinnedIdx = 0;
 let mosaicOn = false, mosaicTimer = null, mosaicIv = 8;
-let vaultMode = false, vaultSelMode = false, scraperMode = false, foldersMode = false, importFavsMode = false;
+let vaultMode = false, vaultSelMode = false, scraperMode = false, foldersMode = false, importFavsMode = false, booksMode = false;
 const vaultSel = new Set();
 let vaultFiles = [], vaultPl = [], vaultPlIdx = 0, vaultQ = '', vaultSort = 'date';
 const VAULT_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);
