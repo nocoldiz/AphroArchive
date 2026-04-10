@@ -15,7 +15,8 @@ function renCats() {
   const folderCats = cats.filter(c => !c.isTag);
   const bmTotal = srcFilter !== 'local' ? _bfItems.filter(it => !bmMatchedUrls.has(it.url)).length : 0;
   const all = folderCats.reduce((s, c) => s + c.count, 0) + bmTotal;
-  let h = '<div class="ci' + (cat ? '' : ' on') + '" onclick="selCat(\'\')"><span>All Videos</span><span class="n">' + all + '</span></div>';
+  const dropAttrs = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'\')"';
+  let h = '<div class="ci' + (cat ? '' : ' on') + '" onclick="selCat(\'\')"' + dropAttrs + '><span>All Videos</span><span class="n">' + all + '</span></div>';
   cats.forEach(c => {
     const bmC = bmCountFor(c.isTag ? c.name : c.path);
     const displayCount = c.count + bmC;
@@ -24,10 +25,33 @@ function renCats() {
         '<span>' + esc(c.name) + '</span>' +
         '<span class="n">' + displayCount + '</span></div>';
     } else {
-      h += '<div class="ci' + (cat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"><span>' + esc(c.name) + '</span><span class="n">' + displayCount + '</span></div>';
+      const da = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'' + escA(c.path) + '\')"';
+      h += '<div class="ci' + (cat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + '><span>' + esc(c.name) + '</span><span class="n">' + displayCount + '</span></div>';
     }
   });
   el.innerHTML = h;
+}
+
+// ─── Drag helpers ───
+function catDragOver(e, el) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  el.classList.add('drop-over');
+}
+function catDragLeave(el) { el.classList.remove('drop-over'); }
+function catDrop(e, catPath) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drop-over');
+  const id = e.dataTransfer.getData('text/plain');
+  if (!id) return;
+  const vid = V.find(v => v.id === id);
+  if (!vid || vid.external) { toast('Cannot move videos from external folders'); return; }
+  if ((vid.catPath || '') === catPath) return;
+  dropMoveVideo(id, catPath);
+}
+function dragVideoStart(e, id) {
+  e.dataTransfer.setData('text/plain', id);
+  e.dataTransfer.effectAllowed = 'move';
 }
 
 // ─── Main Grid ───
@@ -60,7 +84,8 @@ function setSrcFilter(val) {
 function card(v) {
   const cols = ['#e84040', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
   const c = cols[Math.abs(hsh(v.category)) % cols.length];
-  return '<a class="vc fi" href="/video/' + v.id + '" onclick="event.preventDefault();openVid(\'' + v.id + '\')">' +
+  const dragAttr = !v.external ? ' draggable="true" ondragstart="dragVideoStart(event,\'' + v.id + '\')"' : '';
+  return '<a class="vc fi" href="/video/' + v.id + '" onclick="event.preventDefault();openVid(\'' + v.id + '\')"' + dragAttr + '>' +
     '<div class="ct" data-vid="' + v.id + '" style="background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)">' +
     '<span class="eb">' + v.ext.replace('.', '') + '</span>' +
     '<div class="po"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>' +

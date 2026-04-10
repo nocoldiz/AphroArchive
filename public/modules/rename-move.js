@@ -186,6 +186,28 @@ async function doMoveNew() {
   await doMove(safe);
 }
 
+// ─── Drag-drop Move ───
+async function dropMoveVideo(id, catPath) {
+  const r = await fetch('/api/videos/' + id + '/move', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category: catPath })
+  });
+  const d = await r.json();
+  if (!r.ok) { toast(d.error || 'Move failed'); return; }
+  toast('Moved to ' + (catPath || 'Uncategorized'));
+  if (curV && curV.id === id) {
+    curV.id = d.newId;
+    curV.catPath = catPath;
+    curV.category = catPath || 'Uncategorized';
+    document.getElementById('pC').textContent = curV.category;
+    const p = document.getElementById('vP'), t = p.currentTime;
+    p.src = '/api/stream/' + d.newId;
+    p.currentTime = t;
+  }
+  await refresh();
+}
+
 // ─── Delete Video ───
 async function delVideo(id) {
   if (!confirm('Permanently delete this video file?')) return;
