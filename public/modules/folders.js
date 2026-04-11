@@ -3,14 +3,14 @@ function showFolders() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/folders') history.pushState(null, '', '/folders');
   foldersMode = true;
-  document.getElementById('bv').classList.add('off');
-  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','importFavsV','dbV'].forEach(id => document.getElementById(id).classList.remove('on'));
+  $('bv').add('off');
+  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','importFavsV','dbV'].forEach(id => $(id).remove('on'));
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('foldersSB').classList.add('on');
+  $('foldersSB').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; collectionsMode = false; settingsMode = false; importFavsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('foldersV').classList.add('on');
+  $('foldersV').add('on');
   loadFolders();
 }
 
@@ -20,7 +20,7 @@ async function loadFolders() {
 }
 
 function renderFolders(folders) {
-  const el = document.getElementById('folderList');
+  const el = $('folderList').el;
   if (!folders.length) {
     el.innerHTML = '<div class="fv-empty">No external folders added yet.</div>';
     return;
@@ -35,8 +35,8 @@ function renderFolders(folders) {
 }
 
 async function addFolder() {
-  const input = document.getElementById('folderPathIn');
-  const err = document.getElementById('folderErr');
+  const input = $('folderPathIn').el;
+  const err = $('folderErr').el;
   const p = input.value.trim();
   err.style.display = 'none';
   if (!p) return;

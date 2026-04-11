@@ -4,15 +4,15 @@ async function openVid(id) {
   fetch('/api/history/' + id, { method: 'POST' });
   const d = await (await fetch('/api/videos/' + id)).json();
   curV = d.video;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.add('on');
-  document.getElementById('vP').src = '/api/stream/' + id;
-  document.getElementById('pT').textContent = curV.name;
-  document.getElementById('pC').textContent = curV.category;
-  document.getElementById('pS').textContent = curV.sizeF;
-  document.getElementById('pD').textContent = curV.durationF || '';
+  $('bv').add('off');
+  $('pv').add('on');
+  $('vP').el.src = '/api/stream/' + id;
+  $('pT').text(curV.name);
+  $('pC').text(curV.category);
+  $('pS').text(curV.sizeF);
+  $('pD').text(curV.durationF || '');
   updPStar();
-  const actorsEl = document.getElementById('pActors');
+  const actorsEl = $('pActors').el;
   if (d.actors && d.actors.length) {
     actorsEl.innerHTML = d.actors.map(a =>
       '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +
@@ -28,7 +28,7 @@ async function openVid(id) {
   renderVideoTags();
   renderRating(d.video.rating || null);
   renderPlaylist();
-  document.getElementById('sG').innerHTML = d.suggested.map(card).join('');
+  $('sG').html(d.suggested.map(card).join(''));
   attachThumbs();
   requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
 }
@@ -36,7 +36,7 @@ async function openVid(id) {
 async function openVidTag(id) {
   await openVid(id);
   requestAnimationFrame(() => {
-    const row = document.getElementById('pTagsRow');
+    const row = $('pTagsRow').el;
     if (row && row.style.display !== 'none') toggleTagPicker();
   });
 }
@@ -72,7 +72,7 @@ async function togglePStar() {
 }
 
 function updPStar() {
-  const b = document.getElementById('pSB');
+  const b = $('pSB').el;
   b.classList.toggle('st', curV?.fav);
   b.querySelector('svg').setAttribute('fill', curV?.fav ? 'currentColor' : 'none');
 }
@@ -80,7 +80,7 @@ function updPStar() {
 // ─── Rating ───
 function renderRating(rating) {
   curVRating = rating;
-  const el = document.getElementById('pRating');
+  const el = $('pRating').el;
   if (!el) return;
   if (curV && curV.isVault) { el.innerHTML = ''; return; }
   let html = '';
@@ -123,11 +123,11 @@ async function clearRating() {
 
 // ─── Video Tag Management ───
 function renderVideoTags() {
-  const row = document.getElementById('pTagsRow');
-  const el = document.getElementById('pTags');
+  const row = $('pTagsRow').el;
+  const el = $('pTags').el;
   const canEdit = curV && !curV.isVault && !curV.external;
   row.style.display = (curVTags.length || canEdit) ? '' : 'none';
-  document.getElementById('pTagAddBtn').style.display = canEdit ? '' : 'none';
+  $('pTagAddBtn').el.style.display = canEdit ? '' : 'none';
   el.innerHTML = curVTags.map(t =>
     '<span class="p-tag">' + esc(t) +
     (canEdit
@@ -151,13 +151,13 @@ async function removeVideoTag(tag) {
 }
 
 function toggleTagPicker() {
-  const picker = document.getElementById('pTagPicker');
-  const btn = document.getElementById('pTagAddBtn');
+  const picker = $('pTagPicker').el;
+  const btn = $('pTagAddBtn').el;
   if (picker.style.display === 'none') {
     const available = curVAllCategories.filter(c =>
       !curVTags.some(t => t.toLowerCase() === c.toLowerCase())
     );
-    const list = document.getElementById('pTagPickerList');
+    const list = $('pTagPickerList').el;
     if (!available.length) {
       list.innerHTML = '<span class="p-tag-picker-empty">All categories already present</span>';
     } else {
@@ -167,7 +167,7 @@ function toggleTagPicker() {
     }
     picker.style.display = '';
     btn.classList.add('on');
-    const search = document.getElementById('pTagPickerSearch');
+    const search = $('pTagPickerSearch').el;
     search.value = '';
     search.focus();
   } else {
@@ -183,9 +183,9 @@ function filterTagPicker(q) {
 }
 
 function closeTagPicker() {
-  document.getElementById('pTagPicker').style.display = 'none';
-  document.getElementById('pTagAddBtn').classList.remove('on');
-  document.getElementById('pTagPickerSearch').value = '';
+  $('pTagPicker').show(false);
+  $('pTagAddBtn').remove('on');
+  $('pTagPickerSearch').val('');
 }
 
 async function applyTagPicker() {
@@ -214,8 +214,8 @@ async function applyVideoRename(newName) {
   if (!r.ok) { toast(d.error || 'Rename failed'); return false; }
   curV.id = d.newId;
   curV.name = newName;
-  document.getElementById('pT').textContent = newName;
-  const vp = document.getElementById('vP'), t = vp.currentTime;
+  $('pT').text(newName);
+  const vp = $('vP').el, t = vp.currentTime;
   vp.src = '/api/stream/' + d.newId;
   vp.currentTime = t;
   return true;
@@ -223,11 +223,11 @@ async function applyVideoRename(newName) {
 
 // ─── Actor Input Panel ───
 function toggleActorInput() {
-  const panel = document.getElementById('pActorInput');
+  const panel = $('pActorInput').el;
   if (panel.style.display === 'none') {
     panel.style.display = '';
-    document.getElementById('pActorAddBtn').classList.add('on');
-    const inp = document.getElementById('pActorInputVal');
+    $('pActorAddBtn').add('on');
+    const inp = $('pActorInputVal').el;
     inp.value = '';
     inp.focus();
   } else {
@@ -236,19 +236,19 @@ function toggleActorInput() {
 }
 
 function closeActorInput() {
-  document.getElementById('pActorInput').style.display = 'none';
-  document.getElementById('pActorAddBtn').classList.remove('on');
+  $('pActorInput').show(false);
+  $('pActorAddBtn').remove('on');
 }
 
 async function submitActorInput() {
-  const name = document.getElementById('pActorInputVal').value.trim();
+  const name = $('pActorInputVal').el.value.trim();
   closeActorInput();
   if (!name || !curV || curV.isVault || curV.external) return;
   const newName = name + ' ' + curV.name;
   const ok = await applyVideoRename(newName);
   if (!ok) return;
   const d = await (await fetch('/api/videos/' + curV.id)).json();
-  const actorsEl = document.getElementById('pActors');
+  const actorsEl = $('pActors').el;
   if (d.actors && d.actors.length) {
     actorsEl.innerHTML = d.actors.map(a =>
       '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +

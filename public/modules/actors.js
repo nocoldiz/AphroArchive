@@ -4,44 +4,44 @@ async function showActors() {
   if (location.pathname !== '/actors') history.pushState(null, '', '/actors');
   actorMode = true;
   curActor = null;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.add('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
+  $('adv').remove('on');
+  $('actorSB').add('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('vaultSB').classList.remove('on');
-  document.getElementById('scraperV').classList.remove('on');
-  document.getElementById('scraperSB').classList.remove('on');
-  document.getElementById('collectionsV').classList.remove('on');
-  document.getElementById('collectionsSB').classList.remove('on');
-  document.getElementById('foldersV').classList.remove('on');
-  document.getElementById('foldersSB').classList.remove('on');
-  document.getElementById('settingsV').classList.remove('on');
-  document.getElementById('settingsSB').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
+  $('vaultV').remove('on');
+  $('vaultSB').remove('on');
+  $('scraperV').remove('on');
+  $('scraperSB').remove('on');
+  $('collectionsV').remove('on');
+  $('collectionsSB').remove('on');
+  $('foldersV').remove('on');
+  $('foldersSB').remove('on');
+  $('settingsV').remove('on');
+  $('settingsSB').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   studioMode = false; curStudio = null;
   curTag = null; curCollection = null;
-  if (curV) { const vp = document.getElementById('vP'); vp.pause(); vp.src = ''; curV = null; }
-  document.getElementById('av').classList.add('on');
+  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
+  $('av').add('on');
   loadActorList();
 }
 
 async function loadActorList() {
-  document.getElementById('actorGrid').innerHTML = '<div class="dup-scan">Loading actors\u2026</div>';
+  $('actorGrid').html('<div class="dup-scan">Loading actors\u2026</div>');
   const actors = await (await fetch('/api/actors')).json();
   renderActors(actors);
 }
 
 function renderActors(actors) {
-  const el = document.getElementById('actorGrid');
+  const el = $('actorGrid').el;
   if (!actors.length) {
     el.innerHTML = '<div class="es" style="padding:40px 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><h3>No actors found</h3><p>Add actors in the Database section</p></div>';
     return;
@@ -69,13 +69,13 @@ function renderActors(actors) {
 async function openActor(name) {
   if (location.pathname !== '/actor/' + encodeURIComponent(name)) history.pushState(null, '', '/actor/' + encodeURIComponent(name));
   curActor = name;
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.add('on');
-  document.getElementById('adName').textContent = name;
-  document.getElementById('adG').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('av').remove('on');
+  $('adv').add('on');
+  $('adName').text(name);
+  $('adG').html('<div class="dup-scan">Loading\u2026</div>');
   const d = await (await fetch('/api/actors/' + encodeURIComponent(name))).json();
-  if (d.error) { document.getElementById('adG').innerHTML = '<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'; return; }
-  document.getElementById('adG').innerHTML = d.videos.map(card).join('');
+  if (d.error) { $('adG').html('<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'); return; }
+  $('adG').html(d.videos.map(card).join(''));
   attachThumbs();
 }
 
@@ -83,22 +83,22 @@ async function openActorFromVideo(name) {
   if (location.pathname !== '/actor/' + encodeURIComponent(name)) history.pushState(null, '', '/actor/' + encodeURIComponent(name));
   actorMode = true;
   curActor = name;
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('bv').classList.add('off');
+  $('pv').remove('on');
+  $('bv').add('off');
   document.querySelectorAll('.ci.on').forEach(e => e.classList.remove('on'));
-  document.getElementById('actorSB').classList.add('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.add('on');
-  document.getElementById('adName').textContent = name;
-  document.getElementById('adG').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('actorSB').add('on');
+  $('av').remove('on');
+  $('adv').add('on');
+  $('adName').text(name);
+  $('adG').html('<div class="dup-scan">Loading\u2026</div>');
   const d = await (await fetch('/api/actors/' + encodeURIComponent(name))).json();
-  if (d.error) { document.getElementById('adG').innerHTML = '<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'; return; }
-  document.getElementById('adG').innerHTML = d.videos.map(card).join('');
+  if (d.error) { $('adG').html('<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'); return; }
+  $('adG').html(d.videos.map(card).join(''));
   attachThumbs();
 }
 
 function backActors() {
   curActor = null;
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('av').classList.add('on');
+  $('adv').remove('on');
+  $('av').add('on');
 }

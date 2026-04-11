@@ -3,7 +3,7 @@ async function init() {
   showSk();
   await fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
   const [,, , vs] = await Promise.all([load(), loadC(), loadTagSidebar(), fetch('/api/vault/status').then(r => r.json())]);
-  if (vs.hidden) document.getElementById('vaultSB').style.display = 'none';
+  if (vs.hidden) $('vaultSB').show(false);
   V.sort(() => Math.random() - 0.5);
   render();
   loadBookmarkVidsOnInit();
@@ -32,11 +32,11 @@ async function loadBookmarkVidsOnInit() {
 function goBack() {
   playlistSkipped.clear();
   if (vaultMode) {
-    const p = document.getElementById('vP');
+    const p = $('vP').el;
     p.pause(); p.src = '';
     curV = null;
-    document.getElementById('pv').classList.remove('on');
-    document.getElementById('vaultV').classList.add('on');
+    $('pv').remove('on');
+    $('vaultV').add('on');
     if (location.pathname !== '/') history.pushState(null, '', '/');
     loadVaultFiles();
   } else {
@@ -50,39 +50,39 @@ function goHome() {
   if (zapOn) {
     zapOn = false;
     clearTimeout(zapTimer);
-    document.getElementById('zapUI').style.display = 'none';
-    document.getElementById('vP').style.display = '';
-    document.getElementById('vP_zap').style.display = 'none';
+    $('zapUI').show(false);
+    $('vP').show();
+    $('vP_zap').show(false);
     activePlayer = 'vP';
   }
   if (location.pathname !== '/') history.pushState(null, '', '/');
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('vaultSB').classList.remove('on');
-  document.getElementById('scraperV').classList.remove('on');
-  document.getElementById('scraperSB').classList.remove('on');
-  document.getElementById('collectionsV').classList.remove('on');
-  document.getElementById('collectionsSB').classList.remove('on');
-  if (document.getElementById('foldersV')) document.getElementById('foldersV').classList.remove('on');
-  if (document.getElementById('foldersSB')) document.getElementById('foldersSB').classList.remove('on');
-  if (document.getElementById('booksV')) document.getElementById('booksV').classList.remove('on');
-  if (document.getElementById('booksSB')) document.getElementById('booksSB').classList.remove('on');
-  document.getElementById('settingsV').classList.remove('on');
-  document.getElementById('settingsSB').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
-  if (document.getElementById('databaseSB')) document.getElementById('databaseSB').classList.remove('on');
+  $('vaultV').remove('on');
+  $('vaultSB').remove('on');
+  $('scraperV').remove('on');
+  $('scraperSB').remove('on');
+  $('collectionsV').remove('on');
+  $('collectionsSB').remove('on');
+  if ($('foldersV').el) $('foldersV').remove('on');
+  if ($('foldersSB').el) $('foldersSB').remove('on');
+  if ($('booksV').el) $('booksV').remove('on');
+  if ($('booksSB').el) $('booksSB').remove('on');
+  $('settingsV').remove('on');
+  $('settingsSB').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
+  if ($('databaseSB').el) $('databaseSB').remove('on');
   vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false;
   curCollection = null;
-  document.getElementById('bv').classList.remove('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.remove('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('bv').remove('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').remove('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('actorSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
   dupMode = false;
   studioMode = false;
@@ -92,8 +92,8 @@ function goHome() {
   curTag = null;
   recentMode = false;
   recentVids = [];
-  document.getElementById('recentSB').classList.remove('on');
-  const p = document.getElementById('vP');
+  $('recentSB').remove('on');
+  const p = $('vP').el;
   p.pause();
   p.src = '';
   curV = null;
@@ -104,8 +104,8 @@ function goHome() {
 function closeAllViews() {
   if (mosaicOn) stopMosaic();
   if (curV) {
-    document.getElementById('pv').classList.remove('on');
-    const vp = document.getElementById('vP'); vp.pause(); vp.src = '';
+    $('pv').remove('on');
+    const vp = $('vP').el; vp.pause(); vp.src = '';
     curV = null;
   }
   [
@@ -114,7 +114,7 @@ function closeAllViews() {
     'collectionsV','collectionsSB','foldersV','foldersSB',
     'booksV','booksSB',
     'importFavsV','importFavsSB','settingsV','settingsSB','recentSB'
-  ].forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('on'); });
+  ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
   dupMode = false; vaultMode = false; scraperMode = false;
   studioMode = false; curStudio = null;
@@ -131,19 +131,19 @@ function selCat(c) {
   cat = c;
   const catUrl = c ? '/cat/' + encodeURIComponent(c) : '/';
   if (location.pathname !== catUrl) history.pushState(null, '', catUrl);
-  document.getElementById('sT').textContent = c ? cats.find(x => x.path === c)?.name || c : 'All Videos';
-  document.getElementById('bv').classList.remove('off');
+  $('sT').text(c ? cats.find(x => x.path === c)?.name || c : 'All Videos');
+  $('bv').remove('off');
   q = '';
-  document.getElementById('sI').value = '';
-  document.getElementById('sGhost').innerHTML = '';
+  $('sI').val('');
+  $('sGhost').html('');
   refresh();
 }
 
 // ─── Favourites Toggle ───
 function toggleFav() {
   favM = !favM;
-  document.getElementById('fBtn').classList.toggle('on', favM);
-  document.getElementById('sT').textContent = favM ? 'Favourites' : 'All Videos';
+  $('fBtn').toggle('on', favM);
+  $('sT').text(favM ? 'Favourites' : 'All Videos');
   if (favM) { cat = ''; history.pushState(null, '', '/favourites'); }
   else history.pushState(null, '', '/');
   refresh();
@@ -174,19 +174,19 @@ async function showRecent() {
   if (location.pathname !== '/recent') history.pushState(null, '', '/recent');
   recentMode = true;
   recentVids = [];
-  document.getElementById('recentSB').classList.add('on');
-  document.getElementById('bv').classList.remove('off');
-  document.getElementById('pv').classList.remove('on');
+  $('recentSB').add('on');
+  $('bv').remove('off');
+  $('pv').remove('on');
   ['actorSB','studioSB','dupSB','vaultSB','foldersSB','collectionsSB','scraperSB','settingsSB'].forEach(id => {
-    const el = document.getElementById(id);
+    const el = $(id).el;
     if (el) el.classList.remove('on');
   });
   cat = ''; q = ''; favM = false;
-  document.getElementById('sI').value = '';
-  document.getElementById('sGhost').innerHTML = '';
+  $('sI').val('');
+  $('sGhost').html('');
   const data = await (await fetch('/api/history')).json();
   recentVids = data;
-  document.getElementById('sT').textContent = 'Recently Watched';
+  $('sT').text('Recently Watched');
   render();
 }
 
@@ -195,27 +195,27 @@ function showScraper() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/scraper') history.pushState(null, '', '/scraper');
   scraperMode = true;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
-  document.getElementById('vaultV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('tagDV').remove('on');
+  $('vaultV').remove('on');
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('scraperSB').classList.add('on');
+  $('scraperSB').add('on');
   dupMode = false; studioMode = false; actorMode = false; foldersMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('scraperV').classList.add('on');
+  $('scraperV').add('on');
   ActorScraper.load();
 }
 
 // ─── Panoramic Mode ───
 function togglePan() {
   const on = document.body.classList.toggle('pan');
-  document.getElementById('panBtn').classList.toggle('on', on);
+  $('panBtn').toggle('on', on);
   localStorage.setItem('pan', on ? '1' : '');
 }
 
@@ -245,13 +245,13 @@ function acSuggest(val) {
 }
 
 function acUpdateGhost(val) {
-  const ghost = document.getElementById('sGhost');
+  const ghost = $('sGhost').el;
   const hint = acSuggest(val);
   if (!hint || !val) { ghost.innerHTML = ''; return; }
   ghost.innerHTML = '<span class="sg-typed">' + val + '</span><span class="sg-hint">' + hint + '</span>';
 }
 
-const sIEl = document.getElementById('sI');
+const sIEl = $('sI').el;
 let sTO;
 sIEl.addEventListener('input', e => {
   acUpdateGhost(e.target.value);
@@ -261,7 +261,7 @@ sIEl.addEventListener('input', e => {
     refresh();
   }, 300);
 });
-sIEl.addEventListener('blur', () => { document.getElementById('sGhost').innerHTML = ''; });
+sIEl.addEventListener('blur', () => { $('sGhost').html(''); });
 sIEl.addEventListener('keydown', e => {
   if (e.key === 'Tab') {
     const hint = acSuggest(sIEl.value);
@@ -273,7 +273,7 @@ sIEl.addEventListener('keydown', e => {
       sTO = setTimeout(() => { q = sIEl.value.trim(); refresh(); }, 300);
     }
   } else if (e.key === 'Escape') {
-    document.getElementById('sGhost').innerHTML = '';
+    $('sGhost').html('');
   }
 });
 
@@ -295,11 +295,11 @@ function applyTheme(name) {
 // ─── Startup ───
 ['cats', 'tags'].forEach(name => {
   if (localStorage.getItem('sc_' + name)) {
-    document.getElementById(name + 'Section').classList.add('closed');
-    document.getElementById('sh3-' + name).classList.add('closed');
+    $(name + 'Section').add('closed');
+    $('sh3-' + name).add('closed');
   }
 });
-if (localStorage.getItem('pan')) { document.body.classList.add('pan'); document.getElementById('panBtn').classList.add('on'); }
+if (localStorage.getItem('pan')) { document.body.classList.add('pan'); $('panBtn').add('on'); }
 
 // ─── Router ───
 async function routeToPath(path) {

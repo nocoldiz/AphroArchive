@@ -1,6 +1,6 @@
 // ─── Skeleton ───
 function showSk() {
-  document.getElementById('vG').innerHTML = Array(8).fill('<div class="sk skc"></div>').join('');
+  $('vG').html(Array(8).fill('<div class="sk skc"></div>').join(''));
 }
 
 // ─── Sidebar Categories ───
@@ -11,7 +11,7 @@ function bmCountFor(key) {
 }
 
 function renCats() {
-  const el = document.getElementById('cList');
+  const el = $('cList').el;
   const folderCats = cats.filter(c => !c.isTag);
   const bmTotal = srcFilter !== 'local' ? _bfItems.filter(it => !bmMatchedUrls.has(it.url)).length : 0;
   const all = folderCats.reduce((s, c) => s + c.count, 0) + bmTotal;
@@ -56,15 +56,15 @@ function dragVideoStart(e, id) {
 
 // ─── Main Grid ───
 function render() {
-  const g = document.getElementById('vG'), e = document.getElementById('emp');
+  const g = $('vG').el, e = $('emp').el;
   let base = recentMode ? recentVids : favM ? V.filter(v => v.fav) : V;
   const local = srcFilter === 'remote' ? [] : base;
   const bms   = (!recentMode && !favM && srcFilter !== 'local') ? getBmList() : [];
   if (!local.length && !bms.length) {
     g.innerHTML = '';
     e.style.display = 'block';
-    document.getElementById('eT').textContent = q ? 'No results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found';
-    document.getElementById('eD').textContent = q ? 'Nothing matched "' + q + '"' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder';
+    $('eT').text(q ? 'No results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found');
+    $('eD').text(q ? 'Nothing matched "' + q + '"' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder');
     return;
   }
   e.style.display = 'none';

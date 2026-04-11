@@ -28,17 +28,17 @@ const ActorScraper = (() => {
   }
 
   function render() {
-    const grid = document.getElementById('scraperGrid');
+    const grid = $('scraperGrid').el;
     if (!actors.length) {
       grid.innerHTML = '<div class="es" style="padding:40px 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><h3>No actors found</h3><p>Add actor names to actors.txt — one per line</p></div>';
-      document.getElementById('scraperScrapeAll').style.display = 'none';
+      $('scraperScrapeAll').show(false);
       return;
     }
     const missing = actors.filter(a => !a.hasPhoto).length;
-    document.getElementById('scraperInfo').textContent =
+    $('scraperInfo').el.textContent =
       actors.length + ' actor' + (actors.length !== 1 ? 's' : '') +
       (missing ? ' · ' + missing + ' missing photo' + (missing !== 1 ? 's' : '') : ' · all photos cached');
-    const btn = document.getElementById('scraperScrapeAll');
+    const btn = $('scraperScrapeAll').el;
     btn.style.display = '';
     btn.textContent = missing ? 'Scrape All Missing (' + missing + ')' : 'Refresh All';
     grid.innerHTML = actors.map(renderRow).join('');
@@ -47,13 +47,13 @@ const ActorScraper = (() => {
   function refreshRow(name) {
     const a = actors.find(a => a.name === name);
     if (!a) return;
-    const el = document.getElementById(rowId(name));
+    const el = $(rowId(name).el);
     if (el) el.outerHTML = renderRow(a);
   }
 
   // ── API ──────────────────────────────────────────────────────────
   async function load() {
-    document.getElementById('scraperGrid').innerHTML = '<div class="dup-scan">Loading actors…</div>';
+    $('scraperGrid').html('<div class="dup-scan">Loading actors…</div>');
     const res = await fetch('/api/actor-photos');
     actors = await res.json();
     render();
@@ -80,11 +80,11 @@ const ActorScraper = (() => {
     refreshRow(name);
     // Update header info
     const missing = actors.filter(a => !a.hasPhoto).length;
-    const info = document.getElementById('scraperInfo');
+    const info = $('scraperInfo').el;
     if (info) info.textContent =
       actors.length + ' actor' + (actors.length !== 1 ? 's' : '') +
       (missing ? ' · ' + missing + ' missing photo' + (missing !== 1 ? 's' : '') : ' · all photos cached');
-    const btn = document.getElementById('scraperScrapeAll');
+    const btn = $('scraperScrapeAll').el;
     if (btn) btn.textContent = missing ? 'Scrape All Missing (' + missing + ')' : 'Refresh All';
   }
 

@@ -2,31 +2,31 @@
 function showDups() {
   if (location.pathname !== '/duplicates') history.pushState(null, '', '/duplicates');
   dupMode = true;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.add('on');
-  document.getElementById('dupSB').classList.add('on');
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('vaultSB').classList.remove('on');
-  document.getElementById('scraperV').classList.remove('on');
-  document.getElementById('scraperSB').classList.remove('on');
-  document.getElementById('settingsV').classList.remove('on');
-  document.getElementById('settingsSB').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').add('on');
+  $('dupSB').add('on');
+  $('vaultV').remove('on');
+  $('vaultSB').remove('on');
+  $('scraperV').remove('on');
+  $('scraperSB').remove('on');
+  $('settingsV').remove('on');
+  $('settingsSB').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
   vaultMode = false; scraperMode = false; importFavsMode = false; settingsMode = false; dbMode = false;
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.remove('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('actorSB').remove('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   curTag = null;
   if (curV) {
-    const vp = document.getElementById('vP');
+    const vp = $('vP').el;
     vp.pause(); vp.src = '';
     curV = null;
   }
@@ -34,14 +34,14 @@ function showDups() {
 }
 
 async function loadDups() {
-  document.getElementById('dupContent').innerHTML = '<div class="dup-scan">Scanning for duplicates\u2026</div>';
+  $('dupContent').html('<div class="dup-scan">Scanning for duplicates\u2026</div>');
   const groups = await (await fetch('/api/duplicates')).json();
   renderDups(groups);
 }
 
 function renderDups(groups) {
-  const el = document.getElementById('dupContent');
-  const nBtn = document.getElementById('dupN');
+  const el = $('dupContent').el;
+  const nBtn = $('dupN').el;
   if (!groups.length) {
     nBtn.style.display = 'none';
     el.innerHTML = '<div class="es" style="padding:40px 20px"><h3>No duplicates found</h3><p>All videos appear to be unique</p></div>';

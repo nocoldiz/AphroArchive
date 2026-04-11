@@ -3,21 +3,21 @@ function showDatabase() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/database') history.pushState(null, '', '/database');
   dbMode = true;
-  document.getElementById('bv').classList.add('off');
-  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','importFavsV'].forEach(id => document.getElementById(id).classList.remove('on'));
+  $('bv').add('off');
+  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','importFavsV'].forEach(id => $(id).remove('on'));
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('databaseSB').classList.add('on');
+  $('databaseSB').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false;
   collectionsMode = false; settingsMode = false; studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null;
-  document.getElementById('dbV').classList.add('on');
+  $('dbV').add('on');
   loadDbTab(dbTab);
 }
 
 async function loadDbTab(tab) {
   dbTab = tab;
   document.querySelectorAll('.db-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  document.getElementById('dbGrid').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('dbGrid').html('<div class="dup-scan">Loading\u2026</div>');
   const r = await fetch('/api/db/' + tab);
   _dbData = await r.json();
   renderDbCards(_dbData, tab);
@@ -28,10 +28,10 @@ function dbSwitchTab(tab) { loadDbTab(tab); }
 function renderDbCards(data, tab) {
   const entries = Object.entries(data);
   if (!entries.length) {
-    document.getElementById('dbGrid').innerHTML = '<div class="es" style="padding:40px 20px;text-align:center"><h3 style="color:var(--tx2)">No entries yet</h3><p style="color:var(--tx3)">Click + Add to create one</p></div>';
+    $('dbGrid').html('<div class="es" style="padding:40px 20px);text-align:center"><h3 style="color:var(--tx2)">No entries yet</h3><p style="color:var(--tx3)">Click + Add to create one</p></div>';
     return;
   }
-  document.getElementById('dbGrid').innerHTML = entries.map(([name, info]) => dbCard(name, info, tab)).join('');
+  $('dbGrid').html(entries.map(([name, info]) => dbCard(name, info, tab)).join(''));
 }
 
 function dbCard(name, info, tab) {
@@ -65,8 +65,8 @@ function dbShowEdit(name) { openDbModal(name, _dbData[name]); }
 
 function openDbModal(name, data) {
   const isEdit = !!name;
-  document.getElementById('dbMoTitle').textContent = isEdit ? 'Edit \u2014 ' + name : 'Add Entry';
-  const body = document.getElementById('dbMoBody');
+  $('dbMoTitle').text(isEdit ? 'Edit \u2014 ' + name : 'Add Entry');
+  const body = $('dbMoBody').el;
   let fields = '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Name</label><input class="stg-ta" id="dbMoName" style="padding:8px;min-height:0" value="' + (isEdit ? escA(name) : '') + '" ' + (isEdit ? 'readonly' : '') + ' placeholder="Entry name"></div>';
   if (dbTab === 'actors') {
     fields += dbFieldInput('IMDb URL', 'dbMoImdb', data?.imdb_page || '');
@@ -80,33 +80,33 @@ function openDbModal(name, data) {
     fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Description</label><textarea class="stg-ta" id="dbMoDesc" style="min-height:70px">' + esc(data?.short_description || '') + '</textarea></div>';
   }
   body.innerHTML = fields;
-  document.getElementById('dbMo').style.display = 'flex';
+  $('dbMo').el.style.display = 'flex';
 }
 
 function dbFieldInput(label, id, value) {
   return '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">' + label + '</label><input class="stg-ta" id="' + id + '" style="padding:8px;min-height:0" value="' + escA(value) + '"></div>';
 }
 
-function closeDbModal() { document.getElementById('dbMo').style.display = 'none'; }
+function closeDbModal() { $('dbMo').show(false); }
 
 async function dbSaveModal() {
-  const name = document.getElementById('dbMoName').value.trim();
+  const name = $('dbMoName').el.value.trim();
   if (!name) { toast('Name is required'); return; }
   let data = {};
   if (dbTab === 'actors') {
     data = {
-      imdb_page:     document.getElementById('dbMoImdb')?.value.trim() || '',
-      date_of_birth: document.getElementById('dbMoDob')?.value.trim() || '',
-      nationality:   document.getElementById('dbMoNat')?.value.trim() || '',
-      movies:        document.getElementById('dbMoMovies')?.value.trim() || '',
+      imdb_page:     $('dbMoImdb').el?.value.trim() || '',
+      date_of_birth: $('dbMoDob').el?.value.trim() || '',
+      nationality:   $('dbMoNat').el?.value.trim() || '',
+      movies:        $('dbMoMovies').el?.value.trim() || '',
     };
   } else if (dbTab === 'categories') {
-    const tagsRaw = document.getElementById('dbMoTags')?.value || '';
+    const tagsRaw = $('dbMoTags').el?.value || '';
     data = { displayName: name, tags: tagsRaw.split(',').map(t => t.trim()).filter(Boolean) };
   } else if (dbTab === 'studios') {
     data = {
-      website:           document.getElementById('dbMoWebsite')?.value.trim() || '',
-      short_description: document.getElementById('dbMoDesc')?.value.trim() || '',
+      website:           $('dbMoWebsite').el?.value.trim() || '',
+      short_description: $('dbMoDesc').el?.value.trim() || '',
     };
   }
   const r = await fetch('/api/db/' + dbTab, {
@@ -128,10 +128,10 @@ async function dbDeleteEntry(name) {
 }
 
 async function dbImportVideos() {
-  const ta = document.getElementById('dbImportPaths');
+  const ta = $('dbImportPaths').el;
   const paths = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
   if (!paths.length) { toast('Enter at least one file path'); return; }
-  const status = document.getElementById('dbImportStatus');
+  const status = $('dbImportStatus').el;
   status.textContent = 'Copying\u2026';
   const r = await fetch('/api/db/import', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },

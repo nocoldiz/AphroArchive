@@ -4,44 +4,44 @@ async function showStudios() {
   if (location.pathname !== '/studios') history.pushState(null, '', '/studios');
   studioMode = true;
   curStudio = null;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.add('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').add('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('actorSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('vaultSB').classList.remove('on');
-  document.getElementById('scraperV').classList.remove('on');
-  document.getElementById('scraperSB').classList.remove('on');
-  document.getElementById('collectionsV').classList.remove('on');
-  document.getElementById('collectionsSB').classList.remove('on');
-  document.getElementById('foldersV').classList.remove('on');
-  document.getElementById('foldersSB').classList.remove('on');
-  document.getElementById('settingsV').classList.remove('on');
-  document.getElementById('settingsSB').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
+  $('vaultV').remove('on');
+  $('vaultSB').remove('on');
+  $('scraperV').remove('on');
+  $('scraperSB').remove('on');
+  $('collectionsV').remove('on');
+  $('collectionsSB').remove('on');
+  $('foldersV').remove('on');
+  $('foldersSB').remove('on');
+  $('settingsV').remove('on');
+  $('settingsSB').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   actorMode = false; curActor = null;
   curTag = null; curCollection = null;
-  if (curV) { const vp = document.getElementById('vP'); vp.pause(); vp.src = ''; curV = null; }
-  document.getElementById('sv').classList.add('on');
+  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
+  $('sv').add('on');
   loadStudioList();
 }
 
 async function loadStudioList() {
-  document.getElementById('studioGrid').innerHTML = '<div class="dup-scan">Loading studios\u2026</div>';
+  $('studioGrid').html('<div class="dup-scan">Loading studios\u2026</div>');
   const studios = await (await fetch('/api/studios')).json();
   renderStudios(studios);
 }
 
 function renderStudios(studios) {
-  const el = document.getElementById('studioGrid');
+  const el = $('studioGrid').el;
   if (!studios.length) {
     el.innerHTML = '<div class="es" style="padding:40px 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><h3>No studios found</h3><p>Add studios in the Database section</p></div>';
     return;
@@ -64,18 +64,18 @@ function renderStudios(studios) {
 async function openStudio(name) {
   if (location.pathname !== '/studio/' + encodeURIComponent(name)) history.pushState(null, '', '/studio/' + encodeURIComponent(name));
   curStudio = name;
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.add('on');
-  document.getElementById('sdName').textContent = name;
-  document.getElementById('sdG').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('sv').remove('on');
+  $('sdv').add('on');
+  $('sdName').text(name);
+  $('sdG').html('<div class="dup-scan">Loading\u2026</div>');
   const d = await (await fetch('/api/studios/' + encodeURIComponent(name))).json();
-  if (d.error) { document.getElementById('sdG').innerHTML = '<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'; return; }
-  document.getElementById('sdG').innerHTML = d.videos.map(card).join('');
+  if (d.error) { $('sdG').html('<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'); return; }
+  $('sdG').html(d.videos.map(card).join(''));
   attachThumbs();
 }
 
 function backStudios() {
   curStudio = null;
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('sv').classList.add('on');
+  $('sdv').remove('on');
+  $('sv').add('on');
 }

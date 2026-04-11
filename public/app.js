@@ -24,7 +24,7 @@ async function init() {
   showSk();
   await fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
   const [,, , vs] = await Promise.all([load(), loadC(), loadTagSidebar(), fetch('/api/vault/status').then(r => r.json())]);
-  if (vs.hidden) document.getElementById('vaultSB').style.display = 'none';
+  if (vs.hidden) $('vaultSB').show(false);
   V.sort(() => Math.random() - 0.5);
   render();
   loadBookmarkVidsOnInit();
@@ -65,7 +65,7 @@ function rebuildBookmarkVidIds(items) {
 }
 
 function showSk() {
-  document.getElementById('vG').innerHTML = Array(8).fill('<div class="sk skc"></div>').join('');
+  $('vG').html(Array(8).fill('<div class="sk skc"></div>').join(''));
 }
 
 // ─── Data Fetching ───
@@ -115,7 +115,7 @@ function bmCountFor(key, isTag) {
 }
 
 function renCats() {
-  const el = document.getElementById('cList');
+  const el = $('cList').el;
   const folderCats = cats.filter(c => !c.isTag);
   const bmTotal = srcFilter !== 'local' ? _bfItems.filter(it => !bmMatchedUrls.has(it.url)).length : 0;
   const all = folderCats.reduce((s, c) => s + c.count, 0) + bmTotal;
@@ -124,7 +124,7 @@ function renCats() {
     const bmC = bmCountFor(c.isTag ? c.name : c.path, c.isTag);
     const displayCount = c.count + bmC;
     if (c.isTag) {
-      const on = curTag === c.name && !document.getElementById('bv').classList.contains('off') === false;
+      const on = curTag === c.name && !$('bv').el.classList.contains('off') === false;
       h += '<div class="ci' + (curTag === c.name ? ' on' : '') + '" onclick="openTag(\'' + escA(c.name) + '\')">' +
         '<span>' + esc(c.name) + '</span>' +
         '<span class="n">' + displayCount + '</span></div>';
@@ -137,15 +137,15 @@ function renCats() {
 
 // ─── Rendering ───
 function render() {
-  const g = document.getElementById('vG'), e = document.getElementById('emp');
+  const g = $('vG').el, e = $('emp').el;
   let base = recentMode ? recentVids : favM ? V.filter(v => v.fav) : V;
   const local = srcFilter === 'remote' ? [] : base;
   const bms   = (!recentMode && !favM && srcFilter !== 'local') ? getBmList() : [];
   if (!local.length && !bms.length) {
     g.innerHTML = '';
     e.style.display = 'block';
-    document.getElementById('eT').textContent = q ? 'No results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found';
-    document.getElementById('eD').textContent = q ? 'Nothing matched "' + q + '"' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder';
+    $('eT').text(q ? 'No results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found');
+    $('eD').text(q ? 'Nothing matched "' + q + '"' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder');
     return;
   }
   e.style.display = 'none';
@@ -260,15 +260,15 @@ async function openVid(id) {
   fetch('/api/history/' + id, { method: 'POST' });
   const d = await (await fetch('/api/videos/' + id)).json();
   curV = d.video;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.add('on');
-  document.getElementById('vP').src = '/api/stream/' + id;
-  document.getElementById('pT').textContent = curV.name;
-  document.getElementById('pC').textContent = curV.category;
-  document.getElementById('pS').textContent = curV.sizeF;
-  document.getElementById('pD').textContent = curV.durationF || '';
+  $('bv').add('off');
+  $('pv').add('on');
+  $('vP').el.src = '/api/stream/' + id;
+  $('pT').text(curV.name);
+  $('pC').text(curV.category);
+  $('pS').text(curV.sizeF);
+  $('pD').text(curV.durationF || '');
   updPStar();
-  const actorsEl = document.getElementById('pActors');
+  const actorsEl = $('pActors').el;
   if (d.actors && d.actors.length) {
     actorsEl.innerHTML = d.actors.map(a =>
       '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +
@@ -284,7 +284,7 @@ async function openVid(id) {
   renderVideoTags();
   renderRating(d.video.rating || null);
   renderPlaylist();
-  document.getElementById('sG').innerHTML = d.suggested.map(card).join('');
+  $('sG').html(d.suggested.map(card).join(''));
   attachThumbs();
   requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
 }
@@ -292,7 +292,7 @@ async function openVid(id) {
 async function openVidTag(id) {
   await openVid(id);
   requestAnimationFrame(() => {
-    const row = document.getElementById('pTagsRow');
+    const row = $('pTagsRow').el;
     if (row && row.style.display !== 'none') toggleTagPicker();
   });
 }
@@ -302,7 +302,7 @@ let curVRating = null;
 
 function renderRating(rating) {
   curVRating = rating;
-  const el = document.getElementById('pRating');
+  const el = $('pRating').el;
   if (!el) return;
   if (curV && curV.isVault) { el.innerHTML = ''; return; }
   let html = '';
@@ -346,11 +346,11 @@ async function clearRating() {
 function goBack() {
   playlistSkipped.clear();
   if (vaultMode) {
-    const p = document.getElementById('vP');
+    const p = $('vP').el;
     p.pause(); p.src = '';
     curV = null;
-    document.getElementById('pv').classList.remove('on');
-    document.getElementById('vaultV').classList.add('on');
+    $('pv').remove('on');
+    $('vaultV').add('on');
     if (location.pathname !== '/') history.pushState(null, '', '/');
     loadVaultFiles();
   } else {
@@ -364,37 +364,37 @@ function goHome() {
   if (zapOn) {
     zapOn = false;
     clearTimeout(zapTimer);
-    document.getElementById('zapUI').style.display = 'none';
-    document.getElementById('vP').style.display = '';
-    document.getElementById('vP_zap').style.display = 'none';
+    $('zapUI').show(false);
+    $('vP').show();
+    $('vP_zap').show(false);
     activePlayer = 'vP';
   }
   if (location.pathname !== '/') history.pushState(null, '', '/');
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('vaultSB').classList.remove('on');
-  document.getElementById('scraperV').classList.remove('on');
-  document.getElementById('scraperSB').classList.remove('on');
-  document.getElementById('collectionsV').classList.remove('on');
-  document.getElementById('collectionsSB').classList.remove('on');
-  if (document.getElementById('foldersV')) document.getElementById('foldersV').classList.remove('on');
-  if (document.getElementById('foldersSB')) document.getElementById('foldersSB').classList.remove('on');
-  document.getElementById('settingsV').classList.remove('on');
-  document.getElementById('settingsSB').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
-  if (document.getElementById('databaseSB')) document.getElementById('databaseSB').classList.remove('on');
+  $('vaultV').remove('on');
+  $('vaultSB').remove('on');
+  $('scraperV').remove('on');
+  $('scraperSB').remove('on');
+  $('collectionsV').remove('on');
+  $('collectionsSB').remove('on');
+  if ($('foldersV').el) $('foldersV').remove('on');
+  if ($('foldersSB').el) $('foldersSB').remove('on');
+  $('settingsV').remove('on');
+  $('settingsSB').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
+  if ($('databaseSB').el) $('databaseSB').remove('on');
   vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   curCollection = null;
-  document.getElementById('bv').classList.remove('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.remove('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('bv').remove('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').remove('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('actorSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
   dupMode = false;
   studioMode = false;
@@ -404,8 +404,8 @@ function goHome() {
   curTag = null;
   recentMode = false;
   recentVids = [];
-  document.getElementById('recentSB').classList.remove('on');
-  const p = document.getElementById('vP');
+  $('recentSB').remove('on');
+  const p = $('vP').el;
   p.pause();
   p.src = '';
   curV = null;
@@ -426,8 +426,8 @@ async function setSort(s, el) {
 function closeAllViews() {
   if (mosaicOn) stopMosaic();
   if (curV) {
-    document.getElementById('pv').classList.remove('on');
-    const vp = document.getElementById('vP'); vp.pause(); vp.src = '';
+    $('pv').remove('on');
+    const vp = $('vP').el; vp.pause(); vp.src = '';
     curV = null;
   }
   [
@@ -435,7 +435,7 @@ function closeAllViews() {
     'vaultV','vaultSB','scraperV','scraperSB',
     'collectionsV','collectionsSB','foldersV','foldersSB',
     'importFavsV','importFavsSB','settingsV','settingsSB','recentSB'
-  ].forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('on'); });
+  ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
   dupMode = false; vaultMode = false; scraperMode = false;
   studioMode = false; curStudio = null;
@@ -451,18 +451,18 @@ function selCat(c) {
   cat = c;
   const catUrl = c ? '/cat/' + encodeURIComponent(c) : '/';
   if (location.pathname !== catUrl) history.pushState(null, '', catUrl);
-  document.getElementById('sT').textContent = c ? cats.find(x => x.path === c)?.name || c : 'All Videos';
-  document.getElementById('bv').classList.remove('off');
+  $('sT').text(c ? cats.find(x => x.path === c)?.name || c : 'All Videos');
+  $('bv').remove('off');
   q = '';
-  document.getElementById('sI').value = '';
-  document.getElementById('sGhost').innerHTML = '';
+  $('sI').val('');
+  $('sGhost').html('');
   refresh();
 }
 
 function toggleFav() {
   favM = !favM;
-  document.getElementById('fBtn').classList.toggle('on', favM);
-  document.getElementById('sT').textContent = favM ? 'Favourites' : 'All Videos';
+  $('fBtn').toggle('on', favM);
+  $('sT').text(favM ? 'Favourites' : 'All Videos');
   if (favM) { cat = ''; history.pushState(null, '', '/favourites'); }
   else history.pushState(null, '', '/');
   refresh();
@@ -495,13 +495,13 @@ function acSuggest(val) {
 }
 
 function acUpdateGhost(val) {
-  const ghost = document.getElementById('sGhost');
+  const ghost = $('sGhost').el;
   const hint = acSuggest(val);
   if (!hint || !val) { ghost.innerHTML = ''; return; }
   ghost.innerHTML = '<span class="sg-typed">' + val + '</span><span class="sg-hint">' + hint + '</span>';
 }
 
-const sIEl = document.getElementById('sI');
+const sIEl = $('sI').el;
 let sTO;
 sIEl.addEventListener('input', e => {
   acUpdateGhost(e.target.value);
@@ -511,7 +511,7 @@ sIEl.addEventListener('input', e => {
     refresh();
   }, 300);
 });
-sIEl.addEventListener('blur', () => { document.getElementById('sGhost').innerHTML = ''; });
+sIEl.addEventListener('blur', () => { $('sGhost').html(''); });
 sIEl.addEventListener('keydown', e => {
   if (e.key === 'Tab') {
     const hint = acSuggest(sIEl.value);
@@ -523,7 +523,7 @@ sIEl.addEventListener('keydown', e => {
       sTO = setTimeout(() => { q = sIEl.value.trim(); refresh(); }, 300);
     }
   } else if (e.key === 'Escape') {
-    document.getElementById('sGhost').innerHTML = '';
+    $('sGhost').html('');
   }
 });
 
@@ -531,35 +531,35 @@ async function refresh() {
   if (recentMode) {
     recentMode = false;
     recentVids = [];
-    document.getElementById('recentSB').classList.remove('on');
-    document.getElementById('bv').classList.remove('off');
+    $('recentSB').remove('on');
+    $('bv').remove('off');
   }
   if (vaultMode) {
-    document.getElementById('vaultV').classList.remove('on');
-    document.getElementById('vaultSB').classList.remove('on');
-    document.getElementById('bv').classList.remove('off');
+    $('vaultV').remove('on');
+    $('vaultSB').remove('on');
+    $('bv').remove('off');
     vaultMode = false;
   }
   if (studioMode) {
-    document.getElementById('sv').classList.remove('on');
-    document.getElementById('sdv').classList.remove('on');
-    document.getElementById('studioSB').classList.remove('on');
-    document.getElementById('bv').classList.remove('off');
+    $('sv').remove('on');
+    $('sdv').remove('on');
+    $('studioSB').remove('on');
+    $('bv').remove('off');
     studioMode = false;
     curStudio = null;
   }
   if (actorMode) {
-    document.getElementById('av').classList.remove('on');
-    document.getElementById('adv').classList.remove('on');
-    document.getElementById('actorSB').classList.remove('on');
-    document.getElementById('bv').classList.remove('off');
+    $('av').remove('on');
+    $('adv').remove('on');
+    $('actorSB').remove('on');
+    $('bv').remove('off');
     actorMode = false;
     curActor = null;
   }
   if (curTag) {
-    document.getElementById('tagDV').classList.remove('on');
+    $('tagDV').remove('on');
     document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
-    document.getElementById('bv').classList.remove('off');
+    $('bv').remove('off');
     curTag = null;
   }
   await load();
@@ -586,7 +586,7 @@ async function togglePStar() {
 }
 
 function updPStar() {
-  const b = document.getElementById('pSB');
+  const b = $('pSB').el;
   b.classList.toggle('st', curV?.fav);
   b.querySelector('svg').setAttribute('fill', curV?.fav ? 'currentColor' : 'none');
 }
@@ -594,10 +594,10 @@ function updPStar() {
 // ─── Rename ───
 function openRen(id, name) {
   renId = id;
-  document.getElementById('rI').value = name;
-  document.getElementById('rE').style.display = 'none';
-  document.getElementById('rM').classList.add('on');
-  setTimeout(() => document.getElementById('rI').focus(), 50);
+  $('rI').val(name);
+  $('rE').show(false);
+  $('rM').add('on');
+  setTimeout(() => $('rI').el.focus(), 50);
 }
 
 function openRenP() { if (curV) openRen(curV.id, curV.name); }
@@ -701,10 +701,10 @@ function extractAndRenameActors() {
   const newName = actors.join(', ') + ' - ' + curV.name;
   openRen(curV.id, newName);
 }
-function closeRen() { document.getElementById('rM').classList.remove('on'); renId = null; }
+function closeRen() { $('rM').remove('on'); renId = null; }
 
 async function doRen() {
-  const n = document.getElementById('rI').value.trim();
+  const n = $('rI').el.value.trim();
   if (!n) return;
   const r = await fetch('/api/videos/' + renId + '/rename', {
     method: 'PATCH',
@@ -713,7 +713,7 @@ async function doRen() {
   });
   const d = await r.json();
   if (!r.ok) {
-    const e = document.getElementById('rE');
+    const e = $('rE').el;
     e.textContent = d.error || 'Failed';
     e.style.display = 'block';
     return;
@@ -723,8 +723,8 @@ async function doRen() {
   if (curV && curV.id === renId) {
     curV.id = d.newId;
     curV.name = n;
-    document.getElementById('pT').textContent = n;
-    const p = document.getElementById('vP'), t = p.currentTime;
+    $('pT').text(n);
+    const p = $('vP').el, t = p.currentTime;
     p.src = '/api/stream/' + d.newId;
     p.currentTime = t;
   }
@@ -735,12 +735,12 @@ async function doRen() {
 async function openMov(id, name, curCatPath) {
   movId = id;
   movCurCat = curCatPath;
-  document.getElementById('mvInfo').textContent = 'Moving: ' + name;
-  document.getElementById('mvE').style.display = 'none';
-  document.getElementById('mvNew').value = '';
+  $('mvInfo').text('Moving: ' + name);
+  $('mvE').show(false);
+  $('mvNew').val('');
   const norm = p => p.replace(/\\/g, '/');
   const mainCats = await (await fetch('/api/main-categories')).json();
-  const list = document.getElementById('mvList');
+  const list = $('mvList').el;
   list.innerHTML = mainCats.map(c => {
     const isCur = norm(c.path) === norm(curCatPath);
     return '<div class="mv-item' + (isCur ? ' cur' : '') + '" data-cat="' + esc(c.path) + '">' +
@@ -750,11 +750,11 @@ async function openMov(id, name, curCatPath) {
   list.querySelectorAll('.mv-item:not(.cur)').forEach(el => {
     el.addEventListener('click', () => doMove(el.dataset.cat));
   });
-  document.getElementById('mvM').classList.add('on');
+  $('mvM').add('on');
 }
 
 function openMovP() { if (curV) openMov(curV.id, curV.name, curV.catPath || ''); }
-function closeMov() { document.getElementById('mvM').classList.remove('on'); movId = null; }
+function closeMov() { $('mvM').remove('on'); movId = null; }
 
 async function doMove(targetCat) {
   if (!movId) return;
@@ -765,7 +765,7 @@ async function doMove(targetCat) {
   });
   const d = await r.json();
   if (!r.ok) {
-    const e = document.getElementById('mvE');
+    const e = $('mvE').el;
     e.textContent = d.error || 'Move failed';
     e.style.display = 'block';
     return;
@@ -776,8 +776,8 @@ async function doMove(targetCat) {
     curV.id = d.newId;
     curV.catPath = targetCat;
     curV.category = targetCat || 'Uncategorized';
-    document.getElementById('pC').textContent = curV.category;
-    const p = document.getElementById('vP'), t = p.currentTime;
+    $('pC').text(curV.category);
+    const p = $('vP').el, t = p.currentTime;
     p.src = '/api/stream/' + d.newId;
     p.currentTime = t;
   }
@@ -785,15 +785,15 @@ async function doMove(targetCat) {
 }
 
 async function doMoveNew() {
-  const name = document.getElementById('mvNew').value.trim();
+  const name = $('mvNew').el.value.trim();
   if (!name) return;
   const safe = name.replace(/[<>:"/\\|?*]/g, '_');
   await doMove(safe);
 }
 
 // ─── Modal close handlers ───
-document.getElementById('rM').addEventListener('click', e => { if (e.target === document.getElementById('rM')) closeRen(); });
-document.getElementById('mvM').addEventListener('click', e => { if (e.target === document.getElementById('mvM')) closeMov(); });
+$('rM').el.addEventListener('click', e => { if (e.target === $('rM').el) closeRen(); });
+$('mvM').el.addEventListener('click', e => { if (e.target === $('mvM').el) closeMov(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeRen(); closeMov(); if (mosaicOn) stopMosaic(); closeBfIframe(); }
   if (e.key === 'Enter' && renId) doRen();
@@ -810,31 +810,31 @@ function fmtBytes(b) {
 function showDups() {
   if (location.pathname !== '/duplicates') history.pushState(null, '', '/duplicates');
   dupMode = true;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.add('on');
-  document.getElementById('dupSB').classList.add('on');
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('vaultSB').classList.remove('on');
-  document.getElementById('scraperV').classList.remove('on');
-  document.getElementById('scraperSB').classList.remove('on');
-  document.getElementById('settingsV').classList.remove('on');
-  document.getElementById('settingsSB').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').add('on');
+  $('dupSB').add('on');
+  $('vaultV').remove('on');
+  $('vaultSB').remove('on');
+  $('scraperV').remove('on');
+  $('scraperSB').remove('on');
+  $('settingsV').remove('on');
+  $('settingsSB').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
   vaultMode = false; scraperMode = false; importFavsMode = false; settingsMode = false; dbMode = false;
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.remove('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('actorSB').remove('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   curTag = null;
   if (curV) {
-    const vp = document.getElementById('vP');
+    const vp = $('vP').el;
     vp.pause(); vp.src = '';
     curV = null;
   }
@@ -842,14 +842,14 @@ function showDups() {
 }
 
 async function loadDups() {
-  document.getElementById('dupContent').innerHTML = '<div class="dup-scan">Scanning for duplicates\u2026</div>';
+  $('dupContent').html('<div class="dup-scan">Scanning for duplicates\u2026</div>');
   const groups = await (await fetch('/api/duplicates')).json();
   renderDups(groups);
 }
 
 function renderDups(groups) {
-  const el = document.getElementById('dupContent');
-  const nBtn = document.getElementById('dupN');
+  const el = $('dupContent').el;
+  const nBtn = $('dupN').el;
   if (!groups.length) {
     nBtn.style.display = 'none';
     el.innerHTML = '<div class="es" style="padding:40px 20px"><h3>No duplicates found</h3><p>All videos appear to be unique</p></div>';
@@ -899,20 +899,20 @@ async function showRecent() {
   if (location.pathname !== '/recent') history.pushState(null, '', '/recent');
   recentMode = true;
   recentVids = [];
-  document.getElementById('recentSB').classList.add('on');
-  document.getElementById('bv').classList.remove('off');
-  document.getElementById('pv').classList.remove('on');
+  $('recentSB').add('on');
+  $('bv').remove('off');
+  $('pv').remove('on');
   // deselect other sidebar items
   ['actorSB','studioSB','dupSB','vaultSB','foldersSB','collectionsSB','scraperSB','settingsSB'].forEach(id => {
-    const el = document.getElementById(id);
+    const el = $(id).el;
     if (el) el.classList.remove('on');
   });
   cat = ''; q = ''; favM = false;
-  document.getElementById('sI').value = '';
-  document.getElementById('sGhost').innerHTML = '';
+  $('sI').val('');
+  $('sGhost').html('');
   const data = await (await fetch('/api/history')).json();
   recentVids = data;
-  document.getElementById('sT').textContent = 'Recently Watched';
+  $('sT').text('Recently Watched');
   render();
 }
 
@@ -922,31 +922,31 @@ async function showVault() {
   if (location.pathname !== '/vault') history.pushState(null, '', '/vault');
   vaultMode = true;
   // hide everything else
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.remove('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').remove('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('actorSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
   dupMode = false; studioMode = false; curStudio = null; actorMode = false; curActor = null; curTag = null;
-  if (curV) { const vp = document.getElementById('vP'); vp.pause(); vp.src = ''; curV = null; }
-  document.getElementById('vaultSB').classList.add('on');
-  document.getElementById('vaultV').classList.add('on');
+  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
+  $('vaultSB').add('on');
+  $('vaultV').add('on');
   loadVaultView();
 }
 
 async function loadVaultView() {
   const s = await (await fetch('/api/vault/status')).json();
-  const auth = document.getElementById('vaultAuth');
-  const files = document.getElementById('vaultFiles');
-  const btn = document.getElementById('vaultAuthBtn');
-  const err = document.getElementById('vaultErr');
+  const auth = $('vaultAuth').el;
+  const files = $('vaultFiles').el;
+  const btn = $('vaultAuthBtn').el;
+  const err = $('vaultErr').el;
   err.textContent = '';
   if (s.unlocked) {
     auth.style.display = 'none';
@@ -955,27 +955,27 @@ async function loadVaultView() {
   } else if (!s.configured) {
     auth.style.display = 'flex';
     files.style.display = 'none';
-    document.getElementById('vaultAuthTitle').textContent = 'Create Vault';
-    document.getElementById('vaultAuthDesc').textContent = 'Set a master password. It cannot be changed or recovered.';
-    document.getElementById('vaultPwConfirm').style.display = 'block';
+    $('vaultAuthTitle').text('Create Vault');
+    $('vaultAuthDesc').text('Set a master password. It cannot be changed or recovered.');
+    $('vaultPwConfirm').el.style.display = 'block';
     btn.textContent = 'Create Vault';
     btn.onclick = doVaultSetup;
   } else {
     auth.style.display = 'flex';
     files.style.display = 'none';
-    document.getElementById('vaultAuthTitle').textContent = 'Vault Locked';
-    document.getElementById('vaultAuthDesc').textContent = 'Enter your password to access encrypted files.';
-    document.getElementById('vaultPwConfirm').style.display = 'none';
+    $('vaultAuthTitle').text('Vault Locked');
+    $('vaultAuthDesc').text('Enter your password to access encrypted files.');
+    $('vaultPwConfirm').show(false);
     btn.textContent = 'Unlock';
     btn.onclick = doVaultUnlock;
   }
 }
 
 async function doVaultSetup() {
-  const pw = document.getElementById('vaultPw').value;
-  const pw2 = document.getElementById('vaultPwConfirm').value;
-  const err = document.getElementById('vaultErr');
-  const btn = document.getElementById('vaultAuthBtn');
+  const pw = $('vaultPw').el.value;
+  const pw2 = $('vaultPwConfirm').el.value;
+  const err = $('vaultErr').el;
+  const btn = $('vaultAuthBtn').el;
   err.textContent = '';
   if (pw.length < 6) { err.textContent = 'Password must be at least 6 characters'; return; }
   if (pw !== pw2) { err.textContent = 'Passwords do not match'; return; }
@@ -984,22 +984,22 @@ async function doVaultSetup() {
   const d = await r.json();
   btn.disabled = false;
   if (!r.ok) { err.textContent = d.error || 'Failed'; btn.textContent = 'Create Vault'; return; }
-  document.getElementById('vaultPw').value = '';
-  document.getElementById('vaultPwConfirm').value = '';
+  $('vaultPw').val('');
+  $('vaultPwConfirm').val('');
   loadVaultView();
 }
 
 async function doVaultUnlock() {
-  const pw = document.getElementById('vaultPw').value;
-  const err = document.getElementById('vaultErr');
-  const btn = document.getElementById('vaultAuthBtn');
+  const pw = $('vaultPw').el.value;
+  const err = $('vaultErr').el;
+  const btn = $('vaultAuthBtn').el;
   err.textContent = '';
   btn.disabled = true; btn.textContent = 'Verifying…';
   const r = await fetch('/api/vault/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
   const d = await r.json();
   btn.disabled = false; btn.textContent = 'Unlock';
   if (!r.ok) { err.textContent = d.error || 'Wrong password'; return; }
-  document.getElementById('vaultPw').value = '';
+  $('vaultPw').val('');
   loadVaultView();
 }
 
@@ -1010,16 +1010,16 @@ async function lockVault() {
 
 async function loadVaultFiles() {
   vaultQ = ''; vaultSort = 'date';
-  const vsi = document.getElementById('vaultSearchInput');
+  const vsi = $('vaultSearchInput').el;
   if (vsi) vsi.value = '';
   document.querySelectorAll('.vault-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.sort === 'date'));
   vaultSelMode = false;
   vaultSel.clear();
   updateVaultSelBar();
-  const selBtn = document.getElementById('vaultSelBtn');
+  const selBtn = $('vaultSelBtn').el;
   if (selBtn) selBtn.classList.remove('on');
-  const grid = document.getElementById('vaultGrid');
-  const empty = document.getElementById('vaultEmpty');
+  const grid = $('vaultGrid').el;
+  const empty = $('vaultEmpty').el;
   grid.innerHTML = '<div class="dup-scan">Loading\u2026</div>';
   empty.style.display = 'none';
   const files = await (await fetch('/api/vault/files')).json();
@@ -1029,8 +1029,8 @@ async function loadVaultFiles() {
 }
 
 function renderVaultGrid() {
-  const grid = document.getElementById('vaultGrid');
-  const empty = document.getElementById('vaultEmpty');
+  const grid = $('vaultGrid').el;
+  const empty = $('vaultEmpty').el;
   const q = vaultQ.toLowerCase();
   let files = q ? vaultFiles.filter(f => (f.name || f.originalName).toLowerCase().includes(q)) : vaultFiles.slice();
   if (vaultSort === 'size-asc') files.sort((a, b) => a.size - b.size);
@@ -1067,7 +1067,7 @@ function renderVaultGrid() {
 
 function searchVault(q) {
   vaultQ = q;
-  const clr = document.getElementById('vaultSearchClear');
+  const clr = $('vaultSearchClear').el;
   if (clr) clr.style.display = q ? '' : 'none';
   renderVaultGrid();
 }
@@ -1079,10 +1079,10 @@ function setVaultSort(s) {
 }
 
 async function addVaultFiles() {
-  const input = document.getElementById('vaultFileIn');
+  const input = $('vaultFileIn').el;
   const files = input.files;
   if (!files.length) return;
-  const prog = document.getElementById('vaultProgress');
+  const prog = $('vaultProgress').el;
   prog.style.display = 'block';
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
@@ -1101,15 +1101,15 @@ async function addVaultFiles() {
 }
 
 async function openVaultVid(id, name, ext) {
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('pv').classList.add('on');
-  document.getElementById('vP').src = '/api/vault/stream/' + id;
-  document.getElementById('pT').textContent = name;
-  document.getElementById('pC').textContent = 'Vault';
-  document.getElementById('pS').textContent = '';
-  document.getElementById('pD').textContent = '';
-  document.getElementById('sG').innerHTML = '';
+  $('bv').add('off');
+  $('vaultV').remove('on');
+  $('pv').add('on');
+  $('vP').el.src = '/api/vault/stream/' + id;
+  $('pT').text(name);
+  $('pC').text('Vault');
+  $('pS').text('');
+  $('pD').text('');
+  $('sG').html('');
   curV = { id, name, category: 'Vault', fav: false, isVault: true };
   curVTags = []; curVAllCategories = []; curVActors = [];
   renderVideoTags();
@@ -1126,8 +1126,8 @@ async function openVaultVid(id, name, ext) {
 }
 
 function renderVaultPlaylist() {
-  const listEl = document.getElementById('pplList');
-  const countEl = document.getElementById('pplCount');
+  const listEl = $('pplList').el;
+  const countEl = $('pplCount').el;
   countEl.textContent = vaultPl.length + ' video' + (vaultPl.length !== 1 ? 's' : '');
   if (!vaultPl.length) { listEl.innerHTML = '<div class="ppl-empty">No videos in vault</div>'; return; }
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
@@ -1145,7 +1145,7 @@ function renderVaultPlaylist() {
         '<span class="ppl-cat">Vault</span>' +
       '</div></div>';
   }).join('');
-  const curEl = document.getElementById('vppl-' + (curV ? curV.id : ''));
+  const curEl = $('vppl-' + (curV ? curV.id : '').el);
   if (curEl) setTimeout(() => curEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
 }
 
@@ -1165,16 +1165,16 @@ function vaultCardClick(id, name, ext) {
 }
 
 function openVaultPhoto(id, name) {
-  const overlay = document.getElementById('vaultPhotoOverlay');
-  document.getElementById('vaultPhotoImg').src = '/api/vault/stream/' + id;
-  document.getElementById('vaultPhotoName').textContent = name;
+  const overlay = $('vaultPhotoOverlay').el;
+  $('vaultPhotoImg').el.src = '/api/vault/stream/' + id;
+  $('vaultPhotoName').text(name);
   overlay.classList.add('on');
   document.addEventListener('keydown', _vaultPhotoKey);
 }
 
 function closeVaultPhoto() {
-  document.getElementById('vaultPhotoOverlay').classList.remove('on');
-  document.getElementById('vaultPhotoImg').src = '';
+  $('vaultPhotoOverlay').remove('on');
+  $('vaultPhotoImg').el.src = '';
   document.removeEventListener('keydown', _vaultPhotoKey);
 }
 
@@ -1182,16 +1182,16 @@ function _vaultPhotoKey(e) { if (e.key === 'Escape') closeVaultPhoto(); }
 
 function toggleVaultSelMode() {
   vaultSelMode = !vaultSelMode;
-  const btn = document.getElementById('vaultSelBtn');
+  const btn = $('vaultSelBtn').el;
   if (btn) btn.classList.toggle('on', vaultSelMode);
-  const grid = document.getElementById('vaultGrid');
+  const grid = $('vaultGrid').el;
   if (grid) grid.classList.toggle('vault-sel-mode', vaultSelMode);
   if (!vaultSelMode) { clearVaultSelection(); }
 }
 
 function toggleVaultSel(id) {
   if (vaultSel.has(id)) vaultSel.delete(id); else vaultSel.add(id);
-  const chk = document.getElementById('vchk-' + id);
+  const chk = $('vchk-' + id).el;
   const card = document.querySelector('[data-vault-id="' + id + '"]');
   if (chk) chk.classList.toggle('on', vaultSel.has(id));
   if (card) card.classList.toggle('vault-selected', vaultSel.has(id));
@@ -1200,7 +1200,7 @@ function toggleVaultSel(id) {
 
 function clearVaultSelection() {
   vaultSel.forEach(id => {
-    const chk = document.getElementById('vchk-' + id);
+    const chk = $('vchk-' + id).el;
     const card = document.querySelector('[data-vault-id="' + id + '"]');
     if (chk) chk.classList.remove('on');
     if (card) card.classList.remove('vault-selected');
@@ -1210,8 +1210,8 @@ function clearVaultSelection() {
 }
 
 function updateVaultSelBar() {
-  const bar = document.getElementById('vaultSelBar');
-  const count = document.getElementById('vaultSelCount');
+  const bar = $('vaultSelBar').el;
+  const count = $('vaultSelCount').el;
   if (!bar) return;
   if (vaultSel.size === 0) { bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
@@ -1239,44 +1239,44 @@ async function showStudios() {
   if (location.pathname !== '/studios') history.pushState(null, '', '/studios');
   studioMode = true;
   curStudio = null;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.add('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').add('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('actorSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('vaultSB').classList.remove('on');
-  document.getElementById('scraperV').classList.remove('on');
-  document.getElementById('scraperSB').classList.remove('on');
-  document.getElementById('collectionsV').classList.remove('on');
-  document.getElementById('collectionsSB').classList.remove('on');
-  document.getElementById('foldersV').classList.remove('on');
-  document.getElementById('foldersSB').classList.remove('on');
-  document.getElementById('settingsV').classList.remove('on');
-  document.getElementById('settingsSB').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
+  $('vaultV').remove('on');
+  $('vaultSB').remove('on');
+  $('scraperV').remove('on');
+  $('scraperSB').remove('on');
+  $('collectionsV').remove('on');
+  $('collectionsSB').remove('on');
+  $('foldersV').remove('on');
+  $('foldersSB').remove('on');
+  $('settingsV').remove('on');
+  $('settingsSB').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   actorMode = false; curActor = null;
   curTag = null; curCollection = null;
-  if (curV) { const vp = document.getElementById('vP'); vp.pause(); vp.src = ''; curV = null; }
-  document.getElementById('sv').classList.add('on');
+  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
+  $('sv').add('on');
   loadStudioList();
 }
 
 async function loadStudioList() {
-  document.getElementById('studioGrid').innerHTML = '<div class="dup-scan">Loading studios\u2026</div>';
+  $('studioGrid').html('<div class="dup-scan">Loading studios\u2026</div>');
   const studios = await (await fetch('/api/studios')).json();
   renderStudios(studios);
 }
 
 function renderStudios(studios) {
-  const el = document.getElementById('studioGrid');
+  const el = $('studioGrid').el;
   if (!studios.length) {
     el.innerHTML = '<div class="es" style="padding:40px 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><h3>No studios found</h3><p>Add studios in the Database section</p></div>';
     return;
@@ -1299,20 +1299,20 @@ function renderStudios(studios) {
 async function openStudio(name) {
   if (location.pathname !== '/studio/' + encodeURIComponent(name)) history.pushState(null, '', '/studio/' + encodeURIComponent(name));
   curStudio = name;
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.add('on');
-  document.getElementById('sdName').textContent = name;
-  document.getElementById('sdG').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('sv').remove('on');
+  $('sdv').add('on');
+  $('sdName').text(name);
+  $('sdG').html('<div class="dup-scan">Loading\u2026</div>');
   const d = await (await fetch('/api/studios/' + encodeURIComponent(name))).json();
-  if (d.error) { document.getElementById('sdG').innerHTML = '<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'; return; }
-  document.getElementById('sdG').innerHTML = d.videos.map(card).join('');
+  if (d.error) { $('sdG').html('<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'); return; }
+  $('sdG').html(d.videos.map(card).join(''));
   attachThumbs();
 }
 
 function backStudios() {
   curStudio = null;
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('sv').classList.add('on');
+  $('sdv').remove('on');
+  $('sv').add('on');
 }
 
 // ─── Actors ───
@@ -1321,44 +1321,44 @@ async function showActors() {
   if (location.pathname !== '/actors') history.pushState(null, '', '/actors');
   actorMode = true;
   curActor = null;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('actorSB').classList.add('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('studioSB').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
+  $('adv').remove('on');
+  $('actorSB').add('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('studioSB').remove('on');
+  $('tagDV').remove('on');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
-  document.getElementById('vaultV').classList.remove('on');
-  document.getElementById('vaultSB').classList.remove('on');
-  document.getElementById('scraperV').classList.remove('on');
-  document.getElementById('scraperSB').classList.remove('on');
-  document.getElementById('collectionsV').classList.remove('on');
-  document.getElementById('collectionsSB').classList.remove('on');
-  document.getElementById('foldersV').classList.remove('on');
-  document.getElementById('foldersSB').classList.remove('on');
-  document.getElementById('settingsV').classList.remove('on');
-  document.getElementById('settingsSB').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
+  $('vaultV').remove('on');
+  $('vaultSB').remove('on');
+  $('scraperV').remove('on');
+  $('scraperSB').remove('on');
+  $('collectionsV').remove('on');
+  $('collectionsSB').remove('on');
+  $('foldersV').remove('on');
+  $('foldersSB').remove('on');
+  $('settingsV').remove('on');
+  $('settingsSB').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   studioMode = false; curStudio = null;
   curTag = null; curCollection = null;
-  if (curV) { const vp = document.getElementById('vP'); vp.pause(); vp.src = ''; curV = null; }
-  document.getElementById('av').classList.add('on');
+  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
+  $('av').add('on');
   loadActorList();
 }
 
 async function loadActorList() {
-  document.getElementById('actorGrid').innerHTML = '<div class="dup-scan">Loading actors\u2026</div>';
+  $('actorGrid').html('<div class="dup-scan">Loading actors\u2026</div>');
   const actors = await (await fetch('/api/actors')).json();
   renderActors(actors);
 }
 
 function renderActors(actors) {
-  const el = document.getElementById('actorGrid');
+  const el = $('actorGrid').el;
   if (!actors.length) {
     el.innerHTML = '<div class="es" style="padding:40px 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><h3>No actors found</h3><p>Add actors in the Database section</p></div>';
     return;
@@ -1386,13 +1386,13 @@ function renderActors(actors) {
 async function openActor(name) {
   if (location.pathname !== '/actor/' + encodeURIComponent(name)) history.pushState(null, '', '/actor/' + encodeURIComponent(name));
   curActor = name;
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.add('on');
-  document.getElementById('adName').textContent = name;
-  document.getElementById('adG').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('av').remove('on');
+  $('adv').add('on');
+  $('adName').text(name);
+  $('adG').html('<div class="dup-scan">Loading\u2026</div>');
   const d = await (await fetch('/api/actors/' + encodeURIComponent(name))).json();
-  if (d.error) { document.getElementById('adG').innerHTML = '<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'; return; }
-  document.getElementById('adG').innerHTML = d.videos.map(card).join('');
+  if (d.error) { $('adG').html('<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'); return; }
+  $('adG').html(d.videos.map(card).join(''));
   attachThumbs();
 }
 
@@ -1400,12 +1400,12 @@ async function openActor(name) {
 let curVTags = [], curVAllCategories = [], curVActors = [];
 
 function renderVideoTags() {
-  const row = document.getElementById('pTagsRow');
-  const el = document.getElementById('pTags');
+  const row = $('pTagsRow').el;
+  const el = $('pTags').el;
   const canEdit = curV && !curV.isVault && !curV.external;
   // Show the row if there are tags OR the user can edit
   row.style.display = (curVTags.length || canEdit) ? '' : 'none';
-  document.getElementById('pTagAddBtn').style.display = canEdit ? '' : 'none';
+  $('pTagAddBtn').el.style.display = canEdit ? '' : 'none';
   el.innerHTML = curVTags.map(t =>
     '<span class="p-tag">' + esc(t) +
     (canEdit
@@ -1429,13 +1429,13 @@ async function removeVideoTag(tag) {
 }
 
 function toggleTagPicker() {
-  const picker = document.getElementById('pTagPicker');
-  const btn = document.getElementById('pTagAddBtn');
+  const picker = $('pTagPicker').el;
+  const btn = $('pTagAddBtn').el;
   if (picker.style.display === 'none') {
     const available = curVAllCategories.filter(c =>
       !curVTags.some(t => t.toLowerCase() === c.toLowerCase())
     );
-    const list = document.getElementById('pTagPickerList');
+    const list = $('pTagPickerList').el;
     if (!available.length) {
       list.innerHTML = '<span class="p-tag-picker-empty">All categories already present</span>';
     } else {
@@ -1445,7 +1445,7 @@ function toggleTagPicker() {
     }
     picker.style.display = '';
     btn.classList.add('on');
-    const search = document.getElementById('pTagPickerSearch');
+    const search = $('pTagPickerSearch').el;
     search.value = '';
     search.focus();
   } else {
@@ -1461,9 +1461,9 @@ function filterTagPicker(q) {
 }
 
 function closeTagPicker() {
-  document.getElementById('pTagPicker').style.display = 'none';
-  document.getElementById('pTagAddBtn').classList.remove('on');
-  document.getElementById('pTagPickerSearch').value = '';
+  $('pTagPicker').show(false);
+  $('pTagAddBtn').remove('on');
+  $('pTagPickerSearch').val('');
 }
 
 async function applyTagPicker() {
@@ -1492,8 +1492,8 @@ async function applyVideoRename(newName) {
   if (!r.ok) { toast(d.error || 'Rename failed'); return false; }
   curV.id = d.newId;
   curV.name = newName;
-  document.getElementById('pT').textContent = newName;
-  const vp = document.getElementById('vP'), t = vp.currentTime;
+  $('pT').text(newName);
+  const vp = $('vP').el, t = vp.currentTime;
   vp.src = '/api/stream/' + d.newId;
   vp.currentTime = t;
   return true;
@@ -1503,26 +1503,26 @@ async function openActorFromVideo(name) {
   if (location.pathname !== '/actor/' + encodeURIComponent(name)) history.pushState(null, '', '/actor/' + encodeURIComponent(name));
   actorMode = true;
   curActor = name;
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('bv').classList.add('off');
+  $('pv').remove('on');
+  $('bv').add('off');
   document.querySelectorAll('.ci.on').forEach(e => e.classList.remove('on'));
-  document.getElementById('actorSB').classList.add('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.add('on');
-  document.getElementById('adName').textContent = name;
-  document.getElementById('adG').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('actorSB').add('on');
+  $('av').remove('on');
+  $('adv').add('on');
+  $('adName').text(name);
+  $('adG').html('<div class="dup-scan">Loading\u2026</div>');
   const d = await (await fetch('/api/actors/' + encodeURIComponent(name))).json();
-  if (d.error) { document.getElementById('adG').innerHTML = '<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'; return; }
-  document.getElementById('adG').innerHTML = d.videos.map(card).join('');
+  if (d.error) { $('adG').html('<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'); return; }
+  $('adG').html(d.videos.map(card).join(''));
   attachThumbs();
 }
 
 function toggleActorInput() {
-  const panel = document.getElementById('pActorInput');
+  const panel = $('pActorInput').el;
   if (panel.style.display === 'none') {
     panel.style.display = '';
-    document.getElementById('pActorAddBtn').classList.add('on');
-    const inp = document.getElementById('pActorInputVal');
+    $('pActorAddBtn').add('on');
+    const inp = $('pActorInputVal').el;
     inp.value = '';
     inp.focus();
   } else {
@@ -1531,12 +1531,12 @@ function toggleActorInput() {
 }
 
 function closeActorInput() {
-  document.getElementById('pActorInput').style.display = 'none';
-  document.getElementById('pActorAddBtn').classList.remove('on');
+  $('pActorInput').show(false);
+  $('pActorAddBtn').remove('on');
 }
 
 async function submitActorInput() {
-  const name = document.getElementById('pActorInputVal').value.trim();
+  const name = $('pActorInputVal').el.value.trim();
   closeActorInput();
   if (!name || !curV || curV.isVault || curV.external) return;
   const newName = name + ' ' + curV.name;
@@ -1544,7 +1544,7 @@ async function submitActorInput() {
   if (!ok) return;
   // Refresh actor tags from updated name
   const d = await (await fetch('/api/videos/' + curV.id)).json();
-  const actorsEl = document.getElementById('pActors');
+  const actorsEl = $('pActors').el;
   if (d.actors && d.actors.length) {
     actorsEl.innerHTML = d.actors.map(a =>
       '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +
@@ -1556,8 +1556,8 @@ async function submitActorInput() {
 
 function backActors() {
   curActor = null;
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('av').classList.add('on');
+  $('adv').remove('on');
+  $('av').add('on');
 }
 
 function showScraper() {
@@ -1565,20 +1565,20 @@ function showScraper() {
   if (location.pathname !== '/scraper') history.pushState(null, '', '/scraper');
   scraperMode = true;
   // Hide all other views
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('av').classList.remove('on');
-  document.getElementById('adv').classList.remove('on');
-  document.getElementById('sv').classList.remove('on');
-  document.getElementById('sdv').classList.remove('on');
-  document.getElementById('tagDV').classList.remove('on');
-  document.getElementById('vaultV').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('av').remove('on');
+  $('adv').remove('on');
+  $('sv').remove('on');
+  $('sdv').remove('on');
+  $('tagDV').remove('on');
+  $('vaultV').remove('on');
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('scraperSB').classList.add('on');
+  $('scraperSB').add('on');
   dupMode = false; studioMode = false; actorMode = false; foldersMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('scraperV').classList.add('on');
+  $('scraperV').add('on');
   ActorScraper.load();
 }
 
@@ -1586,14 +1586,14 @@ function showFolders() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/folders') history.pushState(null, '', '/folders');
   foldersMode = true;
-  document.getElementById('bv').classList.add('off');
-  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','importFavsV','dbV'].forEach(id => document.getElementById(id).classList.remove('on'));
+  $('bv').add('off');
+  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','importFavsV','dbV'].forEach(id => $(id).remove('on'));
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('foldersSB').classList.add('on');
+  $('foldersSB').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; collectionsMode = false; settingsMode = false; importFavsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('foldersV').classList.add('on');
+  $('foldersV').add('on');
   loadFolders();
 }
 
@@ -1601,14 +1601,14 @@ function showImportFavs() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/bookmarks') history.pushState(null, '', '/bookmarks');
   importFavsMode = true;
-  document.getElementById('bv').classList.add('off');
-  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','dbV'].forEach(id => document.getElementById(id).classList.remove('on'));
+  $('bv').add('off');
+  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','dbV'].forEach(id => $(id).remove('on'));
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('importFavsSB').classList.add('on');
+  $('importFavsSB').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('importFavsV').classList.add('on');
+  $('importFavsV').add('on');
   if (!_bfItems.length) bfLoadCache();
 }
 
@@ -1618,7 +1618,7 @@ async function loadFolders() {
 }
 
 function renderFolders(folders) {
-  const el = document.getElementById('folderList');
+  const el = $('folderList').el;
   if (!folders.length) {
     el.innerHTML = '<div class="fv-empty">No external folders added yet.</div>';
     return;
@@ -1633,8 +1633,8 @@ function renderFolders(folders) {
 }
 
 async function addFolder() {
-  const input = document.getElementById('folderPathIn');
-  const err = document.getElementById('folderErr');
+  const input = $('folderPathIn').el;
+  const err = $('folderErr').el;
   const p = input.value.trim();
   err.style.display = 'none';
   if (!p) return;
@@ -1661,8 +1661,8 @@ async function removeFolder(idx) {
 // ─── Browser Favourites Import ───
 
 async function importBrowserFavs(browser) {
-  const btn = document.getElementById(browser === 'chrome' ? 'bfChrome' : 'bfFirefox');
-  const out = document.getElementById('browserFavsResult');
+  const btn = $(browser === 'chrome' ? 'bfChrome' : 'bfFirefox').el;
+  const out = $('browserFavsResult').el;
   btn.disabled = true;
   btn.textContent = 'Loading…';
   out.innerHTML = '';
@@ -1692,7 +1692,7 @@ async function importBrowserFavs(browser) {
 async function importBrowserFavsFile(browser, input) {
   const file = input.files[0];
   if (!file) return;
-  const out = document.getElementById('browserFavsResult');
+  const out = $('browserFavsResult').el;
   out.innerHTML = '<p style="font-size:0.82rem;color:var(--tx2)">Reading ' + esc(file.name) + '…</p>';
   try {
     const buf = await file.arrayBuffer();
@@ -1751,8 +1751,8 @@ function bfRemoveItem(url) {
   _bfVisible = _bfVisible.filter(it => it.url !== url);
   bfSaveCache();
   if (!_bfItems.length) {
-    document.getElementById('bfSearchWrap').style.display = 'none';
-    document.getElementById('browserFavsResult').innerHTML = '';
+    $('bfSearchWrap').show(false);
+    $('browserFavsResult').html('');
     return;
   }
   bfRenderList(_bfVisible);
@@ -1769,9 +1769,9 @@ function bfMatchesLocalVideo(url) {
 }
 
 async function renderBrowserFavs(items, browser) {
-  const out = document.getElementById('browserFavsResult');
-  const searchWrap = document.getElementById('bfSearchWrap');
-  const searchInput = document.getElementById('bfSearch');
+  const out = $('browserFavsResult').el;
+  const searchWrap = $('bfSearchWrap').el;
+  const searchInput = $('bfSearch').el;
   if (!items.length) {
     searchWrap.style.display = 'none';
     out.innerHTML = '<p style="font-size:0.82rem;color:var(--tx2)">No bookmarks matched the whitelist.</p>';
@@ -1820,7 +1820,7 @@ async function preFetchBmThumbs(items) {
 
 function bfRenderList(items) {
   _bfVisible = items;
-  const out = document.getElementById('browserFavsResult');
+  const out = $('browserFavsResult').el;
   const total = _bfItems.length;
   const pct = total ? Math.round(_bfMatchedCount / total * 100) : 0;
   const statsHtml =
@@ -1877,8 +1877,8 @@ function bfRenderList(items) {
 
 function bfSetView(mode) {
   _bfViewMode = mode;
-  const btnList = document.getElementById('bfViewList');
-  const btnGrid = document.getElementById('bfViewGrid');
+  const btnList = $('bfViewList').el;
+  const btnGrid = $('bfViewGrid').el;
   if (btnList) btnList.classList.toggle('on', mode === 'list');
   if (btnGrid) btnGrid.classList.toggle('on', mode === 'grid');
   bfRenderList(_bfVisible);
@@ -1902,7 +1902,7 @@ function bfLoadGridThumbs(items) {
 }
 
 async function bfFetchThumb(item, idx) {
-  const thumbEl = document.getElementById('bfth' + idx);
+  const thumbEl = $('bfth' + idx).el;
   if (!thumbEl) return;
   try {
     const r = await fetch('/api/og-thumb?url=' + encodeURIComponent(item.url));
@@ -1958,12 +1958,12 @@ function bfOpenAllVisible() {
 }
 
 function openBfIframe(url, title) {
-  const mo = document.getElementById('bfiframeMo');
-  const iframe = document.getElementById('bfiframeEl');
-  const blocked = document.getElementById('bfiframeBlocked');
-  document.getElementById('bfiframeTitle').textContent = title || url;
-  document.getElementById('bfiframeLink').href = url;
-  document.getElementById('bfiframeFallback').href = url;
+  const mo = $('bfiframeMo').el;
+  const iframe = $('bfiframeEl').el;
+  const blocked = $('bfiframeBlocked').el;
+  $('bfiframeTitle').text(title || url);
+  $('bfiframeLink').el.href = url;
+  $('bfiframeFallback').el.href = url;
   blocked.classList.remove('on');
   iframe.src = '';
   // Detect X-Frame-Options/CSP block via load event timing
@@ -1975,9 +1975,9 @@ function openBfIframe(url, title) {
 }
 
 function closeBfIframe(e) {
-  if (e instanceof MouseEvent && e.target !== document.getElementById('bfiframeMo')) return;
-  document.getElementById('bfiframeMo').classList.remove('on');
-  document.getElementById('bfiframeEl').src = '';
+  if (e instanceof MouseEvent && e.target !== $('bfiframeMo').el) return;
+  $('bfiframeMo').remove('on');
+  $('bfiframeEl').el.src = '';
 }
 
 function bfToggleAll(checked) {
@@ -1987,7 +1987,7 @@ function bfToggleAll(checked) {
 async function downloadSelected() {
   const urls = [...document.querySelectorAll('.bf-chk:checked')].map(cb => cb.value);
   if (!urls.length) { toast('Select at least one bookmark'); return; }
-  const category = (document.getElementById('bfCatSel') || {}).value || '';
+  const category = ($('bfCatSel').el || {}).value || '';
   const r = await fetch('/api/download', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ urls, category })
@@ -2020,9 +2020,9 @@ async function renderDlQueue(jobs) {
   if (!jobs) {
     try { jobs = await (await fetch('/api/download/jobs')).json(); } catch { return; }
   }
-  const panel = document.getElementById('dlQueuePanel');
-  const list = document.getElementById('dlQueueList');
-  const counter = document.getElementById('dlQueueCount');
+  const panel = $('dlQueuePanel').el;
+  const list = $('dlQueueList').el;
+  const counter = $('dlQueueCount').el;
   if (!panel) return;
   if (!jobs.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';
@@ -2069,19 +2069,19 @@ function showCollections() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/collections') history.pushState(null, '', '/collections');
   collectionsMode = true;
-  document.getElementById('bv').classList.add('off');
+  $('bv').add('off');
   document.querySelectorAll('.ci.on').forEach(e => e.classList.remove('on'));
-  document.getElementById('collectionsSB').classList.add('on');
+  $('collectionsSB').add('on');
   scraperMode = false; foldersMode = false; importFavsMode = false; settingsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null;
   document.querySelectorAll('.pv,.adv,.sv,.av,.dv,.scraperV,.foldersV,.settingsV').forEach(e => e.classList.remove('on'));
-  document.getElementById('vaultV').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
-  document.getElementById('collectionsV').classList.add('on');
+  $('vaultV').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
+  $('collectionsV').add('on');
   curCollection = null;
-  document.getElementById('cvTitle').textContent = 'Collections';
-  document.getElementById('cvNewRow').style.display = '';
+  $('cvTitle').text('Collections');
+  $('cvNewRow').show();
   loadCollectionsView();
 }
 
@@ -2091,7 +2091,7 @@ async function loadCollectionsView() {
 }
 
 function renderCollections(cols) {
-  const el = document.getElementById('cvContent');
+  const el = $('cvContent').el;
   if (!cols.length) {
     el.innerHTML = '<div class="cv-empty">No collections yet. Create one above.</div>';
     return;
@@ -2108,10 +2108,10 @@ function renderCollections(cols) {
 async function openCollectionDetail(name) {
   if (location.pathname !== '/collection/' + encodeURIComponent(name)) history.pushState(null, '', '/collection/' + encodeURIComponent(name));
   curCollection = name;
-  document.getElementById('cvTitle').textContent = name;
-  document.getElementById('cvNewRow').style.display = 'none';
+  $('cvTitle').text(name);
+  $('cvNewRow').show(false);
   const videos = await (await fetch('/api/collections/' + encodeURIComponent(name) + '/videos')).json();
-  const el = document.getElementById('cvContent');
+  const el = $('cvContent').el;
   el.innerHTML =
     '<button class="bbk" style="margin-bottom:16px" onclick="showCollections()">' +
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Collections</button>' +
@@ -2120,7 +2120,7 @@ async function openCollectionDetail(name) {
 }
 
 async function createCollection() {
-  const inp = document.getElementById('cvNameIn');
+  const inp = $('cvNameIn').el;
   const name = inp.value.trim();
   if (!name) return;
   const r = await fetch('/api/collections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
@@ -2145,23 +2145,23 @@ async function openAddToCollection() {
   if (!curV) return;
   cvTargetId = curV.id;
   const cols = await (await fetch('/api/collections')).json();
-  const list = document.getElementById('cvModalList');
-  const newSection = document.getElementById('cvModalNew');
-  const createBtn = document.getElementById('cvModalCreateBtn');
+  const list = $('cvModalList').el;
+  const newSection = $('cvModalNew').el;
+  const createBtn = $('cvModalCreateBtn').el;
   newSection.classList.remove('on');
   createBtn.style.display = 'none';
-  document.getElementById('cvModalNameIn').value = '';
+  $('cvModalNameIn').val('');
   list.innerHTML = cols.map(col =>
     '<button class="cv-opt" onclick="addToCollection(\'' + escA(col.name) + '\')">' + esc(col.name) + '</button>'
   ).join('') +
   '<button class="cv-opt cv-opt-new" onclick="showCvNewInput()">+ New collection…</button>';
-  document.getElementById('cvModal').classList.add('on');
+  $('cvModal').add('on');
 }
 
 function showCvNewInput() {
-  document.getElementById('cvModalNew').classList.add('on');
-  document.getElementById('cvModalCreateBtn').style.display = '';
-  document.getElementById('cvModalNameIn').focus();
+  $('cvModalNew').add('on');
+  $('cvModalCreateBtn').show();
+  $('cvModalNameIn').el.focus();
 }
 
 async function addToCollection(name) {
@@ -2175,7 +2175,7 @@ async function addToCollection(name) {
 }
 
 async function submitCvNew() {
-  const name = document.getElementById('cvModalNameIn').value.trim();
+  const name = $('cvModalNameIn').el.value.trim();
   if (!name) return;
   const cr = await fetch('/api/collections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
   if (!cr.ok) { const d = await cr.json(); toast(d.error || 'Failed'); return; }
@@ -2183,7 +2183,7 @@ async function submitCvNew() {
 }
 
 function closeCvModal() {
-  document.getElementById('cvModal').classList.remove('on');
+  $('cvModal').remove('on');
   cvTargetId = null;
 }
 
@@ -2194,15 +2194,15 @@ function showSettings() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/settings') history.pushState(null, '', '/settings');
   settingsMode = true;
-  document.getElementById('bv').classList.add('off');
+  $('bv').add('off');
   document.querySelectorAll('.ci.on').forEach(e => e.classList.remove('on'));
-  document.getElementById('settingsSB').classList.add('on');
+  $('settingsSB').add('on');
   ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','foldersV','importFavsV','collectionsV','dbV']
-    .forEach(id => document.getElementById(id).classList.remove('on'));
+    .forEach(id => $(id).remove('on'));
   vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('settingsV').classList.add('on');
+  $('settingsV').add('on');
   loadSettings();
   const activeTheme = localStorage.getItem('theme') || '';
   document.querySelectorAll('.theme-btn').forEach(btn => {
@@ -2212,21 +2212,21 @@ function showSettings() {
 
 async function loadSettings() {
   const d = await (await fetch('/api/settings/lists')).json();
-  document.getElementById('stgHidden').value = d.hidden || '';
-  document.getElementById('stgWhitelist').value = d.whitelist || '';
+  $('stgHidden').val(d.hidden || '');
+  $('stgWhitelist').val(d.whitelist || '');
   updateSettingsHint('stgHiddenHint', d.hidden || '');
   updateSettingsHint('stgWhitelistHint', d.whitelist || '');
 }
 
 function updateSettingsHint(hintId, content) {
   const count = content.split('\n').map(l => l.trim()).filter(l => l.length > 0).length;
-  const el = document.getElementById(hintId);
+  const el = $(hintId).el;
   if (el) el.textContent = count + ' entr' + (count !== 1 ? 'ies' : 'y');
 }
 
 async function saveSettingsList(file) {
   const taId = { hidden: 'stgHidden', whitelist: 'stgWhitelist' }[file];
-  const content = document.getElementById(taId).value;
+  const content = $(taId).el.value;
   const r = await fetch('/api/settings/' + file, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -2244,9 +2244,9 @@ async function saveSettingsList(file) {
 
 // ─── Connect ───
 async function showConnect() {
-  document.getElementById('connectModal').classList.add('on');
-  const urlEl = document.getElementById('connectUrl');
-  const canvas = document.getElementById('connectQR');
+  $('connectModal').add('on');
+  const urlEl = $('connectUrl').el;
+  const canvas = $('connectQR').el;
   urlEl.textContent = 'Loading…';
   canvas.style.display = 'none';
   try {
@@ -2260,13 +2260,13 @@ async function showConnect() {
   }
 }
 function closeConnectModal() {
-  document.getElementById('connectModal').classList.remove('on');
+  $('connectModal').remove('on');
 }
 
 // ─── Tags ───
 async function loadTagSidebar() {
   const tags = await (await fetch('/api/tags')).json();
-  const el = document.getElementById('tagList');
+  const el = $('tagList').el;
   if (!tags.length) { el.innerHTML = ''; return; }
   el.innerHTML = tags.map(t =>
     '<div class="ci' + (curTag === t.name ? ' on' : '') + '" data-tag="' + escA(t.name) + '" onclick="openTag(\'' + escA(t.name) + '\')">' +
@@ -2280,15 +2280,15 @@ async function openTag(name) {
   if (location.pathname !== '/tag/' + encodeURIComponent(name)) history.pushState(null, '', '/tag/' + encodeURIComponent(name));
   closeAllViews();
   curTag = name;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('tagDV').classList.add('on');
-  q = ''; document.getElementById('sI').value = ''; document.getElementById('sGhost').innerHTML = '';
+  $('bv').add('off');
+  $('tagDV').add('on');
+  q = ''; $('sI').val(''); $('sGhost').html('');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.toggle('on', el.dataset.tag === name));
-  document.getElementById('tagName').textContent = name;
-  document.getElementById('tagG').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('tagName').text(name);
+  $('tagG').html('<div class="dup-scan">Loading\u2026</div>');
   renCats();
   const d = await (await fetch('/api/tags/' + encodeURIComponent(name))).json();
-  if (d.error) { document.getElementById('tagG').innerHTML = '<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'; return; }
+  if (d.error) { $('tagG').html('<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'); return; }
   let localVids = srcFilter === 'remote' ? [] : d.videos;
   if (shuf) {
     localVids = localVids.slice().sort(() => Math.random() - 0.5);
@@ -2301,14 +2301,14 @@ async function openTag(name) {
   }
   // 'date' is already sorted by mtime desc from server
   const bms = srcFilter !== 'local' ? getBmList() : [];
-  document.getElementById('tagG').innerHTML = localVids.map(card).join('') + bms.map(bmCard).join('');
+  $('tagG').html(localVids.map(card).join('') + bms.map(bmCard).join(''));
   attachThumbs();
   attachBmThumbs();
 }
 
 function closeTag() {
-  document.getElementById('tagDV').classList.remove('on');
-  document.getElementById('bv').classList.remove('off');
+  $('tagDV').remove('on');
+  $('bv').remove('off');
   document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
   curTag = null;
   renCats();
@@ -2317,7 +2317,7 @@ function closeTag() {
 // ─── Panoramic ───
 function togglePan() {
   const on = document.body.classList.toggle('pan');
-  document.getElementById('panBtn').classList.toggle('on', on);
+  $('panBtn').toggle('on', on);
   localStorage.setItem('pan', on ? '1' : '');
 }
 
@@ -2333,18 +2333,18 @@ function toggleMosaic() {
 function startMosaic() {
   if (!V.length) { toast('No videos to show'); return; }
   mosaicOn = true;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
   dupMode = false;
-  if (curV) { const vp = document.getElementById('vP'); vp.pause(); vp.src = ''; curV = null; }
-  document.getElementById('mosCatLbl').textContent = cat
+  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
+  $('mosCatLbl').el.textContent = cat
     ? (cats.find(x => x.path === cat)?.name || cat) + ' — Mosaic'
     : 'All Videos — Mosaic';
-  document.getElementById('mosIv').textContent = mosaicIv + 's';
-  document.getElementById('mosV').classList.add('on');
-  document.getElementById('mosBtn').classList.add('on');
+  $('mosIv').text(mosaicIv + 's');
+  $('mosV').add('on');
+  $('mosBtn').add('on');
   buildMosaicTiles();
   scheduleMosaic();
 }
@@ -2358,9 +2358,9 @@ function stopMosaic() {
   });
   mosTilesState = [];
   mosHoveredIdx = -1;
-  document.getElementById('mosV').classList.remove('on');
-  document.getElementById('mosBtn').classList.remove('on');
-  document.getElementById('bv').classList.remove('off');
+  $('mosV').remove('on');
+  $('mosBtn').remove('on');
+  $('bv').remove('off');
 }
 
 function mosPick(n) {
@@ -2400,7 +2400,7 @@ function preloadMosTile(tile, v) {
 }
 
 function buildMosaicTiles() {
-  const grid = document.getElementById('mosGrid');
+  const grid = $('mosGrid').el;
   mosTilesState.forEach(t => { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; });
   mosTilesState = [];
   mosHoveredIdx = -1;
@@ -2500,13 +2500,13 @@ function refreshMosaicTiles() {
 
 function setMosaicIv(delta) {
   mosaicIv = Math.max(2, Math.min(60, mosaicIv + delta));
-  document.getElementById('mosIv').textContent = mosaicIv + 's';
+  $('mosIv').text(mosaicIv + 's');
   scheduleMosaic();
 }
 
 function setMosaicCount(val) {
   mosTileCount = Math.max(1, Math.min(16, parseInt(val) || 6));
-  document.getElementById('mosCnt').value = mosTileCount;
+  $('mosCnt').val(mosTileCount);
   if (mosaicOn) { buildMosaicTiles(); scheduleMosaic(); }
 }
 
@@ -2532,8 +2532,8 @@ function buildPl() {
 function renderPlaylist() {
   const pl = buildPl();
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  document.getElementById('pplCount').textContent = pl.length + ' video' + (pl.length !== 1 ? 's' : '');
-  const listEl = document.getElementById('pplList');
+  $('pplCount').text(pl.length + ' video' + (pl.length !== 1 ? 's' : ''));
+  const listEl = $('pplList').el;
   if (!pl.length) {
     listEl.innerHTML = '<div class="ppl-empty">Playlist is empty</div>';
     return;
@@ -2559,7 +2559,7 @@ function renderPlaylist() {
   }).join('');
   // Scroll to current item
   if (curV) {
-    const curEl = document.getElementById('ppl-' + curV.id);
+    const curEl = $('ppl-' + curV.id).el;
     if (curEl) setTimeout(() => curEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
   }
 }
@@ -2597,8 +2597,8 @@ function playPrev() {
   openVid(pl[(idx - 1 + pl.length) % pl.length].id);
 }
 
-document.getElementById('vP').addEventListener('ended', playNext);
-document.getElementById('vPin').addEventListener('ended', pinNext);
+$('vP').el.addEventListener('ended', playNext);
+$('vPin').el.addEventListener('ended', pinNext);
 
 // ─── Pin (dual play) ───
 function togglePin() {
@@ -2611,27 +2611,27 @@ function pinVideo() {
   pinnedPl = buildPl().slice();
   pinnedIdx = pinnedPl.findIndex(v => v.id === pinnedV.id);
   if (pinnedIdx < 0) pinnedIdx = 0;
-  const vPin = document.getElementById('vPin');
+  const vPin = $('vPin').el;
   vPin.src = '/api/stream/' + pinnedV.id;
-  document.getElementById('pinTitle').textContent = pinnedV.name;
+  $('pinTitle').text(pinnedV.name);
   renderPinPlaylist();
-  document.getElementById('pinPanel').classList.add('on');
-  document.getElementById('pinBtn').classList.add('on');
-  document.getElementById('pinBtn').querySelector('span').textContent = 'Unpin';
+  $('pinPanel').add('on');
+  $('pinBtn').add('on');
+  $('pinBtn').el.querySelector('span').textContent = 'Unpin';
 }
 
 function unpinVideo() {
   pinnedV = null; pinnedPl = []; pinnedIdx = 0;
-  const vPin = document.getElementById('vPin');
+  const vPin = $('vPin').el;
   vPin.pause(); vPin.src = '';
-  document.getElementById('pinPanel').classList.remove('on');
-  document.getElementById('pinBtn').classList.remove('on');
-  document.getElementById('pinBtn').querySelector('span').textContent = 'Pin';
+  $('pinPanel').remove('on');
+  $('pinBtn').remove('on');
+  $('pinBtn').el.querySelector('span').textContent = 'Pin';
 }
 
 function renderPinPlaylist() {
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  const listEl = document.getElementById('pinList');
+  const listEl = $('pinList').el;
   if (!pinnedPl.length) { listEl.innerHTML = ''; return; }
   listEl.innerHTML = pinnedPl.map((v, i) => {
     const c = cols[Math.abs(hsh(v.category)) % cols.length];
@@ -2647,7 +2647,7 @@ function renderPinPlaylist() {
       '</div>' +
       '</div>';
   }).join('');
-  const curEl = document.getElementById('pinpl-' + pinnedV.id);
+  const curEl = $('pinpl-' + pinnedV.id).el;
   if (curEl) setTimeout(() => curEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
 }
 
@@ -2655,8 +2655,8 @@ function pinJump(idx) {
   if (idx < 0 || idx >= pinnedPl.length) return;
   pinnedIdx = idx;
   pinnedV = pinnedPl[idx];
-  document.getElementById('vPin').src = '/api/stream/' + pinnedV.id;
-  document.getElementById('pinTitle').textContent = pinnedV.name;
+  $('vPin').el.src = '/api/stream/' + pinnedV.id;
+  $('pinTitle').text(pinnedV.name);
   renderPinPlaylist();
 }
 
@@ -2728,12 +2728,12 @@ function toggleZapping() {
     if (mosaicOn) stopMosaic(); // prevent clash with mosaic
     zapOn = true;
     zapLock = false;
-    document.getElementById('zapUI').style.display = 'flex';
-    document.getElementById('zapLockBtn').textContent = 'Lock to Current';
+    $('zapUI').el.style.display = 'flex';
+    $('zapLockBtn').text('Lock to Current');
     
     // Switch to player view
-    document.getElementById('bv').classList.add('off');
-    document.getElementById('pv').classList.add('on');
+    $('bv').add('off');
+    $('pv').add('on');
     
     startZapping();
   }
@@ -2742,11 +2742,11 @@ function toggleZapping() {
 function stopZapping() {
   zapOn = false;
   clearTimeout(zapTimer);
-  document.getElementById('zapUI').style.display = 'none';
+  $('zapUI').show(false);
   
   // Ensure we revert to the main player visually
-  document.getElementById('vP').style.display = '';
-  document.getElementById('vP_zap').style.display = 'none';
+  $('vP').show();
+  $('vP_zap').show(false);
   activePlayer = 'vP';
   
   goHome();
@@ -2754,12 +2754,12 @@ function stopZapping() {
 
 function setZapIv(delta) {
   zapIv = Math.max(2, zapIv + delta);
-  document.getElementById('zapIv').textContent = zapIv + 's';
+  $('zapIv').text(zapIv + 's');
 }
 
 function toggleZapLock() {
   zapLock = !zapLock;
-  document.getElementById('zapLockBtn').textContent = zapLock ? 'Unlock (Resume Zapping)' : 'Lock to Current';
+  $('zapLockBtn').text(zapLock ? 'Unlock (Resume Zapping)' : 'Lock to Current');
   if (!zapLock) {
     // Resume switching
     zapTimer = setTimeout(doZapSwitch, zapIv * 1000);
@@ -2798,7 +2798,7 @@ async function prepareNextZap() {
   
   // Preload into the hidden secondary video player
   const nextPlayerId = activePlayer === 'vP' ? 'vP_zap' : 'vP';
-  const vpNext = document.getElementById(nextPlayerId);
+  const vpNext = $(nextPlayerId).el;
   
   vpNext.src = '/api/stream/' + zapNextVid.id + '#t=' + zapNextTime;
   vpNext.load();
@@ -2814,8 +2814,8 @@ async function doZapSwitch() {
   const nextPlayerId = activePlayer === 'vP' ? 'vP_zap' : 'vP';
   const currPlayerId = activePlayer;
   
-  const vpNext = document.getElementById(nextPlayerId);
-  const vpCurr = document.getElementById(currPlayerId);
+  const vpNext = $(nextPlayerId).el;
+  const vpCurr = $(currPlayerId).el;
   
   // Seamless swap
   vpNext.style.display = ''; // or 'block' depending on your CSS
@@ -2829,8 +2829,8 @@ async function doZapSwitch() {
   
   // Update Video details UI
   curV = zapNextVid;
-  document.getElementById('pT').textContent = curV.name;
-  if (document.getElementById('pC')) document.getElementById('pC').textContent = curV.category;
+  $('pT').text(curV.name);
+  if ($('pC').el) $('pC').text(curV.category);
   
   // Prepare the next video while current is playing
   prepareNextZap();
@@ -2880,21 +2880,21 @@ function showDatabase() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/database') history.pushState(null, '', '/database');
   dbMode = true;
-  document.getElementById('bv').classList.add('off');
-  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','importFavsV'].forEach(id => document.getElementById(id).classList.remove('on'));
+  $('bv').add('off');
+  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','importFavsV'].forEach(id => $(id).remove('on'));
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('databaseSB').classList.add('on');
+  $('databaseSB').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false;
   collectionsMode = false; settingsMode = false; studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null;
-  document.getElementById('dbV').classList.add('on');
+  $('dbV').add('on');
   loadDbTab(dbTab);
 }
 
 async function loadDbTab(tab) {
   dbTab = tab;
   document.querySelectorAll('.db-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  document.getElementById('dbGrid').innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  $('dbGrid').html('<div class="dup-scan">Loading\u2026</div>');
   const r = await fetch('/api/db/' + tab);
   _dbData = await r.json();
   renderDbCards(_dbData, tab);
@@ -2905,10 +2905,10 @@ function dbSwitchTab(tab) { loadDbTab(tab); }
 function renderDbCards(data, tab) {
   const entries = Object.entries(data);
   if (!entries.length) {
-    document.getElementById('dbGrid').innerHTML = '<div class="es" style="padding:40px 20px;text-align:center"><h3 style="color:var(--tx2)">No entries yet</h3><p style="color:var(--tx3)">Click + Add to create one</p></div>';
+    $('dbGrid').html('<div class="es" style="padding:40px 20px);text-align:center"><h3 style="color:var(--tx2)">No entries yet</h3><p style="color:var(--tx3)">Click + Add to create one</p></div>';
     return;
   }
-  document.getElementById('dbGrid').innerHTML = entries.map(([name, info]) => dbCard(name, info, tab)).join('');
+  $('dbGrid').html(entries.map(([name, info]) => dbCard(name, info, tab)).join(''));
 }
 
 function dbCard(name, info, tab) {
@@ -2947,8 +2947,8 @@ function dbShowEdit(name) {
 
 function openDbModal(name, data) {
   const isEdit = !!name;
-  document.getElementById('dbMoTitle').textContent = isEdit ? 'Edit \u2014 ' + name : 'Add Entry';
-  const body = document.getElementById('dbMoBody');
+  $('dbMoTitle').text(isEdit ? 'Edit \u2014 ' + name : 'Add Entry');
+  const body = $('dbMoBody').el;
   let fields = '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Name</label><input class="stg-ta" id="dbMoName" style="padding:8px;min-height:0" value="' + (isEdit ? escA(name) : '') + '" ' + (isEdit ? 'readonly' : '') + ' placeholder="Entry name"></div>';
   if (dbTab === 'actors') {
     fields += dbFieldInput('IMDb URL', 'dbMoImdb', data?.imdb_page || '');
@@ -2962,7 +2962,7 @@ function openDbModal(name, data) {
     fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Description</label><textarea class="stg-ta" id="dbMoDesc" style="min-height:70px">' + esc(data?.short_description || '') + '</textarea></div>';
   }
   body.innerHTML = fields;
-  document.getElementById('dbMo').style.display = 'flex';
+  $('dbMo').el.style.display = 'flex';
 }
 
 function dbFieldInput(label, id, value) {
@@ -2970,27 +2970,27 @@ function dbFieldInput(label, id, value) {
 }
 
 function closeDbModal() {
-  document.getElementById('dbMo').style.display = 'none';
+  $('dbMo').show(false);
 }
 
 async function dbSaveModal() {
-  const name = document.getElementById('dbMoName').value.trim();
+  const name = $('dbMoName').el.value.trim();
   if (!name) { toast('Name is required'); return; }
   let data = {};
   if (dbTab === 'actors') {
     data = {
-      imdb_page:     document.getElementById('dbMoImdb')?.value.trim() || '',
-      date_of_birth: document.getElementById('dbMoDob')?.value.trim() || '',
-      nationality:   document.getElementById('dbMoNat')?.value.trim() || '',
-      movies:        document.getElementById('dbMoMovies')?.value.trim() || '',
+      imdb_page:     $('dbMoImdb').el?.value.trim() || '',
+      date_of_birth: $('dbMoDob').el?.value.trim() || '',
+      nationality:   $('dbMoNat').el?.value.trim() || '',
+      movies:        $('dbMoMovies').el?.value.trim() || '',
     };
   } else if (dbTab === 'categories') {
-    const tagsRaw = document.getElementById('dbMoTags')?.value || '';
+    const tagsRaw = $('dbMoTags').el?.value || '';
     data = { displayName: name, tags: tagsRaw.split(',').map(t => t.trim()).filter(Boolean) };
   } else if (dbTab === 'studios') {
     data = {
-      website:           document.getElementById('dbMoWebsite')?.value.trim() || '',
-      short_description: document.getElementById('dbMoDesc')?.value.trim() || '',
+      website:           $('dbMoWebsite').el?.value.trim() || '',
+      short_description: $('dbMoDesc').el?.value.trim() || '',
     };
   }
   const r = await fetch('/api/db/' + dbTab, {
@@ -3012,10 +3012,10 @@ async function dbDeleteEntry(name) {
 }
 
 async function dbImportVideos() {
-  const ta = document.getElementById('dbImportPaths');
+  const ta = $('dbImportPaths').el;
   const paths = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
   if (!paths.length) { toast('Enter at least one file path'); return; }
-  const status = document.getElementById('dbImportStatus');
+  const status = $('dbImportStatus').el;
   status.textContent = 'Copying\u2026';
   const r = await fetch('/api/db/import', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -3033,12 +3033,12 @@ async function dbImportVideos() {
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function escA(s) { return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 function hsh(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; } return h; }
-function toast(m) { const e = document.getElementById('tst'); e.textContent = m; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2500); }
+function toast(m) { const e = $('tst').el; e.textContent = m; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2500); }
 
 // ─── Collapsible sections ───
 function toggleSection(name) {
-  const sec = document.getElementById(name + 'Section');
-  const h = document.getElementById('sh3-' + name);
+  const sec = $(name + 'Section').el;
+  const h = $('sh3-' + name).el;
   const closed = sec.classList.toggle('closed');
   h.classList.toggle('closed', closed);
   localStorage.setItem('sc_' + name, closed ? '1' : '');
@@ -3065,11 +3065,11 @@ function applyTheme(name) {
 // ─── Start ───
 ['cats', 'tags'].forEach(name => {
   if (localStorage.getItem('sc_' + name)) {
-    document.getElementById(name + 'Section').classList.add('closed');
-    document.getElementById('sh3-' + name).classList.add('closed');
+    $(name + 'Section').add('closed');
+    $('sh3-' + name).add('closed');
   }
 });
-if (localStorage.getItem('pan')) { document.body.classList.add('pan'); document.getElementById('panBtn').classList.add('on'); }
+if (localStorage.getItem('pan')) { document.body.classList.add('pan'); $('panBtn').add('on'); }
 
 async function routeToPath(path) {
   let m;

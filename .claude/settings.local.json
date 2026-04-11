@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(node -e \"const fs = require\\(''''fs''''\\); console.log\\(''''actors.txt exists:'''', fs.existsSync\\(''''actors.txt''''\\)\\); try { require\\(''''./server.js''''\\); } catch\\(e\\) { console.error\\(''''server.js error:'''', e.message\\); }\")",
@@ -17,7 +20,25 @@
       "WebFetch(domain:addons.mozilla.org)",
       "Bash(curl -L -o \"C:/github/AphroArchive/vdh.xpi\" \"https://addons.mozilla.org/firefox/downloads/file/4714322/video_downloadhelper-10.2.5.2.xpi\" --progress-bar)",
       "Bash(ls:*)",
-      "Bash(wc -l C:/github/AphroArchive/public/modules/*.js)"
+      "Bash(wc -l C:/github/AphroArchive/public/modules/*.js)",
+      "Bash(perl --version)",
+      "Bash(perl -e \"print 'ok\\\\n'\")",
+      "Bash(xargs perl:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(git checkout:*)",
+      "Bash(perl -pe 's/document\\\\.getElementById\\\\x28\\\\x27\\([^\\\\x27]+\\)\\\\x27\\\\x29\\\\.classList\\\\.\\(add|remove|toggle\\)\\\\\\(\\([^\\)]*\\)\\\\\\)/\\\\$\\(\\\\x27$1\\\\x27\\).$2\\($3\\)/g')",
+      "Bash(perl -pe 'my $x = \"hello\"; s/test/\\\\$\\(\"$x\"\\)/g')",
+      "Bash(echo \"document.getElementById\\('bv'\\).classList.add\\('off'\\);\")",
+      "Bash(perl -pf /c/github/AphroArchive/migrate_dom.pl /tmp/test.js)",
+      "Bash(cp /c/github/AphroArchive/public/modules/zap.js /tmp/zap_test.js)",
+      "Bash(perl -i -pf /c/github/AphroArchive/migrate_dom.pl /tmp/zap_test.js)",
+      "Bash(perl -i -pf /c/github/AphroArchive/migrate_dom2.pl /tmp/zap_test.js)",
+      "Read(//tmp/**)",
+      "Bash(cp /c/github/AphroArchive/public/modules/utils.js /tmp/utils_test.js)",
+      "Bash(perl -i -pf /c/github/AphroArchive/migrate_dom.pl /tmp/utils_test.js)",
+      "Bash(perl -i -pf /c/github/AphroArchive/migrate_dom2.pl /tmp/utils_test.js)",
+      "Bash(perl -i -pf migrate_dom.pl public/modules/utils.js)",
+      "Bash(perl -i -pf migrate_dom2.pl public/modules/utils.js)"
     ]
   }
 }

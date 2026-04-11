@@ -7,8 +7,8 @@ function buildPl() {
 function renderPlaylist() {
   const pl = buildPl();
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  document.getElementById('pplCount').textContent = pl.length + ' video' + (pl.length !== 1 ? 's' : '');
-  const listEl = document.getElementById('pplList');
+  $('pplCount').text(pl.length + ' video' + (pl.length !== 1 ? 's' : ''));
+  const listEl = $('pplList').el;
   if (!pl.length) {
     listEl.innerHTML = '<div class="ppl-empty">Playlist is empty</div>';
     return;
@@ -33,7 +33,7 @@ function renderPlaylist() {
       '</div>';
   }).join('');
   if (curV) {
-    const curEl = document.getElementById('ppl-' + curV.id);
+    const curEl = $('ppl-' + curV.id).el;
     if (curEl) setTimeout(() => curEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
   }
 }
@@ -71,8 +71,8 @@ function playPrev() {
   openVid(pl[(idx - 1 + pl.length) % pl.length].id);
 }
 
-document.getElementById('vP').addEventListener('ended', playNext);
-document.getElementById('vPin').addEventListener('ended', pinNext);
+$('vP').el.addEventListener('ended', playNext);
+$('vPin').el.addEventListener('ended', pinNext);
 
 // ─── Pin (Dual Play) ───
 function togglePin() {
@@ -85,27 +85,27 @@ function pinVideo() {
   pinnedPl = buildPl().slice();
   pinnedIdx = pinnedPl.findIndex(v => v.id === pinnedV.id);
   if (pinnedIdx < 0) pinnedIdx = 0;
-  const vPin = document.getElementById('vPin');
+  const vPin = $('vPin').el;
   vPin.src = '/api/stream/' + pinnedV.id;
-  document.getElementById('pinTitle').textContent = pinnedV.name;
+  $('pinTitle').text(pinnedV.name);
   renderPinPlaylist();
-  document.getElementById('pinPanel').classList.add('on');
-  document.getElementById('pinBtn').classList.add('on');
-  document.getElementById('pinBtn').querySelector('span').textContent = 'Unpin';
+  $('pinPanel').add('on');
+  $('pinBtn').add('on');
+  $('pinBtn').el.querySelector('span').textContent = 'Unpin';
 }
 
 function unpinVideo() {
   pinnedV = null; pinnedPl = []; pinnedIdx = 0;
-  const vPin = document.getElementById('vPin');
+  const vPin = $('vPin').el;
   vPin.pause(); vPin.src = '';
-  document.getElementById('pinPanel').classList.remove('on');
-  document.getElementById('pinBtn').classList.remove('on');
-  document.getElementById('pinBtn').querySelector('span').textContent = 'Pin';
+  $('pinPanel').remove('on');
+  $('pinBtn').remove('on');
+  $('pinBtn').el.querySelector('span').textContent = 'Pin';
 }
 
 function renderPinPlaylist() {
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  const listEl = document.getElementById('pinList');
+  const listEl = $('pinList').el;
   if (!pinnedPl.length) { listEl.innerHTML = ''; return; }
   listEl.innerHTML = pinnedPl.map((v, i) => {
     const c = cols[Math.abs(hsh(v.category)) % cols.length];
@@ -121,7 +121,7 @@ function renderPinPlaylist() {
       '</div>' +
       '</div>';
   }).join('');
-  const curEl = document.getElementById('pinpl-' + pinnedV.id);
+  const curEl = $('pinpl-' + pinnedV.id).el;
   if (curEl) setTimeout(() => curEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
 }
 
@@ -129,8 +129,8 @@ function pinJump(idx) {
   if (idx < 0 || idx >= pinnedPl.length) return;
   pinnedIdx = idx;
   pinnedV = pinnedPl[idx];
-  document.getElementById('vPin').src = '/api/stream/' + pinnedV.id;
-  document.getElementById('pinTitle').textContent = pinnedV.name;
+  $('vPin').el.src = '/api/stream/' + pinnedV.id;
+  $('pinTitle').text(pinnedV.name);
   renderPinPlaylist();
 }
 

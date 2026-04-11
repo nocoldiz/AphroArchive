@@ -4,18 +4,18 @@ function showBooks() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/books') history.pushState(null, '', '/books');
   booksMode = true;
-  document.getElementById('bv').classList.add('off');
+  $('bv').add('off');
   ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','importFavsV'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.classList.remove('on');
+    const el = $(id).el; if (el) el.classList.remove('on');
   });
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('booksSB').classList.add('on');
+  $('booksSB').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; collectionsMode = false;
   settingsMode = false; importFavsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('booksV').classList.add('on');
+  $('booksV').add('on');
   loadBooks();
 }
 
@@ -26,8 +26,8 @@ async function loadBooks() {
 }
 
 function renderBooks(books) {
-  const grid = document.getElementById('booksGrid');
-  const empty = document.getElementById('booksEmpty');
+  const grid = $('booksGrid').el;
+  const empty = $('booksEmpty').el;
   if (!books.length) {
     grid.innerHTML = '';
     empty.style.display = '';
@@ -65,9 +65,9 @@ function bookTypeBadge(type, ext) {
 }
 
 async function openBook(id) {
-  const reader = document.getElementById('booksReader');
-  const readerTitle = document.getElementById('booksReaderTitle');
-  const readerBody = document.getElementById('booksReaderBody');
+  const reader = $('booksReader').el;
+  const readerTitle = $('booksReaderTitle').el;
+  const readerBody = $('booksReaderBody').el;
   readerTitle.textContent = 'Loading…';
   readerBody.innerHTML = '<div class="bk-loading">Loading…</div>';
   reader.classList.add('on');
@@ -87,7 +87,7 @@ async function openBook(id) {
 }
 
 function closeBookReader() {
-  document.getElementById('booksReader').classList.remove('on');
+  $('booksReader').remove('on');
 }
 
 function renderMarkdown(md) {
@@ -111,9 +111,9 @@ function renderMarkdown(md) {
 }
 
 async function importBookUrl() {
-  const input = document.getElementById('booksUrlInput');
-  const err = document.getElementById('booksUrlErr');
-  const btn = document.getElementById('booksUrlBtn');
+  const input = $('booksUrlInput').el;
+  const err = $('booksUrlErr').el;
+  const btn = $('booksUrlBtn').el;
   const rawUrl = input.value.trim();
   err.style.display = 'none';
   if (!rawUrl) return;
@@ -140,7 +140,7 @@ async function importBookUrl() {
 }
 
 async function uploadBookFiles() {
-  const fileInput = document.getElementById('booksFileIn');
+  const fileInput = $('booksFileIn').el;
   const files = fileInput.files;
   if (!files.length) return;
   let done = 0;

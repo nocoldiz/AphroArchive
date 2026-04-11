@@ -3,19 +3,19 @@ function showCollections() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/collections') history.pushState(null, '', '/collections');
   collectionsMode = true;
-  document.getElementById('bv').classList.add('off');
+  $('bv').add('off');
   document.querySelectorAll('.ci.on').forEach(e => e.classList.remove('on'));
-  document.getElementById('collectionsSB').classList.add('on');
+  $('collectionsSB').add('on');
   scraperMode = false; foldersMode = false; importFavsMode = false; settingsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null;
   document.querySelectorAll('.pv,.adv,.sv,.av,.dv,.scraperV,.foldersV,.settingsV').forEach(e => e.classList.remove('on'));
-  document.getElementById('vaultV').classList.remove('on');
-  if (document.getElementById('dbV')) document.getElementById('dbV').classList.remove('on');
-  document.getElementById('collectionsV').classList.add('on');
+  $('vaultV').remove('on');
+  if ($('dbV').el) $('dbV').remove('on');
+  $('collectionsV').add('on');
   curCollection = null;
-  document.getElementById('cvTitle').textContent = 'Collections';
-  document.getElementById('cvNewRow').style.display = '';
+  $('cvTitle').text('Collections');
+  $('cvNewRow').show();
   loadCollectionsView();
 }
 
@@ -25,7 +25,7 @@ async function loadCollectionsView() {
 }
 
 function renderCollections(cols) {
-  const el = document.getElementById('cvContent');
+  const el = $('cvContent').el;
   if (!cols.length) {
     el.innerHTML = '<div class="cv-empty">No collections yet. Create one above.</div>';
     return;
@@ -42,10 +42,10 @@ function renderCollections(cols) {
 async function openCollectionDetail(name) {
   if (location.pathname !== '/collection/' + encodeURIComponent(name)) history.pushState(null, '', '/collection/' + encodeURIComponent(name));
   curCollection = name;
-  document.getElementById('cvTitle').textContent = name;
-  document.getElementById('cvNewRow').style.display = 'none';
+  $('cvTitle').text(name);
+  $('cvNewRow').show(false);
   const videos = await (await fetch('/api/collections/' + encodeURIComponent(name) + '/videos')).json();
-  const el = document.getElementById('cvContent');
+  const el = $('cvContent').el;
   el.innerHTML =
     '<button class="bbk" style="margin-bottom:16px" onclick="showCollections()">' +
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Collections</button>' +
@@ -54,7 +54,7 @@ async function openCollectionDetail(name) {
 }
 
 async function createCollection() {
-  const inp = document.getElementById('cvNameIn');
+  const inp = $('cvNameIn').el;
   const name = inp.value.trim();
   if (!name) return;
   const r = await fetch('/api/collections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
@@ -78,23 +78,23 @@ async function openAddToCollection() {
   if (!curV) return;
   cvTargetId = curV.id;
   const cols = await (await fetch('/api/collections')).json();
-  const list = document.getElementById('cvModalList');
-  const newSection = document.getElementById('cvModalNew');
-  const createBtn = document.getElementById('cvModalCreateBtn');
+  const list = $('cvModalList').el;
+  const newSection = $('cvModalNew').el;
+  const createBtn = $('cvModalCreateBtn').el;
   newSection.classList.remove('on');
   createBtn.style.display = 'none';
-  document.getElementById('cvModalNameIn').value = '';
+  $('cvModalNameIn').val('');
   list.innerHTML = cols.map(col =>
     '<button class="cv-opt" onclick="addToCollection(\'' + escA(col.name) + '\')">' + esc(col.name) + '</button>'
   ).join('') +
   '<button class="cv-opt cv-opt-new" onclick="showCvNewInput()">+ New collection…</button>';
-  document.getElementById('cvModal').classList.add('on');
+  $('cvModal').add('on');
 }
 
 function showCvNewInput() {
-  document.getElementById('cvModalNew').classList.add('on');
-  document.getElementById('cvModalCreateBtn').style.display = '';
-  document.getElementById('cvModalNameIn').focus();
+  $('cvModalNew').add('on');
+  $('cvModalCreateBtn').show();
+  $('cvModalNameIn').el.focus();
 }
 
 async function addToCollection(name) {
@@ -108,7 +108,7 @@ async function addToCollection(name) {
 }
 
 async function submitCvNew() {
-  const name = document.getElementById('cvModalNameIn').value.trim();
+  const name = $('cvModalNameIn').el.value.trim();
   if (!name) return;
   const cr = await fetch('/api/collections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
   if (!cr.ok) { const d = await cr.json(); toast(d.error || 'Failed'); return; }
@@ -116,6 +116,6 @@ async function submitCvNew() {
 }
 
 function closeCvModal() {
-  document.getElementById('cvModal').classList.remove('on');
+  $('cvModal').remove('on');
   cvTargetId = null;
 }

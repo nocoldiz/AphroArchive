@@ -3,15 +3,15 @@ function showSettings() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/settings') history.pushState(null, '', '/settings');
   settingsMode = true;
-  document.getElementById('bv').classList.add('off');
+  $('bv').add('off');
   document.querySelectorAll('.ci.on').forEach(e => e.classList.remove('on'));
-  document.getElementById('settingsSB').classList.add('on');
+  $('settingsSB').add('on');
   ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','foldersV','importFavsV','collectionsV','dbV']
-    .forEach(id => document.getElementById(id).classList.remove('on'));
+    .forEach(id => $(id).remove('on'));
   vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('settingsV').classList.add('on');
+  $('settingsV').add('on');
   loadSettings();
   const activeTheme = localStorage.getItem('theme') || '';
   document.querySelectorAll('.theme-btn').forEach(btn => {
@@ -21,21 +21,21 @@ function showSettings() {
 
 async function loadSettings() {
   const d = await (await fetch('/api/settings/lists')).json();
-  document.getElementById('stgHidden').value = d.hidden || '';
-  document.getElementById('stgWhitelist').value = d.whitelist || '';
+  $('stgHidden').val(d.hidden || '');
+  $('stgWhitelist').val(d.whitelist || '');
   updateSettingsHint('stgHiddenHint', d.hidden || '');
   updateSettingsHint('stgWhitelistHint', d.whitelist || '');
 }
 
 function updateSettingsHint(hintId, content) {
   const count = content.split('\n').map(l => l.trim()).filter(l => l.length > 0).length;
-  const el = document.getElementById(hintId);
+  const el = $(hintId).el;
   if (el) el.textContent = count + ' entr' + (count !== 1 ? 'ies' : 'y');
 }
 
 async function saveSettingsList(file) {
   const taId = { hidden: 'stgHidden', whitelist: 'stgWhitelist' }[file];
-  const content = document.getElementById(taId).value;
+  const content = $(taId).el.value;
   const r = await fetch('/api/settings/' + file, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -52,9 +52,9 @@ async function saveSettingsList(file) {
 
 // ─── Connect Modal ───
 async function showConnect() {
-  document.getElementById('connectModal').classList.add('on');
-  const urlEl = document.getElementById('connectUrl');
-  const canvas = document.getElementById('connectQR');
+  $('connectModal').add('on');
+  const urlEl = $('connectUrl').el;
+  const canvas = $('connectQR').el;
   urlEl.textContent = 'Loading…';
   canvas.style.display = 'none';
   try {
@@ -69,5 +69,5 @@ async function showConnect() {
 }
 
 function closeConnectModal() {
-  document.getElementById('connectModal').classList.remove('on');
+  $('connectModal').remove('on');
 }

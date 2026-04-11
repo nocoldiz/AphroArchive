@@ -48,8 +48,8 @@ function bfRemoveItem(url) {
   _bfVisible = _bfVisible.filter(it => it.url !== url);
   bfSaveCache();
   if (!_bfItems.length) {
-    document.getElementById('bfSearchWrap').style.display = 'none';
-    document.getElementById('browserFavsResult').innerHTML = '';
+    $('bfSearchWrap').show(false);
+    $('browserFavsResult').html('');
     return;
   }
   bfRenderList(_bfVisible);
@@ -60,21 +60,21 @@ function showImportFavs() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/bookmarks') history.pushState(null, '', '/bookmarks');
   importFavsMode = true;
-  document.getElementById('bv').classList.add('off');
-  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','dbV'].forEach(id => document.getElementById(id).classList.remove('on'));
+  $('bv').add('off');
+  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','dbV'].forEach(id => $(id).remove('on'));
   document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  document.getElementById('importFavsSB').classList.add('on');
+  $('importFavsSB').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  document.getElementById('importFavsV').classList.add('on');
+  $('importFavsV').add('on');
   if (!_bfItems.length) bfLoadCache();
 }
 
 // ─── Browser Favs Import ───
 async function importBrowserFavs(browser) {
-  const btn = document.getElementById(browser === 'chrome' ? 'bfChrome' : 'bfFirefox');
-  const out = document.getElementById('browserFavsResult');
+  const btn = $(browser === 'chrome' ? 'bfChrome' : 'bfFirefox').el;
+  const out = $('browserFavsResult').el;
   btn.disabled = true;
   btn.textContent = 'Loading…';
   out.innerHTML = '';
@@ -104,7 +104,7 @@ async function importBrowserFavs(browser) {
 async function importBrowserFavsFile(browser, input) {
   const file = input.files[0];
   if (!file) return;
-  const out = document.getElementById('browserFavsResult');
+  const out = $('browserFavsResult').el;
   out.innerHTML = '<p style="font-size:0.82rem;color:var(--tx2)">Reading ' + esc(file.name) + '…</p>';
   try {
     const buf = await file.arrayBuffer();
@@ -134,9 +134,9 @@ async function importBrowserFavsFile(browser, input) {
 }
 
 async function renderBrowserFavs(items, browser) {
-  const out = document.getElementById('browserFavsResult');
-  const searchWrap = document.getElementById('bfSearchWrap');
-  const searchInput = document.getElementById('bfSearch');
+  const out = $('browserFavsResult').el;
+  const searchWrap = $('bfSearchWrap').el;
+  const searchInput = $('bfSearch').el;
   if (!items.length) {
     searchWrap.style.display = 'none';
     out.innerHTML = '<p style="font-size:0.82rem;color:var(--tx2)">No bookmarks matched the whitelist.</p>';
@@ -181,7 +181,7 @@ async function preFetchBmThumbs(items) {
 
 function bfRenderList(items) {
   _bfVisible = items;
-  const out = document.getElementById('browserFavsResult');
+  const out = $('browserFavsResult').el;
   const total = _bfItems.length;
   const pct = total ? Math.round(_bfMatchedCount / total * 100) : 0;
   const statsHtml =
@@ -238,8 +238,8 @@ function bfRenderList(items) {
 
 function bfSetView(mode) {
   _bfViewMode = mode;
-  const btnList = document.getElementById('bfViewList');
-  const btnGrid = document.getElementById('bfViewGrid');
+  const btnList = $('bfViewList').el;
+  const btnGrid = $('bfViewGrid').el;
   if (btnList) btnList.classList.toggle('on', mode === 'list');
   if (btnGrid) btnGrid.classList.toggle('on', mode === 'grid');
   bfRenderList(_bfVisible);
@@ -262,7 +262,7 @@ function bfLoadGridThumbs(items) {
 }
 
 async function bfFetchThumb(item, idx) {
-  const thumbEl = document.getElementById('bfth' + idx);
+  const thumbEl = $('bfth' + idx).el;
   if (!thumbEl) return;
   try {
     const r = await fetch('/api/og-thumb?url=' + encodeURIComponent(item.url));
@@ -318,12 +318,12 @@ function bfOpenAllVisible() {
 }
 
 function openBfIframe(url, title) {
-  const mo = document.getElementById('bfiframeMo');
-  const iframe = document.getElementById('bfiframeEl');
-  const blocked = document.getElementById('bfiframeBlocked');
-  document.getElementById('bfiframeTitle').textContent = title || url;
-  document.getElementById('bfiframeLink').href = url;
-  document.getElementById('bfiframeFallback').href = url;
+  const mo = $('bfiframeMo').el;
+  const iframe = $('bfiframeEl').el;
+  const blocked = $('bfiframeBlocked').el;
+  $('bfiframeTitle').text(title || url);
+  $('bfiframeLink').el.href = url;
+  $('bfiframeFallback').el.href = url;
   blocked.classList.remove('on');
   iframe.src = '';
   let loaded = false;
@@ -334,9 +334,9 @@ function openBfIframe(url, title) {
 }
 
 function closeBfIframe(e) {
-  if (e instanceof MouseEvent && e.target !== document.getElementById('bfiframeMo')) return;
-  document.getElementById('bfiframeMo').classList.remove('on');
-  document.getElementById('bfiframeEl').src = '';
+  if (e instanceof MouseEvent && e.target !== $('bfiframeMo').el) return;
+  $('bfiframeMo').remove('on');
+  $('bfiframeEl').el.src = '';
 }
 
 function bfToggleAll(checked) {
@@ -346,7 +346,7 @@ function bfToggleAll(checked) {
 async function downloadSelected() {
   const urls = [...document.querySelectorAll('.bf-chk:checked')].map(cb => cb.value);
   if (!urls.length) { toast('Select at least one bookmark'); return; }
-  const category = (document.getElementById('bfCatSel') || {}).value || '';
+  const category = ($('bfCatSel').el || {}).value || '';
   const r = await fetch('/api/download', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ urls, category })
@@ -376,9 +376,9 @@ async function renderDlQueue(jobs) {
   if (!jobs) {
     try { jobs = await (await fetch('/api/download/jobs')).json(); } catch { return; }
   }
-  const panel = document.getElementById('dlQueuePanel');
-  const list = document.getElementById('dlQueueList');
-  const counter = document.getElementById('dlQueueCount');
+  const panel = $('dlQueuePanel').el;
+  const list = $('dlQueueList').el;
+  const counter = $('dlQueueCount').el;
   if (!panel) return;
   if (!jobs.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';

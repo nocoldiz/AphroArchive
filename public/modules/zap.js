@@ -6,10 +6,10 @@ function toggleZapping() {
     if (mosaicOn) stopMosaic();
     zapOn = true;
     zapLock = false;
-    document.getElementById('zapUI').style.display = 'flex';
-    document.getElementById('zapLockBtn').textContent = 'Lock to Current';
-    document.getElementById('bv').classList.add('off');
-    document.getElementById('pv').classList.add('on');
+    $('zapUI').el.style.display = 'flex';
+    $('zapLockBtn').text('Lock to Current');
+    $('bv').add('off');
+    $('pv').add('on');
     startZapping();
   }
 }
@@ -17,21 +17,21 @@ function toggleZapping() {
 function stopZapping() {
   zapOn = false;
   clearTimeout(zapTimer);
-  document.getElementById('zapUI').style.display = 'none';
-  document.getElementById('vP').style.display = '';
-  document.getElementById('vP_zap').style.display = 'none';
+  $('zapUI').show(false);
+  $('vP').show();
+  $('vP_zap').show(false);
   activePlayer = 'vP';
   goHome();
 }
 
 function setZapIv(delta) {
   zapIv = Math.max(2, zapIv + delta);
-  document.getElementById('zapIv').textContent = zapIv + 's';
+  $('zapIv').text(zapIv + 's');
 }
 
 function toggleZapLock() {
   zapLock = !zapLock;
-  document.getElementById('zapLockBtn').textContent = zapLock ? 'Unlock (Resume Zapping)' : 'Lock to Current';
+  $('zapLockBtn').text(zapLock ? 'Unlock (Resume Zapping)' : 'Lock to Current');
   if (!zapLock) {
     zapTimer = setTimeout(doZapSwitch, zapIv * 1000);
   } else {
@@ -61,7 +61,7 @@ async function prepareNextZap() {
   const duration = d.video.duration || 60;
   zapNextTime = Math.random() * Math.max(0, duration - zapIv);
   const nextPlayerId = activePlayer === 'vP' ? 'vP_zap' : 'vP';
-  const vpNext = document.getElementById(nextPlayerId);
+  const vpNext = $(nextPlayerId).el;
   vpNext.src = '/api/stream/' + zapNextVid.id + '#t=' + zapNextTime;
   vpNext.load();
   vpNext.pause();
@@ -74,8 +74,8 @@ async function doZapSwitch() {
 
   const nextPlayerId = activePlayer === 'vP' ? 'vP_zap' : 'vP';
   const currPlayerId = activePlayer;
-  const vpNext = document.getElementById(nextPlayerId);
-  const vpCurr = document.getElementById(currPlayerId);
+  const vpNext = $(nextPlayerId).el;
+  const vpCurr = $(currPlayerId).el;
 
   vpNext.style.display = '';
   vpNext.currentTime = zapNextTime;
@@ -85,8 +85,8 @@ async function doZapSwitch() {
   activePlayer = nextPlayerId;
 
   curV = zapNextVid;
-  document.getElementById('pT').textContent = curV.name;
-  if (document.getElementById('pC')) document.getElementById('pC').textContent = curV.category;
+  $('pT').text(curV.name);
+  if ($('pC').el) $('pC').text(curV.category);
 
   prepareNextZap();
   zapTimer = setTimeout(doZapSwitch, zapIv * 1000);

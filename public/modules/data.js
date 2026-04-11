@@ -28,35 +28,35 @@ async function refresh() {
   if (recentMode) {
     recentMode = false;
     recentVids = [];
-    document.getElementById('recentSB').classList.remove('on');
-    document.getElementById('bv').classList.remove('off');
+    $('recentSB').remove('on');
+    $('bv').remove('off');
   }
   if (vaultMode) {
-    document.getElementById('vaultV').classList.remove('on');
-    document.getElementById('vaultSB').classList.remove('on');
-    document.getElementById('bv').classList.remove('off');
+    $('vaultV').remove('on');
+    $('vaultSB').remove('on');
+    $('bv').remove('off');
     vaultMode = false;
   }
   if (studioMode) {
-    document.getElementById('sv').classList.remove('on');
-    document.getElementById('sdv').classList.remove('on');
-    document.getElementById('studioSB').classList.remove('on');
-    document.getElementById('bv').classList.remove('off');
+    $('sv').remove('on');
+    $('sdv').remove('on');
+    $('studioSB').remove('on');
+    $('bv').remove('off');
     studioMode = false;
     curStudio = null;
   }
   if (actorMode) {
-    document.getElementById('av').classList.remove('on');
-    document.getElementById('adv').classList.remove('on');
-    document.getElementById('actorSB').classList.remove('on');
-    document.getElementById('bv').classList.remove('off');
+    $('av').remove('on');
+    $('adv').remove('on');
+    $('actorSB').remove('on');
+    $('bv').remove('off');
     actorMode = false;
     curActor = null;
   }
   if (curTag) {
-    document.getElementById('tagDV').classList.remove('on');
+    $('tagDV').remove('on');
     document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
-    document.getElementById('bv').classList.remove('off');
+    $('bv').remove('off');
     curTag = null;
   }
   await load();

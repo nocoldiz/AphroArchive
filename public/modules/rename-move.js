@@ -1,18 +1,18 @@
 // ─── Rename ───
 function openRen(id, name) {
   renId = id;
-  document.getElementById('rI').value = name;
-  document.getElementById('rE').style.display = 'none';
-  document.getElementById('rM').classList.add('on');
-  setTimeout(() => document.getElementById('rI').focus(), 50);
+  $('rI').val(name);
+  $('rE').show(false);
+  $('rM').add('on');
+  setTimeout(() => $('rI').el.focus(), 50);
 }
 
 function openRenP() { if (curV) openRen(curV.id, curV.name); }
 
-function closeRen() { document.getElementById('rM').classList.remove('on'); renId = null; }
+function closeRen() { $('rM').remove('on'); renId = null; }
 
 async function doRen() {
-  const n = document.getElementById('rI').value.trim();
+  const n = $('rI').el.value.trim();
   if (!n) return;
   const r = await fetch('/api/videos/' + renId + '/rename', {
     method: 'PATCH',
@@ -21,7 +21,7 @@ async function doRen() {
   });
   const d = await r.json();
   if (!r.ok) {
-    const e = document.getElementById('rE');
+    const e = $('rE').el;
     e.textContent = d.error || 'Failed';
     e.style.display = 'block';
     return;
@@ -31,8 +31,8 @@ async function doRen() {
   if (curV && curV.id === renId) {
     curV.id = d.newId;
     curV.name = n;
-    document.getElementById('pT').textContent = n;
-    const p = document.getElementById('vP'), t = p.currentTime;
+    $('pT').text(n);
+    const p = $('vP').el, t = p.currentTime;
     p.src = '/api/stream/' + d.newId;
     p.currentTime = t;
   }
@@ -130,12 +130,12 @@ function extractAndRenameActors() {
 async function openMov(id, name, curCatPath) {
   movId = id;
   movCurCat = curCatPath;
-  document.getElementById('mvInfo').textContent = 'Moving: ' + name;
-  document.getElementById('mvE').style.display = 'none';
-  document.getElementById('mvNew').value = '';
+  $('mvInfo').text('Moving: ' + name);
+  $('mvE').show(false);
+  $('mvNew').val('');
   const norm = p => p.replace(/\\/g, '/');
   const mainCats = await (await fetch('/api/main-categories')).json();
-  const list = document.getElementById('mvList');
+  const list = $('mvList').el;
   list.innerHTML = mainCats.map(c => {
     const isCur = norm(c.path) === norm(curCatPath);
     return '<div class="mv-item' + (isCur ? ' cur' : '') + '" data-cat="' + esc(c.path) + '">' +
@@ -145,11 +145,11 @@ async function openMov(id, name, curCatPath) {
   list.querySelectorAll('.mv-item:not(.cur)').forEach(el => {
     el.addEventListener('click', () => doMove(el.dataset.cat));
   });
-  document.getElementById('mvM').classList.add('on');
+  $('mvM').add('on');
 }
 
 function openMovP() { if (curV) openMov(curV.id, curV.name, curV.catPath || ''); }
-function closeMov() { document.getElementById('mvM').classList.remove('on'); movId = null; }
+function closeMov() { $('mvM').remove('on'); movId = null; }
 
 async function doMove(targetCat) {
   if (!movId) return;
@@ -160,7 +160,7 @@ async function doMove(targetCat) {
   });
   const d = await r.json();
   if (!r.ok) {
-    const e = document.getElementById('mvE');
+    const e = $('mvE').el;
     e.textContent = d.error || 'Move failed';
     e.style.display = 'block';
     return;
@@ -171,8 +171,8 @@ async function doMove(targetCat) {
     curV.id = d.newId;
     curV.catPath = targetCat;
     curV.category = targetCat || 'Uncategorized';
-    document.getElementById('pC').textContent = curV.category;
-    const p = document.getElementById('vP'), t = p.currentTime;
+    $('pC').text(curV.category);
+    const p = $('vP').el, t = p.currentTime;
     p.src = '/api/stream/' + d.newId;
     p.currentTime = t;
   }
@@ -180,7 +180,7 @@ async function doMove(targetCat) {
 }
 
 async function doMoveNew() {
-  const name = document.getElementById('mvNew').value.trim();
+  const name = $('mvNew').el.value.trim();
   if (!name) return;
   const safe = name.replace(/[<>:"/\\|?*]/g, '_');
   await doMove(safe);
@@ -200,8 +200,8 @@ async function dropMoveVideo(id, catPath) {
     curV.id = d.newId;
     curV.catPath = catPath;
     curV.category = catPath || 'Uncategorized';
-    document.getElementById('pC').textContent = curV.category;
-    const p = document.getElementById('vP'), t = p.currentTime;
+    $('pC').text(curV.category);
+    const p = $('vP').el, t = p.currentTime;
     p.src = '/api/stream/' + d.newId;
     p.currentTime = t;
   }
@@ -220,8 +220,8 @@ async function delVideo(id) {
 }
 
 // ─── Modal Close Handlers ───
-document.getElementById('rM').addEventListener('click', e => { if (e.target === document.getElementById('rM')) closeRen(); });
-document.getElementById('mvM').addEventListener('click', e => { if (e.target === document.getElementById('mvM')) closeMov(); });
+$('rM').el.addEventListener('click', e => { if (e.target === $('rM').el) closeRen(); });
+$('mvM').el.addEventListener('click', e => { if (e.target === $('mvM').el) closeMov(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeRen(); closeMov(); if (mosaicOn) stopMosaic(); closeBfIframe(); }
   if (e.key === 'Enter' && renId) doRen();

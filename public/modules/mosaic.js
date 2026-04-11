@@ -6,18 +6,18 @@ function toggleMosaic() {
 function startMosaic() {
   if (!V.length) { toast('No videos to show'); return; }
   mosaicOn = true;
-  document.getElementById('bv').classList.add('off');
-  document.getElementById('pv').classList.remove('on');
-  document.getElementById('dv').classList.remove('on');
-  document.getElementById('dupSB').classList.remove('on');
+  $('bv').add('off');
+  $('pv').remove('on');
+  $('dv').remove('on');
+  $('dupSB').remove('on');
   dupMode = false;
-  if (curV) { const vp = document.getElementById('vP'); vp.pause(); vp.src = ''; curV = null; }
-  document.getElementById('mosCatLbl').textContent = cat
+  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
+  $('mosCatLbl').el.textContent = cat
     ? (cats.find(x => x.path === cat)?.name || cat) + ' — Mosaic'
     : 'All Videos — Mosaic';
-  document.getElementById('mosIv').textContent = mosaicIv + 's';
-  document.getElementById('mosV').classList.add('on');
-  document.getElementById('mosBtn').classList.add('on');
+  $('mosIv').text(mosaicIv + 's');
+  $('mosV').add('on');
+  $('mosBtn').add('on');
   buildMosaicTiles();
   scheduleMosaic();
 }
@@ -31,9 +31,9 @@ function stopMosaic() {
   });
   mosTilesState = [];
   mosHoveredIdx = -1;
-  document.getElementById('mosV').classList.remove('on');
-  document.getElementById('mosBtn').classList.remove('on');
-  document.getElementById('bv').classList.remove('off');
+  $('mosV').remove('on');
+  $('mosBtn').remove('on');
+  $('bv').remove('off');
 }
 
 function mosPick(n) {
@@ -73,7 +73,7 @@ function preloadMosTile(tile, v) {
 }
 
 function buildMosaicTiles() {
-  const grid = document.getElementById('mosGrid');
+  const grid = $('mosGrid').el;
   mosTilesState.forEach(t => { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; });
   mosTilesState = [];
   mosHoveredIdx = -1;
@@ -167,12 +167,12 @@ function refreshMosaicTiles() {
 
 function setMosaicIv(delta) {
   mosaicIv = Math.max(2, Math.min(60, mosaicIv + delta));
-  document.getElementById('mosIv').textContent = mosaicIv + 's';
+  $('mosIv').text(mosaicIv + 's');
   scheduleMosaic();
 }
 
 function setMosaicCount(val) {
   mosTileCount = Math.max(1, Math.min(16, parseInt(val) || 6));
-  document.getElementById('mosCnt').value = mosTileCount;
+  $('mosCnt').val(mosTileCount);
   if (mosaicOn) { buildMosaicTiles(); scheduleMosaic(); }
 }
