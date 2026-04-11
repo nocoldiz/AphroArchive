@@ -57,7 +57,8 @@
       "Bash(git:*)",
       "Bash(xxd)",
       "WebFetch(domain:cdn.jsdelivr.net)",
-      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js\")"
+      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js\")",
+      "Bash(taskkill /F /FI \"WINDOWTITLE eq node*\" /IM node.exe)"
     ]
   }
 }
