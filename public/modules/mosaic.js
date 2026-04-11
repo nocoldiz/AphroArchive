@@ -6,17 +6,17 @@ function toggleMosaic() {
 function startMosaic() {
   if (!V.length) { toast('No videos to show'); return; }
   mosaicOn = true;
-  $('bv').add('off');
-  $('pv').remove('on');
-  $('dv').remove('on');
-  $('dupSB').remove('on');
+  $('browse-view').add('off');
+  $('player-view').remove('on');
+  $('duplicates-view').remove('on');
+  $('duplicates-sidebar').remove('on');
   dupMode = false;
-  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
-  $('mosCatLbl').el.textContent = cat
+  if (curV) { const vp = $('video-player').el; vp.pause(); vp.src = ''; curV = null; }
+  $('mosaic-category-label').el.textContent = cat
     ? (cats.find(x => x.path === cat)?.name || cat) + ' — Mosaic'
     : 'All Videos — Mosaic';
-  $('mosIv').text(mosaicIv + 's');
-  $('mosV').add('on');
+  $('mosaic-interval').text(mosaicIv + 's');
+  $('mosaic-view').add('on');
   $('mosBtn').add('on');
   buildMosaicTiles();
   scheduleMosaic();
@@ -31,9 +31,9 @@ function stopMosaic() {
   });
   mosTilesState = [];
   mosHoveredIdx = -1;
-  $('mosV').remove('on');
+  $('mosaic-view').remove('on');
   $('mosBtn').remove('on');
-  $('bv').remove('off');
+  $('browse-view').remove('off');
 }
 
 function mosPick(n) {
@@ -73,7 +73,7 @@ function preloadMosTile(tile, v) {
 }
 
 function buildMosaicTiles() {
-  const grid = $('mosGrid').el;
+  const grid = $('mosaic-grid').el;
   mosTilesState.forEach(t => { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; });
   mosTilesState = [];
   mosHoveredIdx = -1;
@@ -167,12 +167,12 @@ function refreshMosaicTiles() {
 
 function setMosaicIv(delta) {
   mosaicIv = Math.max(2, Math.min(60, mosaicIv + delta));
-  $('mosIv').text(mosaicIv + 's');
+  $('mosaic-interval').text(mosaicIv + 's');
   scheduleMosaic();
 }
 
 function setMosaicCount(val) {
   mosTileCount = Math.max(1, Math.min(16, parseInt(val) || 6));
-  $('mosCnt').val(mosTileCount);
+  $('mosaic-count').val(mosTileCount);
   if (mosaicOn) { buildMosaicTiles(); scheduleMosaic(); }
 }

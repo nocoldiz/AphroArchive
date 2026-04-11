@@ -24,14 +24,28 @@ const IS_PKG = typeof process.pkg !== 'undefined';
 // Directory for mutable runtime data: real exe dir when packaged, __dirname otherwise
 const DATA_DIR = IS_PKG ? path.dirname(process.execPath) : __dirname;
 
-function getLocalIP() {
+function getLocalIPs() {
   const ifaces = os.networkInterfaces();
+  const results = [];
   for (const name of Object.keys(ifaces)) {
     for (const iface of ifaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+      if ((iface.family === 'IPv4' || iface.family === 4) && !iface.internal) {
+        // Score: prefer typical LAN ranges over VPN/tunnel ranges
+        const ip = iface.address;
+        let score = 0;
+        if (ip.startsWith('192.168.')) score = 3;
+        else if (ip.match(/^172\.(1[6-9]|2\d|3[01])\./)) score = 2;
+        else if (ip.startsWith('10.')) score = 1;
+        results.push({ ip, name, score });
+      }
     }
   }
-  return null;
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+function getLocalIP() {
+  const ips = getLocalIPs();
+  return ips.length ? ips[0].ip : null;
 }
 
 const BM_DIR = path.join(DATA_DIR, 'bookmark_downloader');
@@ -65,6 +79,7 @@ const YT_DLP_BIN  = (() => {
 })();
 
 const VIDEOS_DIR = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || path.join(DATA_DIR, 'videos'));
+const AUDIO_DIR  = path.join(DATA_DIR, 'audio');
 const PORT = parseInt(process.argv[3] || process.env.PORT || '3000', 10);
 const PUBLIC_DIR = path.join(__dirname, 'public');         // bundled (read-only)
 const THUMBS_DIR = path.join(DATA_DIR, '.AphroArchive-thumbs');
@@ -79,6 +94,7 @@ const VAULT_CONFIG_FILE = path.join(SETTINGS_DIR, '.vault-config.json');
 const VAULT_META_FILE = path.join(SETTINGS_DIR, '.vault-meta.json');
 const EXTRA_FOLDERS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-folders.json');
 const BROWSER_WHITELIST_FILE = path.join(SETTINGS_DIR, 'whitelist.txt');
+const WEBSITES_FILE = path.join(SETTINGS_DIR, 'websites.json');
 const COLLECTIONS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-collections.json');
 const RATINGS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-ratings.json');
 const HIDDEN_FILE  = path.join(SETTINGS_DIR, 'hidden.txt');
@@ -86,7 +102,32 @@ const DB_DIR = path.join(__dirname, 'db');
 const ACTORS_JSON     = path.join(DB_DIR, 'actors.json');
 const CATEGORIES_JSON = path.join(DB_DIR, 'categories.json');
 const STUDIOS_JSON    = path.join(DB_DIR, 'studios.json');
-fs.mkdirSync(SETTINGS_DIR, { recursive: true });
+fs.mkdirSync(SETTINGS_DIR,  { recursive: true });
+fs.mkdirSync(VIDEOS_DIR,   { recursive: true });
+fs.mkdirSync(AUDIO_DIR,    { recursive: true });
+
+// ── Migrate whitelist.txt → websites.json (runs once on first start) ─────
+(function migrateWhitelist() {
+  if (fs.existsSync(WEBSITES_FILE)) return;
+  let entries = [];
+  if (fs.existsSync(BROWSER_WHITELIST_FILE)) {
+    const lines = fs.readFileSync(BROWSER_WHITELIST_FILE, 'utf-8')
+      .split('\n').map(l => l.trim()).filter(Boolean);
+    entries = lines.map(line => ({
+      name: line, url: line.startsWith('http') ? line : 'https://' + line,
+      searchURL: '', scrapeMethod: '', tags: [], description: ''
+    }));
+  }
+  fs.writeFileSync(WEBSITES_FILE, JSON.stringify(entries, null, 2));
+})();
+
+function loadWebsites() {
+  try { return JSON.parse(fs.readFileSync(WEBSITES_FILE, 'utf-8')); }
+  catch { return []; }
+}
+function saveWebsites(sites) {
+  fs.writeFileSync(WEBSITES_FILE, JSON.stringify(sites, null, 2));
+}
 
 const VIDEO_EXT = new Set(['.mp4','.mkv','.avi','.mov','.wmv','.flv','.webm','.m4v','.mpg','.mpeg','.3gp','.ogv','.ts']);
 const MIME = {
@@ -545,9 +586,10 @@ function readJsonKeys(file) {
 
 function apiSettingsLists(req, res) {
   const read = f => { try { return fs.readFileSync(f, 'utf-8'); } catch { return ''; } };
+  const sites = loadWebsites();
   json(res, {
     hidden:     read(HIDDEN_FILE),
-    whitelist:  read(BROWSER_WHITELIST_FILE),
+    whitelist:  sites.map(s => s.url).join('\n'),
     categories: readJsonKeys(CATEGORIES_JSON),
     actors:     readJsonKeys(ACTORS_JSON),
     studios:    readJsonKeys(STUDIOS_JSON),
@@ -555,7 +597,19 @@ function apiSettingsLists(req, res) {
 }
 
 async function apiSettingsSave(req, res, file) {
-  const map = { hidden: HIDDEN_FILE, whitelist: BROWSER_WHITELIST_FILE };
+  if (file === 'whitelist') {
+    const data = await readBody(req);
+    const lines = (data.content || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const existing = loadWebsites();
+    const newSites = lines.map(url => {
+      const found = existing.find(s => s.url === url || s.url === (url.startsWith('http') ? url : 'https://' + url));
+      return found || { name: url, url: url.startsWith('http') ? url : 'https://' + url, searchURL: '', scrapeMethod: '', tags: [], description: '' };
+    });
+    saveWebsites(newSites);
+    json(res, { ok: true, count: newSites.length });
+    return;
+  }
+  const map = { hidden: HIDDEN_FILE };
   if (!map[file]) return json(res, { error: 'Unknown file' }, 400);
   const data = await readBody(req);
   const lines = (data.content || '')
@@ -564,9 +618,48 @@ async function apiSettingsSave(req, res, file) {
   json(res, { ok: true, count: lines.length });
 }
 
-// ─── Browser Favourites Import ────────────────────────────────────
+// ─── Websites API ─────────────────────────────────────────────────
+
+async function apiWebsiteAdd(req, res) {
+  const body = await readBody(req);
+  if (!body.url) return json(res, { error: 'url required' }, 400);
+  const sites = loadWebsites();
+  const entry = {
+    name: body.name || body.url,
+    url: body.url,
+    searchURL: body.searchURL || '',
+    scrapeMethod: body.scrapeMethod || '',
+    tags: body.tags || [],
+    description: body.description || ''
+  };
+  sites.push(entry);
+  saveWebsites(sites);
+  json(res, { ok: true, index: sites.length - 1 });
+}
+
+async function apiWebsiteDelete(req, res, index) {
+  const sites = loadWebsites();
+  if (index < 0 || index >= sites.length) return json(res, { error: 'Not found' }, 404);
+  sites.splice(index, 1);
+  saveWebsites(sites);
+  json(res, { ok: true });
+}
+
+async function apiWebsiteUpdate(req, res, index) {
+  const body = await readBody(req);
+  const sites = loadWebsites();
+  if (index < 0 || index >= sites.length) return json(res, { error: 'Not found' }, 404);
+  sites[index] = { ...sites[index], ...body };
+  saveWebsites(sites);
+  json(res, { ok: true });
+}
+
+// ─── Browser Favourites Import ─────────────────────────────────────
 
 function loadWhitelist() {
+  const sites = loadWebsites();
+  if (sites.length) return sites.map(s => { try { return new URL(s.url).hostname; } catch { return s.url; } });
+  // fallback to legacy whitelist.txt
   try {
     return fs.readFileSync(BROWSER_WHITELIST_FILE, 'utf-8')
       .split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -2112,6 +2205,10 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/actor-photos\/(.+)\/img$/)) && req.method === 'GET') return apiActorPhotoImg(req, res, decodeURIComponent(m[1]));
   if (p === '/api/settings/lists' && req.method === 'GET') return apiSettingsLists(req, res);
   if ((m = p.match(/^\/api\/settings\/(hidden|whitelist)$/)) && req.method === 'PUT') return apiSettingsSave(req, res, m[1]);
+  if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
+  if (p === '/api/websites' && req.method === 'POST') return apiWebsiteAdd(req, res);
+  if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'DELETE') return apiWebsiteDelete(req, res, parseInt(m[1]));
+  if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'PUT') return apiWebsiteUpdate(req, res, parseInt(m[1]));
   if (p === '/api/og-thumb' && req.method === 'GET') return apiOgThumb(req, res);
   if (p === '/api/bookmarks/cache' && req.method === 'GET') return apiGetBookmarksCache(req, res);
   if (p === '/api/bookmarks/cache' && req.method === 'POST') return apiSaveBookmarksCache(req, res);
@@ -2134,8 +2231,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/files' && req.method === 'GET') return apiVaultFiles(req, res);
   if (p === '/api/vault/add' && req.method === 'POST') return apiVaultAdd(req, res);
   if (p === '/api/local-ip' && req.method === 'GET') {
-    const ip = getLocalIP();
-    return json(res, { ip, port: PORT, url: ip ? `http://${ip}:${PORT}` : null });
+    const ips = getLocalIPs();
+    const best = ips[0] || null;
+    return json(res, {
+      ip: best ? best.ip : null,
+      port: PORT,
+      url: best ? `http://${best.ip}:${PORT}` : null,
+      all: ips.map(e => ({ ip: e.ip, name: e.name, url: `http://${e.ip}:${PORT}` })),
+    });
   }
   if ((m = p.match(/^\/api\/vault\/stream\/([^/]+)$/)) && req.method === 'GET') return apiVaultStream(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'DELETE') return apiVaultDelete(req, res, m[1]);
@@ -2154,7 +2257,7 @@ const server = http.createServer(async (req, res) => {
 
   // Static files from public/ — SPA routes fall back to index.html
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(bookmarks|duplicates|vault|folders|recent|collections|scraper|settings|database|actors|studios|books|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(bookmarks|duplicates|vault|folders|recent|collections|scraper|settings|database|actors|studios|books|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });
@@ -2170,10 +2273,6 @@ server.listen(PORT, () => {
       : process.platform === 'darwin' ? `open http://localhost:${PORT}`
       : `xdg-open http://localhost:${PORT}`;
     exec(openCmd);
-  }
-  if (!fs.existsSync(VIDEOS_DIR)) {
-    fs.mkdirSync(VIDEOS_DIR, { recursive: true });
-    console.log(`  \x1b[33m⚠  Created empty videos directory — add your videos there!\x1b[0m\n`);
   }
   for (const sub of ['Straight', 'Gay', 'Lesbian', 'Transgender']) {
     const subDir = path.join(VIDEOS_DIR, sub);

@@ -60,14 +60,14 @@ function showImportFavs() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/bookmarks') history.pushState(null, '', '/bookmarks');
   importFavsMode = true;
-  $('bv').add('off');
-  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','dbV'].forEach(id => $(id).remove('on'));
-  document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  $('importFavsSB').add('on');
+  $('browse-view').add('off');
+  ['player-view','duplicates-view','actors-view','actor-detail-view','studios-view','studio-detail-view','tag-detail-view','vault-view','scraper-view','collections-view','settings-view','folders-view','database-view'].forEach(id => $(id).remove('on'));
+  document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
+  $('import-favs-sidebar').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  $('importFavsV').add('on');
+  $('import-favs-view').add('on');
   if (!_bfItems.length) bfLoadCache();
 }
 
@@ -318,7 +318,7 @@ function bfOpenAllVisible() {
 }
 
 function openBfIframe(url, title) {
-  const mo = $('bfiframeMo').el;
+  const modalOverlay = $('bfiframeMo').el;
   const iframe = $('bfiframeEl').el;
   const blocked = $('bfiframeBlocked').el;
   $('bfiframeTitle').text(title || url);
@@ -330,7 +330,7 @@ function openBfIframe(url, title) {
   iframe.onload = () => { loaded = true; };
   setTimeout(() => { if (!loaded) blocked.classList.add('on'); }, 4000);
   iframe.src = url;
-  mo.classList.add('on');
+  modalOverlay.classList.add('on');
 }
 
 function closeBfIframe(e) {
@@ -340,11 +340,11 @@ function closeBfIframe(e) {
 }
 
 function bfToggleAll(checked) {
-  document.querySelectorAll('.bf-chk').forEach(cb => cb.checked = checked);
+  document.querySelectorAll('.bf-chk').forEach(el => el.checked = checked);
 }
 
 async function downloadSelected() {
-  const urls = [...document.querySelectorAll('.bf-chk:checked')].map(cb => cb.value);
+  const urls = [...document.querySelectorAll('.bf-chk:checked')].map(el => el.value);
   if (!urls.length) { toast('Select at least one bookmark'); return; }
   const category = ($('bfCatSel').el || {}).value || '';
   const r = await fetch('/api/download', {
@@ -391,14 +391,14 @@ async function renderDlQueue(jobs) {
       : j.status === 'done' ? 'Done'
       : j.status === 'error' ? (j.error || 'Error')
       : 'Queued';
-    const statusCls = j.status === 'done' ? 'dlj-done' : j.status === 'error' ? 'dlj-err' : '';
-    return '<div class="dlj-row">' +
-      '<div class="dlj-info">' +
-        '<span class="dlj-title" title="' + esc(j.url) + '">' + esc(j.title === j.url ? new URL(j.url).hostname + '/…' : j.title) + '</span>' +
-        '<span class="dlj-status ' + statusCls + '">' + esc(statusTx) + '</span>' +
+    const statusCls = j.status === 'done' ? 'download-job-done' : j.status === 'error' ? 'download-job-error' : '';
+    return '<div class="download-job-row">' +
+      '<div class="download-job-info">' +
+        '<span class="download-job-title" title="' + esc(j.url) + '">' + esc(j.title === j.url ? new URL(j.url).hostname + '/…' : j.title) + '</span>' +
+        '<span class="download-job-status ' + statusCls + '">' + esc(statusTx) + '</span>' +
       '</div>' +
-      (j.status === 'running' ? '<div class="dlj-bar"><div class="dlj-fill" style="width:' + pct + '%"></div></div>' : '') +
-      '<button class="fv-rm" onclick="removeDlJob(\'' + j.id + '\')" title="' + (j.status === 'running' ? 'Cancel' : 'Remove') + '">' +
+      (j.status === 'running' ? '<div class="download-job-bar"><div class="download-job-fill" style="width:' + pct + '%"></div></div>' : '') +
+      '<button class="folder-remove" onclick="removeDlJob(\'' + j.id + '\')" title="' + (j.status === 'running' ? 'Cancel' : 'Remove') + '">' +
         '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>' +
       '</button>' +
     '</div>';

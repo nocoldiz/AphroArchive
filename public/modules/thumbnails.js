@@ -14,7 +14,7 @@ function initThumbObs() {
 
 function attachThumbs() {
   initThumbObs();
-  document.querySelectorAll('.ct[data-vid], .dup-th[data-vid]').forEach(el => {
+  document.querySelectorAll('.card-thumb[data-vid], .duplicate-thumb[data-vid]').forEach(el => {
     const id = el.dataset.vid, v = thumbMap[id];
     if (v && v.length) { applyThumb(el, v[0]); return; }
     if (!(id in thumbMap)) thumbObs.observe(el);
@@ -36,7 +36,7 @@ async function runThumbQ() {
     thumbMap[id] = d.count > 0 ? Array.from({ length: d.count }, (_, i) => '/api/thumbs/' + id + '/' + i) : [];
     if (thumbMap[id].length) {
       thumbMap[id].forEach(u => { const i = new Image(); i.src = u; });
-      const el = document.querySelector('.ct[data-vid="' + id + '"]');
+      const el = document.querySelector('.cardThumb[data-vid="' + id + '"]');
       if (el) applyThumb(el, thumbMap[id][0]);
     }
   } catch { thumbMap[id] = []; }
@@ -51,18 +51,18 @@ function applyThumb(el, url) {
 
 // ─── Hover Preview ───
 document.addEventListener('mouseenter', e => {
-  const ct = e.target.closest?.('.ct[data-vid], .dup-th[data-vid]');
-  if (!ct) return;
+  const cardThumb = e.target.closest?.('.card-thumb[data-vid], .duplicate-thumb[data-vid]');
+  if (!cardThumb) return;
   clearTimeout(hoverTimer);
-  hoverEl = ct;
+  hoverEl = cardThumb;
   hoverTimer = setTimeout(() => {
-    if (ct !== hoverEl || ct.querySelector('.ct-preview')) return;
+    if (cardThumb !== hoverEl || cardThumb.querySelector('.ct-preview')) return;
     const vid = document.createElement('video');
     vid.className = 'ct-preview';
     vid.muted = true;
     vid.playsInline = true;
     vid.preload = 'metadata';
-    vid.src = '/api/stream/' + ct.dataset.vid;
+    vid.src = '/api/stream/' + cardThumb.dataset.vid;
     vid.addEventListener('loadedmetadata', () => {
       vid.currentTime = vid.duration > 0 ? vid.duration / 2 : 0;
     });
@@ -71,15 +71,15 @@ document.addEventListener('mouseenter', e => {
       vid.play().catch(() => {});
       vid._stop = setTimeout(() => vid.pause(), 10000);
     });
-    ct.appendChild(vid);
+    cardThumb.appendChild(vid);
   }, 250);
 }, true);
 
 document.addEventListener('mouseleave', e => {
-  const ct = e.target.closest?.('.ct[data-vid], .dup-th[data-vid]');
-  if (!ct || ct !== hoverEl) return;
+  const cardThumb = e.target.closest?.('.card-thumb[data-vid], .duplicate-thumb[data-vid]');
+  if (!cardThumb || cardThumb !== hoverEl) return;
   clearTimeout(hoverTimer);
   hoverEl = null;
-  const vid = ct.querySelector('.ct-preview');
+  const vid = cardThumb.querySelector('.ct-preview');
   if (vid) { clearTimeout(vid._stop); vid.pause(); vid.src = ''; vid.remove(); }
 }, true);

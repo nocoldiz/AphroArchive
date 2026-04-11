@@ -18,11 +18,25 @@ const $ = id => {
   return w;
 };
 
+// ─── Template engine ───
+const _tpl = {};
+async function loadTemplates() {
+  const names = ['loading', 'skeleton', 'empty-state', 'video-card', 'bookmark-card'];
+  await Promise.all(names.map(n =>
+    fetch('/templates/' + n + '.html')
+      .then(r => r.text())
+      .then(t => { _tpl[n] = t.trim(); })
+  ));
+}
+function tpl(name, data = {}) {
+  return (_tpl[name] || '').replace(/\{\{(\w+)\}\}/g, (_, k) => data[k] ?? '');
+}
+
 // ─── Utilities ───
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function escA(s) { return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 function hsh(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; } return h; }
-function toast(m) { const e = $('tst').el; e.textContent = m; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 2500); }
+function toast(m, ms = 2500) { const e = $('toast').el; e.textContent = m; e.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => e.classList.remove('show'), ms); }
 function fmtBytes(b) {
   if (!b) return '0 B';
   const k = 1024, s = ['B','KB','MB','GB','TB'];

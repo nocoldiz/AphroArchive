@@ -1,0 +1,16 @@
+<a class="video-card fade-in" href="/video/{{id}}" onclick="event.preventDefault();openVid('{{id}}')"{{dragAttr}}>
+  <div class="card-thumb" data-vid="{{id}}" style="background:linear-gradient(135deg,{{color}}12 0%,{{color}}06 100%)">
+    <span class="ext-badge">{{ext}}</span>
+    <div class="play-overlay"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>
+    {{duration}}
+    <span class="size-badge">{{sizeF}}</span>
+    {{rating}}
+  </div>
+  <div class="card-body">
+    <div class="card-title" title="{{nameA}}">{{name}}</div>
+    <div class="card-meta">
+      <span class="card-category">{{category}}</span>
+      <div class="card-actions">{{starBtn}}{{renBtn}}{{moveBtn}}{{tagBtn}}</div>
+    </div>
+  </div>
+</a>

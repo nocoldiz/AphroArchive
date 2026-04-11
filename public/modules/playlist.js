@@ -7,27 +7,27 @@ function buildPl() {
 function renderPlaylist() {
   const pl = buildPl();
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  $('pplCount').text(pl.length + ' video' + (pl.length !== 1 ? 's' : ''));
-  const listEl = $('pplList').el;
+  $('playlist-count').text(pl.length + ' video' + (pl.length !== 1 ? 's' : ''));
+  const listEl = $('playlist-list').el;
   if (!pl.length) {
-    listEl.innerHTML = '<div class="ppl-empty">Playlist is empty</div>';
+    listEl.innerHTML = '<div class="playlist-empty">Playlist is empty</div>';
     return;
   }
   listEl.innerHTML = pl.map((v, i) => {
     const c = cols[Math.abs(hsh(v.category)) % cols.length];
     const isCur = curV && v.id === curV.id;
-    return '<div class="ppl-item' + (isCur ? ' cur' : '') + '" id="ppl-' + v.id + '" onclick="openVid(\'' + escA(v.id) + '\')">' +
-      '<div class="ct ppl-ct" data-vid="' + v.id + '" style="background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)">' +
-        '<div class="po" style="transform:translate(-50%,-50%) scale(0.6)"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>' +
-        (v.durationF ? '<span class="durb">' + v.durationF + '</span>' : '') +
-        (v.rating ? '<div class="vr-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' + v.rating + '</div>' : '') +
+    return '<div class="playlist-item' + (isCur ? ' cur' : '') + '" id="ppl-' + v.id + '" onclick="openVid(\'' + escA(v.id) + '\')">' +
+      '<div class="card-thumb playlist-thumb" data-vid="' + v.id + '" style="background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)">' +
+        '<div class="play-overlay" style="transform:translate(-50%,-50%) scale(0.6)"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>' +
+        (v.durationF ? '<span class="duration-badge">' + v.durationF + '</span>' : '') +
+        (v.rating ? '<div class="rating-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' + v.rating + '</div>' : '') +
       '</div>' +
-      '<div class="ppl-info">' +
-        '<span class="ppl-num">' + (i + 1) + '</span>' +
-        '<span class="ppl-name">' + esc(v.name) + '</span>' +
-        '<span class="ppl-cat">' + esc(v.category) + '</span>' +
+      '<div class="playlist-info">' +
+        '<span class="playlist-num">' + (i + 1) + '</span>' +
+        '<span class="playlist-name">' + esc(v.name) + '</span>' +
+        '<span class="playlist-category">' + esc(v.category) + '</span>' +
       '</div>' +
-      '<button class="ppl-rm" onclick="event.stopPropagation();skipFromPlaylist(\'' + escA(v.id) + '\')" title="Remove from playlist">' +
+      '<button class="playlist-remove" onclick="event.stopPropagation();skipFromPlaylist(\'' + escA(v.id) + '\')" title="Remove from playlist">' +
         '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>' +
       '</button>' +
       '</div>';
@@ -71,7 +71,7 @@ function playPrev() {
   openVid(pl[(idx - 1 + pl.length) % pl.length].id);
 }
 
-$('vP').el.addEventListener('ended', playNext);
+$('video-player').el.addEventListener('ended', playNext);
 $('vPin').el.addEventListener('ended', pinNext);
 
 // ─── Pin (Dual Play) ───
@@ -110,14 +110,14 @@ function renderPinPlaylist() {
   listEl.innerHTML = pinnedPl.map((v, i) => {
     const c = cols[Math.abs(hsh(v.category)) % cols.length];
     const isCur = pinnedV && v.id === pinnedV.id;
-    return '<div class="ppl-item' + (isCur ? ' cur' : '') + '" id="pinpl-' + v.id + '" onclick="pinJump(' + i + ')">' +
-      '<div class="ppl-ct ct" data-vid="' + v.id + '" style="background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)">' +
-        '<div class="po" style="transform:translate(-50%,-50%) scale(0.6)"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>' +
-        (v.durationF ? '<span class="durb">' + v.durationF + '</span>' : '') +
+    return '<div class="playlist-item' + (isCur ? ' cur' : '') + '" id="pinpl-' + v.id + '" onclick="pinJump(' + i + ')">' +
+      '<div class="playlist-thumb card-thumb" data-vid="' + v.id + '" style="background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)">' +
+        '<div class="play-overlay" style="transform:translate(-50%,-50%) scale(0.6)"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>' +
+        (v.durationF ? '<span class="duration-badge">' + v.durationF + '</span>' : '') +
       '</div>' +
-      '<div class="ppl-info">' +
-        '<span class="ppl-num">' + (i + 1) + '</span>' +
-        '<span class="ppl-name">' + esc(v.name) + '</span>' +
+      '<div class="playlist-info">' +
+        '<span class="playlist-num">' + (i + 1) + '</span>' +
+        '<span class="playlist-name">' + esc(v.name) + '</span>' +
       '</div>' +
       '</div>';
   }).join('');

@@ -1,9 +1,10 @@
 // ─── Init ───
 async function init() {
+  await loadTemplates();
   showSk();
   await fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
   const [,, , vs] = await Promise.all([load(), loadC(), loadTagSidebar(), fetch('/api/vault/status').then(r => r.json())]);
-  if (vs.hidden) $('vaultSB').show(false);
+  if (vs.hidden) $('vault-sidebar').show(false);
   V.sort(() => Math.random() - 0.5);
   render();
   loadBookmarkVidsOnInit();
@@ -32,11 +33,11 @@ async function loadBookmarkVidsOnInit() {
 function goBack() {
   playlistSkipped.clear();
   if (vaultMode) {
-    const p = $('vP').el;
+    const p = $('video-player').el;
     p.pause(); p.src = '';
     curV = null;
-    $('pv').remove('on');
-    $('vaultV').add('on');
+    $('player-view').remove('on');
+    $('vault-view').add('on');
     if (location.pathname !== '/') history.pushState(null, '', '/');
     loadVaultFiles();
   } else {
@@ -50,40 +51,42 @@ function goHome() {
   if (zapOn) {
     zapOn = false;
     clearTimeout(zapTimer);
-    $('zapUI').show(false);
-    $('vP').show();
-    $('vP_zap').show(false);
-    activePlayer = 'vP';
+    $('zap-ui').show(false);
+    $('video-player').show();
+    $('video-player-zap').show(false);
+    activePlayer = 'video-player';
   }
   if (location.pathname !== '/') history.pushState(null, '', '/');
-  $('vaultV').remove('on');
-  $('vaultSB').remove('on');
-  $('scraperV').remove('on');
-  $('scraperSB').remove('on');
-  $('collectionsV').remove('on');
-  $('collectionsSB').remove('on');
-  if ($('foldersV').el) $('foldersV').remove('on');
-  if ($('foldersSB').el) $('foldersSB').remove('on');
-  if ($('booksV').el) $('booksV').remove('on');
-  if ($('booksSB').el) $('booksSB').remove('on');
-  $('settingsV').remove('on');
-  $('settingsSB').remove('on');
-  if ($('dbV').el) $('dbV').remove('on');
-  if ($('databaseSB').el) $('databaseSB').remove('on');
+  $('vault-view').remove('on');
+  $('vault-sidebar').remove('on');
+  $('scraper-view').remove('on');
+  $('scraper-sidebar').remove('on');
+  $('collections-view').remove('on');
+  $('collections-sidebar').remove('on');
+  if ($('folders-view').el) $('folders-view').remove('on');
+  if ($('folders-sidebar').el) $('folders-sidebar').remove('on');
+  if ($('books-view').el) $('books-view').remove('on');
+  if ($('books-sidebar').el) $('books-sidebar').remove('on');
+  if ($('search-sites-view').el) $('search-sites-view').remove('on');
+  if ($('search-sites-sidebar').el) $('search-sites-sidebar').remove('on');
+  $('settings-view').remove('on');
+  $('settings-sidebar').remove('on');
+  if ($('database-view').el) $('database-view').remove('on');
+  if ($('database-sidebar').el) $('database-sidebar').remove('on');
   vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false;
   curCollection = null;
-  $('bv').remove('off');
-  $('pv').remove('on');
-  $('dv').remove('on');
-  $('dupSB').remove('on');
-  $('sv').remove('on');
-  $('sdv').remove('on');
-  $('studioSB').remove('on');
-  $('av').remove('on');
-  $('adv').remove('on');
-  $('actorSB').remove('on');
-  $('tagDV').remove('on');
-  document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
+  $('browse-view').remove('off');
+  $('player-view').remove('on');
+  $('duplicates-view').remove('on');
+  $('duplicates-sidebar').remove('on');
+  $('studios-view').remove('on');
+  $('studio-detail-view').remove('on');
+  $('studio-sidebar').remove('on');
+  $('actors-view').remove('on');
+  $('actor-detail-view').remove('on');
+  $('actor-sidebar').remove('on');
+  $('tag-detail-view').remove('on');
+  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
   dupMode = false;
   studioMode = false;
   curStudio = null;
@@ -92,8 +95,8 @@ function goHome() {
   curTag = null;
   recentMode = false;
   recentVids = [];
-  $('recentSB').remove('on');
-  const p = $('vP').el;
+  $('recent-sidebar').remove('on');
+  const p = $('video-player').el;
   p.pause();
   p.src = '';
   curV = null;
@@ -104,18 +107,18 @@ function goHome() {
 function closeAllViews() {
   if (mosaicOn) stopMosaic();
   if (curV) {
-    $('pv').remove('on');
-    const vp = $('vP').el; vp.pause(); vp.src = '';
+    $('player-view').remove('on');
+    const vp = $('video-player').el; vp.pause(); vp.src = '';
     curV = null;
   }
   [
-    'dv','dupSB','sv','sdv','studioSB','av','adv','actorSB','tagDV',
-    'vaultV','vaultSB','scraperV','scraperSB',
-    'collectionsV','collectionsSB','foldersV','foldersSB',
-    'booksV','booksSB',
-    'importFavsV','importFavsSB','settingsV','settingsSB','recentSB'
+    'duplicates-view','duplicates-sidebar','studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
+    'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
+    'collections-view','collections-sidebar','folders-view','folders-sidebar',
+    'books-view','books-sidebar','search-sites-view','search-sites-sidebar',
+    'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','recent-sidebar'
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
-  document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
+  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
   dupMode = false; vaultMode = false; scraperMode = false;
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
@@ -131,11 +134,11 @@ function selCat(c) {
   cat = c;
   const catUrl = c ? '/cat/' + encodeURIComponent(c) : '/';
   if (location.pathname !== catUrl) history.pushState(null, '', catUrl);
-  $('sT').text(c ? cats.find(x => x.path === c)?.name || c : 'All Videos');
-  $('bv').remove('off');
+  $('section-title').text(c ? cats.find(x => x.path === c)?.name || c : 'All Videos');
+  $('browse-view').remove('off');
   q = '';
-  $('sI').val('');
-  $('sGhost').html('');
+  $('search-input').val('');
+  $('search-ghost').html('');
   refresh();
 }
 
@@ -143,7 +146,7 @@ function selCat(c) {
 function toggleFav() {
   favM = !favM;
   $('fBtn').toggle('on', favM);
-  $('sT').text(favM ? 'Favourites' : 'All Videos');
+  $('section-title').text(favM ? 'Favourites' : 'All Videos');
   if (favM) { cat = ''; history.pushState(null, '', '/favourites'); }
   else history.pushState(null, '', '/');
   refresh();
@@ -153,7 +156,7 @@ function toggleFav() {
 async function setSort(s, el) {
   sort = s;
   shuf = false;
-  document.querySelectorAll('.sb[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  document.querySelectorAll('.sort-btn[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   document.querySelectorAll('#shBtn, #shBtnTag').forEach(b => b.classList.remove('on'));
   if (curTag) { await openTag(curTag); return; }
   await load(); render();
@@ -162,8 +165,8 @@ async function setSort(s, el) {
 async function toggleShuf() {
   shuf = !shuf;
   document.querySelectorAll('#shBtn, #shBtnTag').forEach(b => b.classList.toggle('on', shuf));
-  if (shuf) document.querySelectorAll('.sb[data-s]').forEach(b => b.classList.remove('on'));
-  else document.querySelector('.sb[data-s="' + sort + '"]')?.classList.add('on');
+  if (shuf) document.querySelectorAll('.sort-btn[data-s]').forEach(b => b.classList.remove('on'));
+  else document.querySelector('.sort-btn[data-s="' + sort + '"]')?.classList.add('on');
   if (curTag) { await openTag(curTag); return; }
   await load(); render();
 }
@@ -174,19 +177,19 @@ async function showRecent() {
   if (location.pathname !== '/recent') history.pushState(null, '', '/recent');
   recentMode = true;
   recentVids = [];
-  $('recentSB').add('on');
-  $('bv').remove('off');
-  $('pv').remove('on');
-  ['actorSB','studioSB','dupSB','vaultSB','foldersSB','collectionsSB','scraperSB','settingsSB'].forEach(id => {
+  $('recent-sidebar').add('on');
+  $('browse-view').remove('off');
+  $('player-view').remove('on');
+  ['actor-sidebar','studio-sidebar','duplicates-sidebar','vault-sidebar','folders-sidebar','collections-sidebar','scraper-sidebar','settings-sidebar'].forEach(id => {
     const el = $(id).el;
     if (el) el.classList.remove('on');
   });
   cat = ''; q = ''; favM = false;
-  $('sI').val('');
-  $('sGhost').html('');
+  $('search-input').val('');
+  $('search-ghost').html('');
   const data = await (await fetch('/api/history')).json();
   recentVids = data;
-  $('sT').text('Recently Watched');
+  $('section-title').text('Recently Watched');
   render();
 }
 
@@ -195,20 +198,20 @@ function showScraper() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/scraper') history.pushState(null, '', '/scraper');
   scraperMode = true;
-  $('bv').add('off');
-  $('pv').remove('on');
-  $('dv').remove('on');
-  $('av').remove('on');
-  $('adv').remove('on');
-  $('sv').remove('on');
-  $('sdv').remove('on');
-  $('tagDV').remove('on');
-  $('vaultV').remove('on');
-  document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  $('scraperSB').add('on');
+  $('browse-view').add('off');
+  $('player-view').remove('on');
+  $('duplicates-view').remove('on');
+  $('actors-view').remove('on');
+  $('actor-detail-view').remove('on');
+  $('studios-view').remove('on');
+  $('studio-detail-view').remove('on');
+  $('tag-detail-view').remove('on');
+  $('vault-view').remove('on');
+  document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
+  $('scraper-sidebar').add('on');
   dupMode = false; studioMode = false; actorMode = false; foldersMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
-  $('scraperV').add('on');
+  $('scraper-view').add('on');
   ActorScraper.load();
 }
 
@@ -245,13 +248,13 @@ function acSuggest(val) {
 }
 
 function acUpdateGhost(val) {
-  const ghost = $('sGhost').el;
+  const ghost = $('search-ghost').el;
   const hint = acSuggest(val);
   if (!hint || !val) { ghost.innerHTML = ''; return; }
-  ghost.innerHTML = '<span class="sg-typed">' + val + '</span><span class="sg-hint">' + hint + '</span>';
+  ghost.innerHTML = '<span class="ghost-typed">' + val + '</span><span class="ghost-hint">' + hint + '</span>';
 }
 
-const sIEl = $('sI').el;
+const sIEl = $('search-input').el;
 let sTO;
 sIEl.addEventListener('input', e => {
   acUpdateGhost(e.target.value);
@@ -261,7 +264,7 @@ sIEl.addEventListener('input', e => {
     refresh();
   }, 300);
 });
-sIEl.addEventListener('blur', () => { $('sGhost').html(''); });
+sIEl.addEventListener('blur', () => { $('search-ghost').html(''); });
 sIEl.addEventListener('keydown', e => {
   if (e.key === 'Tab') {
     const hint = acSuggest(sIEl.value);
@@ -273,7 +276,7 @@ sIEl.addEventListener('keydown', e => {
       sTO = setTimeout(() => { q = sIEl.value.trim(); refresh(); }, 300);
     }
   } else if (e.key === 'Escape') {
-    $('sGhost').html('');
+    $('search-ghost').html('');
   }
 });
 
@@ -314,6 +317,7 @@ async function routeToPath(path) {
   if (path === '/collections') { showCollections(); return; }
   if (path === '/scraper') { showScraper(); return; }
   if (path === '/books') { showBooks(); return; }
+  if (path === '/search') { showSearchSites(); return; }
   if (path === '/settings') { showSettings(); return; }
   if (path === '/database') { showDatabase(); return; }
   if (path === '/actors') { showActors(); return; }

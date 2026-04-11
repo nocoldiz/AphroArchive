@@ -19,8 +19,8 @@
   </div>
   <div class="search-w">
     <svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <input type="text" id="sI" placeholder="Search videos..." autocomplete="off" spellcheck="false">
-    <div class="search-ghost" id="sGhost"></div>
+    <input type="text" id="search-input" placeholder="Search videos..." autocomplete="off" spellcheck="false">
+    <div class="search-ghost" id="search-ghost"></div>
   </div>
   <div class="tb-acts">
     <button id="fBtn" onclick="toggleFav()" class="hsm">&#9733; Favourites</button>
@@ -40,53 +40,56 @@
 <div class="wrap">
   <aside class="side" id="side">
   <div class="side-scroll">
-    <div class="ci" id="dupSB" onclick="showDups()">
+    <div class="sidebar-item" id="duplicates-sidebar" onclick="showDups()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>Duplicates</span>
-      <span class="n" id="dupN" style="display:none"></span>
+      <span class="count-badge" id="duplicates-count" style="display:none"></span>
     </div>
-    <div class="ci" id="vaultSB" onclick="showVault()">
+    <div class="sidebar-item" id="vault-sidebar" onclick="showVault()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vault</span>
     </div>
-    <div class="ci" id="foldersSB" onclick="showFolders()">
+    <div class="sidebar-item" id="folders-sidebar" onclick="showFolders()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Folders</span>
     </div>
-    <div class="ci" id="importFavsSB" onclick="showImportFavs()">
+    <div class="sidebar-item" id="import-favs-sidebar" onclick="showImportFavs()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Bookmarks</span>
     </div>
-    <div class="ci" id="recentSB" onclick="showRecent()">
+    <div class="sidebar-item" id="recent-sidebar" onclick="showRecent()">
     <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Recently Watched</span>
   </div>
-  <div class="ci" id="collectionsSB" onclick="showCollections()">
+  <div class="sidebar-item" id="collections-sidebar" onclick="showCollections()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>Collections</span>
     </div>
-    <div class="ci" id="booksSB" onclick="showBooks()">
+    <div class="sidebar-item" id="books-sidebar" onclick="showBooks()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Books</span>
     </div>
-    <div class="ci" id="scraperSB" onclick="showScraper()">
+    <div class="sidebar-item" id="search-sites-sidebar" onclick="showSearchSites()">
+      <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Search</span>
+    </div>
+    <div class="sidebar-item" id="scraper-sidebar" onclick="showScraper()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Actor Scraper</span>
     </div>
-    <div class="ci" id="settingsSB" onclick="showSettings()">
+    <div class="sidebar-item" id="settings-sidebar" onclick="showSettings()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</span>
     </div>
-    <div class="ci" id="databaseSB" onclick="showDatabase()">
+    <div class="sidebar-item" id="database-sidebar" onclick="showDatabase()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Database</span>
     </div>
-    <div class="ci" id="connectSB" onclick="showConnect()">
+    <div class="sidebar-item" id="connect-sidebar" onclick="showConnect()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>Connect</span>
     </div>
-    <div class="ci" id="actorSB" onclick="showActors()">
+    <div class="sidebar-item" id="actor-sidebar" onclick="showActors()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>All Actors</span>
     </div>
-    <div class="ci" id="studioSB" onclick="showStudios()">
+    <div class="sidebar-item" id="studio-sidebar" onclick="showStudios()">
       <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>All Studios</span>
     </div>
     <div class="side-sep"></div>
-    <h3 class="sh3" id="sh3-cats" onclick="toggleSection('cats')">Categories<svg class="sh3-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg><button class="sh3-add" title="New folder" onclick="event.stopPropagation();createCategory()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></h3>
+    <h3 class="sidebar-heading" id="sh3-cats" onclick="toggleSection('cats')">Categories<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg><button class="sidebar-heading-add" title="New folder" onclick="event.stopPropagation();createCategory()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></h3>
     <div class="side-section" id="catsSection">
       <div id="cList"></div>
     </div>
     <div class="side-sep"></div>
-    <h3 class="sh3" id="sh3-tags" onclick="toggleSection('tags')">Tags<svg class="sh3-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
+    <h3 class="sidebar-heading" id="sh3-tags" onclick="toggleSection('tags')">Tags<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
     <div class="side-section" id="tagsSection">
       <div id="tagList"></div>
     </div>
@@ -94,33 +97,33 @@
   <a class="donate-btn" href="https://buymeacoffee.com/nocoldiz" target="_blank" rel="noopener">☕ Buy me a coffee</a>
   </aside>
 
-  <div class="mn">
+  <div class="main-content">
     <!-- Browse View -->
-    <div class="bv" id="bv">
-      <div class="sh">
-        <h2 id="sT">All Videos</h2>
-        <div class="sg">
-          <button class="sb on" data-s="date" onclick="setSort('date',this)">Recent</button>
-          <button class="sb" data-s="name" onclick="setSort('name',this)">Name</button>
-          <button class="sb" data-s="size" onclick="setSort('size',this)">Size</button>
-          <button class="sb" data-s="duration" onclick="setSort('duration',this)">Length</button>
-          <button class="sb" id="shBtn" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l5.1 5.1"/><path d="M4 4l5 5"/></svg>Shuffle</button>
+    <div class="browse-view" id="browse-view">
+      <div class="section-header">
+        <h2 id="section-title">All Videos</h2>
+        <div class="section-controls">
+          <button class="sort-btn on" data-s="date" onclick="setSort('date',this)">Recent</button>
+          <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
+          <button class="sort-btn" data-s="size" onclick="setSort('size',this)">Size</button>
+          <button class="sort-btn" data-s="duration" onclick="setSort('duration',this)">Length</button>
+          <button class="sort-btn" id="shBtn" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l5.1 5.1"/><path d="M4 4l5 5"/></svg>Shuffle</button>
           <span class="sg-sep"></span>
-          <button class="sb src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
-          <button class="sb src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
-          <button class="sb src-btn" data-src="remote" onclick="setSrcFilter('remote')">Remote</button>
+          <button class="sort-btn src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
+          <button class="sort-btn src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
+          <button class="sort-btn src-btn" data-src="remote" onclick="setSrcFilter('remote')">Remote</button>
         </div>
       </div>
-      <div class="vg" id="vG"></div>
-      <div class="es" id="emp" style="display:none">
+      <div class="video-grid" id="video-grid"></div>
+      <div class="empty-state" id="empty-placeholder" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
-        <h3 id="eT">No videos found</h3>
-        <p id="eD">Add video files to your videos folder</p>
+        <h3 id="empty-title">No videos found</h3>
+        <p id="empty-desc">Add video files to your videos folder</p>
       </div>
     </div>
 
     <!-- Vault View -->
-    <div class="vaultV" id="vaultV">
+    <div class="vault-view" id="vault-view">
       <div class="vault-auth" id="vaultAuth">
         <div class="vault-auth-icon">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -130,10 +133,10 @@
         <input type="password" class="vault-pw-input" id="vaultPw" placeholder="Password…" autocomplete="new-password" onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
         <input type="password" class="vault-pw-input" id="vaultPwConfirm" placeholder="Confirm password…" autocomplete="new-password" style="display:none" onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
         <div class="vault-auth-err" id="vaultErr"></div>
-        <button class="bpr vault-auth-btn" id="vaultAuthBtn">Unlock</button>
+        <button class="btn-primary vault-auth-btn" id="vaultAuthBtn">Unlock</button>
       </div>
       <div id="vaultFiles" style="display:none">
-        <div class="sh">
+        <div class="section-header">
           <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vault</h2>
           <div style="display:flex;gap:8px;align-items:center">
             <label class="vault-add-label" for="vaultFileIn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Files</label>
@@ -160,8 +163,8 @@
           <button onclick="downloadVaultSelected()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</button>
           <button onclick="clearVaultSelection()">Deselect all</button>
         </div>
-        <div class="vg" id="vaultGrid"></div>
-        <div class="es" id="vaultEmpty" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><h3>Vault is empty</h3><p>Add video files using the button above</p></div>
+        <div class="video-grid" id="vaultGrid"></div>
+        <div class="empty-state" id="vaultEmpty" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><h3>Vault is empty</h3><p>Add video files using the button above</p></div>
       </div>
     </div>
 
@@ -173,101 +176,123 @@
     </div>
 
     <!-- Tag Detail View -->
-    <div class="tagDV" id="tagDV">
-      <button class="bbk" onclick="closeTag()">
+    <div class="tag-detail-view" id="tag-detail-view">
+      <button class="back-btn" onclick="closeTag()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Tags
       </button>
-      <div class="sh">
-        <h2 id="tagName"></h2>
-        <div class="sg">
-          <button class="sb on" data-s="date" onclick="setSort('date',this)">Recent</button>
-          <button class="sb" data-s="name" onclick="setSort('name',this)">Name</button>
-          <button class="sb" data-s="size" onclick="setSort('size',this)">Size</button>
-          <button class="sb" data-s="duration" onclick="setSort('duration',this)">Length</button>
-          <button class="sb" id="shBtnTag" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l5.1 5.1"/><path d="M4 4l5 5"/></svg>Shuffle</button>
+      <div class="section-header">
+        <h2 id="tag-name"></h2>
+        <div class="section-controls">
+          <button class="sort-btn on" data-s="date" onclick="setSort('date',this)">Recent</button>
+          <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
+          <button class="sort-btn" data-s="size" onclick="setSort('size',this)">Size</button>
+          <button class="sort-btn" data-s="duration" onclick="setSort('duration',this)">Length</button>
+          <button class="sort-btn" id="shBtnTag" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l5.1 5.1"/><path d="M4 4l5 5"/></svg>Shuffle</button>
           <span class="sg-sep"></span>
-          <button class="sb src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
-          <button class="sb src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
-          <button class="sb src-btn" data-src="remote" onclick="setSrcFilter('remote')">Remote</button>
+          <button class="sort-btn src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
+          <button class="sort-btn src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
+          <button class="sort-btn src-btn" data-src="remote" onclick="setSrcFilter('remote')">Remote</button>
         </div>
       </div>
-      <div class="vg" id="tagG"></div>
+      <div class="video-grid" id="tag-grid"></div>
     </div>
 
     <!-- Studios List View -->
-    <div class="sv" id="sv">
-      <div class="sh"><h2>Studios</h2></div>
+    <div class="studios-view" id="studios-view">
+      <div class="section-header"><h2>Studios</h2></div>
+      <div class="actor-search-bar">
+        <input type="text" id="studio-search-input" placeholder="Filter studios…" autocomplete="off" spellcheck="false" oninput="filterStudios(this.value)">
+      </div>
       <div id="studioGrid"></div>
     </div>
 
     <!-- Studio Detail View -->
-    <div class="sdv" id="sdv">
-      <button class="bbk" onclick="backStudios()">
+    <div class="studio-detail-view" id="studio-detail-view">
+      <button class="back-btn" onclick="backStudios()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Studios
       </button>
-      <div class="sh"><h2 id="sdName"></h2></div>
-      <div class="vg" id="sdG"></div>
+      <div class="section-header"><h2 id="studio-detail-name"></h2></div>
+      <div class="video-grid" id="studio-detail-grid"></div>
     </div>
 
     <!-- Actors List View -->
-    <div class="av" id="av">
-      <div class="sh"><h2>Actors</h2></div>
+    <div class="actors-view" id="actors-view">
+      <div class="section-header"><h2>Actors</h2></div>
+      <div class="actor-search-bar">
+        <input type="text" id="actor-search-input" placeholder="Filter actors…" autocomplete="off" spellcheck="false" oninput="filterActors(this.value)">
+      </div>
       <div id="actorGrid"></div>
     </div>
 
     <!-- Actor Detail View -->
-    <div class="adv" id="adv">
-      <button class="bbk" onclick="backActors()">
+    <div class="actor-detail-view" id="actor-detail-view">
+      <button class="back-btn" onclick="backActors()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Actors
       </button>
-      <div class="sh"><h2 id="adName"></h2></div>
-      <div class="vg" id="adG"></div>
+      <div class="section-header"><h2 id="actor-detail-name"></h2></div>
+      <div class="video-grid" id="actor-detail-grid"></div>
     </div>
 
     <!-- Folders View -->
-    <div class="foldersV" id="foldersV">
-      <div class="sh"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Folders</h2></div>
+    <div class="folders-view" id="folders-view">
+      <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Folders</h2></div>
       <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Add external folders to load videos from. Videos in external folders are read-only — renaming and moving are disabled.</p>
-      <div class="fv-add-row">
+      <div class="folder-add-row">
         <input type="text" id="folderPathIn" placeholder="Paste absolute folder path…" autocomplete="off" onkeydown="if(event.key==='Enter')addFolder()">
-        <button class="bpr" onclick="addFolder()">Add</button>
+        <button class="btn-primary" onclick="addFolder()">Add</button>
       </div>
-      <div class="merr" id="folderErr" style="display:none;margin-bottom:12px"></div>
+      <div class="modal-error" id="folderErr" style="display:none;margin-bottom:12px"></div>
       <div id="folderList"></div>
     </div>
 
     <!-- Books View -->
-    <div class="booksV" id="booksV">
-      <div class="sh"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Books</h2></div>
+    <div class="books-view" id="books-view">
+      <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Books</h2></div>
 
       <div class="bk-import-row">
         <div class="bk-import-card">
           <div class="bk-import-hd"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Files</div>
-          <label class="bpr bk-file-label" for="booksFileIn">Choose PDF / TXT / DOC / MD</label>
-          <input type="file" id="booksFileIn" multiple accept=".pdf,.txt,.doc,.docx,.md,.epub" style="display:none" onchange="uploadBookFiles()">
+          <label class="btn-primary bk-file-label" for="booksFileIn">Choose PDF / TXT / DOC / MD</label>
+          <input type="file" id="booksFileIn" multiple accept=".pdf,.txt,.doc,.docx,.modal-dialog,.epub" style="display:none" onchange="uploadBookFiles()">
         </div>
         <div class="bk-import-card">
           <div class="bk-import-hd"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Import from URL</div>
           <div class="bk-url-row">
             <input type="text" id="booksUrlInput" placeholder="https://www.fanfiction.net/s/… or any URL" autocomplete="off" onkeydown="if(event.key==='Enter')importBookUrl()">
-            <button class="bpr" id="booksUrlBtn" onclick="importBookUrl()">Import</button>
+            <button class="btn-primary" id="booksUrlBtn" onclick="importBookUrl()">Import</button>
           </div>
-          <div class="merr" id="booksUrlErr" style="display:none"></div>
-          <p class="bk-hint">Supports FanFiction.net stories (saved as .md) and generic web pages.</p>
+          <div class="modal-error" id="booksUrlErr" style="display:none"></div>
+          <p class="bk-hint">Supports FanFiction.net stories (saved as .modal-dialog) and generic web pages.</p>
         </div>
       </div>
 
       <div id="booksGrid" class="bk-grid"></div>
-      <div class="es" id="booksEmpty" style="display:none">
+      <div class="empty-state" id="booksEmpty" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         <h3>No books yet</h3><p>Upload a file or import from a URL above</p>
+      </div>
+    </div>
+
+    <!-- Search Sites View -->
+    <div class="search-sites-view" id="search-sites-view">
+      <div class="section-header">
+        <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Search</h2>
+      </div>
+      <div class="search-sites-bar">
+        <input type="text" id="search-sites-input" placeholder="Search keyword…" autocomplete="off" spellcheck="false" oninput="renderSearchSites()" onkeydown="if(event.key==='Enter')renderSearchSites()">
+      </div>
+      <div id="search-sites-list" class="search-sites-list"></div>
+      <div id="search-sites-empty" class="empty-state" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <h3>No searchable sites</h3>
+        <p>Add a searchURL to sites in Settings to enable search.</p>
       </div>
     </div>
 
     <!-- Books Reader -->
     <div class="booksReader" id="booksReader">
       <div class="bk-reader-bar">
-        <button class="bbk" onclick="closeBookReader()">
+        <button class="back-btn" onclick="closeBookReader()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Library
         </button>
         <span id="booksReaderTitle"></span>
@@ -276,8 +301,8 @@
     </div>
 
     <!-- Bookmarks View -->
-    <div class="importFavsV" id="importFavsV">
-      <div class="sh"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Bookmarks</h2></div>
+    <div class="import-favs-view" id="import-favs-view">
+      <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Bookmarks</h2></div>
       <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Import bookmarks from Chrome or Firefox filtered by your <span style="color:var(--ac);cursor:pointer" onclick="showSettings()">whitelist</span>.</p>
 
       <div class="bf-import-grid">
@@ -287,7 +312,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
             Chrome / Edge
           </div>
-          <button class="bpr" id="bfChrome" onclick="importBrowserFavs('chrome')">Auto-detect</button>
+          <button class="btn-primary" id="bfChrome" onclick="importBrowserFavs('chrome')">Auto-detect</button>
           <div class="bf-or">or</div>
           <label class="bf-file-label">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
@@ -303,7 +328,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 7.38 16.76C17.5 20.5 15 21 12 21s-5.5-.5-7.38-1.24A10 10 0 0 1 12 2z"/></svg>
             Firefox
           </div>
-          <button class="bpr" id="bfFirefox" onclick="importBrowserFavs('firefox')">Auto-detect</button>
+          <button class="btn-primary" id="bfFirefox" onclick="importBrowserFavs('firefox')">Auto-detect</button>
           <div class="bf-or">or</div>
           <label class="bf-file-label">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
@@ -317,10 +342,10 @@
       <div id="bfSearchWrap" style="display:none;margin-bottom:10px">
         <div style="display:flex;gap:8px;align-items:center">
           <input id="bfSearch" type="text" placeholder="Filter bookmarks…" autocomplete="off" spellcheck="false" oninput="bfFilterList(this.value)" class="bf-search-input" style="flex:1">
-          <button class="bpr" onclick="bfCopyVisible()" title="Copy all visible URLs (one per line)" style="flex-shrink:0">
+          <button class="btn-primary" onclick="bfCopyVisible()" title="Copy all visible URLs (one per line)" style="flex-shrink:0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy URLs
           </button>
-          <button class="bpr" onclick="bfOpenAllVisible()" title="Open all visible bookmarks in new tabs" style="flex-shrink:0">
+          <button class="btn-primary" onclick="bfOpenAllVisible()" title="Open all visible bookmarks in new tabs" style="flex-shrink:0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Open All
           </button>
           <div class="bf-view-toggle">
@@ -343,10 +368,10 @@
             <p>Install <strong>Video DownloadHelper</strong> in your browser to download directly from any video site you open with the viewer above.</p>
           </div>
           <div class="ext-suggest-btns">
-            <a class="bpr ext-suggest-link" href="https://addons.mozilla.org/en-US/firefox/addon/video-downloadhelper/" target="_blank" rel="noopener noreferrer">
+            <a class="btn-primary ext-suggest-link" href="https://addons.mozilla.org/en-US/firefox/addon/video-downloadhelper/" target="_blank" rel="noopener noreferrer">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 7.38 16.76C17.5 20.5 15 21 12 21s-5.5-.5-7.38-1.24A10 10 0 0 1 12 2z"/></svg>Firefox
             </a>
-            <a class="bpr ext-suggest-link" href="https://chrome.google.com/webstore/detail/video-downloadhelper/lmjnegcaeklhafolokijcfjliaokphfk" target="_blank" rel="noopener noreferrer">
+            <a class="btn-primary ext-suggest-link" href="https://chrome.google.com/webstore/detail/video-downloadhelper/lmjnegcaeklhafolokijcfjliaokphfk" target="_blank" rel="noopener noreferrer">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>Chrome
             </a>
           </div>
@@ -355,21 +380,21 @@
     </div>
 
     <!-- Collections View -->
-    <div class="collectionsV" id="collectionsV">
-      <div class="sh"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><span id="cvTitle">Collections</span></h2></div>
-      <div class="cv-new-row" id="cvNewRow">
-        <input type="text" id="cvNameIn" placeholder="New collection name…" autocomplete="off" onkeydown="if(event.key==='Enter')createCollection()">
-        <button class="bpr" onclick="createCollection()">Create</button>
+    <div class="collections-view" id="collections-view">
+      <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><span id="collection-title">Collections</span></h2></div>
+      <div class="collection-new-row" id="collection-new-row">
+        <input type="text" id="collection-name-input" placeholder="New collection name…" autocomplete="off" onkeydown="if(event.key==='Enter')createCollection()">
+        <button class="btn-primary" onclick="createCollection()">Create</button>
       </div>
-      <div id="cvContent"></div>
+      <div id="collection-content"></div>
     </div>
 
     <!-- Settings View -->
-    <div class="settingsV" id="settingsV">
-      <div class="sh"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</h2></div>
-      <div class="stg-hidden-panel" style="margin-bottom:24px">
-        <div class="stg-panel">
-          <div class="stg-panel-hd"><span>Theme</span></div>
+    <div class="settings-view" id="settings-view">
+      <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</h2></div>
+      <div class="settings-hidden-panel" style="margin-bottom:24px">
+        <div class="settings-panel">
+          <div class="settings-panel-header"><span>Theme</span></div>
           <div id="themeGrid" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px">
             <button class="theme-btn" data-theme="" onclick="applyTheme('')">
               <span class="theme-swatch" style="background:#e84040"></span>Default
@@ -437,108 +462,108 @@
           </div>
         </div>
       </div>
-      <div class="stg-hidden-panel">
-        <div class="stg-panel">
-          <div class="stg-panel-hd">
+      <div class="settings-hidden-panel">
+        <div class="settings-panel">
+          <div class="settings-panel-header">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>Hidden Categories / Tags</span>
-            <span class="stg-hint" id="stgHiddenHint"></span>
+            <span class="settings-hint" id="settings-hidden-hint"></span>
           </div>
           <p style="font-size:0.78rem;color:var(--tx2);margin:0">Videos whose filename matches any entry, or that belong to a folder with that name, will be hidden everywhere. One entry per line.</p>
-          <textarea class="stg-ta" id="stgHidden" placeholder="e.g. Straight&#10;Gay&#10;unwanted-tag" spellcheck="false" style="min-height:140px"></textarea>
-          <button class="bpr stg-save" onclick="saveSettingsList('hidden')">Save Hidden List</button>
+          <textarea class="settings-textarea" id="settings-hidden" placeholder="e.g. Straight&#10;Gay&#10;unwanted-tag" spellcheck="false" style="min-height:140px"></textarea>
+          <button class="btn-primary settings-save" onclick="saveSettingsList('hidden')">Save Hidden List</button>
         </div>
       </div>
-      <div class="stg-hidden-panel" style="margin-top:16px">
-        <div class="stg-panel">
-          <div class="stg-panel-hd">
+      <div class="settings-hidden-panel" style="margin-top:16px">
+        <div class="settings-panel">
+          <div class="settings-panel-header">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>Browser Import Whitelist</span>
-            <span class="stg-hint" id="stgWhitelistHint"></span>
+            <span class="settings-hint" id="settings-whitelist-hint"></span>
           </div>
           <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 8px">Domains allowed when importing bookmarks (Folders → Bookmarks). One hostname per line.</p>
-          <textarea class="stg-ta" id="stgWhitelist" placeholder="e.g. example.com&#10;192.168.1.100&#10;mynas.local" spellcheck="false" style="min-height:120px"></textarea>
-          <button class="bpr stg-save" onclick="saveSettingsList('whitelist')">Save Whitelist</button>
+          <textarea class="settings-textarea" id="settings-whitelist" placeholder="e.g. example.com&#10;192.168.1.100&#10;mynas.local" spellcheck="false" style="min-height:120px"></textarea>
+          <button class="btn-primary settings-save" onclick="saveSettingsList('whitelist')">Save Whitelist</button>
         </div>
       </div>
     </div>
 
     <!-- Database View -->
-    <div class="dbV" id="dbV">
-      <div class="sh">
+    <div class="database-view" id="database-view">
+      <div class="section-header">
         <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Database</h2>
-        <button class="bpr" id="dbAddBtn" onclick="dbShowAdd()">+ Add</button>
+        <button class="btn-primary" id="dbAddBtn" onclick="dbShowAdd()">+ Add</button>
       </div>
       <div class="db-tabs">
         <button class="db-tab on" data-tab="actors" onclick="dbSwitchTab('actors')">Actors</button>
         <button class="db-tab" data-tab="categories" onclick="dbSwitchTab('categories')">Categories</button>
         <button class="db-tab" data-tab="studios" onclick="dbSwitchTab('studios')">Studios</button>
       </div>
-      <div class="vg" id="dbGrid"></div>
+      <div class="video-grid" id="dbGrid"></div>
 
       <div class="db-import-panel">
-        <div class="stg-panel-hd" style="margin-bottom:10px">
+        <div class="settings-panel-header" style="margin-bottom:10px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span>Import Videos</span>
         </div>
         <p style="font-size:0.8rem;color:var(--tx2);margin-bottom:10px">Paste full file paths below (one per line). Files will be copied to your videos folder.</p>
-        <textarea id="dbImportPaths" class="stg-ta" placeholder="C:\Videos\movie1.mp4&#10;C:\Videos\movie2.mkv" style="min-height:100px"></textarea>
+        <textarea id="dbImportPaths" class="settings-textarea" placeholder="C:\Videos\movie1.mp4&#10;C:\Videos\movie2.mkv" style="min-height:100px"></textarea>
         <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
-          <button class="bpr" onclick="dbImportVideos()">Copy to Library</button>
+          <button class="btn-primary" onclick="dbImportVideos()">Copy to Library</button>
           <span id="dbImportStatus" style="font-size:0.8rem;color:var(--tx2)"></span>
         </div>
       </div>
     </div>
 
     <!-- DB Add/Edit Modal -->
-    <div class="mo" id="dbMo" style="display:none" onclick="if(event.target===this)closeDbModal()">
-      <div class="md" style="width:480px;max-width:95vw">
+    <div class="modal-overlay" id="dbMo" style="display:none" onclick="if(event.target===this)closeDbModal()">
+      <div class="modal-dialog" style="width:480px;max-width:95vw">
         <div class="md-hd"><span id="dbMoTitle">Add Entry</span><button onclick="closeDbModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
         <div id="dbMoBody" style="display:flex;flex-direction:column;gap:10px;padding:0 0 4px"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-          <button class="bpr" onclick="dbSaveModal()">Save</button>
-          <button class="bbk" onclick="closeDbModal()">Cancel</button>
+          <button class="btn-primary" onclick="dbSaveModal()">Save</button>
+          <button class="back-btn" onclick="closeDbModal()">Cancel</button>
         </div>
       </div>
     </div>
 
     <!-- Actor Scraper View -->
-    <div class="scraperV" id="scraperV">
-      <div class="sh">
+    <div class="scraper-view" id="scraper-view">
+      <div class="section-header">
         <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Actor Scraper</h2>
         <div style="display:flex;gap:8px;align-items:center">
-          <span class="scr-info-lbl" id="scraperInfo"></span>
-          <button class="vault-lock-btn" id="scraperScrapeAll" onclick="ActorScraper.scrapeAll()" style="display:none">Scrape All Missing</button>
+          <span class="scraper-info-label" id="scraper-info"></span>
+          <button class="vault-lock-btn" id="scraper-scrape-all" onclick="ActorScraper.scrapeAll()" style="display:none">Scrape All Missing</button>
         </div>
       </div>
       <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Fetches actor headshots from IMDb and caches them as thumbnails in actor cards.</p>
-      <div id="scraperGrid"></div>
+      <div id="scraper-grid"></div>
     </div>
 
     <!-- Duplicates View -->
-    <div class="dv" id="dv">
-      <div class="sh"><h2>Duplicate Videos</h2></div>
-      <div id="dupContent"></div>
+    <div class="duplicates-view" id="duplicates-view">
+      <div class="section-header"><h2>Duplicate Videos</h2></div>
+      <div id="duplicates-content"></div>
     </div>
 
     <!-- Player View -->
-    <div class="pv" id="pv">
-      <button class="bbk" onclick="goBack()">
+    <div class="player-view" id="player-view">
+      <button class="back-btn" onclick="goBack()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Back
       </button>
       <div class="pv-layout">
         <div class="pv-main">
-          <div class="vpw"><video id="vP" controls autoplay></video></div>
-          <div class="mos-ui" id="zapUI" style="display:none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 8px; align-items: center; gap: 15px;">
+          <div class="video-player-wrap"><video id="video-player" controls autoplay></video></div>
+          <div class="mos-ui" id="zap-ui" style="display:none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 8px; align-items: center; gap: 15px;">
   <div class="mos-c" style="display:flex; align-items:center; gap:8px;">
     <span>Interval:</span>
     <button onclick="setZapIv(-2)">-</button>
-    <span id="zapIv">8s</span>
+    <span id="zap-interval">8s</span>
     <button onclick="setZapIv(2)">+</button>
   </div>
-  <button id="zapLockBtn" onclick="toggleZapLock()" style="padding: 5px 10px; cursor: pointer;">Lock to Current</button>
+  <button id="zap-lock-btn" onclick="toggleZapLock()" style="padding: 5px 10px; cursor: pointer;">Lock to Current</button>
   <button class="mos-exit" onclick="stopZapping()" style="padding: 5px 10px; cursor: pointer; color: #ff4a4a;">Exit Zapping</button>
 </div>
-<video id="vP_zap" controls style="display:none; width: 100%; max-height: 80vh; background: #000;"></video>
-          <div class="vnav">
+<video id="video-player-zap" controls style="display:none; width: 100%; max-height: 80vh; background: #000;"></video>
+          <div class="video-nav">
             <button onclick="playPrev()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="4" x2="5" y2="20"/><polygon points="19 4 9 12 19 20 19 4"/></svg>
               Previous
@@ -548,39 +573,39 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
             </button>
           </div>
-          <div class="pi">
-            <h1 id="pT"></h1>
-            <div class="pmeta"><span id="pC"></span><span id="pS"></span><span id="pD"></span></div>
+          <div class="player-info">
+            <h1 id="player-title"></h1>
+            <div class="player-meta"><span id="player-category"></span><span id="player-size"></span><span id="player-duration"></span></div>
             <div class="p-actors-row">
-              <div class="p-actors" id="pActors"></div>
-              <button class="p-tag-add-btn" id="pActorAddBtn" onclick="toggleActorInput()">
+              <div class="p-actors" id="player-actors"></div>
+              <button class="p-tag-add-btn" id="player-actor-add-btn" onclick="toggleActorInput()">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Actor
               </button>
             </div>
-            <div class="p-actor-input" id="pActorInput" style="display:none">
-              <input type="text" id="pActorInputVal" placeholder="Actor name…" autocomplete="off" onkeydown="if(event.key==='Enter')submitActorInput();else if(event.key==='Escape')closeActorInput()">
+            <div class="p-actor-input" id="player-actor-input" style="display:none">
+              <input type="text" id="player-actor-input-val" placeholder="Actor name…" autocomplete="off" onkeydown="if(event.key==='Enter')submitActorInput();else if(event.key==='Escape')closeActorInput()">
               <div class="p-tag-picker-foot">
-                <button class="cv-cancel" onclick="closeActorInput()">Cancel</button>
-                <button class="bpr" onclick="submitActorInput()">Add</button>
+                <button class="collection-cancel" onclick="closeActorInput()">Cancel</button>
+                <button class="btn-primary" onclick="submitActorInput()">Add</button>
               </div>
             </div>
-            <div class="p-rating" id="pRating"></div>
-            <div class="p-tags-row" id="pTagsRow" style="display:none">
-              <div class="p-tags" id="pTags"></div>
-              <button class="p-tag-add-btn" id="pTagAddBtn" onclick="toggleTagPicker()">
+            <div class="p-rating" id="player-rating"></div>
+            <div class="p-tags-row" id="player-tags-row" style="display:none">
+              <div class="p-tags" id="player-tags"></div>
+              <button class="p-tag-add-btn" id="player-tag-add-btn" onclick="toggleTagPicker()">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Tag
               </button>
             </div>
-            <div class="p-tag-picker" id="pTagPicker" style="display:none">
-              <input class="p-tag-picker-search" id="pTagPickerSearch" type="text" placeholder="Filter tags…" autocomplete="off" oninput="filterTagPicker(this.value)">
-              <div class="p-tag-picker-list" id="pTagPickerList"></div>
+            <div class="p-tag-picker" id="player-tag-picker" style="display:none">
+              <input class="p-tag-picker-search" id="player-tag-picker-search" type="text" placeholder="Filter tags…" autocomplete="off" oninput="filterTagPicker(this.value)">
+              <div class="p-tag-picker-list" id="player-tag-picker-list"></div>
               <div class="p-tag-picker-foot">
-                <button class="cv-cancel" onclick="closeTagPicker()">Cancel</button>
-                <button class="bpr" onclick="applyTagPicker()">Add Selected</button>
+                <button class="collection-cancel" onclick="closeTagPicker()">Cancel</button>
+                <button class="btn-primary" onclick="applyTagPicker()">Add Selected</button>
               </div>
             </div>
-            <div class="pia">
-              <button id="pSB" onclick="togglePStar()">
+            <div class="player-info-actions">
+              <button id="player-star-btn" onclick="togglePStar()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                 <span>Fav</span>
               </button>
@@ -618,19 +643,19 @@
               </button>
             </div>
           </div>
-          <div class="sug"><h3>More like this</h3><div class="sr" id="sG"></div></div>
+          <div class="suggestions"><h3>More like this</h3><div class="suggestions-row" id="suggestions-grid"></div></div>
         </div>
-        <div class="ppl-panel">
-          <div class="ppl-hd">
+        <div class="playlist-panel">
+          <div class="playlist-header">
             <span>Playlist</span>
-            <span class="ppl-count" id="pplCount"></span>
+            <span class="playlist-count" id="playlist-count"></span>
           </div>
-          <div class="ppl-list" id="pplList"></div>
+          <div class="playlist-list" id="playlist-list"></div>
         </div>
       </div>
     </div>
         <div class="pin-panel" id="pinPanel">
-          <div class="ppl-hd">
+          <div class="playlist-header">
             <span>Pinned</span>
             <button class="pin-unlock-btn" onclick="unpinVideo()" title="Unlock">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -649,91 +674,91 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
             </button>
           </div>
-          <div class="ppl-list" id="pinList"></div>
+          <div class="playlist-list" id="pinList"></div>
         </div>
   </div>
 </div>
 
 <!-- Add to Collection Modal -->
-<div class="cv-modal" id="cvModal" onclick="if(event.target===this)closeCvModal()">
-  <div class="cv-modal-box">
+<div class="collection-modal" id="collection-modal" onclick="if(event.target===this)closeCvModal()">
+  <div class="collection-modal-box">
     <h3>Add to Collection</h3>
-    <div id="cvModalList"></div>
-    <div class="cv-modal-new" id="cvModalNew">
-      <input type="text" id="cvModalNameIn" placeholder="Collection name…" autocomplete="off" onkeydown="if(event.key==='Enter')submitCvNew()">
+    <div id="collection-modal-list"></div>
+    <div class="collection-modal-new" id="collection-modal-new">
+      <input type="text" id="collection-modal-name-input" placeholder="Collection name…" autocomplete="off" onkeydown="if(event.key==='Enter')submitCvNew()">
     </div>
-    <div class="cv-modal-actions">
-      <button class="cv-cancel" onclick="closeCvModal()">Cancel</button>
-      <button class="bpr" id="cvModalCreateBtn" style="display:none" onclick="submitCvNew()">Create &amp; Add</button>
+    <div class="collection-modal-actions">
+      <button class="collection-cancel" onclick="closeCvModal()">Cancel</button>
+      <button class="btn-primary" id="collection-modal-create-btn" style="display:none" onclick="submitCvNew()">Create &amp; Add</button>
     </div>
   </div>
 </div>
 
 <!-- Mosaic View -->
-<div id="mosV">
+<div id="mosaic-view">
   <div class="mos-bar">
-    <span class="mos-bar-lbl" id="mosCatLbl">Mosaic</span>
+    <span class="mos-bar-lbl" id="mosaic-category-label">Mosaic</span>
     <div class="mos-ctrl">
       <span>Swap every</span>
       <button onclick="setMosaicIv(-2)">−</button>
-      <span id="mosIv">8s</span>
+      <span id="mosaic-interval">8s</span>
       <button onclick="setMosaicIv(2)">+</button>
     </div>
     <div class="mos-ctrl">
       <span>Players</span>
-      <input type="number" class="mos-cnt-in" id="mosCnt" min="1" max="16" value="6" onchange="setMosaicCount(this.value)">
+      <input type="number" class="mos-cnt-in" id="mosaic-count" min="1" max="16" value="6" onchange="setMosaicCount(this.value)">
     </div>
     <button class="mos-exit" onclick="stopMosaic()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;vertical-align:-2px"><path d="M18 6 6 18M6 6l12 12"/></svg>Exit Mosaic
     </button>
   </div>
-  <div class="mos-grid" id="mosGrid"></div>
+  <div class="mos-grid" id="mosaic-grid"></div>
 </div>
 
 <!-- Rename Modal -->
-<div class="mo" id="rM">
-  <div class="md">
+<div class="modal-overlay" id="rename-modal">
+  <div class="modal-dialog">
     <h3>Rename video</h3>
-    <input type="text" id="rI" placeholder="New name..." autocomplete="off">
-    <div class="merr" id="rE"></div>
-    <div class="mda">
-      <button class="bcn" onclick="closeRen()">Cancel</button>
-      <button class="bpr" onclick="doRen()">Rename</button>
+    <input type="text" id="rename-input" placeholder="New name..." autocomplete="off">
+    <div class="modal-error" id="rename-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRen()">Cancel</button>
+      <button class="btn-primary" onclick="doRen()">Rename</button>
     </div>
   </div>
 </div>
 
 <!-- Move Modal -->
-<div class="mo" id="mvM">
-  <div class="md">
+<div class="modal-overlay" id="move-modal">
+  <div class="modal-dialog">
     <h3>Move to category</h3>
-    <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:12px" id="mvInfo"></p>
-    <div id="mvList" class="mv-list"></div>
-    <div class="mv-new-row">
-      <input type="text" id="mvNew" placeholder="New category name..." autocomplete="off">
-      <button class="bpr" onclick="doMoveNew()">+ Create &amp; Move</button>
+    <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:12px" id="move-info"></p>
+    <div id="move-list" class="move-list"></div>
+    <div class="move-new-row">
+      <input type="text" id="move-new-input" placeholder="New category name..." autocomplete="off">
+      <button class="btn-primary" onclick="doMoveNew()">+ Create &amp; Move</button>
     </div>
-    <div class="merr" id="mvE"></div>
-    <div class="mda" style="margin-top:10px">
-      <button class="bcn" onclick="closeMov()">Cancel</button>
+    <div class="modal-error" id="move-error"></div>
+    <div class="modal-actions" style="margin-top:10px">
+      <button class="btn-cancel" onclick="closeMov()">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- Connect Modal -->
-<div class="cv-modal" id="connectModal" onclick="if(event.target===this)closeConnectModal()">
-  <div class="cv-modal-box" style="text-align:center;width:300px">
+<div class="collection-modal" id="connectModal" onclick="if(event.target===this)closeConnectModal()">
+  <div class="collection-modal-box" style="text-align:center;width:360px;max-width:95vw">
     <h3 style="margin-bottom:6px">Connect from another device</h3>
     <p id="connectUrl" style="font-size:0.8rem;color:var(--tx2);margin-bottom:16px;word-break:break-all"></p>
     <canvas id="connectQR" style="display:block;margin:0 auto;border-radius:8px"></canvas>
-    <div class="cv-modal-actions" style="justify-content:center;margin-top:20px">
-      <button class="bcn" onclick="closeConnectModal()">Close</button>
+    <div class="collection-modal-actions" style="justify-content:center;margin-top:20px">
+      <button class="btn-cancel" onclick="closeConnectModal()">Close</button>
     </div>
   </div>
 </div>
 
 <!-- Toast -->
-<div class="toast" id="tst"></div>
+<div class="toast" id="toast"></div>
 
 <!-- Bookmark iframe viewer modal -->
 <div class="bfiframe-mo" id="bfiframeMo" onclick="closeBfIframe(event)">
@@ -782,6 +807,7 @@
 <script src="/modules/zap.js"></script>
 <script src="/modules/folders.js"></script>
 <script src="/modules/books.js"></script>
+<script src="/modules/search-sites.js"></script>
 <script src="/modules/data.js"></script>
 <script src="/modules/navigation.js"></script>
 </body>

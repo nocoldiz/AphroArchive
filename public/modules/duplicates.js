@@ -2,31 +2,31 @@
 function showDups() {
   if (location.pathname !== '/duplicates') history.pushState(null, '', '/duplicates');
   dupMode = true;
-  $('bv').add('off');
-  $('pv').remove('on');
-  $('dv').add('on');
-  $('dupSB').add('on');
-  $('vaultV').remove('on');
-  $('vaultSB').remove('on');
-  $('scraperV').remove('on');
-  $('scraperSB').remove('on');
-  $('settingsV').remove('on');
-  $('settingsSB').remove('on');
-  if ($('dbV').el) $('dbV').remove('on');
+  $('browse-view').add('off');
+  $('player-view').remove('on');
+  $('duplicates-view').add('on');
+  $('duplicates-sidebar').add('on');
+  $('vault-view').remove('on');
+  $('vault-sidebar').remove('on');
+  $('scraper-view').remove('on');
+  $('scraper-sidebar').remove('on');
+  $('settings-view').remove('on');
+  $('settings-sidebar').remove('on');
+  if ($('database-view').el) $('database-view').remove('on');
   vaultMode = false; scraperMode = false; importFavsMode = false; settingsMode = false; dbMode = false;
-  $('av').remove('on');
-  $('adv').remove('on');
-  $('actorSB').remove('on');
-  $('sv').remove('on');
-  $('sdv').remove('on');
-  $('studioSB').remove('on');
-  $('tagDV').remove('on');
-  document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
+  $('actors-view').remove('on');
+  $('actor-detail-view').remove('on');
+  $('actor-sidebar').remove('on');
+  $('studios-view').remove('on');
+  $('studio-detail-view').remove('on');
+  $('studio-sidebar').remove('on');
+  $('tag-detail-view').remove('on');
+  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   curTag = null;
   if (curV) {
-    const vp = $('vP').el;
+    const vp = $('video-player').el;
     vp.pause(); vp.src = '';
     curV = null;
   }
@@ -34,17 +34,17 @@ function showDups() {
 }
 
 async function loadDups() {
-  $('dupContent').html('<div class="dup-scan">Scanning for duplicates\u2026</div>');
+  $('duplicates-content').html(tpl('loading', { message: 'Scanning for duplicates\u2026' }));
   const groups = await (await fetch('/api/duplicates')).json();
   renderDups(groups);
 }
 
 function renderDups(groups) {
-  const el = $('dupContent').el;
-  const nBtn = $('dupN').el;
+  const el = $('duplicates-content').el;
+  const nBtn = $('duplicates-count').el;
   if (!groups.length) {
     nBtn.style.display = 'none';
-    el.innerHTML = '<div class="es" style="padding:40px 20px"><h3>No duplicates found</h3><p>All videos appear to be unique</p></div>';
+    el.innerHTML = tpl('empty-state', { title: 'No duplicates found', desc: 'All videos appear to be unique' });
     return;
   }
   nBtn.textContent = groups.length;
@@ -52,21 +52,21 @@ function renderDups(groups) {
   const totalVids = groups.reduce((s, g) => s + g.length, 0);
   const wasted = groups.reduce((s, g) => s + g[0].size * (g.length - 1), 0);
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  let h = '<div class="dup-meta">' + totalVids + ' videos across ' + groups.length + ' groups &mdash; <b>' + fmtBytes(wasted) + '</b> potentially wasted</div>';
+  let h = '<div class="duplicate-meta">' + totalVids + ' videos across ' + groups.length + ' groups &mdash; <b>' + fmtBytes(wasted) + '</b> potentially wasted</div>';
   groups.forEach(group => {
-    h += '<div class="dup-group">';
-    h += '<div class="dup-gh"><span class="dup-cnt">' + group.length + ' copies</span> &nbsp;&bull;&nbsp; ' + group[0].sizeF + ' each</div>';
-    h += '<div class="dup-cards">';
+    h += '<div class="duplicate-group">';
+    h += '<div class="duplicate-group-header"><span class="duplicate-count">' + group.length + ' copies</span> &nbsp;&bull;&nbsp; ' + group[0].sizeF + ' each</div>';
+    h += '<div class="duplicate-cards">';
     group.forEach(v => {
       const c = cols[Math.abs(hsh(v.category)) % cols.length];
       const bg = 'linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)';
-      h += '<div class="dup-card">';
-      h += '<div class="dup-th" data-vid="' + v.id + '" style="background:' + bg + '" onclick="openVid(\'' + v.id + '\')">';
-      h += '<div class="po"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div></div>';
-      h += '<div class="dup-info">';
-      h += '<div class="dup-name" title="' + escA(v.name) + '">' + esc(v.name) + '</div>';
-      h += '<div class="dup-cat">' + esc(v.rel) + '</div>';
-      h += '<button class="dup-del" onclick="delVideo(\'' + v.id + '\')">Delete</button>';
+      h += '<div class="duplicate-card">';
+      h += '<div class="duplicate-thumb" data-vid="' + v.id + '" style="background:' + bg + '" onclick="openVid(\'' + v.id + '\')">';
+      h += '<div class="play-overlay"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div></div>';
+      h += '<div class="duplicate-info">';
+      h += '<div class="duplicate-name" title="' + escA(v.name) + '">' + esc(v.name) + '</div>';
+      h += '<div class="duplicate-category">' + esc(v.rel) + '</div>';
+      h += '<button class="duplicate-delete" onclick="delVideo(\'' + v.id + '\')">Delete</button>';
       h += '</div></div>';
     });
     h += '</div></div>';

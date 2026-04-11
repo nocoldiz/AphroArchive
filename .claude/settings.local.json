@@ -38,7 +38,26 @@
       "Bash(perl -i -pf /c/github/AphroArchive/migrate_dom.pl /tmp/utils_test.js)",
       "Bash(perl -i -pf /c/github/AphroArchive/migrate_dom2.pl /tmp/utils_test.js)",
       "Bash(perl -i -pf migrate_dom.pl public/modules/utils.js)",
-      "Bash(perl -i -pf migrate_dom2.pl public/modules/utils.js)"
+      "Bash(perl -i -pf migrate_dom2.pl public/modules/utils.js)",
+      "Bash(grep -v \"\\\\.el\\\\.innerHTML\\\\s*$\")",
+      "Bash(grep -n \"express\\\\.static\\\\|__dirname\\\\|public\\\\|static\" public/../*.js public/../server.js)",
+      "Bash(grep -roh '\\\\$\\([\"\\\\x27][a-zA-Z][a-zA-Z0-9]*[\"\\\\x27]\\)' public/modules/)",
+      "Bash(grep -rE '\\\\$\\\\\\([\"\\\\047][a-zA-Z]' public/modules/*.js)",
+      "Bash(grep -oE 'class=\"[^\"]*\"' public/templates/*.html)",
+      "Bash(grep -h -oE 'class=\"[^\"]*\"' public/templates/*.html public/index.html)",
+      "Bash(grep -v '^$')",
+      "Bash(grep -roh \"\\\\.add\\\\|\\\\.remove\\\\|\\\\.toggle\\\\|classList\\\\|'[a-z][a-z]'\" public/modules/*.js)",
+      "Bash(grep -oE \"'[a-z]{1,4}[a-z0-9-]*'\")",
+      "Bash(grep -rE \"\\(classList\\\\.\\(add|remove|toggle\\)|class=\\\\\"[^\\\\\"]*\\\\\"\\)\" public/modules/*.js)",
+      "Bash(grep -E \"^[a-z\\\\-]{2,8}$\")",
+      "Bash(grep -n \"\\\\$\\('browse-view'\\)\\\\|\\\\$\\('player-view'\\)\\\\|\\\\$\\('video-player'\\)\\\\|\\\\$\\('search-input'\\)\\\\|\\\\$\\('duplicates-sidebar'\\)\" public/modules/navigation.js)",
+      "Bash(grep -v \"//.*connect\\\\|node_modules\")",
+      "Bash(python3:*)",
+      "Bash(git -C C:/github/AphroArchive show HEAD:public/qrcode.min.js)",
+      "Bash(git:*)",
+      "Bash(xxd)",
+      "WebFetch(domain:cdn.jsdelivr.net)",
+      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js\")"
     ]
   }
 }

@@ -1,6 +1,6 @@
 // ─── Skeleton ───
 function showSk() {
-  $('vG').html(Array(8).fill('<div class="sk skc"></div>').join(''));
+  $('video-grid').html(Array(8).fill(tpl('skeleton')).join(''));
 }
 
 // ─── Sidebar Categories ───
@@ -16,17 +16,17 @@ function renCats() {
   const bmTotal = srcFilter !== 'local' ? _bfItems.filter(it => !bmMatchedUrls.has(it.url)).length : 0;
   const all = folderCats.reduce((s, c) => s + c.count, 0) + bmTotal;
   const dropAttrs = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'\')"';
-  let h = '<div class="ci' + (cat ? '' : ' on') + '" onclick="selCat(\'\')"' + dropAttrs + '><span>All Videos</span><span class="n">' + all + '</span></div>';
+  let h = '<div class="sidebar-item' + (cat ? '' : ' on') + '" onclick="selCat(\'\')"' + dropAttrs + '><span>All Videos</span><span class="count-badge">' + all + '</span></div>';
   cats.forEach(c => {
     const bmC = bmCountFor(c.isTag ? c.name : c.path);
     const displayCount = c.count + bmC;
     if (c.isTag) {
-      h += '<div class="ci' + (curTag === c.name ? ' on' : '') + '" onclick="openTag(\'' + escA(c.name) + '\')">' +
+      h += '<div class="sidebar-item' + (curTag === c.name ? ' on' : '') + '" onclick="openTag(\'' + escA(c.name) + '\')">' +
         '<span>' + esc(c.name) + '</span>' +
-        '<span class="n">' + displayCount + '</span></div>';
+        '<span class="count-badge">' + displayCount + '</span></div>';
     } else {
       const da = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'' + escA(c.path) + '\')"';
-      h += '<div class="ci' + (cat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + '><span>' + esc(c.name) + '</span><span class="n">' + displayCount + '</span></div>';
+      h += '<div class="sidebar-item' + (cat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + '><span>' + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
     }
   });
   el.innerHTML = h;
@@ -56,15 +56,15 @@ function dragVideoStart(e, id) {
 
 // ─── Main Grid ───
 function render() {
-  const g = $('vG').el, e = $('emp').el;
+  const g = $('video-grid').el, e = $('empty-placeholder').el;
   let base = recentMode ? recentVids : favM ? V.filter(v => v.fav) : V;
   const local = srcFilter === 'remote' ? [] : base;
   const bms   = (!recentMode && !favM && srcFilter !== 'local') ? getBmList() : [];
   if (!local.length && !bms.length) {
     g.innerHTML = '';
     e.style.display = 'block';
-    $('eT').text(q ? 'No results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found');
-    $('eD').text(q ? 'Nothing matched "' + q + '"' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder');
+    $('empty-title').text(q ? 'No results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found');
+    $('empty-desc').text(q ? 'Nothing matched "' + q + '"' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder');
     return;
   }
   e.style.display = 'none';
@@ -83,24 +83,23 @@ function setSrcFilter(val) {
 // ─── Video Card ───
 function card(v) {
   const cols = ['#e84040', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
-  const c = cols[Math.abs(hsh(v.category)) % cols.length];
-  const dragAttr = !v.external ? ' draggable="true" ondragstart="dragVideoStart(event,\'' + v.id + '\')"' : '';
-  return '<a class="vc fi" href="/video/' + v.id + '" onclick="event.preventDefault();openVid(\'' + v.id + '\')"' + dragAttr + '>' +
-    '<div class="ct" data-vid="' + v.id + '" style="background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)">' +
-    '<span class="eb">' + v.ext.replace('.', '') + '</span>' +
-    '<div class="po"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>' +
-    (v.durationF ? '<span class="durb">' + v.durationF + '</span>' : '') +
-    '<span class="szb">' + v.sizeF + '</span>' +
-    (v.rating ? '<div class="vr-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' + v.rating + '</div>' : '') +
-    '</div>' +
-    '<div class="cb"><div class="ctit" title="' + escA(v.name) + '">' + esc(v.name) + '</div>' +
-    '<div class="cm"><span class="ccat">' + esc(v.category) + '</span>' +
-    '<div class="ca">' +
-    '<button class="' + (v.fav ? 'st' : '') + '" onclick="event.preventDefault();event.stopPropagation();togStar(\'' + v.id + '\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="' + (v.fav ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>' +
-    (!v.external ? '<button onclick="event.preventDefault();event.stopPropagation();openRen(\'' + v.id + '\',\'' + escA(v.name) + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>' +
-    '<button onclick="event.preventDefault();event.stopPropagation();openMov(\'' + v.id + '\',\'' + escA(v.name) + '\',\'' + escA(v.catPath || '') + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>' +
-    '<button onclick="event.preventDefault();event.stopPropagation();openVidTag(\'' + v.id + '\')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>' : '') +
-    '</div></div></div></a>';
+  const color = cols[Math.abs(hsh(v.category)) % cols.length];
+  return tpl('video-card', {
+    id:       v.id,
+    color,
+    dragAttr: v.external ? '' : ` draggable="true" ondragstart="dragVideoStart(event,'${v.id}')"`,
+    ext:      v.ext.replace('.', ''),
+    duration: v.durationF ? `<span class="duration-badge">${v.durationF}</span>` : '',
+    sizeF:    v.sizeF,
+    rating:   v.rating ? `<div class="rating-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>${v.rating}</div>` : '',
+    nameA:    escA(v.name),
+    name:     esc(v.name),
+    category: esc(v.category),
+    starBtn:  `<button class="${v.fav ? 'st' : ''}" onclick="event.preventDefault();event.stopPropagation();togStar('${v.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="${v.fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>`,
+    renBtn:   v.external ? '' : `<button onclick="event.preventDefault();event.stopPropagation();openRen('${v.id}','${escA(v.name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`,
+    moveBtn:  v.external ? '' : `<button onclick="event.preventDefault();event.stopPropagation();openMov('${v.id}','${escA(v.name)}','${escA(v.catPath || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>`,
+    tagBtn:   v.external ? '' : `<button onclick="event.preventDefault();event.stopPropagation();openVidTag('${v.id}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`,
+  });
 }
 
 // ─── Bookmark Card ───
@@ -120,27 +119,22 @@ function bmCard(item) {
   try { hostname = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
   const encUrl = escA(item.url);
   const hasCached = !!item.img;
-  const thumbStyle = hasCached
-    ? 'background:url(' + escA(item.img) + ') center/cover no-repeat'
-    : 'background:linear-gradient(135deg,#3b82f612 0%,#06b6d406 100%)';
-  const ctClass = 'ct bm-ct' + (hasCached ? ' has-thumb' : '');
-  const needsObs = hasCached ? '' : ' data-bm-url="' + encUrl + '"';
-  return '<a class="vc fi bm-card" href="' + encUrl + '" target="_blank" rel="noopener" data-bm-url="' + encUrl + '">' +
-    '<div class="' + ctClass + '"' + needsObs + ' style="' + thumbStyle + '">' +
-    (hasCached ? '' : '<span class="eb" style="background:rgba(59,130,246,.18);color:#3b82f6">URL</span>') +
-    '<div class="po" style="opacity:.55"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>' +
-    '</div>' +
-    '<div class="cb"><div class="ctit" title="' + encUrl + '">' + esc(item.title) + '</div>' +
-    '<div class="cm"><span class="ccat">' + esc(hostname) + '</span>' +
-    '<div class="ca"><button onclick="event.preventDefault();event.stopPropagation();bmRemove(\'' + encUrl + '\')" title="Remove bookmark"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>' +
-    '</div></div></a>';
+  return tpl('bookmark-card', {
+    url:        encUrl,
+    ctClass:    'card-thumb bookmark-thumb' + (hasCached ? ' has-thumb' : ''),
+    needsObs:   hasCached ? '' : ` data-bm-url="${encUrl}"`,
+    thumbStyle: hasCached ? `background:url(${escA(item.img)}) center/cover no-repeat` : 'background:linear-gradient(135deg,#3b82f612 0%,#06b6d406 100%)',
+    urlBadge:   hasCached ? '' : '<span class="ext-badge" style="background:rgba(59,130,246,.18);color:#3b82f6">URL</span>',
+    title:      esc(item.title),
+    hostname:   esc(hostname),
+  });
 }
 
 function bmRemove(url) {
   _bfItems = _bfItems.filter(it => it.url !== url);
   bmMatchedUrls.delete(url);
   bfSaveCache();
-  document.querySelectorAll('.bm-card').forEach(el => { if (el.dataset.bmUrl === url) el.remove(); });
+  document.querySelectorAll('.bookmark-card').forEach(el => { if (el.dataset.bmUrl === url) el.remove(); });
 }
 
 // ─── Bookmark Thumbnail Observer ───
@@ -170,5 +164,5 @@ async function loadBmThumb(el) {
 
 function attachBmThumbs() {
   initBmThumbObs();
-  document.querySelectorAll('.bm-ct[data-bm-url]').forEach(el => bmThumbObs.observe(el));
+  document.querySelectorAll('.bookmark-thumb[data-bm-url]').forEach(el => bmThumbObs.observe(el));
 }

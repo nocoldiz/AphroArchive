@@ -17,7 +17,7 @@ const thumbMap = {}, thumbQueue = [];
 let thumbRunning = 0, thumbObs = null, hoverTimer = null, hoverEl = null, hoverIdx = 0;
 let zapOn = false, zapTimer = null, zapIv = 8, zapLock = false;
 let zapNextVid = null, zapNextTime = 0;
-let activePlayer = 'vP';
+let activePlayer = 'video-player';
 const bookmarkVidIds = new Set();
 const bmMatchedUrls = new Set();
 let collectionsMode = false, curCollection = null;

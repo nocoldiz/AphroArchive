@@ -3,21 +3,21 @@ function showDatabase() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/database') history.pushState(null, '', '/database');
   dbMode = true;
-  $('bv').add('off');
-  ['pv','dv','av','adv','sv','sdv','tagDV','vaultV','scraperV','collectionsV','settingsV','foldersV','importFavsV'].forEach(id => $(id).remove('on'));
-  document.querySelectorAll('.ci.on').forEach(el => el.classList.remove('on'));
-  $('databaseSB').add('on');
+  $('browse-view').add('off');
+  ['player-view','duplicates-view','actors-view','actor-detail-view','studios-view','studio-detail-view','tag-detail-view','vault-view','scraper-view','collections-view','settings-view','folders-view','import-favs-view'].forEach(id => $(id).remove('on'));
+  document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
+  $('database-sidebar').add('on');
   dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false;
   collectionsMode = false; settingsMode = false; studioMode = false; actorMode = false;
   curActor = null; curStudio = null; curTag = null; curV = null;
-  $('dbV').add('on');
+  $('database-view').add('on');
   loadDbTab(dbTab);
 }
 
 async function loadDbTab(tab) {
   dbTab = tab;
   document.querySelectorAll('.db-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  $('dbGrid').html('<div class="dup-scan">Loading\u2026</div>');
+  $('dbGrid').html(tpl('loading', { message: 'Loading\u2026' }));
   const r = await fetch('/api/db/' + tab);
   _dbData = await r.json();
   renderDbCards(_dbData, tab);
@@ -28,7 +28,7 @@ function dbSwitchTab(tab) { loadDbTab(tab); }
 function renderDbCards(data, tab) {
   const entries = Object.entries(data);
   if (!entries.length) {
-    $('dbGrid').html('<div class="es" style="padding:40px 20px);text-align:center"><h3 style="color:var(--tx2)">No entries yet</h3><p style="color:var(--tx3)">Click + Add to create one</p></div>';
+    $('dbGrid').html(tpl('empty-state', { title: 'No entries yet', desc: 'Click + Add to create one' }));
     return;
   }
   $('dbGrid').html(entries.map(([name, info]) => dbCard(name, info, tab)).join(''));
@@ -67,24 +67,24 @@ function openDbModal(name, data) {
   const isEdit = !!name;
   $('dbMoTitle').text(isEdit ? 'Edit \u2014 ' + name : 'Add Entry');
   const body = $('dbMoBody').el;
-  let fields = '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Name</label><input class="stg-ta" id="dbMoName" style="padding:8px;min-height:0" value="' + (isEdit ? escA(name) : '') + '" ' + (isEdit ? 'readonly' : '') + ' placeholder="Entry name"></div>';
+  let fields = '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Name</label><input class="settings-textarea" id="dbMoName" style="padding:8px;min-height:0" value="' + (isEdit ? escA(name) : '') + '" ' + (isEdit ? 'readonly' : '') + ' placeholder="Entry name"></div>';
   if (dbTab === 'actors') {
     fields += dbFieldInput('IMDb URL', 'dbMoImdb', data?.imdb_page || '');
     fields += dbFieldInput('Date of Birth', 'dbMoDob', data?.date_of_birth || '');
     fields += dbFieldInput('Nationality', 'dbMoNat', data?.nationality || '');
-    fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Movies</label><textarea class="stg-ta" id="dbMoMovies" style="min-height:70px">' + esc(data?.movies || '') + '</textarea></div>';
+    fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Movies</label><textarea class="settings-textarea" id="dbMoMovies" style="min-height:70px">' + esc(data?.movies || '') + '</textarea></div>';
   } else if (dbTab === 'categories') {
-    fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Tags / Aliases (comma-separated)</label><input class="stg-ta" id="dbMoTags" style="padding:8px;min-height:0" value="' + escA((data?.tags || []).join(', ')) + '" placeholder="alias1, alias2"></div>';
+    fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Tags / Aliases (comma-separated)</label><input class="settings-textarea" id="dbMoTags" style="padding:8px;min-height:0" value="' + escA((data?.tags || []).join(', ')) + '" placeholder="alias1, alias2"></div>';
   } else if (dbTab === 'studios') {
     fields += dbFieldInput('Website URL', 'dbMoWebsite', data?.website || '');
-    fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Description</label><textarea class="stg-ta" id="dbMoDesc" style="min-height:70px">' + esc(data?.short_description || '') + '</textarea></div>';
+    fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Description</label><textarea class="settings-textarea" id="dbMoDesc" style="min-height:70px">' + esc(data?.short_description || '') + '</textarea></div>';
   }
   body.innerHTML = fields;
   $('dbMo').el.style.display = 'flex';
 }
 
 function dbFieldInput(label, id, value) {
-  return '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">' + label + '</label><input class="stg-ta" id="' + id + '" style="padding:8px;min-height:0" value="' + escA(value) + '"></div>';
+  return '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">' + label + '</label><input class="settings-textarea" id="' + id + '" style="padding:8px;min-height:0" value="' + escA(value) + '"></div>';
 }
 
 function closeDbModal() { $('dbMo').show(false); }

@@ -12,33 +12,37 @@ const ActorScraper = (() => {
   // ── Render ───────────────────────────────────────────────────────
   function renderRow(a) {
     const busy = scraping.has(a.name);
-    return `<div class="scr-row" id="${rowId(a.name)}">
-      <div class="scr-photo">
+    return `<div class="scraper-row" id="${rowId(a.name)}">
+      <div class="scraper-photo">
         ${a.hasPhoto
-          ? `<img src="${photoSrc(a.name)}" alt="${eh(a.name)}" class="scr-img">`
-          : `<div class="scr-avatar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>`
+          ? `<img src="${photoSrc(a.name)}" alt="${eh(a.name)}" class="scraper-img">`
+          : `<div class="scraper-avatar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>`
         }
       </div>
-      <div class="scr-name">${eh(a.name)}</div>
-      <div class="scr-status ${a.hasPhoto ? 'scr-ok' : 'scr-miss'}">${a.hasPhoto ? '✓ Cached' : '✗ Missing'}</div>
-      <button class="scr-btn" onclick="ActorScraper.scrape('${ea(a.name)}')" ${busy ? 'disabled' : ''}>
-        ${busy ? '<span class="scr-spin">↻</span> Scraping…' : (a.hasPhoto ? 'Refresh' : 'Scrape')}
+      <div class="scraper-name">${eh(a.name)}</div>
+      <div class="scraper-status ${a.hasPhoto ? 'scraper-ok' : 'scraper-missing'}">${a.hasPhoto ? '✓ Cached' : '✗ Missing'}</div>
+      <button class="scraper-btn" onclick="ActorScraper.scrape('${ea(a.name)}')" ${busy ? 'disabled' : ''}>
+        ${busy ? '<span class="scraper-spin">↻</span> Scraping…' : (a.hasPhoto ? 'Refresh' : 'Scrape')}
       </button>
     </div>`;
   }
 
   function render() {
-    const grid = $('scraperGrid').el;
+    const grid = $('scraper-grid').el;
     if (!actors.length) {
-      grid.innerHTML = '<div class="es" style="padding:40px 20px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><h3>No actors found</h3><p>Add actor names to actors.txt — one per line</p></div>';
-      $('scraperScrapeAll').show(false);
+      grid.innerHTML = tpl('empty-state', {
+        icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
+        title: 'No actors found',
+        desc:  'Add actor names to actors.txt \u2014 one per line',
+      });
+      $('scraper-scrape-all').show(false);
       return;
     }
     const missing = actors.filter(a => !a.hasPhoto).length;
-    $('scraperInfo').el.textContent =
+    $('scraper-info').el.textContent =
       actors.length + ' actor' + (actors.length !== 1 ? 's' : '') +
       (missing ? ' · ' + missing + ' missing photo' + (missing !== 1 ? 's' : '') : ' · all photos cached');
-    const btn = $('scraperScrapeAll').el;
+    const btn = $('scraper-scrape-all').el;
     btn.style.display = '';
     btn.textContent = missing ? 'Scrape All Missing (' + missing + ')' : 'Refresh All';
     grid.innerHTML = actors.map(renderRow).join('');
@@ -53,7 +57,7 @@ const ActorScraper = (() => {
 
   // ── API ──────────────────────────────────────────────────────────
   async function load() {
-    $('scraperGrid').html('<div class="dup-scan">Loading actors…</div>');
+    $('scraper-grid').html(tpl('loading', { message: 'Loading actors\u2026' }));
     const res = await fetch('/api/actor-photos');
     actors = await res.json();
     render();
@@ -80,11 +84,11 @@ const ActorScraper = (() => {
     refreshRow(name);
     // Update header info
     const missing = actors.filter(a => !a.hasPhoto).length;
-    const info = $('scraperInfo').el;
+    const info = $('scraper-info').el;
     if (info) info.textContent =
       actors.length + ' actor' + (actors.length !== 1 ? 's' : '') +
       (missing ? ' · ' + missing + ' missing photo' + (missing !== 1 ? 's' : '') : ' · all photos cached');
-    const btn = $('scraperScrapeAll').el;
+    const btn = $('scraper-scrape-all').el;
     if (btn) btn.textContent = missing ? 'Scrape All Missing (' + missing + ')' : 'Refresh All';
   }
 

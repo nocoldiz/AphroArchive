@@ -3,22 +3,22 @@ async function showVault() {
   if (mosaicOn) stopMosaic();
   if (location.pathname !== '/vault') history.pushState(null, '', '/vault');
   vaultMode = true;
-  $('bv').add('off');
-  $('pv').remove('on');
-  $('dv').remove('on');
-  $('dupSB').remove('on');
-  $('sv').remove('on');
-  $('sdv').remove('on');
-  $('studioSB').remove('on');
-  $('av').remove('on');
-  $('adv').remove('on');
-  $('actorSB').remove('on');
-  $('tagDV').remove('on');
-  document.querySelectorAll('#tagList .ci').forEach(el => el.classList.remove('on'));
+  $('browse-view').add('off');
+  $('player-view').remove('on');
+  $('duplicates-view').remove('on');
+  $('duplicates-sidebar').remove('on');
+  $('studios-view').remove('on');
+  $('studio-detail-view').remove('on');
+  $('studio-sidebar').remove('on');
+  $('actors-view').remove('on');
+  $('actor-detail-view').remove('on');
+  $('actor-sidebar').remove('on');
+  $('tag-detail-view').remove('on');
+  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
   dupMode = false; studioMode = false; curStudio = null; actorMode = false; curActor = null; curTag = null;
-  if (curV) { const vp = $('vP').el; vp.pause(); vp.src = ''; curV = null; }
-  $('vaultSB').add('on');
-  $('vaultV').add('on');
+  if (curV) { const vp = $('video-player').el; vp.pause(); vp.src = ''; curV = null; }
+  $('vault-sidebar').add('on');
+  $('vault-view').add('on');
   loadVaultView();
 }
 
@@ -101,7 +101,7 @@ async function loadVaultFiles() {
   if (selBtn) selBtn.classList.remove('on');
   const grid = $('vaultGrid').el;
   const empty = $('vaultEmpty').el;
-  grid.innerHTML = '<div class="dup-scan">Loading\u2026</div>';
+  grid.innerHTML = tpl('loading', { message: 'Loading\u2026' });
   empty.style.display = 'none';
   const files = await (await fetch('/api/vault/files')).json();
   if (files.error) { grid.innerHTML = ''; return; }
@@ -128,20 +128,20 @@ function renderVaultGrid() {
   grid.innerHTML = files.map(f => {
     const isImg = VAULT_IMG_EXTS.has(f.ext.toLowerCase());
     const c = cols[Math.abs(hsh(f.originalName)) % cols.length];
-    const ctClass = 'ct vault-ct' + (isImg ? ' has-thumb' : '');
+    const ctClass = 'card-thumb vault-ct' + (isImg ? ' has-thumb' : '');
     const ctStyle = isImg ? 'cursor:pointer' : 'background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%);cursor:pointer';
     const inner = isImg
       ? '<img src="/api/vault/stream/' + escA(f.id) + '" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'
-      : '<span class="eb">' + f.ext.replace('.','') + '</span>';
-    return '<div class="vc fi" data-vault-id="' + escA(f.id) + '">' +
+      : '<span class="ext-badge">' + f.ext.replace('.','') + '</span>';
+    return '<div class="video-card fade-in" data-vault-id="' + escA(f.id) + '">' +
       '<div class="' + ctClass + '" style="' + ctStyle + '" onclick="vaultCardClick(\'' + escA(f.id) + '\',\'' + escA(f.name || f.originalName) + '\',\'' + escA(f.ext) + '\')">' +
       inner +
       '<div class="vault-chk" id="vchk-' + escA(f.id) + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>' +
-      '<div class="po"></div>' +
-      '<span class="szb">' + f.sizeF + '</span></div>' +
-      '<div class="cb"><div class="ctit" title="' + escA(f.originalName) + '">' + esc(f.name || f.originalName) + '</div>' +
-      '<div class="cm"><span class="ccat" style="color:var(--ac)">Vault</span>' +
-      '<div class="ca"><button onclick="deleteVaultFile(\'' + escA(f.id) + '\')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button></div></div></div></div>';
+      '<div class="play-overlay"></div>' +
+      '<span class="size-badge">' + f.sizeF + '</span></div>' +
+      '<div class="card-body"><div class="card-title" title="' + escA(f.originalName) + '">' + esc(f.name || f.originalName) + '</div>' +
+      '<div class="card-meta"><span class="card-category" style="color:var(--ac)">Vault</span>' +
+      '<div class="card-actions"><button onclick="deleteVaultFile(\'' + escA(f.id) + '\')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button></div></div></div></div>';
   }).join('');
 }
 
@@ -181,15 +181,15 @@ async function addVaultFiles() {
 }
 
 async function openVaultVid(id, name, ext) {
-  $('bv').add('off');
-  $('vaultV').remove('on');
-  $('pv').add('on');
-  $('vP').el.src = '/api/vault/stream/' + id;
-  $('pT').text(name);
-  $('pC').text('Vault');
-  $('pS').text('');
-  $('pD').text('');
-  $('sG').html('');
+  $('browse-view').add('off');
+  $('vault-view').remove('on');
+  $('player-view').add('on');
+  $('video-player').el.src = '/api/vault/stream/' + id;
+  $('player-title').text(name);
+  $('player-category').text('Vault');
+  $('player-size').text('');
+  $('player-duration').text('');
+  $('suggestions-grid').html('');
   curV = { id, name, category: 'Vault', fav: false, isVault: true };
   curVTags = []; curVAllCategories = []; curVActors = [];
   renderVideoTags();
@@ -205,23 +205,23 @@ async function openVaultVid(id, name, ext) {
 }
 
 function renderVaultPlaylist() {
-  const listEl = $('pplList').el;
-  const countEl = $('pplCount').el;
+  const listEl = $('playlist-list').el;
+  const countEl = $('playlist-count').el;
   countEl.textContent = vaultPl.length + ' video' + (vaultPl.length !== 1 ? 's' : '');
-  if (!vaultPl.length) { listEl.innerHTML = '<div class="ppl-empty">No videos in vault</div>'; return; }
+  if (!vaultPl.length) { listEl.innerHTML = '<div class="playlist-empty">No videos in vault</div>'; return; }
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
   listEl.innerHTML = vaultPl.map((f, i) => {
     const c = cols[Math.abs(hsh(f.originalName)) % cols.length];
     const isCur = curV && f.id === curV.id;
-    return '<div class="ppl-item' + (isCur ? ' cur' : '') + '" id="vppl-' + escA(f.id) + '" onclick="vaultCardClick(\'' + escA(f.id) + '\',\'' + escA(f.name || f.originalName) + '\',\'' + escA(f.ext) + '\')">' +
-      '<div class="ct ppl-ct" style="background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)">' +
-        '<div class="po" style="transform:translate(-50%,-50%) scale(0.6)"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>' +
-        '<span class="szb">' + f.sizeF + '</span>' +
+    return '<div class="playlist-item' + (isCur ? ' cur' : '') + '" id="vppl-' + escA(f.id) + '" onclick="vaultCardClick(\'' + escA(f.id) + '\',\'' + escA(f.name || f.originalName) + '\',\'' + escA(f.ext) + '\')">' +
+      '<div class="card-thumb playlist-thumb" style="background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%)">' +
+        '<div class="play-overlay" style="transform:translate(-50%,-50%) scale(0.6)"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>' +
+        '<span class="size-badge">' + f.sizeF + '</span>' +
       '</div>' +
-      '<div class="ppl-info">' +
-        '<span class="ppl-num">' + (i + 1) + '</span>' +
-        '<span class="ppl-name">' + esc(f.name || f.originalName) + '</span>' +
-        '<span class="ppl-cat">Vault</span>' +
+      '<div class="playlist-info">' +
+        '<span class="playlist-num">' + (i + 1) + '</span>' +
+        '<span class="playlist-name">' + esc(f.name || f.originalName) + '</span>' +
+        '<span class="playlist-category">Vault</span>' +
       '</div></div>';
   }).join('');
   const curEl = $('vppl-' + (curV ? curV.id : '').el);

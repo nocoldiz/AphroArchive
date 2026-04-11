@@ -6,10 +6,10 @@ function toggleZapping() {
     if (mosaicOn) stopMosaic();
     zapOn = true;
     zapLock = false;
-    $('zapUI').el.style.display = 'flex';
-    $('zapLockBtn').text('Lock to Current');
-    $('bv').add('off');
-    $('pv').add('on');
+    $('zap-ui').el.style.display = 'flex';
+    $('zap-lock-btn').text('Lock to Current');
+    $('browse-view').add('off');
+    $('player-view').add('on');
     startZapping();
   }
 }
@@ -17,21 +17,21 @@ function toggleZapping() {
 function stopZapping() {
   zapOn = false;
   clearTimeout(zapTimer);
-  $('zapUI').show(false);
-  $('vP').show();
-  $('vP_zap').show(false);
-  activePlayer = 'vP';
+  $('zap-ui').show(false);
+  $('video-player').show();
+  $('video-player-zap').show(false);
+  activePlayer = 'video-player';
   goHome();
 }
 
 function setZapIv(delta) {
   zapIv = Math.max(2, zapIv + delta);
-  $('zapIv').text(zapIv + 's');
+  $('zap-interval').text(zapIv + 's');
 }
 
 function toggleZapLock() {
   zapLock = !zapLock;
-  $('zapLockBtn').text(zapLock ? 'Unlock (Resume Zapping)' : 'Lock to Current');
+  $('zap-lock-btn').text(zapLock ? 'Unlock (Resume Zapping)' : 'Lock to Current');
   if (!zapLock) {
     zapTimer = setTimeout(doZapSwitch, zapIv * 1000);
   } else {
@@ -60,7 +60,7 @@ async function prepareNextZap() {
   const d = await (await fetch('/api/videos/' + zapNextVid.id)).json();
   const duration = d.video.duration || 60;
   zapNextTime = Math.random() * Math.max(0, duration - zapIv);
-  const nextPlayerId = activePlayer === 'vP' ? 'vP_zap' : 'vP';
+  const nextPlayerId = activePlayer === 'video-player' ? 'video-player-zap' : 'video-player';
   const vpNext = $(nextPlayerId).el;
   vpNext.src = '/api/stream/' + zapNextVid.id + '#t=' + zapNextTime;
   vpNext.load();
@@ -72,7 +72,7 @@ async function doZapSwitch() {
   if (!zapNextVid) await prepareNextZap();
   if (!zapNextVid) return;
 
-  const nextPlayerId = activePlayer === 'vP' ? 'vP_zap' : 'vP';
+  const nextPlayerId = activePlayer === 'video-player' ? 'video-player-zap' : 'video-player';
   const currPlayerId = activePlayer;
   const vpNext = $(nextPlayerId).el;
   const vpCurr = $(currPlayerId).el;
@@ -85,8 +85,8 @@ async function doZapSwitch() {
   activePlayer = nextPlayerId;
 
   curV = zapNextVid;
-  $('pT').text(curV.name);
-  if ($('pC').el) $('pC').text(curV.category);
+  $('player-title').text(curV.name);
+  if ($('player-category').el) $('player-category').text(curV.category);
 
   prepareNextZap();
   zapTimer = setTimeout(doZapSwitch, zapIv * 1000);

@@ -4,15 +4,15 @@ async function openVid(id) {
   fetch('/api/history/' + id, { method: 'POST' });
   const d = await (await fetch('/api/videos/' + id)).json();
   curV = d.video;
-  $('bv').add('off');
-  $('pv').add('on');
-  $('vP').el.src = '/api/stream/' + id;
-  $('pT').text(curV.name);
-  $('pC').text(curV.category);
-  $('pS').text(curV.sizeF);
-  $('pD').text(curV.durationF || '');
+  $('browse-view').add('off');
+  $('player-view').add('on');
+  $('video-player').el.src = '/api/stream/' + id;
+  $('player-title').text(curV.name);
+  $('player-category').text(curV.category);
+  $('player-size').text(curV.sizeF);
+  $('player-duration').text(curV.durationF || '');
   updPStar();
-  const actorsEl = $('pActors').el;
+  const actorsEl = $('player-actors').el;
   if (d.actors && d.actors.length) {
     actorsEl.innerHTML = d.actors.map(a =>
       '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +
@@ -28,7 +28,7 @@ async function openVid(id) {
   renderVideoTags();
   renderRating(d.video.rating || null);
   renderPlaylist();
-  $('sG').html(d.suggested.map(card).join(''));
+  $('suggestions-grid').html(d.suggested.map(card).join(''));
   attachThumbs();
   requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
 }
@@ -36,7 +36,7 @@ async function openVid(id) {
 async function openVidTag(id) {
   await openVid(id);
   requestAnimationFrame(() => {
-    const row = $('pTagsRow').el;
+    const row = $('player-tags-row').el;
     if (row && row.style.display !== 'none') toggleTagPicker();
   });
 }
@@ -72,7 +72,7 @@ async function togglePStar() {
 }
 
 function updPStar() {
-  const b = $('pSB').el;
+  const b = $('player-star-btn').el;
   b.classList.toggle('st', curV?.fav);
   b.querySelector('svg').setAttribute('fill', curV?.fav ? 'currentColor' : 'none');
 }
@@ -80,7 +80,7 @@ function updPStar() {
 // ─── Rating ───
 function renderRating(rating) {
   curVRating = rating;
-  const el = $('pRating').el;
+  const el = $('player-rating').el;
   if (!el) return;
   if (curV && curV.isVault) { el.innerHTML = ''; return; }
   let html = '';
@@ -95,7 +95,7 @@ function renderRating(rating) {
 }
 
 function hoverRating(n) {
-  document.querySelectorAll('#pRating .p-star').forEach((el, i) => {
+  document.querySelectorAll('#player-rating .p-star').forEach((el, i) => {
     el.classList.toggle('on', i < n);
   });
 }
@@ -123,11 +123,11 @@ async function clearRating() {
 
 // ─── Video Tag Management ───
 function renderVideoTags() {
-  const row = $('pTagsRow').el;
-  const el = $('pTags').el;
+  const row = $('player-tags-row').el;
+  const el = $('player-tags').el;
   const canEdit = curV && !curV.isVault && !curV.external;
   row.style.display = (curVTags.length || canEdit) ? '' : 'none';
-  $('pTagAddBtn').el.style.display = canEdit ? '' : 'none';
+  $('player-tag-add-btn').el.style.display = canEdit ? '' : 'none';
   el.innerHTML = curVTags.map(t =>
     '<span class="p-tag">' + esc(t) +
     (canEdit
@@ -151,13 +151,13 @@ async function removeVideoTag(tag) {
 }
 
 function toggleTagPicker() {
-  const picker = $('pTagPicker').el;
-  const btn = $('pTagAddBtn').el;
+  const picker = $('player-tag-picker').el;
+  const btn = $('player-tag-add-btn').el;
   if (picker.style.display === 'none') {
     const available = curVAllCategories.filter(c =>
       !curVTags.some(t => t.toLowerCase() === c.toLowerCase())
     );
-    const list = $('pTagPickerList').el;
+    const list = $('player-tag-picker-list').el;
     if (!available.length) {
       list.innerHTML = '<span class="p-tag-picker-empty">All categories already present</span>';
     } else {
@@ -167,7 +167,7 @@ function toggleTagPicker() {
     }
     picker.style.display = '';
     btn.classList.add('on');
-    const search = $('pTagPickerSearch').el;
+    const search = $('player-tag-picker-search').el;
     search.value = '';
     search.focus();
   } else {
@@ -177,19 +177,19 @@ function toggleTagPicker() {
 
 function filterTagPicker(q) {
   const lo = q.trim().toLowerCase();
-  document.querySelectorAll('#pTagPickerList .p-tag-picker-item').forEach(el => {
+  document.querySelectorAll('#player-tag-picker-list .p-tag-picker-item').forEach(el => {
     el.style.display = !lo || el.dataset.tag.toLowerCase().includes(lo) ? '' : 'none';
   });
 }
 
 function closeTagPicker() {
-  $('pTagPicker').show(false);
-  $('pTagAddBtn').remove('on');
-  $('pTagPickerSearch').val('');
+  $('player-tag-picker').show(false);
+  $('player-tag-add-btn').remove('on');
+  $('player-tag-picker-search').val('');
 }
 
 async function applyTagPicker() {
-  const selected = [...document.querySelectorAll('#pTagPickerList .p-tag-picker-item.sel')]
+  const selected = [...document.querySelectorAll('#player-tag-picker-list .p-tag-picker-item.sel')]
     .map(el => el.dataset.tag);
   closeTagPicker();
   if (!selected.length) return;
@@ -214,8 +214,8 @@ async function applyVideoRename(newName) {
   if (!r.ok) { toast(d.error || 'Rename failed'); return false; }
   curV.id = d.newId;
   curV.name = newName;
-  $('pT').text(newName);
-  const vp = $('vP').el, t = vp.currentTime;
+  $('player-title').text(newName);
+  const vp = $('video-player').el, t = vp.currentTime;
   vp.src = '/api/stream/' + d.newId;
   vp.currentTime = t;
   return true;
@@ -223,11 +223,11 @@ async function applyVideoRename(newName) {
 
 // ─── Actor Input Panel ───
 function toggleActorInput() {
-  const panel = $('pActorInput').el;
+  const panel = $('player-actor-input').el;
   if (panel.style.display === 'none') {
     panel.style.display = '';
-    $('pActorAddBtn').add('on');
-    const inp = $('pActorInputVal').el;
+    $('player-actor-add-btn').add('on');
+    const inp = $('player-actor-input-val').el;
     inp.value = '';
     inp.focus();
   } else {
@@ -236,19 +236,19 @@ function toggleActorInput() {
 }
 
 function closeActorInput() {
-  $('pActorInput').show(false);
-  $('pActorAddBtn').remove('on');
+  $('player-actor-input').show(false);
+  $('player-actor-add-btn').remove('on');
 }
 
 async function submitActorInput() {
-  const name = $('pActorInputVal').el.value.trim();
+  const name = $('player-actor-input-val').el.value.trim();
   closeActorInput();
   if (!name || !curV || curV.isVault || curV.external) return;
   const newName = name + ' ' + curV.name;
   const ok = await applyVideoRename(newName);
   if (!ok) return;
   const d = await (await fetch('/api/videos/' + curV.id)).json();
-  const actorsEl = $('pActors').el;
+  const actorsEl = $('player-actors').el;
   if (d.actors && d.actors.length) {
     actorsEl.innerHTML = d.actors.map(a =>
       '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +
@@ -257,3 +257,58 @@ async function submitActorInput() {
     ).join('');
   }
 }
+
+// ─── Keyboard Shortcuts ───
+document.addEventListener('keydown', e => {
+  // Don't fire when typing
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+  // Only act when a video is open
+  if (!curV) return;
+
+  const vid = $('video-player').el;
+  if (!vid) return;
+
+  switch (e.key) {
+    case 'ArrowLeft':
+      e.preventDefault();
+      vid.currentTime = Math.max(0, vid.currentTime - 10);
+      toast('⏪ −10s', 700);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      vid.currentTime = Math.min(vid.duration || Infinity, vid.currentTime + 10);
+      toast('⏩ +10s', 700);
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      vid.volume = Math.min(1, Math.round((vid.volume + 0.1) * 10) / 10);
+      toast('🔊 ' + Math.round(vid.volume * 100) + '%', 700);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      vid.volume = Math.max(0, Math.round((vid.volume - 0.1) * 10) / 10);
+      toast('🔉 ' + Math.round(vid.volume * 100) + '%', 700);
+      break;
+    case ' ':
+      // Only intercept space when the video element itself isn't focused
+      if (document.activeElement !== vid) {
+        e.preventDefault();
+        if (vid.paused) vid.play(); else vid.pause();
+      }
+      break;
+    case 'f': case 'F':
+      togglePStar();
+      break;
+    case 'm': case 'M':
+      vid.muted = !vid.muted;
+      toast(vid.muted ? '🔇 Muted' : '🔊 Unmuted', 700);
+      break;
+    case 'n': case 'N':
+      playNext();
+      break;
+    case 'p': case 'P':
+      playPrev();
+      break;
+  }
+});

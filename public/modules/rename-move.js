@@ -1,18 +1,18 @@
 // ─── Rename ───
 function openRen(id, name) {
   renId = id;
-  $('rI').val(name);
-  $('rE').show(false);
-  $('rM').add('on');
-  setTimeout(() => $('rI').el.focus(), 50);
+  $('rename-input').val(name);
+  $('rename-error').show(false);
+  $('rename-modal').add('on');
+  setTimeout(() => $('rename-input').el.focus(), 50);
 }
 
 function openRenP() { if (curV) openRen(curV.id, curV.name); }
 
-function closeRen() { $('rM').remove('on'); renId = null; }
+function closeRen() { $('rename-modal').remove('on'); renId = null; }
 
 async function doRen() {
-  const n = $('rI').el.value.trim();
+  const n = $('rename-input').el.value.trim();
   if (!n) return;
   const r = await fetch('/api/videos/' + renId + '/rename', {
     method: 'PATCH',
@@ -21,7 +21,7 @@ async function doRen() {
   });
   const d = await r.json();
   if (!r.ok) {
-    const e = $('rE').el;
+    const e = $('rename-error').el;
     e.textContent = d.error || 'Failed';
     e.style.display = 'block';
     return;
@@ -31,8 +31,8 @@ async function doRen() {
   if (curV && curV.id === renId) {
     curV.id = d.newId;
     curV.name = n;
-    $('pT').text(n);
-    const p = $('vP').el, t = p.currentTime;
+    $('player-title').text(n);
+    const p = $('video-player').el, t = p.currentTime;
     p.src = '/api/stream/' + d.newId;
     p.currentTime = t;
   }
@@ -130,26 +130,26 @@ function extractAndRenameActors() {
 async function openMov(id, name, curCatPath) {
   movId = id;
   movCurCat = curCatPath;
-  $('mvInfo').text('Moving: ' + name);
-  $('mvE').show(false);
-  $('mvNew').val('');
+  $('move-info').text('Moving: ' + name);
+  $('move-error').show(false);
+  $('move-new-input').val('');
   const norm = p => p.replace(/\\/g, '/');
   const mainCats = await (await fetch('/api/main-categories')).json();
-  const list = $('mvList').el;
+  const list = $('move-list').el;
   list.innerHTML = mainCats.map(c => {
     const isCur = norm(c.path) === norm(curCatPath);
-    return '<div class="mv-item' + (isCur ? ' cur' : '') + '" data-cat="' + esc(c.path) + '">' +
+    return '<div class="move-item' + (isCur ? ' cur' : '') + '" data-cat="' + esc(c.path) + '">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
       '<span>' + esc(c.name) + '</span></div>';
   }).join('');
-  list.querySelectorAll('.mv-item:not(.cur)').forEach(el => {
+  list.querySelectorAll('.move-item:not(.cur)').forEach(el => {
     el.addEventListener('click', () => doMove(el.dataset.cat));
   });
-  $('mvM').add('on');
+  $('move-modal').add('on');
 }
 
 function openMovP() { if (curV) openMov(curV.id, curV.name, curV.catPath || ''); }
-function closeMov() { $('mvM').remove('on'); movId = null; }
+function closeMov() { $('move-modal').remove('on'); movId = null; }
 
 async function doMove(targetCat) {
   if (!movId) return;
@@ -160,7 +160,7 @@ async function doMove(targetCat) {
   });
   const d = await r.json();
   if (!r.ok) {
-    const e = $('mvE').el;
+    const e = $('move-error').el;
     e.textContent = d.error || 'Move failed';
     e.style.display = 'block';
     return;
@@ -171,8 +171,8 @@ async function doMove(targetCat) {
     curV.id = d.newId;
     curV.catPath = targetCat;
     curV.category = targetCat || 'Uncategorized';
-    $('pC').text(curV.category);
-    const p = $('vP').el, t = p.currentTime;
+    $('player-category').text(curV.category);
+    const p = $('video-player').el, t = p.currentTime;
     p.src = '/api/stream/' + d.newId;
     p.currentTime = t;
   }
@@ -180,7 +180,7 @@ async function doMove(targetCat) {
 }
 
 async function doMoveNew() {
-  const name = $('mvNew').el.value.trim();
+  const name = $('move-new-input').el.value.trim();
   if (!name) return;
   const safe = name.replace(/[<>:"/\\|?*]/g, '_');
   await doMove(safe);
@@ -200,8 +200,8 @@ async function dropMoveVideo(id, catPath) {
     curV.id = d.newId;
     curV.catPath = catPath;
     curV.category = catPath || 'Uncategorized';
-    $('pC').text(curV.category);
-    const p = $('vP').el, t = p.currentTime;
+    $('player-category').text(curV.category);
+    const p = $('video-player').el, t = p.currentTime;
     p.src = '/api/stream/' + d.newId;
     p.currentTime = t;
   }
@@ -220,8 +220,8 @@ async function delVideo(id) {
 }
 
 // ─── Modal Close Handlers ───
-$('rM').el.addEventListener('click', e => { if (e.target === $('rM').el) closeRen(); });
-$('mvM').el.addEventListener('click', e => { if (e.target === $('mvM').el) closeMov(); });
+$('rename-modal').el.addEventListener('click', e => { if (e.target === $('rename-modal').el) closeRen(); });
+$('move-modal').el.addEventListener('click', e => { if (e.target === $('move-modal').el) closeMov(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeRen(); closeMov(); if (mosaicOn) stopMosaic(); closeBfIframe(); }
   if (e.key === 'Enter' && renId) doRen();
