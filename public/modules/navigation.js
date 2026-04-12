@@ -45,6 +45,13 @@ function goBack() {
   }
 }
 
+function showHome() {
+  closeAllViews();
+  $('browse-view').add('off');
+  $('home-view').add('on');
+  if (location.pathname !== '/') history.pushState(null, '', '/');
+}
+
 function goHome() {
   playlistSkipped.clear();
   if (mosaicOn) stopMosaic();
@@ -57,6 +64,7 @@ function goHome() {
     activePlayer = 'video-player';
   }
   if (location.pathname !== '/') history.pushState(null, '', '/');
+  $('home-view').remove('on');
   $('vault-view').remove('on');
   $('vault-sidebar').remove('on');
   $('scraper-view').remove('on');
@@ -114,6 +122,7 @@ function closeAllViews() {
     curV = null;
   }
   [
+    'home-view',
     'duplicates-view','duplicates-sidebar','studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
     'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
     'collections-view','collections-sidebar',
@@ -304,7 +313,7 @@ if (localStorage.getItem('pan')) { document.body.classList.add('pan'); $('panBtn
 // ─── Router ───
 async function routeToPath(path) {
   let m;
-  if (path === '/' || path === '') { goHome(); return; }
+  if (path === '/' || path === '') { showHome(); return; }
   if (path === '/favourites') { if (!favM) toggleFav(); return; }
   if (path === '/bookmarks') { showImportFavs(); return; }
   if (path === '/duplicates') { showDups(); return; }
@@ -331,5 +340,5 @@ async function routeToPath(path) {
 window.addEventListener('popstate', () => { routeToPath(location.pathname); });
 
 init().then(() => {
-  if (location.pathname !== '/') routeToPath(location.pathname);
+  routeToPath(location.pathname);
 });

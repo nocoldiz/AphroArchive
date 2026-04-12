@@ -701,3 +701,18 @@ input{font-family:inherit;color:inherit}
 .search-site-kw{font-weight:400;color:var(--ac)}
 .search-site-url{font-size:0.75rem;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .search-site-open{flex-shrink:0;color:var(--tx3)}
+
+/* ── Home View ── */
+.home-view{display:none}.home-view.on{display:block}
+.home-header{margin-bottom:28px}
+.home-header h2{font-size:1.6rem;font-weight:700;letter-spacing:-0.5px;margin-bottom:5px}
+.home-header p{font-size:0.88rem;color:var(--tx2)}
+.home-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:720px}
+.home-card{display:flex;align-items:center;gap:14px;padding:15px 18px;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rl);cursor:pointer;transition:all var(--tr);color:inherit;user-select:none}
+.home-card:hover{background:var(--bg3);border-color:var(--ac);box-shadow:0 0 0 1px var(--acg),var(--sh);transform:translateY(-2px)}
+.home-card:active{transform:translateY(0)}
+.home-card-icon{width:38px;height:38px;background:var(--acg);border-radius:var(--r);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--ac);transition:background var(--tr)}
+.home-card:hover .home-card-icon{background:var(--ac);color:#fff}
+.home-card-body{min-width:0}
+.home-card-name{font-size:0.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx)}
+.home-card-desc{font-size:0.75rem;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
