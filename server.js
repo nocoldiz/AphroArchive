@@ -14,7 +14,7 @@ const url = require('url');
 const { execFile, exec, spawn } = require('child_process');
 const crypto = require('crypto');
 const os = require('os');
-const scrapeMethods = require('./scrapeMethods');
+const scrapeMethods = require('./server/scrapeMethods');
 
 // ── Packaging detection ──────────────────────────────────────────────────────
 // When bundled with pkg, process.pkg is defined and __dirname points to the
@@ -88,17 +88,16 @@ const THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-thumbs');
 const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');
 const VAULT_DIR = path.join(VIDEOS_DIR, 'hidden');
 const IGNORED_DIR = path.join(VIDEOS_DIR, 'Z');
-const SETTINGS_DIR = path.join(DATA_DIR, 'settings');
-const FAVOURITES_FILE = path.join(SETTINGS_DIR, '.AphroArchive-favourites.json');
+const FAVOURITES_FILE = path.join(CACHE_DIR, '.AphroArchive-favourites.json');
 const HISTORY_FILE    = path.join(CACHE_DIR, '.AphroArchive-history.json');
 const THUMBS_CACHE_FILE = path.join(CACHE_DIR, '.AphroArchive-thumbcache.json');
-const VAULT_CONFIG_FILE = path.join(SETTINGS_DIR, '.vault-config.json');
-const VAULT_META_FILE = path.join(SETTINGS_DIR, '.vault-meta.json');
-const BROWSER_WHITELIST_FILE = path.join(SETTINGS_DIR, 'whitelist.txt');
-const COLLECTIONS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-collections.json');
-const RATINGS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-ratings.json');
-const HIDDEN_FILE  = path.join(SETTINGS_DIR, 'hidden.txt');
-const PREFS_FILE   = path.join(SETTINGS_DIR, '.AphroArchive-prefs.json');
+const VAULT_CONFIG_FILE = path.join(CACHE_DIR, '.vault-config.json');
+const VAULT_META_FILE = path.join(CACHE_DIR, '.vault-meta.json');
+const BROWSER_WHITELIST_FILE = path.join(CACHE_DIR, 'whitelist.txt');
+const COLLECTIONS_FILE = path.join(CACHE_DIR, '.AphroArchive-collections.json');
+const RATINGS_FILE = path.join(CACHE_DIR, '.AphroArchive-ratings.json');
+const HIDDEN_FILE  = path.join(CACHE_DIR, 'hidden.txt');
+const PREFS_FILE   = path.join(CACHE_DIR, '.AphroArchive-prefs.json');
 const VIDEO_META_FILE = path.join(VIDEOS_DIR, '.meta.json');
 const DB_DIR = path.join(__dirname, 'db');
 const ACTORS_JSON     = path.join(DB_DIR, 'actors.json');
@@ -106,7 +105,7 @@ const CATEGORIES_JSON = path.join(DB_DIR, 'categories.json');
 const STUDIOS_JSON    = path.join(DB_DIR, 'studios.json');
 const WEBSITES_JSON = path.join(DB_DIR, 'websites.json');
 
-fs.mkdirSync(SETTINGS_DIR,  { recursive: true });
+fs.mkdirSync(CACHE_DIR,  { recursive: true });
 fs.mkdirSync(CACHE_DIR,    { recursive: true });
 fs.mkdirSync(VIDEOS_DIR,   { recursive: true });
 fs.mkdirSync(AUDIO_DIR,    { recursive: true });
