@@ -4,7 +4,8 @@
   },
   "permissions": {
     "allow": [
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(echo \"EXIT: $?\")"
     ]
   }
 }
