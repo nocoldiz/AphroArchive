@@ -14,6 +14,7 @@ const url = require('url');
 const { execFile, exec, spawn } = require('child_process');
 const crypto = require('crypto');
 const os = require('os');
+const scrapeMethods = require('./scrapeMethods');
 
 // ── Packaging detection ──────────────────────────────────────────────────────
 // When bundled with pkg, process.pkg is defined and __dirname points to the
@@ -82,14 +83,15 @@ const VIDEOS_DIR = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || pat
 const AUDIO_DIR  = path.join(DATA_DIR, 'audio');
 const PORT = parseInt(process.argv[3] || process.env.PORT || '3000', 10);
 const PUBLIC_DIR = path.join(__dirname, 'public');         // bundled (read-only)
-const THUMBS_DIR = path.join(DATA_DIR, '.AphroArchive-thumbs');
-const ACTOR_PHOTOS_DIR = path.join(DATA_DIR, '.AphroArchive-actor-photos');
+const CACHE_DIR = path.join(DATA_DIR, 'cache');
+const THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-thumbs');
+const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');
 const VAULT_DIR = path.join(VIDEOS_DIR, 'hidden');
 const IGNORED_DIR = path.join(VIDEOS_DIR, 'Z');
 const SETTINGS_DIR = path.join(DATA_DIR, 'settings');
 const FAVOURITES_FILE = path.join(SETTINGS_DIR, '.AphroArchive-favourites.json');
-const HISTORY_FILE    = path.join(SETTINGS_DIR, '.AphroArchive-history.json');
-const THUMBS_CACHE_FILE = path.join(SETTINGS_DIR, '.AphroArchive-thumbcache.json');
+const HISTORY_FILE    = path.join(CACHE_DIR, '.AphroArchive-history.json');
+const THUMBS_CACHE_FILE = path.join(CACHE_DIR, '.AphroArchive-thumbcache.json');
 const VAULT_CONFIG_FILE = path.join(SETTINGS_DIR, '.vault-config.json');
 const VAULT_META_FILE = path.join(SETTINGS_DIR, '.vault-meta.json');
 const BROWSER_WHITELIST_FILE = path.join(SETTINGS_DIR, 'whitelist.txt');
@@ -97,6 +99,7 @@ const COLLECTIONS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-collections.json
 const RATINGS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-ratings.json');
 const HIDDEN_FILE  = path.join(SETTINGS_DIR, 'hidden.txt');
 const PREFS_FILE   = path.join(SETTINGS_DIR, '.AphroArchive-prefs.json');
+const VIDEO_META_FILE = path.join(VIDEOS_DIR, '.meta.json');
 const DB_DIR = path.join(__dirname, 'db');
 const ACTORS_JSON     = path.join(DB_DIR, 'actors.json');
 const CATEGORIES_JSON = path.join(DB_DIR, 'categories.json');
@@ -104,6 +107,7 @@ const STUDIOS_JSON    = path.join(DB_DIR, 'studios.json');
 const WEBSITES_JSON = path.join(DB_DIR, 'websites.json');
 
 fs.mkdirSync(SETTINGS_DIR,  { recursive: true });
+fs.mkdirSync(CACHE_DIR,    { recursive: true });
 fs.mkdirSync(VIDEOS_DIR,   { recursive: true });
 fs.mkdirSync(AUDIO_DIR,    { recursive: true });
 
@@ -266,6 +270,62 @@ function loadRatings() {
   try { return JSON.parse(fs.readFileSync(RATINGS_FILE, 'utf-8')); } catch { return {}; }
 }
 function saveRatings(r) { fs.writeFileSync(RATINGS_FILE, JSON.stringify(r)); }
+
+// ─── Video Meta (.meta.json) ──────────────────────────────────────
+function loadVideoMeta() {
+  try { return JSON.parse(fs.readFileSync(VIDEO_META_FILE, 'utf-8')); } catch { return {}; }
+}
+function saveVideoMeta(m) { fs.writeFileSync(VIDEO_META_FILE, JSON.stringify(m, null, 2)); }
+function setVideoMetaFields(id, fields) {
+  const meta = loadVideoMeta();
+  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
+  Object.assign(meta[id], fields);
+  saveVideoMeta(meta);
+}
+
+function initVideoMeta() {
+  try {
+    const meta = loadVideoMeta();
+    const videos = scan(VIDEOS_DIR);
+    let changed = false;
+    const categories = loadCategories();
+    const studios = loadStudios();
+    const actors = loadActors();
+    let oldRatings = {};
+    try { oldRatings = JSON.parse(fs.readFileSync(RATINGS_FILE, 'utf-8')); } catch {}
+
+    for (const v of videos) {
+      if (!meta[v.id]) {
+        const detectedTags = categories
+          .filter(e => wordMatchAny(v.name, e.terms))
+          .map(e => e.displayName);
+        const detectedStudio = studios.find(e => wordMatchAny(v.name, e.terms));
+        const detectedActors = actors
+          .filter(e => actorMatchesAny(v.name, e.terms))
+          .map(e => e.name);
+        meta[v.id] = {
+          title: v.name,
+          actors: detectedActors,
+          tags: detectedTags,
+          studio: detectedStudio ? detectedStudio.name : '',
+          rating: oldRatings[v.id] || null,
+          category: v.catPath,
+          note: '',
+          date: v.modified
+        };
+        changed = true;
+      } else if (oldRatings[v.id] && !meta[v.id].rating) {
+        meta[v.id].rating = oldRatings[v.id];
+        changed = true;
+      }
+    }
+    // Remove stale entries for deleted videos
+    for (const id of Object.keys(meta)) {
+      if (!videos.find(v => v.id === id)) { delete meta[id]; changed = true; }
+    }
+    if (changed) saveVideoMeta(meta);
+  } catch (e) { console.error('initVideoMeta error:', e.message); }
+}
 
 // Parse "Primary Name, alias1, alias2" → { name, terms }
 function parseListLine(line) {
@@ -626,6 +686,19 @@ async function apiWebsiteUpdate(req, res, index) {
   sites[index] = { ...sites[index], ...body };
   saveWebsites(sites);
   json(res, { ok: true });
+}
+
+async function apiScrape(req, res) {
+  const params = new URLSearchParams(req.url.split('?')[1] || '');
+  const method = (params.get('method') || '').trim();
+  const q = (params.get('q') || '').trim();
+  if (!method) return json(res, { error: 'method required' }, 400);
+  if (!q) return json(res, { error: 'q required' }, 400);
+  if (!scrapeMethods[method]) return json(res, { error: 'Unknown scrape method: ' + method }, 400);
+  try {
+    const results = await scrapeMethods[method](q);
+    json(res, { results });
+  } catch (e) { json(res, { error: e.message }, 500); }
 }
 
 // ─── Browser Favourites Import ─────────────────────────────────────
@@ -1147,43 +1220,49 @@ function apiDuplicates(req, res) {
 }
 
 function apiTags(req, res) {
-  const categories = loadCategories();
+  const meta = loadVideoMeta();
   const videos = allVideos();
-  // Don't show tags that already correspond to a folder category
   const folderNames = new Set(
     videos.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
   );
-  const result = categories
-    .filter(e => !folderNames.has(e.name.toLowerCase()))
-    .map(e => ({
-      name: e.displayName,
-      count: videos.filter(v => wordMatchAny(v.name, e.terms)).length
-    }))
-    .filter(t => t.count > 0)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const tagMap = new Map(); // lowercase → { name, count }
+  for (const v of videos) {
+    const vMeta = meta[v.id] || {};
+    for (const tag of (vMeta.tags || [])) {
+      const lo = tag.toLowerCase();
+      if (folderNames.has(lo)) continue;
+      if (!tagMap.has(lo)) tagMap.set(lo, { name: tag, count: 0 });
+      tagMap.get(lo).count++;
+    }
+  }
+  const result = [...tagMap.values()].sort((a, b) => a.name.localeCompare(b.name));
   json(res, result);
 }
 
 function apiTagVideos(req, res, tagName) {
-  const categories = loadCategories();
-  const entry = categories.find(e => e.displayName.toLowerCase() === tagName.toLowerCase() || e.name.toLowerCase() === tagName.toLowerCase());
-  if (!entry) return json(res, { error: 'Not found' }, 404);
+  const meta = loadVideoMeta();
   const videos = allVideos();
   const favs = loadFavs();
+  const tagLo = tagName.toLowerCase();
   const list = videos
-    .filter(v => wordMatchAny(v.name, entry.terms))
-    .map(v => ({ ...v, fav: favs.includes(v.id) }))
+    .filter(v => (meta[v.id]?.tags || []).some(t => t.toLowerCase() === tagLo))
+    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }))
     .sort((a, b) => b.mtime - a.mtime);
-  json(res, { tag: entry.displayName, videos: list });
+  if (!list.length) return json(res, { error: 'Not found' }, 404);
+  json(res, { tag: tagName, videos: list });
 }
 
 function apiStudios(req, res) {
   const studios = loadStudios();
   const videos = allVideos();
+  const meta = loadVideoMeta();
   const result = studios
     .map(e => ({
       name: e.name,
-      count: videos.filter(v => wordMatchAny(v.name, e.terms)).length,
+      count: videos.filter(v => {
+        const ms = (meta[v.id]?.studio || '').toLowerCase();
+        return ms === e.name.toLowerCase() || wordMatchAny(v.name, e.terms);
+      }).length,
       website: e.website,
       description: e.description,
     }))
@@ -1197,10 +1276,15 @@ function apiStudioVideos(req, res, studioName) {
   const entry = studios.find(e => e.name.toLowerCase() === studioName.toLowerCase());
   if (!entry) return json(res, { error: 'Not found' }, 404);
   const videos = allVideos();
+  const meta = loadVideoMeta();
   const favs = loadFavs();
+  const studioLo = entry.name.toLowerCase();
   const list = videos
-    .filter(v => wordMatchAny(v.name, entry.terms))
-    .map(v => ({ ...v, fav: favs.includes(v.id) }))
+    .filter(v => {
+      const ms = (meta[v.id]?.studio || '').toLowerCase();
+      return ms === studioLo || wordMatchAny(v.name, entry.terms);
+    })
+    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }))
     .sort((a, b) => b.mtime - a.mtime);
   json(res, { studio: entry.name, videos: list });
 }
@@ -1227,10 +1311,14 @@ function actorMatchesAny(videoName, terms) {
 function apiActors(req, res) {
   const actors = loadActors();
   const videos = allVideos();
+  const meta = loadVideoMeta();
   const result = actors
     .map(e => ({
       name: e.name,
-      count: videos.filter(v => actorMatchesAny(v.name, e.terms)).length,
+      count: videos.filter(v => {
+        const ma = meta[v.id]?.actors || [];
+        return ma.some(a => a.toLowerCase() === e.name.toLowerCase()) || actorMatchesAny(v.name, e.terms);
+      }).length,
       nationality: e.nationality,
       age: e.age,
       deceased: e.deceased,
@@ -1246,10 +1334,15 @@ function apiActorVideos(req, res, actorName) {
   const entry = actors.find(e => e.name.toLowerCase() === actorName.toLowerCase());
   if (!entry) return json(res, { error: 'Not found' }, 404);
   const videos = allVideos();
+  const meta = loadVideoMeta();
   const favs = loadFavs();
+  const actorLo = entry.name.toLowerCase();
   const list = videos
-    .filter(v => actorMatchesAny(v.name, entry.terms))
-    .map(v => ({ ...v, fav: favs.includes(v.id) }))
+    .filter(v => {
+      const ma = meta[v.id]?.actors || [];
+      return ma.some(a => a.toLowerCase() === actorLo) || actorMatchesAny(v.name, entry.terms);
+    })
+    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }))
     .sort((a, b) => b.mtime - a.mtime);
   json(res, { actor: entry.name, videos: list });
 }
@@ -1266,6 +1359,8 @@ function apiDelete(req, res, id) {
     if (cache[id]) { delete cache[id]; saveThumbsCache(cache); }
     const thumbDir = path.join(THUMBS_DIR, id);
     if (fs.existsSync(thumbDir)) fs.rmSync(thumbDir, { recursive: true, force: true });
+    const meta = loadVideoMeta();
+    if (meta[id]) { delete meta[id]; saveVideoMeta(meta); }
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -1317,12 +1412,13 @@ function serveStatic(req, res, filePath) {
 function apiVideos(req, res, params) {
   const videos = allVideos();
   const favs = loadFavs();
-  const ratings = loadRatings();
+  const meta = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
   let list = videos.map(v => {
     const cached = thumbsCache[v.id];
     const duration = cached?.duration || null;
-    return { ...v, fav: favs.includes(v.id), rating: ratings[v.id] || null, duration, durationF: formatDuration(duration) };
+    const vMeta = meta[v.id] || {};
+    return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration) };
   });
   const q = params.get('q');
   const cat = params.get('category');
@@ -1411,6 +1507,45 @@ async function apiCreateCategory(req, res) {
   catch (e) { json(res, { error: e.message }, 500); }
 }
 
+// ─── Remote Control (SSE) ─────────────────────────────────────────
+const _remoteClients = new Set();
+
+function apiRemoteEvents(req, res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write(':\n\n'); // comment to establish connection
+  _remoteClients.add(res);
+  // Heartbeat every 25s to prevent proxies closing the connection
+  const hb = setInterval(() => { try { res.write(':\n\n'); } catch { clearInterval(hb); } }, 25000);
+  req.on('close', () => { _remoteClients.delete(res); clearInterval(hb); });
+}
+
+async function apiRemoteCommand(req, res) {
+  const body = await readBody(req);
+  if (!body || !body.action) return json(res, { error: 'action required' }, 400);
+  const payload = JSON.stringify(body);
+  let sent = 0;
+  for (const client of _remoteClients) {
+    try { client.write('data: ' + payload + '\n\n'); sent++; } catch {}
+  }
+  json(res, { ok: true, sent });
+}
+
+async function apiUpdateVideoMeta(req, res, id) {
+  const videos = allVideos();
+  if (!videos.find(v => v.id === id)) return json(res, { error: 'Not found' }, 404);
+  const body = await readBody(req);
+  const allowed = ['title', 'actors', 'tags', 'studio', 'rating', 'category', 'note', 'date'];
+  const fields = {};
+  for (const key of allowed) { if (key in body) fields[key] = body[key]; }
+  setVideoMetaFields(id, fields);
+  json(res, { ok: true });
+}
+
 async function apiOpenFolder(req, res) {
   const body = await readBody(req);
   const id = body.id || '';
@@ -1435,40 +1570,43 @@ function apiVideoDetail(req, res, id) {
   if (!v) return json(res, { error: 'Not found' }, 404);
 
   const favs = loadFavs();
-  const ratings = loadRatings();
+  const meta = loadVideoMeta();
+  const vMeta = meta[v.id] || {};
   v.fav = favs.includes(v.id);
-  v.rating = ratings[v.id] || null;
+  v.rating = vMeta.rating ?? null;
 
-  // Load actors to identify who is in the current video
+  // Actors: meta first, union with filename detection for backward compat
   const actors = loadActors();
-  const vActors = actors.filter(e => actorMatchesAny(v.name, e.terms));
+  const metaActors = vMeta.actors || [];
+  const filenameActors = actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name);
+  const combinedActors = [...new Set([...metaActors, ...filenameActors])];
 
-  // Score all other videos based on similarity
+  // Tags: from meta only
+  const metaTags = vMeta.tags || [];
+
+  // Build tag suggestions: all unique tags in the library + categories.json display names
+  const allTagSet = new Set();
+  for (const entry of Object.values(meta)) {
+    if (Array.isArray(entry.tags)) entry.tags.forEach(t => allTagSet.add(t));
+  }
+  loadCategories().forEach(e => allTagSet.add(e.displayName));
+
+  // Suggested videos: score by shared meta actors + same category
   const suggested = videos
     .filter(x => x.id !== v.id)
     .map(x => {
       let score = 0;
-
-      // Check for shared actors
-      const xActors = actors.filter(e => actorMatchesAny(x.name, e.terms));
-      const sharedActors = xActors.filter(e => vActors.includes(e));
-      score += sharedActors.length * 100; // High priority for shared actors
-
-      // Check for same category
-      if (x.category === v.category) {
-        score += 50; // Priority for same category
-      }
-
+      const xActors = meta[x.id]?.actors || [];
+      const sharedActors = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
+      score += sharedActors.length * 100;
+      if (x.category === v.category) score += 50;
       return { video: x, score };
     })
-    // Sort by score (highest first), then randomize videos with the same score
     .sort((a, b) => b.score - a.score || Math.random() - 0.5)
     .slice(0, 12)
-    .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: ratings[item.video.id] || null }));
+    .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
-  const categories = loadCategories();
-  const vTags = categories.filter(e => wordMatchAny(v.name, e.terms));
-  json(res, { video: v, suggested, actors: vActors.map(e => e.name), tags: vTags.map(e => e.displayName), allCategories: categories.map(e => e.displayName) });
+  json(res, { video: v, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort() });
 }
 
 function apiStream(req, res, id) {
@@ -1496,19 +1634,14 @@ function apiStream(req, res, id) {
 
 async function apiSetRating(req, res, id) {
   const body = await readBody(req);
-  let data; try { data = JSON.parse(body); } catch { return json(res, { error: 'Bad JSON' }, 400); }
-  const stars = parseInt(data.stars, 10);
+  const stars = parseInt(body.stars, 10);
   if (!Number.isFinite(stars) || stars < 1 || stars > 5) return json(res, { error: 'stars must be 1–5' }, 400);
-  const r = loadRatings();
-  r[id] = stars;
-  saveRatings(r);
+  setVideoMetaFields(id, { rating: stars });
   json(res, { ok: true, rating: stars });
 }
 
 function apiDeleteRating(req, res, id) {
-  const r = loadRatings();
-  delete r[id];
-  saveRatings(r);
+  setVideoMetaFields(id, { rating: null });
   json(res, { ok: true });
 }
 
@@ -1544,6 +1677,9 @@ async function apiRename(req, res, id) {
     const favs = loadFavs();
     const fi = favs.indexOf(id);
     if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
+    // Migrate meta entry
+    const meta = loadVideoMeta();
+    if (meta[id]) { meta[newId] = { ...meta[id], title: safe }; delete meta[id]; saveVideoMeta(meta); }
     json(res, { ok: true, newId });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -1582,6 +1718,9 @@ async function apiMove(req, res, id) {
     const favs = loadFavs();
     const fi = favs.indexOf(id);
     if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
+    // Migrate meta entry
+    const meta = loadVideoMeta();
+    if (meta[id]) { meta[newId] = { ...meta[id] }; delete meta[id]; saveVideoMeta(meta); }
     json(res, { ok: true, newId });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -2222,6 +2361,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/ratings\/([^/]+)$/)) && req.method === 'DELETE') return apiDeleteRating(req, res, decodeURIComponent(m[1]));
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/rename$/)) && req.method === 'PATCH') return apiRename(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/move$/)) && req.method === 'PATCH') return apiMove(req, res, m[1]);
+  if ((m = p.match(/^\/api\/videos\/([^/]+)\/meta$/)) && req.method === 'PATCH') return apiUpdateVideoMeta(req, res, m[1]);
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/generate$/)) && req.method === 'POST') return apiThumbGen(req, res, m[1]);
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return apiThumbImg(req, res, m[1], parseInt(m[2], 10));
   if (p === '/api/duplicates' && req.method === 'GET') return apiDuplicates(req, res);
@@ -2246,6 +2386,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/settings/prefs' && req.method === 'PUT') return apiSavePrefs(req, res);
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
   if (p === '/api/websites' && req.method === 'POST') return apiWebsiteAdd(req, res);
+  if (p === '/api/scrape' && req.method === 'GET') return apiScrape(req, res);
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'DELETE') return apiWebsiteDelete(req, res, parseInt(m[1]));
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'PUT') return apiWebsiteUpdate(req, res, parseInt(m[1]));
   if (p === '/api/og-thumb' && req.method === 'GET') return apiOgThumb(req, res);
@@ -2269,6 +2410,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/lock' && req.method === 'POST') return apiVaultLock(req, res);
   if (p === '/api/vault/files' && req.method === 'GET') return apiVaultFiles(req, res);
   if (p === '/api/vault/add' && req.method === 'POST') return apiVaultAdd(req, res);
+  if (p === '/api/remote/events' && req.method === 'GET') return apiRemoteEvents(req, res);
+  if (p === '/api/remote/command' && req.method === 'POST') return apiRemoteCommand(req, res);
   if (p === '/api/local-ip' && req.method === 'GET') {
     const ips = getLocalIPs();
     const best = ips[0] || null;
@@ -2310,6 +2453,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
+  initVideoMeta();
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);

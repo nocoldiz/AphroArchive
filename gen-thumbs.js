@@ -21,8 +21,8 @@ const VIDEOS_DIR = path.resolve(
   process.env.VIDEOS_DIR ||
   path.join(ROOT, 'videos')
 );
-const THUMBS_DIR = path.join(ROOT, '.AphroArchive-thumbs');
-const CACHE_FILE = path.join(ROOT, 'settings', '.AphroArchive-thumbcache.json');
+const THUMBS_DIR = path.join(ROOT, 'cache', '.AphroArchive-thumbs');
+const CACHE_FILE = path.join(ROOT, 'cache', '.AphroArchive-thumbcache.json');
 
 const VIDEO_EXT   = new Set(['.mp4','.mkv','.avi','.mov','.wmv','.flv',
                               '.webm','.m4v','.mpg','.mpeg','.3gp','.ogv','.ts']);

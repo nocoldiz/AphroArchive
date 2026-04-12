@@ -326,14 +326,42 @@
       <div class="section-header">
         <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Search</h2>
       </div>
-      <div class="search-sites-bar">
-        <input type="text" id="search-sites-input" placeholder="Search keyword…" autocomplete="off" spellcheck="false" oninput="renderSearchSites()" onkeydown="if(event.key==='Enter')renderSearchSites()">
+      <div class="ss-tabs">
+        <button class="ss-tab on" id="ss-tab-cards" onclick="ssSwitchTab('cards')">Cards</button>
+        <button class="ss-tab" id="ss-tab-sites" onclick="ssSwitchTab('sites')">Sites</button>
       </div>
-      <div id="search-sites-list" class="search-sites-list"></div>
-      <div id="search-sites-empty" class="empty-state" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <h3>No searchable sites</h3>
-        <p>Add a searchURL to sites in Settings to enable search.</p>
+      <div class="search-sites-bar">
+        <input type="text" id="search-sites-input" placeholder="Search keyword…" autocomplete="off" spellcheck="false"
+          oninput="ssOnInput()" onkeydown="if(event.key==='Enter')ssEnter()">
+        <button class="ss-search-btn" id="ss-search-btn" onclick="ssDoSearch()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </button>
+      </div>
+
+      <!-- Cards tab -->
+      <div id="ss-cards-pane">
+        <div id="ss-site-pills" class="ss-site-pills"></div>
+        <div id="ss-cards-grid" class="ss-cards-grid"></div>
+        <div id="ss-cards-empty" class="empty-state" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <h3>No results</h3>
+          <p>Try a different keyword or site.</p>
+        </div>
+        <div id="ss-cards-no-scrapers" class="empty-state" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <h3>No scrapable sites</h3>
+          <p>Add a scrapeMethod to a site in the database to enable card search.</p>
+        </div>
+      </div>
+
+      <!-- Sites tab -->
+      <div id="ss-sites-pane" style="display:none">
+        <div id="search-sites-list" class="search-sites-list"></div>
+        <div id="search-sites-empty" class="empty-state" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <h3>No searchable sites</h3>
+          <p>Add a searchURL to sites in Settings to enable search.</p>
+        </div>
       </div>
     </div>
 
@@ -661,11 +689,10 @@
               </button>
             </div>
             <div class="p-tag-picker" id="player-tag-picker" style="display:none">
-              <input class="p-tag-picker-search" id="player-tag-picker-search" type="text" placeholder="Filter tags…" autocomplete="off" oninput="filterTagPicker(this.value)">
+              <input class="p-tag-picker-search" id="player-tag-picker-search" type="text" placeholder="Type tag name…" autocomplete="off" oninput="filterTagPicker(this.value)" onkeydown="if(event.key==='Enter')addTagFromPickerInput()">
               <div class="p-tag-picker-list" id="player-tag-picker-list"></div>
               <div class="p-tag-picker-foot">
-                <button class="collection-cancel" onclick="closeTagPicker()">Cancel</button>
-                <button class="btn-primary" onclick="applyTagPicker()">Add Selected</button>
+                <button class="collection-cancel" onclick="closeTagPicker()">Done</button>
               </div>
             </div>
             <div class="player-info-actions">
@@ -815,7 +842,14 @@
     <h3 style="margin-bottom:6px">Connect from another device</h3>
     <p id="connectUrl" style="font-size:0.8rem;color:var(--tx2);margin-bottom:16px;word-break:break-all"></p>
     <canvas id="connectQR" style="display:block;margin:0 auto;border-radius:8px"></canvas>
-    <div class="collection-modal-actions" style="justify-content:center;margin-top:20px">
+    <div id="connectRemoteRow" class="rm-row" onclick="toggleRemoteMode()">
+      <div class="rm-toggle"></div>
+      <div>
+        <div class="rm-label">Remote Mode — off</div>
+        <div class="rm-desc">Videos you pick play on the main device</div>
+      </div>
+    </div>
+    <div class="collection-modal-actions" style="justify-content:center;margin-top:12px">
       <button class="btn-cancel" onclick="closeConnectModal()">Close</button>
     </div>
   </div>

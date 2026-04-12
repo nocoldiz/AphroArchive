@@ -1,5 +1,14 @@
 // ─── Video Player ───
 async function openVid(id) {
+  if (remoteMode) {
+    await fetch('/api/remote/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'play', id }),
+    }).catch(() => {});
+    toast('▶ Playing on main device');
+    return;
+  }
   if (location.pathname !== '/video/' + id) history.pushState(null, '', '/video/' + id);
   fetch('/api/history/' + id, { method: 'POST' });
   const d = await (await fetch('/api/videos/' + id)).json();
@@ -103,9 +112,9 @@ function hoverRating(n) {
 async function setRating(stars) {
   if (!curV || curV.isVault) return;
   if (curVRating === stars) { await clearRating(); return; }
-  const r = await fetch('/api/ratings/' + encodeURIComponent(curV.id), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stars })
+  const r = await fetch('/api/videos/' + curV.id + '/meta', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating: stars })
   });
   if (!r.ok) { toast('Failed to save rating'); return; }
   renderRating(stars);
@@ -115,7 +124,10 @@ async function setRating(stars) {
 
 async function clearRating() {
   if (!curV) return;
-  await fetch('/api/ratings/' + encodeURIComponent(curV.id), { method: 'DELETE' });
+  await fetch('/api/videos/' + curV.id + '/meta', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating: null })
+  });
   renderRating(null);
   const v = V.find(x => x.id === curV.id);
   if (v) v.rating = null;
@@ -140,12 +152,14 @@ function renderVideoTags() {
 
 async function removeVideoTag(tag) {
   if (!curV || curV.isVault) return;
-  const re = new RegExp('\\s*' + tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'gi');
-  const newName = curV.name.replace(re, ' ').trim().replace(/\s+/g, ' ').replace(/\s*-\s*$/, '').trim();
-  if (!newName) { toast('Cannot remove — name would be empty'); return; }
-  const ok = await applyVideoRename(newName);
-  if (!ok) return;
-  curVTags = curVTags.filter(t => t.toLowerCase() !== tag.toLowerCase());
+  const newTags = curVTags.filter(t => t.toLowerCase() !== tag.toLowerCase());
+  const r = await fetch('/api/videos/' + curV.id + '/meta', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags: newTags })
+  });
+  if (!r.ok) { toast('Failed to remove tag'); return; }
+  curVTags = newTags;
   renderVideoTags();
   closeTagPicker();
 }
@@ -154,21 +168,11 @@ function toggleTagPicker() {
   const picker = $('player-tag-picker').el;
   const btn = $('player-tag-add-btn').el;
   if (picker.style.display === 'none') {
-    const available = curVAllCategories.filter(c =>
-      !curVTags.some(t => t.toLowerCase() === c.toLowerCase())
-    );
-    const list = $('player-tag-picker-list').el;
-    if (!available.length) {
-      list.innerHTML = '<span class="p-tag-picker-empty">All categories already present</span>';
-    } else {
-      list.innerHTML = available.map(c =>
-        '<span class="p-tag-picker-item" data-tag="' + escA(c) + '" onclick="this.classList.toggle(\'sel\')">' + esc(c) + '</span>'
-      ).join('');
-    }
     picker.style.display = '';
     btn.classList.add('on');
     const search = $('player-tag-picker-search').el;
     search.value = '';
+    filterTagPicker('');
     search.focus();
   } else {
     closeTagPicker();
@@ -177,9 +181,14 @@ function toggleTagPicker() {
 
 function filterTagPicker(q) {
   const lo = q.trim().toLowerCase();
-  document.querySelectorAll('#player-tag-picker-list .p-tag-picker-item').forEach(el => {
-    el.style.display = !lo || el.dataset.tag.toLowerCase().includes(lo) ? '' : 'none';
-  });
+  const available = curVAllCategories.filter(c =>
+    !curVTags.some(t => t.toLowerCase() === c.toLowerCase()) &&
+    (!lo || c.toLowerCase().includes(lo))
+  );
+  const list = $('player-tag-picker-list').el;
+  list.innerHTML = available.map(c =>
+    '<span class="p-tag-picker-item" data-tag="' + escA(c) + '" onclick="addTagFromPicker(\'' + escA(c) + '\')">' + esc(c) + '</span>'
+  ).join('') || (!lo ? '' : '<span class="p-tag-picker-empty">Press Enter to add "' + esc(q.trim()) + '"</span>');
 }
 
 function closeTagPicker() {
@@ -188,20 +197,29 @@ function closeTagPicker() {
   $('player-tag-picker-search').val('');
 }
 
-async function applyTagPicker() {
-  const selected = [...document.querySelectorAll('#player-tag-picker-list .p-tag-picker-item.sel')]
-    .map(el => el.dataset.tag);
-  closeTagPicker();
-  if (!selected.length) return;
-  const sepIdx = curV.name.indexOf(' - ');
-  const base = sepIdx !== -1 ? curV.name.slice(0, sepIdx).trim() : curV.name.trim();
-  const existing = sepIdx !== -1 ? curV.name.slice(sepIdx + 3).trim() : '';
-  const newTagsSection = existing ? existing + ' ' + selected.join(' ') : selected.join(' ');
-  const newName = base + ' - ' + newTagsSection;
-  const ok = await applyVideoRename(newName);
-  if (!ok) return;
-  selected.forEach(t => { if (!curVTags.some(x => x.toLowerCase() === t.toLowerCase())) curVTags.push(t); });
+async function addTagFromPickerInput() {
+  const search = $('player-tag-picker-search').el;
+  const tag = search.value.trim();
+  if (!tag) return;
+  await addTagFromPicker(tag);
+  search.value = '';
+  filterTagPicker('');
+}
+
+async function addTagFromPicker(tag) {
+  if (!curV || curV.isVault) return;
+  if (curVTags.some(t => t.toLowerCase() === tag.toLowerCase())) return;
+  const newTags = [...curVTags, tag];
+  const r = await fetch('/api/videos/' + curV.id + '/meta', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags: newTags })
+  });
+  if (!r.ok) { toast('Failed to save tag'); return; }
+  curVTags = newTags;
+  if (!curVAllCategories.some(t => t.toLowerCase() === tag.toLowerCase())) curVAllCategories.push(tag);
   renderVideoTags();
+  filterTagPicker($('player-tag-picker-search').el.value);
 }
 
 async function applyVideoRename(newName) {
@@ -244,18 +262,20 @@ async function submitActorInput() {
   const name = $('player-actor-input-val').el.value.trim();
   closeActorInput();
   if (!name || !curV || curV.isVault) return;
-  const newName = name + ' ' + curV.name;
-  const ok = await applyVideoRename(newName);
-  if (!ok) return;
-  const d = await (await fetch('/api/videos/' + curV.id)).json();
-  const actorsEl = $('player-actors').el;
-  if (d.actors && d.actors.length) {
-    actorsEl.innerHTML = d.actors.map(a =>
-      '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +
-      '<img class="p-actor-ph" src="/api/actor-photos/' + encodeURIComponent(a) + '/img" alt="" onerror="this.style.display=\'none\'">' +
-      esc(a) + '</button>'
-    ).join('');
-  }
+  const newActors = [...new Set([...curVActors, name])];
+  const r = await fetch('/api/videos/' + curV.id + '/meta', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actors: newActors })
+  });
+  if (!r.ok) { toast('Failed to add actor'); return; }
+  curVActors = newActors;
+  $('player-actors').el.innerHTML = curVActors.map(a =>
+    '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +
+    '<img class="p-actor-ph" src="/api/actor-photos/' + encodeURIComponent(a) + '/img" alt="" onerror="this.style.display=\'none\'">' +
+    esc(a) + '</button>'
+  ).join('');
+  toast('Actor added');
 }
 
 // ─── Keyboard Shortcuts ───

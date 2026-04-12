@@ -1,7 +1,9 @@
-.AphroArchive-thumbs
 videos
-# Generated data files
-settings/*.json
-.AphroArchive-actor-photos/
+books
+audio
+cache/
 node_modules/
 dist/
+.AphroArchive-thumbs
+.AphroArchive-actor-photos
+settings

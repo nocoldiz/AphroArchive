@@ -68,6 +68,7 @@ async function showConnect() {
   const canvas = $('connectQR').el;
   urlEl.innerHTML = 'Loading…';
   canvas.style.display = 'none';
+  renderRemoteToggle();
   try {
     const d = await (await fetch('/api/local-ip')).json();
     if (!d.url) { urlEl.textContent = 'Could not detect local IP address.'; return; }
@@ -85,7 +86,6 @@ function renderConnectModal() {
   const entry = _connectUrls[_connectIdx];
   const urlEl = $('connectUrl').el;
   const canvas = $('connectQR').el;
-  // Build URL display + switcher if multiple IPs
   if (_connectUrls.length > 1) {
     urlEl.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap">' +
@@ -111,3 +111,69 @@ function connectSwitchIP(idx) {
 function closeConnectModal() {
   $('connectModal').remove('on');
 }
+
+// ─── Remote Mode ───
+// The main device is the one running the server (accessed via localhost).
+// Connected devices access via IP and can enable Remote Mode to control the main device.
+const _isMainDevice =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1';
+
+function renderRemoteToggle() {
+  const el = $('connectRemoteRow').el;
+  if (!el) return;
+  if (_isMainDevice) {
+    el.style.cursor = 'default';
+    el.onclick = null;
+    el.querySelector('.rm-toggle').style.display = 'none';
+    el.querySelector('.rm-label').textContent = 'Main screen — receiving remote commands';
+    el.querySelector('.rm-desc').textContent = 'Enable Remote Mode on a connected device to control playback here';
+    return;
+  }
+  el.style.cursor = '';
+  el.onclick = toggleRemoteMode;
+  const tog = el.querySelector('.rm-toggle');
+  tog.style.display = '';
+  tog.classList.toggle('on', remoteMode);
+  el.querySelector('.rm-label').textContent = remoteMode ? 'Remote Mode — on' : 'Remote Mode — off';
+  el.querySelector('.rm-desc').textContent = 'Videos you pick will play on the main device';
+  const ind = document.getElementById('connect-sidebar');
+  if (ind) ind.classList.toggle('remote-active', remoteMode);
+}
+
+function toggleRemoteMode() {
+  if (_isMainDevice) return;
+  remoteMode = !remoteMode;
+  localStorage.setItem('remoteMode', remoteMode ? '1' : '');
+  renderRemoteToggle();
+  if (remoteMode) toast('Remote Mode on — videos will play on the main device');
+  else toast('Remote Mode off');
+}
+
+// Init remote mode from localStorage + start SSE listener
+(function initRemote() {
+  if (_isMainDevice) {
+    remoteMode = false; // Main device is always the receiver
+  } else {
+    remoteMode = !!localStorage.getItem('remoteMode');
+    if (remoteMode) {
+      const ind = document.getElementById('connect-sidebar');
+      if (ind) ind.classList.add('remote-active');
+    }
+  }
+  // SSE listener — receives play commands from remote controllers
+  function connectSSE() {
+    const es = new EventSource('/api/remote/events');
+    es.onmessage = e => {
+      try {
+        const cmd = JSON.parse(e.data);
+        if (cmd.action === 'play' && cmd.id) {
+          // Only the main device (localhost) opens incoming play commands
+          if (_isMainDevice) openVid(cmd.id);
+        }
+      } catch {}
+    };
+    es.onerror = () => { es.close(); setTimeout(connectSSE, 5000); };
+  }
+  connectSSE();
+})();
