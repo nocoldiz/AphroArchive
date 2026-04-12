@@ -49,7 +49,7 @@ function getLocalIP() {
   return ips.length ? ips[0].ip : null;
 }
 
-const BM_DIR = path.join(DATA_DIR, 'bookmark_downloader');
+const BM_DIR = path.join(DATA_DIR, 'cache');
 const BM_CACHE_FILE = path.join(__dirname, 'db', 'bookmarks_cache.json');
 const OG_THUMB_CACHE_FILE = path.join(BM_DIR, 'og_thumb_cache.json');
 
