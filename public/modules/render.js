@@ -12,22 +12,15 @@ function bmCountFor(key) {
 
 function renCats() {
   const el = $('cList').el;
-  const folderCats = cats.filter(c => !c.isTag);
   const bmTotal = srcFilter !== 'local' ? _bfItems.filter(it => !bmMatchedUrls.has(it.url)).length : 0;
-  const all = folderCats.reduce((s, c) => s + c.count, 0) + bmTotal;
+  const all = cats.reduce((s, c) => s + c.count, 0) + bmTotal;
   const dropAttrs = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'\')"';
   let h = '<div class="sidebar-item' + (cat ? '' : ' on') + '" onclick="selCat(\'\')"' + dropAttrs + '><span>All Videos</span><span class="count-badge">' + all + '</span></div>';
   cats.forEach(c => {
-    const bmC = bmCountFor(c.isTag ? c.name : c.path);
+    const bmC = bmCountFor(c.path);
     const displayCount = c.count + bmC;
-    if (c.isTag) {
-      h += '<div class="sidebar-item' + (curTag === c.name ? ' on' : '') + '" onclick="openTag(\'' + escA(c.name) + '\')">' +
-        '<span>' + esc(c.name) + '</span>' +
-        '<span class="count-badge">' + displayCount + '</span></div>';
-    } else {
-      const da = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'' + escA(c.path) + '\')"';
-      h += '<div class="sidebar-item' + (cat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + '><span>' + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
-    }
+    const da = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'' + escA(c.path) + '\')"';
+    h += '<div class="sidebar-item' + (cat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + '><span>' + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
   });
   el.innerHTML = h;
 }
@@ -45,7 +38,7 @@ function catDrop(e, catPath) {
   const id = e.dataTransfer.getData('text/plain');
   if (!id) return;
   const vid = V.find(v => v.id === id);
-  if (!vid || vid.external) { toast('Cannot move videos from external folders'); return; }
+  if (!vid) return;
   if ((vid.catPath || '') === catPath) return;
   dropMoveVideo(id, catPath);
 }
@@ -87,7 +80,7 @@ function card(v) {
   return tpl('video-card', {
     id:       v.id,
     color,
-    dragAttr: v.external ? '' : ` draggable="true" ondragstart="dragVideoStart(event,'${v.id}')"`,
+    dragAttr: ` draggable="true" ondragstart="dragVideoStart(event,'${v.id}')"`,
     ext:      v.ext.replace('.', ''),
     duration: v.durationF ? `<span class="duration-badge">${v.durationF}</span>` : '',
     sizeF:    v.sizeF,
@@ -96,9 +89,9 @@ function card(v) {
     name:     esc(v.name),
     category: esc(v.category),
     starBtn:  `<button class="${v.fav ? 'st' : ''}" onclick="event.preventDefault();event.stopPropagation();togStar('${v.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="${v.fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>`,
-    renBtn:   v.external ? '' : `<button onclick="event.preventDefault();event.stopPropagation();openRen('${v.id}','${escA(v.name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`,
-    moveBtn:  v.external ? '' : `<button onclick="event.preventDefault();event.stopPropagation();openMov('${v.id}','${escA(v.name)}','${escA(v.catPath || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>`,
-    tagBtn:   v.external ? '' : `<button onclick="event.preventDefault();event.stopPropagation();openVidTag('${v.id}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`,
+    renBtn:   `<button onclick="event.preventDefault();event.stopPropagation();openRen('${v.id}','${escA(v.name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`,
+    moveBtn:  `<button onclick="event.preventDefault();event.stopPropagation();openMov('${v.id}','${escA(v.name)}','${escA(v.catPath || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>`,
+    tagBtn:   `<button onclick="event.preventDefault();event.stopPropagation();openVidTag('${v.id}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`,
   });
 }
 

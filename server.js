@@ -92,7 +92,6 @@ const HISTORY_FILE    = path.join(SETTINGS_DIR, '.AphroArchive-history.json');
 const THUMBS_CACHE_FILE = path.join(SETTINGS_DIR, '.AphroArchive-thumbcache.json');
 const VAULT_CONFIG_FILE = path.join(SETTINGS_DIR, '.vault-config.json');
 const VAULT_META_FILE = path.join(SETTINGS_DIR, '.vault-meta.json');
-const EXTRA_FOLDERS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-folders.json');
 const BROWSER_WHITELIST_FILE = path.join(SETTINGS_DIR, 'whitelist.txt');
 const COLLECTIONS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-collections.json');
 const RATINGS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-ratings.json');
@@ -183,56 +182,6 @@ function safePath(id) {
   return full;
 }
 
-// ─── External folder helpers ───────────────────────────────────────
-function loadExtraFolders() { try { return JSON.parse(fs.readFileSync(EXTRA_FOLDERS_FILE, 'utf-8')); } catch { return []; } }
-function saveExtraFolders(f) { fs.writeFileSync(EXTRA_FOLDERS_FILE, JSON.stringify(f)); }
-
-function toExtId(absPath) { return 'x_' + Buffer.from(absPath).toString('base64url'); }
-function isExtId(id) { return id.startsWith('x_'); }
-function fromExtId(id) { return Buffer.from(id.slice(2), 'base64url').toString('utf-8'); }
-
-function safeExtPath(id) {
-  if (!isExtId(id)) return null;
-  const absPath = fromExtId(id);
-  const folders = loadExtraFolders();
-  const ok = folders.some(f => {
-    const rf = path.resolve(f);
-    return absPath.startsWith(rf + path.sep) || absPath.startsWith(rf + '/') || absPath === rf;
-  });
-  if (!ok || !fs.existsSync(absPath)) return null;
-  return absPath;
-}
-
-function scanExternal(rootDir) {
-  const abs = path.resolve(rootDir);
-  if (!fs.existsSync(abs)) return [];
-  const folderName = path.basename(abs);
-  function recurse(dir) {
-    const out = [];
-    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-      const fp = path.join(dir, ent.name);
-      if (ent.isDirectory()) { out.push(...recurse(fp)); continue; }
-      if (!ent.isFile() || !VIDEO_EXT.has(path.extname(ent.name).toLowerCase())) continue;
-      const relInFolder = path.relative(abs, path.dirname(fp));
-      const subCat = relInFolder && relInFolder !== '.' ? relInFolder.replace(/[\\/]/g, ' / ') : '';
-      const st = fs.statSync(fp);
-      out.push({
-        id: toExtId(fp),
-        name: path.basename(ent.name, path.extname(ent.name)),
-        filename: ent.name,
-        ext: path.extname(ent.name).toLowerCase(),
-        rel: fp,
-        category: subCat ? folderName + ' / ' + subCat : folderName,
-        catPath: '',
-        size: st.size, sizeF: formatBytes(st.size),
-        modified: st.mtime.toISOString(), mtime: st.mtimeMs,
-        external: true, sourceFolder: abs
-      });
-    }
-    return out;
-  }
-  return recurse(abs);
-}
 
 function loadHidden() {
   try {
@@ -250,7 +199,7 @@ function isVideoHidden(v, hiddenTerms) {
 }
 
 function allVideos() {
-  const all = [...scan(VIDEOS_DIR), ...loadExtraFolders().flatMap(f => scanExternal(f))];
+  const all = scan(VIDEOS_DIR);
   const hidden = loadHidden();
   return hidden.length ? all.filter(v => !isVideoHidden(v, hidden)) : all;
 }
@@ -1158,7 +1107,7 @@ async function genThumbs(id, fp) {
 }
 
 async function apiThumbGen(req, res, id) {
-  const fp = isExtId(id) ? safeExtPath(id) : safePath(id);
+  const fp = safePath(id);
   if (!fp) return json(res, { error: 'Not found' }, 404);
   const cache = loadThumbsCache();
   const stat = fs.statSync(fp);
@@ -1306,7 +1255,6 @@ function apiActorVideos(req, res, actorName) {
 }
 
 function apiDelete(req, res, id) {
-  if (isExtId(id)) return json(res, { error: 'Cannot delete videos from external folders' }, 403);
   const fp = safePath(id);
   if (!fp) return json(res, { error: 'Not found' }, 404);
   try {
@@ -1384,11 +1332,6 @@ function apiVideos(req, res, params) {
     if (cat === '__uncategorized__') {
       const defined = loadCategories();
       list = list.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms)));
-    } else if (cat.startsWith('__tag__:')) {
-      const tagName = cat.slice(8);
-      const defined = loadCategories();
-      const entry = defined.find(e => e.displayName === tagName || e.name === tagName);
-      list = list.filter(v => entry ? wordMatchAny(v.name, entry.terms) : wordMatch(v.name, tagName));
     } else {
       // Folder category — also include root-level videos matching the folder name as a defined tag
       const defined = loadCategories();
@@ -1407,36 +1350,18 @@ function apiVideos(req, res, params) {
   json(res, list);
 }
 
-const TAG_PROMOTE_THRESHOLD = 5;
-
 function apiCategories(req, res) {
   const videos = scan(VIDEOS_DIR);
-  const defined = loadCategories();
   const m = new Map();
   for (const v of videos) {
-    // Root-level videos that match a defined keyword are not "Uncategorized"
-    if (v.catPath === '' && defined.some(e => wordMatchAny(v.name, e.terms))) continue;
     const displayPath = v.catPath === '' ? '__uncategorized__' : v.catPath;
-    if (!m.has(v.category)) m.set(v.category, { name: v.category, path: displayPath, count: 0 });
-    m.get(v.category).count++;
+    if (!m.has(displayPath)) m.set(displayPath, { name: v.catPath === '' ? 'Uncategorized' : v.category, path: displayPath, count: 0 });
+    m.get(displayPath).count++;
   }
   const result = [...m.values()];
-  for (const entry of defined) {
-    const lo = entry.name.toLowerCase();
-    const folderEntry = result.find(c => c.path !== '__uncategorized__' && c.path.toLowerCase() === lo);
-    if (folderEntry) {
-      // Merge: add root-level videos matching this tag into the folder's count
-      folderEntry.count += videos.filter(v => v.catPath === '' && wordMatchAny(v.name, entry.terms)).length;
-    } else {
-      const count = videos.filter(v => wordMatchAny(v.name, entry.terms)).length;
-      if (count > TAG_PROMOTE_THRESHOLD)
-        result.push({ name: entry.displayName, path: '__tag__:' + entry.displayName, count, isTag: true });
-    }
-  }
   const hidden = loadHidden();
   const filtered = hidden.length ? result.filter(c => {
     if (c.path === '__uncategorized__') return true;
-    if (c.isTag) return !hidden.some(t => t.toLowerCase() === c.name.toLowerCase());
     const pathLo = c.path.toLowerCase();
     return !hidden.some(t => {
       const tLo = t.toLowerCase();
@@ -1491,7 +1416,7 @@ async function apiOpenFolder(req, res) {
   const id = body.id || '';
   let folder;
   if (id) {
-    const fp = isExtId(id) ? safeExtPath(id) : safePath(id);
+    const fp = safePath(id);
     if (!fp) return json(res, { error: 'Not found' }, 404);
     folder = path.dirname(fp);
   } else {
@@ -1547,7 +1472,7 @@ function apiVideoDetail(req, res, id) {
 }
 
 function apiStream(req, res, id) {
-  const fp = isExtId(id) ? safeExtPath(id) : safePath(id);
+  const fp = safePath(id);
   if (!fp) { res.writeHead(404); res.end('Not found'); return; }
   const stat = fs.statSync(fp);
   const size = stat.size;
@@ -1602,7 +1527,6 @@ function apiFavourites(req, res) {
 }
 
 async function apiRename(req, res, id) {
-  if (isExtId(id)) return json(res, { error: 'Cannot rename videos from external folders' }, 403);
   const body = await readBody(req);
   const newName = (body.newName || '').trim();
   if (!newName) return json(res, { error: 'Name required' }, 400);
@@ -1625,7 +1549,6 @@ async function apiRename(req, res, id) {
 }
 
 async function apiMove(req, res, id) {
-  if (isExtId(id)) return json(res, { error: 'Cannot move videos from external folders' }, 403);
   const body = await readBody(req);
   const targetCategory = (body.category ?? '').trim();
   const fp = safePath(id);
@@ -1772,35 +1695,6 @@ async function apiDbImport(req, res) {
   json(res, { results });
 }
 
-// ─── Extra Folders API ────────────────────────────────────────────
-
-function apiFolders(req, res) {
-  json(res, loadExtraFolders());
-}
-
-async function apiFolderAdd(req, res) {
-  const body = await readBody(req);
-  const folderPath = (body.path || '').trim();
-  if (!folderPath) return json(res, { error: 'Path required' }, 400);
-  const abs = path.resolve(folderPath);
-  if (!fs.existsSync(abs)) return json(res, { error: 'Folder does not exist' }, 400);
-  if (!fs.statSync(abs).isDirectory()) return json(res, { error: 'Not a directory' }, 400);
-  const folders = loadExtraFolders();
-  if (folders.map(f => path.resolve(f)).includes(abs)) return json(res, { error: 'Folder already added' }, 400);
-  folders.push(abs);
-  saveExtraFolders(folders);
-  const count = scanExternal(abs).length;
-  json(res, { ok: true, path: abs, count });
-}
-
-function apiFolderRemove(req, res, idx) {
-  const folders = loadExtraFolders();
-  const i = parseInt(idx, 10);
-  if (isNaN(i) || i < 0 || i >= folders.length) return json(res, { error: 'Not found' }, 404);
-  folders.splice(i, 1);
-  saveExtraFolders(folders);
-  json(res, { ok: true });
-}
 
 // ─── Collections ──────────────────────────────────────────────────
 
@@ -2335,9 +2229,6 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/tags\/(.+)$/)) && req.method === 'GET') return apiTagVideos(req, res, decodeURIComponent(m[1]));
   if (p === '/api/studios' && req.method === 'GET') return apiStudios(req, res);
   if ((m = p.match(/^\/api\/studios\/(.+)$/)) && req.method === 'GET') return apiStudioVideos(req, res, decodeURIComponent(m[1]));
-  if (p === '/api/folders' && req.method === 'GET') return apiFolders(req, res);
-  if (p === '/api/folders' && req.method === 'POST') return apiFolderAdd(req, res);
-  if ((m = p.match(/^\/api\/folders\/(\d+)$/)) && req.method === 'DELETE') return apiFolderRemove(req, res, m[1]);
   if (p === '/api/collections' && req.method === 'GET') return apiCollections(req, res);
   if (p === '/api/collections' && req.method === 'POST') return apiCollectionCreate(req, res);
   if ((m = p.match(/^\/api\/collections\/([^/]+)$/)) && req.method === 'DELETE') return apiCollectionDelete(req, res, decodeURIComponent(m[1]));
@@ -2412,7 +2303,7 @@ const server = http.createServer(async (req, res) => {
 
   // Static files from public/ — SPA routes fall back to index.html
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(bookmarks|duplicates|vault|folders|recent|collections|scraper|settings|database|actors|studios|books|audio|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

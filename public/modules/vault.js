@@ -1,22 +1,9 @@
 // ─── Vault ───
 async function showVault() {
-  if (mosaicOn) stopMosaic();
+  closeAllViews();
   if (location.pathname !== '/vault') history.pushState(null, '', '/vault');
   vaultMode = true;
   $('browse-view').add('off');
-  $('player-view').remove('on');
-  $('duplicates-view').remove('on');
-  $('duplicates-sidebar').remove('on');
-  $('studios-view').remove('on');
-  $('studio-detail-view').remove('on');
-  $('studio-sidebar').remove('on');
-  $('actors-view').remove('on');
-  $('actor-detail-view').remove('on');
-  $('actor-sidebar').remove('on');
-  $('tag-detail-view').remove('on');
-  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
-  dupMode = false; studioMode = false; curStudio = null; actorMode = false; curActor = null; curTag = null;
-  if (curV) { const vp = $('video-player').el; vp.pause(); vp.src = ''; curV = null; }
   $('vault-sidebar').add('on');
   $('vault-view').add('on');
   loadVaultView();

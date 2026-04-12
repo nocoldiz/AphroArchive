@@ -125,7 +125,7 @@ async function clearRating() {
 function renderVideoTags() {
   const row = $('player-tags-row').el;
   const el = $('player-tags').el;
-  const canEdit = curV && !curV.isVault && !curV.external;
+  const canEdit = curV && !curV.isVault;
   row.style.display = (curVTags.length || canEdit) ? '' : 'none';
   $('player-tag-add-btn').el.style.display = canEdit ? '' : 'none';
   el.innerHTML = curVTags.map(t =>
@@ -139,7 +139,7 @@ function renderVideoTags() {
 }
 
 async function removeVideoTag(tag) {
-  if (!curV || curV.isVault || curV.external) return;
+  if (!curV || curV.isVault) return;
   const re = new RegExp('\\s*' + tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'gi');
   const newName = curV.name.replace(re, ' ').trim().replace(/\s+/g, ' ').replace(/\s*-\s*$/, '').trim();
   if (!newName) { toast('Cannot remove — name would be empty'); return; }
@@ -243,7 +243,7 @@ function closeActorInput() {
 async function submitActorInput() {
   const name = $('player-actor-input-val').el.value.trim();
   closeActorInput();
-  if (!name || !curV || curV.isVault || curV.external) return;
+  if (!name || !curV || curV.isVault) return;
   const newName = name + ' ' + curV.name;
   const ok = await applyVideoRename(newName);
   if (!ok) return;

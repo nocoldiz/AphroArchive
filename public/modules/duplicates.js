@@ -1,35 +1,11 @@
 // ─── Duplicates ───
 function showDups() {
+  closeAllViews();
   if (location.pathname !== '/duplicates') history.pushState(null, '', '/duplicates');
   dupMode = true;
   $('browse-view').add('off');
-  $('player-view').remove('on');
-  $('duplicates-view').add('on');
   $('duplicates-sidebar').add('on');
-  $('vault-view').remove('on');
-  $('vault-sidebar').remove('on');
-  $('scraper-view').remove('on');
-  $('scraper-sidebar').remove('on');
-  $('settings-view').remove('on');
-  $('settings-sidebar').remove('on');
-  if ($('database-view').el) $('database-view').remove('on');
-  vaultMode = false; scraperMode = false; importFavsMode = false; settingsMode = false; dbMode = false;
-  $('actors-view').remove('on');
-  $('actor-detail-view').remove('on');
-  $('actor-sidebar').remove('on');
-  $('studios-view').remove('on');
-  $('studio-detail-view').remove('on');
-  $('studio-sidebar').remove('on');
-  $('tag-detail-view').remove('on');
-  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
-  studioMode = false; curStudio = null;
-  actorMode = false; curActor = null;
-  curTag = null;
-  if (curV) {
-    const vp = $('video-player').el;
-    vp.pause(); vp.src = '';
-    curV = null;
-  }
+  $('duplicates-view').add('on');
   loadDups();
 }
 

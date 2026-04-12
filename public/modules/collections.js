@@ -1,19 +1,11 @@
 // ─── Collections ───
 function showCollections() {
-  if (mosaicOn) stopMosaic();
+  closeAllViews();
   if (location.pathname !== '/collections') history.pushState(null, '', '/collections');
   collectionsMode = true;
   $('browse-view').add('off');
-  document.querySelectorAll('.sidebar-item.on').forEach(e => e.classList.remove('on'));
   $('collections-sidebar').add('on');
-  scraperMode = false; foldersMode = false; importFavsMode = false; settingsMode = false; dbMode = false;
-  studioMode = false; actorMode = false;
-  curActor = null; curStudio = null; curTag = null; curV = null;
-  document.querySelectorAll('.player-view,.actor-detail-view,.studios-view,.actors-view,.duplicates-view,.scraper-view,.folders-view,.settings-view').forEach(e => e.classList.remove('on'));
-  $('vault-view').remove('on');
-  if ($('database-view').el) $('database-view').remove('on');
   $('collections-view').add('on');
-  curCollection = null;
   $('collection-title').text('Collections');
   $('collection-new-row').show();
   loadCollectionsView();

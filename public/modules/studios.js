@@ -2,36 +2,11 @@
 let _studioList = [];
 
 async function showStudios() {
-  if (mosaicOn) stopMosaic();
+  closeAllViews();
   if (location.pathname !== '/studios') history.pushState(null, '', '/studios');
   studioMode = true;
-  curStudio = null;
   $('browse-view').add('off');
-  $('player-view').remove('on');
-  $('duplicates-view').remove('on');
-  $('duplicates-sidebar').remove('on');
-  $('studio-detail-view').remove('on');
   $('studio-sidebar').add('on');
-  $('actors-view').remove('on');
-  $('actor-detail-view').remove('on');
-  $('actor-sidebar').remove('on');
-  $('tag-detail-view').remove('on');
-  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
-  $('vault-view').remove('on');
-  $('vault-sidebar').remove('on');
-  $('scraper-view').remove('on');
-  $('scraper-sidebar').remove('on');
-  $('collections-view').remove('on');
-  $('collections-sidebar').remove('on');
-  $('folders-view').remove('on');
-  $('folders-sidebar').remove('on');
-  $('settings-view').remove('on');
-  $('settings-sidebar').remove('on');
-  if ($('database-view').el) $('database-view').remove('on');
-  dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
-  actorMode = false; curActor = null;
-  curTag = null; curCollection = null;
-  if (curV) { const vp = $('video-player').el; vp.pause(); vp.src = ''; curV = null; }
   $('studios-view').add('on');
   loadStudioList();
 }

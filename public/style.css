@@ -381,18 +381,7 @@ input{font-family:inherit;color:inherit}
 .stg-select{padding:5px 10px;background:var(--bg3);border:1px solid var(--brd);border-radius:var(--r);color:var(--tx);font-size:0.82rem;font-family:inherit;cursor:pointer;outline:none}
 .stg-select:focus{border-color:var(--ac)}
 
-/* ── Folders View ── */
-.folders-view{display:none}.folders-view.on{display:block}
 .import-favs-view{display:none}.import-favs-view.on{display:block}
-.folder-add-row{display:flex;gap:8px;margin-bottom:12px}
-.folder-add-row input{flex:1;padding:8px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);font-size:0.85rem;outline:none;transition:border var(--tr)}
-.folder-add-row input:focus{border-color:var(--ac)}
-.folder-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r);border:1px solid var(--brd);background:var(--bg2);margin-bottom:8px}
-.folder-icon{flex-shrink:0;color:var(--tx3)}
-.folder-path{flex:1;font-size:0.82rem;color:var(--tx2);font-family:var(--m);word-break:break-all}
-.folder-remove{flex-shrink:0;width:26px;height:26px;border-radius:6px;background:transparent;color:var(--tx3);display:flex;align-items:center;justify-content:center;transition:all var(--tr)}
-.folder-remove:hover{background:rgba(232,64,64,0.15);color:var(--ac)}
-.folder-empty{font-size:0.85rem;color:var(--tx3);padding:20px 0;text-align:center}
 
 /* ── Browser Import Cards ── */
 .bf-import-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}

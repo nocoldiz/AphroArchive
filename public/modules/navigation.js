@@ -63,8 +63,6 @@ function goHome() {
   $('scraper-sidebar').remove('on');
   $('collections-view').remove('on');
   $('collections-sidebar').remove('on');
-  if ($('folders-view').el) $('folders-view').remove('on');
-  if ($('folders-sidebar').el) $('folders-sidebar').remove('on');
   if ($('books-view').el) $('books-view').remove('on');
   if ($('books-sidebar').el) $('books-sidebar').remove('on');
   if ($('audio-view').el) $('audio-view').remove('on');
@@ -75,7 +73,7 @@ function goHome() {
   $('settings-sidebar').remove('on');
   if ($('database-view').el) $('database-view').remove('on');
   if ($('database-sidebar').el) $('database-sidebar').remove('on');
-  vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false;
+  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false;
   curCollection = null;
   $('browse-view').remove('off');
   $('player-view').remove('on');
@@ -118,16 +116,16 @@ function closeAllViews() {
   [
     'duplicates-view','duplicates-sidebar','studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
     'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
-    'collections-view','collections-sidebar','folders-view','folders-sidebar',
+    'collections-view','collections-sidebar',
     'books-view','books-sidebar','audio-view','audio-sidebar','search-sites-view','search-sites-sidebar',
-    'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','recent-sidebar'
+    'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','database-view','database-sidebar','recent-sidebar'
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
-  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
-  dupMode = false; vaultMode = false; scraperMode = false;
+  document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
+  dupMode = false; vaultMode = false; scraperMode = false; dbMode = false;
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
-  foldersMode = false; importFavsMode = false; booksMode = false; audioMode = false;
+  importFavsMode = false; booksMode = false; audioMode = false;
   settingsMode = false; recentMode = false; recentVids = [];
   $('clearRecentBtn').show(false);
   $('clearRecentSep').show(false);
@@ -179,17 +177,12 @@ async function toggleShuf() {
 
 // ─── Recently Watched ───
 async function showRecent() {
-  if (mosaicOn) stopMosaic();
+  closeAllViews();
   if (location.pathname !== '/recent') history.pushState(null, '', '/recent');
   recentMode = true;
   recentVids = [];
   $('recent-sidebar').add('on');
   $('browse-view').remove('off');
-  $('player-view').remove('on');
-  ['actor-sidebar','studio-sidebar','duplicates-sidebar','vault-sidebar','folders-sidebar','collections-sidebar','scraper-sidebar','settings-sidebar'].forEach(id => {
-    const el = $(id).el;
-    if (el) el.classList.remove('on');
-  });
   cat = ''; q = ''; favM = false;
   $('search-input').val('');
   $('search-ghost').html('');
@@ -210,22 +203,11 @@ async function clearRecent() {
 
 // ─── Scraper ───
 function showScraper() {
-  if (mosaicOn) stopMosaic();
+  closeAllViews();
   if (location.pathname !== '/scraper') history.pushState(null, '', '/scraper');
   scraperMode = true;
   $('browse-view').add('off');
-  $('player-view').remove('on');
-  $('duplicates-view').remove('on');
-  $('actors-view').remove('on');
-  $('actor-detail-view').remove('on');
-  $('studios-view').remove('on');
-  $('studio-detail-view').remove('on');
-  $('tag-detail-view').remove('on');
-  $('vault-view').remove('on');
-  document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
   $('scraper-sidebar').add('on');
-  dupMode = false; studioMode = false; actorMode = false; foldersMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
-  curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
   $('scraper-view').add('on');
   ActorScraper.load();
 }
@@ -327,7 +309,6 @@ async function routeToPath(path) {
   if (path === '/bookmarks') { showImportFavs(); return; }
   if (path === '/duplicates') { showDups(); return; }
   if (path === '/vault') { showVault(); return; }
-  if (path === '/folders') { showFolders(); return; }
   if (path === '/recent') { showRecent(); return; }
   if (path === '/collections') { showCollections(); return; }
   if (path === '/scraper') { showScraper(); return; }

@@ -57,16 +57,11 @@ function bfRemoveItem(url) {
 
 // ─── Import Favourites View ───
 function showImportFavs() {
-  if (mosaicOn) stopMosaic();
+  closeAllViews();
   if (location.pathname !== '/bookmarks') history.pushState(null, '', '/bookmarks');
   importFavsMode = true;
   $('browse-view').add('off');
-  ['player-view','duplicates-view','actors-view','actor-detail-view','studios-view','studio-detail-view','tag-detail-view','vault-view','scraper-view','collections-view','settings-view','folders-view','database-view'].forEach(id => $(id).remove('on'));
-  document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
   $('import-favs-sidebar').add('on');
-  dupMode = false; vaultMode = false; scraperMode = false; foldersMode = false; collectionsMode = false; settingsMode = false; dbMode = false;
-  studioMode = false; actorMode = false;
-  curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
   $('import-favs-view').add('on');
   if (!_bfItems.length) bfLoadCache();
 }

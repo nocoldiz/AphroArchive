@@ -1,16 +1,10 @@
 // ─── Settings ───
 function showSettings() {
-  if (mosaicOn) stopMosaic();
+  closeAllViews();
   if (location.pathname !== '/settings') history.pushState(null, '', '/settings');
   settingsMode = true;
   $('browse-view').add('off');
-  document.querySelectorAll('.sidebar-item.on').forEach(e => e.classList.remove('on'));
   $('settings-sidebar').add('on');
-  ['player-view','duplicates-view','actors-view','actor-detail-view','studios-view','studio-detail-view','tag-detail-view','vault-view','scraper-view','folders-view','import-favs-view','collections-view','database-view']
-    .forEach(id => $(id).remove('on'));
-  vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; dbMode = false;
-  studioMode = false; actorMode = false;
-  curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
   $('settings-view').add('on');
   loadSettings();
   const activeTheme = localStorage.getItem('theme') || '';

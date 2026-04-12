@@ -6,23 +6,12 @@ let audioFiles = [];
 let curAudio = null;
 
 function showAudio() {
-  if (mosaicOn) stopMosaic();
+  closeAllViews();
   if (location.pathname !== '/audio') history.pushState(null, '', '/audio');
   audioMode = true;
   $('browse-view').add('off');
-  ['player-view','duplicates-view','actors-view','actor-detail-view','studios-view',
-   'studio-detail-view','tag-detail-view','vault-view','scraper-view','collections-view',
-   'settings-view','import-favs-view'].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
-  if ($('database-view').el) $('database-view').remove('on');
-  if ($('books-view').el) $('books-view').remove('on');
-  document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
   $('audio-sidebar').add('on');
-  dupMode = false; vaultMode = false; scraperMode = false; collectionsMode = false;
-  settingsMode = false; importFavsMode = false; dbMode = false; booksMode = false;
-  studioMode = false; actorMode = false;
-  curActor = null; curStudio = null; curTag = null; curV = null; curCollection = null;
   $('audio-view').add('on');
-  // Sync sort/view buttons to current state
   document.querySelectorAll('.au-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.s === audioSort));
   document.querySelectorAll('.au-view-btn').forEach(b => b.classList.toggle('on', b.dataset.v === audioView));
   loadAudio();
