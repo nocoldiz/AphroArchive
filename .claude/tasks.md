@@ -8,19 +8,6 @@ Each command is separated by an empty newline
 TO DO
 
 
-server.js auto-creates categories folder, instead it should no create categories and in left sidebar it should show only Uncategorized videos category, with the possibility of creating new categories
-
-Add a new sidebar section called Audio, here you can see a library of imported audio files and you can import them via file selector, the audio files will be placed 
-in a new audio folder, audio files can be sorted like the video files, show list view or card view.
-
-Add in top right a import button, icon only, that will allow me to select multiple files from disk, any video image text document file is supported.
-When importing, add them to their respective folder: videos, books or audio
-You can also files directly inside this app by dragging them in the program
-
-In recent videos add a button to clear recent videos
-
-In settings add a Clear chronology dropdown option: no, delete on startup and don't save chronology
-
 add in setting add the possibilty to password protect the app on startup, this is different from vault since it will not encrypt just hide everything
 
 
@@ -54,6 +41,16 @@ Watch videos, books, audio and public/themes folder with `fs.watch` and push a l
 
 
 DONE
+
+Cleared pre-populated db/categories.json to {}; removed auto-creation of Straight/Gay/Lesbian/Transgender folders on server startup; apiCategories now always includes Uncategorized sorted first; sidebar shows Uncategorized with the existing + button to create new folder categories
+
+Audio section added: sidebar item, /audio view, card/list toggle, sort (date/name/size), import via file selector (mp3/flac/wav/ogg/aac/m4a/wma/opus/aiff), delete, mini player with HTML5 audio; server routes GET/POST/stream/DELETE /api/audio
+
+Import button (upload icon) added to topbar; /api/import routes files to videos/audio/books by extension; drag-and-drop on whole app shows overlay and imports on drop; public/modules/import.js
+
+"Clear History" button added to section-controls in browse view; shown only when recentMode is active
+
+Watch history setting added to Settings: "Keep history" / "Delete on startup" / "Don't save history"; stored in .AphroArchive-prefs.json; server clears history on listen() when delete-on-startup; skips recording when dont-save; auto-saves on select change; shown only when recentMode is active; calls DELETE /api/history (already existed), clears recentVids, re-renders
 
 Ensure videos/books/audio folders exist on startup — AUDIO_DIR added, all three created with mkdirSync at boot before server starts
 

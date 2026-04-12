@@ -20,11 +20,28 @@ function showSettings() {
 }
 
 async function loadSettings() {
-  const d = await (await fetch('/api/settings/lists')).json();
-  $('settings-hidden').val(d.hidden || '');
-  $('settings-whitelist').val(d.whitelist || '');
-  updateSettingsHint('settings-hidden-hint', d.hidden || '');
-  updateSettingsHint('settings-whitelist-hint', d.whitelist || '');
+  const [lists, prefs] = await Promise.all([
+    fetch('/api/settings/lists').then(r => r.json()),
+    fetch('/api/settings/prefs').then(r => r.json()).catch(() => ({}))
+  ]);
+  $('settings-hidden').val(lists.hidden || '');
+  $('settings-whitelist').val(lists.whitelist || '');
+  updateSettingsHint('settings-hidden-hint', lists.hidden || '');
+  updateSettingsHint('settings-whitelist-hint', lists.whitelist || '');
+  const sel = $('chronologyMode').el;
+  if (sel) sel.value = prefs.chronologyMode || 'keep';
+}
+
+async function saveChronologyMode() {
+  const sel = $('chronologyMode').el;
+  if (!sel) return;
+  const r = await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chronologyMode: sel.value })
+  });
+  if (r.ok) toast('Saved');
+  else toast('Save failed');
 }
 
 function updateSettingsHint(hintId, content) {

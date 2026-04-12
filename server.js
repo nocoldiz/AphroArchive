@@ -94,21 +94,23 @@ const VAULT_CONFIG_FILE = path.join(SETTINGS_DIR, '.vault-config.json');
 const VAULT_META_FILE = path.join(SETTINGS_DIR, '.vault-meta.json');
 const EXTRA_FOLDERS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-folders.json');
 const BROWSER_WHITELIST_FILE = path.join(SETTINGS_DIR, 'whitelist.txt');
-const WEBSITES_FILE = path.join(SETTINGS_DIR, 'websites.json');
 const COLLECTIONS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-collections.json');
 const RATINGS_FILE = path.join(SETTINGS_DIR, '.AphroArchive-ratings.json');
 const HIDDEN_FILE  = path.join(SETTINGS_DIR, 'hidden.txt');
+const PREFS_FILE   = path.join(SETTINGS_DIR, '.AphroArchive-prefs.json');
 const DB_DIR = path.join(__dirname, 'db');
 const ACTORS_JSON     = path.join(DB_DIR, 'actors.json');
 const CATEGORIES_JSON = path.join(DB_DIR, 'categories.json');
 const STUDIOS_JSON    = path.join(DB_DIR, 'studios.json');
+const WEBSITES_JSON = path.join(DB_DIR, 'websites.json');
+
 fs.mkdirSync(SETTINGS_DIR,  { recursive: true });
 fs.mkdirSync(VIDEOS_DIR,   { recursive: true });
 fs.mkdirSync(AUDIO_DIR,    { recursive: true });
 
 // ── Migrate whitelist.txt → websites.json (runs once on first start) ─────
 (function migrateWhitelist() {
-  if (fs.existsSync(WEBSITES_FILE)) return;
+  if (fs.existsSync(WEBSITES_JSON)) return;
   let entries = [];
   if (fs.existsSync(BROWSER_WHITELIST_FILE)) {
     const lines = fs.readFileSync(BROWSER_WHITELIST_FILE, 'utf-8')
@@ -118,15 +120,15 @@ fs.mkdirSync(AUDIO_DIR,    { recursive: true });
       searchURL: '', scrapeMethod: '', tags: [], description: ''
     }));
   }
-  fs.writeFileSync(WEBSITES_FILE, JSON.stringify(entries, null, 2));
+  fs.writeFileSync(WEBSITES_JSON, JSON.stringify(entries, null, 2));
 })();
 
 function loadWebsites() {
-  try { return JSON.parse(fs.readFileSync(WEBSITES_FILE, 'utf-8')); }
+  try { return JSON.parse(fs.readFileSync(WEBSITES_JSON, 'utf-8')); }
   catch { return []; }
 }
 function saveWebsites(sites) {
-  fs.writeFileSync(WEBSITES_FILE, JSON.stringify(sites, null, 2));
+  fs.writeFileSync(WEBSITES_JSON, JSON.stringify(sites, null, 2));
 }
 
 const VIDEO_EXT = new Set(['.mp4','.mkv','.avi','.mov','.wmv','.flv','.webm','.m4v','.mpg','.mpeg','.3gp','.ogv','.ts']);
@@ -137,7 +139,10 @@ const MIME = {
   '.mpeg':'video/mpeg','.3gp':'video/3gpp','.ogv':'video/ogg','.ts':'video/mp2t',
   '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png',
   '.gif':'image/gif','.webp':'image/webp','.avif':'image/avif',
-  '.bmp':'image/bmp','.heic':'image/heic'
+  '.bmp':'image/bmp','.heic':'image/heic',
+  '.mp3':'audio/mpeg','.flac':'audio/flac','.wav':'audio/wav',
+  '.ogg':'audio/ogg','.aac':'audio/aac','.m4a':'audio/mp4',
+  '.wma':'audio/x-ms-wma','.opus':'audio/opus','.aiff':'audio/aiff'
 };
 const IMAGE_EXT = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);
 const STATIC_MIME = {
@@ -282,7 +287,11 @@ function loadHistory() {
 }
 function saveHistory(h) { fs.writeFileSync(HISTORY_FILE, JSON.stringify(h)); }
 
+function loadPrefs() { try { return JSON.parse(fs.readFileSync(PREFS_FILE, 'utf-8')); } catch { return {}; } }
+function savePrefs(p) { fs.writeFileSync(PREFS_FILE, JSON.stringify(p)); }
+
 function apiAddHistory(req, res, id) {
+  if (loadPrefs().chronologyMode === 'dont-save') return json(res, { ok: true });
   const videos = allVideos();
   if (!videos.find(v => v.id === id)) return json(res, { ok: false });
   let h = loadHistory().filter(x => x !== id);
@@ -616,6 +625,22 @@ async function apiSettingsSave(req, res, file) {
     .split('\n').map(l => l.trim()).filter(l => l.length > 0);
   fs.writeFileSync(map[file], lines.join('\n') + (lines.length ? '\n' : ''));
   json(res, { ok: true, count: lines.length });
+}
+
+function apiGetPrefs(req, res) {
+  json(res, loadPrefs());
+}
+
+async function apiSavePrefs(req, res) {
+  const body = await readBody(req);
+  const prefs = loadPrefs();
+  const CHRON_MODES = new Set(['keep', 'delete-on-startup', 'dont-save']);
+  if ('chronologyMode' in body) {
+    if (!CHRON_MODES.has(body.chronologyMode)) return json(res, { error: 'Invalid value' }, 400);
+    prefs.chronologyMode = body.chronologyMode;
+  }
+  savePrefs(prefs);
+  json(res, { ok: true });
 }
 
 // ─── Websites API ─────────────────────────────────────────────────
@@ -1418,7 +1443,16 @@ function apiCategories(req, res) {
       return pathLo === tLo || pathLo.startsWith(tLo + '/') || pathLo.startsWith(tLo + '\\');
     });
   }) : result;
-  json(res, filtered.sort((a, b) => a.name.localeCompare(b.name)));
+  const sorted = filtered.sort((a, b) => {
+    if (a.path === '__uncategorized__') return -1;
+    if (b.path === '__uncategorized__') return 1;
+    return a.name.localeCompare(b.name);
+  });
+  // Always include Uncategorized even when no uncategorized videos exist
+  if (!sorted.find(c => c.path === '__uncategorized__')) {
+    sorted.unshift({ name: 'Uncategorized', path: '__uncategorized__', count: 0 });
+  }
+  json(res, sorted);
 }
 
 function apiMainCategories(req, res) {
@@ -2150,6 +2184,118 @@ function apiBooksDelete(req, res, id) {
   json(res, { ok: true });
 }
 
+// ─── Audio ───────────────────────────────────────────────────────
+
+const AUDIO_META_FILE = path.join(AUDIO_DIR, '.meta.json');
+const AUDIO_EXT = new Set(['.mp3','.flac','.wav','.ogg','.aac','.m4a','.wma','.opus','.aiff']);
+
+function loadAudioMeta() { try { return JSON.parse(fs.readFileSync(AUDIO_META_FILE, 'utf-8')); } catch { return {}; } }
+function saveAudioMeta(m) { fs.writeFileSync(AUDIO_META_FILE, JSON.stringify(m, null, 2)); }
+function audioToId(n) { return Buffer.from(n).toString('base64url'); }
+function audioFromId(id) { return Buffer.from(id, 'base64url').toString(); }
+
+function apiAudioList(req, res) {
+  const meta = loadAudioMeta();
+  const files = Object.entries(meta)
+    .map(([filename, m]) => ({ id: audioToId(filename), filename, ...m }))
+    .sort((a, b) => b.date - a.date);
+  json(res, files);
+}
+
+async function apiAudioUpload(req, res) {
+  const filename = decodeURIComponent(req.headers['x-filename'] || 'audio.mp3');
+  const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
+  const ext = path.extname(safeFilename).toLowerCase();
+  if (!AUDIO_EXT.has(ext)) return json(res, { error: 'Unsupported type. Allowed: mp3, flac, wav, ogg, aac, m4a, wma, opus, aiff' }, 400);
+  let outName = safeFilename, counter = 1;
+  while (fs.existsSync(path.join(AUDIO_DIR, outName))) {
+    outName = path.basename(safeFilename, ext) + ` (${counter++})` + ext;
+  }
+  const chunks = [];
+  await new Promise((resolve, reject) => { req.on('data', c => chunks.push(c)); req.on('end', resolve); req.on('error', reject); });
+  const data = Buffer.concat(chunks);
+  fs.writeFileSync(path.join(AUDIO_DIR, outName), data);
+  const meta = loadAudioMeta();
+  meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now() };
+  saveAudioMeta(meta);
+  json(res, { ok: true, id: audioToId(outName) });
+}
+
+function apiAudioStream(req, res, id) {
+  const filename = audioFromId(id);
+  const fp = path.join(AUDIO_DIR, path.basename(filename));
+  if (!fp.startsWith(path.resolve(AUDIO_DIR) + path.sep)) { res.writeHead(403); res.end(); return; }
+  if (!fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
+  const stat = fs.statSync(fp);
+  const size = stat.size;
+  const ext = path.extname(fp).toLowerCase();
+  const ct = MIME[ext] || 'application/octet-stream';
+  const range = req.headers.range;
+  if (range) {
+    const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(startStr, 10);
+    const end = endStr ? parseInt(endStr, 10) : size - 1;
+    res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct });
+    fs.createReadStream(fp, { start, end }).pipe(res);
+  } else {
+    res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
+    fs.createReadStream(fp).pipe(res);
+  }
+}
+
+function apiAudioDelete(req, res, id) {
+  const filename = audioFromId(id);
+  const fp = path.join(AUDIO_DIR, path.basename(filename));
+  if (!fp.startsWith(path.resolve(AUDIO_DIR) + path.sep)) return json(res, { error: 'Invalid path' }, 400);
+  try { fs.unlinkSync(fp); } catch {}
+  const meta = loadAudioMeta();
+  delete meta[filename];
+  saveAudioMeta(meta);
+  json(res, { ok: true });
+}
+
+// ─── Global Import ───────────────────────────────────────────────
+
+const BOOK_EXT = new Set(['.pdf','.txt','.doc','.docx','.md','.epub']);
+
+async function apiImport(req, res) {
+  const filename = decodeURIComponent(req.headers['x-filename'] || 'file');
+  const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
+  const ext = path.extname(safeFilename).toLowerCase();
+
+  let destDir, kind;
+  if (VIDEO_EXT.has(ext))      { destDir = VIDEOS_DIR; kind = 'video'; }
+  else if (AUDIO_EXT.has(ext)) { destDir = AUDIO_DIR;  kind = 'audio'; }
+  else if (BOOK_EXT.has(ext))  { destDir = BOOKS_DIR;  kind = 'book';  }
+  else return json(res, { error: 'Unsupported file type: ' + ext }, 400);
+
+  let outName = safeFilename, counter = 1;
+  while (fs.existsSync(path.join(destDir, outName))) {
+    outName = path.basename(safeFilename, ext) + ` (${counter++})` + ext;
+  }
+
+  const chunks = [];
+  await new Promise((resolve, reject) => {
+    req.on('data', c => chunks.push(c));
+    req.on('end', resolve);
+    req.on('error', reject);
+  });
+  const data = Buffer.concat(chunks);
+  fs.writeFileSync(path.join(destDir, outName), data);
+
+  if (kind === 'audio') {
+    const meta = loadAudioMeta();
+    meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now() };
+    saveAudioMeta(meta);
+  } else if (kind === 'book') {
+    const meta = loadBooksMeta();
+    meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), type: 'upload' };
+    saveBooksMeta(meta);
+  }
+
+  json(res, { ok: true, kind, name: outName });
+}
+
 // ─── Router ───────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -2205,6 +2351,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/actor-photos\/(.+)\/img$/)) && req.method === 'GET') return apiActorPhotoImg(req, res, decodeURIComponent(m[1]));
   if (p === '/api/settings/lists' && req.method === 'GET') return apiSettingsLists(req, res);
   if ((m = p.match(/^\/api\/settings\/(hidden|whitelist)$/)) && req.method === 'PUT') return apiSettingsSave(req, res, m[1]);
+  if (p === '/api/settings/prefs' && req.method === 'GET') return apiGetPrefs(req, res);
+  if (p === '/api/settings/prefs' && req.method === 'PUT') return apiSavePrefs(req, res);
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
   if (p === '/api/websites' && req.method === 'POST') return apiWebsiteAdd(req, res);
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'DELETE') return apiWebsiteDelete(req, res, parseInt(m[1]));
@@ -2255,14 +2403,22 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/books\/read\/([^/]+)$/)) && req.method === 'GET') return apiBooksRead(req, res, m[1]);
   if ((m = p.match(/^\/api\/books\/([^/]+)$/)) && req.method === 'DELETE') return apiBooksDelete(req, res, m[1]);
 
+  if (p === '/api/import' && req.method === 'POST') return apiImport(req, res);
+
+  if (p === '/api/audio' && req.method === 'GET') return apiAudioList(req, res);
+  if (p === '/api/audio/upload' && req.method === 'POST') return apiAudioUpload(req, res);
+  if ((m = p.match(/^\/api\/audio\/([^/]+)\/stream$/)) && req.method === 'GET') return apiAudioStream(req, res, m[1]);
+  if ((m = p.match(/^\/api\/audio\/([^/]+)$/)) && req.method === 'DELETE') return apiAudioDelete(req, res, m[1]);
+
   // Static files from public/ — SPA routes fall back to index.html
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(bookmarks|duplicates|vault|folders|recent|collections|scraper|settings|database|actors|studios|books|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(bookmarks|duplicates|vault|folders|recent|collections|scraper|settings|database|actors|studios|books|audio|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });
 
 server.listen(PORT, () => {
+  if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);
@@ -2273,9 +2429,5 @@ server.listen(PORT, () => {
       : process.platform === 'darwin' ? `open http://localhost:${PORT}`
       : `xdg-open http://localhost:${PORT}`;
     exec(openCmd);
-  }
-  for (const sub of ['Straight', 'Gay', 'Lesbian', 'Transgender']) {
-    const subDir = path.join(VIDEOS_DIR, sub);
-    if (!fs.existsSync(subDir)) fs.mkdirSync(subDir);
   }
 });

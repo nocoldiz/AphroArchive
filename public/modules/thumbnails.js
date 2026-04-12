@@ -36,7 +36,7 @@ async function runThumbQ() {
     thumbMap[id] = d.count > 0 ? Array.from({ length: d.count }, (_, i) => '/api/thumbs/' + id + '/' + i) : [];
     if (thumbMap[id].length) {
       thumbMap[id].forEach(u => { const i = new Image(); i.src = u; });
-      const el = document.querySelector('.cardThumb[data-vid="' + id + '"]');
+      const el = document.querySelector('.card-thumb[data-vid="' + id + '"]');
       if (el) applyThumb(el, thumbMap[id][0]);
     }
   } catch { thumbMap[id] = []; }

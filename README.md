@@ -1,150 +1,37 @@
-# AphroArchive
 
-A zero-dependency local video organizer with a web UI. Browse, search, tag, and play your video collection from any browser on your local network.
+Oh, gracious heavens! In an era rife with mechanical contraptions and electrical sorcery, a most ingenious invention has emerged for the gentle preservation of one’s private visual entertainments.
 
----
+AphroArchive  
+*Aphrodisiac Performances Healthfully Reviewed (and) Organised*
 
-## Features
+This zero-dependencies degenerate little apparatus, permits the discerning householder to arrange, catalogue, and enjoy their personal collection of artistic motion studies from the comfort of any Babbage device upon the home network.
 
-- **Browse & search** — full-text search, sort by date/name/size/length, shuffle
-- **Categories & tags** — auto-detected from folder structure and a JSON database; sidebar shows counts
-- **Bookmark integration** — import browser bookmarks; they appear as cards alongside local videos, sorted into matching categories/tags automatically; thumbnail fetched from Open Graph metadata
-- **Source filter** — toggle between All / Local / Remote (bookmarks only) on any page
-- **Actors / Studios** — browse your collection by actor or studio (matched by filename)
-- **Vault** — hidden password-protected folder for private videos
-- **Favourites** — star videos and filter to your favourites list
-- **Watch history** — recently watched videos tracked automatically
-- **Zapping mode** — random video auto-advance (bookmark videos excluded)
-- **Mosaic mode** — multi-tile random video wall
-- **Duplicate detection** — finds files with identical sizes
-- **Collections** — group videos into named playlists
-- **Remote access** — QR code to open the app from your phone on the same Wi-Fi
-- **Themes** — 20+ built-in themes (Dark, Light, AMOLED, Cyberpunk, Neon, ASCII, Halloween, Christmas, and more)
-- **Database editor** — edit actors, categories, and studios via card-based UI in the browser
-- **Video import** — import videos by file path directly into your collection
+### Its Most Commendable Features include:
 
----
+- Graceful Browsing & Searching — One may peruse the entire collection with full-text inquiry, arrange by date, name, size, or duration, and even indulge in a gentle shuffle.  
+- Categories & Descriptive Labels — Automatically discerned from the arrangement of one’s folders, with helpful tallies displayed in the side-panel.  
+- Integration of Distant Curiosities — Import bookmarks from one’s web-browser; these appear as elegant cards beside one’s local selections, complete with small illustrative portraits drawn from their public announcements.  
+- Source Distinction — Easily toggle between All, Local, or those acquired from afar.  
+- Notable Personages & Establishments — Browse by the names of performers or production houses, intelligently matched from the titles of the files themselves.  
+- The Secret Vault — A concealed, password-guarded chamber for those collected item one wishes to shield from accidental discovery.  
+- Marked Favourites — Bestow a star upon favoured selections and summon them at will.  
+- Record of Recent Viewings — The apparatus discreetly remembers what has lately been observed.  
+- Zapping Mode — For those moments of whimsical fancy, it advances automatically through random selections (excluding distant bookmarks, naturally).  
+- Mosaic Mode — A delightful wall of multiple small moving tiles, perfect for contemplative browsing.  
+- Detection of Duplicates — Identifies any unfortunate repetitions by matching file dimensions.  
+- Named Groupings — Assemble cherished pieces into personal collections or “playlists,” as the young folk say.  
+- Remote Access — A simple QR code allows one to summon the entire arrangement upon a portable telegraph, provided it resides upon the same domestic wireless connection.  
+- Twenty & More Aesthetic Themes — From sober Dark and Light to more spirited varieties such as AMOLED, Cyberpunk, Neon, and even seasonal motifs for Halloween or Christmas.  
+- Editorial Cabinet — Amend details of performers, categories, and studios through a civilised card-based interface directly in the browser.  
+- Direct Import — Bring new motion studies into the collection by simple path, with automatic sorting into appropriate chambers.
 
-## Requirements
+All of this is accomplished with no external dependencies, requiring only a modest Node.js installation or a single executable for Windows users of gentle constitution.
 
-- [Node.js](https://nodejs.org/) 18+ (or use the pre-built `.exe` for Windows)
+Should any reader of refined taste and private inclinations feel the stirrings of curiosity, one may direct their gaze to the aforementioned GitHub address and install the contraption with the greatest of ease
 
----
+*A word of caution, dear reader:*  
+Pray ensure the curtains are drawn, the door bolted, and all servants retired before engaging with this most stimulating apparatus. One would not wish for an unseemly blush to betray one’s scholarly interest in the *human form in motion*.
 
-## Getting Started
+License
 
-### Option A — Node.js
-
-```bash
-# Clone or download the repo
-git clone https://github.com/nocoldiz/AphroArchive
-cd AphroArchive
-
-# Start the server
-node server.js
-```
-
-Then open `http://localhost:3000` in your browser.
-
-### Option B — Windows executable
-
-Download `AphroArchive.exe` from [Releases](../../releases) and run it. No installation needed.
-
-### Option C — Install script
-
-```bash
-# Linux/macOS
-bash install.sh
-
-# Windows
-install.bat
-```
-
----
-
-## Folder structure
-
-```
-AphroArchive/
-├── videos/          # Drop your video files here
-│   └── CategoryName/  # Subfolders become categories
-├── db/
-│   ├── actors.json      # Actor database
-│   ├── categories.json  # Category/tag database
-│   └── studios.json     # Studio database
-├── settings/        # App settings (auto-generated)
-├── public/          # Web UI (HTML/CSS/JS)
-└── server.js        # Server entry point
-```
-
-Videos placed directly in `videos/` are auto-sorted into matching category subfolders on startup. Videos in subfolders are detected as categories.
-
----
-
-## Database files
-
-### `db/actors.json`
-```json
-{
-  "Actor Name": {
-    "imdb_page": "https://...",
-    "date_of_birth": "1990-01-01",
-    "nationality": "US",
-    "movies": ["film1", "film2"]
-  }
-}
-```
-
-### `db/categories.json`
-```json
-{
-  "Category Name": {
-    "displayName": "Category Name",
-    "tags": ["alias1", "alias2"]
-  }
-}
-```
-
-### `db/studios.json`
-```json
-{
-  "Studio Name": {
-    "website": "https://...",
-    "short_description": "Description"
-  }
-}
-```
-
-All three files are editable from the **Database** section in the sidebar.
-
----
-
-## Bookmark import
-
-1. Export bookmarks from your browser as an HTML file
-2. Open the **Bookmarks** section in the sidebar
-3. Import the `.html` file — bookmarks are matched to categories by title and shown as cards in the grid
-
----
-
-## Building the Windows executable
-
-```bash
-npm install
-npm run build:win
-# Output: dist/AphroArchive.exe
-```
-
----
-
-## Support
-
-If you find this useful, consider donating:
-
-☕ **[Buy me a coffee](https://buymeacoffee.com/nocoldiz)**
-
----
-
-## License
-
-MIT
+Massachusetts Institute of Technology

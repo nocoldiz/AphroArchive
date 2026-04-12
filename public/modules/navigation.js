@@ -67,13 +67,15 @@ function goHome() {
   if ($('folders-sidebar').el) $('folders-sidebar').remove('on');
   if ($('books-view').el) $('books-view').remove('on');
   if ($('books-sidebar').el) $('books-sidebar').remove('on');
+  if ($('audio-view').el) $('audio-view').remove('on');
+  if ($('audio-sidebar').el) $('audio-sidebar').remove('on');
   if ($('search-sites-view').el) $('search-sites-view').remove('on');
   if ($('search-sites-sidebar').el) $('search-sites-sidebar').remove('on');
   $('settings-view').remove('on');
   $('settings-sidebar').remove('on');
   if ($('database-view').el) $('database-view').remove('on');
   if ($('database-sidebar').el) $('database-sidebar').remove('on');
-  vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false;
+  vaultMode = false; scraperMode = false; foldersMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false;
   curCollection = null;
   $('browse-view').remove('off');
   $('player-view').remove('on');
@@ -96,6 +98,8 @@ function goHome() {
   recentMode = false;
   recentVids = [];
   $('recent-sidebar').remove('on');
+  $('clearRecentBtn').show(false);
+  $('clearRecentSep').show(false);
   const p = $('video-player').el;
   p.pause();
   p.src = '';
@@ -115,7 +119,7 @@ function closeAllViews() {
     'duplicates-view','duplicates-sidebar','studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
     'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
     'collections-view','collections-sidebar','folders-view','folders-sidebar',
-    'books-view','books-sidebar','search-sites-view','search-sites-sidebar',
+    'books-view','books-sidebar','audio-view','audio-sidebar','search-sites-view','search-sites-sidebar',
     'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','recent-sidebar'
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
   document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
@@ -123,8 +127,10 @@ function closeAllViews() {
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
-  foldersMode = false; importFavsMode = false; booksMode = false;
+  foldersMode = false; importFavsMode = false; booksMode = false; audioMode = false;
   settingsMode = false; recentMode = false; recentVids = [];
+  $('clearRecentBtn').show(false);
+  $('clearRecentSep').show(false);
   curTag = null;
 }
 
@@ -190,7 +196,16 @@ async function showRecent() {
   const data = await (await fetch('/api/history')).json();
   recentVids = data;
   $('section-title').text('Recently Watched');
+  $('clearRecentBtn').show(true);
+  $('clearRecentSep').show(true);
   render();
+}
+
+async function clearRecent() {
+  await fetch('/api/history', { method: 'DELETE' });
+  recentVids = [];
+  render();
+  toast('History cleared');
 }
 
 // ─── Scraper ───
@@ -317,6 +332,7 @@ async function routeToPath(path) {
   if (path === '/collections') { showCollections(); return; }
   if (path === '/scraper') { showScraper(); return; }
   if (path === '/books') { showBooks(); return; }
+  if (path === '/audio') { showAudio(); return; }
   if (path === '/search') { showSearchSites(); return; }
   if (path === '/settings') { showSettings(); return; }
   if (path === '/database') { showDatabase(); return; }
