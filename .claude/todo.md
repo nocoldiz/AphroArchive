@@ -8,7 +8,7 @@
 - [ ] **Vault temp file security** — Decrypted files land in the world-readable system tmpdir and persist for up to 5 minutes. Use a private subdirectory with restricted permissions and wipe securely (overwrite then delete) on cleanup.
 - [ ] **Rate limit vault unlock** — No attempt throttle exists. Add a per-IP lockout after N failed PIN/password tries.
 - [ ] **Actor photo content-type validation** — Downloaded IMDb images are written to disk without checking the Content-Type. Validate that it is a known image type before saving.
-- [ ] **Duplicate CORS header** — `Access-Control-Allow-Headers` is set twice on line ~1552-1553; the second write drops `X-Filename`. Remove the duplicate.
+- [ ] **Duplicate CORS header** — `Access-Control-Allow-Headers` is set twice; the second write drops `X-Filename`. Remove the duplicate.
 - [ ] **IV reuse risk in AES-GCM** — Current key derivation re-uses the same key across sessions. Derive a new encryption key via HKDF on each session to prevent IV collision.
 - [ ] **PBKDF2 iterations** — 100,000 rounds is below current NIST guidance (600,000+). Increase and re-derive on next unlock.
 
@@ -28,7 +28,6 @@
 - [ ] **Video list caching** — Cache the result of `allVideos()` in memory and invalidate via `fs.watch` on VIDEOS_DIR. This is the single biggest performance win.
 - [ ] **Metadata in-memory cache** — Actors, studios, categories, favourites, and history are all read from disk per request. Load at startup, write-through on mutations.
 - [ ] **Suggested videos O(n²)** — `apiVideoDetail` computes similarity by iterating all videos × all actors. Pre-build an inverted index from actor → video IDs.
-- [ ] **Thumbnail lazy generation** — Do not generate thumbnails for videos not visible in the viewport. The IntersectionObserver setup exists but the queue is still unbounded.
 - [ ] **Streaming scan** — `scan()` loads all paths into one array before returning. For very large libraries switch to an async generator to start serving results sooner.
 
 ## Missing Features
@@ -37,30 +36,36 @@
 - [ ] **Batch operations** — Select multiple videos and apply actions (add tag, add actor, move to collection, delete) in one step.
 - [ ] **Watch-time tracking** — Record seconds watched per video; show completion percentage on cards.
 - [ ] **Subtitle support** — Auto-detect `.srt`/`.vtt` files beside the video and load them as text tracks in the `<video>` element.
-- [ ] **Video preview on hover** — Seek through poster mosaic frames on mouse-over in the grid (use existing mosaic thumbnails).
 - [ ] **Export metadata** — Allow exporting all ratings, actors, and categories as JSON or CSV for backup/import.
 - [ ] **Smart duplicate handling** — When duplicates are detected, offer to keep the highest-resolution file and move the others to trash rather than just flagging.
-- [ ] **Playlist support** — Ordered user-defined playlists that auto-advance, separate from collections.
 - [ ] **Search result count** — Show "X results" after filtering so the user knows how many videos matched.
 - [ ] **Mobile layout** — Sidebar collapses and video cards reflow on screens narrower than 768 px. The fixed 220 px sidebar currently breaks on phones.
-- [ ] **Dark / light mode toggle** — The palette is fixed dark; add a CSS class toggle and persist preference.
 - [ ] **API documentation** — Add an `api.md` or OpenAPI spec describing each endpoint, its parameters, and response shape.
 - [ ] **Folder watch / auto-refresh** — Watch VIDEOS_DIR with `fs.watch` and push a lightweight update event to the frontend so new files appear without a manual refresh.
 - [ ] **Multi-user support** — Separate history, ratings, and favourites per named profile stored as separate JSON files.
 - [ ] **Cast / network streaming** — Add a "cast" button that serves the video URL for use with Chromecast or similar via the browser Cast API.
+- [ ] **Playback speed control** — Persistent speed setting (0.5×–2×) that remembers preference across videos.
+- [ ] **A/B loop** — Mark a start and end point to repeat a clip segment.
+- [ ] **Scene timestamps / chapters** — Mark named timestamps in a video (e.g., "intro at 0:30") stored in a sidecar JSON.
+- [ ] **Video notes** — Add a private freeform text note to any video, shown on the player page.
+- [ ] **Library stats dashboard** — Total size, video count, most-tagged actors, longest video, etc.
+- [ ] **Recently watched row** — A horizontal scroll row on the home page showing the last 10–20 videos played.
 
 ## UX Improvements
 
-- [ ] **Delete confirmation** — File deletion has no confirmation dialog. Vault deletion does. Make file deletion consistent.
 - [ ] **Progress on vault upload** — Show a progress bar when uploading a file to the vault (use `XMLHttpRequest` with `upload.onprogress`).
 - [ ] **Toast duration control** — Let toasts persist longer for errors (currently all durations are the same).
-- [ ] **"Copied" feedback** — The copy-to-bat function has no visual confirmation. Show a brief "Copied!" toast.
 - [ ] **Search empty state** — When search input is cleared, reset the results to the default view automatically.
 - [ ] **Category breadcrumb clickable** — The breadcrumb showing current category/collection is display-only. Make each segment a navigation link.
 - [ ] **Keyboard navigation in grid** — Arrow keys should move focus between video cards; Enter opens the video.
 - [ ] **ARIA labels** — Add `aria-label` to icon buttons (star, favourite, play) that have no visible text.
 - [ ] **Accessible colour contrast** — Audit `--tx3` and muted text against backgrounds for WCAG AA compliance.
 - [ ] **Error messages with guidance** — Replace generic "Failed" toasts with context: "Could not generate thumbnail — ffmpeg not found."
+- [ ] **Restore scroll position on back** — Going back from the player should return to the same scroll position in the grid.
+- [ ] **Custom thumbnail selection** — Pick which of the generated thumbnails to use as the card image.
+- [ ] **Accent color picker** — Let the user change the red accent (`--ac`) to another color from the settings page.
+- [ ] **Auto-play countdown** — After a video ends, show a 5-second countdown before playing the next one with a cancel button.
+- [ ] **Drag to category** — Drag a video card onto a sidebar category to move it.
 
 ## Code Quality & Refactoring
 
@@ -75,79 +80,34 @@
 - [ ] **Test coverage** — Add at minimum unit tests for `wordMatch`, `matchesWhitelist`, `safePath`, and the vault encrypt/decrypt round-trip.
 - [ ] **Config file support** — Allow paths (VIDEOS_DIR, SETTINGS_DIR, port) to be set via a config file or environment variables rather than being hardcoded.
 
-# Feature Suggestions
+## Vault
 
-## Playback & Discovery
-
-- **Watch history with resume position** — Track which videos you've watched and resume from where you left off (stored in a JSON file like favorites)
-- **Playlists / Collections** — Create named lists of videos beyond just "favorites"
-- **Hover preview** — Show a short animated preview when hovering over a video card (many thumbnail frames already exist)
-- **Scene timestamps / chapters** — Mark named timestamps in a video (e.g., "intro at 0:30") stored in a sidecar JSON
-- **Auto-play countdown** — After a video ends, show a 5-second countdown before playing the next one with a cancel button
-- **Playback speed control** — Persistent speed setting (0.5×–2×) that remembers your preference across videos
-- **Loop section** — A/B loop: mark a start and end point to repeat a clip segment
-- **Recently watched row** — A horizontal scroll row on the home page showing the last 10–20 videos played
-
----
+- [ ] **Vault password change** — Currently there's no way to change the vault password without deleting everything.
+- [ ] **Vault thumbnail support** — Generate and display thumbnails for encrypted files.
+- [ ] **Import from library to vault** — Move existing library videos into the vault directly (currently only supports uploading).
+- [ ] **Vault file rename** — Rename encrypted files from within the vault UI without re-uploading.
+- [ ] **Vault notes** — Attach a short private note/description to each vault file, stored encrypted alongside the metadata.
+- [ ] **Photo slideshow mode** — Auto-advance through vault images with a configurable interval and fullscreen display.
+- [ ] **Drag-and-drop upload** — Drop files directly onto the vault grid instead of using the file picker.
 
 ## Search & Filtering
 
-- **Multi-filter support** — Combine actor + studio + tag in one search query
-- **Date range filter** — Filter videos added/modified between two dates
-- **Duration filter** — Filter by short/medium/long (e.g., <5min, 5-30min, 30min+)
-- **Unwatched filter** — Show only videos not yet in watch history
-- **Saved searches** — Bookmark a filter/query combo and recall it with one click
-- **Recent searches** — Dropdown of last 10 search terms when clicking the search bar
-- **Search within actors/studios pages** — The actor and studio detail pages have no search; hard to find a video when an actor has 100+ entries
-
----
+- [ ] **Multi-filter support** — Combine actor + studio + tag in one search query.
+- [ ] **Date range filter** — Filter videos added/modified between two dates.
+- [ ] **Duration filter** — Filter by short/medium/long (e.g., <5min, 5-30min, 30min+).
+- [ ] **Unwatched filter** — Show only videos not yet in watch history.
+- [ ] **Saved searches** — Bookmark a filter/query combo and recall it with one click.
+- [ ] **Recent searches** — Dropdown of last 10 search terms when clicking the search bar.
+- [ ] **Search within actors/studios pages** — The actor and studio detail pages have no search; hard to find a video when an actor has 100+ entries.
 
 ## Library Management
 
-- **Bulk operations UI** — Select multiple videos to move, delete, or add to favorites at once
-- **Tag management from the UI** — Edit actors.txt, studios.txt, categories.txt directly from a settings panel instead of editing files manually
-- **Folder/category creation** — Create new category folders from within the app
-- **Library stats dashboard** — Total size, video count, most-tagged actors, longest video, etc.
-- **Content-based duplicate detection** — Hash file contents (not just names) to catch renamed duplicates the current dupe scanner misses
-- **Batch rename with pattern** — Rename multiple files at once using a template like `{actor} - {title}` with live preview
-- **Category merge** — Merge two categories into one, moving all files and updating metadata
-- **Video notes** — Add a private freeform text note to any video, shown on the player page
+- [ ] **Tag management from the UI** — Edit actors, studios, categories directly from a settings panel instead of editing files manually.
+- [ ] **Folder/category creation** — Create new category folders from within the app.
+- [ ] **Content-based duplicate detection** — Hash file contents (not just names) to catch renamed duplicates the current dupe scanner misses.
+- [ ] **Batch rename with pattern** — Rename multiple files at once using a template like `{actor} - {title}` with live preview.
+- [ ] **Category merge** — Merge two categories into one, moving all files and updating metadata.
 
 ---
 
-## Vault
-
-- **Vault password change** — Currently there's no way to change the vault password without deleting everything
-- **Vault thumbnail support** — Generate and display thumbnails for encrypted files
-- **Import from library to vault** — Move existing library videos into the vault directly (currently only supports uploading)
-- **Vault file rename** — Rename encrypted files from within the vault UI without re-uploading
-- **Vault notes** — Attach a short private note/description to each vault file, stored encrypted alongside the metadata
-- **Photo slideshow mode** — Auto-advance through vault images with a configurable interval and fullscreen display
-- **Drag-and-drop upload** — Drop files directly onto the vault grid instead of using the file picker
-
----
-
-## Quality of Life
-
-- **Keyboard shortcuts** — Seek ±10s, toggle favorites, next/prev video, volume control
-- **Custom thumbnail selection** — Pick which of the 5 generated thumbnails to use as the card image
-- **Export favorites list** — Download a `.txt` or `.m3u` playlist of favorites
-- **Light/dark theme toggle** — Currently dark-only
-- **Restore scroll position on back** — Going back from the player returns to the same scroll position in the grid, not the top
-- **
-** — Drag a video card onto a sidebar category to move it
-- **Pinned video persist across navigation** — *(partially done)* Pin should also survive page reload via sessionStorage
-- **Mobile / touch layout** — The sidebar and grid don't adapt well on small screens; a collapsible sidebar and larger tap targets would help
-- **Accent color picker** — Let the user change the red accent (`--ac`) to another color from the settings page
-
----
-
-## Performance
-
-- **Virtual scrolling for large libraries** — Rendering 1000+ cards at once slows the browser; only render cards in the viewport
-- **Incremental thumbnail generation** — Prioritize generating thumbnails for visible cards first, then background-queue the rest
-- **Vault thumbnail cache** — Cache decrypted thumbnails (small JPEG previews) so the vault grid doesn't re-decrypt on every visit
-
----
-
-> Highest priority: **watch history + resume**, **multi-filter**, **bulk operations**, and **restore scroll on back**
+> Highest priority: **resume playback**, **multi-filter**, **batch operations**, **restore scroll on back**, **video list caching**

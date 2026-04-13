@@ -554,6 +554,32 @@ function apiTagVideos(req, res, tagName) {
   json(res, { tag: tagName, videos: list });
 }
 
+function apiVideoTags(req, res, id) {
+  const meta = loadVideoMeta();
+  json(res, { tags: meta[id]?.tags || [] });
+}
+
+function apiTagSuggestions(req, res) {
+  const cats = loadCategories();
+  const seen = new Set();
+  const result = [];
+  for (const c of cats) {
+    if (c.displayName && !seen.has(c.displayName.toLowerCase())) {
+      seen.add(c.displayName.toLowerCase());
+      result.push(c.displayName);
+    }
+    // c.terms = [name, ...tags]; skip index 0 (name) if displayName already covers it
+    for (let i = 0; i < c.terms.length; i++) {
+      const t = c.terms[i];
+      if (!seen.has(t.toLowerCase())) {
+        seen.add(t.toLowerCase());
+        result.push(t);
+      }
+    }
+  }
+  json(res, result.sort((a, b) => a.localeCompare(b)));
+}
+
 // ── Studios ──────────────────────────────────────────────────────────
 
 function apiStudios(req, res) {
@@ -639,7 +665,7 @@ module.exports = {
   apiAddHistory, apiGetHistory, apiClearHistory,
   apiSetRating, apiDeleteRating,
   apiUpdateVideoMeta, apiOpenFolder, apiDuplicates,
-  apiTags, apiTagVideos,
+  apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
   apiStudios, apiStudioVideos,
   apiImport,
 };

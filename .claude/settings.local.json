@@ -6,7 +6,9 @@
     "allow": [
       "Bash(node:*)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(grep -n \"settings-view\\\\|settings-grid\\\\|donate-btn\\\\|buymeacoffee\\\\|</div>$\\\\|</aside>\" C:/AphroArchive/public/index.html)"
+      "Bash(grep -n \"settings-view\\\\|settings-grid\\\\|donate-btn\\\\|buymeacoffee\\\\|</div>$\\\\|</aside>\" C:/AphroArchive/public/index.html)",
+      "Bash(grep -E \"\\\\.js$|\\\\.html$\")",
+      "Bash(find:*)"
     ]
   }
 }
