@@ -74,6 +74,9 @@
     <div class="side-sep"></div>
     <h3 class="sidebar-heading" id="sh3-browse" onclick="toggleSection('browse')">Browse<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
     <div class="side-section" id="browseSection">
+      <div class="sidebar-item" id="categories-view-sidebar" onclick="showCategoriesView()">
+        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Categories</span>
+      </div>
       <div class="sidebar-item" id="actor-sidebar" onclick="showActors()">
         <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>Actors</span>
       </div>
@@ -308,6 +311,25 @@
         </div>
       </div>
       <div class="video-grid" id="tag-grid"></div>
+    </div>
+
+    <!-- Categories View -->
+    <div class="categories-view" id="categories-view">
+      <div class="section-header">
+        <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Categories &amp; Tags</h2>
+      </div>
+      <div class="cv-toolbar">
+        <span class="au-toolbar-label">Sort:</span>
+        <button class="cv-sort-btn on" data-s="name" onclick="setCvSort('name')">Name</button>
+        <button class="cv-sort-btn" data-s="count-desc" onclick="setCvSort('count-desc')">Most Videos</button>
+        <button class="cv-sort-btn" data-s="count-asc" onclick="setCvSort('count-asc')">Fewest Videos</button>
+      </div>
+      <div class="cv-grid" id="cvGrid"></div>
+      <div class="empty-state" id="cvEmpty" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <h3>No categories yet</h3>
+        <p>Add videos to subfolders or tag them to create categories</p>
+      </div>
     </div>
 
     <!-- Studios List View -->
@@ -1007,6 +1029,7 @@
 <script src="/modules/books.js"></script>
 <script src="/modules/audio.js"></script>
 <script src="/modules/photos.js"></script>
+<script src="/modules/categories-view.js"></script>
 <script src="/modules/import.js"></script>
 <script src="/modules/search-sites.js"></script>
 <script src="/modules/data.js"></script>

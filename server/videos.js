@@ -481,6 +481,47 @@ function apiDuplicates(req, res) {
 
 // ── Tags ─────────────────────────────────────────────────────────────
 
+function apiCategoriesOverview(req, res) {
+  const videos = scan(VIDEOS_DIR);
+  const meta   = loadVideoMeta();
+  const hidden = loadHidden();
+
+  // ── Categories (from folder structure) ──
+  const catMap = new Map();
+  for (const v of videos) {
+    if (v.catPath === '') continue;
+    if (!catMap.has(v.catPath)) catMap.set(v.catPath, { type: 'cat', name: v.category, path: v.catPath, count: 0, ids: [] });
+    const e = catMap.get(v.catPath);
+    e.count++;
+    e.ids.push(v.id);
+  }
+  const filteredCats = [...catMap.values()].filter(c => {
+    const lo = c.path.toLowerCase();
+    return !hidden.some(t => { const tl = t.toLowerCase(); return lo === tl || lo.startsWith(tl + '/') || lo.startsWith(tl + '\\'); });
+  });
+
+  // ── Tags ──
+  const folderNames = new Set(
+    videos.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
+  );
+  const tagMap = new Map();
+  for (const v of videos) {
+    for (const tag of (meta[v.id]?.tags || [])) {
+      const lo = tag.toLowerCase();
+      if (folderNames.has(lo)) continue;
+      if (!tagMap.has(lo)) tagMap.set(lo, { type: 'tag', name: tag, count: 0, ids: [] });
+      tagMap.get(lo).count++;
+      tagMap.get(lo).ids.push(v.id);
+    }
+  }
+
+  const result = [...filteredCats, ...tagMap.values()].map(e => {
+    const thumbId = e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null;
+    return { type: e.type, name: e.name, path: e.path || null, count: e.count, thumbId };
+  });
+  json(res, result);
+}
+
 function apiTags(req, res) {
   const meta    = loadVideoMeta();
   const videos  = allVideos();
@@ -592,7 +633,7 @@ async function apiImport(req, res) {
 
 module.exports = {
   scan, allVideos, isVideoHidden, initVideoMeta,
-  apiVideos, apiCategories, apiMainCategories, apiCreateCategory,
+  apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
   apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
   apiAddHistory, apiGetHistory, apiClearHistory,

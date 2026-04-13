@@ -100,6 +100,7 @@ const server = http.createServer(async (req, res) => {
   // ── Video routes ────────────────────────────────────────────────────
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
   if (p === '/api/categories' && req.method === 'GET') return videos.apiCategories(req, res);
+  if (p === '/api/categories-overview' && req.method === 'GET') return videos.apiCategoriesOverview(req, res);
   if (p === '/api/main-categories' && req.method === 'GET') return videos.apiMainCategories(req, res);
   if (p === '/api/main-categories' && req.method === 'POST') return videos.apiCreateCategory(req, res);
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);

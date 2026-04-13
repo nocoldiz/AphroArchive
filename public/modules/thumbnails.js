@@ -16,7 +16,11 @@ function attachThumbs() {
   initThumbObs();
   document.querySelectorAll('.card-thumb[data-vid], .duplicate-thumb[data-vid]').forEach(el => {
     const id = el.dataset.vid, v = thumbMap[id];
-    if (v && v.length) { applyThumb(el, v[0]); return; }
+    if (v && v.length) {
+      // Already embedded in HTML by card() — skip redundant repaint
+      if (!el.classList.contains('has-thumb')) applyThumb(el, v[0]);
+      return;
+    }
     if (!(id in thumbMap)) thumbObs.observe(el);
   });
 }
@@ -35,9 +39,15 @@ async function runThumbQ() {
     const d = await (await fetch('/api/thumbs/' + id + '/generate', { method: 'POST' })).json();
     thumbMap[id] = d.count > 0 ? Array.from({ length: d.count }, (_, i) => '/api/thumbs/' + id + '/' + i) : [];
     if (thumbMap[id].length) {
-      thumbMap[id].forEach(u => { const i = new Image(); i.src = u; });
+      const firstUrl = thumbMap[id][0];
+      // Decode the first frame fully before painting to avoid a pop/flicker
+      const img = new Image();
+      img.src = firstUrl;
+      try { await img.decode(); } catch {}
+      // Preload remaining frames in background
+      thumbMap[id].slice(1).forEach(u => { const i = new Image(); i.src = u; });
       const el = document.querySelector('.card-thumb[data-vid="' + id + '"]');
-      if (el) applyThumb(el, thumbMap[id][0]);
+      if (el) applyThumb(el, firstUrl);
     }
   } catch { thumbMap[id] = []; }
   thumbRunning--;

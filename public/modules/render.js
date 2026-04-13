@@ -77,21 +77,28 @@ function setSrcFilter(val) {
 function card(v) {
   const cols = ['#e84040', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
   const color = cols[Math.abs(hsh(v.category)) % cols.length];
+  const cached = thumbMap[v.id];
+  const hasThumb = cached && cached.length;
+  const thumbClass = hasThumb ? 'card-thumb has-thumb' : 'card-thumb';
+  const thumbStyle = hasThumb
+    ? `background:url(${cached[0]}) center/cover no-repeat`
+    : `background:linear-gradient(135deg,${color}12 0%,${color}06 100%)`;
   return tpl('video-card', {
-    id:       v.id,
-    color,
-    dragAttr: ` draggable="true" ondragstart="dragVideoStart(event,'${v.id}')"`,
-    ext:      v.ext.replace('.', ''),
-    duration: v.durationF ? `<span class="duration-badge">${v.durationF}</span>` : '',
-    sizeF:    v.sizeF,
-    rating:   v.rating ? `<div class="rating-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>${v.rating}</div>` : '',
-    nameA:    escA(v.name),
-    name:     esc(v.name),
-    category: esc(v.category),
-    starBtn:  `<button class="${v.fav ? 'st' : ''}" onclick="event.preventDefault();event.stopPropagation();togStar('${v.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="${v.fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>`,
-    renBtn:   `<button onclick="event.preventDefault();event.stopPropagation();openRen('${v.id}','${escA(v.name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`,
-    moveBtn:  `<button onclick="event.preventDefault();event.stopPropagation();openMov('${v.id}','${escA(v.name)}','${escA(v.catPath || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>`,
-    tagBtn:   `<button onclick="event.preventDefault();event.stopPropagation();openVidTag('${v.id}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`,
+    id:         v.id,
+    thumbClass,
+    thumbStyle,
+    dragAttr:   ` draggable="true" ondragstart="dragVideoStart(event,'${v.id}')"`,
+    ext:        v.ext.replace('.', ''),
+    duration:   v.durationF ? `<span class="duration-badge">${v.durationF}</span>` : '',
+    sizeF:      v.sizeF,
+    rating:     v.rating ? `<div class="rating-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>${v.rating}</div>` : '',
+    nameA:      escA(v.name),
+    name:       esc(v.name),
+    category:   esc(v.category),
+    starBtn:    `<button class="${v.fav ? 'st' : ''}" onclick="event.preventDefault();event.stopPropagation();togStar('${v.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="${v.fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>`,
+    renBtn:     `<button onclick="event.preventDefault();event.stopPropagation();openRen('${v.id}','${escA(v.name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`,
+    moveBtn:    `<button onclick="event.preventDefault();event.stopPropagation();openMov('${v.id}','${escA(v.name)}','${escA(v.catPath || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>`,
+    tagBtn:     `<button onclick="event.preventDefault();event.stopPropagation();openVidTag('${v.id}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`,
   });
 }
 

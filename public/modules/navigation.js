@@ -81,7 +81,7 @@ function goHome() {
   $('settings-sidebar').remove('on');
   if ($('database-view').el) $('database-view').remove('on');
   if ($('database-sidebar').el) $('database-sidebar').remove('on');
-  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false;
+  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false; categoriesMode = false;
   curCollection = null;
   $('browse-view').remove('off');
   $('player-view').remove('on');
@@ -124,14 +124,15 @@ function closeAllViews() {
     'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
     'collections-view','collections-sidebar',
     'books-view','books-sidebar','audio-view','audio-sidebar','photos-view','photos-sidebar','search-sites-view','search-sites-sidebar',
-    'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','database-view','database-sidebar','recent-sidebar'
+    'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','database-view','database-sidebar','recent-sidebar',
+    'categories-view','categories-view-sidebar',
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
   document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
   vaultMode = false; scraperMode = false; dbMode = false;
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
-  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false;
+  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false; categoriesMode = false;
   settingsMode = false; recentMode = false; recentVids = [];
   $('clearRecentBtn').show(false);
   $('clearRecentSep').show(false);
@@ -330,6 +331,7 @@ async function routeToPath(path) {
   if (path === '/search') { showSearchSites(); return; }
   if (path === '/settings') { showSettings(); return; }
   if (path === '/database') { showDatabase(); return; }
+  if (path === '/categories') { showCategoriesView(); return; }
   if (path === '/actors') { showActors(); return; }
   if (path === '/studios') { showStudios(); return; }
   if ((m = path.match(/^\/video\/([^/]+)$/))) { openVid(decodeURIComponent(m[1])); return; }

@@ -25,6 +25,12 @@ async function createCategory() {
 }
 
 async function refresh() {
+  if (categoriesMode) {
+    $('categories-view').remove('on');
+    $('categories-view-sidebar').remove('on');
+    $('browse-view').remove('off');
+    categoriesMode = false;
+  }
   if (recentMode) {
     recentMode = false;
     recentVids = [];
