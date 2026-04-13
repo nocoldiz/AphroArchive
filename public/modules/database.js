@@ -17,8 +17,6 @@ async function loadDbTab(tab) {
   $('dbAddBtn').el.style.display = isDup ? 'none' : '';
   $('dbGrid').el.style.display = isDup ? 'none' : '';
   $('duplicates-content').el.style.display = isDup ? '' : 'none';
-  const imp = document.querySelector('.db-import-panel');
-  if (imp) imp.style.display = (isDup || isWebsites) ? 'none' : '';
   if (isDup) { loadDups(); return; }
   $('dbGrid').html(tpl('loading', { message: 'Loading\u2026' }));
   const r = await fetch('/api/db/' + tab);
@@ -146,22 +144,4 @@ async function dbDeleteEntry(name) {
   if (!r.ok) { toast('Delete failed'); return; }
   toast('Deleted');
   loadDbTab(dbTab);
-}
-
-async function dbImportVideos() {
-  const ta = $('dbImportPaths').el;
-  const paths = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
-  if (!paths.length) { toast('Enter at least one file path'); return; }
-  const status = $('dbImportStatus').el;
-  status.textContent = 'Copying\u2026';
-  const r = await fetch('/api/db/import', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ paths })
-  });
-  const d = await r.json();
-  const ok = d.results.filter(x => x.ok).length;
-  const fail = d.results.filter(x => !x.ok).length;
-  status.textContent = ok + ' copied' + (fail ? ', ' + fail + ' failed' : '');
-  if (ok) { ta.value = d.results.filter(x => !x.ok).map(x => x.path).join('\n'); toast(ok + ' video' + (ok !== 1 ? 's' : '') + ' copied'); refresh(); }
-  else toast('No files copied \u2014 check paths');
 }

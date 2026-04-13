@@ -574,8 +574,6 @@ input{font-family:inherit;color:inherit}
 .db-movies{font-size:0.74rem;color:var(--tx3);line-height:1.4}
 .db-tags{display:flex;flex-wrap:wrap;gap:4px}
 .db-tag{font-size:0.7rem;padding:2px 8px;border-radius:999px;background:var(--acg);color:var(--ac)}
-.db-import-panel{margin-top:36px;padding-top:24px;border-top:1px solid var(--brd)}
-
 
 /* ── Books ── */
 .books-view{display:none;padding:20px 24px 40px}

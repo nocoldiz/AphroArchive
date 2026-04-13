@@ -19,8 +19,27 @@ async function loadBookmarkVidsOnInit() {
     if (!_bfItems.length) _bfItems = d.items;
     rebuildBookmarkVidIds(d.items);
     renCats();
-    if (!importFavsMode && !vaultMode && !studioMode && !actorMode && !dbMode) {
-      if (curTag) openTag(curTag); else render();
+    // Patch bookmark cards in-place without rebuilding video cards.
+    // A full render/openTag call would destroy all existing card DOM nodes,
+    // forcing the browser to re-decode every thumbnail texture simultaneously —
+    // which is what causes the one-time synchronized flicker.
+    const inBrowse = !importFavsMode && !vaultMode && !studioMode && !actorMode
+                  && !dbMode && !categoriesMode && !collectionsMode
+                  && !booksMode && !audioMode && !photosMode
+                  && !settingsMode && !scraperMode && !recentMode;
+    if (inBrowse) {
+      const gridId = curTag ? 'tag-grid' : 'video-grid';
+      const g = document.getElementById(gridId);
+      if (g) {
+        g.querySelectorAll('.bookmark-card').forEach(el => el.remove());
+        const bms = getBmList();
+        if (bms.length) {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = bms.map(bmCard).join('');
+          while (tmp.firstChild) g.appendChild(tmp.firstChild);
+          attachBmThumbs();
+        }
+      }
     }
     if (!localStorage.getItem('bm_notice_shown')) {
       toast('Bookmark videos will not be picked for Zapping or Mosaic mode');

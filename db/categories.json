@@ -1,797 +1,1583 @@
 {
   "ASMR": {
     "displayName": "ASMR",
-    "tags": ["Tingles", "Ear Licking", "Whispering", "Ear Eating", "Mouth Sounds", "Roleplay ASMR", "Gentle Domination", "Breathing Sounds", "Trigger Words"]
+    "tags": [
+      "Tingles",
+      "Ear Licking",
+      "Whispering",
+      "Ear Eating",
+      "Mouth Sounds",
+      "Roleplay ASMR",
+      "Gentle Domination",
+      "Breathing Sounds",
+      "Trigger Words"
+    ]
   },
   "Aftercare": {
     "displayName": "Aftercare",
-    "tags": ["Cuddling After", "Recovery Care", "Post Sex Cuddle", "Gentle Kisses", "Reassurance", "Blanket Wrap", "Hydration Care"]
+    "tags": [
+      "Cuddling After",
+      "Recovery Care",
+      "Post Sex Cuddle",
+      "Gentle Kisses",
+      "Reassurance",
+      "Blanket Wrap",
+      "Hydration Care"
+    ]
   },
-  
   "Amateur": {
     "displayName": "Amateur",
-    "tags": ["Homemade", "User Submitted", "Real Couple", "POV Amateur", "Hidden Cam", "Self Recorded", "First Time", "Webcam Amateur"]
+    "tags": [
+      "Homemade",
+      "User Submitted",
+      "Real Couple",
+      "POV Amateur",
+      "Hidden Cam",
+      "Self Recorded",
+      "First Time",
+      "Webcam Amateur"
+    ]
   },
   "Anal": {
     "displayName": "Anal",
-    "tags": ["Anus Sex", "Butt Sex", "Ass Fucking", "Anal Penetration", "Backdoor", "Anal Creampie", "Prostate Play", "Anal Training", "Double Anal"]
+    "tags": [
+      "Anus Sex",
+      "Butt Sex",
+      "Ass Fucking",
+      "Anal Penetration",
+      "Backdoor",
+      "Anal Creampie",
+      "Prostate Play",
+      "Anal Training",
+      "Double Anal"
+    ]
   },
   "Armpit": {
     "displayName": "Armpit",
-    "tags": ["Armpit Fetish", "Axillism", "Armpit Licking", "Armpit Worship", "Sweaty Armpits", "Armpit Sniffing"]
+    "tags": [
+      "Armpit Fetish",
+      "Axillism",
+      "Armpit Licking",
+      "Armpit Worship",
+      "Sweaty Armpits",
+      "Armpit Sniffing"
+    ]
   },
   "Artistic": {
     "displayName": "Artistic",
-    "tags": ["Erotic Art", "Glamour", "Boudoir", "Nude Photography", "Sensual Posing", "Artistic Nude", "Erotic Lighting"]
+    "tags": [
+      "Erotic Art",
+      "Glamour",
+      "Boudoir",
+      "Nude Photography",
+      "Sensual Posing",
+      "Artistic Nude",
+      "Erotic Lighting"
+    ]
   },
   "Asian": {
     "displayName": "Asian",
-    "tags": ["Oriental", "Asian Girl", "JAV Style", "Asian Beauty", "Exotic Asian"]
+    "tags": [
+      "Oriental",
+      "Asian Girl",
+      "JAV Style",
+      "Asian Beauty",
+      "Exotic Asian"
+    ]
   },
   "Ass To Mouth": {
     "displayName": "Ass To Mouth",
-    "tags": ["ATM", "Ass To Mouth", "A2M", "Dirty ATM"]
+    "tags": [
+      "ATM",
+      "Ass To Mouth",
+      "A2M",
+      "Dirty ATM"
+    ]
   },
   "Ass Worship": {
     "displayName": "Ass Worship",
-    "tags": ["Ass Licking", "Booty Worship", "Anilingus", "Rimjob", "Ass Eating", "Facesitting Ass", "Ass Smothering"]
+    "tags": [
+      "Ass Licking",
+      "Booty Worship",
+      "Anilingus",
+      "Rimjob",
+      "Ass Eating",
+      "Facesitting Ass",
+      "Ass Smothering"
+    ]
   },
   "Australian": {
     "displayName": "Australian",
-    "tags": ["Aussie", "Australian Girl", "Down Under"]
+    "tags": [
+      "Aussie",
+      "Australian Girl",
+      "Down Under"
+    ]
   },
   "BBW": {
     "displayName": "BBW",
-    "tags": ["Big Beautiful Woman", "Plump Woman", "SSBBW", "Curvy BBW", "Fat Admiration"]
+    "tags": [
+      "Big Beautiful Woman",
+      "Plump Woman",
+      "SSBBW",
+      "Curvy BBW",
+      "Fat Admiration"
+    ]
   },
   "BDSM": {
     "displayName": "BDSM",
-    "tags": ["Bondage Discipline Sadism Masochism", "Kink", "Dominance Submission", "Sadomasochism", "Power Exchange", "Dungeon Play"]
+    "tags": [
+      "Bondage Discipline Sadism Masochism",
+      "Kink",
+      "Dominance Submission",
+      "Sadomasochism",
+      "Power Exchange",
+      "Dungeon Play"
+    ]
   },
   "Babysitter": {
     "displayName": "Babysitter",
-    "tags": ["Babysitter Fantasy", "Sitter Seduction", "Teen Babysitter"]
+    "tags": [
+      "Babysitter Fantasy",
+      "Sitter Seduction",
+      "Teen Babysitter"
+    ]
   },
   "Bald": {
     "displayName": "Bald",
-    "tags": ["Shaved Head", "Bald Fetish", "Bald Pussy", "Hairless", "Smooth Bald"]
+    "tags": [
+      "Shaved Head",
+      "Bald Fetish",
+      "Bald Pussy",
+      "Hairless",
+      "Smooth Bald"
+    ]
   },
   "Bareback": {
     "displayName": "Bareback",
-    "tags": ["Raw", "No Condom", "Unprotected", "Creampie Bareback", "Risky Sex"]
+    "tags": [
+      "Raw",
+      "No Condom",
+      "Unprotected",
+      "Creampie Bareback",
+      "Risky Sex"
+    ]
   },
   "Beach": {
     "displayName": "Beach",
-    "tags": ["Beach Sex", "Public Beach", "Sand Sex", "Outdoor Beach", "Bikini Beach"]
+    "tags": [
+      "Beach Sex",
+      "Public Beach",
+      "Sand Sex",
+      "Outdoor Beach",
+      "Bikini Beach"
+    ]
   },
   "Big Ass": {
     "displayName": "Big Ass",
-    "tags": ["Phat Ass", "Big Booty", "PAWG", "Bubble Butt", "Thick Ass", "Booty Clap", "Ass Jiggling"]
+    "tags": [
+      "Phat Ass",
+      "Big Booty",
+      "PAWG",
+      "Bubble Butt",
+      "Thick Ass",
+      "Booty Clap",
+      "Ass Jiggling"
+    ]
   },
   "Big Dick": {
     "displayName": "Big Dick",
-    "tags": ["Big Cock", "Massive Dick", "Huge Cock", "BBC", "Monster Cock", "Long Dick"]
+    "tags": [
+      "Big Cock",
+      "Massive Dick",
+      "Huge Cock",
+      "BBC",
+      "Monster Cock",
+      "Long Dick"
+    ]
   },
   "Big Tits": {
     "displayName": "Big Tits",
-    "tags": ["Big Boobs", "Huge Breasts", "Busty", "Massive Tits", "Natural Big Tits", "Fake Tits", "Tit Play"]
+    "tags": [
+      "Big Boobs",
+      "Huge Breasts",
+      "Busty",
+      "Massive Tits",
+      "Natural Big Tits",
+      "Fake Tits",
+      "Tit Play"
+    ]
   },
   "Bisexual": {
     "displayName": "Bisexual",
-    "tags": ["Bi", "Bisexual Threesome", "Bi Curious", "MMF Bi", "FFM Bi"]
+    "tags": [
+      "Bi",
+      "Bisexual Threesome",
+      "Bi Curious",
+      "MMF Bi",
+      "FFM Bi"
+    ]
   },
   "Blonde": {
     "displayName": "Blonde",
-    "tags": ["Blonde Hair", "Blonde Bombshell", "Platinum Blonde"]
+    "tags": [
+      "Blonde Hair",
+      "Blonde Bombshell",
+      "Platinum Blonde"
+    ]
   },
   "Bondage": {
     "displayName": "Bondage",
-    "tags": ["Rope Bondage", "Restraint", "Tied Up", "Shibari Style", "Cuffs", "Hogtie", "Bondage Sex"]
+    "tags": [
+      "Rope Bondage",
+      "Restraint",
+      "Tied Up",
+      "Shibari Style",
+      "Cuffs",
+      "Hogtie",
+      "Bondage Sex"
+    ]
   },
   "Boss": {
     "displayName": "Boss",
-    "tags": ["Boss Fantasy", "Office Dom", "Secretary Boss", "Power Boss"]
+    "tags": [
+      "Boss Fantasy",
+      "Office Dom",
+      "Secretary Boss",
+      "Power Boss"
+    ]
   },
   "Brat": {
     "displayName": "Brat",
-    "tags": ["Bratty Sub", "Spoiled Brat", "Brat Taming", "Sassy Sub"]
+    "tags": [
+      "Bratty Sub",
+      "Spoiled Brat",
+      "Brat Taming",
+      "Sassy Sub"
+    ]
   },
   "Brazilian": {
     "displayName": "Brazilian",
-    "tags": ["Brazilian Girl", "Brazilian Ass", "Latina Brazilian"]
+    "tags": [
+      "Brazilian Girl",
+      "Brazilian Ass",
+      "Latina Brazilian"
+    ]
   },
   "Breeding": {
     "displayName": "Breeding",
-    "tags": ["Impregnation", "Creampie Breeding", "Breeding Fantasy", "Risky Breeding", "Fertile Breeding"]
+    "tags": [
+      "Impregnation",
+      "Creampie Breeding",
+      "Breeding Fantasy",
+      "Risky Breeding",
+      "Fertile Breeding"
+    ]
   },
   "British": {
     "displayName": "British",
-    "tags": ["Brit", "Uk", "British Accent", "English Girl"]
+    "tags": [
+      "Brit",
+      "Uk",
+      "British Accent",
+      "English Girl"
+    ]
   },
   "Bukkake": {
     "displayName": "Bukkake",
-    "tags": ["Facial Gangbang", "Cum Bath", "Multiple Cumshots", "Bukkake Facial"]
+    "tags": [
+      "Facial Gangbang",
+      "Cum Bath",
+      "Multiple Cumshots",
+      "Bukkake Facial"
+    ]
   },
   "Bush": {
     "displayName": "Bush",
-    "tags": ["Hairy Pussy", "Full Bush", "Natural Bush", "Unshaven", "Hairy Bush"]
+    "tags": [
+      "Hairy Pussy",
+      "Full Bush",
+      "Natural Bush",
+      "Unshaven",
+      "Hairy Bush"
+    ]
   },
   "Car": {
     "displayName": "Car",
-    "tags": ["Car Sex", "Vehicle Sex", "Driving Sex", "Public Car", "Backseat Fuck"]
+    "tags": [
+      "Car Sex",
+      "Vehicle Sex",
+      "Driving Sex",
+      "Public Car",
+      "Backseat Fuck"
+    ]
   },
   "Casting": {
     "displayName": "Casting",
-    "tags": ["Casting Couch", "Audition", "Fake Audition", "Casting Call"]
+    "tags": [
+      "Casting Couch",
+      "Audition",
+      "Fake Audition",
+      "Casting Call"
+    ]
   },
   "Celebrity": {
     "displayName": "Celebrity",
-    "tags": ["Celeb", "Famous", "Celebrity Lookalike", "Fake Celebrity"]
+    "tags": [
+      "Celeb",
+      "Famous",
+      "Celebrity Lookalike",
+      "Fake Celebrity"
+    ]
   },
   "Chastity": {
     "displayName": "Chastity",
-    "tags": ["Chastity Cage", "Keyholding", "Locked Cock", "Chastity Play", "Denied Orgasm"]
+    "tags": [
+      "Chastity Cage",
+      "Keyholding",
+      "Locked Cock",
+      "Chastity Play",
+      "Denied Orgasm"
+    ]
   },
   "Cheerleader": {
     "displayName": "Cheerleader",
-    "tags": ["Cheerleader Fantasy", "Pom Pom Girl", "Uniform Cheerleader"]
+    "tags": [
+      "Cheerleader Fantasy",
+      "Pom Pom Girl",
+      "Uniform Cheerleader"
+    ]
   },
   "Chubby": {
     "displayName": "Chubby",
-    "tags": ["Curvy", "Plump", "Chubby Girl", "Soft Body"]
+    "tags": [
+      "Curvy",
+      "Plump",
+      "Chubby Girl",
+      "Soft Body"
+    ]
   },
   "Collar": {
     "displayName": "Collar",
-    "tags": ["Slave Collar", "Ownership", "Pet Collar", "Leash And Collar"]
+    "tags": [
+      "Slave Collar",
+      "Ownership",
+      "Pet Collar",
+      "Leash And Collar"
+    ]
   },
   "Cosplay": {
     "displayName": "Cosplay",
-    "tags": ["Costume Play", "Role Costume", "Anime Cosplay", "Comic Cosplay", "Character Fuck"]
+    "tags": [
+      "Costume Play",
+      "Role Costume",
+      "Anime Cosplay",
+      "Comic Cosplay",
+      "Character Fuck"
+    ]
   },
   "Couple": {
     "displayName": "Couple",
-    "tags": ["Couples Sex", "Partner Play", "Real Couple", "Amateur Couple"]
+    "tags": [
+      "Couples Sex",
+      "Partner Play",
+      "Real Couple",
+      "Amateur Couple"
+    ]
   },
   "Creampie": {
     "displayName": "Creampie",
-    "tags": ["Internal Cumshot", "Filled Pussy", "Cum Inside", "Pussy Creampie", "Dripping Creampie"]
+    "tags": [
+      "Internal Cumshot",
+      "Filled Pussy",
+      "Cum Inside",
+      "Pussy Creampie",
+      "Dripping Creampie"
+    ]
   },
   "Crossdresser": {
     "displayName": "Crossdresser",
-    "tags": ["Crossdressing", "Cd", "Sissy Crossdresser", "Dressed Up"]
+    "tags": [
+      "Crossdressing",
+      "Cd",
+      "Sissy Crossdresser",
+      "Dressed Up"
+    ]
   },
   "Cuckold": {
     "displayName": "Cuckold",
-    "tags": ["Cuck", "Cuckolding", "Hotwife Cuckold", "Watching Wife", "Bull Cuckold"]
+    "tags": [
+      "Cuck",
+      "Cuckolding",
+      "Hotwife Cuckold",
+      "Watching Wife",
+      "Bull Cuckold"
+    ]
   },
   "Cuddle": {
     "displayName": "Cuddle",
-    "tags": ["Cuddling", "Snuggling", "Intimate Cuddle", "Post Orgasm Cuddle"]
+    "tags": [
+      "Cuddling",
+      "Snuggling",
+      "Intimate Cuddle",
+      "Post Orgasm Cuddle"
+    ]
   },
   "Cum": {
-    "displayName":
-    
-    "Cum",
-    "tags": ["Cum", "Semen", "Orgasm", "Cum Play", "Cum Eating", "Cum Covered"]
+    "displayName": "Cum",
+    "tags": [
+      "Cum",
+      "Semen",
+      "Orgasm",
+      "Cum Play",
+      "Cum Eating",
+      "Cum Covered"
+    ]
   },
   "CumSwap": {
     "displayName": "Cum Swap",
-    "tags": ["Cum Swapping", "Snowballing", "Kiss With Cum", "Cum Kiss"]
+    "tags": [
+      "Cum Swapping",
+      "Snowballing",
+      "Kiss With Cum",
+      "Cum Kiss"
+    ]
   },
   "Cumshot": {
     "displayName": "Cumshot",
-    "tags": ["Cum Shot", "Ejaculation", "Facial Cumshot", "Body Cumshot", "Cum Explosion"]
+    "tags": [
+      "Cum Shot",
+      "Ejaculation",
+      "Facial Cumshot",
+      "Body Cumshot",
+      "Cum Explosion"
+    ]
   },
   "Curvy": {
     "displayName": "Curvy",
-    "tags": ["Thick Body", "Voluptuous", "Hourglass Figure", "Curvy Hips"]
+    "tags": [
+      "Thick Body",
+      "Voluptuous",
+      "Hourglass Figure",
+      "Curvy Hips"
+    ]
   },
   "Daddy": {
     "displayName": "Daddy",
-    "tags": ["Daddy Dom", "Father Figure", "Daddy Kink", "Calling Daddy"]
+    "tags": [
+      "Daddy Dom",
+      "Father Figure",
+      "Daddy Kink",
+      "Calling Daddy"
+    ]
   },
   "Deepthroat": {
     "displayName": "Deepthroat",
-    "tags": ["Deep Throat", "Facefuck", "Throat Fucking", "Gagging Deepthroat", "Throat Bulge"]
+    "tags": [
+      "Deep Throat",
+      "Facefuck",
+      "Throat Fucking",
+      "Gagging Deepthroat",
+      "Throat Bulge"
+    ]
   },
   "Denial": {
     "displayName": "Denial",
-    "tags": ["Orgasm Denial", "Edging Denial", "Ruined Orgasm", "Tease Denial"]
+    "tags": [
+      "Orgasm Denial",
+      "Edging Denial",
+      "Ruined Orgasm",
+      "Tease Denial"
+    ]
   },
   "Discipline": {
     "displayName": "Discipline",
-    "tags": ["Punishment Play", "Spanking Discipline", "Obedience Training"]
+    "tags": [
+      "Punishment Play",
+      "Spanking Discipline",
+      "Obedience Training"
+    ]
   },
   "Doctor": {
     "displayName": "Doctor",
-    "tags": ["Medical Doctor", "Exam Play", "Doctor Patient", "Medical Fetish"]
+    "tags": [
+      "Medical Doctor",
+      "Exam Play",
+      "Doctor Patient",
+      "Medical Fetish"
+    ]
   },
   "Dom": {
     "displayName": "Dom",
-    "tags": ["Dominant", "Top", "Male Dom", "Dom Daddy"]
+    "tags": [
+      "Dominant",
+      "Top",
+      "Male Dom",
+      "Dom Daddy"
+    ]
   },
   "Double Penetration": {
     "displayName": "Double Penetration",
-    "tags": ["DP", "Double Stuffed", "Two Holes", "Anal Vaginal DP"]
+    "tags": [
+      "DP",
+      "Double Stuffed",
+      "Two Holes",
+      "Anal Vaginal DP"
+    ]
   },
   "Ebony": {
     "displayName": "Ebony",
-    "tags": ["Black", "Dark Skin", "Ebony Girl", "BBC Ebony"]
+    "tags": [
+      "Black",
+      "Dark Skin",
+      "Ebony Girl",
+      "BBC Ebony"
+    ]
   },
   "Edging": {
     "displayName": "Edging",
-    "tags": ["Orgasm Control", "Tease And Denial", "Edging JOI", "Prolonged Edging"]
+    "tags": [
+      "Orgasm Control",
+      "Tease And Denial",
+      "Edging JOI",
+      "Prolonged Edging"
+    ]
   },
   "Elf": {
     "displayName": "Elf",
-    "tags": ["Elf Fantasy", "Fantasy Elf", "Pointy Ears"]
+    "tags": [
+      "Elf Fantasy",
+      "Fantasy Elf",
+      "Pointy Ears"
+    ]
   },
   "Exam": {
     "displayName": "Exam",
-    "tags": ["Medical Exam", "Gyno Exam", "Physical Exam"]
+    "tags": [
+      "Medical Exam",
+      "Gyno Exam",
+      "Physical Exam"
+    ]
   },
   "Facesitting": {
     "displayName": "Facesitting",
-    "tags": ["Smother", "Queening", "Ass Smother", "Pussy Smother"]
+    "tags": [
+      "Smother",
+      "Queening",
+      "Ass Smother",
+      "Pussy Smother"
+    ]
   },
   "Facial": {
     "displayName": "Facial",
-    "tags": ["Cum On Face", "Facial Cumshot", "Cum Facial"]
+    "tags": [
+      "Cum On Face",
+      "Facial Cumshot",
+      "Cum Facial"
+    ]
   },
   "Fantasy": {
     "displayName": "Fantasy",
-    "tags": ["Fantasy Roleplay", "Mythical Sex", "Magical Encounter"]
+    "tags": [
+      "Fantasy Roleplay",
+      "Mythical Sex",
+      "Magical Encounter"
+    ]
   },
   "Feet": {
     "displayName": "Feet",
-    "tags": ["Foot Fetish", "Podophilia", "Foot Worship", "Toes Sucking", "Foot Licking"]
+    "tags": [
+      "Foot Fetish",
+      "Podophilia",
+      "Foot Worship",
+      "Toes Sucking",
+      "Foot Licking"
+    ]
   },
   "Femboy": {
     "displayName": "Femboy",
-    "tags": ["Feminine Boy", "Trap", "Femboy Ass", "Cute Femboy"]
+    "tags": [
+      "Feminine Boy",
+      "Trap",
+      "Femboy Ass",
+      "Cute Femboy"
+    ]
   },
   "Femdom": {
     "displayName": "Femdom",
-    "tags": ["Female Domination", "Mistress", "Dominatrix", "Femdom JOI", "Pegging Femdom"]
+    "tags": [
+      "Female Domination",
+      "Mistress",
+      "Dominatrix",
+      "Femdom JOI",
+      "Pegging Femdom"
+    ]
   },
   "Fetish": {
     "displayName": "Fetish",
-    "tags": ["Kink", "Special Fetish", "Unusual Fetish"]
+    "tags": [
+      "Kink",
+      "Special Fetish",
+      "Unusual Fetish"
+    ]
   },
   "Filipina": {
     "displayName": "Filipina",
-    "tags": ["Pinay", "Filipina Girl"]
+    "tags": [
+      "Pinay",
+      "Filipina Girl"
+    ]
   },
   "Findom": {
     "displayName": "Findom",
-    "tags": ["Financial Domination", "Pay Pig", "Wallet Drain", "Money Domme"]
+    "tags": [
+      "Financial Domination",
+      "Pay Pig",
+      "Wallet Drain",
+      "Money Domme"
+    ]
   },
   "Fisting": {
     "displayName": "Fisting",
-    "tags": ["Handballing", "Deep Fisting", "Vaginal Fisting", "Anal Fisting"]
+    "tags": [
+      "Handballing",
+      "Deep Fisting",
+      "Vaginal Fisting",
+      "Anal Fisting"
+    ]
   },
   "FoodPlay": {
     "displayName": "FoodPlay",
-    "tags": ["Messy", "Wet And Messy", "Food Insertion", "Whipped Cream Play"]
+    "tags": [
+      "Messy",
+      "Wet And Messy",
+      "Food Insertion",
+      "Whipped Cream Play"
+    ]
   },
   "Footjob": {
     "displayName": "Footjob",
-    "tags": ["Foot Job", "Feet Fucking", "Toe Job"]
+    "tags": [
+      "Foot Job",
+      "Feet Fucking",
+      "Toe Job"
+    ]
   },
   "ForcedBi": {
     "displayName": "Forced Bi",
-    "tags": ["Forced Bisexual", "Bi Encouragement", "Make Him Suck"]
+    "tags": [
+      "Forced Bisexual",
+      "Bi Encouragement",
+      "Make Him Suck"
+    ]
   },
   "Foursome": {
     "displayName": "Foursome",
-    "tags": ["Group Of Four", "FFMM", "MMFF"]
+    "tags": [
+      "Group Of Four",
+      "FFMM",
+      "MMFF"
+    ]
   },
   "French": {
     "displayName": "French",
-    "tags": ["French Girl", "French Kiss", "Parisian"]
+    "tags": [
+      "French Girl",
+      "French Kiss",
+      "Parisian"
+    ]
   },
   "Furry": {
     "displayName": "Furry",
-    "tags": ["Yiff", "Anthro", "Fursuit Sex", "Animal Ears"]
+    "tags": [
+      "Yiff",
+      "Anthro",
+      "Fursuit Sex",
+      "Animal Ears"
+    ]
   },
   "Futanari": {
     "displayName": "Futanari",
-    "tags": ["Futa", "Dickgirl", "Futanari Cock", "Hermaphrodite"]
+    "tags": [
+      "Futa",
+      "Dickgirl",
+      "Futanari Cock",
+      "Hermaphrodite"
+    ]
   },
   "Gag": {
     "displayName": "Gag",
-    "tags": ["Ball Gag", "Mouth Gag", "Gagged And Bound"]
+    "tags": [
+      "Ball Gag",
+      "Mouth Gag",
+      "Gagged And Bound"
+    ]
   },
   "Gay": {
     "displayName": "Gay",
-    "tags": ["Male Male", "Gay Sex", "Twink Gay", "Bear Gay"]
+    "tags": [
+      "Male Male",
+      "Gay Sex",
+      "Twink Gay",
+      "Bear Gay"
+    ]
   },
   "German": {
     "displayName": "German",
-    "tags": ["German Girl", "German Accent"]
+    "tags": [
+      "German Girl",
+      "German Accent"
+    ]
   },
   "Giantess": {
     "displayName": "Giantess",
-    "tags": ["Giant Woman", "Macrophilia", "Giantess Vore", "Size Difference"]
+    "tags": [
+      "Giant Woman",
+      "Macrophilia",
+      "Giantess Vore",
+      "Size Difference"
+    ]
   },
   "Gloryhole": {
     "displayName": "Gloryhole",
-    "tags": ["Glory Hole", "Anonymous Sex", "Wall Fuck"]
+    "tags": [
+      "Glory Hole",
+      "Anonymous Sex",
+      "Wall Fuck"
+    ]
   },
   "Gooning": {
     "displayName": "Gooning",
-    "tags": ["Goon", "Gooner", "Edge Gooning", "Porn Addiction"]
+    "tags": [
+      "Goon",
+      "Gooner",
+      "Edge Gooning",
+      "Porn Addiction"
+    ]
   },
   "Grinding": {
     "displayName": "Grinding",
-    "tags": ["Dry Humping", "Lap Grinding", "Clothed Grinding"]
+    "tags": [
+      "Dry Humping",
+      "Lap Grinding",
+      "Clothed Grinding"
+    ]
   },
   "Handjob": {
     "displayName": "Handjob",
-    "tags": ["Hand Job", "HJ", "Oiled Handjob", "Edging Handjob"]
+    "tags": [
+      "Hand Job",
+      "HJ",
+      "Oiled Handjob",
+      "Edging Handjob"
+    ]
   },
   "Hentai": {
     "displayName": "Hentai",
-    "tags": ["Anime Porn", "Manga Sex", "Tentacle Hentai", "3D Hentai", "Ahegao"]
+    "tags": [
+      "Anime Porn",
+      "Manga Sex",
+      "Tentacle Hentai",
+      "3D Hentai",
+      "Ahegao"
+    ]
   },
   "Hotwife": {
     "displayName": "Hotwife",
-    "tags": ["Hot Wife", "Shared Wife", "Wife Sharing"]
+    "tags": [
+      "Hot Wife",
+      "Shared Wife",
+      "Wife Sharing"
+    ]
   },
   "Humiliation": {
     "displayName": "Humiliation",
-    "tags": ["Degradation", "Verbal Abuse", "Small Penis Humiliation", "SPH", "Public Humiliation"]
+    "tags": [
+      "Degradation",
+      "Verbal Abuse",
+      "Small Penis Humiliation",
+      "SPH",
+      "Public Humiliation"
+    ]
   },
   "Impact": {
     "displayName": "Impact",
-    "tags": ["Impact Play", "Whipping", "Caning", "Flogging"]
+    "tags": [
+      "Impact Play",
+      "Whipping",
+      "Caning",
+      "Flogging"
+    ]
   },
   "Indian": {
     "displayName": "Indian",
-    "tags": ["Desi", "Indian Girl", "Bollywood Style"]
+    "tags": [
+      "Desi",
+      "Indian Girl",
+      "Bollywood Style"
+    ]
   },
   "Insertion": {
     "displayName": "Insertion",
-    "tags": ["Object Insertion", "Unusual Insertion", "Bottle Insertion"]
+    "tags": [
+      "Object Insertion",
+      "Unusual Insertion",
+      "Bottle Insertion"
+    ]
   },
   "Interracial": {
     "displayName": "Interracial",
-    "tags": ["Mixed Race", "BBC Interracial", "IR Sex"]
+    "tags": [
+      "Mixed Race",
+      "BBC Interracial",
+      "IR Sex"
+    ]
   },
   "Italian": {
     "displayName": "Italian",
-    "tags": ["Italian Girl", "Mediterranean"]
+    "tags": [
+      "Italian Girl",
+      "Mediterranean"
+    ]
   },
   "Japanese": {
     "displayName": "Japanese",
-    "tags": ["JAV", "Japanese AV", "Bukkake Japanese"]
+    "tags": [
+      "JAV",
+      "Japanese AV",
+      "Bukkake Japanese"
+    ]
   },
   "JOI": {
     "displayName": "JOI",
-    "tags": ["Jerk Off Instruction", "Masturbation Instruction", "Guided JOI", "CEI JOI"]
+    "tags": [
+      "Jerk Off Instruction",
+      "Masturbation Instruction",
+      "Guided JOI",
+      "CEI JOI"
+    ]
   },
   "Korean": {
     "displayName": "Korean",
-    "tags": ["Korean Girl", "K-Pop Style"]
+    "tags": [
+      "Korean Girl",
+      "K-Pop Style"
+    ]
   },
   "Lactation": {
     "displayName": "Lactation",
-    "tags": ["Breast Milk", "Milking", "Lactating Tits", "Milk Squirt"]
+    "tags": [
+      "Breast Milk",
+      "Milking",
+      "Lactating Tits",
+      "Milk Squirt"
+    ]
   },
   "Ladyboy": {
     "displayName": "Ladyboy",
-    "tags": ["Ladyboy"]
+    "tags": [
+      "Ladyboy"
+    ]
   },
   "Lapdance": {
     "displayName": "Lapdance",
-    "tags": ["Lap Dance", "Stripper Lapdance", "Grinding Dance"]
+    "tags": [
+      "Lap Dance",
+      "Stripper Lapdance",
+      "Grinding Dance"
+    ]
   },
   "Latex": {
     "displayName": "Latex",
-    "tags": ["Rubber", "Latex Fetish", "Catsuit", "Shiny Latex"]
+    "tags": [
+      "Rubber",
+      "Latex Fetish",
+      "Catsuit",
+      "Shiny Latex"
+    ]
   },
   "Latina": {
     "displayName": "Latina",
-    "tags": ["Hispanic", "Latina Ass", "Spicy Latina"]
+    "tags": [
+      "Hispanic",
+      "Latina Ass",
+      "Spicy Latina"
+    ]
   },
   "Leather": {
     "displayName": "Leather",
-    "tags": ["Leather Fetish", "Leather Outfit", "Dominatrix Leather"]
+    "tags": [
+      "Leather Fetish",
+      "Leather Outfit",
+      "Dominatrix Leather"
+    ]
   },
   "Lesbian": {
     "displayName": "Lesbian",
-    "tags": ["Girl On Girl", "Lesbian Sex", "Scissoring", "Tribbing", "Lesbian Kiss"]
+    "tags": [
+      "Girl On Girl",
+      "Lesbian Sex",
+      "Scissoring",
+      "Tribbing",
+      "Lesbian Kiss"
+    ]
   },
   "Lingerie": {
     "displayName": "Lingerie",
-    "tags": ["Sexy Underwear", "Lace Lingerie", "Stockings Lingerie"]
+    "tags": [
+      "Sexy Underwear",
+      "Lace Lingerie",
+      "Stockings Lingerie"
+    ]
   },
   "Massage": {
     "displayName": "Massage",
-    "tags": ["Erotic Massage", "Happy Ending Massage", "Oil Massage", "Nuru Massage"]
+    "tags": [
+      "Erotic Massage",
+      "Happy Ending Massage",
+      "Oil Massage",
+      "Nuru Massage"
+    ]
   },
   "Mature": {
     "displayName": "Mature",
-    "tags": ["Cougar", "Older Woman", "Experienced Mature"]
+    "tags": [
+      "Cougar",
+      "Older Woman",
+      "Experienced Mature"
+    ]
   },
   "Medical": {
     "displayName": "Medical",
-    "tags": ["Medical Play", "Doctor Fetish", "Clinic Play", "Speculum"]
+    "tags": [
+      "Medical Play",
+      "Doctor Fetish",
+      "Clinic Play",
+      "Speculum"
+    ]
   },
   "Mexican": {
     "displayName": "Mexican",
-    "tags": ["Mexican Girl", "Latina Mexican"]
+    "tags": [
+      "Mexican Girl",
+      "Latina Mexican"
+    ]
   },
   "Middle Eastern": {
     "displayName": "Middle Eastern",
-    "tags": ["Arab", "Persian", "Harem Style"]
+    "tags": [
+      "Arab",
+      "Persian",
+      "Harem Style"
+    ]
   },
   "MILF": {
     "displayName": "MILF",
-    "tags": ["Mature Mom", "Hot Mom", "Step Mom MILF"]
+    "tags": [
+      "Mature Mom",
+      "Hot Mom",
+      "Step Mom MILF"
+    ]
   },
   "Monster": {
     "displayName": "Monster",
-    "tags": ["Monster Sex", "Creature Fuck", "Tentacle Monster"]
+    "tags": [
+      "Monster Sex",
+      "Creature Fuck",
+      "Tentacle Monster"
+    ]
   },
   "Muscle": {
     "displayName": "Muscle",
-    "tags": ["Muscular", "Bodybuilder", "Muscle Worship", "Fit Girl"]
+    "tags": [
+      "Muscular",
+      "Bodybuilder",
+      "Muscle Worship",
+      "Fit Girl"
+    ]
   },
   "Neighbor": {
     "displayName": "Neighbor",
-    "tags": ["Next Door", "Neighbor Fantasy", "Horny Neighbor"]
+    "tags": [
+      "Next Door",
+      "Neighbor Fantasy",
+      "Horny Neighbor"
+    ]
   },
   "Nurse": {
     "displayName": "Nurse",
-    "tags": ["Nurse Fetish", "Naughty Nurse", "Medical Nurse"]
+    "tags": [
+      "Nurse Fetish",
+      "Naughty Nurse",
+      "Medical Nurse"
+    ]
   },
   "Office": {
     "displayName": "Office",
-    "tags": ["Office Sex", "Boss Secretary", "Workplace Fuck"]
+    "tags": [
+      "Office Sex",
+      "Boss Secretary",
+      "Workplace Fuck"
+    ]
   },
   "Oil": {
     "displayName": "Oil",
-    "tags": ["Oiled Body", "Body Oil", "Shiny Oil", "Massage Oil"]
+    "tags": [
+      "Oiled Body",
+      "Body Oil",
+      "Shiny Oil",
+      "Massage Oil"
+    ]
   },
   "Oral": {
     "displayName": "Oral",
-    "tags": ["Blowjob", "Cunnilingus", "69", "Pussy Eating", "Deepthroat Oral"]
+    "tags": [
+      "Blowjob",
+      "Cunnilingus",
+      "69",
+      "Pussy Eating",
+      "Deepthroat Oral"
+    ]
   },
   "Orgy": {
     "displayName": "Orgy",
-    "tags": ["Group Sex", "Gangbang", "Multiple Partners", "Swinger Orgy"]
+    "tags": [
+      "Group Sex",
+      "Gangbang",
+      "Multiple Partners",
+      "Swinger Orgy"
+    ]
   },
   "Pain": {
     "displayName": "Pain",
-    "tags": ["Pain Play", "Masochism", "Nipple Torture", "Wax Pain"]
+    "tags": [
+      "Pain Play",
+      "Masochism",
+      "Nipple Torture",
+      "Wax Pain"
+    ]
   },
   "Pegging": {
     "displayName": "Pegging",
-    "tags": ["Strapon", "Strap On Fuck", "Pegging Anal"]
+    "tags": [
+      "Strapon",
+      "Strap On Fuck",
+      "Pegging Anal"
+    ]
   },
   "Petplay": {
     "displayName": "Petplay",
-    "tags": ["Animal Roleplay", "Puppy Play", "Kitten Play", "Tail Plug"]
+    "tags": [
+      "Animal Roleplay",
+      "Puppy Play",
+      "Kitten Play",
+      "Tail Plug"
+    ]
   },
   "Piercing": {
     "displayName": "Piercing",
-    "tags": ["Body Piercing", "Genital Piercing", "Nipple Piercing"]
+    "tags": [
+      "Body Piercing",
+      "Genital Piercing",
+      "Nipple Piercing"
+    ]
   },
   "Polish": {
     "displayName": "Polish",
-    "tags": ["Polish Girl", "Eastern European"]
+    "tags": [
+      "Polish Girl",
+      "Eastern European"
+    ]
   },
   "Pornstar": {
     "displayName": "Pornstar",
-    "tags": ["Adult Star", "Famous Pornstar", "Professional"]
+    "tags": [
+      "Adult Star",
+      "Famous Pornstar",
+      "Professional"
+    ]
   },
   "Pregnant": {
     "displayName": "Pregnant",
-    "tags": ["Preggo", "Pregnant Belly", "Pregnant Sex"]
+    "tags": [
+      "Preggo",
+      "Pregnant Belly",
+      "Pregnant Sex"
+    ]
   },
   "Public": {
     "displayName": "Public",
-    "tags": ["Public Sex", "Exhibitionism", "Risky Public", "Outdoor Public"]
+    "tags": [
+      "Public Sex",
+      "Exhibitionism",
+      "Risky Public",
+      "Outdoor Public"
+    ]
   },
   "Pussy Worship": {
     "displayName": "Pussy Worship",
-    "tags": ["Cunt Worship", "Pussy Licking", "Oral Worship"]
+    "tags": [
+      "Cunt Worship",
+      "Pussy Licking",
+      "Oral Worship"
+    ]
   },
   "Redhead": {
     "displayName": "Redhead",
-    "tags": ["Ginger", "Fiery Redhead"]
+    "tags": [
+      "Ginger",
+      "Fiery Redhead"
+    ]
   },
   "Rimming": {
     "displayName": "Rimming",
-    "tags": ["Ass Licking", "Rimjob", "Anilingus", "Tongue In Ass"]
+    "tags": [
+      "Ass Licking",
+      "Rimjob",
+      "Anilingus",
+      "Tongue In Ass"
+    ]
   },
   "Roleplay": {
     "displayName": "Roleplay",
-    "tags": ["Fantasy Role", "Scenario Play", "Character Roleplay"]
+    "tags": [
+      "Fantasy Role",
+      "Scenario Play",
+      "Character Roleplay"
+    ]
   },
   "Romantic": {
     "displayName": "Romantic",
-    "tags": ["Sensual", "Passionate", "Lovemaking", "Slow Sex"]
+    "tags": [
+      "Sensual",
+      "Passionate",
+      "Lovemaking",
+      "Slow Sex"
+    ]
   },
   "Rough": {
     "displayName": "Rough",
-    "tags": ["Rough Sex", "Hardcore", "Slapping", "Choking", "Hair Pulling"]
+    "tags": [
+      "Rough Sex",
+      "Hardcore",
+      "Slapping",
+      "Choking",
+      "Hair Pulling"
+    ]
   },
   "Russian": {
     "displayName": "Russian",
-    "tags": ["Russian Girl", "Russian Accent"]
+    "tags": [
+      "Russian Girl",
+      "Russian Accent"
+    ]
   },
   "Schoolgirl": {
     "displayName": "Schoolgirl",
-    "tags": ["Uniform", "School Girl", "Plaid Skirt", "Student Fantasy"]
+    "tags": [
+      "Uniform",
+      "School Girl",
+      "Plaid Skirt",
+      "Student Fantasy"
+    ]
   },
   "Scissoring": {
     "displayName": "Scissoring",
-    "tags": ["Tribbing", "Pussy Rubbing", "Lesbian Scissoring"]
+    "tags": [
+      "Tribbing",
+      "Pussy Rubbing",
+      "Lesbian Scissoring"
+    ]
   },
   "Shaved": {
     "displayName": "Shaved",
-    "tags": ["Smooth Shaven", "Bald Pussy", "Shaved Smooth"]
+    "tags": [
+      "Smooth Shaven",
+      "Bald Pussy",
+      "Shaved Smooth"
+    ]
   },
   "Shibari": {
     "displayName": "Shibari",
-    "tags": ["Japanese Rope Bondage", "Kinbaku", "Rope Art"]
+    "tags": [
+      "Japanese Rope Bondage",
+      "Kinbaku",
+      "Rope Art"
+    ]
   },
   "Sissy": {
     "displayName": "Sissy",
-    "tags": ["Sissification", "Sissy Training", "Sissy Maid", "Feminization"]
+    "tags": [
+      "Sissification",
+      "Sissy Training",
+      "Sissy Maid",
+      "Feminization"
+    ]
   },
   "Slave": {
     "displayName": "Slave",
-    "tags": ["Slave Training", "Owned Slave", "Submissive Slave"]
+    "tags": [
+      "Slave Training",
+      "Owned Slave",
+      "Submissive Slave"
+    ]
   },
   "Solo": {
     "displayName": "Solo",
-    "tags": ["Masturbation", "Solo Female", "Solo Male", "Toy Play"]
+    "tags": [
+      "Masturbation",
+      "Solo Female",
+      "Solo Male",
+      "Toy Play"
+    ]
   },
   "Spanking": {
     "displayName": "Spanking",
-    "tags": ["Ass Spanking", "OTK Spanking", "Bare Bottom Spanking"]
+    "tags": [
+      "Ass Spanking",
+      "OTK Spanking",
+      "Bare Bottom Spanking"
+    ]
   },
   "Spit": {
     "displayName": "Spit",
-    "tags": ["Spitting", "Spit Play", "Drooling", "Spit Roast"]
+    "tags": [
+      "Spitting",
+      "Spit Play",
+      "Drooling",
+      "Spit Roast"
+    ]
   },
   "Squirting": {
     "displayName": "Squirting",
-    "tags": ["Female Ejaculation", "Squirt Orgasm", "Gushing"]
+    "tags": [
+      "Female Ejaculation",
+      "Squirt Orgasm",
+      "Gushing"
+    ]
   },
   "StepMom": {
     "displayName": "StepMom",
-    "tags": ["Stepmom", "Step Mother", "Taboo Stepmom"]
+    "tags": [
+      "Stepmom",
+      "Step Mother",
+      "Taboo Stepmom"
+    ]
   },
   "StepSister": {
     "displayName": "StepSister",
-    "tags": ["Stepsister", "Step Sis", "Taboo Stepsister"]
+    "tags": [
+      "Stepsister",
+      "Step Sis",
+      "Taboo Stepsister"
+    ]
   },
   "Stockings": {
     "displayName": "Stockings",
-    "tags": ["Nylons", "Pantyhose", "Stocking Fetish", "Ripped Stockings"]
+    "tags": [
+      "Nylons",
+      "Pantyhose",
+      "Stocking Fetish",
+      "Ripped Stockings"
+    ]
   },
   "Striptease": {
     "displayName": "Striptease",
-    "tags": ["Stripping", "Pole Dance", "Seductive Strip"]
+    "tags": [
+      "Stripping",
+      "Pole Dance",
+      "Seductive Strip"
+    ]
   },
   "Sub": {
     "displayName": "Sub",
-    "tags": ["Submissive", "Bottom", "Obedient Sub"]
+    "tags": [
+      "Submissive",
+      "Bottom",
+      "Obedient Sub"
+    ]
   },
   "Succubus": {
     "displayName": "Succubus",
-    "tags": ["Demon", "Sex Demon", "Seductive Demon"]
+    "tags": [
+      "Demon",
+      "Sex Demon",
+      "Seductive Demon"
+    ]
   },
   "Suspension": {
     "displayName": "Suspension",
-    "tags": ["Rope Suspension", "Hanging Bondage"]
+    "tags": [
+      "Rope Suspension",
+      "Hanging Bondage"
+    ]
   },
   "Switch": {
     "displayName": "Switch",
-    "tags": ["Versatile", "Switch Dom Sub"]
+    "tags": [
+      "Versatile",
+      "Switch Dom Sub"
+    ]
   },
   "Tattoo": {
     "displayName": "Tattoo",
-    "tags": ["Tattooed", "Ink Girl", "Alt", "Tattoo Fetish"]
+    "tags": [
+      "Tattooed",
+      "Ink Girl",
+      "Alt",
+      "Tattoo Fetish"
+    ]
   },
   "Teacher": {
     "displayName": "Teacher",
-    "tags": ["Teacher Student", "Naughty Teacher", "School Teacher"]
+    "tags": [
+      "Teacher Student",
+      "Naughty Teacher",
+      "School Teacher"
+    ]
   },
   "Tease": {
     "displayName": "Tease",
-    "tags": ["Teasing", "Denial Tease", "Strip Tease"]
+    "tags": [
+      "Teasing",
+      "Denial Tease",
+      "Strip Tease"
+    ]
   },
   "Teen": {
     "displayName": "Teen",
-    "tags": ["Teen"]
+    "tags": [
+      "Teen"
+    ]
   },
   "Tentacle": {
     "displayName": "Tentacle",
-    "tags": ["Tentacle Porn", "Monster Tentacle", "Alien Tentacle"]
+    "tags": [
+      "Tentacle Porn",
+      "Monster Tentacle",
+      "Alien Tentacle"
+    ]
   },
   "Thick": {
     "displayName": "Thick",
-    "tags": ["Thick Thighs", "Thick Girl", "Thicc"]
+    "tags": [
+      "Thick Thighs",
+      "Thick Girl",
+      "Thicc"
+    ]
   },
   "Threesome": {
     "displayName": "Threesome",
-    "tags": ["Three Way", "MMF", "FFM", "Bisexual Threesome"]
+    "tags": [
+      "Three Way",
+      "MMF",
+      "FFM",
+      "Bisexual Threesome"
+    ]
   },
   "Tickling": {
     "displayName": "Tickling",
-    "tags": ["Tickling Fetish", "Tickle Torture", "Feather Play"]
+    "tags": [
+      "Tickling Fetish",
+      "Tickle Torture",
+      "Feather Play"
+    ]
   },
   "Titfuck": {
     "displayName": "Titfuck",
-    "tags": ["Tit Job", "Paizuri", "Boob Fuck"]
+    "tags": [
+      "Tit Job",
+      "Paizuri",
+      "Boob Fuck"
+    ]
   },
   "Transgender": {
     "displayName": "Trans",
-    "tags": ["Shemale", "Transgender", "Trans Girl", "Trans boy", "MFT", "FTM"]
+    "tags": [
+      "Shemale",
+      "Transgender",
+      "Trans Girl",
+      "Trans boy",
+      "MFT",
+      "FTM"
+    ]
   },
   "Turkish": {
     "displayName": "Turkish",
-    "tags": ["Turkish Girl", "Middle Eastern Turkish"]
+    "tags": [
+      "Turkish Girl",
+      "Middle Eastern Turkish"
+    ]
   },
   "Twink": {
     "displayName": "Twink",
-    "tags": ["Young Slim Gay", "Twink Boy"]
+    "tags": [
+      "Young Slim Gay",
+      "Twink Boy"
+    ]
   },
   "Upskirt": {
     "displayName": "Upskirt",
-    "tags": ["Up Skirt", "Panties Peek", "Accidental Upskirt"]
+    "tags": [
+      "Up Skirt",
+      "Panties Peek",
+      "Accidental Upskirt"
+    ]
   },
   "Vampire": {
     "displayName": "Vampire",
-    "tags": ["Vampire Fetish", "Biting", "Blood Play"]
+    "tags": [
+      "Vampire Fetish",
+      "Biting",
+      "Blood Play"
+    ]
   },
   "Voyeur": {
     "displayName": "Voyeur",
-    "tags": ["Voyeurism", "Watching", "Hidden Cam Voyeur"]
+    "tags": [
+      "Voyeurism",
+      "Watching",
+      "Hidden Cam Voyeur"
+    ]
   },
   "Waxplay": {
     "displayName": "Waxplay",
-    "tags": ["Candle Wax", "Hot Wax", "Wax Dripping"]
+    "tags": [
+      "Candle Wax",
+      "Hot Wax",
+      "Wax Dripping"
+    ]
   },
   "Bear": {
     "displayName": "Bear",
-    "tags": ["Gay Bear", "Hairy Bear", "Beefy Bear", "Daddy Bear", "Bear Sex", "Hairy Gay", "Cub", "Bear Cub", "Chubby Bear"]
+    "tags": [
+      "Gay Bear",
+      "Hairy Bear",
+      "Beefy Bear",
+      "Daddy Bear",
+      "Bear Sex",
+      "Hairy Gay",
+      "Cub",
+      "Bear Cub",
+      "Chubby Bear"
+    ]
   },
   "Leather Gay": {
     "displayName": "Leather Gay",
-    "tags": ["Gay Leather", "Leather Daddy", "Leather Boy", "Leather Fetish Gay", "Leather Bar", "Harnesses", "Leather Chaps"]
+    "tags": [
+      "Gay Leather",
+      "Leather Daddy",
+      "Leather Boy",
+      "Leather Fetish Gay",
+      "Leather Bar",
+      "Harnesses",
+      "Leather Chaps"
+    ]
   },
   "Jock": {
     "displayName": "Jock",
-    "tags": ["Gay Jock", "Athletic Jock", "Jockstrap", "Sports Jock", "Jock Ass", "Locker Room Jock", "Muscle Jock"]
+    "tags": [
+      "Gay Jock",
+      "Athletic Jock",
+      "Jockstrap",
+      "Sports Jock",
+      "Jock Ass",
+      "Locker Room Jock",
+      "Muscle Jock"
+    ]
   },
   "Otter": {
     "displayName": "Otter",
-    "tags": ["Gay Otter", "Slim Hairy", "Otter Boy", "Hairy Twink"]
+    "tags": [
+      "Gay Otter",
+      "Slim Hairy",
+      "Otter Boy",
+      "Hairy Twink"
+    ]
   },
   "Daddies": {
     "displayName": "Daddies",
-    "tags": ["Gay Daddy", "Older Daddy", "Silver Daddy", "Daddy Son", "Mature Gay Daddy"]
+    "tags": [
+      "Gay Daddy",
+      "Older Daddy",
+      "Silver Daddy",
+      "Daddy Son",
+      "Mature Gay Daddy"
+    ]
   },
   "Raw Gay": {
     "displayName": "Raw Gay",
-    "tags": ["Gay Bareback", "Raw Gay Sex", "Unprotected Gay", "Gay Creampie", "Breeding Gay"]
+    "tags": [
+      "Gay Bareback",
+      "Raw Gay Sex",
+      "Unprotected Gay",
+      "Gay Creampie",
+      "Breeding Gay"
+    ]
   },
   "Gay Group": {
     "displayName": "Gay Group",
-    "tags": ["Gay Orgy", "Gay Gangbang", "Multiple Gay", "Gay Group Sex", "Gay Party"]
-  },
-  
-}
-
-
-/*
-FOR Cloude: replace existing keys with those
-
-{
-  "Asian": {
-    "displayName": "Asian",
-    "tags": ["Asian Girl", "Asian Guy", "Oriental", "Asian Beauty", "East Asian", "Southeast Asian"]
-  },
-  "Australian": {
-    "displayName": "Australian",
-    "tags": ["Aussie", "Australian Girl", "Australian Guy", "Aussie Girl", "Aussie Boy"]
-  },
-  "Brazilian": {
-    "displayName": "Brazilian",
-    "tags": ["Brasileira", "Brasileiro", "Brazilian Girl", "Brazilian Guy", "Brazilian Ass"]
-  },
-  "British": {
-    "displayName": "British",
-    "tags": ["Brit", "British Girl", "British Guy", "English Girl", "English Boy", "UK"]
+    "tags": [
+      "Gay Orgy",
+      "Gay Gangbang",
+      "Multiple Gay",
+      "Gay Group Sex",
+      "Gay Party"
+    ]
   },
   "Chinese": {
     "displayName": "Chinese",
-    "tags": ["中国人", "Chinese Girl", "Chinese Guy", "Mandarin", "China"]
+    "tags": [
+      "中国人",
+      "Chinese Girl",
+      "Chinese Guy",
+      "Mandarin",
+      "China"
+    ]
   },
   "Colombian": {
     "displayName": "Colombian",
-    "tags": ["Colombiana", "Colombiano", "Colombian Girl", "Colombian Guy"]
+    "tags": [
+      "Colombiana",
+      "Colombiano",
+      "Colombian Girl",
+      "Colombian Guy"
+    ]
   },
   "Cuban": {
     "displayName": "Cuban",
-    "tags": ["Cubana", "Cubano", "Cuban Girl", "Cuban Guy"]
-  },
-  "Ebony": {
-    "displayName": "Ebony",
-    "tags": ["Ebony Girl", "Ebony Guy", "Black", "Dark Skin", "African American"]
-  },
-  "Filipina": {
-    "displayName": "Filipina",
-    "tags": ["Pinay", "Pinoy", "Filipina Girl", "Filipino Guy"]
-  },
-  "French": {
-    "displayName": "French",
-    "tags": ["Française", "Français", "French Girl", "French Guy", "French Kiss", "Parisian"]
-  },
-  "German": {
-    "displayName": "German",
-    "tags": ["Deutsche", "Deutscher", "German Girl", "German Guy", "German Accent"]
-  },
-  "Indian": {
-    "displayName": "Indian",
-    "tags": ["Desi Girl", "Desi Boy", "Indian Girl", "Indian Guy", "Bollywood", "Desi"]
-  },
-  "Italian": {
-    "displayName": "Italian",
-    "tags": ["Italiana", "Italiano", "Italian Girl", "Italian Guy", "Mediterranean"]
-  },
-  "Japanese": {
-    "displayName": "Japanese",
-    "tags": ["日本人", "Japanese Girl", "Japanese Guy", "JAV", "Japanese AV"]
-  },
-  "Korean": {
-    "displayName": "Korean",
-    "tags": ["한국인", "Korean Girl", "Korean Guy", "K-Pop Style"]
-  },
-  "Latina": {
-    "displayName": "Latina",
-    "tags": ["Latina", "Latino", "Latin Girl", "Latin Boy", "Spicy Latina", "Latin Ass"]
-  },
-  "Mexican": {
-    "displayName": "Mexican",
-    "tags": ["Mexicana", "Mexicano", "Mexican Girl", "Mexican Guy", "Latin Mexican"]
-  },
-  "Middle Eastern": {
-    "displayName": "Middle Eastern",
-    "tags": ["Arab Girl", "Arab Guy", "Persian", "Harem Style", "Middle Eastern Girl", "Arabian"]
-  },
-  "Polish": {
-    "displayName": "Polish",
-    "tags": ["Polska", "Polak", "Polish Girl", "Polish Guy", "Eastern European"]
-  },
-  "Russian": {
-    "displayName": "Russian",
-    "tags": ["Русская", "Русский", "Russian Girl", "Russian Guy", "Russian Accent"]
+    "tags": [
+      "Cubana",
+      "Cubano",
+      "Cuban Girl",
+      "Cuban Guy"
+    ]
   },
   "Spanish": {
     "displayName": "Spanish",
-    "tags": ["Española", "Español", "Spanish Girl", "Spanish Guy", "Spanish Accent"]
+    "tags": [
+      "Española",
+      "Español",
+      "Spanish Girl",
+      "Spanish Guy",
+      "Spanish Accent"
+    ]
   },
   "Thai": {
     "displayName": "Thai",
-    "tags": ["ไทย", "Thai Girl", "Thai Guy", "Thai Ladyboy"]
-  },
-  "Turkish": {
-    "displayName": "Turkish",
-    "tags": ["Türk", "Turkish Girl", "Turkish Guy", "Middle Eastern Turkish"]
+    "tags": [
+      "ไทย",
+      "Thai Girl",
+      "Thai Guy",
+      "Thai Ladyboy"
+    ]
   },
   "Vietnamese": {
     "displayName": "Vietnamese",
-    "tags": ["Người Việt", "Vietnamese Girl", "Vietnamese Guy"]
+    "tags": [
+      "Người Việt",
+      "Vietnamese Girl",
+      "Vietnamese Guy"
+    ]
   }
 }
-
-
-
-*/
