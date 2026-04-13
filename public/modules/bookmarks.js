@@ -63,7 +63,11 @@ function showImportFavs() {
   $('browse-view').add('off');
   $('import-favs-sidebar').add('on');
   $('import-favs-view').add('on');
-  if (!_bfItems.length) bfLoadCache();
+  if (_bfItems.length) {
+    renderBrowserFavs(_bfItems, '_cache_');
+  } else {
+    bfLoadCache();
+  }
 }
 
 // ─── Browser Favs Import ───
