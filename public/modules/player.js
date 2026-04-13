@@ -13,6 +13,11 @@ async function openVid(id) {
   fetch('/api/history/' + id, { method: 'POST' });
   const d = await (await fetch('/api/videos/' + id)).json();
   curV = d.video;
+  if (q) {
+    q = '';
+    $('search-input').val('');
+    $('search-ghost').html('');
+  }
   $('browse-view').add('off');
   $('player-view').add('on');
   $('video-player').el.src = '/api/stream/' + id;

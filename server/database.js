@@ -7,17 +7,34 @@
 const fs   = require('fs');
 const path = require('path');
 const { ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, VIDEOS_DIR, VIDEO_EXT } = require('./config');
-const { json, readBody }       = require('./helpers');
-const { readDbFile, writeDbFile } = require('./db');
+const { json, readBody }                      = require('./helpers');
+const { readDbFile, writeDbFile, loadWebsites, saveWebsites } = require('./db');
 
 const DB_FILES = { actors: ACTORS_JSON, categories: CATEGORIES_JSON, studios: STUDIOS_JSON };
 
 function apiDbGet(req, res, type) {
+  if (type === 'websites') {
+    const sites = loadWebsites();
+    const obj = {};
+    sites.forEach(s => { obj[s.name || s.url] = s; });
+    return json(res, obj);
+  }
   if (!DB_FILES[type]) return json(res, { error: 'Unknown type' }, 400);
   json(res, readDbFile(DB_FILES[type]));
 }
 
 async function apiDbUpsert(req, res, type) {
+  if (type === 'websites') {
+    const body = await readBody(req);
+    const { name, data } = body;
+    if (!name || typeof name !== 'string') return json(res, { error: 'Name required' }, 400);
+    const sites = loadWebsites();
+    const idx   = sites.findIndex(s => (s.name || s.url) === name);
+    const entry = { name, url: data.url || '', searchURL: data.searchURL || '', scrapeMethod: data.scrapeMethod || '', tags: data.tags || [], description: data.description || '' };
+    if (idx >= 0) sites[idx] = entry; else sites.push(entry);
+    saveWebsites(sites);
+    return json(res, { ok: true });
+  }
   if (!DB_FILES[type]) return json(res, { error: 'Unknown type' }, 400);
   const body = await readBody(req);
   const { name, data } = body;
@@ -29,6 +46,11 @@ async function apiDbUpsert(req, res, type) {
 }
 
 async function apiDbDelete(req, res, type, name) {
+  if (type === 'websites') {
+    const sites = loadWebsites().filter(s => (s.name || s.url) !== name);
+    saveWebsites(sites);
+    return json(res, { ok: true });
+  }
   if (!DB_FILES[type]) return json(res, { error: 'Unknown type' }, 400);
   const db = readDbFile(DB_FILES[type]);
   delete db[name];

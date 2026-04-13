@@ -81,7 +81,7 @@ function goHome() {
   $('settings-sidebar').remove('on');
   if ($('database-view').el) $('database-view').remove('on');
   if ($('database-sidebar').el) $('database-sidebar').remove('on');
-  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false;
+  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false;
   curCollection = null;
   $('browse-view').remove('off');
   $('player-view').remove('on');
@@ -123,7 +123,7 @@ function closeAllViews() {
     'studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
     'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
     'collections-view','collections-sidebar',
-    'books-view','books-sidebar','audio-view','audio-sidebar','search-sites-view','search-sites-sidebar',
+    'books-view','books-sidebar','audio-view','audio-sidebar','photos-view','photos-sidebar','search-sites-view','search-sites-sidebar',
     'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','database-view','database-sidebar','recent-sidebar'
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
   document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
@@ -131,7 +131,7 @@ function closeAllViews() {
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
-  importFavsMode = false; booksMode = false; audioMode = false;
+  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false;
   settingsMode = false; recentMode = false; recentVids = [];
   $('clearRecentBtn').show(false);
   $('clearRecentSep').show(false);
@@ -265,6 +265,11 @@ sIEl.addEventListener('input', e => {
   clearTimeout(sTO);
   sTO = setTimeout(() => {
     q = e.target.value.trim();
+    if (q) {
+      closeAllViews();
+      $('browse-view').remove('off');
+      if (location.pathname !== '/') history.pushState(null, '', '/');
+    }
     refresh();
   }, 300);
 });
@@ -321,6 +326,7 @@ async function routeToPath(path) {
   if (path === '/scraper') { showScraper(); return; }
   if (path === '/books') { showBooks(); return; }
   if (path === '/audio') { showAudio(); return; }
+  if (path === '/photos') { showPhotos(); return; }
   if (path === '/search') { showSearchSites(); return; }
   if (path === '/settings') { showSettings(); return; }
   if (path === '/database') { showDatabase(); return; }

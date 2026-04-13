@@ -12,12 +12,13 @@ function showDatabase() {
 async function loadDbTab(tab) {
   dbTab = tab;
   document.querySelectorAll('.db-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  const isDup = tab === 'duplicates';
+  const isDup      = tab === 'duplicates';
+  const isWebsites = tab === 'websites';
   $('dbAddBtn').el.style.display = isDup ? 'none' : '';
   $('dbGrid').el.style.display = isDup ? 'none' : '';
   $('duplicates-content').el.style.display = isDup ? '' : 'none';
   const imp = document.querySelector('.db-import-panel');
-  if (imp) imp.style.display = isDup ? 'none' : '';
+  if (imp) imp.style.display = (isDup || isWebsites) ? 'none' : '';
   if (isDup) { loadDups(); return; }
   $('dbGrid').html(tpl('loading', { message: 'Loading\u2026' }));
   const r = await fetch('/api/db/' + tab);
@@ -49,6 +50,11 @@ function dbCard(name, info, tab) {
   } else if (tab === 'studios') {
     if (info.website)           details += '<a href="' + escA(info.website) + '" target="_blank" class="db-link" onclick="event.stopPropagation()">Website ↗</a>';
     if (info.short_description) details += '<div class="db-field db-movies"><span>' + esc(info.short_description.slice(0, 160)) + (info.short_description.length > 160 ? '\u2026' : '') + '</span></div>';
+  } else if (tab === 'websites') {
+    if (info.url)          details += '<a href="' + escA(info.url) + '" target="_blank" class="db-link" onclick="event.stopPropagation()">Visit ↗</a>';
+    if (info.searchURL)    details += '<div class="db-field"><span class="db-lbl">Search</span><span>' + esc(info.searchURL.slice(0, 70)) + (info.searchURL.length > 70 ? '\u2026' : '') + '</span></div>';
+    if (info.scrapeMethod) details += '<div class="db-field"><span class="db-lbl">Method</span><span>' + esc(info.scrapeMethod) + '</span></div>';
+    if (info.description)  details += '<div class="db-field db-movies"><span>' + esc(info.description.slice(0, 120)) + '</span></div>';
   }
   const encName = escA(name);
   return '<div class="db-card">' +
@@ -80,6 +86,11 @@ function openDbModal(name, data) {
   } else if (dbTab === 'studios') {
     fields += dbFieldInput('Website URL', 'dbMoWebsite', data?.website || '');
     fields += '<div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:0.75rem;color:var(--tx3)">Description</label><textarea class="settings-textarea" id="dbMoDesc" style="min-height:70px">' + esc(data?.short_description || '') + '</textarea></div>';
+  } else if (dbTab === 'websites') {
+    fields += dbFieldInput('URL', 'dbMoUrl', data?.url || '');
+    fields += dbFieldInput('Search URL (append query)', 'dbMoSearchUrl', data?.searchURL || '');
+    fields += dbFieldInput('Scrape Method', 'dbMoScrapeMethod', data?.scrapeMethod || '');
+    fields += dbFieldInput('Description', 'dbMoWDesc', data?.description || '');
   }
   body.innerHTML = fields;
   $('dbMo').el.style.display = 'flex';
@@ -109,6 +120,14 @@ async function dbSaveModal() {
     data = {
       website:           $('dbMoWebsite').el?.value.trim() || '',
       short_description: $('dbMoDesc').el?.value.trim() || '',
+    };
+  } else if (dbTab === 'websites') {
+    data = {
+      url:          $('dbMoUrl').el?.value.trim() || '',
+      searchURL:    $('dbMoSearchUrl').el?.value.trim() || '',
+      scrapeMethod: $('dbMoScrapeMethod').el?.value.trim() || '',
+      description:  $('dbMoWDesc').el?.value.trim() || '',
+      tags:         [],
     };
   }
   const r = await fetch('/api/db/' + dbTab, {

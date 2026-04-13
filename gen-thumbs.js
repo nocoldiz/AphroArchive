@@ -12,6 +12,9 @@
 'use strict';
 const fs      = require('fs');
 const path    = require('path');
+const http    = require('http');
+const https   = require('https');
+const url     = require('url');
 const { execFile } = require('child_process');
 
 // ── Config (mirrors server.js constants) ────────────────────────────────────
@@ -21,18 +24,22 @@ const VIDEOS_DIR = path.resolve(
   process.env.VIDEOS_DIR ||
   path.join(ROOT, 'videos')
 );
-const THUMBS_DIR = path.join(ROOT, 'cache', '.AphroArchive-thumbs');
-const CACHE_FILE = path.join(ROOT, 'cache', '.AphroArchive-thumbcache.json');
+const THUMBS_DIR      = path.join(ROOT, 'cache', '.AphroArchive-thumbs');
+const CACHE_FILE      = path.join(ROOT, 'cache', '.AphroArchive-thumbcache.json');
+const ACTOR_PHOTOS_DIR = path.join(ROOT, 'cache', '.AphroArchive-actor-photos');
+const ACTORS_DB       = path.join(ROOT, 'db', 'actors.json');
 
 const VIDEO_EXT   = new Set(['.mp4','.mkv','.avi','.mov','.wmv','.flv',
                               '.webm','.m4v','.mpg','.mpeg','.3gp','.ogv','.ts']);
 const THUMB_PCT   = [0.1, 0.25, 0.5, 0.75, 0.9];   // same 5 positions as server.js
 const FRAME_COUNT = THUMB_PCT.length;
 
-const CONCURRENCY = (() => {
+const CONCURRENCY  = (() => {
   const m = process.argv.join(' ').match(/--concurrency[= ](\d+)/);
   return Math.max(1, m ? parseInt(m[1]) : 2);
 })();
+const SKIP_ACTORS  = process.argv.includes('--skip-actors');
+const ACTORS_ONLY  = process.argv.includes('--actors-only');
 
 // ── Resolve ffmpeg / ffprobe (prefer copy next to script, fall back to PATH) ─
 function resolveBin(name) {
@@ -164,65 +171,173 @@ async function processVideo({ fp, rel }, cache) {
   return n > 0 ? 'done' : 'fail';
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-async function main() {
-  console.log('\n  AphroArchive — thumbnail generator');
-  console.log('  ────────────────────────────────────');
-  console.log(`  Videos dir : ${VIDEOS_DIR}`);
-  console.log(`  Thumbs dir : ${THUMBS_DIR}`);
-  console.log(`  Workers    : ${CONCURRENCY}`);
-  console.log();
+// ── Actor slug (mirrors server/actors.js) ─────────────────────────────────────
+function actorSlug(name) { return name.toLowerCase().replace(/[^a-z0-9]/g, '_'); }
 
-  if (!fs.existsSync(VIDEOS_DIR)) {
-    console.error(`  Error: videos directory not found.\n  Path: ${VIDEOS_DIR}\n`);
-    process.exit(1);
+// ── HTTP helpers for IMDb photo scraping ──────────────────────────────────────
+function httpsGet(reqUrl, headers) {
+  return new Promise((resolve, reject) => {
+    const opts   = Object.assign(url.parse(reqUrl), { headers });
+    const client = reqUrl.startsWith('https') ? https : http;
+    client.get(opts, res => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
+        return resolve(httpsGet(res.headers.location, headers));
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
+    }).on('error', reject);
+  });
+}
+
+function httpsGetStream(reqUrl, headers, dest) {
+  return new Promise((resolve, reject) => {
+    const opts   = Object.assign(url.parse(reqUrl), { headers });
+    const client = reqUrl.startsWith('https') ? https : http;
+    client.get(opts, res => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
+        return resolve(httpsGetStream(res.headers.location, headers, dest));
+      if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
+      res.pipe(dest);
+      dest.on('finish', resolve);
+      dest.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+async function fetchImdbPhotoUrl(actorName) {
+  const UA        = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+  const q         = encodeURIComponent(actorName.toLowerCase());
+  const firstChar = actorName[0].toLowerCase().replace(/[^a-z]/, 'a');
+  const suggestUrl = `https://v2.sg.media-imdb.com/suggests/${firstChar}/${q}.json`;
+  const { body }  = await httpsGet(suggestUrl, { 'User-Agent': UA, 'Accept': '*/*', 'Referer': 'https://www.imdb.com/' });
+  const match = body.match(/\((\{[\s\S]*\})\)/);
+  if (!match) return null;
+  const parsed = JSON.parse(match[1]);
+  for (const item of (parsed.d || [])) {
+    if (item.id && item.id.startsWith('nm') && item.i && item.i.imageUrl)
+      return item.i.imageUrl;
   }
+  return null;
+}
 
-  const videos = scanDir(VIDEOS_DIR);
-  if (!videos.length) {
-    console.log('  No video files found in', VIDEOS_DIR);
+// ── Actor photo phase ─────────────────────────────────────────────────────────
+async function fetchActorPhotos() {
+  let actorsDb;
+  try { actorsDb = JSON.parse(fs.readFileSync(ACTORS_DB, 'utf-8')); }
+  catch { console.log('  actors.json not found — skipping actor photos.\n'); return; }
+
+  const actors = Object.entries(actorsDb)
+    .filter(([, v]) => v && v.imdb_page);
+
+  if (!actors.length) {
+    console.log('  No actors with imdb_page found.\n');
     return;
   }
 
-  const cache   = loadCache();
-  const pending = videos.filter(v => !isComplete(toId(v.rel)));
-  const already = videos.length - pending.length;
+  fs.mkdirSync(ACTOR_PHOTOS_DIR, { recursive: true });
 
-  console.log(`  Found ${videos.length} video(s) — ${already} already done, ${pending.length} to generate.\n`);
+  const pending = actors.filter(([name]) =>
+    !fs.existsSync(path.join(ACTOR_PHOTOS_DIR, actorSlug(name) + '.jpg'))
+  );
+  const already = actors.length - pending.length;
+
+  console.log(`  Actors     : ${actors.length} total — ${already} already done, ${pending.length} to fetch.\n`);
 
   if (!pending.length) {
-    console.log('  All thumbnails are up to date.\n');
+    console.log('  All actor photos are up to date.\n');
     return;
   }
 
   let done = 0, failed = 0;
-  const total = pending.length;
-  const queue = [...pending];
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
-  async function worker() {
-    while (queue.length) {
-      const item = queue.shift();
-      const label = path.basename(item.fp);
-      renderBar(done, total, label);
-      const result = await processVideo(item, cache);
-      done++;
-      if (result === 'fail') failed++;
+  for (const [name] of pending) {
+    renderBar(done, pending.length, name);
+    const destPath = path.join(ACTOR_PHOTOS_DIR, actorSlug(name) + '.jpg');
+    try {
+      const imgUrl = await fetchImdbPhotoUrl(name);
+      if (!imgUrl) { failed++; done++; continue; }
+      const out = fs.createWriteStream(destPath);
+      await httpsGetStream(imgUrl, { 'User-Agent': UA, 'Referer': 'https://www.imdb.com/' }, out);
+    } catch {
+      try { if (fs.existsSync(destPath)) fs.unlinkSync(destPath); } catch {}
+      failed++;
+    }
+    done++;
+  }
+
+  process.stdout.write('\r' + ' '.repeat((process.stdout.columns || 80) - 1) + '\r');
+
+  const fetched = done - failed;
+  console.log(`  Fetched    : ${fetched}`);
+  if (failed)  console.log(`  Failed     : ${failed}`);
+  if (already) console.log(`  Skipped    : ${already}`);
+  console.log();
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+async function main() {
+  console.log('\n  AphroArchive — thumbnail + actor photo generator');
+  console.log('  ────────────────────────────────────────────────');
+  console.log(`  Videos dir : ${VIDEOS_DIR}`);
+  console.log(`  Thumbs dir : ${THUMBS_DIR}`);
+  console.log(`  Photos dir : ${ACTOR_PHOTOS_DIR}`);
+  console.log(`  Workers    : ${CONCURRENCY}`);
+  console.log();
+
+  if (!ACTORS_ONLY) {
+    if (!fs.existsSync(VIDEOS_DIR)) {
+      console.error(`  Error: videos directory not found.\n  Path: ${VIDEOS_DIR}\n`);
+      process.exit(1);
+    }
+
+    const videos = scanDir(VIDEOS_DIR);
+    if (!videos.length) {
+      console.log('  No video files found in', VIDEOS_DIR);
+    } else {
+      const cache   = loadCache();
+      const pending = videos.filter(v => !isComplete(toId(v.rel)));
+      const already = videos.length - pending.length;
+
+      console.log(`  Found ${videos.length} video(s) — ${already} already done, ${pending.length} to generate.\n`);
+
+      if (!pending.length) {
+        console.log('  All thumbnails are up to date.\n');
+      } else {
+        let done = 0, failed = 0;
+        const total = pending.length;
+        const queue = [...pending];
+
+        async function worker() {
+          while (queue.length) {
+            const item = queue.shift();
+            const label = path.basename(item.fp);
+            renderBar(done, total, label);
+            const result = await processVideo(item, cache);
+            done++;
+            if (result === 'fail') failed++;
+          }
+        }
+
+        await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+        saveCache(cache);
+
+        process.stdout.write('\r' + ' '.repeat((process.stdout.columns || 80) - 1) + '\r');
+
+        const generated = done - failed;
+        console.log(`  Generated : ${generated}`);
+        if (failed)  console.log(`  Failed    : ${failed}`);
+        if (already) console.log(`  Skipped   : ${already}`);
+        console.log(`  Total     : ${videos.length}\n`);
+      }
     }
   }
 
-  // Run N workers in parallel
-  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-
-  saveCache(cache);
-
-  // Clear the progress line
-  process.stdout.write('\r' + ' '.repeat((process.stdout.columns || 80) - 1) + '\r');
-
-  const generated = done - failed;
-  console.log(`  Generated : ${generated}`);
-  if (failed)  console.log(`  Failed    : ${failed}`);
-  if (already) console.log(`  Skipped   : ${already}`);
-  console.log(`  Total     : ${videos.length}\n`);
+  if (!SKIP_ACTORS) {
+    console.log('  Actor photos');
+    console.log('  ────────────');
+    await fetchActorPhotos();
+  }
 }
 
 main().catch(e => { console.error('\n  Fatal:', e.message); process.exit(1); });

@@ -19,9 +19,7 @@ async function loadSettings() {
     fetch('/api/settings/prefs').then(r => r.json()).catch(() => ({}))
   ]);
   $('settings-hidden').val(lists.hidden || '');
-  $('settings-whitelist').val(lists.whitelist || '');
   updateSettingsHint('settings-hidden-hint', lists.hidden || '');
-  updateSettingsHint('settings-whitelist-hint', lists.whitelist || '');
   const sel = $('chronologyMode').el;
   if (sel) sel.value = prefs.chronologyMode || 'keep';
 }
@@ -45,7 +43,7 @@ function updateSettingsHint(hintId, content) {
 }
 
 async function saveSettingsList(file) {
-  const taId = { hidden: 'settings-hidden', whitelist: 'settings-whitelist' }[file];
+  const taId = { hidden: 'settings-hidden' }[file];
   const content = $(taId).el.value;
   const r = await fetch('/api/settings/' + file, {
     method: 'PUT',

@@ -37,6 +37,7 @@ const VAULT_DIR        = path.join(VIDEOS_DIR, 'hidden');
 const IGNORED_DIR      = path.join(VIDEOS_DIR, 'Z');
 const DB_DIR           = path.join(ROOT_DIR, 'db');
 const BOOKS_DIR        = path.join(DATA_DIR, 'books');
+const PHOTOS_DIR       = path.join(DATA_DIR, 'photos');
 
 const FAVOURITES_FILE        = path.join(CACHE_DIR, '.AphroArchive-favourites.json');
 const HISTORY_FILE           = path.join(CACHE_DIR, '.AphroArchive-history.json');
@@ -116,7 +117,7 @@ module.exports = {
   FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN,
   VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
   THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, IGNORED_DIR,
-  DB_DIR, BOOKS_DIR,
+  DB_DIR, BOOKS_DIR, PHOTOS_DIR,
   FAVOURITES_FILE, HISTORY_FILE, THUMBS_CACHE_FILE,
   VAULT_CONFIG_FILE, VAULT_META_FILE, BROWSER_WHITELIST_FILE,
   COLLECTIONS_FILE, RATINGS_FILE, HIDDEN_FILE, PREFS_FILE,

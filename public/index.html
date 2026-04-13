@@ -65,10 +65,6 @@
       <div class="sidebar-item" id="collections-sidebar" onclick="showCollections()">
         <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>Playlist</span>
       </div>
-      <div class="sidebar-item" id="duplicates-sidebar" onclick="showDups()">
-        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>Duplicates</span>
-        <span class="count-badge" id="duplicates-count" style="display:none"></span>
-      </div>
       <div class="sidebar-item" id="vault-sidebar" onclick="showVault()">
         <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vault</span>
       </div>
@@ -96,6 +92,9 @@
       <div class="sidebar-item" id="audio-sidebar" onclick="showAudio()">
         <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Audio</span>
       </div>
+      <div class="sidebar-item" id="photos-sidebar" onclick="showPhotos()">
+        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photos</span>
+      </div>
     </div>
 
     <!-- Web -->
@@ -107,9 +106,6 @@
       </div>
       <div class="sidebar-item" id="search-sites-sidebar" onclick="showSearchSites()">
         <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Search</span>
-      </div>
-      <div class="sidebar-item" id="scraper-sidebar" onclick="showScraper()">
-        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Actor Scraper</span>
       </div>
     </div>
 
@@ -355,27 +351,10 @@
     <div class="books-view" id="books-view">
       <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Books</h2></div>
 
-      <div class="bk-import-row">
-        <div class="bk-import-card">
-          <div class="bk-import-hd"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload Files</div>
-          <label class="btn-primary bk-file-label" for="booksFileIn">Choose PDF / TXT / DOC / MD</label>
-          <input type="file" id="booksFileIn" multiple accept=".pdf,.txt,.doc,.docx,.modal-dialog,.epub" style="display:none" onchange="uploadBookFiles()">
-        </div>
-        <div class="bk-import-card">
-          <div class="bk-import-hd"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Import from URL</div>
-          <div class="bk-url-row">
-            <input type="text" id="booksUrlInput" placeholder="https://www.fanfiction.net/s/… or any URL" autocomplete="off" onkeydown="if(event.key==='Enter')importBookUrl()">
-            <button class="btn-primary" id="booksUrlBtn" onclick="importBookUrl()">Import</button>
-          </div>
-          <div class="modal-error" id="booksUrlErr" style="display:none"></div>
-          <p class="bk-hint">Supports FanFiction.net stories (saved as .modal-dialog) and generic web pages.</p>
-        </div>
-      </div>
-
       <div id="booksGrid" class="bk-grid"></div>
       <div class="empty-state" id="booksEmpty" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        <h3>No books yet</h3><p>Upload a file or import from a URL above</p>
+        <h3>No books yet</h3><p>Add book files to the <code>books/</code> folder</p>
       </div>
     </div>
 
@@ -383,12 +362,6 @@
     <div class="audio-view" id="audio-view">
       <div class="section-header">
         <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Audio</h2>
-        <div class="section-controls">
-          <label class="btn-primary au-upload-label" for="audioFileIn">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Import
-          </label>
-          <input type="file" id="audioFileIn" multiple accept=".mp3,.flac,.wav,.ogg,.aac,.m4a,.wma,.opus,.aiff" style="display:none" onchange="uploadAudioFiles()">
-        </div>
       </div>
       <div class="au-toolbar">
         <div class="au-sort-group">
@@ -410,7 +383,7 @@
       <div class="empty-state" id="audioEmpty" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
         <h3>No audio files yet</h3>
-        <p>Import audio files using the button above</p>
+        <p>Add audio files to the <code>audio/</code> folder</p>
       </div>
       <!-- Mini Player -->
       <div class="au-player" id="audioPlayer" style="display:none">
@@ -421,6 +394,40 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
+    </div>
+
+    <!-- Photos View -->
+    <div class="photos-view" id="photos-view">
+      <div class="section-header">
+        <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photos</h2>
+      </div>
+      <div class="ph-toolbar">
+        <span class="au-toolbar-label">Sort:</span>
+        <button class="ph-sort-btn on" data-s="date" onclick="setPhotosSort('date')">Date</button>
+        <button class="ph-sort-btn" data-s="name" onclick="setPhotosSort('name')">Name</button>
+        <button class="ph-sort-btn" data-s="size" onclick="setPhotosSort('size')">Size</button>
+      </div>
+      <div id="photosGrid" class="ph-grid"></div>
+      <div class="empty-state" id="photosEmpty" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <h3>No photos yet</h3>
+        <p>Add image files to the <code>photos/</code> folder</p>
+      </div>
+    </div>
+
+    <!-- Photos Lightbox -->
+    <div class="ph-lightbox" id="photosLightbox" onclick="closePhotoLightbox()">
+      <button class="ph-lb-nav ph-lb-prev" onclick="event.stopPropagation();photosLightboxPrev()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <img id="photosLbImg" src="" alt="" onclick="event.stopPropagation()">
+      <button class="ph-lb-nav ph-lb-next" onclick="event.stopPropagation();photosLightboxNext()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <div class="ph-lb-caption" id="photosLbCaption"></div>
+      <button class="ph-lb-close" onclick="closePhotoLightbox()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
 
     <!-- Search Sites View -->
@@ -481,7 +488,7 @@
     <!-- Bookmarks View -->
     <div class="import-favs-view" id="import-favs-view">
       <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Bookmarks</h2></div>
-      <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Import bookmarks from Chrome or Firefox filtered by your <span style="color:var(--ac);cursor:pointer" onclick="showSettings()">whitelist</span>.</p>
+      <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Import bookmarks from Chrome or Firefox filtered by your <span style="color:var(--ac);cursor:pointer" onclick="showDatabase();dbSwitchTab('websites')">websites list</span>.</p>
 
       <div class="bf-import-grid">
         <!-- Chrome -->
@@ -657,17 +664,6 @@
       <div class="settings-hidden-panel" style="margin-top:16px">
         <div class="settings-panel">
           <div class="settings-panel-header">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>Browser Import Whitelist</span>
-            <span class="settings-hint" id="settings-whitelist-hint"></span>
-          </div>
-          <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 8px">Domains allowed when importing bookmarks (Folders → Bookmarks). One hostname per line.</p>
-          <textarea class="settings-textarea" id="settings-whitelist" placeholder="e.g. example.com&#10;192.168.1.100&#10;mynas.local" spellcheck="false" style="min-height:120px"></textarea>
-          <button class="btn-primary settings-save" onclick="saveSettingsList('whitelist')">Save Whitelist</button>
-        </div>
-      </div>
-      <div class="settings-hidden-panel" style="margin-top:16px">
-        <div class="settings-panel">
-          <div class="settings-panel-header">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Watch History</span>
           </div>
           <p style="font-size:0.78rem;color:var(--tx2);margin:0">Controls how recently-watched history is handled.</p>
@@ -696,6 +692,7 @@
         <button class="db-tab on" data-tab="actors" onclick="dbSwitchTab('actors')">Actors</button>
         <button class="db-tab" data-tab="categories" onclick="dbSwitchTab('categories')">Categories</button>
         <button class="db-tab" data-tab="studios" onclick="dbSwitchTab('studios')">Studios</button>
+        <button class="db-tab" data-tab="websites" onclick="dbSwitchTab('websites')">Websites</button>
         <button class="db-tab" data-tab="duplicates" onclick="dbSwitchTab('duplicates')">Duplicates</button>
       </div>
       <div class="video-grid" id="dbGrid"></div>
@@ -1009,6 +1006,7 @@
 <script src="/modules/zap.js"></script>
 <script src="/modules/books.js"></script>
 <script src="/modules/audio.js"></script>
+<script src="/modules/photos.js"></script>
 <script src="/modules/import.js"></script>
 <script src="/modules/search-sites.js"></script>
 <script src="/modules/data.js"></script>

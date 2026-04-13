@@ -13,7 +13,7 @@ const url  = require('url');
 const { exec } = require('child_process');
 
 const cfg = require('./server/config');
-const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, CACHE_DIR,
+const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, CACHE_DIR,
         WEBSITES_JSON, BM_DIR, BM_CACHE_FILE,
         BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
@@ -33,6 +33,7 @@ const downloads   = require('./server/downloads');
 const bookmarks   = require('./server/bookmarks');
 const books       = require('./server/books');
 const audio       = require('./server/audio');
+const photos      = require('./server/photos');
 const database    = require('./server/database');
 const remote      = require('./server/remote');
 const settings    = require('./server/settings');
@@ -43,6 +44,7 @@ fs.mkdirSync(CACHE_DIR,   { recursive: true });
 fs.mkdirSync(VIDEOS_DIR,  { recursive: true });
 fs.mkdirSync(AUDIO_DIR,   { recursive: true });
 fs.mkdirSync(BOOKS_DIR,   { recursive: true });
+fs.mkdirSync(PHOTOS_DIR,  { recursive: true });
 fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
 
 // ── Seed default category folders ────────────────────────────────────
@@ -178,9 +180,9 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/download\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultDownload(req, res, m[1]);
 
   // ── Database ─────────────────────────────────────────────────────────
-  if ((m = p.match(/^\/api\/db\/(actors|categories|studios)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
-  if ((m = p.match(/^\/api\/db\/(actors|categories|studios)$/)) && req.method === 'POST') return database.apiDbUpsert(req, res, m[1]);
-  if ((m = p.match(/^\/api\/db\/(actors|categories|studios)\/(.+)$/)) && req.method === 'DELETE') return database.apiDbDelete(req, res, m[1], decodeURIComponent(m[2]));
+  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
+  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'POST') return database.apiDbUpsert(req, res, m[1]);
+  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/(.+)$/)) && req.method === 'DELETE') return database.apiDbDelete(req, res, m[1], decodeURIComponent(m[2]));
   if (p === '/api/db/import' && req.method === 'POST') return database.apiDbImport(req, res);
 
   // ── Books ────────────────────────────────────────────────────────────
@@ -195,6 +197,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/audio/upload' && req.method === 'POST') return audio.apiAudioUpload(req, res);
   if ((m = p.match(/^\/api\/audio\/([^/]+)\/stream$/)) && req.method === 'GET') return audio.apiAudioStream(req, res, m[1]);
   if ((m = p.match(/^\/api\/audio\/([^/]+)$/)) && req.method === 'DELETE') return audio.apiAudioDelete(req, res, m[1]);
+
+  // ── Photos ───────────────────────────────────────────────────────────
+  if (p === '/api/photos' && req.method === 'GET') return photos.apiPhotosList(req, res);
+  if ((m = p.match(/^\/api\/photos\/([^/]+)\/img$/)) && req.method === 'GET') return photos.apiPhotoServe(req, res, m[1]);
+  if ((m = p.match(/^\/api\/photos\/([^/]+)$/)) && req.method === 'DELETE') return photos.apiPhotoDelete(req, res, m[1]);
 
   // ── Remote control ───────────────────────────────────────────────────
   if (p === '/api/remote/events' && req.method === 'GET') return remote.apiRemoteEvents(req, res);
