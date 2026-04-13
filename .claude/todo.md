@@ -25,8 +25,6 @@
 
 ## Performance
 
-- [ ] **Video list caching** — Cache the result of `allVideos()` in memory and invalidate via `fs.watch` on VIDEOS_DIR. This is the single biggest performance win.
-- [ ] **Metadata in-memory cache** — Actors, studios, categories, favourites, and history are all read from disk per request. Load at startup, write-through on mutations.
 - [ ] **Suggested videos O(n²)** — `apiVideoDetail` computes similarity by iterating all videos × all actors. Pre-build an inverted index from actor → video IDs.
 - [ ] **Streaming scan** — `scan()` loads all paths into one array before returning. For very large libraries switch to an async generator to start serving results sooner.
 

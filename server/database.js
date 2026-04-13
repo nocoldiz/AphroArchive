@@ -7,8 +7,9 @@
 const fs   = require('fs');
 const path = require('path');
 const { ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, VIDEOS_DIR, VIDEO_EXT } = require('./config');
+const { invalidateScanCache } = require('./videos');
 const { json, readBody }                      = require('./helpers');
-const { readDbFile, writeDbFile, loadWebsites, saveWebsites } = require('./db');
+const { readDbFile, writeDbFile, loadWebsites, saveWebsites, invalidateDbTypeCache } = require('./db');
 
 const DB_FILES = { actors: ACTORS_JSON, categories: CATEGORIES_JSON, studios: STUDIOS_JSON };
 
@@ -42,6 +43,7 @@ async function apiDbUpsert(req, res, type) {
   const db   = readDbFile(DB_FILES[type]);
   db[name]   = data || {};
   writeDbFile(DB_FILES[type], db);
+  invalidateDbTypeCache(type);
   json(res, { ok: true });
 }
 
@@ -55,6 +57,7 @@ async function apiDbDelete(req, res, type, name) {
   const db = readDbFile(DB_FILES[type]);
   delete db[name];
   writeDbFile(DB_FILES[type], db);
+  invalidateDbTypeCache(type);
   json(res, { ok: true });
 }
 
@@ -73,6 +76,7 @@ async function apiDbImport(req, res) {
     try {
       if (fs.existsSync(dst)) { results.push({ path: src, ok: false, error: 'File already exists in destination' }); continue; }
       fs.copyFileSync(src, dst);
+      invalidateScanCache();
       results.push({ path: src, ok: true });
     } catch (e) { results.push({ path: src, ok: false, error: e.message }); }
   }

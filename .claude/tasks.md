@@ -6,7 +6,10 @@ Each command is separated by an empty newline
 
 
 TO DO
-
+─────────────────────────────────────────────
+❯ all pieces of code that references categories.json, should reference  
+  instead tsgs.json, rework dtatabase to show tags instead of categories   
+  in list namem create tags.json by copying categories,json and rename it  
 
 add in setting add the possibilty to password protect the app on startup, this is different from vault since it will not encrypt just hide everything
 

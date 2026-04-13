@@ -1,16 +1,110 @@
-// ─── Tags ───
-async function loadTagSidebar() {
-  const tags = await (await fetch('/api/tags')).json();
-  const el = $('tagList').el;
-  if (!tags.length) { el.innerHTML = ''; return; }
-  el.innerHTML = tags.map(t =>
-    '<div class="sidebar-item' + (curTag === t.name ? ' on' : '') + '" data-tag="' + escA(t.name) + '" onclick="openTag(\'' + escA(t.name) + '\')">' +
-    '<span>' + esc(t.name) + '</span>' +
-    '<span class="count-badge">' + t.count + '</span>' +
-    '</div>'
-  ).join('');
+// ─── Tag Suggestions Cache ───
+let _tagSuggestions = null;
+
+async function getTagSuggestions() {
+  if (_tagSuggestions) return _tagSuggestions;
+  try {
+    _tagSuggestions = await (await fetch('/api/tag-suggestions')).json();
+  } catch { _tagSuggestions = []; }
+  return _tagSuggestions;
 }
 
+// ─── Shared Tag Modal ───
+let _tmVidId   = null;
+let _tmTags    = [];
+let _tmQuery   = '';
+
+async function openTagModal(vidId) {
+  _tmVidId  = vidId;
+  _tmQuery  = '';
+  // Fetch current tags (lightweight)
+  try {
+    const d = await (await fetch('/api/videos/' + vidId + '/tags')).json();
+    _tmTags = d.tags || [];
+  } catch { _tmTags = []; }
+  await getTagSuggestions();
+  _renderTagModal();
+  $('tag-modal').add('on');
+  const inp = $('tag-modal-input').el;
+  if (inp) { inp.value = ''; inp.focus(); }
+}
+
+function closeTagModal() {
+  $('tag-modal').remove('on');
+  _tmVidId = null;
+  _tmTags  = [];
+  _tmQuery = '';
+}
+
+function _renderTagModal() {
+  const tagsEl = $('tag-modal-tags').el;
+  tagsEl.innerHTML = _tmTags.map(t =>
+    '<span class="p-tag">' + esc(t) +
+    '<button class="p-tag-rm" onclick="removeTagModal(\'' + escA(t) + '\')" title="Remove">' +
+    '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button></span>'
+  ).join('');
+  _filterTagModal(_tmQuery);
+}
+
+function _filterTagModal(q) {
+  _tmQuery = q;
+  const lo = q.trim().toLowerCase();
+  const available = (_tagSuggestions || []).filter(t =>
+    !_tmTags.some(x => x.toLowerCase() === t.toLowerCase()) &&
+    (!lo || t.toLowerCase().includes(lo))
+  );
+  const list = $('tag-modal-list').el;
+  list.innerHTML = available.slice(0, 60).map(t =>
+    '<span class="p-tag-picker-item" onclick="addTagModal(\'' + escA(t) + '\')">' + esc(t) + '</span>'
+  ).join('') || (lo ? '<span class="p-tag-picker-empty">Press Enter to add "' + esc(q.trim()) + '"</span>' : '');
+}
+
+async function addTagModal(tag) {
+  if (!_tmVidId) return;
+  tag = tag.trim();
+  if (!tag || _tmTags.some(t => t.toLowerCase() === tag.toLowerCase())) return;
+  _tmTags = [..._tmTags, tag];
+  await _saveTagModal();
+  _renderTagModal();
+  $('tag-modal-input').val('');
+  _filterTagModal('');
+}
+
+async function removeTagModal(tag) {
+  if (!_tmVidId) return;
+  _tmTags = _tmTags.filter(t => t.toLowerCase() !== tag.toLowerCase());
+  await _saveTagModal();
+  _renderTagModal();
+}
+
+async function _saveTagModal() {
+  const r = await fetch('/api/videos/' + _tmVidId + '/meta', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags: _tmTags }),
+  });
+  if (!r.ok) { toast('Failed to save tags'); return; }
+  // Sync curVTags if the player has this video open
+  if (curV && curV.id === _tmVidId) {
+    curVTags = _tmTags;
+    renderVideoTags();
+  }
+}
+
+function onTagModalInput(val) {
+  _filterTagModal(val);
+}
+
+function onTagModalKeydown(e) {
+  if (e.key === 'Enter') {
+    const q = $('tag-modal-input').el.value.trim();
+    if (q) addTagModal(q);
+  } else if (e.key === 'Escape') {
+    closeTagModal();
+  }
+}
+
+// ─── Tag Detail View (sidebar navigation) ───
 async function openTag(name) {
   if (location.pathname !== '/tag/' + encodeURIComponent(name)) history.pushState(null, '', '/tag/' + encodeURIComponent(name));
   closeAllViews();
@@ -18,7 +112,6 @@ async function openTag(name) {
   $('browse-view').add('off');
   $('tag-detail-view').add('on');
   q = ''; $('search-input').val(''); $('search-ghost').html('');
-  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.toggle('on', el.dataset.tag === name));
   $('tag-name').text(name);
   $('tag-grid').html(tpl('loading', { message: 'Loading\u2026' }));
   renCats();
@@ -43,7 +136,9 @@ async function openTag(name) {
 function closeTag() {
   $('tag-detail-view').remove('on');
   $('browse-view').remove('off');
-  document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
   curTag = null;
   renCats();
 }
+
+// No-op kept for callers that still reference loadTagSidebar
+async function loadTagSidebar() {}

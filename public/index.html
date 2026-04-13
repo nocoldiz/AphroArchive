@@ -133,10 +133,6 @@
     <div class="side-section" id="catsSection">
       <div id="cList"></div>
     </div>
-    <h3 class="sidebar-heading" id="sh3-tags" onclick="toggleSection('tags')">Tags<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
-    <div class="side-section" id="tagsSection">
-      <div id="tagList"></div>
-    </div>
 
   </div>
   </aside>
@@ -794,16 +790,9 @@
             <div class="p-rating" id="player-rating"></div>
             <div class="p-tags-row" id="player-tags-row" style="display:none">
               <div class="p-tags" id="player-tags"></div>
-              <button class="p-tag-add-btn" id="player-tag-add-btn" onclick="toggleTagPicker()">
+              <button class="p-tag-add-btn" id="player-tag-add-btn" onclick="curV && openTagModal(curV.id)">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Tag
               </button>
-            </div>
-            <div class="p-tag-picker" id="player-tag-picker" style="display:none">
-              <input class="p-tag-picker-search" id="player-tag-picker-search" type="text" placeholder="Type tag name…" autocomplete="off" oninput="filterTagPicker(this.value)" onkeydown="if(event.key==='Enter')addTagFromPickerInput()">
-              <div class="p-tag-picker-list" id="player-tag-picker-list"></div>
-              <div class="p-tag-picker-foot">
-                <button class="collection-cancel" onclick="closeTagPicker()">Done</button>
-              </div>
             </div>
             <div class="player-info-actions">
               <button id="player-star-btn" onclick="togglePStar()">
@@ -914,6 +903,21 @@
     </button>
   </div>
   <div class="mos-grid" id="mosaic-grid"></div>
+</div>
+
+<!-- Tag Modal -->
+<div class="modal-overlay" id="tag-modal" onclick="if(event.target===this)closeTagModal()">
+  <div class="modal-dialog" style="max-width:460px">
+    <h3>Edit Tags</h3>
+    <div id="tag-modal-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:24px"></div>
+    <input type="text" id="tag-modal-input" placeholder="Type tag name…" autocomplete="off"
+      oninput="onTagModalInput(this.value)"
+      onkeydown="onTagModalKeydown(event)">
+    <div class="p-tag-picker-list" id="tag-modal-list" style="max-height:220px;overflow-y:auto;margin-top:8px"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn-cancel" onclick="closeTagModal()">Done</button>
+    </div>
+  </div>
 </div>
 
 <!-- Rename Modal -->

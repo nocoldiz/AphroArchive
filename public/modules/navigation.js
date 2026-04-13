@@ -131,6 +131,7 @@ function goHome() {
 
 // ─── Close All Views ───
 function closeAllViews() {
+  closeTagModal();
   if (mosaicOn) stopMosaic();
   if (curV) {
     $('player-view').remove('on');

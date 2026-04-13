@@ -18,15 +18,38 @@ const {
   BM_DIR,
 } = require('./config');
 
+// ── In-memory write-through caches ──────────────────────────────────
+// Each cache is null until first access, then kept in sync with disk.
+
+let _favs       = null;
+let _history    = null;
+let _videoMeta  = null;
+let _thumbs     = null;
+let _actors     = null;
+let _categories = null;
+let _studios    = null;
+
 // ── Favourites ───────────────────────────────────────────────────────
 
-function loadFavs()   { try { return JSON.parse(fs.readFileSync(FAVOURITES_FILE, 'utf-8')); } catch { return []; } }
-function saveFavs(f)  { fs.writeFileSync(FAVOURITES_FILE, JSON.stringify(f)); }
+function loadFavs() {
+  if (!_favs) { try { _favs = JSON.parse(fs.readFileSync(FAVOURITES_FILE, 'utf-8')); } catch { _favs = []; } }
+  return _favs;
+}
+function saveFavs(f) {
+  _favs = f;
+  fs.writeFileSync(FAVOURITES_FILE, JSON.stringify(f));
+}
 
 // ── History ──────────────────────────────────────────────────────────
 
-function loadHistory()  { try { return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8')); } catch { return []; } }
-function saveHistory(h) { fs.writeFileSync(HISTORY_FILE, JSON.stringify(h)); }
+function loadHistory() {
+  if (!_history) { try { _history = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8')); } catch { _history = []; } }
+  return _history;
+}
+function saveHistory(h) {
+  _history = h;
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(h));
+}
 
 // ── Prefs ────────────────────────────────────────────────────────────
 
@@ -40,8 +63,14 @@ function saveRatings(r) { fs.writeFileSync(RATINGS_FILE, JSON.stringify(r)); }
 
 // ── Video meta ───────────────────────────────────────────────────────
 
-function loadVideoMeta()  { try { return JSON.parse(fs.readFileSync(VIDEO_META_FILE, 'utf-8')); } catch { return {}; } }
-function saveVideoMeta(m) { fs.writeFileSync(VIDEO_META_FILE, JSON.stringify(m, null, 2)); }
+function loadVideoMeta() {
+  if (!_videoMeta) { try { _videoMeta = JSON.parse(fs.readFileSync(VIDEO_META_FILE, 'utf-8')); } catch { _videoMeta = {}; } }
+  return _videoMeta;
+}
+function saveVideoMeta(m) {
+  _videoMeta = m;
+  fs.writeFileSync(VIDEO_META_FILE, JSON.stringify(m, null, 2));
+}
 
 function setVideoMetaFields(id, fields) {
   const meta = loadVideoMeta();
@@ -52,8 +81,14 @@ function setVideoMetaFields(id, fields) {
 
 // ── Thumbnails cache ─────────────────────────────────────────────────
 
-function loadThumbsCache()  { try { return JSON.parse(fs.readFileSync(THUMBS_CACHE_FILE, 'utf-8')); } catch { return {}; } }
-function saveThumbsCache(c) { try { fs.writeFileSync(THUMBS_CACHE_FILE, JSON.stringify(c)); } catch {} }
+function loadThumbsCache() {
+  if (!_thumbs) { try { _thumbs = JSON.parse(fs.readFileSync(THUMBS_CACHE_FILE, 'utf-8')); } catch { _thumbs = {}; } }
+  return _thumbs;
+}
+function saveThumbsCache(c) {
+  _thumbs = c;
+  try { fs.writeFileSync(THUMBS_CACHE_FILE, JSON.stringify(c)); } catch {}
+}
 
 // ── Vault ────────────────────────────────────────────────────────────
 
@@ -134,43 +169,56 @@ function parseActorAge(dob) {
   return { age: new Date().getFullYear() - birthYear, deceased: false };
 }
 
+function _parseActors(raw) {
+  return Object.keys(raw).map(name => {
+    const entry   = raw[name];
+    const ageInfo = parseActorAge(entry.date_of_birth);
+    return {
+      name, terms: [name],
+      nationality: entry.nationality || null,
+      age: ageInfo ? ageInfo.age : null,
+      deceased: ageInfo ? ageInfo.deceased : false,
+      imdb_page: entry.imdb_page || null,
+    };
+  });
+}
+
 function loadActors() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(ACTORS_JSON, 'utf-8'));
-    return Object.keys(raw).map(name => {
-      const entry   = raw[name];
-      const ageInfo = parseActorAge(entry.date_of_birth);
-      return {
-        name, terms: [name],
-        nationality: entry.nationality || null,
-        age: ageInfo ? ageInfo.age : null,
-        deceased: ageInfo ? ageInfo.deceased : false,
-        imdb_page: entry.imdb_page || null,
-      };
-    });
-  } catch { return []; }
+  if (!_actors) { try { _actors = _parseActors(JSON.parse(fs.readFileSync(ACTORS_JSON, 'utf-8'))); } catch { _actors = []; } }
+  return _actors;
+}
+
+function _parseCategories(raw) {
+  return Object.keys(raw).map(name => {
+    const entry      = raw[name];
+    const tags       = Array.isArray(entry.tags) ? entry.tags : [];
+    const displayName = entry.displayName || name;
+    return { name, displayName, terms: [name, ...tags] };
+  });
 }
 
 function loadCategories() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(CATEGORIES_JSON, 'utf-8'));
-    return Object.keys(raw).map(name => {
-      const entry      = raw[name];
-      const tags       = Array.isArray(entry.tags) ? entry.tags : [];
-      const displayName = entry.displayName || name;
-      return { name, displayName, terms: [name, ...tags] };
-    });
-  } catch { return []; }
+  if (!_categories) { try { _categories = _parseCategories(JSON.parse(fs.readFileSync(CATEGORIES_JSON, 'utf-8'))); } catch { _categories = []; } }
+  return _categories;
+}
+
+function _parseStudios(raw) {
+  return Object.keys(raw).map(name => {
+    const entry = raw[name];
+    return { name, terms: [name], website: entry.website || null, description: entry.short_description || null };
+  });
 }
 
 function loadStudios() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(STUDIOS_JSON, 'utf-8'));
-    return Object.keys(raw).map(name => {
-      const entry = raw[name];
-      return { name, terms: [name], website: entry.website || null, description: entry.short_description || null };
-    });
-  } catch { return []; }
+  if (!_studios) { try { _studios = _parseStudios(JSON.parse(fs.readFileSync(STUDIOS_JSON, 'utf-8'))); } catch { _studios = []; } }
+  return _studios;
+}
+
+// Called by database.js after writing actors/categories/studios to disk
+function invalidateDbTypeCache(type) {
+  if (type === 'actors')     _actors     = null;
+  if (type === 'categories') _categories = null;
+  if (type === 'studios')    _studios    = null;
 }
 
 // ── Generic DB file helpers ──────────────────────────────────────────
@@ -194,6 +242,6 @@ module.exports = {
   loadBookmarksCache, saveBookmarksCache,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
-  loadActors, loadCategories, loadStudios,
+  loadActors, loadCategories, loadStudios, invalidateDbTypeCache,
   readDbFile, writeDbFile,
 };

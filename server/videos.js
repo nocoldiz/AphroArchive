@@ -24,6 +24,31 @@ const {
   loadRatings,
 } = require('./db');
 
+// ── Video scan cache ─────────────────────────────────────────────────
+
+let _scanCache = null;
+let _watchDebounce = null;
+
+function invalidateScanCache() {
+  _scanCache = null;
+}
+
+function _onVideoDirChange() {
+  if (_watchDebounce) clearTimeout(_watchDebounce);
+  _watchDebounce = setTimeout(() => { _scanCache = null; }, 300);
+}
+
+try {
+  fs.watch(VIDEOS_DIR, { recursive: true }, _onVideoDirChange);
+} catch (e) {
+  // fs.watch unavailable in this environment; cache is invalidated by explicit calls only
+}
+
+function cachedScan() {
+  if (!_scanCache) _scanCache = scan(VIDEOS_DIR);
+  return _scanCache;
+}
+
 // ── Video scanning ───────────────────────────────────────────────────
 
 function scan(dir, base = dir) {
@@ -63,7 +88,7 @@ function isVideoHidden(v, hiddenTerms) {
 }
 
 function allVideos() {
-  const all    = scan(VIDEOS_DIR);
+  const all    = cachedScan();
   const hidden = loadHidden();
   return hidden.length ? all.filter(v => !isVideoHidden(v, hidden)) : all;
 }
@@ -147,7 +172,7 @@ function apiVideos(req, res, params) {
 }
 
 function apiCategories(req, res) {
-  const videos = scan(VIDEOS_DIR);
+  const videos = cachedScan();
   const m      = new Map();
   for (const v of videos) {
     const displayPath = v.catPath === '' ? '__uncategorized__' : v.catPath;
@@ -214,8 +239,7 @@ function apiVideoDetail(req, res, id) {
   const favs  = loadFavs();
   const meta  = loadVideoMeta();
   const vMeta = meta[v.id] || {};
-  v.fav    = favs.includes(v.id);
-  v.rating = vMeta.rating ?? null;
+  const video = { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null };
 
   const actors         = loadActors();
   const metaActors     = vMeta.actors || [];
@@ -243,7 +267,7 @@ function apiVideoDetail(req, res, id) {
     .slice(0, 12)
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
-  json(res, { video: v, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort() });
+  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort() });
 }
 
 function apiStream(req, res, id) {
@@ -274,6 +298,7 @@ function apiDelete(req, res, id) {
   if (!fp) return json(res, { error: 'Not found' }, 404);
   try {
     fs.unlinkSync(fp);
+    invalidateScanCache();
     const favs = loadFavs();
     const fi   = favs.indexOf(id);
     if (fi !== -1) { favs.splice(fi, 1); saveFavs(favs); }
@@ -301,6 +326,7 @@ async function apiRename(req, res, id) {
   if (fs.existsSync(np) && np !== fp) return json(res, { error: 'Name already exists' }, 409);
   try {
     fs.renameSync(fp, np);
+    invalidateScanCache();
     const newRel = path.relative(VIDEOS_DIR, np);
     const newId  = toId(newRel);
     const favs = loadFavs();
@@ -330,6 +356,7 @@ async function apiMove(req, res, id) {
 
   try {
     fs.renameSync(fp, newPath);
+    invalidateScanCache();
     const newRel = path.relative(VIDEOS_DIR, newPath);
     const newId  = toId(newRel);
     const favs = loadFavs();
@@ -381,6 +408,7 @@ function apiAutoSort(req, res) {
     } catch {}
   }
   if (favsChanged) saveFavs(favs);
+  if (moved > 0) invalidateScanCache();
   json(res, { moved });
 }
 
@@ -482,7 +510,7 @@ function apiDuplicates(req, res) {
 // ── Tags ─────────────────────────────────────────────────────────────
 
 function apiCategoriesOverview(req, res) {
-  const videos = scan(VIDEOS_DIR);
+  const videos = cachedScan();
   const meta   = loadVideoMeta();
   const hidden = loadHidden();
 
@@ -644,6 +672,7 @@ async function apiImport(req, res) {
   });
   const data = Buffer.concat(chunks);
   fs.writeFileSync(path.join(destDir, outName), data);
+  if (kind === 'video') invalidateScanCache();
 
   if (kind === 'audio') {
     const meta = loadAudioMeta();
@@ -658,7 +687,7 @@ async function apiImport(req, res) {
 }
 
 module.exports = {
-  scan, allVideos, isVideoHidden, initVideoMeta,
+  scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
   apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
