@@ -3,7 +3,7 @@ let _searchSites = [];
 let _ssTab = 'cards';
 let _ssActiveSite = null; // { name, scrapeMethod }
 let _ssSearching = false;
-let _ssPinned = new Set(JSON.parse(localStorage.getItem('ss_pinned') || '[]'));
+let _ssStarred = new Set(); // URLs of starred sites (server-backed)
 
 async function showSearchSites() {
   closeAllViews();
@@ -12,7 +12,12 @@ async function showSearchSites() {
   $('search-sites-sidebar').add('on');
   $('search-sites-view').add('on');
 
-  _searchSites = await fetch('/api/websites').then(r => r.json()).catch(() => []);
+  const [sites, starredUrls] = await Promise.all([
+    fetch('/api/websites').then(r => r.json()).catch(() => []),
+    fetch('/api/websites/starred').then(r => r.json()).catch(() => []),
+  ]);
+  _searchSites = sites;
+  _ssStarred = new Set(starredUrls);
   ssSwitchTab(_ssTab, true);
 }
 
@@ -39,26 +44,44 @@ function ssEnter() {
   else renderSearchSites();
 }
 
+// ─── Star toggle ───
+async function ssStarToggle(url) {
+  try {
+    const d = await fetch('/api/websites/star', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    }).then(r => r.json());
+    _ssStarred = new Set(d.urls);
+  } catch {
+    // optimistic toggle on network error
+    if (_ssStarred.has(url)) _ssStarred.delete(url); else _ssStarred.add(url);
+  }
+  // Refresh both panes
+  if (_ssTab === 'cards') ssRenderPills();
+  else renderSearchSites();
+}
+
 // ─── Site pills (cards tab) ───
 function ssRenderPills() {
-  const scrapable = _searchSites.filter(s => s.scrapeMethod);
-  const noScr = $('ss-cards-no-scrapers').el;
+  const starredScrapable = _searchSites.filter(s => s.scrapeMethod && _ssStarred.has(s.url));
+  const noStarEl = $('ss-cards-no-scrapers').el;
   const pills = $('ss-site-pills').el;
 
-  if (!scrapable.length) {
-    noScr.style.display = '';
+  if (!starredScrapable.length) {
+    noStarEl.style.display = '';
     pills.innerHTML = '';
     $('ss-cards-grid').html('');
     return;
   }
-  noScr.style.display = 'none';
+  noStarEl.style.display = 'none';
 
-  // Default to first scrapable site if none selected or selected is gone
-  if (!_ssActiveSite || !scrapable.find(s => s.scrapeMethod === _ssActiveSite.scrapeMethod)) {
-    _ssActiveSite = scrapable[0];
+  // Default to first starred scrapable site if none selected or selection gone
+  if (!_ssActiveSite || !starredScrapable.find(s => s.scrapeMethod === _ssActiveSite.scrapeMethod)) {
+    _ssActiveSite = starredScrapable[0];
   }
 
-  pills.innerHTML = scrapable.map(s =>
+  pills.innerHTML = starredScrapable.map(s =>
     '<button class="ss-pill' + (s.scrapeMethod === _ssActiveSite.scrapeMethod ? ' on' : '') + '" ' +
     'onclick="ssSelectSite(' + JSON.stringify(s.scrapeMethod) + ')">' +
     '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(s.url) + '&sz=16" ' +
@@ -125,7 +148,6 @@ function ssRenderCards(results) {
     '</div>'
   ).join('');
 
-  // Store results for bookmark access
   grid._ssResults = results;
 }
 
@@ -135,7 +157,6 @@ function ssBookmark(idx) {
   if (!results || !results[idx]) return;
   const r = results[idx];
 
-  // Check if already bookmarked
   const already = _bfItems.some(it => it.url === r.url);
   if (already) { toast('Already in bookmarks'); return; }
 
@@ -144,20 +165,12 @@ function ssBookmark(idx) {
   rebuildBookmarkVidIds(_bfItems);
   renCats();
 
-  // Mark button as saved
   const btn = document.getElementById('ssbm-' + idx);
   if (btn) btn.classList.add('saved');
   toast('Saved to bookmarks');
 }
 
 // ─── Sites tab ───
-function ssPinToggle(url) {
-  if (_ssPinned.has(url)) _ssPinned.delete(url);
-  else _ssPinned.add(url);
-  localStorage.setItem('ss_pinned', JSON.stringify([..._ssPinned]));
-  renderSearchSites();
-}
-
 function renderSearchSites() {
   const keyword = ($('search-sites-input').el?.value || '').trim();
   const searchable = _searchSites.filter(s => s.searchURL);
@@ -172,24 +185,24 @@ function renderSearchSites() {
   }
   empty.show(false);
 
-  const pinned   = searchable.filter(s => _ssPinned.has(s.url));
-  const unpinned = searchable.filter(s => !_ssPinned.has(s.url));
-  const sorted   = [...pinned, ...unpinned];
+  const starred   = searchable.filter(s => _ssStarred.has(s.url));
+  const unstarred = searchable.filter(s => !_ssStarred.has(s.url));
+  const sorted    = [...starred, ...unstarred];
 
   list.html(sorted.map(s => {
-    const isPinned = _ssPinned.has(s.url);
+    const isStarred = _ssStarred.has(s.url);
     const url = keyword ? s.searchURL + encodeURIComponent(keyword) : s.searchURL;
     let hostname = '';
     try { hostname = new URL(s.url).hostname; } catch {}
-    return '<a class="search-site-item' + (isPinned ? ' pinned' : '') + '" href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' +
+    return '<a class="search-site-item' + (isStarred ? ' starred' : '') + '" href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' +
       '<div class="search-site-top">' +
         '<div class="search-site-icon">' +
           '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(s.url) + '&sz=32" ' +
           'width="16" height="16" alt="" onerror="this.style.display=\'none\'">' +
         '</div>' +
         '<div class="search-site-name">' + esc(s.name || s.url) + (keyword ? ' <span class="search-site-kw">— ' + esc(keyword) + '</span>' : '') + '</div>' +
-        '<button class="search-site-pin' + (isPinned ? ' on' : '') + '" onclick="event.preventDefault();event.stopPropagation();ssPinToggle(\'' + escA(s.url) + '\')" title="' + (isPinned ? 'Unpin' : 'Pin to top') + '">' +
-          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>' +
+        '<button class="search-site-pin' + (isStarred ? ' on' : '') + '" onclick="event.preventDefault();event.stopPropagation();ssStarToggle(\'' + escA(s.url) + '\')" title="' + (isStarred ? 'Unstar' : 'Star') + '">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="' + (isStarred ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' +
         '</button>' +
       '</div>' +
       '<div class="search-site-url">' + esc(hostname) + '</div>' +

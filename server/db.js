@@ -13,7 +13,7 @@ const {
   HIDDEN_FILE,
   WEBSITES_JSON,
   ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON,
-  BM_CACHE_FILE, OG_THUMB_CACHE_FILE,
+  BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE,
   BOOKS_META_FILE, AUDIO_META_FILE,
   BM_DIR,
 } = require('./config');
@@ -80,6 +80,11 @@ function loadHidden() {
 
 function loadWebsites() { try { return JSON.parse(fs.readFileSync(WEBSITES_JSON, 'utf-8')); } catch { return []; } }
 function saveWebsites(s) { fs.writeFileSync(WEBSITES_JSON, JSON.stringify(s, null, 2)); }
+
+// ── Starred sites (cache) ─────────────────────────────────────────────
+
+function loadStarredSites() { try { return JSON.parse(fs.readFileSync(STARRED_SITES_FILE, 'utf-8')); } catch { return []; } }
+function saveStarredSites(urls) { fs.writeFileSync(STARRED_SITES_FILE, JSON.stringify(urls)); }
 
 // ── OG thumbnail cache ───────────────────────────────────────────────
 
@@ -184,6 +189,7 @@ module.exports = {
   loadCollections, saveCollections,
   loadHidden,
   loadWebsites, saveWebsites,
+  loadStarredSites, saveStarredSites,
   loadOgThumbCache, saveOgThumbCache,
   loadBookmarksCache, saveBookmarksCache,
   loadBooksMeta, saveBooksMeta,

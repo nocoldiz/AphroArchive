@@ -17,8 +17,8 @@ const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, CACHE_DIR,
         WEBSITES_JSON, BM_DIR, BM_CACHE_FILE,
         BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
-const { json, serveStatic }    = require('./server/helpers');
-const { loadPrefs, saveHistory, loadWebsites, saveWebsites } = require('./server/db');
+const { json, serveStatic, readBody } = require('./server/helpers');
+const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites } = require('./server/db');
 const { initVideoMeta }        = require('./server/videos');
 const { getLocalIPs, getLocalIP } = require('./server/config');
 
@@ -159,6 +159,16 @@ const server = http.createServer(async (req, res) => {
 
   // ── Bookmarks / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
+  if (p === '/api/websites/starred' && req.method === 'GET') return json(res, loadStarredSites());
+  if (p === '/api/websites/star' && req.method === 'POST') {
+    const body = await readBody(req);
+    if (!body.url) return json(res, { error: 'url required' }, 400);
+    const starred = loadStarredSites();
+    const idx = starred.indexOf(body.url);
+    if (idx >= 0) starred.splice(idx, 1); else starred.push(body.url);
+    saveStarredSites(starred);
+    return json(res, { starred: idx < 0, urls: starred });
+  }
   if (p === '/api/websites' && req.method === 'POST') return bookmarks.apiWebsiteAdd(req, res);
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'DELETE') return bookmarks.apiWebsiteDelete(req, res, parseInt(m[1]));
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'PUT') return bookmarks.apiWebsiteUpdate(req, res, parseInt(m[1]));
