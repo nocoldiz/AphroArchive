@@ -3,6 +3,7 @@ let _searchSites = [];
 let _ssTab = 'cards';
 let _ssActiveSite = null; // { name, scrapeMethod }
 let _ssSearching = false;
+let _ssPinned = new Set(JSON.parse(localStorage.getItem('ss_pinned') || '[]'));
 
 async function showSearchSites() {
   closeAllViews();
@@ -150,6 +151,13 @@ function ssBookmark(idx) {
 }
 
 // ─── Sites tab ───
+function ssPinToggle(url) {
+  if (_ssPinned.has(url)) _ssPinned.delete(url);
+  else _ssPinned.add(url);
+  localStorage.setItem('ss_pinned', JSON.stringify([..._ssPinned]));
+  renderSearchSites();
+}
+
 function renderSearchSites() {
   const keyword = ($('search-sites-input').el?.value || '').trim();
   const searchable = _searchSites.filter(s => s.searchURL);
@@ -164,20 +172,27 @@ function renderSearchSites() {
   }
   empty.show(false);
 
-  list.html(searchable.map(s => {
+  const pinned   = searchable.filter(s => _ssPinned.has(s.url));
+  const unpinned = searchable.filter(s => !_ssPinned.has(s.url));
+  const sorted   = [...pinned, ...unpinned];
+
+  list.html(sorted.map(s => {
+    const isPinned = _ssPinned.has(s.url);
     const url = keyword ? s.searchURL + encodeURIComponent(keyword) : s.searchURL;
-    const displayName = esc(s.name || s.url);
-    const displayUrl = esc(url);
-    return '<a class="search-site-item" href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' +
-      '<div class="search-site-icon">' +
-        '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(s.url) + '&sz=32" ' +
-        'width="16" height="16" alt="" onerror="this.style.display=\'none\'">' +
+    let hostname = '';
+    try { hostname = new URL(s.url).hostname; } catch {}
+    return '<a class="search-site-item' + (isPinned ? ' pinned' : '') + '" href="' + escA(url) + '" target="_blank" rel="noopener noreferrer">' +
+      '<div class="search-site-top">' +
+        '<div class="search-site-icon">' +
+          '<img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(s.url) + '&sz=32" ' +
+          'width="16" height="16" alt="" onerror="this.style.display=\'none\'">' +
+        '</div>' +
+        '<div class="search-site-name">' + esc(s.name || s.url) + (keyword ? ' <span class="search-site-kw">— ' + esc(keyword) + '</span>' : '') + '</div>' +
+        '<button class="search-site-pin' + (isPinned ? ' on' : '') + '" onclick="event.preventDefault();event.stopPropagation();ssPinToggle(\'' + escA(s.url) + '\')" title="' + (isPinned ? 'Unpin' : 'Pin to top') + '">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>' +
+        '</button>' +
       '</div>' +
-      '<div class="search-site-body">' +
-        '<div class="search-site-name">' + displayName + (keyword ? ' <span class="search-site-kw">— ' + esc(keyword) + '</span>' : '') + '</div>' +
-        '<div class="search-site-url">' + displayUrl + '</div>' +
-      '</div>' +
-      '<svg class="search-site-open" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
+      '<div class="search-site-url">' + esc(hostname) + '</div>' +
     '</a>';
   }).join(''));
 }

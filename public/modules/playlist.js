@@ -10,7 +10,7 @@ function renderPlaylist() {
   $('playlist-count').text(pl.length + ' video' + (pl.length !== 1 ? 's' : ''));
   const listEl = $('playlist-list').el;
   if (!pl.length) {
-    listEl.innerHTML = '<div class="playlist-empty">Playlist is empty</div>';
+    listEl.innerHTML = '<div class="playlist-empty">Nothing up next</div>';
     return;
   }
   listEl.innerHTML = pl.map((v, i) => {

@@ -529,7 +529,6 @@ function apiStudios(req, res) {
       website: e.website,
       description: e.description,
     }))
-    .filter(s => s.count > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
   json(res, result);
 }

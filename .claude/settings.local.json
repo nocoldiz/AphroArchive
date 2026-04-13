@@ -5,7 +5,8 @@
   "permissions": {
     "allow": [
       "Bash(node:*)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(grep -n \"settings-view\\\\|settings-grid\\\\|donate-btn\\\\|buymeacoffee\\\\|</div>$\\\\|</aside>\" C:/AphroArchive/public/index.html)"
     ]
   }
 }

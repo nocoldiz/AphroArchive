@@ -23,9 +23,25 @@ function filterStudios(q) {
   renderStudios(lo ? _studioList.filter(s => s.name.toLowerCase().includes(lo)) : _studioList);
 }
 
+function _studioCard(s) {
+  const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+  const c = cols[Math.abs(hsh(s.name)) % cols.length];
+  const websiteLink = s.website ? '<a class="actor-link" href="' + esc(s.website) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">Website</a>' : '';
+  const desc = s.description ? '<div class="actor-desc">' + esc(s.description) + '</div>' : '';
+  return '<div class="actor-card fade-in' + (s.count === 0 ? ' actor-card-unmatched' : '') + '" onclick="openStudio(\'' + escA(s.name) + '\')">' +
+    '<div class="actor-avatar" style="background:' + c + '22;color:' + c + '">' +
+    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>' +
+    '<div class="actor-name">' + esc(s.name) + '</div>' +
+    '<div class="actor-count">' + (s.count > 0 ? s.count + ' video' + (s.count !== 1 ? 's' : '') : 'No videos') + (websiteLink ? ' · ' + websiteLink : '') + '</div>' +
+    desc +
+    '</div>';
+}
+
 function renderStudios(studios) {
   const el = $('studioGrid').el;
-  if (!studios.length) {
+  const active = studios.filter(s => s.count > 0);
+  const others = studios.filter(s => s.count === 0);
+  if (!active.length && !others.length) {
     el.innerHTML = tpl('empty-state', {
       icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>',
       title: 'No studios found',
@@ -33,19 +49,13 @@ function renderStudios(studios) {
     });
     return;
   }
-  const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  el.innerHTML = '<div class="actor-grid">' + studios.map(s => {
-    const c = cols[Math.abs(hsh(s.name)) % cols.length];
-    const websiteLink = s.website ? '<a class="actor-link" href="' + esc(s.website) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">Website</a>' : '';
-    const desc = s.description ? '<div class="actor-desc">' + esc(s.description) + '</div>' : '';
-    return '<div class="actor-card fade-in" onclick="openStudio(\'' + escA(s.name) + '\')">' +
-      '<div class="actor-avatar" style="background:' + c + '22;color:' + c + '">' +
-      '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>' +
-      '<div class="actor-name">' + esc(s.name) + '</div>' +
-      '<div class="actor-count">' + s.count + ' video' + (s.count !== 1 ? 's' : '') + (websiteLink ? ' · ' + websiteLink : '') + '</div>' +
-      desc +
-      '</div>';
-  }).join('') + '</div>';
+  let html = '';
+  if (active.length) html += '<div class="actor-grid">' + active.map(_studioCard).join('') + '</div>';
+  if (others.length) {
+    html += '<div class="actor-section-sep"><span>Other Studios</span></div>';
+    html += '<div class="actor-grid">' + others.map(_studioCard).join('') + '</div>';
+  }
+  el.innerHTML = html;
 }
 
 async function openStudio(name) {

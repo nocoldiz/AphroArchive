@@ -82,7 +82,6 @@ function apiActors(req, res) {
       deceased: e.deceased,
       imdb_page: e.imdb_page,
     }))
-    .filter(a => a.count > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
   json(res, result);
 }

@@ -45,6 +45,13 @@ fs.mkdirSync(AUDIO_DIR,   { recursive: true });
 fs.mkdirSync(BOOKS_DIR,   { recursive: true });
 fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
 
+// ── Seed default category folders ────────────────────────────────────
+
+const DEFAULT_CATEGORIES = ['Straight', 'Gay', 'Lesbian', 'Bisexual', 'Transgender'];
+for (const name of DEFAULT_CATEGORIES) {
+  fs.mkdirSync(path.join(VIDEOS_DIR, name), { recursive: true });
+}
+
 // ── Migration: bookmarks_cache.json old location ─────────────────────
 
 (function migrateBookmarksCache() {

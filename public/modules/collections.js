@@ -6,7 +6,7 @@ function showCollections() {
   $('browse-view').add('off');
   $('collections-sidebar').add('on');
   $('collections-view').add('on');
-  $('collection-title').text('Collections');
+  $('collection-title').text('Playlist');
   $('collection-new-row').show();
   loadCollectionsView();
 }
@@ -19,7 +19,7 @@ async function loadCollectionsView() {
 function renderCollections(cols) {
   const el = $('collection-content').el;
   if (!cols.length) {
-    el.innerHTML = '<div class="collection-empty">No collections yet. Create one above.</div>';
+    el.innerHTML = '<div class="collection-empty">No playlists yet. Create one above.</div>';
     return;
   }
   el.innerHTML = '<div class="collection-grid">' + cols.map(col =>
@@ -40,9 +40,9 @@ async function openCollectionDetail(name) {
   const el = $('collection-content').el;
   el.innerHTML =
     '<button class="back-btn" style="margin-bottom:16px" onclick="showCollections()">' +
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Collections</button>' +
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Playlist</button>' +
     (videos.length ? '<div class="video-grid">' + videos.map(v => card(v)).join('') + '</div>'
-      : '<div class="collection-empty">No videos in this collection.</div>');
+      : '<div class="collection-empty">No videos in this playlist.</div>');
 }
 
 async function createCollection() {
@@ -53,15 +53,15 @@ async function createCollection() {
   const d = await r.json();
   if (!r.ok) { toast(d.error || 'Failed'); return; }
   inp.value = '';
-  toast('Collection "' + name + '" created');
+  toast('Playlist "' + name + '" created');
   loadCollectionsView();
 }
 
 async function deleteCollection(name) {
-  if (!confirm('Delete collection "' + name + '"?')) return;
+  if (!confirm('Delete playlist "' + name + '"?')) return;
   const r = await fetch('/api/collections/' + encodeURIComponent(name), { method: 'DELETE' });
   if (!r.ok) { toast('Delete failed'); return; }
-  toast('Collection deleted');
+  toast('Playlist deleted');
   loadCollectionsView();
 }
 
@@ -79,7 +79,7 @@ async function openAddToCollection() {
   list.innerHTML = cols.map(col =>
     '<button class="collection-option" onclick="addToCollection(\'' + escA(col.name) + '\')">' + esc(col.name) + '</button>'
   ).join('') +
-  '<button class="collection-option collection-option-new" onclick="showCvNewInput()">+ New collection…</button>';
+  '<button class="collection-option collection-option-new" onclick="showCvNewInput()">+ New playlist…</button>';
   $('collection-modal').add('on');
 }
 
