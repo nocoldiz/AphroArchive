@@ -1,3 +1,29 @@
+// ─── Known Terms (actors + tags) for auto-sort ───
+async function bfEnsureKnownTerms() {
+  if (_bfKnownTerms.length) return;
+  try {
+    const tags = await (await fetch('/api/tags')).json();
+    const tagNames = tags.map(t => t.name);
+    _bfKnownTerms = [...new Set([...acTerms, ...tagNames])]
+      .filter(t => t.length >= 3)
+      .sort((a, b) => b.length - a.length); // longest first for greedy match
+  } catch {}
+}
+
+function bfMatchTitle(title) {
+  if (!_bfKnownTerms.length || !title) return null;
+  const lo = title.toLowerCase();
+  const found = _bfKnownTerms.find(t => {
+    const tlo = t.toLowerCase();
+    const idx = lo.indexOf(tlo);
+    if (idx === -1) return false;
+    const before = idx === 0 || /[\s\-_,|.([\u2013\u2014]/.test(lo[idx - 1]);
+    const after = idx + tlo.length >= lo.length || /[\s\-_,|.)\]\u2013\u2014]/.test(lo[idx + tlo.length]);
+    return before && after;
+  });
+  return found || null;
+}
+
 // ─── Bookmark Matching ───
 function rebuildBookmarkVidIds(items) {
   bookmarkVidIds.clear();
@@ -40,6 +66,22 @@ async function bfSaveCache() {
       body: JSON.stringify({ items: _bfItems })
     });
   } catch {}
+}
+
+async function bfClearAll() {
+  if (!_bfItems.length) { toast('No bookmarks to clear'); return; }
+  if (!confirm('Clear all ' + _bfItems.length + ' imported bookmarks?')) return;
+  _bfItems = [];
+  _bfVisible = [];
+  _bfMatchedCount = 0;
+  bookmarkVidIds.clear();
+  bmMatchedUrls.clear();
+  await bfSaveCache();
+  $('bfSearchWrap').show(false);
+  $('browserFavsResult').html('');
+  renCats();
+  if (!importFavsMode && !vaultMode && !studioMode && !actorMode && !dbMode) render();
+  toast('Bookmarks cleared');
 }
 
 function bfRemoveItem(url) {
@@ -141,6 +183,7 @@ async function renderBrowserFavs(items, browser) {
     out.innerHTML = '<p style="font-size:0.82rem;color:var(--tx2)">No bookmarks matched the whitelist.</p>';
     return;
   }
+  await bfEnsureKnownTerms();
   const unmatched = [], matched = [];
   for (const item of items) {
     const dlKey = 'bfdl:' + item.url;
@@ -151,6 +194,18 @@ async function renderBrowserFavs(items, browser) {
       unmatched.push(item);
     }
   }
+  // Auto-sort unmatched: group by first recognized actor/tag in title
+  unmatched.sort((a, b) => {
+    const ma = bfMatchTitle(a.title);
+    const mb = bfMatchTitle(b.title);
+    if (ma && mb) {
+      const cmp = ma.toLowerCase().localeCompare(mb.toLowerCase());
+      return cmp !== 0 ? cmp : a.title.localeCompare(b.title);
+    }
+    if (ma) return -1;
+    if (mb) return 1;
+    return 0;
+  });
   _bfItems = [...unmatched, ...matched];
   _bfMatchedCount = matched.length;
   rebuildBookmarkVidIds(_bfItems);
@@ -161,7 +216,7 @@ async function renderBrowserFavs(items, browser) {
   if (browser !== '_cache_') bfSaveCache();
   preFetchBmThumbs(_bfItems);
   renCats();
-  if (!importFavsMode && !vaultMode && !studioMode && !actorMode && !dupMode) {
+  if (!importFavsMode && !vaultMode && !studioMode && !actorMode && !dbMode) {
     if (curTag) openTag(curTag); else render();
   }
 }
@@ -214,6 +269,7 @@ function bfRenderList(items) {
               '<img src="https://www.google.com/s2/favicons?sz=12&domain_url=' + encodeURIComponent(item.url) + '" width="12" height="12" onerror="this.style.display=\'none\'" style="flex-shrink:0">' +
               esc(hostname) +
             '</div>' +
+            (bfMatchTitle(item.title) ? '<div class="bf-match-badge">' + esc(bfMatchTitle(item.title)) + '</div>' : '') +
           '</div>' +
         '</div>';
       }).join('') +
@@ -227,6 +283,7 @@ function bfRenderList(items) {
         return '<div class="bf-row' + (inLib ? ' bf-downloaded' : '') + '">' +
           '<img class="bf-favicon" src="https://www.google.com/s2/favicons?sz=16&domain_url=' + encodeURIComponent(item.url) + '" width="16" height="16" onerror="this.style.display=\'none\'">' +
           '<a class="bf-title" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer" title="' + esc(item.url) + '">' + esc(item.title) + '</a>' +
+          (bfMatchTitle(item.title) ? '<span class="bf-match-badge">' + esc(bfMatchTitle(item.title)) + '</span>' : '') +
           '<span class="bf-host" data-url="' + esc(item.url) + '">' + esc(new URL(item.url).hostname) + '</span>' +
           '<button class="bf-rm-btn" onclick="bfRemoveItem(\'' + escA(item.url) + '\')" title="Remove bookmark"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
           '</div>';

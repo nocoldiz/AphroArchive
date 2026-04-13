@@ -216,7 +216,7 @@ async function delVideo(id) {
   if (!r.ok) { toast(d.error || 'Delete failed'); return; }
   delete thumbMap[id];
   toast('Deleted');
-  if (dupMode) loadDups(); else { V = V.filter(v => v.id !== id); render(); }
+  if (dbMode && dbTab === 'duplicates') loadDups(); else { V = V.filter(v => v.id !== id); render(); }
 }
 
 // ─── Modal Close Handlers ───

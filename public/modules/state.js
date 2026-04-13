@@ -2,7 +2,7 @@
 let V = [], cats = [], sort = 'date', cat = '', q = '', favM = false, curV = null, renId = null;
 let srcFilter = 'both'; // 'both' | 'local' | 'remote'
 let recentMode = false, recentVids = [];
-let movId = null, movCurCat = '', shuf = false, dupMode = false;
+let movId = null, movCurCat = '', shuf = false;
 let pinnedV = null, pinnedPl = [], pinnedIdx = 0;
 let mosaicOn = false, mosaicTimer = null, mosaicIv = 8;
 let vaultMode = false, vaultSelMode = false, scraperMode = false, importFavsMode = false, booksMode = false, audioMode = false;
@@ -31,7 +31,7 @@ const playlistSkipped = new Set();
 let bmThumbObs = null;
 let acTerms = [];
 let _bfCats = [];
-let _bfItems = [], _bfMatchedCount = 0, _bfVisible = [];
+let _bfItems = [], _bfMatchedCount = 0, _bfVisible = [], _bfKnownTerms = [];
 let _bfViewMode = 'list';
 let dlPoller = null;
 let cvTargetId = null;

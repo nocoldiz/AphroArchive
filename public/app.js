@@ -3063,7 +3063,7 @@ function applyTheme(name) {
 })();
 
 // ─── Start ───
-['cats', 'tags'].forEach(name => {
+['library', 'browse', 'media', 'web', 'manage', 'cats', 'tags'].forEach(name => {
   if (localStorage.getItem('sc_' + name)) {
     $(name + 'Section').add('closed');
     $('sh3-' + name).add('closed');

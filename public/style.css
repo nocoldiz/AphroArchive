@@ -348,8 +348,7 @@ input{font-family:inherit;color:inherit}
 .actor-link:hover{text-decoration:underline}
 .actor-section-sep{display:flex;align-items:center;gap:10px;margin:8px 0 18px;color:var(--tx3);font-size:0.65rem;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--m)}
 .actor-section-sep::before,.actor-section-sep::after{content:'';flex:1;border-top:1px solid var(--brd)}
-.actor-card-unmatched{opacity:0.5}
-.actor-card-unmatched:hover{opacity:1}
+.actor-card-unmatched{opacity:0.45;pointer-events:none;cursor:default}
 
 /* ── Collapsible sidebar sections ── */
 .sidebar-heading{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;padding-right:16px}
@@ -462,6 +461,7 @@ input{font-family:inherit;color:inherit}
 .bf-card-title{font-size:0.78rem;color:var(--tx);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .bf-card-host{font-size:0.7rem;color:var(--tx3);display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bf-card.bf-downloaded .bf-card-title{color:#4caf50}
+.bf-match-badge{font-size:0.68rem;padding:1px 6px;border-radius:3px;background:var(--acg);color:var(--acs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;flex-shrink:0}
 
 /* ── Bookmark iframe viewer ── */
 .bfiframe-mo{position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.88);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}

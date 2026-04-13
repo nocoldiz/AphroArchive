@@ -8,9 +8,6 @@ function startMosaic() {
   mosaicOn = true;
   $('browse-view').add('off');
   $('player-view').remove('on');
-  $('duplicates-view').remove('on');
-  $('duplicates-sidebar').remove('on');
-  dupMode = false;
   if (curV) { const vp = $('video-player').el; vp.pause(); vp.src = ''; curV = null; }
   $('mosaic-category-label').el.textContent = cat
     ? (cats.find(x => x.path === cat)?.name || cat) + ' — Mosaic'

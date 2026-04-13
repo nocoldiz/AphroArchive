@@ -19,7 +19,7 @@ async function loadBookmarkVidsOnInit() {
     if (!_bfItems.length) _bfItems = d.items;
     rebuildBookmarkVidIds(d.items);
     renCats();
-    if (!importFavsMode && !vaultMode && !studioMode && !actorMode && !dupMode) {
+    if (!importFavsMode && !vaultMode && !studioMode && !actorMode && !dbMode) {
       if (curTag) openTag(curTag); else render();
     }
     if (!localStorage.getItem('bm_notice_shown')) {
@@ -85,8 +85,6 @@ function goHome() {
   curCollection = null;
   $('browse-view').remove('off');
   $('player-view').remove('on');
-  $('duplicates-view').remove('on');
-  $('duplicates-sidebar').remove('on');
   $('studios-view').remove('on');
   $('studio-detail-view').remove('on');
   $('studio-sidebar').remove('on');
@@ -95,7 +93,6 @@ function goHome() {
   $('actor-sidebar').remove('on');
   $('tag-detail-view').remove('on');
   document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
-  dupMode = false;
   studioMode = false;
   curStudio = null;
   actorMode = false;
@@ -123,14 +120,14 @@ function closeAllViews() {
   }
   [
     'home-view',
-    'duplicates-view','duplicates-sidebar','studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
+    'studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
     'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
     'collections-view','collections-sidebar',
     'books-view','books-sidebar','audio-view','audio-sidebar','search-sites-view','search-sites-sidebar',
     'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','database-view','database-sidebar','recent-sidebar'
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
   document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
-  dupMode = false; vaultMode = false; scraperMode = false; dbMode = false;
+  vaultMode = false; scraperMode = false; dbMode = false;
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
@@ -238,6 +235,7 @@ function togglePan() {
       const hiddenTerms = parse(d.hidden);
       const isHiddenTerm = name => hiddenTerms.some(t => new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(name));
       acTerms = [...parse(d.actors), ...parse(d.studios), ...parse(d.categories)].filter(t => !isHiddenTerm(t));
+      _bfKnownTerms = []; // invalidate bookmark sort cache
     }
   } catch {}
 })();
@@ -302,7 +300,7 @@ function applyTheme(name) {
 })();
 
 // ─── Startup ───
-['cats', 'tags'].forEach(name => {
+['library', 'browse', 'media', 'web', 'manage', 'cats', 'tags'].forEach(name => {
   if (localStorage.getItem('sc_' + name)) {
     $(name + 'Section').add('closed');
     $('sh3-' + name).add('closed');

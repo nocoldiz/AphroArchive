@@ -7,6 +7,7 @@
     "displayName": "Aftercare",
     "tags": ["Cuddling After", "Recovery Care", "Post Sex Cuddle", "Gentle Kisses", "Reassurance", "Blanket Wrap", "Hydration Care"]
   },
+  
   "Amateur": {
     "displayName": "Amateur",
     "tags": ["Homemade", "User Submitted", "Real Couple", "POV Amateur", "Hidden Cam", "Self Recorded", "First Time", "Webcam Amateur"]
@@ -168,7 +169,9 @@
     "tags": ["Cuddling", "Snuggling", "Intimate Cuddle", "Post Orgasm Cuddle"]
   },
   "Cum": {
-    "displayName": "Cum",
+    "displayName":
+    
+    "Cum",
     "tags": ["Cum", "Semen", "Orgasm", "Cum Play", "Cum Eating", "Cum Covered"]
   },
   "CumSwap": {
@@ -377,7 +380,7 @@
   },
   "Ladyboy": {
     "displayName": "Ladyboy",
-    "tags": ["Shemale", "Trans Asian", "Ladyboy Ass"]
+    "tags": ["Ladyboy"]
   },
   "Lapdance": {
     "displayName": "Lapdance",
@@ -627,9 +630,9 @@
     "displayName": "Titfuck",
     "tags": ["Tit Job", "Paizuri", "Boob Fuck"]
   },
-  "Trans": {
+  "Transgender": {
     "displayName": "Trans",
-    "tags": ["Shemale", "Transgender", "Trans Girl", "Trans Cock"]
+    "tags": ["Shemale", "Transgender", "Trans Girl", "Trans boy", "MFT", "FTM"]
   },
   "Turkish": {
     "displayName": "Turkish",
@@ -654,5 +657,33 @@
   "Waxplay": {
     "displayName": "Waxplay",
     "tags": ["Candle Wax", "Hot Wax", "Wax Dripping"]
+  },
+  "Bear": {
+    "displayName": "Bear",
+    "tags": ["Gay Bear", "Hairy Bear", "Beefy Bear", "Daddy Bear", "Bear Sex", "Hairy Gay", "Cub", "Bear Cub", "Chubby Bear"]
+  },
+  "Leather Gay": {
+    "displayName": "Leather Gay",
+    "tags": ["Gay Leather", "Leather Daddy", "Leather Boy", "Leather Fetish Gay", "Leather Bar", "Harnesses", "Leather Chaps"]
+  },
+  "Jock": {
+    "displayName": "Jock",
+    "tags": ["Gay Jock", "Athletic Jock", "Jockstrap", "Sports Jock", "Jock Ass", "Locker Room Jock", "Muscle Jock"]
+  },
+  "Otter": {
+    "displayName": "Otter",
+    "tags": ["Gay Otter", "Slim Hairy", "Otter Boy", "Hairy Twink"]
+  },
+  "Daddies": {
+    "displayName": "Daddies",
+    "tags": ["Gay Daddy", "Older Daddy", "Silver Daddy", "Daddy Son", "Mature Gay Daddy"]
+  },
+  "Raw Gay": {
+    "displayName": "Raw Gay",
+    "tags": ["Gay Bareback", "Raw Gay Sex", "Unprotected Gay", "Gay Creampie", "Breeding Gay"]
+  },
+  "Gay Group": {
+    "displayName": "Gay Group",
+    "tags": ["Gay Orgy", "Gay Gangbang", "Multiple Gay", "Gay Group Sex", "Gay Party"]
   }
 }

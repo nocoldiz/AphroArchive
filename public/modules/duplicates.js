@@ -1,12 +1,7 @@
 // ─── Duplicates ───
 function showDups() {
-  closeAllViews();
-  if (location.pathname !== '/duplicates') history.pushState(null, '', '/duplicates');
-  dupMode = true;
-  $('browse-view').add('off');
-  $('duplicates-sidebar').add('on');
-  $('duplicates-view').add('on');
-  loadDups();
+  showDatabase();
+  dbSwitchTab('duplicates');
 }
 
 async function loadDups() {

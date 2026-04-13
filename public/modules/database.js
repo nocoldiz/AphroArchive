@@ -12,6 +12,13 @@ function showDatabase() {
 async function loadDbTab(tab) {
   dbTab = tab;
   document.querySelectorAll('.db-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  const isDup = tab === 'duplicates';
+  $('dbAddBtn').el.style.display = isDup ? 'none' : '';
+  $('dbGrid').el.style.display = isDup ? 'none' : '';
+  $('duplicates-content').el.style.display = isDup ? '' : 'none';
+  const imp = document.querySelector('.db-import-panel');
+  if (imp) imp.style.display = isDup ? 'none' : '';
+  if (isDup) { loadDups(); return; }
   $('dbGrid').html(tpl('loading', { message: 'Loading\u2026' }));
   const r = await fetch('/api/db/' + tab);
   _dbData = await r.json();
