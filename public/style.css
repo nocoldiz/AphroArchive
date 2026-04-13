@@ -348,7 +348,7 @@ input{font-family:inherit;color:inherit}
 .actor-link:hover{text-decoration:underline}
 .actor-section-sep{display:flex;align-items:center;gap:10px;margin:8px 0 18px;color:var(--tx3);font-size:0.65rem;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--m)}
 .actor-section-sep::before,.actor-section-sep::after{content:'';flex:1;border-top:1px solid var(--brd)}
-.actor-card-unmatched{opacity:0.45;pointer-events:none;cursor:default}
+.actor-card-unmatched{pointer-events:none;cursor:default}
 
 /* ── Collapsible sidebar sections ── */
 .sidebar-heading{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;padding-right:16px}
@@ -361,7 +361,6 @@ input{font-family:inherit;color:inherit}
 
 /* ── Thumbnails ── */
 .card-thumb.has-thumb .ext-badge{opacity:0}
-.card-thumb.has-thumb{background-color:#000}
 .card-thumb.has-thumb .size-badge{background:rgba(0,0,0,0.65)}
 
 /* ── Theme picker ── */

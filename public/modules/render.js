@@ -61,7 +61,13 @@ function render() {
     return;
   }
   e.style.display = 'none';
+  // Only animate cards on a fresh render (grid had skeletons or was empty).
+  // On re-renders (search, sort, fav toggle) the fade-in would cause all
+  // currently-visible cards to flash from opacity:0 — strip the class before
+  // the browser gets a chance to paint it.
+  const isRerender = g.childElementCount > 0 && !g.querySelector('.skeleton');
   g.innerHTML = local.map(card).join('') + bms.map(bmCard).join('');
+  if (isRerender) g.querySelectorAll('.video-card.fade-in').forEach(el => el.classList.remove('fade-in'));
   attachThumbs();
   attachBmThumbs();
 }

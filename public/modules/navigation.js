@@ -169,6 +169,7 @@ function selCat(c) {
   q = '';
   $('search-input').val('');
   $('search-ghost').html('');
+  window.scrollTo({ top: 0, behavior: 'instant' });
   refresh();
 }
 

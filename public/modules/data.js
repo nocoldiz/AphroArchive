@@ -65,8 +65,6 @@ async function refresh() {
     $('browse-view').remove('off');
     curTag = null;
   }
-  await load();
-  await loadC();
-  await loadTagSidebar();
+  await Promise.all([load(), loadC(), loadTagSidebar()]);
   render();
 }

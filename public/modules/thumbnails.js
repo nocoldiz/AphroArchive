@@ -37,6 +37,10 @@ async function runThumbQ() {
   const id = thumbQueue.shift();
   try {
     const d = await (await fetch('/api/thumbs/' + id + '/generate', { method: 'POST' })).json();
+    // If the server was busy generating for another requester, clear the entry so
+    // the next attachThumbs() call can re-observe and retry rather than treating
+    // this as a permanent "no thumbnails" result.
+    if (d.busy) { delete thumbMap[id]; return; }
     thumbMap[id] = d.count > 0 ? Array.from({ length: d.count }, (_, i) => '/api/thumbs/' + id + '/' + i) : [];
     if (thumbMap[id].length) {
       const firstUrl = thumbMap[id][0];
@@ -46,10 +50,10 @@ async function runThumbQ() {
       try { await img.decode(); } catch {}
       // Preload remaining frames in background
       thumbMap[id].slice(1).forEach(u => { const i = new Image(); i.src = u; });
-      const el = document.querySelector('.card-thumb[data-vid="' + id + '"]');
-      if (el) applyThumb(el, firstUrl);
+      // Update all cards showing this video (e.g. main grid + suggestions panel)
+      document.querySelectorAll('.card-thumb[data-vid="' + id + '"]').forEach(el => applyThumb(el, firstUrl));
     }
-  } catch { thumbMap[id] = []; }
+  } catch { delete thumbMap[id]; }
   thumbRunning--;
   runThumbQ();
 }
