@@ -126,35 +126,94 @@ function renderPromptsTable() {
   }
   table.style.display = '';
   if (empty) empty.style.display = 'none';
-  const showComfyBtn = _comfyOk;
-  tbody.innerHTML = _prompts.map((p, i) => {
-    const valorized = _valorizedTexts[p.id];
-    const displayText = valorized || p.text;
-    const textClass = valorized ? 'pt-text pt-text--valorized' : 'pt-text';
-    const comfyBtn = showComfyBtn
-      ? '<button class="pt-btn-comfy" onclick="sendToComfyUI(\'' + escA(p.id) + '\')"' +
-          (_selectedWorkflow ? '' : ' disabled') +
-          ' title="' + (_selectedWorkflow ? 'Send to ComfyUI — ' + escA(_selectedWorkflow) : 'Select a workflow first') + '">' +
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' +
-        '</button>'
-      : '';
-    return '<tr>' +
-      '<td class="pt-col-num">' + (i + 1) + '</td>' +
-      '<td class="pt-col-text"><div class="' + textClass + '" title="' + escA(displayText) + '">' + esc(displayText) + '</div></td>' +
-      '<td class="pt-col-sites">' + renderSiteBtns(p) + '</td>' +
-      '<td class="pt-col-actions">' +
-        comfyBtn +
-        '<button class="pt-btn" onclick="openEditPrompt(\'' + escA(p.id) + '\')" title="Edit">' +
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
-        '</button>' +
-        '<button class="pt-btn pt-btn-del" onclick="deletePrompt(\'' + escA(p.id) + '\')" title="Delete">' +
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>' +
-        '</button>' +
-      '</td>' +
-    '</tr>';
+
+  tbody.innerHTML = _prompts.map(p => {
+    // 1. New "Send Prompt" button 
+    // 2. Always visible "Send to ComfyUI" button 
+    // 3. Edit & Delete buttons
+    const acts = `
+      <button class="pt-btn" onclick="openSendPromptModal('${escA(p.id)}')" title="Send prompt">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+      </button>
+      <button class="pt-btn pt-btn-comfy" onclick="sendToComfyUI('${escA(p.id)}')" title="Send to ComfyUI">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </button>
+      <button class="pt-btn" onclick="openEditPrompt('${escA(p.id)}')" title="Edit">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="pt-btn" onclick="deletePrompt('${escA(p.id)}')" title="Delete">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+    `;
+
+    return `<tr>
+      <td class="pt-col-title">
+        <div class="pt-title">${esc(p.title)}</div>
+        <div class="pt-tags">${(p.tags||[]).map(t => '<span>'+esc(t)+'</span>').join('')}</div>
+      </td>
+      <td class="pt-col-text">
+        <div class="pt-text-preview" title="${escA(p.text)}">${esc(p.text)}</div>
+      </td>
+      <td class="pt-col-actions">${acts}</td>
+    </tr>`;
   }).join('');
 }
+function openSendPromptModal(id) {
+  const p = _prompts.find(x => x.id === id);
+  if (!p) return;
+  
+  let modal = document.getElementById('send-prompt-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'send-prompt-modal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-dialog" style="max-width: 500px;">
+        <div class="modal-header">
+          <h3>Send Prompt</h3>
+          <button class="modal-close" onclick="closeSendPromptModal()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+          <div>
+            <label style="font-size: 0.85rem; color: var(--tx2); margin-bottom: 6px; display: block;">Prompt Text</label>
+            <textarea id="send-prompt-text" class="modal-input" style="height: 120px; resize: vertical; background: var(--bg2);" readonly></textarea>
+          </div>
+          <div>
+            <label style="font-size: 0.85rem; color: var(--tx2); margin-bottom: 6px; display: block;">Send to API Service</label>
+            <div id="send-prompt-sites" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
 
+  document.getElementById('send-prompt-text').value = p.text;
+  
+  const sitesContainer = document.getElementById('send-prompt-sites');
+  sitesContainer.innerHTML = '';
+  
+  // Show all available PROMPT_SITES
+  PROMPT_SITES.forEach(site => {
+    const btn = document.createElement('button');
+    btn.className = 'pt-site-btn';
+    btn.innerHTML = site.name;
+    btn.onclick = () => {
+      sendToSite(p.id, site.id);
+      closeSendPromptModal();
+    };
+    sitesContainer.appendChild(btn);
+  });
+
+  modal.classList.add('on');
+}
+
+function closeSendPromptModal() {
+  const modal = document.getElementById('send-prompt-modal');
+  if (modal) modal.classList.remove('on');
+}
 function renderSiteBtns(prompt) {
   const sites = prompt.sites && prompt.sites.length ? prompt.sites : PROMPT_SITES.map(s => s.id);
   return sites.map(sid => {
@@ -215,20 +274,31 @@ async function sendToComfyUI(promptId) {
 
 function openAddPrompt() {
   _editId = null;
-  document.getElementById('prompt-modal-title').textContent = 'New Prompt';
+  document.getElementById('prompt-title-input').value = '';
+  document.getElementById('prompt-tags-input').value = '';
   document.getElementById('prompt-text-input').value = '';
-  renderSiteCheckboxes(PROMPT_SITES.map(s => s.id)); // all selected by default
+  // Removed `renderSiteCheckboxes(...)` as they are no longer selected per-prompt
+  
+  // Ensure the AI Services checklist in the add-modal UI is hidden
+  const siteChecklistContainer = document.getElementById('prompt-sites-container');
+  if (siteChecklistContainer) siteChecklistContainer.style.display = 'none';
+
   $('prompt-modal').add('on');
-  setTimeout(() => document.getElementById('prompt-text-input').focus(), 50);
+  setTimeout(() => document.getElementById('prompt-title-input').focus(), 50);
 }
 
 function openEditPrompt(id) {
   const p = _prompts.find(x => x.id === id);
   if (!p) return;
   _editId = id;
-  document.getElementById('prompt-modal-title').textContent = 'Edit Prompt';
+  document.getElementById('prompt-title-input').value = p.title;
+  document.getElementById('prompt-tags-input').value = (p.tags||[]).join(', ');
   document.getElementById('prompt-text-input').value = p.text;
-  renderSiteCheckboxes(p.sites && p.sites.length ? p.sites : PROMPT_SITES.map(s => s.id));
+  
+  // Removed `renderSiteCheckboxes(...)` as they are no longer selected per-prompt
+  const siteChecklistContainer = document.getElementById('prompt-sites-container');
+  if (siteChecklistContainer) siteChecklistContainer.style.display = 'none';
+
   $('prompt-modal').add('on');
   setTimeout(() => document.getElementById('prompt-text-input').focus(), 50);
 }
@@ -254,38 +324,49 @@ function closePromptModal() {
   $('prompt-modal').remove('on');
   _editId = null;
 }
+// ─── Copy All Prompts ───
 
-async function savePrompt() {
-  const text = document.getElementById('prompt-text-input').value.trim();
-  if (!text) { toast('Enter a prompt first'); return; }
-
-  const selected = [...document.querySelectorAll('#prompt-sites-grid .pt-site-check.on')]
-    .map(el => el.dataset.site);
-
-  if (_editId) {
-    const r = await fetch('/api/prompts/' + _editId, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, sites: selected }),
-    });
-    if (!r.ok) { toast('Failed to save'); return; }
-    const updated = await r.json();
-    const idx = _prompts.findIndex(p => p.id === _editId);
-    if (idx >= 0) _prompts[idx] = updated;
-  } else {
-    const r = await fetch('/api/prompts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, sites: selected }),
-    });
-    if (!r.ok) { toast('Failed to save'); return; }
-    const created = await r.json();
-    _prompts.unshift(created);
+async function copyAllPrompts() {
+  if (!_prompts || _prompts.length === 0) {
+    if (typeof toast === 'function') toast('No prompts to copy');
+    else alert('No prompts to copy');
+    return;
   }
+  
+  // Replace internal line breaks with spaces so each prompt stays on exactly one line
+  const textToCopy = _prompts.map(p => p.text.replace(/\r?\n/g, ' ')).join('\n');
+  
+  try {
+    await navigator.clipboard.writeText(textToCopy);
+    if (typeof toast === 'function') toast('Copied ' + _prompts.length + ' prompts');
+    else alert('Copied ' + _prompts.length + ' prompts');
+  } catch (err) {
+    console.error('Failed to copy prompts:', err);
+    if (typeof toast === 'function') toast('Failed to copy prompts');
+    else alert('Failed to copy prompts');
+  }
+}
+async function savePrompt() {
+  const title = document.getElementById('prompt-title-input').value.trim();
+  const tags  = document.getElementById('prompt-tags-input').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const text  = document.getElementById('prompt-text-input').value.trim();
+  if (!title || !text) return alert('Title and text are required');
 
-  closePromptModal();
-  renderPromptsTable();
-  toast(_editId ? 'Prompt updated' : 'Prompt saved');
+  const p = { title, tags, text }; // Omitted the mapping to fetch selected checkboxes
+  if (_editId) p.id = _editId;
+
+  try {
+    await fetch('/api/prompts', {
+      method: _editId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(p)
+    });
+    $('prompt-modal').remove('on');
+    await loadPrompts();
+    renderPromptsTable();
+  } catch (err) {
+    alert('Error saving prompt');
+  }
 }
 
 async function deletePrompt(id) {

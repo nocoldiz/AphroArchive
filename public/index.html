@@ -497,6 +497,13 @@
       <div class="section-header">
         <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>AI Prompts</h2>
         <div class="section-controls">
+          <button class="sort-btn" onclick="copyAllPrompts()" title="Copy all prompts to clipboard">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="11" height="11" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+              Copy all
+          </button>
           <button class="sort-btn" onclick="openAddPrompt()">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:-1px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Prompt
           </button>
@@ -518,17 +525,16 @@
         <span class="comfyui-bar-hint" id="comfyui-bar-hint"></span>
       </div>
       <div id="prompts-table-wrap">
-        <table class="prompts-table" id="prompts-table">
-          <thead>
-            <tr>
-              <th class="pt-col-num">#</th>
-              <th class="pt-col-text">Prompt</th>
-              <th class="pt-col-sites">Send to</th>
-              <th class="pt-col-actions"></th>
-            </tr>
-          </thead>
-          <tbody id="prompts-tbody"></tbody>
-        </table>
+          <table id="prompts-table">
+            <thead>
+              <tr>
+                <th class="pt-col-title">Title / Tags</th>
+                <th class="pt-col-text">Prompt</th>
+                <th class="pt-col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="prompts-tbody"></tbody>
+          </table>
         <div class="empty-state" id="prompts-empty" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <h3>No prompts yet</h3>
