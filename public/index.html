@@ -26,6 +26,9 @@
     <button id="importBtn" onclick="openImport()" title="Import files" class="hsm" style="display:flex;align-items:center;gap:5px">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import
     </button>
+    <button id="dualBtn" onclick="toggleDual()" title="Dual mode">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="9" height="18" rx="1"/><rect x="13" y="3" width="9" height="18" rx="1"/></svg>
+    </button>
     <button id="mosBtn" onclick="toggleMosaic()" title="Mosaic mode">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
     </button>
@@ -886,6 +889,24 @@
           <div class="playlist-list" id="pinList"></div>
         </div>
   </div>
+
+  <!-- Dual Mode Right Pane -->
+  <div id="dual-pane-right">
+    <div class="dual-search-row">
+      <div class="search-w">
+        <svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="search-input-right" placeholder="Search videos..." autocomplete="off" spellcheck="false" oninput="onDualSearch(this.value)">
+      </div>
+    </div>
+    <div class="section-header">
+      <h2 id="dual-section-title">All Videos</h2>
+    </div>
+    <div class="video-grid" id="video-grid-right"></div>
+    <div class="empty-state" id="empty-placeholder-right" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+      <h3>No videos found</h3>
+    </div>
+  </div>
 </div>
 
 <!-- Add to Collection Modal -->
@@ -1034,6 +1055,7 @@
 <script src="/modules/collections.js"></script>
 <script src="/modules/settings.js"></script>
 <script src="/modules/database.js"></script>
+<script src="/modules/dual.js"></script>
 <script src="/modules/mosaic.js"></script>
 <script src="/modules/zap.js"></script>
 <script src="/modules/books.js"></script>

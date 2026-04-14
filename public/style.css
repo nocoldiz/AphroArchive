@@ -191,6 +191,23 @@ input{font-family:inherit;color:inherit}
 .pan .side{display:none}
 .pan .main-content{padding:20px 32px}
 
+/* ── Dual Mode ── */
+#dualBtn{background:none;border:1px solid var(--brd);border-radius:var(--r);padding:5px 8px;cursor:pointer;display:flex;align-items:center;color:var(--tx2);transition:all var(--tr)}
+#dualBtn:hover{background:var(--bg3);border-color:var(--tx3)}
+#dualBtn.on{background:var(--acg);border-color:var(--ac);color:var(--ac)}
+#dual-pane-right{display:none}
+.dual-mode .main-content{overflow-y:auto;max-height:calc(100vh - 53px);border-right:1px solid var(--brd)}
+.dual-mode #dual-pane-right{display:flex;flex-direction:column;flex:1;padding:20px 24px;min-width:0;overflow-y:auto;max-height:calc(100vh - 53px)}
+/* Sidebar slides to right when mouse is in right pane */
+.dual-mode.dual-right .side{order:3;border-left:1px solid var(--brd);border-right:none}
+.dual-mode.dual-right .main-content{order:1}
+.dual-mode.dual-right #dual-pane-right{order:2}
+/* Sidebar active-pane indicator */
+.dual-mode .side::before{content:'← Left';display:block;text-align:center;font-size:0.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--ac);padding:4px 0 0;opacity:0.7}
+.dual-mode.dual-right .side::before{content:'Right →'}
+.dual-search-row{margin-bottom:12px}
+.dual-search-row .search-w{max-width:100%}
+
 /* ── Responsive ── */
 @media(max-width:860px){.side{display:none}.topbar{padding:8px 12px}.main-content{padding:14px}.video-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}}
 @media(max-width:560px){.video-grid{grid-template-columns:1fr}.tb-acts .hsm{display:none}}

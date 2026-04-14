@@ -161,6 +161,7 @@ function closeAllViews() {
 
 // ─── Category Selection ───
 function selCat(c) {
+  if (dualMode && dualActive === 'right') { dualSelCat(c); return; }
   closeAllViews();
   cat = c;
   const catUrl = c ? '/cat/' + encodeURIComponent(c) : '/';

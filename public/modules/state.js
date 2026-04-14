@@ -37,3 +37,7 @@ let _bfItems = [], _bfMatchedCount = 0, _bfVisible = [], _bfKnownTerms = [];
 let _bfViewMode = 'list';
 let dlPoller = null;
 let cvTargetId = null;
+let dualMode = false;
+let dualActive = 'left'; // 'left' | 'right'
+let dualR = { q: '', cat: '', curTag: null };
+let _dualTagVids = []; // server-fetched tag vids for right pane slow path

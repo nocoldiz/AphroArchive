@@ -15,12 +15,14 @@ function renCats() {
   const bmTotal = srcFilter !== 'local' ? _bfItems.filter(it => !bmMatchedUrls.has(it.url)).length : 0;
   const all = cats.reduce((s, c) => s + c.count, 0) + bmTotal;
   const dropAttrs = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'\')"';
-  let h = '<div class="sidebar-item' + (cat ? '' : ' on') + '" onclick="selCat(\'\')"' + dropAttrs + '><span>All Videos</span><span class="count-badge">' + all + '</span></div>';
+  // In dual-right mode, highlight the right pane's active category
+  const activeCat = (dualMode && dualActive === 'right') ? dualR.cat : cat;
+  let h = '<div class="sidebar-item' + (activeCat ? '' : ' on') + '" onclick="selCat(\'\')"' + dropAttrs + '><span>All Videos</span><span class="count-badge">' + all + '</span></div>';
   cats.forEach(c => {
     const bmC = bmCountFor(c.path);
     const displayCount = c.count + bmC;
     const da = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'' + escA(c.path) + '\')"';
-    h += '<div class="sidebar-item' + (cat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + '><span>' + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
+    h += '<div class="sidebar-item' + (activeCat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + '><span>' + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
   });
   el.innerHTML = h;
 }

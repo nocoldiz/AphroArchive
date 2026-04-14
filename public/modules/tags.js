@@ -122,6 +122,7 @@ function onTagModalKeydown(e) {
 
 // ─── Tag Detail View (sidebar navigation) ───
 async function openTag(name) {
+  if (dualMode && dualActive === 'right') { await dualOpenTag(name); return; }
   if (location.pathname !== '/tag/' + encodeURIComponent(name)) history.pushState(null, '', '/tag/' + encodeURIComponent(name));
   closeAllViews();
   curTag = name;
