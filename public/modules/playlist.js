@@ -43,6 +43,21 @@ function skipFromPlaylist(id) {
   renderPlaylist();
 }
 
+function toggleCardPlaylist(id, btn) {
+  if (playlistSkipped.has(id)) {
+    playlistSkipped.delete(id);
+    btn.classList.remove('pl-off');
+    btn.title = 'Remove from playlist';
+    toast('Added to playlist', 900);
+  } else {
+    playlistSkipped.add(id);
+    btn.classList.add('pl-off');
+    btn.title = 'Add to playlist';
+    toast('Removed from playlist', 900);
+  }
+  if (curV) renderPlaylist();
+}
+
 function playNext() {
   if (curV && curV.isVault) {
     if (vaultPl.length < 2) return;

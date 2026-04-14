@@ -1,7 +1,17 @@
 // ─── Rename ───
+let _renBmUrl = null;
+
 function openRen(id, name) {
-  renId = id;
+  renId = id; _renBmUrl = null;
   $('rename-input').val(name);
+  $('rename-error').show(false);
+  $('rename-modal').add('on');
+  setTimeout(() => $('rename-input').el.focus(), 50);
+}
+
+function openBmRen(url, title) {
+  _renBmUrl = url; renId = null;
+  $('rename-input').val(title);
   $('rename-error').show(false);
   $('rename-modal').add('on');
   setTimeout(() => $('rename-input').el.focus(), 50);
@@ -9,11 +19,21 @@ function openRen(id, name) {
 
 function openRenP() { if (curV) openRen(curV.id, curV.name); }
 
-function closeRen() { $('rename-modal').remove('on'); renId = null; }
+function closeRen() { $('rename-modal').remove('on'); renId = null; _renBmUrl = null; }
 
 async function doRen() {
   const n = $('rename-input').el.value.trim();
   if (!n) return;
+
+  if (_renBmUrl) {
+    const item = _bfItems.find(it => it.url === _renBmUrl);
+    if (item) { item.title = n; bfSaveCache(); }
+    closeRen();
+    toast('Renamed');
+    render();
+    return;
+  }
+
   const r = await fetch('/api/videos/' + renId + '/rename', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -127,8 +147,10 @@ function extractAndRenameActors() {
 }
 
 // ─── Move ───
+let _movBmUrl = null;
+
 async function openMov(id, name, curCatPath) {
-  movId = id;
+  movId = id; _movBmUrl = null;
   movCurCat = curCatPath;
   $('move-info').text('Moving: ' + name);
   $('move-error').show(false);
@@ -148,10 +170,23 @@ async function openMov(id, name, curCatPath) {
   $('move-modal').add('on');
 }
 
+async function openBmMov(url, title, curCatPath) {
+  await openMov(null, title, curCatPath);
+  _movBmUrl = url; // set after openMov so it doesn't get cleared
+}
+
 function openMovP() { if (curV) openMov(curV.id, curV.name, curV.catPath || ''); }
-function closeMov() { $('move-modal').remove('on'); movId = null; }
+function closeMov() { $('move-modal').remove('on'); movId = null; _movBmUrl = null; }
 
 async function doMove(targetCat) {
+  if (_movBmUrl) {
+    const item = _bfItems.find(it => it.url === _movBmUrl);
+    if (item) { item.category = targetCat; bfSaveCache(); }
+    closeMov();
+    toast('Moved to ' + (targetCat || 'Uncategorized'));
+    render();
+    return;
+  }
   if (!movId) return;
   const r = await fetch('/api/videos/' + movId + '/move', {
     method: 'PATCH',

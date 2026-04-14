@@ -17,7 +17,6 @@
 - [ ] **Resume playback position** — There is no mechanism to save or restore the playback position when a video is revisited. Add `localStorage` persistence keyed by video ID.
 - [ ] **Vault timer race** — `resetVaultTimer()` exits early if `vaultKey` is null, which means the timer is not restarted after it fires. The lock state can become inconsistent.
 - [ ] **Thumbnail queue unbounded** — No concurrency cap on ffmpeg thumbnail spawns. Under load this can queue thousands of processes. Add a max-concurrent limit (e.g. 3).
-- [ ] **allVideos() called per request** — The full filesystem scan runs on nearly every API call with no cache. Results should be cached and invalidated only on file-system events or explicit refresh.
 - [ ] **Regex compiled per match** — `wordMatch()` compiles a new `RegExp` on every invocation. Pre-compile and cache regexes keyed by term.
 - [ ] **Silently swallowed errors** — ffprobe/ffmpeg failures return `null` with no log entry. At minimum log the error so the user can diagnose missing binaries.
 - [ ] **loadActors / loadFavs called repeatedly** — These read from disk on every endpoint. Load once at startup and refresh only on writes.

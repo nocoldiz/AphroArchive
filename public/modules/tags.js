@@ -11,13 +11,13 @@ async function getTagSuggestions() {
 
 // ─── Shared Tag Modal ───
 let _tmVidId   = null;
+let _tmBmUrl   = null;
 let _tmTags    = [];
 let _tmQuery   = '';
 
 async function openTagModal(vidId) {
-  _tmVidId  = vidId;
+  _tmVidId = vidId; _tmBmUrl = null;
   _tmQuery  = '';
-  // Fetch current tags (lightweight)
   try {
     const d = await (await fetch('/api/videos/' + vidId + '/tags')).json();
     _tmTags = d.tags || [];
@@ -29,9 +29,21 @@ async function openTagModal(vidId) {
   if (inp) { inp.value = ''; inp.focus(); }
 }
 
+async function openBmTagModal(url) {
+  _tmBmUrl = url; _tmVidId = null;
+  _tmQuery = '';
+  const item = _bfItems.find(it => it.url === url);
+  _tmTags = item ? [...(item.tags || [])] : [];
+  await getTagSuggestions();
+  _renderTagModal();
+  $('tag-modal').add('on');
+  const inp = $('tag-modal-input').el;
+  if (inp) { inp.value = ''; inp.focus(); }
+}
+
 function closeTagModal() {
   $('tag-modal').remove('on');
-  _tmVidId = null;
+  _tmVidId = null; _tmBmUrl = null;
   _tmTags  = [];
   _tmQuery = '';
 }
@@ -78,13 +90,17 @@ async function removeTagModal(tag) {
 }
 
 async function _saveTagModal() {
+  if (_tmBmUrl) {
+    const item = _bfItems.find(it => it.url === _tmBmUrl);
+    if (item) { item.tags = [..._tmTags]; bfSaveCache(); }
+    return;
+  }
   const r = await fetch('/api/videos/' + _tmVidId + '/meta', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tags: _tmTags }),
   });
   if (!r.ok) { toast('Failed to save tags'); return; }
-  // Sync curVTags if the player has this video open
   if (curV && curV.id === _tmVidId) {
     curVTags = _tmTags;
     renderVideoTags();
@@ -121,7 +137,10 @@ async function openTag(name) {
     // Fast path — filter in memory, no network request
     const localVids = srcFilter === 'remote' ? [] : filterVideosByTag(terms);
     const bms = srcFilter !== 'local' ? getBmList() : [];
-    $('tag-grid').html(localVids.map(card).join('') + bms.map(bmCard).join(''));
+    const g = $('tag-grid').el;
+    const isRerender = g.childElementCount > 0 && !g.querySelector('.skeleton');
+    g.innerHTML = localVids.map(card).join('') + bms.map(bmCard).join('');
+    if (isRerender) g.querySelectorAll('.video-card.fade-in').forEach(el => el.classList.remove('fade-in'));
     attachThumbs();
     attachBmThumbs();
     return;
@@ -142,7 +161,9 @@ async function openTag(name) {
     localVids = localVids.slice().sort((a, b) => (b.duration || 0) - (a.duration || 0));
   }
   const bms = srcFilter !== 'local' ? getBmList() : [];
-  $('tag-grid').html(localVids.map(card).join('') + bms.map(bmCard).join(''));
+  const g2 = $('tag-grid').el;
+  g2.innerHTML = localVids.map(card).join('') + bms.map(bmCard).join('');
+  // Skeletons were showing before — this is the first real render, keep fade-in
   attachThumbs();
   attachBmThumbs();
 }

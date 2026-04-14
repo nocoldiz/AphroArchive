@@ -197,6 +197,7 @@ function card(v) {
     renBtn:     `<button onclick="event.preventDefault();event.stopPropagation();openRen('${v.id}','${escA(v.name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`,
     moveBtn:    `<button onclick="event.preventDefault();event.stopPropagation();openMov('${v.id}','${escA(v.name)}','${escA(v.catPath || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>`,
     tagBtn:     `<button onclick="event.preventDefault();event.stopPropagation();openTagModal('${v.id}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`,
+    plBtn:      `<button class="pl-card-btn${playlistSkipped.has(v.id) ? ' pl-off' : ''}" onclick="event.preventDefault();event.stopPropagation();toggleCardPlaylist('${v.id}',this)" title="${playlistSkipped.has(v.id) ? 'Add to playlist' : 'Remove from playlist'}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/></svg></button>`,
   });
 }
 
@@ -206,8 +207,18 @@ function bmNorm(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); 
 function getBmList() {
   if (!_bfItems.length) return [];
   let items = _bfItems.filter(it => !bmMatchedUrls.has(it.url));
-  if (cat) { const cn = bmNorm(cat); items = items.filter(it => bmNorm(it.title).includes(cn)); }
-  if (curTag) { const tn = bmNorm(curTag); items = items.filter(it => bmNorm(it.title).includes(tn)); }
+  if (cat) {
+    items = items.filter(it => {
+      if (it.category && it.category === cat) return true;
+      return bmNorm(it.title).includes(bmNorm(cat));
+    });
+  }
+  if (curTag) {
+    const tn = bmNorm(curTag);
+    items = items.filter(it =>
+      (it.tags || []).some(t => bmNorm(t).includes(tn)) || bmNorm(it.title).includes(tn)
+    );
+  }
   if (q) { const ql = q.toLowerCase(); items = items.filter(it => it.title.toLowerCase().includes(ql) || it.url.toLowerCase().includes(ql)); }
   return items;
 }
@@ -217,6 +228,7 @@ function bmCard(item) {
   try { hostname = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
   const encUrl = escA(item.url);
   const hasCached = !!item.img;
+  const u = escA(item.url);
   return tpl('bookmark-card', {
     url:        encUrl,
     ctClass:    'card-thumb bookmark-thumb' + (hasCached ? ' has-thumb' : ''),
@@ -225,7 +237,28 @@ function bmCard(item) {
     urlBadge:   hasCached ? '' : '<span class="ext-badge" style="background:rgba(59,130,246,.18);color:#3b82f6">URL</span>',
     title:      esc(item.title),
     hostname:   esc(hostname),
+    starBtn:    `<button class="bm-star-btn${item.fav ? ' st' : ''}" onclick="event.preventDefault();event.stopPropagation();togBmStar('${u}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="${item.fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>`,
+    renBtn:     `<button onclick="event.preventDefault();event.stopPropagation();openBmRen('${u}','${escA(item.title)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`,
+    moveBtn:    `<button onclick="event.preventDefault();event.stopPropagation();openBmMov('${u}','${escA(item.title)}','${escA(item.category||'')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>`,
+    tagBtn:     `<button onclick="event.preventDefault();event.stopPropagation();openBmTagModal('${u}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`,
   });
+}
+
+// ─── Bookmark action helpers ───
+
+function togBmStar(url) {
+  const item = _bfItems.find(it => it.url === url);
+  if (!item) return;
+  item.fav = !item.fav;
+  bfSaveCache();
+  document.querySelectorAll('.bookmark-card').forEach(el => {
+    if (el.dataset.bmUrl !== url) return;
+    const btn = el.querySelector('.bm-star-btn');
+    if (!btn) return;
+    btn.classList.toggle('st', !!item.fav);
+    btn.querySelector('svg').setAttribute('fill', item.fav ? 'currentColor' : 'none');
+  });
+  toast(item.fav ? '\u2605 Added to favourites' : 'Removed from favourites');
 }
 
 function bmRemove(url) {
