@@ -100,19 +100,54 @@ async function apiComfySend(req, res) {
   try { wf = JSON.parse(fs.readFileSync(wfPath, 'utf-8')); }
   catch { return json(res, { error: 'invalid workflow JSON' }, 400); }
 
-  // Inject the prompt text into every CLIPTextEncode node that has a plain text input.
-  // The first such node is treated as the positive prompt; subsequent ones are left as-is
-  // unless they also need updating — users can re-run if needed.
+  // Array of recognized text/string node class types in ComfyUI (Native + Custom nodes)
+  const textNodeClasses = [
+    'CLIPTextEncode',
+    'CLIPTextEncodeSDXL',
+    'CLIPTextEncodeSDXLRefiner',
+    'Text Multiline',    // Requested explicitly
+    'MultilineText',     // Alternate custom node naming
+    'CR Text',           // ComfyRoll Custom Node
+    'Text',
+    'String',
+    'TextNode'
+  ];
+
+  // Inject the prompt text into the first recognized text node.
   let injected = false;
   for (const nodeId of Object.keys(wf)) {
     const node = wf[nodeId];
-    if (node.class_type === 'CLIPTextEncode' && node.inputs && typeof node.inputs.text === 'string') {
-      node.inputs.text = text;
-      injected = true;
-      break; // only inject into first positive-prompt node
+    
+    // Check if node exists, has inputs, and matches a recognized text node type
+    if (node && node.inputs && textNodeClasses.some(cls => node.class_type === cls || node.class_type.includes('Text Multiline'))) {
+      
+      let updated = false;
+
+      // 1. Standard 'text' input (CLIPTextEncode, Text Multiline)
+      if (typeof node.inputs.text === 'string') {
+        node.inputs.text = text;
+        updated = true;
+      }
+      // 2. Custom nodes that use 'string' as the input key
+      else if (typeof node.inputs.string === 'string') {
+        node.inputs.string = text;
+        updated = true;
+      }
+      // 3. SDXL Advanced inputs (text_g, text_l)
+      else if (typeof node.inputs.text_g === 'string' || typeof node.inputs.text_l === 'string') {
+        if (typeof node.inputs.text_g === 'string') node.inputs.text_g = text;
+        if (typeof node.inputs.text_l === 'string') node.inputs.text_l = text;
+        updated = true;
+      }
+
+      if (updated) {
+        injected = true;
+        break; // Stop after injecting into the first positive-prompt/text node
+      }
     }
   }
-  if (!injected) return json(res, { error: 'No CLIPTextEncode node found in workflow' }, 422);
+  
+  if (!injected) return json(res, { error: 'No compatible Text or CLIPTextEncode node found in workflow' }, 422);
 
   const payload = JSON.stringify({ prompt: wf, client_id: 'aphroarchive' });
   const result  = await new Promise(resolve => {

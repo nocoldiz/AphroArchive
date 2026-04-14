@@ -114,6 +114,8 @@ function onWorkflowSelect(sel) {
 
 // ─── Table rendering ───
 
+// ─── Table rendering ───
+
 function renderPromptsTable() {
   const tbody = document.getElementById('prompts-tbody');
   const empty = document.getElementById('prompts-empty');
@@ -128,9 +130,9 @@ function renderPromptsTable() {
   if (empty) empty.style.display = 'none';
 
   tbody.innerHTML = _prompts.map(p => {
-    // 1. New "Send Prompt" button 
-    // 2. Always visible "Send to ComfyUI" button 
-    // 3. Edit & Delete buttons
+    // 1. Fetch valorized text if available, fallback to default text
+    const displayText = _valorizedTexts[p.id] || p.text;
+
     const acts = `
       <button class="pt-btn" onclick="openSendPromptModal('${escA(p.id)}')" title="Send prompt">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -152,7 +154,7 @@ function renderPromptsTable() {
         <div class="pt-tags">${(p.tags||[]).map(t => '<span>'+esc(t)+'</span>').join('')}</div>
       </td>
       <td class="pt-col-text">
-        <div class="pt-text-preview" title="${escA(p.text)}">${esc(p.text)}</div>
+        <div class="pt-text-preview" title="${escA(displayText)}">${esc(displayText)}</div>
       </td>
       <td class="pt-col-actions">${acts}</td>
     </tr>`;
@@ -187,8 +189,25 @@ function openSendPromptModal(id) {
         </div>
       </div>
     `;
-    document.body.appendChild(modal);
-  }
+// 2. Insert valorized text into the text area preview
+  const displayText = _valorizedTexts[p.id] || p.text;
+  document.getElementById('send-prompt-text').value = displayText;
+  
+  const sitesContainer = document.getElementById('send-prompt-sites');
+  sitesContainer.innerHTML = '';
+  
+  PROMPT_SITES.forEach(site => {
+    const btn = document.createElement('button');
+    btn.className = 'pt-site-btn';
+    btn.innerHTML = site.name;
+    btn.onclick = () => {
+      sendToSite(p.id, site.id);
+      closeSendPromptModal();
+    };
+    sitesContainer.appendChild(btn);
+  });
+
+  modal.classList.add('on');  }
 
   document.getElementById('send-prompt-text').value = p.text;
   
@@ -326,6 +345,8 @@ function closePromptModal() {
 }
 // ─── Copy All Prompts ───
 
+// ─── Copy All Prompts ───
+
 async function copyAllPrompts() {
   if (!_prompts || _prompts.length === 0) {
     if (typeof toast === 'function') toast('No prompts to copy');
@@ -333,8 +354,8 @@ async function copyAllPrompts() {
     return;
   }
   
-  // Replace internal line breaks with spaces so each prompt stays on exactly one line
-  const textToCopy = _prompts.map(p => p.text.replace(/\r?\n/g, ' ')).join('\n');
+  // 3. Map over valorized texts and separate prompts with double line breaks to preserve the internal newlines of the full templates
+  const textToCopy = _prompts.map(p => _valorizedTexts[p.id] || p.text).join('\n\n');
   
   try {
     await navigator.clipboard.writeText(textToCopy);

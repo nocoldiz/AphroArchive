@@ -9,3 +9,6 @@ dist/
 settings
 bookmarks_cache.json
 
+.aider.tags.cache.v4/cache.db
+.aider.tags.cache.v4/cache.db-shm
+.aider.tags.cache.v4/cache.db-wal
