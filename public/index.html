@@ -503,6 +503,9 @@
           <button class="sort-btn" onclick="openMassImport()">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:-1px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Mass Import
           </button>
+          <button class="sort-btn" id="valorize-btn" onclick="openValorizeModal()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:-1px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/><path d="m15 5 3 3"/></svg>Valorize Template
+          </button>
         </div>
       </div>
       <!-- ComfyUI workflow selector — shown only when ComfyUI is reachable -->
@@ -998,6 +1001,19 @@
     <div class="prompt-modal-actions">
       <button class="collection-cancel" onclick="closeMassImport()">Cancel</button>
       <button class="btn-primary" id="mass-import-save-btn" onclick="saveMassImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- Valorize Template Modal -->
+<div class="prompt-modal" id="valorize-modal" onclick="if(event.target===this)closeValorizeModal()">
+  <div class="prompt-modal-box prompt-modal-box--wide">
+    <h3>Valorize Template</h3>
+    <div id="valorize-modal-content"></div>
+    <div class="prompt-modal-actions">
+      <button class="collection-cancel" onclick="closeValorizeModal()">Cancel</button>
+      <button class="collection-cancel" id="valorize-clear-btn" onclick="clearValorize()" style="display:none">Clear</button>
+      <button class="btn-primary" id="valorize-apply-btn" onclick="applyValorize()">Apply</button>
     </div>
   </div>
 </div>

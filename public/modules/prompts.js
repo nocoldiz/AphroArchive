@@ -38,6 +38,8 @@ let _editId           = null;   // id being edited, null = new
 let _comfyOk          = false;  // whether ComfyUI was reachable on last check
 let _workflows        = [];     // list of available ComfyUI workflow files
 let _selectedWorkflow = '';     // currently selected workflow name
+let _templateValues   = {};     // template name (no $) → array of string values
+let _valorizedTexts   = {};     // promptId → pre-computed valorized text
 
 // ─── View ───
 
@@ -126,6 +128,9 @@ function renderPromptsTable() {
   if (empty) empty.style.display = 'none';
   const showComfyBtn = _comfyOk;
   tbody.innerHTML = _prompts.map((p, i) => {
+    const valorized = _valorizedTexts[p.id];
+    const displayText = valorized || p.text;
+    const textClass = valorized ? 'pt-text pt-text--valorized' : 'pt-text';
     const comfyBtn = showComfyBtn
       ? '<button class="pt-btn-comfy" onclick="sendToComfyUI(\'' + escA(p.id) + '\')"' +
           (_selectedWorkflow ? '' : ' disabled') +
@@ -135,7 +140,7 @@ function renderPromptsTable() {
       : '';
     return '<tr>' +
       '<td class="pt-col-num">' + (i + 1) + '</td>' +
-      '<td class="pt-col-text"><div class="pt-text" title="' + escA(p.text) + '">' + esc(p.text) + '</div></td>' +
+      '<td class="pt-col-text"><div class="' + textClass + '" title="' + escA(displayText) + '">' + esc(displayText) + '</div></td>' +
       '<td class="pt-col-sites">' + renderSiteBtns(p) + '</td>' +
       '<td class="pt-col-actions">' +
         comfyBtn +
@@ -168,7 +173,8 @@ async function sendToSite(promptId, siteId) {
   const site = PROMPT_SITES.find(s => s.id === siteId);
   if (!site) return;
 
-  await navigator.clipboard.writeText(prompt.text).catch(() => {});
+  const text = _valorizedTexts[promptId] || prompt.text;
+  await navigator.clipboard.writeText(text).catch(() => {});
 
   if (site.local) {
     // ComfyUI — open browser, user pastes into text node
@@ -187,11 +193,12 @@ async function sendToComfyUI(promptId) {
   if (!prompt) return;
   if (!_selectedWorkflow) { toast('Select a workflow first'); return; }
 
+  const text = _valorizedTexts[promptId] || prompt.text;
   try {
     const r = await fetch('/api/comfyui/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: prompt.text, workflow: _selectedWorkflow }),
+      body: JSON.stringify({ text, workflow: _selectedWorkflow }),
     });
     const data = await r.json();
     if (!r.ok) {
@@ -359,10 +366,119 @@ async function saveMassImport() {
   toast('Imported ' + added + ' prompt' + (added > 1 ? 's' : ''));
 }
 
+// ─── Valorize Templates ───
+
+function _scanTemplates() {
+  const found = new Set();
+  _prompts.forEach(p => {
+    const matches = p.text.match(/\$[A-Z][A-Z0-9_]*/g) || [];
+    matches.forEach(m => found.add(m));
+  });
+  return [...found].sort();
+}
+
+function openValorizeModal() {
+  const templates = _scanTemplates();
+  const content = document.getElementById('valorize-modal-content');
+  const applyBtn = document.getElementById('valorize-apply-btn');
+  const clearBtn = document.getElementById('valorize-clear-btn');
+
+  if (!templates.length) {
+    content.innerHTML =
+      '<div class="valorize-modal-instructions">' +
+      '<p>No template strings were found in your prompts.</p>' +
+      '<p>Templates are <strong>uppercase words</strong> preceded by <code>$</code>. Examples:</p>' +
+      '<ul>' +
+        '<li><code>$SUBJECT</code> — replaced with a subject of your choice</li>' +
+        '<li><code>$PLACE</code> — replaced with a location</li>' +
+        '<li><code>$STYLE</code> — replaced with an art style</li>' +
+      '</ul>' +
+      '<p>Example prompt: <code>A photo of $SUBJECT in $PLACE, $STYLE style</code></p>' +
+      '<p>Add prompts containing <code>$UPPERCASE</code> words, then click <strong>Valorize Template</strong> to fill in values. ' +
+      'If you provide multiple values (one per line), a random one is picked for each prompt.</p>' +
+      '</div>';
+    if (applyBtn) applyBtn.style.display = 'none';
+  } else {
+    content.innerHTML =
+      '<div class="valorize-grid">' +
+      templates.map(t => {
+        const name = t.slice(1);
+        const existing = (_templateValues[name] || []).join('\n');
+        return '<div class="valorize-row">' +
+          '<div class="valorize-key">' + esc(t) + '</div>' +
+          '<div>' +
+            '<textarea class="valorize-input" data-template="' + escA(name) + '" ' +
+              'placeholder="One value per line&#10;(random one chosen per prompt)">' + esc(existing) + '</textarea>' +
+            '<div class="valorize-input-hint">One value per line — a random one will be used per prompt</div>' +
+          '</div>' +
+        '</div>';
+      }).join('') +
+      '</div>';
+    if (applyBtn) applyBtn.style.display = '';
+  }
+
+  const hasActive = Object.keys(_valorizedTexts).length > 0;
+  if (clearBtn) clearBtn.style.display = hasActive ? '' : 'none';
+
+  $('valorize-modal').add('on');
+}
+
+function closeValorizeModal() {
+  $('valorize-modal').remove('on');
+}
+
+function applyValorize() {
+  // Read values from inputs
+  document.querySelectorAll('#valorize-modal-content .valorize-input').forEach(ta => {
+    const name = ta.dataset.template;
+    const vals = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+    if (vals.length) _templateValues[name] = vals;
+    else delete _templateValues[name];
+  });
+
+  // Pre-compute valorized text per prompt (random pick per prompt per template)
+  _valorizedTexts = {};
+  _prompts.forEach(p => {
+    const tpls = [...new Set(p.text.match(/\$[A-Z][A-Z0-9_]*/g) || [])];
+    if (!tpls.length) return;
+    let text = p.text;
+    tpls.forEach(t => {
+      const name = t.slice(1);
+      const vals = _templateValues[name];
+      if (vals && vals.length) {
+        const val = vals[Math.floor(Math.random() * vals.length)];
+        text = text.split(t).join(val);
+      }
+    });
+    if (text !== p.text) _valorizedTexts[p.id] = text;
+  });
+
+  // Update button appearance
+  const btn = document.getElementById('valorize-btn');
+  const active = Object.keys(_valorizedTexts).length > 0;
+  if (btn) btn.classList.toggle('sort-btn--valorize-active', active);
+
+  closeValorizeModal();
+  renderPromptsTable();
+  const count = Object.keys(_valorizedTexts).length;
+  toast(count ? 'Templates valorized in ' + count + ' prompt' + (count > 1 ? 's' : '') : 'No templates matched — check your values');
+}
+
+function clearValorize() {
+  _templateValues = {};
+  _valorizedTexts = {};
+  const btn = document.getElementById('valorize-btn');
+  if (btn) btn.classList.remove('sort-btn--valorize-active');
+  closeValorizeModal();
+  renderPromptsTable();
+  toast('Valorization cleared');
+}
+
 // ─── Keyboard ───
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    if ($('mass-import-modal').el.classList.contains('on')) closeMassImport();
+    if ($('valorize-modal').el.classList.contains('on')) closeValorizeModal();
+    else if ($('mass-import-modal').el.classList.contains('on')) closeMassImport();
     else if ($('prompt-modal').el.classList.contains('on')) closePromptModal();
   }
 });
