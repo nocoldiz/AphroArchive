@@ -149,7 +149,7 @@ function apiVideos(req, res, params) {
   const q    = params.get('q');
   const cat  = params.get('category');
   const sort = params.get('sort') || 'date';
-  if (q) { const l = q.toLowerCase(); list = list.filter(v => v.name.toLowerCase().includes(l) || v.category.toLowerCase().includes(l)); }
+  if (q) { const l = q.toLowerCase(); list = list.filter(v => v.name.toLowerCase().includes(l) || v.category.toLowerCase().includes(l) || (meta[v.id]?.tags || []).some(t => t.toLowerCase().includes(l))); }
   if (cat) {
     if (cat === '__uncategorized__') {
       const defined = loadCategories();
@@ -646,6 +646,51 @@ function apiStudioVideos(req, res, studioName) {
   json(res, { studio: entry.name, videos: list });
 }
 
+// ── Subtitles ────────────────────────────────────────────────────────
+
+const SUBTITLE_EXT = new Set(['.srt', '.vtt']);
+
+function apiSubtitles(req, res, id) {
+  const fp = safePath(id);
+  if (!fp) return json(res, []);
+  const dir  = path.dirname(fp);
+  const base = path.basename(fp, path.extname(fp));
+  const found = [];
+  try {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!ent.isFile()) continue;
+      const ext = path.extname(ent.name).toLowerCase();
+      if (!SUBTITLE_EXT.has(ext)) continue;
+      const nameNoExt = ent.name.slice(0, -ext.length);
+      // Accept exact match or "video.en.srt", "video.fr.vtt", etc.
+      if (nameNoExt === base || nameNoExt.startsWith(base + '.')) {
+        const label = nameNoExt.slice(base.length).replace(/^\./, '') || 'Default';
+        found.push({ filename: ent.name, label, ext });
+      }
+    }
+  } catch {}
+  json(res, found);
+}
+
+function apiSubtitleFile(req, res, id, filename) {
+  const fp = safePath(id);
+  if (!fp) { res.writeHead(404); res.end('Not found'); return; }
+  const dir      = path.dirname(fp);
+  const base     = path.basename(fp, path.extname(fp));
+  const ext      = path.extname(filename).toLowerCase();
+  if (!SUBTITLE_EXT.has(ext)) { res.writeHead(400); res.end('Bad extension'); return; }
+  const nameNoExt = filename.slice(0, -ext.length);
+  if (nameNoExt !== base && !nameNoExt.startsWith(base + '.')) {
+    res.writeHead(400); res.end('Filename mismatch'); return;
+  }
+  const full = path.resolve(dir, path.basename(filename));
+  if (!full.startsWith(path.resolve(VIDEOS_DIR))) { res.writeHead(403); res.end('Forbidden'); return; }
+  if (!fs.existsSync(full)) { res.writeHead(404); res.end('Not found'); return; }
+  const ct = ext === '.vtt' ? 'text/vtt' : 'text/plain';
+  res.writeHead(200, { 'Content-Type': ct });
+  fs.createReadStream(full).pipe(res);
+}
+
 // ── Global import (video / audio / book by extension) ─────────────────
 
 async function apiImport(req, res) {
@@ -696,5 +741,6 @@ module.exports = {
   apiUpdateVideoMeta, apiOpenFolder, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
   apiStudios, apiStudioVideos,
+  apiSubtitles, apiSubtitleFile,
   apiImport,
 };

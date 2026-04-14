@@ -20,7 +20,20 @@ async function openVid(id) {
   }
   $('browse-view').add('off');
   $('player-view').add('on');
-  $('video-player').el.src = '/api/stream/' + id;
+  const vid = $('video-player').el;
+  // Clear any existing tracks before setting new src
+  while (vid.firstChild) vid.removeChild(vid.firstChild);
+  vid.src = '/api/stream/' + id;
+  fetch('/api/subtitles/' + id).then(r => r.json()).then(tracks => {
+    tracks.forEach((t, i) => {
+      const el = document.createElement('track');
+      el.kind    = 'subtitles';
+      el.label   = t.label;
+      el.src     = '/api/subtitle-file/' + id + '/' + encodeURIComponent(t.filename);
+      el.default = i === 0;
+      vid.appendChild(el);
+    });
+  }).catch(() => {});
   $('player-title').text(curV.name);
   $('player-category').text(curV.category);
   $('player-size').text(curV.sizeF);
@@ -201,6 +214,53 @@ async function submitActorInput() {
   ).join('');
   toast('Actor added');
 }
+
+// ─── Playback position persistence ───
+(function () {
+  const LS_PREFIX = 'pos:';
+  const SAVE_INTERVAL = 5000; // ms between localStorage writes
+  const MIN_SAVE_S = 10;      // don't save if under 10s (treat as "just started")
+  const END_THRESHOLD = 0.97; // clear saved pos when within last 3%
+
+  let _saveTimer = null;
+
+  function savePos(vid) {
+    if (!curV) return;
+    const pct = vid.duration ? vid.currentTime / vid.duration : 0;
+    if (vid.currentTime < MIN_SAVE_S || pct >= END_THRESHOLD) return;
+    try { localStorage.setItem(LS_PREFIX + curV.id, Math.floor(vid.currentTime)); } catch {}
+  }
+
+  function clearPos(id) {
+    try { localStorage.removeItem(LS_PREFIX + id); } catch {}
+  }
+
+  function restorePos(vid) {
+    if (!curV) return;
+    let saved;
+    try { saved = parseInt(localStorage.getItem(LS_PREFIX + curV.id), 10); } catch {}
+    if (saved && saved > MIN_SAVE_S) vid.currentTime = saved;
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const vid = document.getElementById('video-player');
+    if (!vid) return;
+
+    vid.addEventListener('timeupdate', () => {
+      if (_saveTimer) return;
+      _saveTimer = setTimeout(() => {
+        _saveTimer = null;
+        savePos(vid);
+      }, SAVE_INTERVAL);
+    });
+
+    vid.addEventListener('loadedmetadata', () => restorePos(vid));
+
+    vid.addEventListener('ended', () => {
+      if (curV) clearPos(curV.id);
+    });
+  });
+})();
 
 // ─── Keyboard Shortcuts ───
 document.addEventListener('keydown', e => {

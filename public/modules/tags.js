@@ -115,6 +115,7 @@ async function openTag(name) {
   $('tag-name').text(name);
   $('tag-grid').html(tpl('loading', { message: 'Loading\u2026' }));
   renCats();
+  loadTagSidebar();
   const d = await (await fetch('/api/tags/' + encodeURIComponent(name))).json();
   if (d.error) { $('tag-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   let localVids = srcFilter === 'remote' ? [] : d.videos;
@@ -138,7 +139,25 @@ function closeTag() {
   $('browse-view').remove('off');
   curTag = null;
   renCats();
+  loadTagSidebar();
 }
 
-// No-op kept for callers that still reference loadTagSidebar
-async function loadTagSidebar() {}
+async function loadTagSidebar() {
+  let tags = [];
+  try { tags = await (await fetch('/api/tags')).json(); } catch {}
+  const listEl   = $('tagList').el;
+  const sepEl    = document.getElementById('tags-sep');
+  const headEl   = document.getElementById('sh3-tags');
+  if (!tags.length) {
+    listEl.innerHTML = '';
+    sepEl.style.display = 'none';
+    headEl.style.display = 'none';
+    return;
+  }
+  sepEl.style.display = '';
+  headEl.style.display = '';
+  listEl.innerHTML = tags.map(t =>
+    '<div class="sidebar-item' + (curTag === t.name ? ' on' : '') + '" onclick="openTag(\'' + escA(t.name) + '\')">' +
+    '<span>' + esc(t.name) + '</span><span class="count-badge">' + t.count + '</span></div>'
+  ).join('');
+}

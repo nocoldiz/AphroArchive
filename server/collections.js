@@ -20,9 +20,7 @@ function apiCollections(req, res) {
 }
 
 async function apiCollectionCreate(req, res) {
-  const body = await readBody(req);
-  let data;
-  try { data = JSON.parse(body); } catch { return json(res, { error: 'Bad JSON' }, 400); }
+  const data = await readBody(req);
   const name = (data.name || '').trim();
   if (!name) return json(res, { error: 'Name required' }, 400);
   const cols = loadCollections();
@@ -42,9 +40,7 @@ async function apiCollectionDelete(req, res, name) {
 }
 
 async function apiCollectionAddVideo(req, res, name) {
-  const body = await readBody(req);
-  let data;
-  try { data = JSON.parse(body); } catch { return json(res, { error: 'Bad JSON' }, 400); }
+  const data = await readBody(req);
   const id = (data.id || '').trim();
   if (!id) return json(res, { error: 'id required' }, 400);
   const cols = loadCollections();
