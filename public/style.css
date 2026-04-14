@@ -819,6 +819,16 @@ input{font-family:inherit;color:inherit}
 .mass-import-count{font-size:0.8rem;color:var(--ac);min-height:1em}
 .pt-selall-btn{background:none;border:1px solid var(--brd);color:var(--tx3);border-radius:4px;padding:2px 7px;font-size:0.72rem;cursor:pointer;transition:all var(--tr)}
 .pt-selall-btn:hover{border-color:var(--ac);color:var(--ac)}
+/* ComfyUI workflow bar */
+.comfyui-bar{display:flex;align-items:center;gap:10px;padding:9px 14px;margin-bottom:12px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;flex-wrap:wrap}
+.comfyui-bar-label{font-size:0.8rem;color:var(--tx3);white-space:nowrap;font-family:var(--m)}
+.comfyui-workflow-select{background:var(--bg);border:1px solid var(--brd);border-radius:6px;color:var(--tx);font-size:0.82rem;padding:4px 8px;cursor:pointer;outline:none;transition:border var(--tr);min-width:180px}
+.comfyui-workflow-select:focus{border-color:var(--ac)}
+.comfyui-bar-hint{font-size:0.75rem;color:var(--tx3);font-style:italic}
+/* Send-to-ComfyUI button per prompt row */
+.pt-btn-comfy{background:none;border:none;padding:4px 6px;border-radius:5px;cursor:pointer;color:var(--ac);transition:all var(--tr);display:inline-flex;align-items:center;opacity:0.75}
+.pt-btn-comfy:hover{background:var(--acg);opacity:1}
+.pt-btn-comfy[disabled]{opacity:0.25;cursor:default}
 .ph-toolbar{display:flex;align-items:center;gap:6px;margin-bottom:16px;flex-wrap:wrap}
 .ph-sort-btn{padding:4px 10px;border-radius:var(--r);border:1px solid var(--brd);background:var(--bg2);color:var(--tx2);font-size:0.78rem;cursor:pointer;transition:all var(--tr)}
 .ph-sort-btn:hover{border-color:var(--ac);color:var(--ac)}

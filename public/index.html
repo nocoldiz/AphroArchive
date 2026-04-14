@@ -505,6 +505,15 @@
           </button>
         </div>
       </div>
+      <!-- ComfyUI workflow selector — shown only when ComfyUI is reachable -->
+      <div class="comfyui-bar" id="comfyui-workflow-bar" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--ac)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span class="comfyui-bar-label">ComfyUI Workflow:</span>
+        <select id="comfyui-workflow-select" class="comfyui-workflow-select" onchange="onWorkflowSelect(this)">
+          <option value="">Select workflow…</option>
+        </select>
+        <span class="comfyui-bar-hint" id="comfyui-bar-hint"></span>
+      </div>
       <div id="prompts-table-wrap">
         <table class="prompts-table" id="prompts-table">
           <thead>

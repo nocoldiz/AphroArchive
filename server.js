@@ -229,7 +229,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/prompts' && req.method === 'POST')   return prompts.apiAddPrompt(req, res);
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'PATCH')  return prompts.apiUpdatePrompt(req, res, m[1]);
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'DELETE') return prompts.apiDeletePrompt(req, res, m[1]);
-  if (p === '/api/comfyui/status' && req.method === 'GET') return prompts.apiComfyStatus(req, res);
+  if (p === '/api/comfyui/status'    && req.method === 'GET')  return prompts.apiComfyStatus(req, res);
+  if (p === '/api/comfyui/workflows' && req.method === 'GET')  return prompts.apiComfyWorkflows(req, res);
+  if (p === '/api/comfyui/send'      && req.method === 'POST') return prompts.apiComfySend(req, res);
 
   // ── Remote control ───────────────────────────────────────────────────
   if (p === '/api/remote/events' && req.method === 'GET') return remote.apiRemoteEvents(req, res);

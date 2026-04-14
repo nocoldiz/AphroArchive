@@ -60,6 +60,7 @@ const BM_CACHE_FILE          = path.join(DB_DIR, 'bookmarks_cache.json');
 const OG_THUMB_CACHE_FILE    = path.join(BM_DIR, 'og_thumb_cache.json');
 const STARRED_SITES_FILE     = path.join(CACHE_DIR, '.AphroArchive-starred-sites.json');
 const PROMPTS_FILE           = path.join(CACHE_DIR, '.AphroArchive-prompts.json');
+const COMFYUI_WORKFLOWS_DIR  = path.join(CACHE_DIR, 'comfyui-workflows');
 
 const VIDEO_EXT = new Set(['.mp4','.mkv','.avi','.mov','.wmv','.flv',
   '.webm','.m4v','.mpg','.mpeg','.3gp','.ogv','.ts']);
@@ -125,7 +126,7 @@ module.exports = {
   COLLECTIONS_FILE, RATINGS_FILE, HIDDEN_FILE, PREFS_FILE,
   VIDEO_META_FILE, BOOKS_META_FILE, AUDIO_META_FILE,
   ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, WEBSITES_JSON,
-  BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
+  BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE, COMFYUI_WORKFLOWS_DIR,
   VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT, MIME, STATIC_MIME,
   getLocalIPs, getLocalIP,
 };

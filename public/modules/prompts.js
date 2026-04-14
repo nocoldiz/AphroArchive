@@ -33,9 +33,11 @@ const PROMPT_SITES = [
   { id: 'lmstudio',   name: 'LM Studio',    url: 'http://localhost:1234',  local: true },
 ];
 
-let _prompts = [];
-let _editId  = null;          // id being edited, null = new
-let _comfyOk = false;         // whether ComfyUI was reachable on last check
+let _prompts          = [];
+let _editId           = null;   // id being edited, null = new
+let _comfyOk          = false;  // whether ComfyUI was reachable on last check
+let _workflows        = [];     // list of available ComfyUI workflow files
+let _selectedWorkflow = '';     // currently selected workflow name
 
 // ─── View ───
 
@@ -48,13 +50,64 @@ async function showPrompts() {
   if (location.pathname !== '/prompts') history.pushState(null, '', '/prompts');
   await loadPrompts();
   renderPromptsTable();
-  // Background check for ComfyUI
-  fetch('/api/comfyui/status').then(r => r.json()).then(d => { _comfyOk = d.ok; }).catch(() => {});
+  // Background: check ComfyUI status and load workflows
+  Promise.all([
+    fetch('/api/comfyui/status').then(r => r.json()).catch(() => ({ ok: false })),
+    fetch('/api/comfyui/workflows').then(r => r.json()).catch(() => []),
+  ]).then(([status, workflows]) => {
+    _comfyOk   = status.ok;
+    _workflows = Array.isArray(workflows) ? workflows : [];
+    renderComfyWorkflowBar();
+    renderPromptsTable(); // re-render so send buttons reflect comfy state
+  });
 }
 
 async function loadPrompts() {
   try { _prompts = await (await fetch('/api/prompts')).json(); }
   catch { _prompts = []; }
+}
+
+// ─── ComfyUI workflow bar ───
+
+function renderComfyWorkflowBar() {
+  const bar    = document.getElementById('comfyui-workflow-bar');
+  const select = document.getElementById('comfyui-workflow-select');
+  const hint   = document.getElementById('comfyui-bar-hint');
+  if (!bar || !select) return;
+
+  if (!_comfyOk) { bar.style.display = 'none'; return; }
+
+  bar.style.display = 'flex';
+
+  // Rebuild the <select> options
+  const prev = select.value;
+  select.innerHTML = '<option value="">Select workflow…</option>';
+  _workflows.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value       = w.name;
+    opt.textContent = w.name;
+    select.appendChild(opt);
+  });
+
+  // Restore previous selection if still available
+  if (prev && _workflows.some(w => w.name === prev)) {
+    select.value      = prev;
+    _selectedWorkflow = prev;
+  } else {
+    _selectedWorkflow = '';
+  }
+
+  if (_workflows.length === 0) {
+    hint.textContent = 'No workflows found — drop .json files into cache/comfyui-workflows/';
+  } else {
+    hint.textContent = '';
+  }
+}
+
+function onWorkflowSelect(sel) {
+  _selectedWorkflow = sel.value;
+  // Re-render so send buttons enable/disable correctly
+  renderPromptsTable();
 }
 
 // ─── Table rendering ───
@@ -71,12 +124,21 @@ function renderPromptsTable() {
   }
   table.style.display = '';
   if (empty) empty.style.display = 'none';
-  tbody.innerHTML = _prompts.map((p, i) =>
-    '<tr>' +
+  const showComfyBtn = _comfyOk;
+  tbody.innerHTML = _prompts.map((p, i) => {
+    const comfyBtn = showComfyBtn
+      ? '<button class="pt-btn-comfy" onclick="sendToComfyUI(\'' + escA(p.id) + '\')"' +
+          (_selectedWorkflow ? '' : ' disabled') +
+          ' title="' + (_selectedWorkflow ? 'Send to ComfyUI — ' + escA(_selectedWorkflow) : 'Select a workflow first') + '">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' +
+        '</button>'
+      : '';
+    return '<tr>' +
       '<td class="pt-col-num">' + (i + 1) + '</td>' +
       '<td class="pt-col-text"><div class="pt-text" title="' + escA(p.text) + '">' + esc(p.text) + '</div></td>' +
       '<td class="pt-col-sites">' + renderSiteBtns(p) + '</td>' +
       '<td class="pt-col-actions">' +
+        comfyBtn +
         '<button class="pt-btn" onclick="openEditPrompt(\'' + escA(p.id) + '\')" title="Edit">' +
           '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
         '</button>' +
@@ -84,8 +146,8 @@ function renderPromptsTable() {
           '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>' +
         '</button>' +
       '</td>' +
-    '</tr>'
-  ).join('');
+    '</tr>';
+  }).join('');
 }
 
 function renderSiteBtns(prompt) {
@@ -115,6 +177,30 @@ async function sendToSite(promptId, siteId) {
   } else {
     window.open(site.url, '_blank');
     toast('Prompt copied — paste in ' + site.name, 2500);
+  }
+}
+
+// ─── Send to ComfyUI via API ───
+
+async function sendToComfyUI(promptId) {
+  const prompt = _prompts.find(p => p.id === promptId);
+  if (!prompt) return;
+  if (!_selectedWorkflow) { toast('Select a workflow first'); return; }
+
+  try {
+    const r = await fetch('/api/comfyui/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: prompt.text, workflow: _selectedWorkflow }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      toast('ComfyUI error: ' + (data.error || r.status), 3500);
+      return;
+    }
+    toast('Queued in ComfyUI (' + _selectedWorkflow + ')', 2500);
+  } catch {
+    toast('Could not reach ComfyUI', 2500);
   }
 }
 
