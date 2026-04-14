@@ -25,7 +25,7 @@ async function loadBookmarkVidsOnInit() {
     // which is what causes the one-time synchronized flicker.
     const inBrowse = !importFavsMode && !vaultMode && !studioMode && !actorMode
                   && !dbMode && !categoriesMode && !collectionsMode
-                  && !booksMode && !audioMode && !photosMode
+                  && !booksMode && !audioMode && !photosMode && !promptsMode
                   && !settingsMode && !scraperMode && !recentMode;
     if (inBrowse) {
       const gridId = curTag ? 'tag-grid' : 'video-grid';
@@ -100,7 +100,7 @@ function goHome() {
   $('settings-sidebar').remove('on');
   if ($('database-view').el) $('database-view').remove('on');
   if ($('database-sidebar').el) $('database-sidebar').remove('on');
-  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false; categoriesMode = false;
+  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false; promptsMode = false; categoriesMode = false;
   curCollection = null;
   $('browse-view').remove('off');
   $('player-view').remove('on');
@@ -143,7 +143,7 @@ function closeAllViews() {
     'studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
     'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
     'collections-view','collections-sidebar',
-    'books-view','books-sidebar','audio-view','audio-sidebar','photos-view','photos-sidebar','search-sites-view','search-sites-sidebar',
+    'books-view','books-sidebar','audio-view','audio-sidebar','photos-view','photos-sidebar','prompts-view','prompts-sidebar','search-sites-view','search-sites-sidebar',
     'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','database-view','database-sidebar','recent-sidebar',
     'categories-view','categories-view-sidebar',
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
@@ -152,7 +152,7 @@ function closeAllViews() {
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
-  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false; categoriesMode = false;
+  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false; promptsMode = false; categoriesMode = false;
   settingsMode = false; recentMode = false; recentVids = [];
   $('clearRecentBtn').show(false);
   $('clearRecentSep').show(false);

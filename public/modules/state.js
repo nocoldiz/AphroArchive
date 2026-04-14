@@ -37,6 +37,7 @@ let _bfItems = [], _bfMatchedCount = 0, _bfVisible = [], _bfKnownTerms = [];
 let _bfViewMode = 'list';
 let dlPoller = null;
 let cvTargetId = null;
+let promptsMode = false;
 let dualMode = false;
 let dualActive = 'left'; // 'left' | 'right'
 let dualR = { q: '', cat: '', curTag: null };

@@ -37,6 +37,7 @@ const photos      = require('./server/photos');
 const database    = require('./server/database');
 const remote      = require('./server/remote');
 const settings    = require('./server/settings');
+const prompts     = require('./server/prompts');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -219,6 +220,13 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/photos' && req.method === 'GET') return photos.apiPhotosList(req, res);
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/img$/)) && req.method === 'GET') return photos.apiPhotoServe(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)$/)) && req.method === 'DELETE') return photos.apiPhotoDelete(req, res, m[1]);
+
+  // ── Prompts ──────────────────────────────────────────────────────────
+  if (p === '/api/prompts' && req.method === 'GET')    return prompts.apiGetPrompts(req, res);
+  if (p === '/api/prompts' && req.method === 'POST')   return prompts.apiAddPrompt(req, res);
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'PATCH')  return prompts.apiUpdatePrompt(req, res, m[1]);
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'DELETE') return prompts.apiDeletePrompt(req, res, m[1]);
+  if (p === '/api/comfyui/status' && req.method === 'GET') return prompts.apiComfyStatus(req, res);
 
   // ── Remote control ───────────────────────────────────────────────────
   if (p === '/api/remote/events' && req.method === 'GET') return remote.apiRemoteEvents(req, res);

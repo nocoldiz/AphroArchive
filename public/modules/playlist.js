@@ -119,8 +119,9 @@ function unpinVideo() {
 }
 
 function renderPinPlaylist() {
-  const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
   const listEl = $('pinList').el;
+  if (!listEl) return; // pinList removed from DOM
+  const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
   if (!pinnedPl.length) { listEl.innerHTML = ''; return; }
   listEl.innerHTML = pinnedPl.map((v, i) => {
     const c = cols[Math.abs(hsh(v.category)) % cols.length];
