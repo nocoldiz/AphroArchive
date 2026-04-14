@@ -112,8 +112,8 @@ function apiVaultFiles(req, res) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   resetVaultTimer();
   const meta  = loadVaultMeta();
-  const files = Object.entries(meta).map(([id, m]) => ({ id, ...m })).sort((a, b) => b.mtime - a.mtime);
-  json(res, files);
+  const items = Object.entries(meta).map(([id, m]) => ({ id, ...m })).sort((a, b) => b.mtime - a.mtime);
+  json(res, items);
 }
 
 async function apiVaultAdd(req, res) {
@@ -145,9 +145,10 @@ async function apiVaultAdd(req, res) {
     req.on('error', reject);
     out.on('error', reject);
   });
-  const ext  = path.extname(filename).toLowerCase();
-  const meta = loadVaultMeta();
-  meta[id]   = { originalName: filename, name: path.basename(filename, path.extname(filename)), ext, size, sizeF: _fmtBytes(size), mtime: Date.now() };
+  const ext    = path.extname(filename).toLowerCase();
+  const folder = req.headers['x-folder'] || null;
+  const meta   = loadVaultMeta();
+  meta[id]     = { originalName: filename, name: path.basename(filename, path.extname(filename)), ext, size, sizeF: _fmtBytes(size), mtime: Date.now(), folder: folder || null };
   saveVaultMeta(meta);
   json(res, { ok: true, id });
 }
@@ -209,7 +210,48 @@ async function apiVaultDownload(req, res, id) {
   fs.createReadStream(tp).pipe(res);
 }
 
+async function apiVaultCreateFolder(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body = await readBody(req);
+  const name = (body.name || '').trim();
+  if (!name) return json(res, { error: 'Name required' }, 400);
+  const meta = loadVaultMeta();
+  const existing = Object.values(meta).find(m => m.type === 'folder' && m.name.toLowerCase() === name.toLowerCase());
+  if (existing) return json(res, { error: 'Folder already exists' }, 409);
+  const id = crypto.randomUUID();
+  meta[id] = { type: 'folder', name, mtime: Date.now() };
+  saveVaultMeta(meta);
+  json(res, { ok: true, id, name });
+}
+
+async function apiVaultDeleteFolder(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  const meta = loadVaultMeta();
+  if (!meta[id] || meta[id].type !== 'folder') return json(res, { error: 'Not found' }, 404);
+  delete meta[id];
+  // move all files in this folder to root
+  for (const [fid, m] of Object.entries(meta)) {
+    if (m.folder === id) meta[fid] = { ...m, folder: null };
+  }
+  saveVaultMeta(meta);
+  json(res, { ok: true });
+}
+
+async function apiVaultMoveFile(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  const meta = loadVaultMeta();
+  if (!meta[id] || meta[id].type === 'folder') return json(res, { error: 'Not found' }, 404);
+  const body   = await readBody(req);
+  const folder = body.folder || null;
+  if (folder && !meta[folder]) return json(res, { error: 'Folder not found' }, 404);
+  meta[id] = { ...meta[id], folder };
+  saveVaultMeta(meta);
+  json(res, { ok: true });
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
+  apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultMoveFile,
 };

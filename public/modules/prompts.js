@@ -1,16 +1,36 @@
 // ─── AI Prompts ───
 
 const PROMPT_SITES = [
-  { id: 'chatgpt',    name: 'ChatGPT',    url: 'https://chatgpt.com/' },
-  { id: 'claude',     name: 'Claude',     url: 'https://claude.ai/new' },
-  { id: 'gemini',     name: 'Gemini',     url: 'https://gemini.google.com/app' },
-  { id: 'grok',       name: 'Grok',       url: 'https://grok.com/' },
-  { id: 'perplexity', name: 'Perplexity', url: 'https://perplexity.ai/' },
-  { id: 'mistral',    name: 'Le Chat',    url: 'https://chat.mistral.ai/chat' },
-  { id: 'copilot',    name: 'Copilot',    url: 'https://copilot.microsoft.com/' },
-  { id: 'deepseek',   name: 'DeepSeek',   url: 'https://chat.deepseek.com/' },
-  { id: 'meta',       name: 'Meta AI',    url: 'https://www.meta.ai/' },
-  { id: 'comfyui',    name: 'ComfyUI',    url: 'http://127.0.0.1:8188', local: true },
+  // ── General chat ──
+  { id: 'chatgpt',    name: 'ChatGPT',      url: 'https://chatgpt.com/' },
+  { id: 'claude',     name: 'Claude',       url: 'https://claude.ai/new' },
+  { id: 'gemini',     name: 'Gemini',       url: 'https://gemini.google.com/app' },
+  { id: 'grok',       name: 'Grok',         url: 'https://grok.com/' },
+  { id: 'perplexity', name: 'Perplexity',   url: 'https://perplexity.ai/' },
+  { id: 'mistral',    name: 'Le Chat',      url: 'https://chat.mistral.ai/chat' },
+  { id: 'copilot',    name: 'Copilot',      url: 'https://copilot.microsoft.com/' },
+  { id: 'deepseek',   name: 'DeepSeek',     url: 'https://chat.deepseek.com/' },
+  { id: 'meta',       name: 'Meta AI',      url: 'https://www.meta.ai/' },
+  { id: 'groq',       name: 'Groq',         url: 'https://chat.groq.com/' },
+  { id: 'huggingchat',name: 'HuggingChat',  url: 'https://huggingface.co/chat/' },
+  { id: 'poe',        name: 'Poe',          url: 'https://poe.com/' },
+  { id: 'you',        name: 'You.com',      url: 'https://you.com/' },
+  { id: 'phind',      name: 'Phind',        url: 'https://www.phind.com/' },
+  { id: 'cohere',     name: 'Cohere',       url: 'https://coral.cohere.com/' },
+  { id: 'qwen',       name: 'Qwen',         url: 'https://chat.qwenlm.ai/' },
+  { id: 'kimi',       name: 'Kimi',         url: 'https://kimi.moonshot.cn/' },
+  { id: 'venice',     name: 'Venice AI',    url: 'https://venice.ai/' },
+  { id: 'pi',         name: 'Pi AI',        url: 'https://pi.ai/talk' },
+  // ── Image generation ──
+  { id: 'midjourney', name: 'Midjourney',   url: 'https://www.midjourney.com/imagine' },
+  { id: 'ideogram',   name: 'Ideogram',     url: 'https://ideogram.ai/' },
+  { id: 'leonardo',   name: 'Leonardo AI',  url: 'https://app.leonardo.ai/' },
+  { id: 'playground', name: 'Playground',   url: 'https://playground.com/' },
+  { id: 'fal',        name: 'fal.ai',       url: 'https://fal.ai/models' },
+  // ── Local ──
+  { id: 'comfyui',    name: 'ComfyUI',      url: 'http://127.0.0.1:8188', local: true },
+  { id: 'a1111',      name: 'A1111',        url: 'http://127.0.0.1:7860', local: true },
+  { id: 'lmstudio',   name: 'LM Studio',    url: 'http://localhost:1234',  local: true },
 ];
 
 let _prompts = [];
@@ -183,7 +203,80 @@ async function deletePrompt(id) {
   toast('Deleted');
 }
 
+// ─── Mass import ───
+
+function openMassImport() {
+  document.getElementById('mass-import-textarea').value = '';
+  document.getElementById('mass-import-count').textContent = '';
+  renderMassImportSiteCheckboxes(PROMPT_SITES.map(s => s.id));
+  $('mass-import-modal').add('on');
+  setTimeout(() => document.getElementById('mass-import-textarea').focus(), 50);
+}
+
+function closeMassImport() {
+  $('mass-import-modal').remove('on');
+}
+
+function renderMassImportSiteCheckboxes(selected) {
+  const grid = document.getElementById('mass-import-sites-grid');
+  if (!grid) return;
+  grid.innerHTML = PROMPT_SITES.map(s => {
+    const on = selected.includes(s.id);
+    const disabled = s.local && !_comfyOk ? ' pt-site-check-disabled' : '';
+    return '<label class="pt-site-check' + (on ? ' on' : '') + disabled + '" data-site="' + escA(s.id) + '" onclick="toggleSiteCheck(this)">' +
+      '<svg class="pt-check-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' +
+      esc(s.name) +
+    '</label>';
+  }).join('');
+}
+
+function onMassImportInput(ta) {
+  const lines = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+  const cnt = document.getElementById('mass-import-count');
+  if (cnt) cnt.textContent = lines.length ? lines.length + ' prompt' + (lines.length > 1 ? 's' : '') + ' detected' : '';
+}
+
+function massImportSelectAll() {
+  document.querySelectorAll('#mass-import-sites-grid .pt-site-check').forEach(el => {
+    if (!el.classList.contains('pt-site-check-disabled')) el.classList.add('on');
+  });
+}
+
+function massImportSelectNone() {
+  document.querySelectorAll('#mass-import-sites-grid .pt-site-check').forEach(el => el.classList.remove('on'));
+}
+
+async function saveMassImport() {
+  const lines = document.getElementById('mass-import-textarea').value
+    .split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) { toast('Paste at least one prompt'); return; }
+
+  const sites = [...document.querySelectorAll('#mass-import-sites-grid .pt-site-check.on')]
+    .map(el => el.dataset.site);
+
+  const btn = document.getElementById('mass-import-save-btn');
+  btn.disabled = true; btn.textContent = 'Importing…';
+
+  let added = 0;
+  for (const text of lines) {
+    const r = await fetch('/api/prompts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, sites }),
+    });
+    if (r.ok) { const p = await r.json(); _prompts.unshift(p); added++; }
+  }
+
+  btn.disabled = false; btn.textContent = 'Import';
+  closeMassImport();
+  renderPromptsTable();
+  toast('Imported ' + added + ' prompt' + (added > 1 ? 's' : ''));
+}
+
 // ─── Keyboard ───
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && $('prompt-modal').el.classList.contains('on')) closePromptModal();
+  if (e.key === 'Escape') {
+    if ($('mass-import-modal').el.classList.contains('on')) closeMassImport();
+    else if ($('prompt-modal').el.classList.contains('on')) closePromptModal();
+  }
 });

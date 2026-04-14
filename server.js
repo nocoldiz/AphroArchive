@@ -195,7 +195,10 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/add' && req.method === 'POST') return vault.apiVaultAdd(req, res);
   if ((m = p.match(/^\/api\/vault\/stream\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultStream(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDelete(req, res, m[1]);
+  if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'PATCH') return vault.apiVaultMoveFile(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/download\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultDownload(req, res, m[1]);
+  if (p === '/api/vault/folders' && req.method === 'POST') return vault.apiVaultCreateFolder(req, res);
+  if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDeleteFolder(req, res, m[1]);
 
   // ── Database ─────────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
