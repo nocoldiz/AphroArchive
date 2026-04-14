@@ -1,5 +1,7 @@
 // ─── Global State ───
 let V = [], cats = [], sort = 'date', cat = '', q = '', favM = false, curV = null, renId = null;
+let _allVideos = []; // full unfiltered video list for local filtering
+let _dbTagTerms = {}; // displayName → terms[], populated by loadTagSidebar
 let srcFilter = 'both'; // 'both' | 'local' | 'remote'
 let recentMode = false, recentVids = [];
 let movId = null, movCurCat = '', shuf = false;

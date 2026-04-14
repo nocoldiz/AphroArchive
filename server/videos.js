@@ -144,7 +144,7 @@ function apiVideos(req, res, params) {
     const cached   = thumbsCache[v.id];
     const duration = cached?.duration || null;
     const vMeta    = meta[v.id] || {};
-    return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration) };
+    return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: vMeta.tags || [] };
   });
   const q    = params.get('q');
   const cat  = params.get('category');
@@ -582,6 +582,51 @@ function apiTagVideos(req, res, tagName) {
   json(res, { tag: tagName, videos: list });
 }
 
+// ── DB-backed tag listing (grouped by displayName, matched on meta + filename) ──
+
+function _catForName(name) {
+  const cats  = loadCategories();
+  const nameLo = name.toLowerCase();
+  return cats.find(c => c.displayName.toLowerCase() === nameLo)
+      || cats.find(c => c.terms.some(t => t.toLowerCase() === nameLo));
+}
+
+function apiDbTags(req, res) {
+  const cats   = loadCategories();
+  const meta   = loadVideoMeta();
+  const videos = allVideos();
+  const result = cats
+    .map(cat => {
+      const termsLo = cat.terms.map(t => t.toLowerCase());
+      const count   = videos.filter(v => {
+        const vTagsLo = (meta[v.id]?.tags || []).map(t => t.toLowerCase());
+        return vTagsLo.some(t => termsLo.includes(t)) || wordMatchAny(v.name, cat.terms);
+      }).length;
+      return { displayName: cat.displayName, count, terms: cat.terms };
+    })
+    .filter(e => e.count > 0)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  json(res, result);
+}
+
+function apiDbTagVideos(req, res, name) {
+  const cat = _catForName(name);
+  if (!cat) return json(res, { error: 'Not found' }, 404);
+  const meta    = loadVideoMeta();
+  const videos  = allVideos();
+  const favs    = loadFavs();
+  const termsLo = cat.terms.map(t => t.toLowerCase());
+  const list    = videos
+    .filter(v => {
+      const vTagsLo = (meta[v.id]?.tags || []).map(t => t.toLowerCase());
+      return vTagsLo.some(t => termsLo.includes(t)) || wordMatchAny(v.name, cat.terms);
+    })
+    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }))
+    .sort((a, b) => b.mtime - a.mtime);
+  if (!list.length) return json(res, { error: 'Not found' }, 404);
+  json(res, { tag: cat.displayName, videos: list });
+}
+
 function apiVideoTags(req, res, id) {
   const meta = loadVideoMeta();
   json(res, { tags: meta[id]?.tags || [] });
@@ -740,6 +785,7 @@ module.exports = {
   apiSetRating, apiDeleteRating,
   apiUpdateVideoMeta, apiOpenFolder, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
+  apiDbTags, apiDbTagVideos,
   apiStudios, apiStudioVideos,
   apiSubtitles, apiSubtitleFile,
   apiImport,

@@ -2264,17 +2264,6 @@ function closeConnectModal() {
 }
 
 // ─── Tags ───
-async function loadTagSidebar() {
-  const tags = await (await fetch('/api/tags')).json();
-  const el = $('tagList').el;
-  if (!tags.length) { el.innerHTML = ''; return; }
-  el.innerHTML = tags.map(t =>
-    '<div class="ci' + (curTag === t.name ? ' on' : '') + '" data-tag="' + escA(t.name) + '" onclick="openTag(\'' + escA(t.name) + '\')">' +
-    '<span>' + esc(t.name) + '</span>' +
-    '<span class="n">' + t.count + '</span>' +
-    '</div>'
-  ).join('');
-}
 
 async function openTag(name) {
   if (location.pathname !== '/tag/' + encodeURIComponent(name)) history.pushState(null, '', '/tag/' + encodeURIComponent(name));
@@ -2287,7 +2276,7 @@ async function openTag(name) {
   $('tagName').text(name);
   $('tagG').html('<div class="dup-scan">Loading\u2026</div>');
   renCats();
-  const d = await (await fetch('/api/tags/' + encodeURIComponent(name))).json();
+  const d = await (await fetch('/api/db-tags/' + encodeURIComponent(name))).json();
   if (d.error) { $('tagG').html('<div class="es" style="padding:40px 20px"><h3>' + esc(d.error) + '</h3></div>'); return; }
   let localVids = srcFilter === 'remote' ? [] : d.videos;
   if (shuf) {

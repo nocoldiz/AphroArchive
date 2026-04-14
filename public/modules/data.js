@@ -5,7 +5,37 @@ async function load() {
   if (cat) p.set('category', cat);
   p.set('sort', sort);
   V = await (await fetch('/api/videos?' + p)).json();
+  if (!q && !cat) _allVideos = V; // cache for local filtering
   if (shuf) V.sort(() => Math.random() - 0.5);
+}
+
+// ─── Local filtering helpers (avoids a round-trip for category/tag switches) ───
+
+function _wordMatch(name, term) {
+  const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp('\\b' + esc + '\\b', 'i').test(name);
+}
+
+function _applySort(list) {
+  const out = list.slice();
+  if (shuf) return out.sort(() => Math.random() - 0.5);
+  if (sort === 'name')     return out.sort((a, b) => a.name.localeCompare(b.name));
+  if (sort === 'size')     return out.sort((a, b) => b.size - a.size);
+  if (sort === 'duration') return out.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+  return out.sort((a, b) => b.mtime - a.mtime);
+}
+
+function filterVideosCat(catFilter) {
+  if (!catFilter) return _applySort(_allVideos);
+  return _applySort(_allVideos.filter(v => v.catPath === catFilter || v.category === catFilter));
+}
+
+function filterVideosByTag(terms) {
+  const termsLo = terms.map(t => t.toLowerCase());
+  return _applySort(_allVideos.filter(v => {
+    const vTagsLo = (v.tags || []).map(t => t.toLowerCase());
+    return vTagsLo.some(t => termsLo.includes(t)) || terms.some(t => _wordMatch(v.name, t));
+  }));
 }
 
 async function loadC() {

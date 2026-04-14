@@ -53,11 +53,18 @@ function render() {
   let base = recentMode ? recentVids : favM ? V.filter(v => v.fav) : V;
   const local = srcFilter === 'remote' ? [] : base;
   const bms   = (!recentMode && !favM && srcFilter !== 'local') ? getBmList() : [];
+  const countEl = document.getElementById('result-count');
+  const total = local.length + bms.length;
+  if (countEl) {
+    const filtered = q || favM || recentMode || (cat && cat !== '');
+    countEl.textContent = filtered ? total + ' result' + (total !== 1 ? 's' : '') : '';
+  }
   if (!local.length && !bms.length) {
     g.innerHTML = '';
     e.style.display = 'block';
-    $('empty-title').text(q ? 'No results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found');
-    $('empty-desc').text(q ? 'Nothing matched "' + q + '"' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder');
+    $('empty-title').text(q ? 'No video results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found');
+    $('empty-desc').text(q ? 'Nothing matched "' + q + '" in videos' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder');
+    renderSearchExtras(q);
     return;
   }
   e.style.display = 'none';
@@ -70,6 +77,91 @@ function render() {
   if (isRerender) g.querySelectorAll('.video-card.fade-in').forEach(el => el.classList.remove('fade-in'));
   attachThumbs();
   attachBmThumbs();
+  renderSearchExtras(q);
+}
+
+// ─── Cross-media search results (photos / audio / books) ───
+let _searchExtrasQuery = null;
+
+function _hideSearchExtras() {
+  ['photos', 'audio', 'books'].forEach(t => {
+    const el = document.getElementById('search-extra-' + t);
+    if (el) el.style.display = 'none';
+  });
+}
+
+function renderSearchExtras(query) {
+  if (!query) { _searchExtrasQuery = null; _hideSearchExtras(); return; }
+  if (query === _searchExtrasQuery) return; // already rendered for this query
+  _searchExtrasQuery = query;
+  const ql = query.toLowerCase();
+
+  Promise.all([
+    fetch('/api/photos').then(r => r.json()).catch(() => []),
+    fetch('/api/audio').then(r => r.json()).catch(() => []),
+    fetch('/api/books').then(r => r.json()).catch(() => []),
+  ]).then(([photos, audio, books]) => {
+    if (_searchExtrasQuery !== query) return; // query changed while fetching
+
+    const mPhotos = photos.filter(p => p.filename.toLowerCase().includes(ql));
+    const mAudio  = audio.filter(a => (a.title || '').toLowerCase().includes(ql));
+    const mBooks  = books.filter(b => (b.title || b.filename || '').toLowerCase().includes(ql));
+
+    // Photos
+    const phSec  = document.getElementById('search-extra-photos');
+    const phGrid = document.getElementById('search-extra-photos-grid');
+    if (phSec && phGrid) {
+      if (mPhotos.length) {
+        phGrid.innerHTML = mPhotos.map(p =>
+          '<div class="ph-card" onclick="window.open(\'/api/photos/' + p.id + '/img\',\'_blank\')">' +
+          '<img class="ph-thumb" src="/api/photos/' + p.id + '/img" alt="' + escA(p.filename) + '" loading="lazy">' +
+          '<div class="ph-overlay"><span class="ph-name">' + esc(p.filename) + '</span></div>' +
+          '</div>'
+        ).join('');
+        phSec.style.display = '';
+      } else {
+        phSec.style.display = 'none';
+      }
+    }
+
+    // Audio
+    const auSec  = document.getElementById('search-extra-audio');
+    const auGrid = document.getElementById('search-extra-audio-grid');
+    if (auSec && auGrid) {
+      if (mAudio.length) {
+        auGrid.innerHTML = mAudio.map(f =>
+          '<div class="au-card' + (curAudio === f.id ? ' playing' : '') + '" onclick="playAudio(\'' + escA(f.id) + '\')">' +
+          '<div class="au-card-icon">' + _auIcon() + '</div>' +
+          '<div class="au-card-info">' +
+          '<div class="au-card-title" title="' + escA(f.title) + '">' + esc(f.title) + '</div>' +
+          '<div class="au-card-meta"><span class="au-badge">' + esc(f.ext.replace('.', '').toUpperCase()) + '</span><span>' + esc(f.sizeF) + '</span></div>' +
+          '</div></div>'
+        ).join('');
+        auSec.style.display = '';
+      } else {
+        auSec.style.display = 'none';
+      }
+    }
+
+    // Books
+    const bkSec  = document.getElementById('search-extra-books');
+    const bkGrid = document.getElementById('search-extra-books-grid');
+    if (bkSec && bkGrid) {
+      if (mBooks.length) {
+        bkGrid.innerHTML = mBooks.map(b =>
+          '<div class="bk-card" onclick="openBook(\'' + escA(b.id) + '\')">' +
+          '<div class="bk-icon">' + bookTypeIcon(b.ext) + '</div>' +
+          '<div class="bk-info">' +
+          '<div class="bk-title">' + esc(b.title || b.filename) + '</div>' +
+          '<div class="bk-meta">' + bookTypeBadge(b.type, b.ext) + '<span>' + esc(b.sizeF || '') + '</span></div>' +
+          '</div></div>'
+        ).join('');
+        bkSec.style.display = '';
+      } else {
+        bkSec.style.display = 'none';
+      }
+    }
+  });
 }
 
 function setSrcFilter(val) {

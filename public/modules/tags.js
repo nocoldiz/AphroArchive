@@ -113,10 +113,23 @@ async function openTag(name) {
   $('tag-detail-view').add('on');
   q = ''; $('search-input').val(''); $('search-ghost').html('');
   $('tag-name').text(name);
-  $('tag-grid').html(tpl('loading', { message: 'Loading\u2026' }));
   renCats();
   loadTagSidebar();
-  const d = await (await fetch('/api/tags/' + encodeURIComponent(name))).json();
+
+  const terms = _dbTagTerms[name];
+  if (_allVideos.length && terms && terms.length) {
+    // Fast path — filter in memory, no network request
+    const localVids = srcFilter === 'remote' ? [] : filterVideosByTag(terms);
+    const bms = srcFilter !== 'local' ? getBmList() : [];
+    $('tag-grid').html(localVids.map(card).join('') + bms.map(bmCard).join(''));
+    attachThumbs();
+    attachBmThumbs();
+    return;
+  }
+
+  // Slow path — fetch from server (first visit or cache miss)
+  $('tag-grid').html(Array(8).fill(tpl('skeleton')).join(''));
+  const d = await (await fetch('/api/db-tags/' + encodeURIComponent(name))).json();
   if (d.error) { $('tag-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   let localVids = srcFilter === 'remote' ? [] : d.videos;
   if (shuf) {
@@ -144,7 +157,7 @@ function closeTag() {
 
 async function loadTagSidebar() {
   let tags = [];
-  try { tags = await (await fetch('/api/tags')).json(); } catch {}
+  try { tags = await (await fetch('/api/db-tags')).json(); } catch {}
   const listEl   = $('tagList').el;
   const sepEl    = document.getElementById('tags-sep');
   const headEl   = document.getElementById('sh3-tags');
@@ -156,8 +169,10 @@ async function loadTagSidebar() {
   }
   sepEl.style.display = '';
   headEl.style.display = '';
+  _dbTagTerms = {};
+  tags.forEach(t => { _dbTagTerms[t.displayName] = t.terms || [t.displayName]; });
   listEl.innerHTML = tags.map(t =>
-    '<div class="sidebar-item' + (curTag === t.name ? ' on' : '') + '" onclick="openTag(\'' + escA(t.name) + '\')">' +
-    '<span>' + esc(t.name) + '</span><span class="count-badge">' + t.count + '</span></div>'
+    '<div class="sidebar-item' + (curTag === t.displayName ? ' on' : '') + '" data-tag="' + escA(t.displayName) + '" onclick="openTag(\'' + escA(t.displayName) + '\')">' +
+    '<span>' + esc(t.displayName) + '</span><span class="count-badge">' + t.count + '</span></div>'
   ).join('');
 }

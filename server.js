@@ -126,8 +126,10 @@ const server = http.createServer(async (req, res) => {
 
   // ── Tags / Studios ───────────────────────────────────────────────────
   if (p === '/api/tags' && req.method === 'GET') return videos.apiTags(req, res);
+  if (p === '/api/db-tags' && req.method === 'GET') return videos.apiDbTags(req, res);
   if (p === '/api/tag-suggestions' && req.method === 'GET') return videos.apiTagSuggestions(req, res);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/tags$/)) && req.method === 'GET') return videos.apiVideoTags(req, res, m[1]);
+  if ((m = p.match(/^\/api\/db-tags\/(.+)$/)) && req.method === 'GET') return videos.apiDbTagVideos(req, res, decodeURIComponent(m[1]));
   if ((m = p.match(/^\/api\/tags\/(.+)$/)) && req.method === 'GET') return videos.apiTagVideos(req, res, decodeURIComponent(m[1]));
   if (p === '/api/studios' && req.method === 'GET') return videos.apiStudios(req, res);
   if ((m = p.match(/^\/api\/studios\/(.+)$/)) && req.method === 'GET') return videos.apiStudioVideos(req, res, decodeURIComponent(m[1]));

@@ -217,7 +217,7 @@
     <!-- Browse View -->
     <div class="browse-view" id="browse-view">
       <div class="section-header">
-        <h2 id="section-title">All Videos</h2>
+        <h2 id="section-title">All Videos</h2><span id="result-count"></span>
         <div class="section-controls">
           <button class="sort-btn on" data-s="date" onclick="setSort('date',this)">Recent</button>
           <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
@@ -237,6 +237,19 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
         <h3 id="empty-title">No videos found</h3>
         <p id="empty-desc">Add video files to your videos folder</p>
+      </div>
+      <!-- Extra search result sections (photos / audio / books) -->
+      <div id="search-extra-photos" style="display:none">
+        <h3 class="search-extra-heading">Photos</h3>
+        <div id="search-extra-photos-grid" class="ph-grid"></div>
+      </div>
+      <div id="search-extra-audio" style="display:none">
+        <h3 class="search-extra-heading">Audio</h3>
+        <div id="search-extra-audio-grid" class="au-grid"></div>
+      </div>
+      <div id="search-extra-books" style="display:none">
+        <h3 class="search-extra-heading">Books</h3>
+        <div id="search-extra-books-grid" class="bk-grid"></div>
       </div>
     </div>
 

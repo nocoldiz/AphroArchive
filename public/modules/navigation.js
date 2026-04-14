@@ -171,7 +171,13 @@ function selCat(c) {
   $('search-input').val('');
   $('search-ghost').html('');
   window.scrollTo({ top: 0, behavior: 'instant' });
-  refresh();
+  if (_allVideos.length && !q) {
+    V = filterVideosCat(c);
+    renCats();
+    render();
+  } else {
+    refresh();
+  }
 }
 
 // ─── Favourites Toggle ───
