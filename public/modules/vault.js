@@ -573,6 +573,203 @@ function _stopVaultSs() {
   if (bar) bar.style.width = '0%';
 }
 
+
+// ─── Dynamic Vault Mosaic (Photos & Videos) ───
+
+let vaultDynamicMosTimer = null;
+let vaultDynamicMosActive = false;
+let vaultDynamicTiles = [];
+let vaultDynamicPool = [];
+
+function startVaultDynamicMosaic() {
+  // Filter for both images and videos in the vault
+vaultDynamicPool = vaultFiles.filter(f => {
+  // Strip leading dot if present
+  const ext = (f.ext || '').toLowerCase().replace('.', ''); 
+  const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+  const isVid = ['mp4', 'webm', 'mkv', 'mov', 'avi', 'm4v'].includes(ext);
+  return isImg || isVid;
+});
+
+  if (!vaultDynamicPool.length) {
+    toast('No photos or videos found in the vault.');
+    return;
+  }
+
+  vaultDynamicMosActive = true;
+  
+  // Hide current vault view
+  const vaultView = document.getElementById('vault-view');
+  if (vaultView) vaultView.style.display = 'none';
+
+  // Create or reuse full-screen container
+  let container = document.getElementById('vault-dynamic-mosaic-view');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'vault-dynamic-mosaic-view';
+    // Style as a full-screen absolute overlay grid
+    Object.assign(container.style, {
+      position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh',
+      backgroundColor: '#000', zIndex: '9999', display: 'grid', gap: '4px',
+      overflow: 'hidden'
+    });
+
+    // Close button
+    const closeBtn = document.createElement('div');
+    closeBtn.innerHTML = '✕';
+    Object.assign(closeBtn.style, {
+      position: 'absolute', top: '20px', right: '20px', color: '#fff', 
+      fontSize: '28px', cursor: 'pointer', zIndex: '10000', 
+      background: 'rgba(0,0,0,0.6)', borderRadius: '50%', 
+      width: '40px', height: '40px', display: 'flex', 
+      alignItems: 'center', justifyContent: 'center'
+    });
+    closeBtn.onclick = stopVaultDynamicMosaic;
+    container.appendChild(closeBtn);
+
+    document.body.appendChild(container);
+  } else {
+    container.style.display = 'grid';
+  }
+
+  // Determine grid size based on screen dimensions (approx 300px per tile)
+  const cols = Math.max(1, Math.floor(window.innerWidth / 300));
+  const rows = Math.max(1, Math.floor(window.innerHeight / 300));
+  const numTiles = cols * rows;
+
+  container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  container.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+
+  vaultDynamicTiles = [];
+
+  // Generate the media tiles
+  for (let i = 0; i < numTiles; i++) {
+    const tileWrap = document.createElement('div');
+    Object.assign(tileWrap.style, {
+      position: 'relative', width: '100%', height: '100%', 
+      overflow: 'hidden', backgroundColor: '#111'
+    });
+
+    // Image element
+    const img = document.createElement('img');
+    Object.assign(img.style, {
+      width: '100%', height: '100%', objectFit: 'cover', 
+      position: 'absolute', opacity: '0', transition: 'opacity 0.6s ease'
+    });
+
+    // Video element
+    const vid = document.createElement('video');
+    Object.assign(vid.style, {
+      width: '100%', height: '100%', objectFit: 'cover', 
+      position: 'absolute', opacity: '0', transition: 'opacity 0.6s ease'
+    });
+    vid.muted = true; vid.loop = true; vid.playsInline = true;
+
+    tileWrap.appendChild(img);
+    tileWrap.appendChild(vid);
+    container.appendChild(tileWrap);
+
+    vaultDynamicTiles.push({ wrap: tileWrap, img, vid });
+    updateVaultDynamicTile(i); // Initial load
+  }
+
+  scheduleVaultDynamicMosaic();
+}
+
+function updateVaultDynamicTile(idx) {
+  if (!vaultDynamicMosActive) return;
+  const tile = vaultDynamicTiles[idx];
+  
+  // Pick random file from the unfiltered pool
+  const item = vaultDynamicPool[Math.floor(Math.random() * vaultDynamicPool.length)];
+  const ext = (item.ext || '').toLowerCase().replace('.', '');
+  
+  // Expanded list of video extensions to ensure they play as videos
+  const videoExts = ['mp4', 'webm', 'mkv', 'mov', 'avi', 'm4v', 'mpg', 'mpeg', 'wmv', 'ts'];
+  const isVideo = videoExts.includes(ext);
+  
+  const url = `/api/vault/stream/${item.id}`;
+
+  if (isVideo) {
+    tile.vid.src = url;
+    tile.vid.oncanplay = () => {
+      tile.vid.play().catch(() => {});
+      tile.vid.style.opacity = '1';
+      tile.img.style.opacity = '0';
+      setTimeout(() => { tile.img.src = ''; }, 600);
+    };
+  } else {
+    // For images and all other file types, attempt to load in the <img> tag
+    tile.img.src = url;
+    tile.img.onload = () => {
+      tile.img.style.opacity = '1';
+      tile.vid.style.opacity = '0';
+      setTimeout(() => { tile.vid.pause(); tile.vid.src = ''; }, 600);
+    };
+    // If the file isn't an image (e.g. a zip or pdf), the <img> tag will remain 
+    // blank or show a broken icon, which is expected when removing all filters.
+  }
+}
+
+function scheduleVaultDynamicMosaic() {
+  if (!vaultDynamicMosActive) return;
+  // Choose how fast tiles change (e.g., replace one random tile every 1.5 seconds)
+  const swapInterval = 1500; 
+  
+  vaultDynamicMosTimer = setTimeout(() => {
+    if (!vaultDynamicMosActive) return;
+    const randomIdx = Math.floor(Math.random() * vaultDynamicTiles.length);
+    updateVaultDynamicTile(randomIdx);
+    scheduleVaultDynamicMosaic();
+  }, swapInterval);
+}
+
+function stopVaultDynamicMosaic() {
+  vaultDynamicMosActive = false;
+  clearTimeout(vaultDynamicMosTimer);
+  
+  const container = document.getElementById('vault-dynamic-mosaic-view');
+  if (container) {
+    container.style.display = 'none';
+    
+    // Memory cleanup: stop all streams
+    vaultDynamicTiles.forEach(t => {
+      t.vid.pause(); t.vid.src = ''; t.vid.load();
+      t.img.src = '';
+    });
+    // Remove all children except the close button
+    while (container.childNodes.length > 1) {
+      container.removeChild(container.lastChild);
+    }
+  }
+  
+  // Restore main vault view
+  const vaultView = document.getElementById('vault-view');
+  if (vaultView) vaultView.style.display = '';
+}
+// ─── Vault Shuffle ───
+function shuffleVault() {
+  if (!vaultFiles || vaultFiles.length === 0) {
+    if (typeof toast === 'function') toast('Vault is empty');
+    return;
+  }
+  
+  // Clear any active sort button highlights
+  vaultSort = 'shuffle';
+  document.querySelectorAll('.vault-sort-btn').forEach(b => b.classList.remove('on'));
+  
+  // Randomize the vaultFiles array
+  vaultFiles.sort(() => Math.random() - 0.5);
+  
+  // Clear any current selections as positions will shift
+  if (typeof clearVaultSelection === 'function') clearVaultSelection();
+  
+  // Re-render the grid with the new shuffled order
+  renderVaultGrid();
+  
+  if (typeof toast === 'function') toast('Vault shuffled');
+}
+
 function closeVaultPhoto() {
   _stopVaultSs();
   _vpReset();
