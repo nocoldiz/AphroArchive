@@ -2894,7 +2894,7 @@ function dbSwitchTab(tab) { loadDbTab(tab); }
 function renderDbCards(data, tab) {
   const entries = Object.entries(data);
   if (!entries.length) {
-    $('dbGrid').html('<div class="es" style="padding:40px 20px);text-align:center"><h3 style="color:var(--tx2)">No entries yet</h3><p style="color:var(--tx3)">Click + Add to create one</p></div>';
+    $('dbGrid').html('<div class="es" style="padding:40px 20px);text-align:center"><h3 style="color:var(--tx2)">No entries yet</h3><p style="color:var(--tx3)">Click + Add to create one</p></div>');
     return;
   }
   $('dbGrid').html(entries.map(([name, info]) => dbCard(name, info, tab)).join(''));

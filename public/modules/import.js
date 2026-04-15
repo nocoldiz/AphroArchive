@@ -8,6 +8,36 @@ async function handleGlobalFiles(files) {
   const arr = Array.from(files).filter(f => f.size > 0);
   if (!arr.length) return;
 
+  // 1. VAULT INTERCEPTION: If the user is in the vault, send files there instead.
+  if (typeof vaultMode !== 'undefined' && vaultMode) {
+    let added = 0;
+    for (const file of arr) {
+      try {
+        // NOTE: Adjust '/api/vault/add' if your vault upload endpoint is named differently
+        // (e.g., '/api/vault/upload'). Or, if you have a specific JS function 
+        // like `uploadToVault(file)`, call it here instead of fetch.
+        const r = await fetch('/api/vault/add', {
+          method: 'POST',
+          headers: { 'x-filename': encodeURIComponent(file.name) },
+          body: file
+        });
+        if (r.ok) added++;
+        else toast('Failed to add ' + file.name + ' to vault');
+      } catch {
+        toast('Error adding ' + file.name);
+      }
+    }
+    
+    if (added > 0) {
+      toast('Added ' + added + ' file(s) to Vault');
+      if (typeof loadVaultFiles === 'function') loadVaultFiles(); // Refresh vault view
+    }
+    
+    $('globalFileIn').el.value = '';
+    return; // Exit early so they don't get sent to the general importer
+  }
+
+  // 2. STANDARD IMPORTER (Videos, Audio, Books)
   const counts = { video: 0, audio: 0, book: 0, skip: 0 };
 
   for (const file of arr) {
