@@ -26,7 +26,7 @@ const { getLocalIPs, getLocalIP } = require('./server/config');
 
 const videos      = require('./server/videos');
 const actors      = require('./server/actors');
-const vault       = require('./server/vault');
+const vault       = require('./server/vault-server');
 const thumbnails  = require('./server/thumbnails');
 const collections = require('./server/collections');
 const downloads   = require('./server/downloads');

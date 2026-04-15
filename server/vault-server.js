@@ -1,6 +1,6 @@
 'use strict';
 // ═══════════════════════════════════════════════════════════════════
-//  vault.js — Encrypted vault: setup, lock/unlock, streaming
+//  vault-server.js — Encrypted vault: setup, lock/unlock, streaming
 // ═══════════════════════════════════════════════════════════════════
 
 const fs     = require('fs');

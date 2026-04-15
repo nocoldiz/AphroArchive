@@ -300,7 +300,17 @@ input{font-family:inherit;color:inherit}
 .vault-ss-unit{color:rgba(255,255,255,0.5);font-size:0.82rem}
 .vault-ss-progress{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.08)}
 .vault-ss-progress-bar{height:100%;width:0%;background:var(--ac,#e84040);transition:none}
-
+#vault-player-del {
+  color: #ff4d4d; /* Reddish to indicate delete */
+  margin-left: 10px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 4px;
+  transition: background 0.2s;
+}
+#vault-player-del:hover {
+  background: rgba(255, 77, 77, 0.2);
+}
 /* ── Vault Folders ── */
 .vault-breadcrumb{display:flex;align-items:center;gap:6px;padding:6px 0 2px;font-size:0.82rem;color:rgba(255,255,255,0.5)}
 .vault-bc-back{background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;padding:2px 4px;display:flex;align-items:center}

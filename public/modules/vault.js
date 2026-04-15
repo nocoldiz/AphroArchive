@@ -77,7 +77,8 @@ async function lockVault() {
 }
 
 async function loadVaultFiles() {
-  vaultQ = ''; vaultSort = 'date'; vaultCurFolder = null;
+  let vaultSort = 'date-desc';
+vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null;
   const vsi = $('vaultSearchInput').el;
   if (vsi) vsi.value = '';
   document.querySelectorAll('.vault-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.sort === 'date'));
@@ -293,6 +294,8 @@ async function openVaultVid(id, name, ext) {
   $('player-duration').text('');
   $('suggestions-grid').html('');
   curV = { id, name, category: 'Vault', fav: false, isVault: true };
+  const delBtn = document.getElementById('vault-player-del');
+  if (delBtn) delBtn.style.display = 'block';
   curVTags = []; curVAllCategories = []; curVActors = [];
   renderVideoTags();
   renderRating(null);
@@ -305,7 +308,41 @@ async function openVaultVid(id, name, ext) {
   renderVaultPlaylist();
   window.scrollTo(0, 0);
 }
+async function deleteVaultFileFromPlayer() {
+  if (!curV || !curV.isVault) return;
+  
+  const idToDelete = curV.id;
+  
+  // 1. Call API to delete (no confirm() check here)
+  const r = await fetch('/api/vault/files/' + idToDelete, { method: 'DELETE' });
+  if (!r.ok) {
+    toast('Delete failed');
+    return;
+  }
 
+  // 2. Remove from local arrays
+  vaultFiles = vaultFiles.filter(f => f.id !== idToDelete);
+  const deletedIdx = vaultPl.findIndex(f => f.id === idToDelete);
+  vaultPl = vaultPl.filter(f => f.id !== idToDelete);
+
+  toast('Deleted from vault');
+
+  // 3. Determine next video to play
+  if (vaultPl.length > 0) {
+    // If there's a next video, play it. If we deleted the last one, play the new last one.
+    const nextIdx = deletedIdx < vaultPl.length ? deletedIdx : vaultPl.length - 1;
+    const nextVid = vaultPl[nextIdx];
+    
+    // Play next video without leaving player view
+    vaultCardClick(nextVid.id, nextVid.name || nextVid.originalName, nextVid.ext);
+  } else {
+    // If no videos left, go back to vault view
+    showVault();
+  }
+  
+  // 4. Refresh the background grid so it's updated when user returns
+  renderVaultGrid();
+}
 function renderVaultPlaylist() {
   const listEl = $('playlist-list').el;
   const countEl = $('playlist-count').el;

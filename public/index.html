@@ -312,7 +312,7 @@
           <div class="vault-sort-row">
             <span class="vault-sort-label">Sort:</span>
 
-            <button class="vault-sort-btn on" data-sort="date" onclick="setVaultSort('date')">Actions</button>
+            <button class="vault-sort-btn on" data-sort="date" onclick="setVaultSort('date')">Date</button>
             <button class="vault-sort-btn" data-sort="name" onclick="setVaultSort('name')">Name</button>
             <button class="vault-sort-btn" data-sort="size-desc" onclick="setVaultSort('size-desc')">Size ↓</button>
             <button class="vault-sort-btn" data-sort="size-asc" onclick="setVaultSort('size-asc')">Size ↑</button>
@@ -381,6 +381,14 @@
         <div class="cv-toolbar">
           <span class="au-toolbar-label">Sort:</span>
           <button class="cv-sort-btn on" data-s="name" onclick="setCvSort('name')">Name</button>
+<div class="vault-sort-bar">
+  <button class="vault-sort-btn on" data-sort="date-desc" onclick="setVaultSort('date-desc')">Date ↓</button>
+  <button class="vault-sort-btn" data-sort="date-asc" onclick="setVaultSort('date-asc')">Date ↑</button>
+  
+  <button class="vault-sort-btn" data-sort="name" onclick="setVaultSort('name')">Name</button>
+  <button class="vault-sort-btn" data-sort="size-desc" onclick="setVaultSort('size-desc')">Size ↓</button>
+  <button class="vault-sort-btn" data-sort="size-asc" onclick="setVaultSort('size-asc')">Size ↑</button>
+</div>
           <button class="cv-sort-btn" data-s="count-desc" onclick="setCvSort('count-desc')">Most Videos</button>
           <button class="cv-sort-btn" data-s="count-asc" onclick="setCvSort('count-asc')">Fewest Videos</button>
         </div>
@@ -909,6 +917,13 @@
                 </button>
               </div>
               <div class="player-info-actions">
+                <button id="player-vault-del" class="p-act-btn" style="display:none; color:#ff4d4d" onclick="deleteVaultFileFromPlayer()" title="Delete from Vault (No confirmation)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span>Delete</span>
+              </button>
                 <button id="player-star-btn" onclick="togglePStar()">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                   <span>Fav</span>
