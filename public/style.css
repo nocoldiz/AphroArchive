@@ -330,7 +330,19 @@ input{font-family:inherit;color:inherit}
 .vault-move-menu-title{font-size:0.73rem;color:rgba(255,255,255,0.4);padding:4px 8px 6px;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:4px}
 .vault-move-menu button{display:block;width:100%;text-align:left;background:none;border:none;color:rgba(255,255,255,0.8);padding:6px 10px;border-radius:5px;cursor:pointer;font-size:0.83rem}
 .vault-move-menu button:hover{background:rgba(255,255,255,0.08)}
+.vault-no-thumbs .card-thumb img,
+.vault-no-thumbs .card-thumb video {
+  filter: brightness(0); /* Rende l'immagine completamente nera */
+  background: #000;
+}
 
+/* Stato temporaneo quando il mouse esce dal vault */
+.vault-auto-hide .card-thumb img,
+.vault-auto-hide .card-thumb video {
+  filter: brightness(0) !important;
+  background: #000 !important;
+  transition: filter 0.2s ease; /* Transizione fluida */
+}
 /* ── Studios ── */
 .studios-view{display:none}.studios-view.on{display:block}
 .studio-detail-view{display:none}.studio-detail-view.on{display:block}

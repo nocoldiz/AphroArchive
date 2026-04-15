@@ -1,51 +1,85 @@
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>AphroArchive</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
-  </head>
-  <body>
+</head>
+
+<body>
 
   <!-- Topbar -->
   <div class="topbar">
     <div class="logo" onclick="showHome()">
-      <svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#e84040"/><polygon points="11,7 11,21 22,14" fill="#fff"/></svg>
+      <svg viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="6" fill="#e84040" />
+        <polygon points="11,7 11,21 22,14" fill="#fff" />
+      </svg>
       AphroArchive
     </div>
     <div class="search-w">
-      <svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.35-4.35" />
+      </svg>
       <input type="text" id="search-input" placeholder="Search videos..." autocomplete="off" spellcheck="false">
       <div class="search-ghost" id="search-ghost"></div>
     </div>
     <div class="tb-acts">
-      <button id="importBtn" onclick="openImport()" title="Import files" class="hsm" style="display:flex;align-items:center;gap:5px">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import
+      <button id="importBtn" onclick="openImport()" title="Import files" class="hsm"
+        style="display:flex;align-items:center;gap:5px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>Import
       </button>
       <button id="dualBtn" onclick="toggleDual()" title="Dual mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="9" height="18" rx="1"/><rect x="13" y="3" width="9" height="18" rx="1"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="9" height="18" rx="1" />
+          <rect x="13" y="3" width="9" height="18" rx="1" />
+        </svg>
       </button>
       <button id="mosBtn" onclick="toggleMosaic()" title="Mosaic mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
       </button>
       <button id="zapBtn" onclick="toggleZapping()" title="Zapping mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+        </svg>
       </button>
       <button id="panBtn" onclick="togglePan()" title="Panoramic mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="9" y1="3" x2="9" y2="21" />
+        </svg>
       </button>
-      <input type="file" id="globalFileIn" multiple accept="video/*,audio/*,.pdf,.txt,.doc,.docx,.md,.epub,.mp3,.flac,.wav,.ogg,.aac,.m4a,.wma,.opus,.aiff" style="display:none" onchange="handleGlobalFiles(this.files)">
+      <input type="file" id="globalFileIn" multiple
+        accept="video/*,audio/*,.pdf,.txt,.doc,.docx,.md,.epub,.mp3,.flac,.wav,.ogg,.aac,.m4a,.wma,.opus,.aiff"
+        style="display:none" onchange="handleGlobalFiles(this.files)">
     </div>
   </div>
 
   <!-- Drop overlay -->
   <div id="dropOverlay" style="display:none">
     <div class="drop-overlay-inner">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+      </svg>
       <p>Drop files to import</p>
       <span>Videos · Audio · Books</span>
     </div>
@@ -54,99 +88,195 @@
   <!-- Layout -->
   <div class="wrap">
     <aside class="side" id="side">
-    <div class="side-scroll">
+      <div class="side-scroll">
 
-      <!-- Library -->
-      <h3 class="sidebar-heading" id="sh3-library" onclick="toggleSection('library')">Library<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
-      <div class="side-section" id="librarySection">
-        <div class="sidebar-item" id="fBtn" onclick="toggleFav()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Favourites</span>
+        <!-- Library -->
+        <h3 class="sidebar-heading" id="sh3-library" onclick="toggleSection('library')">Library<svg
+            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg></h3>
+        <div class="side-section" id="librarySection">
+          <div class="sidebar-item" id="fBtn" onclick="toggleFav()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <polygon
+                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>Favourites</span>
+          </div>
+          <div class="sidebar-item" id="recent-sidebar" onclick="showRecent()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>Recently Watched</span>
+          </div>
+          <div class="sidebar-item" id="collections-sidebar" onclick="showCollections()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <rect x="2" y="7" width="20" height="14" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+              </svg>Playlist</span>
+          </div>
+          <div class="sidebar-item" id="vault-sidebar" onclick="showVault()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>Vault</span>
+          </div>
         </div>
-        <div class="sidebar-item" id="recent-sidebar" onclick="showRecent()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Recently Watched</span>
+
+        <!-- Browse -->
+        <div class="side-sep"></div>
+        <h3 class="sidebar-heading" id="sh3-browse" onclick="toggleSection('browse')">Browse<svg
+            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg></h3>
+        <div class="side-section" id="browseSection">
+          <div class="sidebar-item" id="categories-view-sidebar" onclick="showCategoriesView()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>Categories</span>
+          </div>
+          <div class="sidebar-item" id="actor-sidebar" onclick="showActors()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>Actors</span>
+          </div>
+          <div class="sidebar-item" id="studio-sidebar" onclick="showStudios()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <rect x="2" y="7" width="20" height="15" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                <line x1="12" y1="12" x2="12" y2="16" />
+                <line x1="10" y1="14" x2="14" y2="14" />
+              </svg>Studios</span>
+          </div>
         </div>
-        <div class="sidebar-item" id="collections-sidebar" onclick="showCollections()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>Playlist</span>
+
+        <!-- Media -->
+        <div class="side-sep"></div>
+        <h3 class="sidebar-heading" id="sh3-media" onclick="toggleSection('media')">Media<svg
+            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg></h3>
+        <div class="side-section" id="mediaSection">
+          <div class="sidebar-item" id="books-sidebar" onclick="showBooks()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>Books</span>
+          </div>
+          <div class="sidebar-item" id="audio-sidebar" onclick="showAudio()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>Audio</span>
+          </div>
+          <div class="sidebar-item" id="photos-sidebar" onclick="showPhotos()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>Photos</span>
+          </div>
+          <div class="sidebar-item" id="prompts-sidebar" onclick="showPrompts()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>Prompts</span>
+          </div>
         </div>
-        <div class="sidebar-item" id="vault-sidebar" onclick="showVault()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vault</span>
+
+        <!-- Web -->
+        <div class="side-sep"></div>
+        <h3 class="sidebar-heading" id="sh3-web" onclick="toggleSection('web')">Web<svg class="sidebar-heading-chevron"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg></h3>
+        <div class="side-section" id="webSection">
+          <div class="sidebar-item" id="import-favs-sidebar" onclick="showImportFavs()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>Bookmarks</span>
+          </div>
+          <div class="sidebar-item" id="search-sites-sidebar" onclick="showSearchSites()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+                <path d="M11 8v6M8 11h6" />
+              </svg>Search</span>
+          </div>
         </div>
+
+        <!-- Manage -->
+        <div class="side-sep"></div>
+        <h3 class="sidebar-heading" id="sh3-manage" onclick="toggleSection('manage')">Manage<svg
+            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg></h3>
+        <div class="side-section" id="manageSection">
+          <div class="sidebar-item" id="database-sidebar" onclick="showDatabase()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+              </svg>Database</span>
+          </div>
+          <div class="sidebar-item" id="connect-sidebar" onclick="showConnect()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <circle cx="12" cy="20" r="1" fill="currentColor" />
+              </svg>Connect</span>
+          </div>
+          <div class="sidebar-item" id="settings-sidebar" onclick="showSettings()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>Settings</span>
+          </div>
+        </div>
+
+        <!-- Categories & Tags -->
+        <div class="side-sep"></div>
+        <h3 class="sidebar-heading" id="sh3-cats" onclick="toggleSection('cats')">Categories<svg
+            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg><button class="sidebar-heading-add" title="New folder"
+            onclick="event.stopPropagation();createCategory()"><svg width="12" height="12" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg></button></h3>
+        <div class="side-section" id="catsSection">
+          <div id="cList"></div>
+        </div>
+
+        <div class="side-sep" id="tags-sep" style="display:none"></div>
+        <h3 class="sidebar-heading" id="sh3-tags" style="display:none" onclick="toggleSection('tags')">Tags<svg
+            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg></h3>
+        <div class="side-section" id="tagsSection">
+          <div id="tagList"></div>
+        </div>
+
       </div>
-
-      <!-- Browse -->
-      <div class="side-sep"></div>
-      <h3 class="sidebar-heading" id="sh3-browse" onclick="toggleSection('browse')">Browse<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
-      <div class="side-section" id="browseSection">
-        <div class="sidebar-item" id="categories-view-sidebar" onclick="showCategoriesView()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Categories</span>
-        </div>
-        <div class="sidebar-item" id="actor-sidebar" onclick="showActors()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>Actors</span>
-        </div>
-        <div class="sidebar-item" id="studio-sidebar" onclick="showStudios()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>Studios</span>
-        </div>
-      </div>
-
-      <!-- Media -->
-      <div class="side-sep"></div>
-      <h3 class="sidebar-heading" id="sh3-media" onclick="toggleSection('media')">Media<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
-      <div class="side-section" id="mediaSection">
-        <div class="sidebar-item" id="books-sidebar" onclick="showBooks()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Books</span>
-        </div>
-        <div class="sidebar-item" id="audio-sidebar" onclick="showAudio()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Audio</span>
-        </div>
-        <div class="sidebar-item" id="photos-sidebar" onclick="showPhotos()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photos</span>
-        </div>
-        <div class="sidebar-item" id="prompts-sidebar" onclick="showPrompts()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Prompts</span>
-        </div>
-      </div>
-
-      <!-- Web -->
-      <div class="side-sep"></div>
-      <h3 class="sidebar-heading" id="sh3-web" onclick="toggleSection('web')">Web<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
-      <div class="side-section" id="webSection">
-        <div class="sidebar-item" id="import-favs-sidebar" onclick="showImportFavs()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Bookmarks</span>
-        </div>
-        <div class="sidebar-item" id="search-sites-sidebar" onclick="showSearchSites()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Search</span>
-        </div>
-      </div>
-
-      <!-- Manage -->
-      <div class="side-sep"></div>
-      <h3 class="sidebar-heading" id="sh3-manage" onclick="toggleSection('manage')">Manage<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
-      <div class="side-section" id="manageSection">
-        <div class="sidebar-item" id="database-sidebar" onclick="showDatabase()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Database</span>
-        </div>
-        <div class="sidebar-item" id="connect-sidebar" onclick="showConnect()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>Connect</span>
-        </div>
-        <div class="sidebar-item" id="settings-sidebar" onclick="showSettings()">
-          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</span>
-        </div>
-      </div>
-
-      <!-- Categories & Tags -->
-      <div class="side-sep"></div>
-      <h3 class="sidebar-heading" id="sh3-cats" onclick="toggleSection('cats')">Categories<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg><button class="sidebar-heading-add" title="New folder" onclick="event.stopPropagation();createCategory()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></h3>
-      <div class="side-section" id="catsSection">
-        <div id="cList"></div>
-      </div>
-
-      <div class="side-sep" id="tags-sep" style="display:none"></div>
-      <h3 class="sidebar-heading" id="sh3-tags" style="display:none" onclick="toggleSection('tags')">Tags<svg class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></h3>
-      <div class="side-section" id="tagsSection">
-        <div id="tagList"></div>
-      </div>
-
-    </div>
     </aside>
 
     <div class="main-content">
@@ -158,64 +288,179 @@
         </div>
         <div class="home-grid">
           <div class="home-card" onclick="selCat('')">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="9" height="9" rx="2"/><rect x="13" y="2" width="9" height="9" rx="2"/><rect x="2" y="13" width="9" height="9" rx="2"/><rect x="13" y="13" width="9" height="9" rx="2"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">All Videos</div><div class="home-card-desc">Browse your entire library</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="9" height="9" rx="2" />
+                <rect x="13" y="2" width="9" height="9" rx="2" />
+                <rect x="2" y="13" width="9" height="9" rx="2" />
+                <rect x="13" y="13" width="9" height="9" rx="2" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">All Videos</div>
+              <div class="home-card-desc">Browse your entire library</div>
+            </div>
           </div>
           <div class="home-card" onclick="showRecent()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Recently Watched</div><div class="home-card-desc">Pick up where you left off</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Recently Watched</div>
+              <div class="home-card-desc">Pick up where you left off</div>
+            </div>
           </div>
           <div class="home-card" onclick="showCollections()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Playlist</div><div class="home-card-desc">Saved video groups</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <rect x="2" y="7" width="20" height="14" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Playlist</div>
+              <div class="home-card-desc">Saved video groups</div>
+            </div>
           </div>
           <div class="home-card" onclick="showActors()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">All Actors</div><div class="home-card-desc">Browse the actor database</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">All Actors</div>
+              <div class="home-card-desc">Browse the actor database</div>
+            </div>
           </div>
           <div class="home-card" onclick="showStudios()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">All Studios</div><div class="home-card-desc">Browse the studio database</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <rect x="2" y="7" width="20" height="15" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                <line x1="12" y1="12" x2="12" y2="16" />
+                <line x1="10" y1="14" x2="14" y2="14" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">All Studios</div>
+              <div class="home-card-desc">Browse the studio database</div>
+            </div>
           </div>
           <div class="home-card" onclick="showImportFavs()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Bookmarks</div><div class="home-card-desc">Imported browser bookmarks</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Bookmarks</div>
+              <div class="home-card-desc">Imported browser bookmarks</div>
+            </div>
           </div>
           <div class="home-card" onclick="showBooks()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Books</div><div class="home-card-desc">E-book reader</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Books</div>
+              <div class="home-card-desc">E-book reader</div>
+            </div>
           </div>
           <div class="home-card" onclick="showAudio()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Audio</div><div class="home-card-desc">Music player</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Audio</div>
+              <div class="home-card-desc">Music player</div>
+            </div>
           </div>
           <div class="home-card" onclick="showVault()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Vault</div><div class="home-card-desc">Encrypted file storage</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Vault</div>
+              <div class="home-card-desc">Encrypted file storage</div>
+            </div>
           </div>
           <div class="home-card" onclick="showDups()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Duplicates</div><div class="home-card-desc">Detect and remove duplicates</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <rect x="8" y="8" width="13" height="13" rx="2" />
+                <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Duplicates</div>
+              <div class="home-card-desc">Detect and remove duplicates</div>
+            </div>
           </div>
           <div class="home-card" onclick="showSearchSites()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Search</div><div class="home-card-desc">Search the web for content</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+                <path d="M11 8v6M8 11h6" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Search</div>
+              <div class="home-card-desc">Search the web for content</div>
+            </div>
           </div>
           <div class="home-card" onclick="showScraper()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Actor Scraper</div><div class="home-card-desc">Fetch actor metadata</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.35-4.35" />
+                <path d="M11 8v6M8 11h6" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Actor Scraper</div>
+              <div class="home-card-desc">Fetch actor metadata</div>
+            </div>
           </div>
           <div class="home-card" onclick="showDatabase()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Database</div><div class="home-card-desc">Edit actors, studios & categories</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Database</div>
+              <div class="home-card-desc">Edit actors, studios & categories</div>
+            </div>
           </div>
           <div class="home-card" onclick="showConnect()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Connect</div><div class="home-card-desc">Remote access via QR code</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <circle cx="12" cy="20" r="1" fill="currentColor" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Connect</div>
+              <div class="home-card-desc">Remote access via QR code</div>
+            </div>
           </div>
           <div class="home-card" onclick="showSettings()">
-            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
-            <div class="home-card-body"><div class="home-card-name">Settings</div><div class="home-card-desc">Preferences &amp; themes</div></div>
+            <div class="home-card-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg></div>
+            <div class="home-card-body">
+              <div class="home-card-name">Settings</div>
+              <div class="home-card-desc">Preferences &amp; themes</div>
+            </div>
           </div>
         </div>
       </div>
@@ -229,18 +474,29 @@
             <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
             <button class="sort-btn" data-s="size" onclick="setSort('size',this)">Size</button>
             <button class="sort-btn" data-s="duration" onclick="setSort('duration',this)">Length</button>
-            <button class="sort-btn" id="shBtn" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l5.1 5.1"/><path d="M4 4l5 5"/></svg>Shuffle</button>
+            <button class="sort-btn" id="shBtn" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px">
+                <path d="M16 3h5v5" />
+                <path d="M4 20 21 3" />
+                <path d="M21 16v5h-5" />
+                <path d="M15 15l5.1 5.1" />
+                <path d="M4 4l5 5" />
+              </svg>Shuffle</button>
             <span class="sg-sep"></span>
             <button class="sort-btn src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
             <button class="sort-btn src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
             <button class="sort-btn src-btn" data-src="remote" onclick="setSrcFilter('remote')">Remote</button>
             <span class="sg-sep" id="clearRecentSep" style="display:none"></span>
-            <button class="sort-btn" id="clearRecentBtn" style="display:none" onclick="clearRecent()">Clear History</button>
+            <button class="sort-btn" id="clearRecentBtn" style="display:none" onclick="clearRecent()">Clear
+              History</button>
           </div>
         </div>
         <div class="video-grid" id="video-grid"></div>
         <div class="empty-state" id="empty-placeholder" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path
+              d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
           <h3 id="empty-title">No videos found</h3>
           <p id="empty-desc">Add video files to your videos folder</p>
         </div>
@@ -263,51 +519,104 @@
       <div class="vault-view" id="vault-view">
         <div class="vault-auth" id="vaultAuth">
           <div class="vault-auth-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
           </div>
           <h2 class="vault-auth-title" id="vaultAuthTitle">Vault</h2>
           <p class="vault-auth-desc" id="vaultAuthDesc"></p>
-          <input type="password" class="vault-pw-input" id="vaultPw" placeholder="Password…" autocomplete="new-password" onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
-          <input type="password" class="vault-pw-input" id="vaultPwConfirm" placeholder="Confirm password…" autocomplete="new-password" style="display:none" onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
+          <input type="password" class="vault-pw-input" id="vaultPw" placeholder="Password…" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
+          <input type="password" class="vault-pw-input" id="vaultPwConfirm" placeholder="Confirm password…"
+            autocomplete="new-password" style="display:none"
+            onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
           <div class="vault-auth-err" id="vaultErr"></div>
           <button class="btn-primary vault-auth-btn" id="vaultAuthBtn">Unlock</button>
         </div>
         <div id="vaultFiles" style="display:none">
           <div class="section-header">
-            <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vault</h2>
-            <div style="display:flex;gap:8px;align-items:center">
-              <label class="vault-add-label" for="vaultFileIn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Files</label>
-              <input type="file" id="vaultFileIn" multiple style="display:none" onchange="handleGlobalFiles(this.files)">              <button class="vault-lock-btn" onclick="newVaultFolder()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg> New Folder</button>
-              
-              <button class="btn" onclick="startVaultDynamicMosaic()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="14" width="7" height="7"></rect>
-                  <rect x="3" y="14" width="7" height="7"></rect>
-                </svg>
-                Dynamic Mosaic
-              </button>
-                          <button class="vault-btn" onclick="shuffleVault()" title="Shuffle Vault">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <polyline points="16 3 21 3 21 8"/>
-    <line x1="4" y1="20" x2="21" y2="3"/>
-    <polyline points="21 16 21 21 16 21"/>
-    <line x1="15" y1="15" x2="21" y2="21"/>
-    <line x1="4" y1="4" x2="9" y2="9"/>
-  </svg>
-  Shuffle
-</button>
-              <button class="vault-lock-btn" id="vaultSelBtn" onclick="toggleVaultSelMode()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Select</button>
-              <button class="vault-lock-btn" onclick="deleteVaultDuplicates()" title="Remove duplicate files (keeps newest)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/><line x1="17" y1="14" x2="17" y2="18"/><line x1="15" y1="16" x2="19" y2="16"/></svg> Dedup</button>
-              <button class="vault-lock-btn" onclick="lockVault()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Lock</button>
-            </div>
+            <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>Vault</h2>
+<div style="display:flex;gap:8px;align-items:center">
+  <label class="vault-add-label" for="vaultFileIn">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg> Add Files
+  </label>
+  <input type="file" id="vaultFileIn" multiple style="display:none" onchange="handleGlobalFiles(this.files)">
+
+  <button class="vault-lock-btn" onclick="newVaultFolder()">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      <line x1="12" y1="11" x2="12" y2="17" />
+      <line x1="9" y1="14" x2="15" y2="14" />
+    </svg> New Folder
+  </button>
+
+  <button class="vault-lock-btn" onclick="startVaultDynamicMosaic()" title="Dynamic Mosaic">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7"></rect>
+      <rect x="14" y="3" width="7" height="7"></rect>
+      <rect x="14" y="14" width="7" height="7"></rect>
+      <rect x="3" y="14" width="7" height="7"></rect>
+    </svg> Mosaic
+  </button>
+
+  <button class="vault-lock-btn" onclick="shuffleVault()" title="Shuffle Vault">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="16 3 21 3 21 8" />
+      <line x1="4" y1="20" x2="21" y2="3" />
+      <polyline points="21 16 21 21 16 21" />
+      <line x1="15" y1="15" x2="21" y2="21" />
+      <line x1="4" y1="4" x2="9" y2="9" />
+    </svg> Shuffle
+  </button>
+
+  <button class="vault-lock-btn" id="vaultSelBtn" onclick="toggleVaultSelMode()">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg> Select
+  </button>
+
+  <button class="vault-lock-btn" onclick="deleteVaultDuplicates()" title="Remove duplicate files">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      <line x1="17" y1="14" x2="17" y2="18" />
+      <line x1="15" y1="16" x2="19" y2="16" />
+    </svg> Dedup
+  </button>
+
+  <button class="vault-lock-btn" onclick="lockVault()">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg> Lock
+  </button>
+</div>
           </div>
           <div class="vault-breadcrumb" id="vaultBreadcrumb" style="display:none"></div>
           <div class="vault-search-bar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="vaultSearchInput" placeholder="Search vault…" autocomplete="off" oninput="searchVault(this.value)">
-            <button class="vault-search-clear" id="vaultSearchClear" onclick="searchVault('');this.previousElementSibling.value=''" style="display:none"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input type="text" id="vaultSearchInput" placeholder="Search vault…" autocomplete="off"
+              oninput="searchVault(this.value)">
+            <button class="vault-search-clear" id="vaultSearchClear"
+              onclick="searchVault('');this.previousElementSibling.value=''" style="display:none"><svg width="12"
+                height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg></button>
           </div>
           <div class="vault-sort-row">
             <span class="vault-sort-label">Sort:</span>
@@ -316,45 +625,89 @@
             <button class="vault-sort-btn" data-sort="name" onclick="setVaultSort('name')">Name</button>
             <button class="vault-sort-btn" data-sort="size-desc" onclick="setVaultSort('size-desc')">Size ↓</button>
             <button class="vault-sort-btn" data-sort="size-asc" onclick="setVaultSort('size-asc')">Size ↑</button>
+            <button class="vault-sort-btn" id="vaultHideThumbsBtn" onclick="toggleVaultThumbs()"
+              title="Hide Thumbnails">Hide thumbnails↑</button>
+
           </div>
           <div class="vault-progress" id="vaultProgress" style="display:none"></div>
           <div class="vault-sel-bar" id="vaultSelBar" style="display:none">
             <span id="vaultSelCount"></span>
-            <button onclick="downloadVaultSelected()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</button>
-            <button onclick="showVaultSelMoveMenu(event)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Move to</button>
-            <button onclick="deleteVaultSelected()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete</button>
+
+            <button onclick="downloadVaultSelected()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>Download</button>
+            <button onclick="showVaultSelMoveMenu(event)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>Move to</button>
+            <button onclick="deleteVaultSelected()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14H6L5 6" />
+              </svg>Delete</button>
             <button onclick="clearVaultSelection()">Deselect all</button>
           </div>
           <div class="video-grid" id="vaultGrid"></div>
-          <div class="empty-state" id="vaultEmpty" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><h3>Vault is empty</h3><p>Add video files using the button above</p></div>
+          <div class="empty-state" id="vaultEmpty" style="display:none"><svg viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <h3>Vault is empty</h3>
+            <p>Add video files using the button above</p>
+          </div>
         </div>
       </div>
 
       <!-- Vault Photo Lightbox -->
       <div class="vault-photo-overlay" id="vaultPhotoOverlay" onclick="if(event.target===this)closeVaultPhoto()">
-        <button class="vault-photo-close" onclick="closeVaultPhoto()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-        <button class="vault-photo-nav vault-photo-prev" id="vaultPhotoPrev" onclick="prevVaultPhoto(true)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button class="vault-photo-close" onclick="closeVaultPhoto()"><svg width="20" height="20" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg></button>
+        <button class="vault-photo-nav vault-photo-prev" id="vaultPhotoPrev" onclick="prevVaultPhoto(true)"><svg
+            width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6" />
+          </svg></button>
         <img id="vaultPhotoImg" src="" alt="">
-        <button class="vault-photo-nav vault-photo-next" id="vaultPhotoNext" onclick="nextVaultPhoto(true)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <button class="vault-photo-nav vault-photo-next" id="vaultPhotoNext" onclick="nextVaultPhoto(true)"><svg
+            width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6" />
+          </svg></button>
         <div class="vault-photo-bar">
           <div class="vault-photo-name" id="vaultPhotoName"></div>
           <div class="vault-slideshow-controls">
             <button class="vault-ss-btn" id="vaultSsBtn" onclick="toggleVaultSlideshow()" title="Slideshow">
-              <svg class="ss-icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-              <svg class="ss-icon-pause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              <svg class="ss-icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5,3 19,12 5,21" />
+              </svg>
+              <svg class="ss-icon-pause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
+                style="display:none">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
             </button>
-            <input class="vault-ss-interval" id="vaultSsInterval" type="number" min="1" max="60" value="4" title="Seconds per photo" onclick="event.stopPropagation()" onchange="setVaultSsInterval(this.value)">
+            <input class="vault-ss-interval" id="vaultSsInterval" type="number" min="1" max="60" value="4"
+              title="Seconds per photo" onclick="event.stopPropagation()" onchange="setVaultSsInterval(this.value)">
             <span class="vault-ss-unit">s</span>
           </div>
         </div>
-        <div class="vault-ss-progress" id="vaultSsProgress"><div class="vault-ss-progress-bar" id="vaultSsProgressBar"></div></div>
+        <div class="vault-ss-progress" id="vaultSsProgress">
+          <div class="vault-ss-progress-bar" id="vaultSsProgressBar"></div>
+        </div>
         <div class="vault-zoom-badge" id="vaultZoomBadge"></div>
       </div>
 
       <!-- Tag Detail View -->
       <div class="tag-detail-view" id="tag-detail-view">
         <button class="back-btn" onclick="closeTag()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Tags
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m15 18-6-6 6-6" />
+          </svg>Tags
         </button>
         <div class="section-header">
           <h2 id="tag-name"></h2>
@@ -363,7 +716,15 @@
             <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
             <button class="sort-btn" data-s="size" onclick="setSort('size',this)">Size</button>
             <button class="sort-btn" data-s="duration" onclick="setSort('duration',this)">Length</button>
-            <button class="sort-btn" id="shBtnTag" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l5.1 5.1"/><path d="M4 4l5 5"/></svg>Shuffle</button>
+            <button class="sort-btn" id="shBtnTag" onclick="toggleShuf()"><svg width="11" height="11"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                style="margin-right:3px;vertical-align:-1px">
+                <path d="M16 3h5v5" />
+                <path d="M4 20 21 3" />
+                <path d="M21 16v5h-5" />
+                <path d="M15 15l5.1 5.1" />
+                <path d="M4 4l5 5" />
+              </svg>Shuffle</button>
             <span class="sg-sep"></span>
             <button class="sort-btn src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
             <button class="sort-btn src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
@@ -376,25 +737,38 @@
       <!-- Categories View -->
       <div class="categories-view" id="categories-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Categories &amp; Tags</h2>
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>Categories &amp; Tags</h2>
         </div>
         <div class="cv-toolbar">
           <span class="au-toolbar-label">Sort:</span>
           <button class="cv-sort-btn on" data-s="name" onclick="setCvSort('name')">Name</button>
-<div class="vault-sort-bar">
-  <button class="vault-sort-btn on" data-sort="date-desc" onclick="setVaultSort('date-desc')">Date ↓</button>
-  <button class="vault-sort-btn" data-sort="date-asc" onclick="setVaultSort('date-asc')">Date ↑</button>
-  
-  <button class="vault-sort-btn" data-sort="name" onclick="setVaultSort('name')">Name</button>
-  <button class="vault-sort-btn" data-sort="size-desc" onclick="setVaultSort('size-desc')">Size ↓</button>
-  <button class="vault-sort-btn" data-sort="size-asc" onclick="setVaultSort('size-asc')">Size ↑</button>
-</div>
+          <div class="vault-sort-bar">
+            <button class="vault-sort-btn on" data-sort="date-desc" onclick="setVaultSort('date-desc')">Date ↓</button>
+            <button class="vault-sort-btn" data-sort="date-asc" onclick="setVaultSort('date-asc')">Date ↑</button>
+
+            <button class="vault-sort-btn" data-sort="name" onclick="setVaultSort('name')">Name</button>
+            <button class="vault-sort-btn" data-sort="size-desc" onclick="setVaultSort('size-desc')">Size ↓</button>
+            <button class="vault-sort-btn" data-sort="size-asc" onclick="setVaultSort('size-asc')">Size ↑</button>
+
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
+            </path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          </svg>
+          </button>
           <button class="cv-sort-btn" data-s="count-desc" onclick="setCvSort('count-desc')">Most Videos</button>
           <button class="cv-sort-btn" data-s="count-asc" onclick="setCvSort('count-asc')">Fewest Videos</button>
         </div>
         <div class="cv-grid" id="cvGrid"></div>
         <div class="empty-state" id="cvEmpty" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
           <h3>No categories yet</h3>
           <p>Add videos to subfolders or tag them to create categories</p>
         </div>
@@ -402,9 +776,12 @@
 
       <!-- Studios List View -->
       <div class="studios-view" id="studios-view">
-        <div class="section-header"><h2>Studios</h2></div>
+        <div class="section-header">
+          <h2>Studios</h2>
+        </div>
         <div class="actor-search-bar">
-          <input type="text" id="studio-search-input" placeholder="Filter studios…" autocomplete="off" spellcheck="false" oninput="filterStudios(this.value)">
+          <input type="text" id="studio-search-input" placeholder="Filter studios…" autocomplete="off"
+            spellcheck="false" oninput="filterStudios(this.value)">
         </div>
         <div id="studioGrid"></div>
       </div>
@@ -412,17 +789,24 @@
       <!-- Studio Detail View -->
       <div class="studio-detail-view" id="studio-detail-view">
         <button class="back-btn" onclick="backStudios()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Studios
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m15 18-6-6 6-6" />
+          </svg>Studios
         </button>
-        <div class="section-header"><h2 id="studio-detail-name"></h2></div>
+        <div class="section-header">
+          <h2 id="studio-detail-name"></h2>
+        </div>
         <div class="video-grid" id="studio-detail-grid"></div>
       </div>
 
       <!-- Actors List View -->
       <div class="actors-view" id="actors-view">
-        <div class="section-header"><h2>Actors</h2></div>
+        <div class="section-header">
+          <h2>Actors</h2>
+        </div>
         <div class="actor-search-bar">
-          <input type="text" id="actor-search-input" placeholder="Filter actors…" autocomplete="off" spellcheck="false" oninput="filterActors(this.value)">
+          <input type="text" id="actor-search-input" placeholder="Filter actors…" autocomplete="off" spellcheck="false"
+            oninput="filterActors(this.value)">
         </div>
         <div id="actorGrid"></div>
       </div>
@@ -430,28 +814,47 @@
       <!-- Actor Detail View -->
       <div class="actor-detail-view" id="actor-detail-view">
         <button class="back-btn" onclick="backActors()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Actors
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m15 18-6-6 6-6" />
+          </svg>Actors
         </button>
-        <div class="section-header"><h2 id="actor-detail-name"></h2></div>
+        <div class="section-header">
+          <h2 id="actor-detail-name"></h2>
+        </div>
         <div class="video-grid" id="actor-detail-grid"></div>
       </div>
 
 
       <!-- Books View -->
       <div class="books-view" id="books-view">
-        <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Books</h2></div>
+        <div class="section-header">
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>Books</h2>
+        </div>
 
         <div id="booksGrid" class="bk-grid"></div>
         <div class="empty-state" id="booksEmpty" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          <h3>No books yet</h3><p>Add book files to the <code>books/</code> folder</p>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          <h3>No books yet</h3>
+          <p>Add book files to the <code>books/</code> folder</p>
         </div>
       </div>
 
       <!-- Audio View -->
       <div class="audio-view" id="audio-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Audio</h2>
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>Audio</h2>
         </div>
         <div class="au-toolbar">
           <div class="au-sort-group">
@@ -462,26 +865,50 @@
           </div>
           <div class="au-view-group">
             <button class="au-view-btn on" data-v="card" onclick="setAudioView('card')" title="Card view">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
             </button>
             <button class="au-view-btn" data-v="list" onclick="setAudioView('list')" title="List view">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
             </button>
           </div>
         </div>
         <div id="audioGrid" class="au-grid"></div>
         <div class="empty-state" id="audioEmpty" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 18V5l12-2v13" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="18" cy="16" r="3" />
+          </svg>
           <h3>No audio files yet</h3>
           <p>Add audio files to the <code>audio/</code> folder</p>
         </div>
         <!-- Mini Player -->
         <div class="au-player" id="audioPlayer" style="display:none">
-          <div class="au-player-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+          <div class="au-player-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg></div>
           <span class="au-player-title" id="audioPlayerTitle"></span>
           <audio id="audioEl" controls></audio>
           <button class="au-player-close" onclick="closeAudioPlayer()" title="Close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
       </div>
@@ -489,7 +916,12 @@
       <!-- Photos View -->
       <div class="photos-view" id="photos-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Photos</h2>
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
+            </svg>Photos</h2>
         </div>
         <div class="ph-toolbar">
           <span class="au-toolbar-label">Sort:</span>
@@ -499,7 +931,11 @@
         </div>
         <div id="photosGrid" class="ph-grid"></div>
         <div class="empty-state" id="photosEmpty" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
           <h3>No photos yet</h3>
           <p>Add image files to the <code>photos/</code> folder</p>
         </div>
@@ -508,44 +944,71 @@
       <!-- Photos Lightbox -->
       <div class="ph-lightbox" id="photosLightbox" onclick="closePhotoLightbox()">
         <button class="ph-lb-nav ph-lb-prev" onclick="event.stopPropagation();photosLightboxPrev()">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </button>
         <img id="photosLbImg" src="" alt="" onclick="event.stopPropagation()">
         <button class="ph-lb-nav ph-lb-next" onclick="event.stopPropagation();photosLightboxNext()">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </button>
         <div class="ph-lb-caption" id="photosLbCaption"></div>
         <button class="ph-lb-close" onclick="closePhotoLightbox()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
 
       <!-- Prompts View -->
       <div class="prompts-view" id="prompts-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>AI Prompts</h2>
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>AI Prompts</h2>
           <div class="section-controls">
             <button class="sort-btn" onclick="copyAllPrompts()" title="Copy all prompts to clipboard">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="11" height="11" rx="2" ry="2"></rect>
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
               </svg>
-                Copy all
+              Copy all
             </button>
             <button class="sort-btn" onclick="openAddPrompt()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:-1px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Prompt
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                style="margin-right:4px;vertical-align:-1px">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>New Prompt
             </button>
             <button class="sort-btn" onclick="openMassImport()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:-1px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Mass Import
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                style="margin-right:4px;vertical-align:-1px">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>Mass Import
             </button>
             <button class="sort-btn" id="valorize-btn" onclick="openValorizeModal()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:-1px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/><path d="m15 5 3 3"/></svg>Valorize Template
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                style="margin-right:4px;vertical-align:-1px">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                <path d="m15 5 3 3" />
+              </svg>Valorize Template
             </button>
           </div>
         </div>
         <!-- ComfyUI workflow selector — shown only when ComfyUI is reachable -->
         <div class="comfyui-bar" id="comfyui-workflow-bar" style="display:none">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--ac)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="flex-shrink:0;color:var(--ac)">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
           <span class="comfyui-bar-label">ComfyUI Workflow:</span>
           <select id="comfyui-workflow-select" class="comfyui-workflow-select" onchange="onWorkflowSelect(this)">
             <option value="">Select workflow…</option>
@@ -553,17 +1016,20 @@
           <span class="comfyui-bar-hint" id="comfyui-bar-hint"></span>
         </div>
         <div id="prompts-table-wrap">
-            <table id="prompts-table">
-              <thead>
-                <tr>
-                  <th style="width:140px">Name</th>
-                  <th>Prompt</th> <th style="width:100px">Date</th>
-                </tr>
-              </thead>
-              <tbody id="prompts-tbody"></tbody>
-            </table>
+          <table id="prompts-table">
+            <thead>
+              <tr>
+                <th style="width:140px">Name</th>
+                <th>Prompt</th>
+                <th style="width:100px">Date</th>
+              </tr>
+            </thead>
+            <tbody id="prompts-tbody"></tbody>
+          </table>
           <div class="empty-state" id="prompts-empty" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
             <h3>No prompts yet</h3>
             <p>Click <strong>New Prompt</strong> to add your first AI prompt.</p>
           </div>
@@ -573,7 +1039,12 @@
       <!-- Search Sites View -->
       <div class="search-sites-view" id="search-sites-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Search</h2>
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+              <path d="M11 8v6M8 11h6" />
+            </svg>Search</h2>
         </div>
         <div class="ss-tabs">
           <button class="ss-tab on" id="ss-tab-cards" onclick="ssSwitchTab('cards')">Cards</button>
@@ -583,7 +1054,10 @@
           <input type="text" id="search-sites-input" placeholder="Search keyword…" autocomplete="off" spellcheck="false"
             oninput="ssOnInput()" onkeydown="if(event.key==='Enter')ssEnter()">
           <button class="ss-search-btn" id="ss-search-btn" onclick="ssDoSearch()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
           </button>
         </div>
 
@@ -592,12 +1066,18 @@
           <div id="ss-site-pills" class="ss-site-pills"></div>
           <div id="ss-cards-grid" class="ss-cards-grid"></div>
           <div id="ss-cards-empty" class="empty-state" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
             <h3>No results</h3>
             <p>Try a different keyword or site.</p>
           </div>
           <div id="ss-cards-no-scrapers" class="empty-state" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
             <h3>No starred scrapable sites</h3>
             <p>Star a site with a scrapeMethod in the Sites tab to enable card search.</p>
           </div>
@@ -607,7 +1087,10 @@
         <div id="ss-sites-pane" style="display:none">
           <div id="search-sites-list" class="search-sites-list"></div>
           <div id="search-sites-empty" class="empty-state" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
             <h3>No searchable sites</h3>
             <p>Add a searchURL to sites in Settings to enable search.</p>
           </div>
@@ -618,7 +1101,9 @@
       <div class="booksReader" id="booksReader">
         <div class="bk-reader-bar">
           <button class="back-btn" onclick="closeBookReader()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Library
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m15 18-6-6 6-6" />
+            </svg>Library
           </button>
           <span id="booksReaderTitle"></span>
         </div>
@@ -627,22 +1112,39 @@
 
       <!-- Bookmarks View -->
       <div class="import-favs-view" id="import-favs-view">
-        <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Bookmarks</h2></div>
-        <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Import bookmarks from Chrome or Firefox filtered by your <span style="color:var(--ac);cursor:pointer" onclick="showDatabase();dbSwitchTab('websites')">websites list</span>.</p>
+        <div class="section-header">
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>Bookmarks</h2>
+        </div>
+        <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Import bookmarks from Chrome or Firefox
+          filtered by your <span style="color:var(--ac);cursor:pointer"
+            onclick="showDatabase();dbSwitchTab('websites')">websites list</span>.</p>
 
         <div class="bf-import-grid">
           <!-- Chrome -->
           <div class="bf-import-card">
             <div class="bf-import-card-hd">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="4" />
+                <line x1="21.17" y1="8" x2="12" y2="8" />
+                <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
+                <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
+              </svg>
               Chrome / Edge
             </div>
             <button class="btn-primary" id="bfChrome" onclick="importBrowserFavs('chrome')">Auto-detect</button>
             <div class="bf-or">or</div>
             <label class="bf-file-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                <polyline points="13 2 13 9 20 9" />
+              </svg>
               Select Bookmarks file
-              <input type="file" id="bfChromeFile" accept=".json," style="display:none" onchange="importBrowserFavsFile('chrome', this)">
+              <input type="file" id="bfChromeFile" accept=".json," style="display:none"
+                onchange="importBrowserFavsFile('chrome', this)">
             </label>
             <p class="bf-file-hint">Chrome: <code>…\Chrome\User Data\Default\Bookmarks</code></p>
           </div>
@@ -650,15 +1152,22 @@
           <!-- Firefox -->
           <div class="bf-import-card">
             <div class="bf-import-card-hd">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 7.38 16.76C17.5 20.5 15 21 12 21s-5.5-.5-7.38-1.24A10 10 0 0 1 12 2z"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 2a10 10 0 0 1 7.38 16.76C17.5 20.5 15 21 12 21s-5.5-.5-7.38-1.24A10 10 0 0 1 12 2z" />
+              </svg>
               Firefox
             </div>
             <button class="btn-primary" id="bfFirefox" onclick="importBrowserFavs('firefox')">Auto-detect</button>
             <div class="bf-or">or</div>
             <label class="bf-file-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                <polyline points="13 2 13 9 20 9" />
+              </svg>
               Select backup file
-              <input type="file" id="bfFirefoxFile" accept=".jsonlz4,.json" style="display:none" onchange="importBrowserFavsFile('firefox', this)">
+              <input type="file" id="bfFirefoxFile" accept=".jsonlz4,.json" style="display:none"
+                onchange="importBrowserFavsFile('firefox', this)">
             </label>
             <p class="bf-file-hint">Firefox: <code>…\Firefox\Profiles\*.default\bookmarkbackups\</code></p>
           </div>
@@ -666,22 +1175,52 @@
 
         <div id="bfSearchWrap" style="display:none;margin-bottom:10px">
           <div style="display:flex;gap:8px;align-items:center">
-            <input id="bfSearch" type="text" placeholder="Filter bookmarks…" autocomplete="off" spellcheck="false" oninput="bfFilterList(this.value)" class="bf-search-input" style="flex:1">
-            <button class="btn-primary" onclick="bfCopyVisible()" title="Copy all visible URLs (one per line)" style="flex-shrink:0">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy URLs
+            <input id="bfSearch" type="text" placeholder="Filter bookmarks…" autocomplete="off" spellcheck="false"
+              oninput="bfFilterList(this.value)" class="bf-search-input" style="flex:1">
+            <button class="btn-primary" onclick="bfCopyVisible()" title="Copy all visible URLs (one per line)"
+              style="flex-shrink:0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>Copy URLs
             </button>
             <button class="back-btn" onclick="bfClearAll()" title="Clear all imported bookmarks" style="flex-shrink:0">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>Clear
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>Clear
             </button>
-            <button class="btn-primary" onclick="bfOpenAllVisible()" title="Open all visible bookmarks in new tabs" style="flex-shrink:0">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Open All
+            <button class="btn-primary" onclick="bfOpenAllVisible()" title="Open all visible bookmarks in new tabs"
+              style="flex-shrink:0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>Open All
             </button>
             <div class="bf-view-toggle">
               <button id="bfViewList" class="bf-view-btn on" onclick="bfSetView('list')" title="List view">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
               </button>
               <button id="bfViewGrid" class="bf-view-btn" onclick="bfSetView('grid')" title="Grid view">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                </svg>
               </button>
             </div>
           </div>
@@ -690,17 +1229,38 @@
 
         <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--brd)">
           <div class="ext-suggest">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink:0;color:var(--ac)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+              style="flex-shrink:0;color:var(--ac)">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
             <div class="ext-suggest-body">
               <strong>Download videos from bookmarks</strong>
-              <p>Install <strong>Video DownloadHelper</strong> in your browser to download directly from any video site you open with the viewer above.</p>
+              <p>Install <strong>Video DownloadHelper</strong> in your browser to download directly from any video site
+                you open with the viewer above.</p>
             </div>
             <div class="ext-suggest-btns">
-              <a class="btn-primary ext-suggest-link" href="https://addons.mozilla.org/en-US/firefox/addon/video-downloadhelper/" target="_blank" rel="noopener noreferrer">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 7.38 16.76C17.5 20.5 15 21 12 21s-5.5-.5-7.38-1.24A10 10 0 0 1 12 2z"/></svg>Firefox
+              <a class="btn-primary ext-suggest-link"
+                href="https://addons.mozilla.org/en-US/firefox/addon/video-downloadhelper/" target="_blank"
+                rel="noopener noreferrer">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 2a10 10 0 0 1 7.38 16.76C17.5 20.5 15 21 12 21s-5.5-.5-7.38-1.24A10 10 0 0 1 12 2z" />
+                </svg>Firefox
               </a>
-              <a class="btn-primary ext-suggest-link" href="https://chrome.google.com/webstore/detail/video-downloadhelper/lmjnegcaeklhafolokijcfjliaokphfk" target="_blank" rel="noopener noreferrer">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>Chrome
+              <a class="btn-primary ext-suggest-link"
+                href="https://chrome.google.com/webstore/detail/video-downloadhelper/lmjnegcaeklhafolokijcfjliaokphfk"
+                target="_blank" rel="noopener noreferrer">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="4" />
+                  <line x1="21.17" y1="8" x2="12" y2="8" />
+                  <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
+                  <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
+                </svg>Chrome
               </a>
             </div>
           </div>
@@ -709,9 +1269,16 @@
 
       <!-- Collections View -->
       <div class="collections-view" id="collections-view">
-        <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><span id="collection-title">Playlist</span></h2></div>
+        <div class="section-header">
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <rect x="2" y="7" width="20" height="14" rx="2" />
+              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            </svg><span id="collection-title">Playlist</span></h2>
+        </div>
         <div class="collection-new-row" id="collection-new-row">
-          <input type="text" id="collection-name-input" placeholder="New playlist name…" autocomplete="off" onkeydown="if(event.key==='Enter')createCollection()">
+          <input type="text" id="collection-name-input" placeholder="New playlist name…" autocomplete="off"
+            onkeydown="if(event.key==='Enter')createCollection()">
           <button class="btn-primary" onclick="createCollection()">Create</button>
         </div>
         <div id="collection-content"></div>
@@ -719,7 +1286,14 @@
 
       <!-- Settings View -->
       <div class="settings-view" id="settings-view">
-        <div class="section-header"><h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</h2></div>
+        <div class="section-header">
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>Settings</h2>
+        </div>
         <div class="settings-hidden-panel" style="margin-bottom:24px">
           <div class="settings-panel">
             <div class="settings-panel-header"><span>Theme</span></div>
@@ -740,37 +1314,48 @@
                 <span class="theme-swatch" style="background:#e2454a;border:1px solid #ccc"></span>Light
               </button>
               <button class="theme-btn" data-theme="xp" onclick="applyTheme('xp')">
-                <span class="theme-swatch" style="background:linear-gradient(135deg,#2462c8 50%,#5ab528 50%)"></span>XP Luna
+                <span class="theme-swatch" style="background:linear-gradient(135deg,#2462c8 50%,#5ab528 50%)"></span>XP
+                Luna
               </button>
               <button class="theme-btn" data-theme="artdeco" onclick="applyTheme('artdeco')">
-                <span class="theme-swatch" style="background:linear-gradient(135deg,#0d0c0a 50%,#c9a84c 50%)"></span>Art Deco
+                <span class="theme-swatch" style="background:linear-gradient(135deg,#0d0c0a 50%,#c9a84c 50%)"></span>Art
+                Deco
               </button>
               <button class="theme-btn" data-theme="ascii" onclick="applyTheme('ascii')">
-                <span class="theme-swatch" style="background:#000;border:1px solid #00ff41;box-shadow:0 0 6px #00ff41"></span>ASCII
+                <span class="theme-swatch"
+                  style="background:#000;border:1px solid #00ff41;box-shadow:0 0 6px #00ff41"></span>ASCII
               </button>
               <button class="theme-btn" data-theme="rainbow" onclick="applyTheme('rainbow')">
-                <span class="theme-swatch" style="background:linear-gradient(90deg,#f00,#ff7700,#ff0,#0f0,#0ff,#00f,#f0f)"></span>Rainbow
+                <span class="theme-swatch"
+                  style="background:linear-gradient(90deg,#f00,#ff7700,#ff0,#0f0,#0ff,#00f,#f0f)"></span>Rainbow
               </button>
               <button class="theme-btn" data-theme="bi" onclick="applyTheme('bi')">
-                <span class="theme-swatch" style="background:linear-gradient(90deg,#d60270 40%,#9b4f96 20%,#0038a8 40%)"></span>Bisexual
+                <span class="theme-swatch"
+                  style="background:linear-gradient(90deg,#d60270 40%,#9b4f96 20%,#0038a8 40%)"></span>Bisexual
               </button>
               <button class="theme-btn" data-theme="trans" onclick="applyTheme('trans')">
-                <span class="theme-swatch" style="background:linear-gradient(90deg,#55cdfc,#f7a8b8,#fff,#f7a8b8,#55cdfc)"></span>Trans
+                <span class="theme-swatch"
+                  style="background:linear-gradient(90deg,#55cdfc,#f7a8b8,#fff,#f7a8b8,#55cdfc)"></span>Trans
               </button>
               <button class="theme-btn" data-theme="oldpaper" onclick="applyTheme('oldpaper')">
-                <span class="theme-swatch" style="background:linear-gradient(135deg,#2b1e0e 50%,#f4e4c1 50%)"></span>Old Paper
+                <span class="theme-swatch" style="background:linear-gradient(135deg,#2b1e0e 50%,#f4e4c1 50%)"></span>Old
+                Paper
               </button>
               <button class="theme-btn" data-theme="cyberpunk" onclick="applyTheme('cyberpunk')">
-                <span class="theme-swatch" style="background:#020209;border:1px solid #ffe600;box-shadow:0 0 8px #ff006e"></span>Cyberpunk
+                <span class="theme-swatch"
+                  style="background:#020209;border:1px solid #ffe600;box-shadow:0 0 8px #ff006e"></span>Cyberpunk
               </button>
               <button class="theme-btn" data-theme="vn" onclick="applyTheme('vn')">
-                <span class="theme-swatch" style="background:linear-gradient(135deg,#fff0f5 50%,#e0257a 50%)"></span>Visual Novel
+                <span class="theme-swatch"
+                  style="background:linear-gradient(135deg,#fff0f5 50%,#e0257a 50%)"></span>Visual Novel
               </button>
               <button class="theme-btn" data-theme="neon" onclick="applyTheme('neon')">
-                <span class="theme-swatch" style="background:#000;border:1px solid #0ff;box-shadow:0 0 8px #0ff"></span>Neon
+                <span class="theme-swatch"
+                  style="background:#000;border:1px solid #0ff;box-shadow:0 0 8px #0ff"></span>Neon
               </button>
               <button class="theme-btn" data-theme="youtube" onclick="applyTheme('youtube')">
-                <span class="theme-swatch" style="background:linear-gradient(135deg,#f9f9f9 50%,#ff0000 50%)"></span>YouTube
+                <span class="theme-swatch"
+                  style="background:linear-gradient(135deg,#f9f9f9 50%,#ff0000 50%)"></span>YouTube
               </button>
               <button class="theme-btn" data-theme="galaxy" onclick="applyTheme('galaxy')">
                 <span class="theme-swatch" style="background:linear-gradient(135deg,#03000d,#9d5cff)"></span>Galaxy
@@ -779,13 +1364,15 @@
                 <span class="theme-swatch" style="background:linear-gradient(135deg,#1a000a,#ff3388)"></span>Valentine
               </button>
               <button class="theme-btn" data-theme="christmas" onclick="applyTheme('christmas')">
-                <span class="theme-swatch" style="background:linear-gradient(90deg,#001200 50%,#cc1122 50%)"></span>Christmas
+                <span class="theme-swatch"
+                  style="background:linear-gradient(90deg,#001200 50%,#cc1122 50%)"></span>Christmas
               </button>
               <button class="theme-btn" data-theme="halloween" onclick="applyTheme('halloween')">
                 <span class="theme-swatch" style="background:linear-gradient(135deg,#0a0006,#ff6600)"></span>Halloween
               </button>
               <button class="theme-btn" data-theme="chan" onclick="applyTheme('chan')">
-                <span class="theme-swatch" style="background:linear-gradient(135deg,#eef2ff 50%,#d9bfb7 50%)"></span>4chan
+                <span class="theme-swatch"
+                  style="background:linear-gradient(135deg,#eef2ff 50%,#d9bfb7 50%)"></span>4chan
               </button>
             </div>
           </div>
@@ -793,18 +1380,30 @@
         <div class="settings-hidden-panel">
           <div class="settings-panel">
             <div class="settings-panel-header">
-              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>Hidden Categories / Tags</span>
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px;color:var(--ac)">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>Hidden Categories / Tags</span>
               <span class="settings-hint" id="settings-hidden-hint"></span>
             </div>
-            <p style="font-size:0.78rem;color:var(--tx2);margin:0">Videos whose filename matches any entry, or that belong to a folder with that name, will be hidden everywhere. One entry per line.</p>
-            <textarea class="settings-textarea" id="settings-hidden" placeholder="e.g. Straight&#10;Gay&#10;unwanted-tag" spellcheck="false" style="min-height:140px"></textarea>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0">Videos whose filename matches any entry, or that
+              belong to a folder with that name, will be hidden everywhere. One entry per line.</p>
+            <textarea class="settings-textarea" id="settings-hidden"
+              placeholder="e.g. Straight&#10;Gay&#10;unwanted-tag" spellcheck="false"
+              style="min-height:140px"></textarea>
             <button class="btn-primary settings-save" onclick="saveSettingsList('hidden')">Save Hidden List</button>
           </div>
         </div>
         <div class="settings-hidden-panel" style="margin-top:16px">
           <div class="settings-panel">
             <div class="settings-panel-header">
-              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Watch History</span>
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px;color:var(--ac)">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>Watch History</span>
             </div>
             <p style="font-size:0.78rem;color:var(--tx2);margin:0">Controls how recently-watched history is handled.</p>
             <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
@@ -818,14 +1417,20 @@
           </div>
         </div>
         <div style="margin-top:24px">
-          <a class="donate-btn" href="https://buymeacoffee.com/nocoldiz" target="_blank" rel="noopener">☕ Buy me a coffee</a>
+          <a class="donate-btn" href="https://buymeacoffee.com/nocoldiz" target="_blank" rel="noopener">☕ Buy me a
+            coffee</a>
         </div>
       </div>
 
       <!-- Database View -->
       <div class="database-view" id="database-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Database</h2>
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <ellipse cx="12" cy="5" rx="9" ry="3" />
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+            </svg>Database</h2>
           <button class="btn-primary" id="dbAddBtn" onclick="dbShowAdd()">+ Add</button>
         </div>
         <div class="db-tabs">
@@ -842,7 +1447,10 @@
       <!-- DB Add/Edit Modal -->
       <div class="modal-overlay" id="dbMo" style="display:none" onclick="if(event.target===this)closeDbModal()">
         <div class="modal-dialog" style="width:480px;max-width:95vw">
-          <div class="md-hd"><span id="dbMoTitle">Add Entry</span><button onclick="closeDbModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+          <div class="md-hd"><span id="dbMoTitle">Add Entry</span><button onclick="closeDbModal()"><svg width="16"
+                height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg></button></div>
           <div id="dbMoBody" style="display:flex;flex-direction:column;gap:10px;padding:0 0 4px"></div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
             <button class="btn-primary" onclick="dbSaveModal()">Save</button>
@@ -854,56 +1462,80 @@
       <!-- Actor Scraper View -->
       <div class="scraper-view" id="scraper-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;color:var(--ac)"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>Actor Scraper</h2>
+          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.35-4.35" />
+              <path d="M11 8v6M8 11h6" />
+            </svg>Actor Scraper</h2>
           <div style="display:flex;gap:8px;align-items:center">
             <span class="scraper-info-label" id="scraper-info"></span>
-            <button class="vault-lock-btn" id="scraper-scrape-all" onclick="ActorScraper.scrapeAll()" style="display:none">Scrape All Missing</button>
+            <button class="vault-lock-btn" id="scraper-scrape-all" onclick="ActorScraper.scrapeAll()"
+              style="display:none">Scrape All Missing</button>
           </div>
         </div>
-        <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Fetches actor headshots from IMDb and caches them as thumbnails in actor cards.</p>
+        <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Fetches actor headshots from IMDb and caches
+          them as thumbnails in actor cards.</p>
         <div id="scraper-grid"></div>
       </div>
 
       <!-- Player View -->
       <div class="player-view" id="player-view">
         <button class="back-btn" onclick="goBack()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Back
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m15 18-6-6 6-6" />
+          </svg>Back
         </button>
         <div class="pv-layout">
           <div class="pv-main">
             <div class="video-player-wrap"><video id="video-player" controls autoplay></video></div>
-            <div class="mos-ui" id="zap-ui" style="display:none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 8px; align-items: center; gap: 15px;">
-    <div class="mos-c" style="display:flex; align-items:center; gap:8px;">
-      <span>Interval:</span>
-      <button onclick="setZapIv(-2)">-</button>
-      <span id="zap-interval">8s</span>
-      <button onclick="setZapIv(2)">+</button>
-    </div>
-    <button id="zap-lock-btn" onclick="toggleZapLock()" style="padding: 5px 10px; cursor: pointer;">Lock to Current</button>
-    <button class="mos-exit" onclick="stopZapping()" style="padding: 5px 10px; cursor: pointer; color: #ff4a4a;">Exit Zapping</button>
-  </div>
-  <video id="video-player-zap" controls style="display:none; width: 100%; max-height: 80vh; background: #000;"></video>
+            <div class="mos-ui" id="zap-ui"
+              style="display:none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 8px; align-items: center; gap: 15px;">
+              <div class="mos-c" style="display:flex; align-items:center; gap:8px;">
+                <span>Interval:</span>
+                <button onclick="setZapIv(-2)">-</button>
+                <span id="zap-interval">8s</span>
+                <button onclick="setZapIv(2)">+</button>
+              </div>
+              <button id="zap-lock-btn" onclick="toggleZapLock()" style="padding: 5px 10px; cursor: pointer;">Lock to
+                Current</button>
+              <button class="mos-exit" onclick="stopZapping()"
+                style="padding: 5px 10px; cursor: pointer; color: #ff4a4a;">Exit Zapping</button>
+            </div>
+            <video id="video-player-zap" controls
+              style="display:none; width: 100%; max-height: 80vh; background: #000;"></video>
             <div class="video-nav">
               <button onclick="playPrev()">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="4" x2="5" y2="20"/><polygon points="19 4 9 12 19 20 19 4"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="5" y1="4" x2="5" y2="20" />
+                  <polygon points="19 4 9 12 19 20 19 4" />
+                </svg>
                 Previous
               </button>
               <button onclick="playNext()">
                 Next
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 4 15 12 5 20 5 4" />
+                  <line x1="19" y1="4" x2="19" y2="20" />
+                </svg>
               </button>
             </div>
             <div class="player-info">
               <h1 id="player-title"></h1>
-              <div class="player-meta"><span id="player-category"></span><span id="player-size"></span><span id="player-duration"></span></div>
+              <div class="player-meta"><span id="player-category"></span><span id="player-size"></span><span
+                  id="player-duration"></span></div>
               <div class="p-actors-row">
                 <div class="p-actors" id="player-actors"></div>
                 <button class="p-tag-add-btn" id="player-actor-add-btn" onclick="toggleActorInput()">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Actor
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>Actor
                 </button>
               </div>
               <div class="p-actor-input" id="player-actor-input" style="display:none">
-                <input type="text" id="player-actor-input-val" placeholder="Actor name…" autocomplete="off" onkeydown="if(event.key==='Enter')submitActorInput();else if(event.key==='Escape')closeActorInput()">
+                <input type="text" id="player-actor-input-val" placeholder="Actor name…" autocomplete="off"
+                  onkeydown="if(event.key==='Enter')submitActorInput();else if(event.key==='Escape')closeActorInput()">
                 <div class="p-tag-picker-foot">
                   <button class="collection-cancel" onclick="closeActorInput()">Cancel</button>
                   <button class="btn-primary" onclick="submitActorInput()">Add</button>
@@ -913,56 +1545,95 @@
               <div class="p-tags-row" id="player-tags-row" style="display:none">
                 <div class="p-tags" id="player-tags"></div>
                 <button class="p-tag-add-btn" id="player-tag-add-btn" onclick="curV && openTagModal(curV.id)">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Tag
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>Tag
                 </button>
               </div>
               <div class="player-info-actions">
-                <button id="player-vault-del" class="p-act-btn" style="display:none; color:#ff4d4d" onclick="deleteVaultFileFromPlayer()" title="Delete from Vault (No confirmation)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-                <span>Delete</span>
-              </button>
+                <button id="player-vault-del" class="p-act-btn" style="display:none; color:#ff4d4d"
+                  onclick="deleteVaultFileFromPlayer()" title="Delete from Vault (No confirmation)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  <span>Delete</span>
+                </button>
                 <button id="player-star-btn" onclick="togglePStar()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon
+                      points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
                   <span>Fav</span>
                 </button>
                 <button onclick="openRenP()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  </svg>
                   <span>Rename</span>
                 </button>
                 <button onclick="extractAndRenameActors()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M18 3l2 2-6 6"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                    <path d="M18 3l2 2-6 6" />
+                  </svg>
                   <span>Extract Actors</span>
                 </button>
                 <button onclick="openMovP()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><polyline points="9 14 12 11 15 14"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    <line x1="12" y1="11" x2="12" y2="17" />
+                    <polyline points="9 14 12 11 15 14" />
+                  </svg>
                   <span>Move</span>
                 </button>
                 <button onclick="openAddToCollection()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="7" width="20" height="14" rx="2" />
+                    <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                    <line x1="12" y1="11" x2="12" y2="17" />
+                    <line x1="9" y1="14" x2="15" y2="14" />
+                  </svg>
                   <span>Playlist</span>
                 </button>
                 <button onclick="openVideoFolder()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="17 8 21 8 21 12"/><line x1="21" y1="8" x2="15" y2="14"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    <polyline points="17 8 21 8 21 12" />
+                    <line x1="21" y1="8" x2="15" y2="14" />
+                  </svg>
                   <span>Open Folder</span>
                 </button>
                 <button id="pinBtn" onclick="togglePin()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="17" x2="12" y2="22" />
+                    <path
+                      d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                  </svg>
                   <span>Pin</span>
                 </button>
                 <button onclick="searchVideoOn('ddg')">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
                   <span>DDG</span>
                 </button>
                 <button onclick="searchVideoOn('yandex')">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
                   <span>Yandex</span>
                 </button>
               </div>
             </div>
-            <div class="suggestions"><h3>More like this</h3><div class="suggestions-row" id="suggestions-grid"></div></div>
+            <div class="suggestions">
+              <h3>More like this</h3>
+              <div class="suggestions-row" id="suggestions-grid"></div>
+            </div>
           </div>
           <div class="playlist-panel">
             <div class="playlist-header">
@@ -973,35 +1644,48 @@
           </div>
         </div>
       </div>
-          <div class="pin-panel" id="pinPanel">
-            <div class="playlist-header">
-              <span>Pinned</span>
-              <button class="pin-unlock-btn" onclick="unpinVideo()" title="Unlock">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                Unlock
-              </button>
-            </div>
-            <div class="pin-video-wrap">
-              <video id="vPin" controls autoplay></video>
-            </div>
-            <div class="pin-title" id="pinTitle"></div>
-            <div class="pin-vnav">
-              <button onclick="pinPrev()">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="4" x2="5" y2="20"/><polygon points="19 4 9 12 19 20 19 4"/></svg>
-              </button>
-              <button onclick="pinNext()">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
-              </button>
-            </div>
-          </div>
+      <div class="pin-panel" id="pinPanel">
+        <div class="playlist-header">
+          <span>Pinned</span>
+          <button class="pin-unlock-btn" onclick="unpinVideo()" title="Unlock">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            Unlock
+          </button>
+        </div>
+        <div class="pin-video-wrap">
+          <video id="vPin" controls autoplay></video>
+        </div>
+        <div class="pin-title" id="pinTitle"></div>
+        <div class="pin-vnav">
+          <button onclick="pinPrev()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="4" x2="5" y2="20" />
+              <polygon points="19 4 9 12 19 20 19 4" />
+            </svg>
+          </button>
+          <button onclick="pinNext()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 4 15 12 5 20 5 4" />
+              <line x1="19" y1="4" x2="19" y2="20" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Dual Mode Right Pane -->
     <div id="dual-pane-right">
       <div class="dual-search-row">
         <div class="search-w">
-          <svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="search-input-right" placeholder="Search videos..." autocomplete="off" spellcheck="false" oninput="onDualSearch(this.value)">
+          <svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <input type="text" id="search-input-right" placeholder="Search videos..." autocomplete="off"
+            spellcheck="false" oninput="onDualSearch(this.value)">
         </div>
       </div>
       <div class="section-header">
@@ -1009,7 +1693,10 @@
       </div>
       <div class="video-grid" id="video-grid-right"></div>
       <div class="empty-state" id="empty-placeholder-right" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path
+            d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+        </svg>
         <h3>No videos found</h3>
       </div>
     </div>
@@ -1034,9 +1721,12 @@
     <div class="prompt-modal-box prompt-modal-box--wide">
       <h3>Mass Import Prompts</h3>
       <p class="mass-import-hint">Paste prompts below — one per line. Each line becomes a separate prompt.</p>
-      <textarea id="mass-import-textarea" placeholder="Prompt one&#10;Prompt two&#10;Prompt three&#10;…" rows="10" oninput="onMassImportInput(this)"></textarea>
+      <textarea id="mass-import-textarea" placeholder="Prompt one&#10;Prompt two&#10;Prompt three&#10;…" rows="10"
+        oninput="onMassImportInput(this)"></textarea>
       <div class="mass-import-count" id="mass-import-count"></div>
-      <div class="prompt-sites-label">Send to: <button class="pt-selall-btn" onclick="massImportSelectAll()">All</button><button class="pt-selall-btn" onclick="massImportSelectNone()">None</button></div>
+      <div class="prompt-sites-label">Send to: <button class="pt-selall-btn"
+          onclick="massImportSelectAll()">All</button><button class="pt-selall-btn"
+          onclick="massImportSelectNone()">None</button></div>
       <div class="prompt-sites-grid" id="mass-import-sites-grid"></div>
       <div class="prompt-modal-actions">
         <button class="collection-cancel" onclick="closeMassImport()">Cancel</button>
@@ -1052,7 +1742,8 @@
       <div id="valorize-modal-content"></div>
       <div class="prompt-modal-actions">
         <button class="collection-cancel" onclick="closeValorizeModal()">Cancel</button>
-        <button class="collection-cancel" id="valorize-clear-btn" onclick="clearValorize()" style="display:none">Clear</button>
+        <button class="collection-cancel" id="valorize-clear-btn" onclick="clearValorize()"
+          style="display:none">Clear</button>
         <button class="btn-primary" id="valorize-apply-btn" onclick="applyValorize()">Apply</button>
       </div>
     </div>
@@ -1064,11 +1755,13 @@
       <h3>Add to Playlist</h3>
       <div id="collection-modal-list"></div>
       <div class="collection-modal-new" id="collection-modal-new">
-        <input type="text" id="collection-modal-name-input" placeholder="Playlist name…" autocomplete="off" onkeydown="if(event.key==='Enter')submitCvNew()">
+        <input type="text" id="collection-modal-name-input" placeholder="Playlist name…" autocomplete="off"
+          onkeydown="if(event.key==='Enter')submitCvNew()">
       </div>
       <div class="collection-modal-actions">
         <button class="collection-cancel" onclick="closeCvModal()">Cancel</button>
-        <button class="btn-primary" id="collection-modal-create-btn" style="display:none" onclick="submitCvNew()">Create &amp; Add</button>
+        <button class="btn-primary" id="collection-modal-create-btn" style="display:none" onclick="submitCvNew()">Create
+          &amp; Add</button>
       </div>
     </div>
   </div>
@@ -1085,10 +1778,14 @@
       </div>
       <div class="mos-ctrl">
         <span>Players</span>
-        <input type="number" class="mos-cnt-in" id="mosaic-count" min="1" max="16" value="6" onchange="setMosaicCount(this.value)">
+        <input type="number" class="mos-cnt-in" id="mosaic-count" min="1" max="16" value="6"
+          onchange="setMosaicCount(this.value)">
       </div>
       <button class="mos-exit" onclick="stopMosaic()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;vertical-align:-2px"><path d="M18 6 6 18M6 6l12 12"/></svg>Exit Mosaic
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style="margin-right:5px;vertical-align:-2px">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>Exit Mosaic
       </button>
     </div>
     <div class="mos-grid" id="mosaic-grid"></div>
@@ -1100,8 +1797,7 @@
       <h3>Edit Tags</h3>
       <div id="tag-modal-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:24px"></div>
       <input type="text" id="tag-modal-input" placeholder="Type tag name…" autocomplete="off"
-        oninput="onTagModalInput(this.value)"
-        onkeydown="onTagModalKeydown(event)">
+        oninput="onTagModalInput(this.value)" onkeydown="onTagModalKeydown(event)">
       <div class="p-tag-picker-list" id="tag-modal-list" style="max-height:220px;overflow-y:auto;margin-top:8px"></div>
       <div class="modal-actions" style="margin-top:12px">
         <button class="btn-cancel" onclick="closeTagModal()">Done</button>
@@ -1167,20 +1863,33 @@
       <div class="bfiframe-hd">
         <span id="bfiframeTitle" class="bfiframe-title"></span>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <a id="bfiframeLink" href="#" target="_blank" rel="noopener noreferrer" class="bfiframe-open-btn" title="Open in new tab">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>New tab
+          <a id="bfiframeLink" href="#" target="_blank" rel="noopener noreferrer" class="bfiframe-open-btn"
+            title="Open in new tab">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="vertical-align:-2px;margin-right:4px">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>New tab
           </a>
           <button onclick="closeBfIframe()" class="bfiframe-close" title="Close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
       </div>
       <div class="bfiframe-body">
         <iframe id="bfiframeEl" src="" allowfullscreen></iframe>
         <div class="bfiframe-blocked" id="bfiframeBlocked">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3;margin-bottom:10px"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+            style="opacity:0.3;margin-bottom:10px">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+          </svg>
           <span>This site blocks embedding.</span>
-          <a id="bfiframeFallback" href="#" target="_blank" rel="noopener noreferrer" style="color:var(--ac)">Open in new tab →</a>
+          <a id="bfiframeFallback" href="#" target="_blank" rel="noopener noreferrer" style="color:var(--ac)">Open in
+            new tab →</a>
         </div>
       </div>
     </div>
@@ -1216,5 +1925,6 @@
   <script src="/modules/search-sites.js"></script>
   <script src="/modules/data.js"></script>
   <script src="/modules/navigation.js"></script>
-  </body>
-  </html>
+</body>
+
+</html>

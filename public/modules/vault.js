@@ -9,6 +9,8 @@ async function showVault() {
   loadVaultView();
 }
 
+let vaultThumbsHidden = false;
+
 async function loadVaultView() {
   const s = await (await fetch('/api/vault/status')).json();
   const auth = $('vaultAuth').el;
@@ -682,6 +684,7 @@ vaultDynamicPool = vaultFiles.filter(f => {
     toast('No photos or videos found in the vault.');
     return;
   }
+  let vaultThumbsHidden = false;
 
   vaultDynamicMosActive = true;
   
@@ -761,6 +764,51 @@ vaultDynamicPool = vaultFiles.filter(f => {
   }
 
   scheduleVaultDynamicMosaic();
+}
+
+function toggleVaultThumbs() {
+  vaultThumbsHidden = !vaultThumbsHidden;
+  const grid = document.getElementById('vaultGrid');
+  const btn = document.getElementById('vaultHideThumbsBtn');
+  
+  if (grid) grid.classList.toggle('vault-no-thumbs', vaultThumbsHidden);
+  if (btn) btn.classList.toggle('on', vaultThumbsHidden);
+}
+
+function initVaultAutoHide() {
+  const vaultArea = document.getElementById('vaultFiles');
+  const grid = document.getElementById('vaultGrid');
+
+  if (!vaultArea || !grid) return;
+
+  // Quando il mouse esce dall'area Vault (va su sidebar, topbar, ecc.)
+  vaultArea.addEventListener('mouseleave', () => {
+    grid.classList.add('vault-auto-hide');
+  });
+
+  // Quando il mouse rientra nel Vault
+  vaultArea.addEventListener('mouseenter', () => {
+    grid.classList.remove('vault-auto-hide');
+  });
+}
+
+// Update loadVaultFiles or renderVaultFiles to respect this state
+// Add this line inside the render loop or at the end of loadVaultFiles:
+function initVaultAutoHide() {
+  const vaultArea = document.getElementById('vaultFiles');
+  const grid = document.getElementById('vaultGrid');
+
+  if (!vaultArea || !grid) return;
+
+  // Quando il mouse esce dall'area Vault (va su sidebar, topbar, ecc.)
+  vaultArea.addEventListener('mouseleave', () => {
+    grid.classList.add('vault-auto-hide');
+  });
+
+  // Quando il mouse rientra nel Vault
+  vaultArea.addEventListener('mouseenter', () => {
+    grid.classList.remove('vault-auto-hide');
+  });
 }
 
 function updateVaultDynamicTile(idx) {
