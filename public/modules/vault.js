@@ -343,6 +343,56 @@ async function deleteVaultFileFromPlayer() {
   // 4. Refresh the background grid so it's updated when user returns
   renderVaultGrid();
 }
+
+// Modify or add to vault.js
+
+async function viewVaultFile(id) {
+  const file = vaultFiles.find(f => f.id === id);
+  if (!file) return;
+
+  const name = file.originalName.toLowerCase();
+  const isBook = name.endsWith('.txt') || name.endsWith('.pdf') || name.endsWith('.epub');
+
+  if (isBook) {
+    // Open the Book Reader interface
+    showBookReader(id, true); 
+  } else {
+    // Default behavior (download/image preview)
+    openVaultFileDefault(id);
+  }
+}
+
+async function showBookReader(id, isVault = false) {
+  closeAllViews();
+  $('book-view').add('on');
+  
+  const endpoint = isVault ? `/api/vault/read-book?id=${id}` : `/api/books/read?id=${id}`;
+  
+  try {
+    const resp = await fetch(endpoint);
+    const data = await resp.json();
+    
+    if (data.error) throw new Error(data.error);
+
+    // Reuse the existing Book Reader rendering logic
+    const viewer = $('book-content').el;
+    viewer.innerHTML = '';
+    
+    if (data.ext === '.pdf') {
+        // logic for PDF embedding...
+    } else {
+        const pre = document.createElement('pre');
+        pre.className = 'book-text-content';
+        pre.textContent = data.content;
+        viewer.appendChild(pre);
+    }
+    
+    $('book-title').text(data.title);
+  } catch (e) {
+    toast('Error opening book: ' + e.message);
+    showVault();
+  }
+}
 function renderVaultPlaylist() {
   const listEl = $('playlist-list').el;
   const countEl = $('playlist-count').el;

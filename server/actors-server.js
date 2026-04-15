@@ -8,10 +8,10 @@ const path  = require('path');
 const http  = require('http');
 const https = require('https');
 const url   = require('url');
-const { ACTOR_PHOTOS_DIR } = require('./config');
-const { json, actorMatchesAny } = require('./helpers');
-const { loadActors, loadVideoMeta, loadFavs } = require('./db');
-const { allVideos } = require('./videos');
+const { ACTOR_PHOTOS_DIR } = require('./config-server');
+const { json, actorMatchesAny } = require('./helpers-server');
+const { loadActors, loadVideoMeta, loadFavs } = require('./db-server');
+const { allVideos } = require('./videos-server');
 
 // ── Actor slug ───────────────────────────────────────────────────────
 

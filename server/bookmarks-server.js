@@ -10,10 +10,10 @@ const http  = require('http');
 const https = require('https');
 const os    = require('os');
 const url   = require('url');
-const { BM_CACHE_FILE, OG_THUMB_CACHE_FILE, BM_DIR } = require('./config');
-const { json, readBody }   = require('./helpers');
-const { loadWebsites, saveWebsites, loadBookmarksCache, saveBookmarksCache, loadOgThumbCache, saveOgThumbCache } = require('./db');
-const scrapeMethods        = require('./scrapeMethods');
+const { BM_CACHE_FILE, OG_THUMB_CACHE_FILE, BM_DIR } = require('./config-server');
+const { json, readBody }   = require('./helpers-server');
+const { loadWebsites, saveWebsites, loadBookmarksCache, saveBookmarksCache, loadOgThumbCache, saveOgThumbCache } = require('./db-server');
+const scrapeMethods        = require('./scrapeMethods-server');
 
 // ── OG thumbnail cache ───────────────────────────────────────────────
 
@@ -137,7 +137,7 @@ function loadWhitelist() {
   const sites = loadWebsites();
   if (sites.length) return sites.map(s => { try { return new URL(s.url).hostname; } catch { return s.url; } });
   try {
-    const { BROWSER_WHITELIST_FILE } = require('./config');
+    const { BROWSER_WHITELIST_FILE } = require('./config-server');
     return fs.readFileSync(BROWSER_WHITELIST_FILE, 'utf-8')
       .split('\n').map(l => l.trim()).filter(l => l.length > 0);
   } catch { return []; }

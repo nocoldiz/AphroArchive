@@ -7,9 +7,9 @@ const fs    = require('fs');
 const path  = require('path');
 const http  = require('http');
 const https = require('https');
-const { BOOKS_DIR } = require('./config');
-const { json, readBody, formatBytes } = require('./helpers');
-const { loadBooksMeta, saveBooksMeta } = require('./db');
+const { BOOKS_DIR } = require('./config-server');
+const { json, readBody, formatBytes } = require('./helpers-server');
+const { loadBooksMeta, saveBooksMeta } = require('./db-server');
 
 function bookToId(filename) { return Buffer.from(filename).toString('base64url'); }
 function bookFromId(id)     { return Buffer.from(id, 'base64url').toString('utf-8'); }

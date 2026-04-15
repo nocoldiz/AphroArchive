@@ -4,9 +4,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
-const { HIDDEN_FILE, ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON } = require('./config');
-const { json, readBody }  = require('./helpers');
-const { loadPrefs, savePrefs } = require('./db');
+const { HIDDEN_FILE, ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON } = require('./config-server');
+const { json, readBody }  = require('./helpers-server');
+const { loadPrefs, savePrefs } = require('./db-server');
 
 function readJsonKeys(file) {
   try { return Object.keys(JSON.parse(fs.readFileSync(file, 'utf-8'))).join('\n'); }

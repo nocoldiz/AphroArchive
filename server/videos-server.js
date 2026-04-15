@@ -9,8 +9,8 @@ const { exec } = require('child_process');
 const {
   VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
-} = require('./config');
-const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, actorMatchesAny } = require('./helpers');
+} = require('./config-server');
+const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, actorMatchesAny } = require('./helpers-server');
 const {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -22,7 +22,7 @@ const {
   loadAudioMeta, saveAudioMeta,
   loadBooksMeta, saveBooksMeta,
   loadRatings,
-} = require('./db');
+} = require('./db-server');
 
 // ── Video scan cache ─────────────────────────────────────────────────
 
@@ -304,7 +304,7 @@ function apiDelete(req, res, id) {
     if (fi !== -1) { favs.splice(fi, 1); saveFavs(favs); }
     const cache = loadThumbsCache();
     if (cache[id]) { delete cache[id]; saveThumbsCache(cache); }
-    const { THUMBS_DIR } = require('./config');
+    const { THUMBS_DIR } = require('./config-server');
     const thumbDir = path.join(THUMBS_DIR, id);
     if (fs.existsSync(thumbDir)) fs.rmSync(thumbDir, { recursive: true, force: true });
     const meta = loadVideoMeta();

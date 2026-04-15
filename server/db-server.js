@@ -16,7 +16,7 @@ const {
   BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE,
   BOOKS_META_FILE, AUDIO_META_FILE,
   BM_DIR,
-} = require('./config');
+} = require('./config-server');
 
 // ── In-memory write-through caches ──────────────────────────────────
 // Each cache is null until first access, then kept in sync with disk.

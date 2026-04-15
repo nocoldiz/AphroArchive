@@ -5,9 +5,9 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { AUDIO_DIR, AUDIO_EXT, MIME } = require('./config');
-const { json, formatBytes }          = require('./helpers');
-const { loadAudioMeta, saveAudioMeta } = require('./db');
+const { AUDIO_DIR, AUDIO_EXT, MIME } = require('./config-server');
+const { json, formatBytes }          = require('./helpers-server');
+const { loadAudioMeta, saveAudioMeta } = require('./db-server');
 
 function audioToId(n)   { return Buffer.from(n).toString('base64url'); }
 function audioFromId(id) { return Buffer.from(id, 'base64url').toString(); }

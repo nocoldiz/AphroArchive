@@ -3,7 +3,7 @@
 //  remote.js — Server-Sent Events remote control API
 // ═══════════════════════════════════════════════════════════════════
 
-const { json, readBody } = require('./helpers');
+const { json, readBody } = require('./helpers-server');
 
 const _remoteClients = new Set();
 

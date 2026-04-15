@@ -5,7 +5,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { VIDEOS_DIR, PUBLIC_DIR, STATIC_MIME, IS_PKG } = require('./config');
+const { VIDEOS_DIR, PUBLIC_DIR, STATIC_MIME, IS_PKG } = require('./config-server');
 
 // ── Formatting ───────────────────────────────────────────────────────
 

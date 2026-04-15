@@ -3,9 +3,9 @@
 //  collections.js — Collections CRUD API handlers
 // ═══════════════════════════════════════════════════════════════════
 
-const { json, readBody }               = require('./helpers');
-const { loadCollections, saveCollections } = require('./db');
-const { allVideos }                    = require('./videos');
+const { json, readBody }               = require('./helpers-server');
+const { loadCollections, saveCollections } = require('./db-server');
+const { allVideos }                    = require('./videos-server');
 
 function apiCollections(req, res) {
   const cols   = loadCollections();

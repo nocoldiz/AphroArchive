@@ -6,9 +6,9 @@
 const fs                = require('fs');
 const path              = require('path');
 const { execFile }      = require('child_process');
-const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config');
-const { json, safePath }               = require('./helpers');
-const { loadThumbsCache, saveThumbsCache } = require('./db');
+const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config-server');
+const { json, safePath }               = require('./helpers-server');
+const { loadThumbsCache, saveThumbsCache } = require('./db-server');
 
 // ── ffprobe helper ───────────────────────────────────────────────────
 

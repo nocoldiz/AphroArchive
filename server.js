@@ -12,32 +12,32 @@ const path = require('path');
 const url  = require('url');
 const { exec } = require('child_process');
 
-const cfg = require('./server/config');
+const cfg = require('./server/config-server');
 const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, CACHE_DIR,
         WEBSITES_JSON, BM_DIR, BM_CACHE_FILE,
         BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
-const { json, serveStatic, readBody } = require('./server/helpers');
-const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites } = require('./server/db');
-const { initVideoMeta }        = require('./server/videos');
-const { getLocalIPs, getLocalIP } = require('./server/config');
+const { json, serveStatic, readBody } = require('./server/helpers-server');
+const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites } = require('./server/db-server');
+const { initVideoMeta }        = require('./server/videos-server');
+const { getLocalIPs, getLocalIP } = require('./server/config-server');
 
 // ── Modules ──────────────────────────────────────────────────────────
 
-const videos      = require('./server/videos');
-const actors      = require('./server/actors');
+const videos      = require('./server/videos-server');
+const actors      = require('./server/actors-server');
 const vault       = require('./server/vault-server');
-const thumbnails  = require('./server/thumbnails');
-const collections = require('./server/collections');
-const downloads   = require('./server/downloads');
-const bookmarks   = require('./server/bookmarks');
-const books       = require('./server/books');
-const audio       = require('./server/audio');
-const photos      = require('./server/photos');
-const database    = require('./server/database');
-const remote      = require('./server/remote');
-const settings    = require('./server/settings');
-const prompts     = require('./server/prompts');
+const thumbnails  = require('./server/thumbnails-server');
+const collections = require('./server/collections-server');
+const downloads   = require('./server/downloads-server');
+const bookmarks   = require('./server/bookmarks-server');
+const books       = require('./server/books-server');
+const audio       = require('./server/audio-server');
+const photos      = require('./server/photos-server');
+const database    = require('./server/database-server');
+const remote      = require('./server/remote-server');
+const settings    = require('./server/settings-server');
+const prompts     = require('./server/prompts-server');
 
 // ── Startup: create required directories ─────────────────────────────
 

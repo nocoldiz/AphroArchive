@@ -72,6 +72,6 @@ The SPA has no client-side router — view state is managed by toggling mode fla
 The server shells out to:
 - **ffmpeg / ffprobe** — thumbnail generation, video duration extraction. Resolved from project root first, then PATH.
 - **yt-dlp** — video downloading. Looked up in `cache/` first, then project root, then PATH.
-- **geckodriver + selenium** — optional Firefox-based scraping (Python scripts in `server/scrapeMethods.js`).
+- **geckodriver + selenium** — optional Firefox-based scraping (Python scripts in `server/scrapeMethods-server.js`).
 
 Binaries can be placed in the project root directory or `cache/` as alternatives to system PATH installation.

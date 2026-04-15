@@ -6,8 +6,8 @@
 const fs              = require('fs');
 const path            = require('path');
 const { spawn, execFile } = require('child_process');
-const { VIDEOS_DIR, YT_DLP_BIN, BM_DIR } = require('./config');
-const { json, readBody }                  = require('./helpers');
+const { VIDEOS_DIR, YT_DLP_BIN, BM_DIR } = require('./config-server');
+const { json, readBody }                  = require('./helpers-server');
 
 // ── Queue state ──────────────────────────────────────────────────────
 

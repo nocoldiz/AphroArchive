@@ -7,9 +7,9 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const os     = require('os');
-const { VAULT_DIR, MIME } = require('./config');
-const { json, readBody, formatBytes: _fmtBytes } = require('./helpers');
-const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta } = require('./db');
+const { VAULT_DIR, MIME } = require('./config-server');
+const { json, readBody, formatBytes: _fmtBytes } = require('./helpers-server');
+const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta } = require('./db-server');
 
 // ── Module state ─────────────────────────────────────────────────────
 
@@ -238,6 +238,50 @@ async function apiVaultDeleteFolder(req, res, id) {
   json(res, { ok: true });
 }
 
+// Add to vault-server.js
+
+async function apiVaultReadBook(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  
+  const meta = loadVaultMeta();
+  const fileMeta = meta[id];
+  if (!fileMeta) return json(res, { error: 'Not found' }, 404);
+
+  // 1. Decrypt the file to a buffer
+  const filePath = path.join(VAULT_DIR, id);
+  const encrypted = fs.readFileSync(filePath);
+  const iv = encrypted.slice(0, 16);
+  const authTag = encrypted.slice(16, 32);
+  const ciphertext = encrypted.slice(32);
+  
+  const decipher = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+  decipher.setAuthTag(authTag);
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+  const ext = path.extname(fileMeta.originalName).toLowerCase();
+  
+  if (ext === '.pdf' || ext === '.epub') {
+    // For binary books, we serve the decrypted buffer as a blob
+    const mime = ext === '.pdf' ? 'application/pdf' : 'application/epub+zip';
+    res.writeHead(200, { 
+      'Content-Type': mime, 
+      'Content-Length': decrypted.length 
+    });
+    res.end(decrypted);
+  } else {
+    // For text files, return the JSON structure the reader expects
+    const content = decrypted.toString('utf-8');
+    json(res, {
+      title: fileMeta.originalName,
+      content: content,
+      ext: ext,
+      type: 'vault'
+    });
+  }
+}
+
+// Ensure you export/route this in your server's main entry point:
+// if (url === '/api/vault/read-book') return apiVaultReadBook(req, res, query.id);
 async function apiVaultMoveFile(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   const meta = loadVaultMeta();

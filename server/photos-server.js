@@ -5,8 +5,8 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { PHOTOS_DIR, MIME } = require('./config');
-const { json, formatBytes } = require('./helpers');
+const { PHOTOS_DIR, MIME } = require('./config-server');
+const { json, formatBytes } = require('./helpers-server');
 
 const IMAGE_EXT = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.tiff','.tif']);
 

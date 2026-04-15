@@ -7,8 +7,8 @@ const fs   = require('fs');
 const path = require('path');
 const http = require('http');
 const { randomUUID } = require('crypto');
-const { PROMPTS_FILE, COMFYUI_WORKFLOWS_DIR } = require('./config');
-const { json, readBody } = require('./helpers');
+const { PROMPTS_FILE, COMFYUI_WORKFLOWS_DIR } = require('./config-server');
+const { json, readBody } = require('./helpers-server');
 
 // ── Storage ──────────────────────────────────────────────────────────
 
