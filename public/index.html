@@ -541,67 +541,68 @@
                 <rect x="3" y="11" width="18" height="11" rx="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>Vault</h2>
-<div style="display:flex;gap:8px;align-items:center">
-  <label class="vault-add-label" for="vaultFileIn">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg> Add Files
-  </label>
-  <input type="file" id="vaultFileIn" multiple style="display:none" onchange="handleGlobalFiles(this.files)">
+            <div style="display:flex;gap:8px;align-items:center">
+              <label class="vault-add-label" for="vaultFileIn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg> Add Files
+              </label>
+              <input type="file" id="vaultFileIn" multiple style="display:none"
+                onchange="handleGlobalFiles(this.files)">
 
-  <button class="vault-lock-btn" onclick="newVaultFolder()">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-      <line x1="12" y1="11" x2="12" y2="17" />
-      <line x1="9" y1="14" x2="15" y2="14" />
-    </svg> New Folder
-  </button>
+              <button class="vault-lock-btn" onclick="newVaultFolder()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <line x1="12" y1="11" x2="12" y2="17" />
+                  <line x1="9" y1="14" x2="15" y2="14" />
+                </svg> New Folder
+              </button>
 
-  <button class="vault-lock-btn" onclick="startVaultDynamicMosaic()" title="Dynamic Mosaic">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="3" y="3" width="7" height="7"></rect>
-      <rect x="14" y="3" width="7" height="7"></rect>
-      <rect x="14" y="14" width="7" height="7"></rect>
-      <rect x="3" y="14" width="7" height="7"></rect>
-    </svg> Mosaic
-  </button>
+              <button class="vault-lock-btn" onclick="startVaultDynamicMosaic()" title="Dynamic Mosaic">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                </svg> Mosaic
+              </button>
 
-  <button class="vault-lock-btn" onclick="shuffleVault()" title="Shuffle Vault">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <polyline points="16 3 21 3 21 8" />
-      <line x1="4" y1="20" x2="21" y2="3" />
-      <polyline points="21 16 21 21 16 21" />
-      <line x1="15" y1="15" x2="21" y2="21" />
-      <line x1="4" y1="4" x2="9" y2="9" />
-    </svg> Shuffle
-  </button>
+              <button class="vault-lock-btn" onclick="shuffleVault()" title="Shuffle Vault">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="16 3 21 3 21 8" />
+                  <line x1="4" y1="20" x2="21" y2="3" />
+                  <polyline points="21 16 21 21 16 21" />
+                  <line x1="15" y1="15" x2="21" y2="21" />
+                  <line x1="4" y1="4" x2="9" y2="9" />
+                </svg> Shuffle
+              </button>
 
-  <button class="vault-lock-btn" id="vaultSelBtn" onclick="toggleVaultSelMode()">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg> Select
-  </button>
+              <button class="vault-lock-btn" id="vaultSelBtn" onclick="toggleVaultSelMode()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg> Select
+              </button>
 
-  <button class="vault-lock-btn" onclick="deleteVaultDuplicates()" title="Remove duplicate files">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="9" y="9" width="13" height="13" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-      <line x1="17" y1="14" x2="17" y2="18" />
-      <line x1="15" y1="16" x2="19" y2="16" />
-    </svg> Dedup
-  </button>
+              <button class="vault-lock-btn" onclick="deleteVaultDuplicates()" title="Remove duplicate files">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  <line x1="17" y1="14" x2="17" y2="18" />
+                  <line x1="15" y1="16" x2="19" y2="16" />
+                </svg> Dedup
+              </button>
 
-  <button class="vault-lock-btn" onclick="lockVault()">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="3" y="11" width="18" height="11" rx="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </svg> Lock
-  </button>
-</div>
+              <button class="vault-lock-btn" onclick="lockVault()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg> Lock
+              </button>
+            </div>
           </div>
           <div class="vault-breadcrumb" id="vaultBreadcrumb" style="display:none"></div>
           <div class="vault-search-bar">
@@ -621,11 +622,11 @@
           <div class="vault-sort-row">
             <span class="vault-sort-label">Sort:</span>
 
-            <button class="vault-sort-btn on" data-sort="date" onclick="setVaultSort('date')">Date</button>
-            <button class="vault-sort-btn" data-sort="name" onclick="setVaultSort('name')">Name</button>
-            <button class="vault-sort-btn" data-sort="size-desc" onclick="setVaultSort('size-desc')">Size ↓</button>
-            <button class="vault-sort-btn" data-sort="size-asc" onclick="setVaultSort('size-asc')">Size ↑</button>
-            <button class="vault-sort-btn" id="vaultHideThumbsBtn" onclick="toggleVaultThumbs()"
+<button onclick="handleVaultSort('mtime')">Date <span id="vault-sort-mtime-dir">↓</span></button>
+  <button onclick="handleVaultSort('name')">Name <span id="vault-sort-name-dir"></span></button>
+  <button onclick="handleVaultSort('size')">Size <span id="vault-sort-size-dir"></span></button>
+  
+              <button class="vault-sort-btn" id="vaultHideThumbsBtn" onclick="toggleVaultThumbs()"
               title="Hide Thumbnails">Hide thumbnails↑</button>
 
           </div>
@@ -673,6 +674,14 @@
             width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <polyline points="15 18 9 12 15 6" />
           </svg></button>
+        <button id="player-vault-del" class="p-act-btn" style="color:#ff4d4d"
+          onclick="deleteVaultFileFromPlayer()" title="Delete from Vault (No confirmation)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          <span>Delete</span>
+        </button>
         <img id="vaultPhotoImg" src="" alt="">
         <button class="vault-photo-nav vault-photo-next" id="vaultPhotoNext" onclick="nextVaultPhoto(true)"><svg
             width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -704,6 +713,11 @@
 
       <!-- Tag Detail View -->
       <div class="tag-detail-view" id="tag-detail-view">
+        <button class="back-btn" onclick="closeTag()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m15 18-6-6 6-6" />
+          </svg>Tags
+        </button>
         <div class="section-header">
           <h2 id="tag-name"></h2>
           <div class="section-controls">
@@ -995,6 +1009,12 @@
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
                 <path d="m15 5 3 3" />
               </svg>Valorize Template
+            </button>
+            <button id="deleteAllPromptsBtn" onclick="confirmDeleteAllPrompts()" class="sort-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Delete All
             </button>
           </div>
         </div>
@@ -1507,6 +1527,7 @@
                 </svg>
                 Previous
               </button>
+
               <button onclick="playNext()">
                 Next
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1547,14 +1568,7 @@
                 </button>
               </div>
               <div class="player-info-actions">
-                <button id="player-vault-del" class="p-act-btn" style="display:none; color:#ff4d4d"
-                  onclick="deleteVaultFileFromPlayer()" title="Delete from Vault (No confirmation)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                  <span>Delete</span>
-                </button>
+
                 <button id="player-star-btn" onclick="togglePStar()">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon

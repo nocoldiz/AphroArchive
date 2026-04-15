@@ -479,6 +479,31 @@ function _scanTemplates() {
   return [...found].sort();
 }
 
+// Add to prompts.js
+async function confirmDeleteAllPrompts() {
+  if (!confirm('Are you sure you want to delete ALL prompts? This action cannot be undone.')) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/prompts/all', {
+      method: 'DELETE'
+    });
+
+    if (response.ok) {
+      _prompts = []; // Clear local state
+      renderPromptsTable(); // Refresh the UI
+      toast('All prompts deleted successfully');
+    } else {
+      const err = await response.json();
+      toast('Error: ' + (err.error || 'Failed to delete prompts'));
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Network error while deleting prompts');
+  }
+}
+
 function openValorizeModal() {
   const templates = _scanTemplates();
   const content = document.getElementById('valorize-modal-content');

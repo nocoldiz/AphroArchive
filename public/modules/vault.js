@@ -7,6 +7,9 @@ async function showVault() {
   $('vault-sidebar').add('on');
   $('vault-view').add('on');
   loadVaultView();
+  
+  // Call the auto-hide initializer here
+  initVaultAutoHide(); 
 }
 
 let vaultThumbsHidden = false;
@@ -79,7 +82,8 @@ async function lockVault() {
 }
 
 async function loadVaultFiles() {
-  let vaultSort = 'date-desc';
+  let vaultSort = 'mtime';
+  let vaultSortDir = 'desc';
 vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null;
   const vsi = $('vaultSearchInput').el;
   if (vsi) vsi.value = '';
@@ -285,6 +289,89 @@ async function addVaultFiles() {
   toast('Encrypted and stored in vault');
 }
 
+async function handleVaultSort(key) {
+  if (vaultSort === key) {
+    // If clicking the same key, toggle direction
+    vaultSortDir = (vaultSortDir === 'desc') ? 'asc' : 'desc';
+  } else {
+    // New key selected
+    vaultSort = key;
+    // Default: Names sort A-Z (asc), Dates and Size sort Newest/Largest (desc)
+    vaultSortDir = (key === 'name') ? 'asc' : 'desc';
+  }
+  applyVaultSort();
+}
+
+/**
+ * Applies the sort to vaultFiles and refreshes the UI
+ */
+function applyVaultSort() {
+  // 1. Update Arrows in UI
+  const keys = ['mtime', 'name', 'size'];
+  keys.forEach(k => {
+    const el = document.getElementById(`vault-sort-${k}-dir`);
+    if (!el) return;
+    if (vaultSort === k) {
+      el.textContent = (vaultSortDir === 'desc') ? ' ↓' : ' ↑';
+    } else {
+      el.textContent = '';
+    }
+  });
+
+  // 2. Perform Sort
+  vaultFiles.sort((a, b) => {
+    let valA, valB;
+
+    if (vaultSort === 'mtime') {
+      valA = a.mtime || 0;
+      valB = b.mtime || 0;
+    } else if (vaultSort === 'name') {
+      valA = (a.originalName || '').toLowerCase();
+      valB = (b.originalName || '').toLowerCase();
+    } else if (vaultSort === 'size') {
+      valA = a.size || 0;
+      valB = b.size || 0;
+    }
+
+    if (valA < valB) return vaultSortDir === 'asc' ? -1 : 1;
+    if (valA > valB) return vaultSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  renderVaultGrid();
+}
+
+/**
+ * Updated Thumbnails toggle (removes arrow logic)
+ */
+function toggleVaultThumbs() {
+  vaultThumbsHidden = !vaultThumbsHidden;
+  const btn = document.getElementById('vaultThumbsBtn');
+  if (btn) {
+    btn.textContent = vaultThumbsHidden ? 'Show Thumbs' : 'Hide Thumbs';
+  }
+  renderVaultGrid();
+}
+
+/**
+ * Shuffle logic (Keep existing or use this)
+ */
+function shuffleVault() {
+  // Clear sort indicators
+  vaultSort = 'shuffle';
+  ['mtime', 'name', 'size'].forEach(k => {
+    const el = document.getElementById(`vault-sort-${k}-dir`);
+    if (el) el.textContent = '';
+  });
+
+  for (let i = vaultFiles.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [vaultFiles[i], vaultFiles[j]] = [vaultFiles[j], vaultFiles[i]];
+  }
+  renderVaultGrid();
+}
+
+
 async function openVaultVid(id, name, ext) {
   $('browse-view').add('off');
   $('vault-view').remove('on');
@@ -429,9 +516,59 @@ async function deleteVaultFile(id) {
 }
 
 function vaultCardClick(id, name, ext) {
-  if (vaultSelMode) toggleVaultSel(id);
-  else if (VAULT_IMAGE_EXTS.has(ext.toLowerCase())) openVaultPhoto(id, name);
-  else openVaultVid(id, name, ext);
+  if (typeof vaultSelMode !== 'undefined' && vaultSelMode) { 
+    toggleVaultSel(id); 
+    return; 
+  }
+  
+  const extLower = (ext || '').toLowerCase();
+  const isBook = extLower === '.txt' || extLower === '.pdf' || extLower === '.epub';
+
+  if (isBook) {
+    // Open in the reader interface instead of the video player
+    openVaultBook(id, name, extLower);
+  } else if (typeof VAULT_IMG_EXTS !== 'undefined' && VAULT_IMG_EXTS.has(extLower)) {
+    openVaultPhoto(id);
+  } else {
+    openVaultVid(id, name, ext);
+  }
+}
+
+// 2. Create a vault-specific reader function
+async function openVaultBook(id, name, ext) {
+  const reader = $('booksReader').el;
+  const readerTitle = $('booksReaderTitle').el;
+  const readerBody = $('booksReaderBody').el;
+  
+  readerTitle.textContent = 'Loading…';
+  readerBody.innerHTML = '<div class="bk-loading">Loading…</div>';
+  reader.classList.add('on'); // Show the book reader interface
+
+  // PDFs and EPUBs are handled via browser tabs
+  if (ext === '.pdf' || ext === '.epub') {
+    reader.classList.remove('on');
+    // Use the secure vault streaming endpoint
+    window.open(`/api/vault/stream/${id}`, '_blank');
+    return;
+  }
+
+  // Handle .txt files
+  try {
+    const r = await fetch(`/api/vault/stream/${id}`);
+    if (!r.ok) throw new Error('Failed to load text file from vault');
+    
+    const text = await r.text();
+    readerTitle.textContent = name || 'Vault Text File';
+    
+    // Utilize the renderMarkdown function already present in books.js
+    if (typeof renderMarkdown === 'function') {
+        readerBody.innerHTML = renderMarkdown(text);
+    } else {
+        readerBody.innerHTML = `<pre style="white-space: pre-wrap; padding: 20px;">${text}</pre>`;
+    }
+  } catch (err) {
+    readerBody.innerHTML = '<div class="bk-loading">Error loading file</div>';
+  }
 }
 
 // ── Zoom / pan state ──────────────────────────────────────────────────
@@ -766,50 +903,33 @@ vaultDynamicPool = vaultFiles.filter(f => {
   scheduleVaultDynamicMosaic();
 }
 
-function toggleVaultThumbs() {
-  vaultThumbsHidden = !vaultThumbsHidden;
-  const grid = document.getElementById('vaultGrid');
-  const btn = document.getElementById('vaultHideThumbsBtn');
-  
-  if (grid) grid.classList.toggle('vault-no-thumbs', vaultThumbsHidden);
-  if (btn) btn.classList.toggle('on', vaultThumbsHidden);
-}
 
 function initVaultAutoHide() {
-  const vaultArea = document.getElementById('vaultFiles');
   const grid = document.getElementById('vaultGrid');
+  if (!grid) return;
 
-  if (!vaultArea || !grid) return;
-
-  // Quando il mouse esce dall'area Vault (va su sidebar, topbar, ecc.)
-  vaultArea.addEventListener('mouseleave', () => {
-    grid.classList.add('vault-auto-hide');
+  // 1. Mouse enters a specific card or folder: Show everything
+  grid.addEventListener('mouseover', (e) => {
+    const isOverCard = e.target.closest('.video-card, .vault-folder-tile');
+    if (isOverCard) {
+      grid.classList.remove('vault-auto-hide');
+    }
   });
 
-  // Quando il mouse rientra nel Vault
-  vaultArea.addEventListener('mouseenter', () => {
-    grid.classList.remove('vault-auto-hide');
+  // 2. Mouse leaves a card: Hide everything again
+  grid.addEventListener('mouseout', (e) => {
+    const toElement = e.relatedTarget;
+    // Check if we are moving to something that ISN'T a card (like the background gap)
+    if (!toElement || !toElement.closest('.video-card, .vault-folder-tile')) {
+      grid.classList.add('vault-auto-hide');
+    }
   });
+
+  // Initialize: Start in hidden mode
+  grid.classList.add('vault-auto-hide');
 }
 
-// Update loadVaultFiles or renderVaultFiles to respect this state
-// Add this line inside the render loop or at the end of loadVaultFiles:
-function initVaultAutoHide() {
-  const vaultArea = document.getElementById('vaultFiles');
-  const grid = document.getElementById('vaultGrid');
 
-  if (!vaultArea || !grid) return;
-
-  // Quando il mouse esce dall'area Vault (va su sidebar, topbar, ecc.)
-  vaultArea.addEventListener('mouseleave', () => {
-    grid.classList.add('vault-auto-hide');
-  });
-
-  // Quando il mouse rientra nel Vault
-  vaultArea.addEventListener('mouseenter', () => {
-    grid.classList.remove('vault-auto-hide');
-  });
-}
 
 function updateVaultDynamicTile(idx) {
   if (!vaultDynamicMosActive) return;
@@ -883,27 +1003,7 @@ function stopVaultDynamicMosaic() {
   if (vaultView) vaultView.style.display = '';
 }
 // ─── Vault Shuffle ───
-function shuffleVault() {
-  if (!vaultFiles || vaultFiles.length === 0) {
-    if (typeof toast === 'function') toast('Vault is empty');
-    return;
-  }
-  
-  // Clear any active sort button highlights
-  vaultSort = 'shuffle';
-  document.querySelectorAll('.vault-sort-btn').forEach(b => b.classList.remove('on'));
-  
-  // Randomize the vaultFiles array
-  vaultFiles.sort(() => Math.random() - 0.5);
-  
-  // Clear any current selections as positions will shift
-  if (typeof clearVaultSelection === 'function') clearVaultSelection();
-  
-  // Re-render the grid with the new shuffled order
-  renderVaultGrid();
-  
-  if (typeof toast === 'function') toast('Vault shuffled');
-}
+
 
 function closeVaultPhoto() {
   _stopVaultSs();

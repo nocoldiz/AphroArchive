@@ -59,6 +59,19 @@ async function apiDeletePrompt(req, res, id) {
   json(res, { ok: true });
 }
 
+async function apiDeleteAllPrompts(req, res) {
+  try {
+    savePrompts([]); // Overwrite the prompts file with an empty array
+    json(res, { success: true });
+  } catch (err) {
+    json(res, { error: 'Failed to clear prompts storage' }, 500);
+  }
+}
+
+// In your main server router (likely where other /api/prompts routes are defined):
+// Example: if (path === '/api/prompts/all' && method === 'DELETE') return apiDeleteAllPrompts(req, res);
+
+
 // ── ComfyUI status check ─────────────────────────────────────────────
 
 async function apiComfyStatus(req, res) {
@@ -175,5 +188,5 @@ async function apiComfySend(req, res) {
 
 module.exports = {
   apiGetPrompts, apiAddPrompt, apiUpdatePrompt, apiDeletePrompt,
-  apiComfyStatus, apiComfyWorkflows, apiComfySend,
+  apiComfyStatus, apiComfyWorkflows, apiComfySend, apiDeleteAllPrompts
 };
