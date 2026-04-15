@@ -164,21 +164,24 @@ function selCat(c) {
   if (dualMode && dualActive === 'right') { dualSelCat(c); return; }
   closeAllViews();
   cat = c;
-  const catUrl = c ? '/cat/' + encodeURIComponent(c) : '/';
-  if (location.pathname !== catUrl) history.pushState(null, '', catUrl);
-  $('section-title').text(c ? cats.find(x => x.path === c)?.name || c : 'All Videos');
-  $('browse-view').remove('off');
-  q = '';
+  
+  // Ensure we clear any existing search query so the category filter isn't 
+  // being restricted by a hidden search term.
+  q = ''; 
   $('search-input').val('');
   $('search-ghost').html('');
+
+  const catUrl = c ? '/cat/' + encodeURIComponent(c) : '/';
+  if (location.pathname !== catUrl) history.pushState(null, '', catUrl);
+  
+  $('section-title').text(c ? cats.find(x => x.path === c)?.name || c : 'All Videos');
+  $('browse-view').remove('off');
+  
   window.scrollTo({ top: 0, behavior: 'instant' });
-  if (_allVideos.length && !q) {
-    V = filterVideosCat(c);
-    renCats();
-    render();
-  } else {
-    refresh();
-  }
+
+  // Force a refresh to get the filtered list from the server/state 
+  // instead of relying on the conditional render check.
+  refresh(); 
 }
 
 // ─── Favourites Toggle ───
@@ -295,13 +298,20 @@ sIEl.addEventListener('input', e => {
   sTO = setTimeout(() => {
     q = e.target.value.trim();
     if (q) {
+      // Close any active detail views (actors, studios, etc.)
       closeAllViews();
+      
+      // Reset Category and Tag to "All Videos"
+      cat = '';
+      curTag = null;
+      $('section-title').text('All Videos'); 
+      
       $('browse-view').remove('off');
       if (location.pathname !== '/') history.pushState(null, '', '/');
     }
     refresh();
   }, 300);
-});
+})
 sIEl.addEventListener('blur', () => { $('search-ghost').html(''); });
 sIEl.addEventListener('keydown', e => {
   if (e.key === 'Tab') {

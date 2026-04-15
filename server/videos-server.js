@@ -149,9 +149,16 @@ function apiVideos(req, res, params) {
   const q    = params.get('q');
   const cat  = params.get('category');
   const sort = params.get('sort') || 'date';
-  if (q) { const l = q.toLowerCase(); list = list.filter(v => v.name.toLowerCase().includes(l) || v.category.toLowerCase().includes(l) || (meta[v.id]?.tags || []).some(t => t.toLowerCase().includes(l))); }
-  if (cat) {
-    if (cat === '__uncategorized__') {
+  
+  if (q) { 
+    const l = q.toLowerCase(); 
+    list = list.filter(v => v.name.toLowerCase().includes(l) || v.category.toLowerCase().includes(l) || (meta[v.id]?.tags || []).some(t => t.toLowerCase().includes(l))); 
+  }
+  
+  // 1. Check for strict null instead of truthiness
+  if (cat !== null) {
+    // 2. Handle both representations of the Uncategorized category
+    if (cat === '__uncategorized__' || cat === '') {
       const defined = loadCategories();
       list = list.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms)));
     } else {
