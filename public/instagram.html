@@ -35,7 +35,7 @@
     .ig-content { margin-left: 245px; flex: 1; display: flex; align-items: flex-start; padding: 0; min-width: 0; }
 
     /* ── Feed ── */
-    .ig-feed { flex: 1; min-width: 0; padding: 24px 24px 24px 32px; display: flex; flex-direction: column; }
+    .ig-feed { flex: 1; min-width: 0; max-width: 540px; padding: 24px 24px 24px 60px; display: flex; flex-direction: column; }
     .ig-feed.hidden { display: none; }
 
     /* Stories */
@@ -218,15 +218,53 @@
     .ig-unlock-btn:hover { background: #1aa3ff; }
     .ig-vault-err { color: #ed4956; font-size: 13px; margin-top: 8px; min-height: 18px; }
 
-    /* ── AI Comments ── */
-    .ig-comments-section { border-top: 1px solid #262626; padding: 10px 12px 4px; }
-    .ig-comment-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
-    .ig-comment-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #fff; flex-shrink: 0; }
+    /* ── AI Comments modal ── */
+    .ig-comments-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 1100; align-items: flex-end; justify-content: center; }
+    .ig-comments-modal.open { display: flex; }
+    .ig-comments-sheet {
+      background: #1a1a1a; border-radius: 16px 16px 0 0; width: 100%; max-width: 600px;
+      max-height: 80vh; display: flex; flex-direction: column;
+      animation: slideUp .25s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .ig-comments-sheet-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px; border-bottom: 1px solid #262626; flex-shrink: 0;
+    }
+    .ig-comments-sheet-title { font-size: 15px; font-weight: 700; }
+    .ig-comments-sheet-close { background: none; border: none; color: #a8a8a8; cursor: pointer; font-size: 22px; line-height: 1; padding: 2px 6px; }
+    .ig-comments-sheet-body { flex: 1; overflow-y: auto; padding: 12px 16px 24px; }
+    .ig-comment-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: flex-start; }
+    .ig-comment-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; flex-shrink: 0; }
     .ig-comment-username { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-    .ig-comment-text { font-size: 13px; color: #e0e0e0; line-height: 1.45; }
-    .ig-comments-loading { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; color: #a8a8a8; }
-    .ig-comments-spinner { width: 14px; height: 14px; border: 2px solid #333; border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+    .ig-comment-text { font-size: 14px; color: #e0e0e0; line-height: 1.5; }
+    .ig-comments-loading { display: flex; align-items: center; gap: 10px; padding: 16px 0; font-size: 14px; color: #a8a8a8; }
+    .ig-comments-spinner { width: 16px; height: 16px; border: 2px solid #333; border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
     .ig-act-btn.comments-on svg { stroke: #0095f6; }
+
+    /* ── Profile view ── */
+    .ig-profile { display: none; flex: 1; min-width: 0; padding: 24px 24px 24px 32px; max-width: 540px; }
+    .ig-profile.show { display: flex; flex-direction: column; }
+    .ig-profile-header { display: flex; align-items: center; gap: 28px; padding-bottom: 24px; border-bottom: 1px solid #262626; margin-bottom: 20px; }
+    .ig-profile-avatar { width: 86px; height: 86px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 32px; color: #fff; flex-shrink: 0; }
+    .ig-profile-meta { flex: 1; }
+    .ig-profile-name { font-size: 20px; font-weight: 300; margin-bottom: 12px; letter-spacing: -.3px; }
+    .ig-profile-stats { display: flex; gap: 28px; margin-bottom: 10px; }
+    .ig-profile-stat { text-align: center; font-size: 14px; }
+    .ig-profile-stat strong { display: block; font-size: 16px; font-weight: 700; }
+    .ig-profile-bio { font-size: 13px; color: #a8a8a8; }
+    .ig-profile-back { display: flex; align-items: center; gap: 8px; background: none; border: none; color: #a8a8a8; cursor: pointer; font-size: 14px; margin-bottom: 16px; padding: 0; transition: color .15s; }
+    .ig-profile-back:hover { color: #fff; }
+    .ig-profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+    .ig-profile-tile { aspect-ratio: 1; position: relative; background: #1a1a1a; overflow: hidden; cursor: pointer; }
+    .ig-profile-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
+    .ig-profile-tile:hover img { transform: scale(1.05); }
+    .ig-profile-tile-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; gap: 16px; opacity: 0; transition: opacity .2s; }
+    .ig-profile-tile:hover .ig-profile-tile-overlay { opacity: 1; }
+    .ig-profile-tile-stat { display: flex; align-items: center; gap: 5px; color: #fff; font-size: 14px; font-weight: 700; }
+    .ig-profile-tabs { display: flex; border-top: 1px solid #262626; margin-bottom: 16px; }
+    .ig-profile-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px; border-top: 1px solid transparent; font-size: 12px; font-weight: 600; color: #a8a8a8; cursor: pointer; letter-spacing: .8px; text-transform: uppercase; margin-top: -1px; transition: color .15s, border-color .15s; }
+    .ig-profile-tab.active { border-top-color: #fff; color: #fff; }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
@@ -254,6 +292,10 @@
       </svg>
       <span class="ig-nav-logo-text">AphroArchive</span>
     </div>
+    <div onclick="window.location.href='/reddit'" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;cursor:pointer;transition:background .15s;margin-bottom:4px" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background=''">
+      <svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#ff4500"/><ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff"/><circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500"/><circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500"/><path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" stroke-width="1" stroke-linecap="round" fill="none"/></svg>
+      <span class="ig-nav-logo-text" style="font-size:15px;font-weight:600">Reddit Mode</span>
+    </div>
     <div class="ig-nav-item active" id="nav-feed" onclick="showView('feed')">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       <span>Feed</span>
@@ -267,6 +309,10 @@
       <span>Vault Only</span>
     </div>
     <div class="ig-nav-spacer"></div>
+    <div class="ig-nav-item" onclick="window.location.href='/reddit'">
+      <svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#ff4500"/><ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff"/><circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500"/><circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500"/><path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" stroke-width="1" stroke-linecap="round" fill="none"/></svg>
+      <span>Reddit Mode</span>
+    </div>
     <div class="ig-nav-item" onclick="window.location.href='/'">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
       <span>Back to Archive</span>
@@ -287,6 +333,22 @@
     <div class="ig-explore" id="ig-explore">
       <div class="ig-explore-grid" id="ig-explore-grid"></div>
       <div id="ig-explore-status" class="ig-loading"><div class="ig-spinner"></div></div>
+    </div>
+
+    <!-- Profile view -->
+    <div class="ig-profile" id="ig-profile">
+      <button class="ig-profile-back" onclick="closeProfile()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back
+      </button>
+      <div class="ig-profile-header" id="ig-profile-header"></div>
+      <div class="ig-profile-tabs">
+        <div class="ig-profile-tab active" id="ig-ptab-grid" onclick="setProfileTab('grid')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Posts
+        </div>
+      </div>
+      <div class="ig-profile-grid" id="ig-profile-grid"></div>
     </div>
 
     <!-- Right sidebar -->
@@ -332,6 +394,17 @@
   </div>
 </div>
 
+<!-- ── Comments modal ── -->
+<div class="ig-comments-modal" id="ig-comments-modal" onclick="if(event.target===this)closeCommentsModal()">
+  <div class="ig-comments-sheet">
+    <div class="ig-comments-sheet-hdr">
+      <span class="ig-comments-sheet-title">Comments</span>
+      <button class="ig-comments-sheet-close" onclick="closeCommentsModal()">&#x2715;</button>
+    </div>
+    <div class="ig-comments-sheet-body" id="ig-comments-sheet-body"></div>
+  </div>
+</div>
+
 <!-- ── Modal ── -->
 <div class="ig-modal" id="ig-modal">
   <button class="ig-modal-close" onclick="closeModal()">&#x2715;</button>
@@ -349,6 +422,7 @@
 // ── State ──────────────────────────────────────────────────────────────────
 let allVideos = [];
 let vaultFiles = [];
+let vaultFolderMap = {}; // folderId → folderName
 let vaultUnlocked = false;
 let vaultOnly = false;
 let feedPage = 0;
@@ -429,8 +503,16 @@ async function checkVaultStatus() {
 async function loadVaultFiles() {
   try {
     const items = await (await fetch('/api/vault/files')).json();
-    if (!items.error) vaultFiles = items.filter(f => f.type !== 'folder');
+    if (!items.error) {
+      items.filter(f => f.type === 'folder').forEach(f => { vaultFolderMap[f.id] = f.name; });
+      vaultFiles = items.filter(f => f.type !== 'folder');
+    }
   } catch {}
+}
+
+function vaultUser(item) {
+  if (item.folder && vaultFolderMap[item.folder]) return vaultFolderMap[item.folder];
+  return 'Vault';
 }
 
 // ── Sort ───────────────────────────────────────────────────────────────────
@@ -538,6 +620,7 @@ function showView(view) {
   document.getElementById('nav-explore').classList.toggle('active', view === 'explore');
   document.getElementById('ig-feed').classList.toggle('hidden', view !== 'feed');
   document.getElementById('ig-right').style.display = view === 'feed' ? '' : 'none';
+  document.getElementById('ig-profile').classList.remove('show');
   const exploreEl = document.getElementById('ig-explore');
   if (view === 'explore') {
     exploreEl.classList.add('show');
@@ -545,6 +628,69 @@ function showView(view) {
   } else {
     exploreEl.classList.remove('show');
   }
+}
+
+// ── Profile ────────────────────────────────────────────────────────────────
+function openProfile(key) {
+  // key = 'cat:CategoryName' or 'vault:folderId'
+  const isVaultProfile = key.startsWith('vault:');
+  const id = key.slice(key.indexOf(':') + 1);
+
+  let items, displayName;
+  if (isVaultProfile) {
+    displayName = id === '__root__' ? 'Vault' : (vaultFolderMap[id] || 'Vault');
+    items = vaultFiles.filter(f => (f.folder || '__root__') === id).map(f => ({...f, _vault: true}));
+  } else {
+    displayName = id;
+    items = allVideos.filter(v => (v.category || 'Uncategorized') === id).map(v => ({...v, _vault: false}));
+  }
+
+  const color = strColor(displayName);
+  const postCount = items.length;
+  const likedCount = items.filter(i => likedIds.has(i.id)).length;
+
+  document.getElementById('ig-feed').classList.add('hidden');
+  document.getElementById('ig-right').style.display = 'none';
+  document.getElementById('ig-explore').classList.remove('show');
+  document.getElementById('ig-profile').classList.add('show');
+
+  document.getElementById('ig-profile-header').innerHTML = `
+    <div class="ig-profile-avatar" style="background:${color}">${initial(displayName)}</div>
+    <div class="ig-profile-meta">
+      <div class="ig-profile-name">${esc(displayName)}</div>
+      <div class="ig-profile-stats">
+        <div class="ig-profile-stat"><strong>${postCount}</strong>posts</div>
+        <div class="ig-profile-stat"><strong>${likedCount}</strong>liked</div>
+        ${isVaultProfile ? '<div class="ig-profile-stat"><strong>🔒</strong>vault</div>' : ''}
+      </div>
+      <div class="ig-profile-bio">${isVaultProfile ? 'Vault folder' : 'Category · ' + postCount + ' video' + (postCount !== 1 ? 's' : '')}</div>
+    </div>`;
+
+  const grid = document.getElementById('ig-profile-grid');
+  grid.innerHTML = items.map(item => {
+    const isVault = item._vault;
+    const thumb = isVault
+      ? (['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes((item.ext||'').toLowerCase()) ? '/api/vault/stream/'+item.id : '')
+      : '/api/thumbs/'+item.id+'/0';
+    const liked = likedIds.has(item.id);
+    return `<div class="ig-profile-tile" onclick="openModal(${JSON.stringify(item.id)},${isVault})">
+      ${thumb ? `<img src="${esc(thumb)}" loading="lazy" alt="" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#333"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5,3 19,12 5,21"/></svg></div>`}
+      <div class="ig-profile-tile-overlay">
+        <div class="ig-profile-tile-stat"><svg width="16" height="16" viewBox="0 0 24 24" fill="${liked?'#ed4956':'white'}" stroke="${liked?'#ed4956':'white'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function closeProfile() {
+  document.getElementById('ig-profile').classList.remove('show');
+  document.getElementById('ig-feed').classList.remove('hidden');
+  document.getElementById('ig-right').style.display = '';
+}
+
+function setProfileTab(tab) {
+  document.querySelectorAll('.ig-profile-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('ig-ptab-' + tab).classList.add('active');
 }
 
 // ── Vault only ─────────────────────────────────────────────────────────────
@@ -641,7 +787,7 @@ function loadFeedPage() {
 function buildPost(item) {
   const isVault = item._vault;
   const name = item.name || item.originalName || 'Untitled';
-  const category = isVault ? 'Vault' : (item.category || 'Uncategorized');
+  const category = isVault ? vaultUser(item) : (item.category || 'Uncategorized');
   const color = strColor(category);
   const mtime = item.mtime || 0;
   const isLiked = likedIds.has(item.id);
@@ -667,11 +813,13 @@ function buildPost(item) {
   div.dataset.vault = isVault ? '1' : '0';
   if (streamUrl) div.dataset.stream = streamUrl;
 
+  const profileKey = isVault ? ('vault:' + (item.folder || '__root__')) : ('cat:' + category);
+
   div.innerHTML = `
     <div class="ig-post-header">
-      <div class="ig-post-avatar" style="background:${color}">${initial(category)}</div>
+      <div class="ig-post-avatar" style="background:${color};cursor:pointer" onclick="openProfile(${JSON.stringify(profileKey)})">${initial(category)}</div>
       <div class="ig-post-info">
-        <div class="ig-post-username">${esc(category)}</div>
+        <div class="ig-post-username" style="cursor:pointer" onclick="openProfile(${JSON.stringify(profileKey)})">${esc(category)}</div>
         <div class="ig-post-meta">${timeAgo(mtime)}</div>
       </div>
       <button class="ig-post-menu" title="More">&#8943;</button>
@@ -807,15 +955,16 @@ async function openModal(id, isVault) {
   if (!item) { mediaEl.innerHTML = '<p style="color:#555;padding:30px">Not found</p>'; return; }
 
   const name = item.name || item.originalName || 'Untitled';
-  const category = isVault ? 'Vault' : (item.category || 'Uncategorized');
+  const category = isVault ? vaultUser(item) : (item.category || 'Uncategorized');
   const color = strColor(category);
   const ext = (item.ext||'').toLowerCase();
   const isImgVault = isVault && ['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes(ext);
   const streamUrl = isVault ? '/api/vault/stream/'+id : '/api/stream/'+id;
+  const profileKey = isVault ? ('vault:' + (item.folder || '__root__')) : ('cat:' + category);
 
   headerEl.innerHTML = `
-    <div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0">${initial(category)}</div>
-    <div class="ig-modal-info"><div class="ig-modal-username">${esc(category)}</div><div class="ig-modal-meta">${timeAgo(item.mtime||0)}</div></div>`;
+    <div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0;cursor:pointer" onclick="openProfile(${JSON.stringify(profileKey)});closeModal()">${initial(category)}</div>
+    <div class="ig-modal-info"><div class="ig-modal-username" style="cursor:pointer" onclick="openProfile(${JSON.stringify(profileKey)});closeModal()">${esc(category)}</div><div class="ig-modal-meta">${timeAgo(item.mtime||0)}</div></div>`;
 
   bodyEl.innerHTML = `
     <div class="ig-modal-title"><strong style="font-weight:600;margin-right:6px">${esc(category)}</strong>${esc(name)}</div>
@@ -899,46 +1048,29 @@ async function _fetchIgComments(id, name, listEl) {
 
 function toggleIgComments(e, btn, id, name) {
   e.stopPropagation();
-  const post = btn.closest('.ig-post');
-  if (!post) return;
-  let sec = post.querySelector('.ig-comments-section');
-  if (!sec) {
-    sec = document.createElement('div');
-    sec.className = 'ig-comments-section';
-    sec.innerHTML = '<div class="ig-comments-list"></div>';
-    post.appendChild(sec);
-  }
-  const visible = sec.style.display !== 'none' && sec.dataset.loaded;
-  if (visible) {
-    sec.style.display = 'none';
-    btn.classList.remove('comments-on');
-    return;
-  }
-  sec.style.display = '';
-  btn.classList.add('comments-on');
-  if (!sec.dataset.loaded) {
-    sec.dataset.loaded = '1';
-    _fetchIgComments(id, name, sec.querySelector('.ig-comments-list'));
-  }
+  openCommentsModal(id, name);
 }
 
 function toggleModalComments(id, name) {
-  const sec  = document.getElementById('modal-comments-section');
-  const list = document.getElementById('modal-comments-list');
-  const btn  = document.getElementById('modal-comments-btn');
-  if (!sec || !list) return;
-  const visible = sec.style.display !== 'none' && sec.dataset.loaded;
-  if (visible) {
-    sec.style.display = 'none';
-    if (btn) btn.classList.remove('comments-on');
+  openCommentsModal(id, name);
+}
+
+function openCommentsModal(id, name) {
+  const modal = document.getElementById('ig-comments-modal');
+  const body  = document.getElementById('ig-comments-sheet-body');
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  if (_igCommentCache[id]) {
+    body.innerHTML = _renderIgComments(_igCommentCache[id]);
     return;
   }
-  sec.style.display = '';
-  if (btn) btn.classList.add('comments-on');
-  if (!sec.dataset.loaded) {
-    sec.dataset.loaded = '1';
-    _fetchIgComments(id, name, list);
-  }
+  body.innerHTML = '<div class="ig-comments-loading"><div class="ig-comments-spinner"></div>Generating comments…</div>';
+  _fetchIgComments(id, name, body);
+}
+
+function closeCommentsModal() {
+  document.getElementById('ig-comments-modal').classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 // ── Like / Save ────────────────────────────────────────────────────────────
@@ -968,7 +1100,7 @@ window.addEventListener('scroll', () => {
 });
 
 // ── Keyboard ───────────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeCommentsModal(); } });
 document.getElementById('ig-modal').addEventListener('click', e => { if (e.target === document.getElementById('ig-modal')) closeModal(); });
 
 init();

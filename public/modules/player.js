@@ -78,7 +78,6 @@ async function loadAiComments(videoId, videoName) {
   const sec  = $('ai-comments-section').el;
   const list = $('ai-comments-list').el;
   if (!sec || !list) return;
-  if (!aiCommentsEnabled) { sec.style.display = 'none'; return; }
   sec.style.display = '';
   list.innerHTML = '<div style="color:var(--tx2);font-size:13px;padding:8px 0">Loading…</div>';
   try {

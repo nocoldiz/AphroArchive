@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AphroArchive — Reddit Mode</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+    body { background: #1a1a1b; color: #d7dadc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow-x: hidden; }
+
+    /* ── Header ── */
+    .rd-header {
+      position: fixed; top: 0; left: 0; right: 0; height: 48px; z-index: 200;
+      background: #1a1a1b; border-bottom: 1px solid #343536;
+      display: flex; align-items: center; padding: 0 20px; gap: 12px;
+    }
+    .rd-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #d7dadc; font-weight: 700; font-size: 18px; white-space: nowrap; flex-shrink: 0; }
+    .rd-search { flex: 1; max-width: 600px; position: relative; }
+    .rd-search-input {
+      width: 100%; background: #272729; border: 1px solid #343536; color: #d7dadc;
+      padding: 8px 16px 8px 38px; border-radius: 20px; font-size: 14px; outline: none;
+      transition: border-color .15s, background .15s;
+    }
+    .rd-search-input:focus { background: #1a1a1b; border-color: #818384; }
+    .rd-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #818384; pointer-events: none; }
+    .rd-hdr-spacer { flex: 1; }
+    .rd-hdr-btn {
+      background: none; border: 1px solid #818384; color: #d7dadc;
+      padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 700;
+      cursor: pointer; white-space: nowrap; transition: border-color .15s;
+    }
+    .rd-hdr-btn:hover { border-color: #d7dadc; }
+
+    /* ── Layout ── */
+    .rd-layout { margin-top: 48px; display: flex; justify-content: center; gap: 24px; padding: 20px 24px; max-width: 1200px; margin-left: auto; margin-right: auto; }
+    .rd-main { flex: 1; min-width: 0; max-width: 740px; }
+    .rd-sidebar { width: 312px; flex-shrink: 0; }
+
+    /* ── Sub chips ── */
+    .rd-sub-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .rd-sub-chip {
+      background: #272729; border: 1px solid #343536; color: #818384;
+      padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;
+      transition: all .15s; white-space: nowrap;
+    }
+    .rd-sub-chip:hover { border-color: #ff4500; color: #d7dadc; }
+    .rd-sub-chip.active { background: #ff4500; border-color: #ff4500; color: #fff; }
+
+    /* ── Sort bar ── */
+    .rd-sortbar {
+      background: #272729; border: 1px solid #343536; border-radius: 4px;
+      display: flex; align-items: center; padding: 8px 12px; gap: 4px; margin-bottom: 12px;
+    }
+    .rd-sort-btn {
+      display: flex; align-items: center; gap: 6px; background: none; border: none;
+      color: #818384; cursor: pointer; padding: 6px 10px; border-radius: 2px;
+      font-size: 14px; font-weight: 700; transition: background .1s, color .1s;
+    }
+    .rd-sort-btn:hover { background: rgba(255,255,255,.06); color: #ff4500; }
+    .rd-sort-btn.active { color: #ff4500; }
+
+    /* ── Post card ── */
+    .rd-post {
+      background: #272729; border: 1px solid #343536; border-radius: 4px;
+      display: flex; margin-bottom: 10px; transition: border-color .1s;
+    }
+    .rd-post:hover { border-color: #818384; }
+    .rd-vote-col {
+      width: 40px; flex-shrink: 0; background: #1e1e1f; border-radius: 4px 0 0 4px;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 8px 4px; gap: 4px;
+    }
+    .rd-vote-btn {
+      background: none; border: none; cursor: pointer; color: #818384;
+      font-size: 16px; line-height: 1; padding: 2px 4px; border-radius: 2px;
+      transition: color .1s, background .1s;
+    }
+    .rd-vote-btn:hover { color: #ff4500; }
+    .rd-vote-btn.upvoted { color: #ff4500; }
+    .rd-vote-btn.downvoted { color: #7193ff; }
+    .rd-vote-count { font-size: 12px; font-weight: 700; color: #d7dadc; min-width: 24px; text-align: center; }
+    .rd-vote-count.up { color: #ff4500; }
+    .rd-vote-count.dn { color: #7193ff; }
+
+    .rd-post-body { flex: 1; padding: 8px 8px 4px; min-width: 0; cursor: pointer; }
+    .rd-post-meta { font-size: 12px; color: #818384; margin-bottom: 5px; }
+    .rd-post-sub { font-weight: 700; color: #d7dadc; cursor: pointer; }
+    .rd-post-sub:hover { text-decoration: underline; }
+    .rd-post-title { font-size: 18px; font-weight: 500; line-height: 1.3; margin-bottom: 8px; color: #d7dadc; }
+    .rd-flair {
+      display: inline-block; background: rgba(255,69,0,.15); color: #ff4500;
+      border: 1px solid rgba(255,69,0,.4); border-radius: 12px;
+      font-size: 11px; font-weight: 700; padding: 1px 8px; margin-bottom: 8px;
+    }
+    .rd-post-media {
+      background: #1a1a1b; border-radius: 4px; overflow: hidden;
+      margin-bottom: 8px; position: relative;
+    }
+    .rd-post-media img { display: block; width: 100%; max-height: 500px; object-fit: cover; }
+    .rd-play-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,.3);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity .2s;
+    }
+    .rd-post-media:hover .rd-play-overlay { opacity: 1; }
+    .rd-play-btn { width: 54px; height: 54px; border-radius: 50%; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; }
+    .rd-duration-badge { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,.8); color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 3px; }
+    .rd-media-placeholder { height: 180px; display: flex; align-items: center; justify-content: center; color: #343536; }
+    .rd-post-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; padding-bottom: 4px; }
+    .rd-act-btn {
+      display: flex; align-items: center; gap: 5px; background: none; border: none;
+      color: #818384; cursor: pointer; padding: 6px 8px; border-radius: 2px;
+      font-size: 12px; font-weight: 700; transition: background .1s, color .1s; white-space: nowrap;
+    }
+    .rd-act-btn:hover { background: rgba(255,255,255,.06); color: #d7dadc; }
+
+    /* ── Post detail ── */
+    .rd-back-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: none; border: none; color: #818384; cursor: pointer;
+      padding: 8px 0; font-size: 14px; font-weight: 700; margin-bottom: 10px;
+      transition: color .1s;
+    }
+    .rd-back-btn:hover { color: #d7dadc; }
+
+    /* ── Comments ── */
+    .rd-comments-box {
+      background: #272729; border: 1px solid #343536; border-radius: 4px;
+      padding: 16px; margin-top: 10px;
+    }
+    .rd-comments-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #343536; }
+    .rd-comments-title { font-size: 18px; font-weight: 700; }
+    .rd-comment { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #343536; }
+    .rd-comment:last-child { border-bottom: none; }
+    .rd-c-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; flex-shrink: 0; }
+    .rd-c-right { flex: 1; min-width: 0; }
+    .rd-c-meta { font-size: 12px; color: #818384; margin-bottom: 5px; }
+    .rd-c-author { color: #d7dadc; font-weight: 700; cursor: pointer; }
+    .rd-c-author:hover { text-decoration: underline; }
+    .rd-c-text { font-size: 14px; color: #d7dadc; line-height: 1.55; margin-bottom: 6px; }
+    .rd-c-actions { display: flex; align-items: center; gap: 2px; }
+    .rd-c-vote {
+      background: none; border: none; cursor: pointer; color: #818384;
+      font-size: 14px; padding: 2px 4px; border-radius: 2px; transition: color .1s;
+    }
+    .rd-c-vote:hover { color: #ff4500; }
+    .rd-c-vote.up { color: #ff4500; }
+    .rd-c-vote.dn { color: #7193ff; }
+    .rd-c-score { font-size: 12px; font-weight: 700; color: #818384; padding: 0 4px; min-width: 28px; text-align: center; }
+    .rd-c-btn {
+      background: none; border: none; color: #818384; cursor: pointer;
+      font-size: 12px; font-weight: 700; padding: 4px 6px; border-radius: 2px;
+      transition: background .1s, color .1s;
+    }
+    .rd-c-btn:hover { background: rgba(255,255,255,.06); color: #d7dadc; }
+    .rd-comments-loading { display: flex; align-items: center; gap: 10px; color: #818384; font-size: 14px; padding: 8px 0; }
+    .rd-c-spinner { width: 16px; height: 16px; border: 2px solid #343536; border-top-color: #ff4500; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+
+    /* ── Sidebar ── */
+    .rd-sb-card { background: #272729; border: 1px solid #343536; border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+    .rd-sb-banner { background: linear-gradient(135deg, #ff4500, #ff6534); height: 64px; }
+    .rd-sb-body { padding: 12px; }
+    .rd-sb-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .rd-sb-stats { display: flex; gap: 20px; margin-bottom: 12px; }
+    .rd-sb-stat { font-size: 16px; font-weight: 700; }
+    .rd-sb-stat span { display: block; font-size: 12px; color: #818384; font-weight: 400; }
+    .rd-create-btn { display: block; width: 100%; background: #ff4500; border: none; color: #fff; padding: 8px; border-radius: 20px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: center; transition: background .15s; }
+    .rd-create-btn:hover { background: #e03d00; }
+    .rd-sb-sub-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; transition: color .1s; font-size: 14px; }
+    .rd-sb-sub-item:hover { color: #ff4500; }
+    .rd-sb-sub-dot { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── States ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .rd-spinner { width: 32px; height: 32px; border: 3px solid #343536; border-top-color: #ff4500; border-radius: 50%; animation: spin .8s linear infinite; margin: 40px auto; display: block; }
+    .rd-end-msg { text-align: center; padding: 24px; font-size: 14px; color: #818384; }
+
+    /* ── Video Modal ── */
+    .rd-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 1000; align-items: center; justify-content: center; }
+    .rd-modal.open { display: flex; }
+    .rd-modal-close { position: fixed; top: 16px; right: 20px; background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; z-index: 1001; line-height: 1; }
+    .rd-modal video { max-width: 92vw; max-height: 92vh; display: block; border-radius: 4px; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #343536; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    @media (max-width: 960px) { .rd-sidebar { display: none; } }
+    @media (max-width: 640px) { .rd-layout { padding: 12px 8px; } .rd-post-title { font-size: 15px; } .rd-header { padding: 0 12px; gap: 8px; } }
+  </style>
+</head>
+<body>
+
+<header class="rd-header">
+  <a class="rd-logo" href="/reddit">
+    <svg width="32" height="32" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="16" fill="#ff4500"/>
+      <ellipse cx="16" cy="20" rx="9" ry="5.5" fill="#fff"/>
+      <circle cx="12.5" cy="19.5" r="1.5" fill="#ff4500"/>
+      <circle cx="19.5" cy="19.5" r="1.5" fill="#ff4500"/>
+      <path d="M13.5 22.5 Q16 24 18.5 22.5" stroke="#ff4500" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+      <circle cx="22" cy="10.5" r="2.5" fill="#fff"/>
+      <path d="M16 7 Q19 5 22 8" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="22" cy="7.5" r="1" fill="#ffd635"/>
+    </svg>
+    <span>AphroArchive</span>
+  </a>
+  <div class="rd-search">
+    <svg class="rd-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input class="rd-search-input" type="text" placeholder="Search AphroArchive" id="rd-search" oninput="onSearch(this.value)">
+  </div>
+  <div class="rd-hdr-spacer"></div>
+  <button class="rd-hdr-btn" onclick="window.location.href='/instagram'" style="display:none" id="btn-ig">Instagram</button>
+  <button class="rd-hdr-btn" onclick="window.location.href='/'">← Archive</button>
+</header>
+
+<div class="rd-layout">
+
+  <!-- Feed + detail -->
+  <main class="rd-main">
+
+    <!-- Feed -->
+    <div id="rd-feed">
+      <div class="rd-sub-chips" id="rd-chips"></div>
+      <div class="rd-sortbar">
+        <button class="rd-sort-btn active" id="srt-hot" onclick="setSort('hot')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 0.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5 0.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>
+          Hot
+        </button>
+        <button class="rd-sort-btn" id="srt-new" onclick="setSort('new')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          New
+        </button>
+        <button class="rd-sort-btn" id="srt-top" onclick="setSort('top')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          Top
+        </button>
+      </div>
+      <div id="rd-posts"></div>
+      <div id="rd-feed-foot"></div>
+    </div>
+
+    <!-- Post detail -->
+    <div id="rd-detail" style="display:none">
+      <button class="rd-back-btn" onclick="backToFeed()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to feed
+      </button>
+      <div id="rd-detail-card"></div>
+      <div class="rd-comments-box">
+        <div class="rd-comments-hdr">
+          <span class="rd-comments-title" id="rd-ccount">Comments</span>
+        </div>
+        <div id="rd-clist"><div class="rd-spinner"></div></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Sidebar -->
+  <aside class="rd-sidebar">
+    <div class="rd-sb-card">
+      <div class="rd-sb-banner"></div>
+      <div class="rd-sb-body">
+        <div class="rd-sb-title">r/AphroArchive</div>
+        <p style="font-size:13px;color:#818384;margin-bottom:12px">Your local video archive in Reddit mode. Browse, upvote, and explore.</p>
+        <div class="rd-sb-stats">
+          <div class="rd-sb-stat" id="sb-videos">–<span>Videos</span></div>
+          <div class="rd-sb-stat" id="sb-cats">–<span>Categories</span></div>
+        </div>
+        <button class="rd-create-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})">▲ Back to top</button>
+      </div>
+    </div>
+    <div class="rd-sb-card">
+      <div class="rd-sb-body">
+        <div class="rd-sb-title" style="margin-bottom:10px">Subreddits</div>
+        <div id="sb-subs"></div>
+      </div>
+    </div>
+    <div class="rd-sb-card">
+      <div class="rd-sb-body">
+        <div class="rd-sb-title" style="margin-bottom:8px">Other Modes</div>
+        <button class="rd-create-btn" style="background:#0095f6;margin-bottom:8px" onclick="window.location.href='/instagram'">Instagram Mode</button>
+        <button class="rd-create-btn" style="background:#555" onclick="window.location.href='/'">← Back to Archive</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- Video modal -->
+<div class="rd-modal" id="rd-modal" onclick="if(event.target===this)closeModal()">
+  <button class="rd-modal-close" onclick="closeModal()">&#x2715;</button>
+  <video id="rd-vid" controls preload="metadata"></video>
+</div>
+
+<script>
+'use strict';
+// ── State ──────────────────────────────────────────────────────────────────
+let allVids = [], filteredVids = [];
+let feedPage = 0, feedDone = false, feedLoading = false;
+const PAGE = 15;
+let curSort = 'hot';
+let curSub  = 'all';
+let searchQ = '';
+let curDetailId = null;
+let aiEnabled   = false;
+
+const upPost = new Set(), dnPost = new Set();
+const upComment = {}, dnComment = {};
+const postScores = {}, commentScores = {};
+const _commentCache = {};
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function timeAgo(mt) {
+  const s = Math.floor((Date.now() - (mt||0)*1000) / 1000);
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm';
+  if (s < 86400) return Math.floor(s/3600) + 'h';
+  return Math.floor(s/86400) + 'd';
+}
+function fmt(n) { return n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
+function hsl(s) {
+  let h = 0; for (let i = 0; i < s.length; i++) h = (h*31 + s.charCodeAt(i)) & 0x7fffffff;
+  return 'hsl('+(h%360)+',55%,45%)';
+}
+function rndScore()  { return 100 + Math.floor(Math.random()*9900); }
+function rndCScore() { return  10 + Math.floor(Math.random()*990); }
+const _adjs  = ['Curious','Sneaky','Bold','Gentle','Witty','Calm','Fuzzy','Quick','Silent','Clever','Crispy','Spicy','Lucky','Sassy','Zesty'];
+const _nouns = ['Otter','Falcon','Panda','Wolf','Raven','Tiger','Fox','Lynx','Elk','Bear','Gecko','Hippo','Lemur','Mink','Newt'];
+function rndUser() {
+  return 'u/' + _adjs[Math.random()*_adjs.length|0] + _nouns[Math.random()*_nouns.length|0] + (1000+Math.random()*8999|0);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+async function init() {
+  await Promise.all([loadVids(), loadPrefs()]);
+  buildChips();
+  buildSidebarSubs();
+  document.getElementById('sb-videos').innerHTML = allVids.length + '<span>Videos</span>';
+  document.getElementById('sb-cats').innerHTML   = [...new Set(allVids.map(v=>v.category||'Uncategorized'))].length + '<span>Categories</span>';
+  renderFeed();
+}
+
+async function loadVids() {
+  try { allVids = await (await fetch('/api/videos?sort=date')).json(); }
+  catch { allVids = []; }
+  allVids.forEach(v => { if (!postScores[v.id]) postScores[v.id] = rndScore(); });
+}
+
+async function loadPrefs() {
+  try { const p = await (await fetch('/api/settings/prefs')).json(); aiEnabled = !!p.aiCommentsEnabled; }
+  catch {}
+}
+
+// ── Chips / subs ──────────────────────────────────────────────────────────
+function buildChips() {
+  const cats = [...new Set(allVids.map(v=>v.category||'Uncategorized'))].sort();
+  const el = document.getElementById('rd-chips');
+  el.innerHTML = '<div class="rd-sub-chip active" data-sub="all" onclick="setSub(\'all\')">r/all</div>' +
+    cats.map(c => `<div class="rd-sub-chip" data-sub="${esc(c)}" onclick="setSub('${esc(c)}')">${esc('r/'+c.replace(/\s/g,''))}</div>`).join('');
+}
+
+function buildSidebarSubs() {
+  const cats = [...new Set(allVids.map(v=>v.category||'Uncategorized'))].sort();
+  document.getElementById('sb-subs').innerHTML = cats.map(c =>
+    `<div class="rd-sb-sub-item" onclick="setSub('${esc(c)}')">
+       <div class="rd-sb-sub-dot" style="background:${hsl(c)}"></div>
+       ${esc('r/'+c.replace(/\s/g,''))}
+     </div>`
+  ).join('');
+}
+
+function setSub(sub) {
+  curSub = sub;
+  document.querySelectorAll('.rd-sub-chip').forEach(c => c.classList.toggle('active', c.dataset.sub === sub));
+  resetFeed();
+}
+
+// ── Sort / search ──────────────────────────────────────────────────────────
+function setSort(s) {
+  curSort = s;
+  ['hot','new','top'].forEach(x => document.getElementById('srt-'+x).classList.toggle('active', x===s));
+  resetFeed();
+}
+
+let _st;
+function onSearch(v) { searchQ = v; clearTimeout(_st); _st = setTimeout(resetFeed, 280); }
+
+function resetFeed() {
+  feedPage = 0; feedDone = false;
+  document.getElementById('rd-posts').innerHTML = '';
+  document.getElementById('rd-feed-foot').innerHTML = '<div class="rd-spinner"></div>';
+  renderFeed();
+}
+
+function getFiltered() {
+  let vs = allVids.filter(v => {
+    if (curSub !== 'all' && (v.category||'Uncategorized') !== curSub) return false;
+    if (searchQ && !v.name.toLowerCase().includes(searchQ.toLowerCase())) return false;
+    return true;
+  });
+  if (curSort === 'new') return [...vs].sort((a,b)=>(b.mtime||0)-(a.mtime||0));
+  if (curSort === 'top') return [...vs].sort((a,b)=>(postScores[b.id]||0)-(postScores[a.id]||0));
+  // hot: seeded shuffle (stable per session)
+  return [...vs].sort((a,b)=>((postScores[b.id]||0)+(b.mtime||0)%1000) - ((postScores[a.id]||0)+(a.mtime||0)%1000));
+}
+
+// ── Feed rendering ────────────────────────────────────────────────────────
+function renderFeed() {
+  if (feedLoading || feedDone) return;
+  feedLoading = true;
+  const vs    = getFiltered();
+  const slice = vs.slice(feedPage*PAGE, (feedPage+1)*PAGE);
+  const cont  = document.getElementById('rd-posts');
+  const foot  = document.getElementById('rd-feed-foot');
+  if (!slice.length && feedPage === 0) {
+    foot.innerHTML = '<div class="rd-end-msg">No videos found</div>';
+    feedLoading = false; feedDone = true; return;
+  }
+  slice.forEach(v => cont.appendChild(makePostCard(v)));
+  feedPage++;
+  feedDone = feedPage*PAGE >= vs.length;
+  foot.innerHTML = feedDone ? '<div class="rd-end-msg">— end of feed —</div>' : '';
+  feedLoading = false;
+}
+
+function makePostCard(v) {
+  const cat    = v.category || 'Uncategorized';
+  const sub    = 'r/' + cat.replace(/\s/g,'');
+  const author = rndUser();
+  const score  = postScores[v.id] || 0;
+  const isUp   = upPost.has(v.id), isDn = dnPost.has(v.id);
+  const disp   = score + (isUp?1:isDn?-1:0);
+  const nComments = 5 + Math.floor(score % 195);
+
+  const el = document.createElement('div');
+  el.className = 'rd-post'; el.dataset.id = v.id;
+
+  el.innerHTML = `
+    <div class="rd-vote-col">
+      <button class="rd-vote-btn${isUp?' upvoted':''}" onclick="votePost(event,'${esc(v.id)}',1)">▲</button>
+      <span class="rd-vote-count${isUp?' up':isDn?' dn':''}" id="ps-${esc(v.id)}">${fmt(disp)}</span>
+      <button class="rd-vote-btn${isDn?' downvoted':''}" onclick="votePost(event,'${esc(v.id)}',-1)">▼</button>
+    </div>
+    <div class="rd-post-body">
+      <div class="rd-post-meta">
+        <span class="rd-post-sub" onclick="event.stopPropagation();setSub('${esc(cat)}')">${esc(sub)}</span>
+        &nbsp;•&nbsp; Posted by ${esc(author)} &nbsp;•&nbsp; ${timeAgo(v.mtime)} ago
+      </div>
+      <div class="rd-post-title" onclick="openDetail('${esc(v.id)}')">${esc(v.name)}</div>
+      ${v.durationF ? `<div class="rd-flair" onclick="openDetail('${esc(v.id)}')">${esc(v.durationF)}</div>` : ''}
+      <div class="rd-post-media" onclick="openDetail('${esc(v.id)}')">
+        <img src="/api/thumbs/${esc(v.id)}/0" alt="" loading="lazy"
+             onerror="this.parentElement.innerHTML='<div class=rd-media-placeholder><svg width=48 height=48 viewBox=\'0 0 24 24\' fill=none stroke=\'#343536\' stroke-width=1><polygon points=\'5,3 19,12 5,21\'/></svg></div>'">
+        <div class="rd-play-overlay">
+          <div class="rd-play-btn"><svg width="24" height="24" fill="white" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
+        </div>
+        ${v.durationF ? `<div class="rd-duration-badge">${esc(v.durationF)}</div>` : ''}
+      </div>
+      <div class="rd-post-actions">
+        <button class="rd-act-btn" onclick="openDetail('${esc(v.id)}',true)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          ${nComments} Comments
+        </button>
+        <button class="rd-act-btn" onclick="event.stopPropagation();openVidModal('${esc(v.id)}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
+          Play
+        </button>
+        <button class="rd-act-btn" onclick="event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Share
+        </button>
+        <button class="rd-act-btn" onclick="event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          Save
+        </button>
+      </div>
+    </div>`;
+  return el;
+}
+
+// ── Post votes ────────────────────────────────────────────────────────────
+function votePost(e, id, dir) {
+  e.stopPropagation();
+  const wasUp = upPost.has(id), wasDn = dnPost.has(id);
+  if (dir === 1) { if(wasUp){upPost.delete(id);}else{upPost.add(id);dnPost.delete(id);} }
+  else           { if(wasDn){dnPost.delete(id);}else{dnPost.add(id);upPost.delete(id);} }
+  const isUp = upPost.has(id), isDn = dnPost.has(id);
+  const disp = (postScores[id]||0) + (isUp?1:isDn?-1:0);
+  document.querySelectorAll(`[data-id="${id}"] .rd-vote-btn`).forEach((b,i) => {
+    b.className = 'rd-vote-btn' + (i===0&&isUp?' upvoted':i===1&&isDn?' downvoted':'');
+  });
+  document.querySelectorAll('#ps-'+id).forEach(el => {
+    el.textContent = fmt(disp);
+    el.className = 'rd-vote-count'+(isUp?' up':isDn?' dn':'');
+  });
+}
+
+// ── Detail view ───────────────────────────────────────────────────────────
+async function openDetail(id, scrollComments) {
+  curDetailId = id;
+  const v = allVids.find(x=>x.id===id);
+  if (!v) return;
+  history.pushState({id}, '', '/reddit/post/'+id);
+
+  document.getElementById('rd-feed').style.display   = 'none';
+  document.getElementById('rd-detail').style.display = '';
+
+  const cat    = v.category || 'Uncategorized';
+  const sub    = 'r/' + cat.replace(/\s/g,'');
+  const author = rndUser();
+  const score  = postScores[id] || 0;
+  const isUp   = upPost.has(id), isDn = dnPost.has(id);
+  const disp   = score + (isUp?1:isDn?-1:0);
+
+  document.getElementById('rd-detail-card').innerHTML = `
+    <div class="rd-post" data-id="${esc(id)}" style="cursor:default">
+      <div class="rd-vote-col">
+        <button class="rd-vote-btn${isUp?' upvoted':''}" onclick="votePost(event,'${esc(id)}',1)">▲</button>
+        <span class="rd-vote-count${isUp?' up':isDn?' dn':''}" id="ps-${esc(id)}">${fmt(disp)}</span>
+        <button class="rd-vote-btn${isDn?' downvoted':''}" onclick="votePost(event,'${esc(id)}',-1)">▼</button>
+      </div>
+      <div class="rd-post-body">
+        <div class="rd-post-meta">
+          <span class="rd-post-sub" onclick="setSub('${esc(cat)}')">${esc(sub)}</span>
+          &nbsp;•&nbsp; Posted by ${esc(author)} &nbsp;•&nbsp; ${timeAgo(v.mtime)} ago
+        </div>
+        <div class="rd-post-title">${esc(v.name)}</div>
+        ${v.durationF ? `<div class="rd-flair">${esc(v.durationF)}</div>` : ''}
+        <div class="rd-post-media" onclick="openVidModal('${esc(id)}')">
+          <img src="/api/thumbs/${esc(id)}/0" alt="" onerror="this.style.display='none'">
+          <div class="rd-play-overlay" style="opacity:1">
+            <div class="rd-play-btn"><svg width="28" height="28" fill="white" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div>
+          </div>
+          ${v.durationF ? `<div class="rd-duration-badge">${esc(v.durationF)}</div>` : ''}
+        </div>
+        <div class="rd-post-actions">
+          <button class="rd-act-btn" onclick="openVidModal('${esc(id)}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
+            Play Video
+          </button>
+          <button class="rd-act-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Share
+          </button>
+          <button class="rd-act-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            Save
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  if (scrollComments) setTimeout(() => document.querySelector('.rd-comments-box').scrollIntoView({behavior:'smooth'}), 80);
+  document.getElementById('rd-clist').innerHTML = '<div class="rd-spinner"></div>';
+  await loadComments(id, v.name);
+}
+
+function backToFeed() {
+  history.pushState({}, '', '/reddit');
+  document.getElementById('rd-feed').style.display   = '';
+  document.getElementById('rd-detail').style.display = 'none';
+  curDetailId = null;
+}
+
+// ── Comments ──────────────────────────────────────────────────────────────
+async function loadComments(id, name) {
+  const listEl  = document.getElementById('rd-clist');
+  const countEl = document.getElementById('rd-ccount');
+
+  let comments;
+  if (_commentCache[id]) {
+    comments = _commentCache[id];
+  } else {
+    try {
+      const r = await fetch('/api/comments/generate', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({videoId:id, videoName:name})
+      });
+      comments = r.ok ? (await r.json()).comments || [] : [];
+      _commentCache[id] = comments;
+    } catch { comments = []; }
+  }
+
+  if (!comments.length) {
+    listEl.innerHTML  = '<div class="rd-end-msg">No comments yet.</div>';
+    countEl.textContent = 'Comments';
+    return;
+  }
+
+  countEl.textContent = comments.length + ' Comment' + (comments.length !== 1 ? 's' : '');
+
+  comments.forEach((_,i) => { const k=id+'_'+i; if (!commentScores[k]) commentScores[k]=rndCScore(); });
+
+  listEl.innerHTML = comments.map((text, i) => {
+    const k    = id+'_'+i;
+    const user = rndUser();
+    const col  = hsl(user+i);
+    const sc   = commentScores[k] || 0;
+    const ago  = (1 + Math.floor(Math.random()*23)) + 'h ago';
+    const isUp = !!upComment[k], isDn = !!dnComment[k];
+    const disp = sc + (isUp?1:isDn?-1:0);
+    return `<div class="rd-comment" id="rc-${k}">
+      <div class="rd-c-avatar" style="background:${col}">${user[2]}</div>
+      <div class="rd-c-right">
+        <div class="rd-c-meta"><span class="rd-c-author">${esc(user)}</span>&nbsp;•&nbsp;${ago}&nbsp;•&nbsp;<span style="color:#ff4500;font-size:11px;font-weight:700">▲ ${fmt(disp)} points</span></div>
+        <div class="rd-c-text">${esc(text)}</div>
+        <div class="rd-c-actions">
+          <button class="rd-c-vote${isUp?' up':''}" id="cu-${k}" onclick="voteC('${k}',1)">▲</button>
+          <span class="rd-c-score" id="cs-${k}">${fmt(disp)}</span>
+          <button class="rd-c-vote${isDn?' dn':''}" id="cd-${k}" onclick="voteC('${k}',-1)">▼</button>
+          <button class="rd-c-btn">Reply</button>
+          <button class="rd-c-btn">Share</button>
+          <button class="rd-c-btn">Award</button>
+          <button class="rd-c-btn">Report</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function voteC(k, dir) {
+  const wasUp = !!upComment[k], wasDn = !!dnComment[k];
+  if (dir===1) { upComment[k]=!wasUp; if(!wasUp) dnComment[k]=false; }
+  else         { dnComment[k]=!wasDn; if(!wasDn) upComment[k]=false; }
+  const isUp=!!upComment[k], isDn=!!dnComment[k];
+  const disp=(commentScores[k]||0)+(isUp?1:isDn?-1:0);
+  const upEl=document.getElementById('cu-'+k), dnEl=document.getElementById('cd-'+k), scEl=document.getElementById('cs-'+k);
+  if (upEl) upEl.className='rd-c-vote'+(isUp?' up':'');
+  if (dnEl) dnEl.className='rd-c-vote'+(isDn?' dn':'');
+  if (scEl) { scEl.textContent=fmt(disp); scEl.style.color=isUp?'#ff4500':isDn?'#7193ff':'#818384'; }
+}
+
+// ── Video modal ───────────────────────────────────────────────────────────
+function openVidModal(id) {
+  const vid = document.getElementById('rd-vid');
+  vid.src = '/api/stream/' + id;
+  document.getElementById('rd-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  vid.play().catch(()=>{});
+}
+function closeModal() {
+  const vid = document.getElementById('rd-vid');
+  vid.pause(); vid.src = '';
+  document.getElementById('rd-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── Infinite scroll ───────────────────────────────────────────────────────
+window.addEventListener('scroll', () => {
+  if (document.getElementById('rd-feed').style.display==='none') return;
+  if (feedDone || feedLoading) return;
+  if (document.documentElement.scrollHeight - window.innerHeight - window.scrollY < 800) renderFeed();
+});
+
+window.addEventListener('popstate', e => {
+  if (e.state && e.state.id) openDetail(e.state.id);
+  else backToFeed();
+});
+
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
+
+init();
+</script>
+</body>
+</html>
