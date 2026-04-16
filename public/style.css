@@ -336,41 +336,77 @@ input{font-family:inherit;color:inherit}
   background: #000;
 }
 
-/* Stato temporaneo quando il mouse esce dal vault */
-.vault-auto-hide .card-thumb img,
-.vault-auto-hide .vault-ct img {
-  filter: blur(25px);
+/* --- 1. Base Transitions (Smoothness) --- */
+.vault-ct img, 
+.vault-folder-icon svg,
+.size-badge, 
+.ext-badge, 
+.play-overlay,
+.card-title, 
+.card-meta {
+  transition: filter 0.25s ease, opacity 0.25s ease, transform 0.2s ease;
+}
+
+/* --- 2. Toggle Modes (Controlled by JS data-thumb-mode) --- */
+
+/* HIDE MODE: Blur everything by default */
+#vaultGrid[data-thumb-mode="hide"] .vault-ct img,
+#vaultGrid[data-thumb-mode="hide"] .vault-folder-icon svg {
+  filter: blur(25px) grayscale(1);
   opacity: 0.15;
-  transition: filter 0.2s, opacity 0.2s;
 }
 
-.vault-auto-hide .size-badge,
-.vault-auto-hide .ext-badge,
-.vault-auto-hide .play-overlay {
-  opacity: 0 !important;
-  pointer-events: none;
+/* HOVER REVEAL MODE: Blur by default, reveal on card hover */
+#vaultGrid[data-thumb-mode="hover"] .vault-ct img,
+#vaultGrid[data-thumb-mode="hover"] .vault-folder-icon svg {
+  filter: blur(25px) grayscale(1);
+  opacity: 0.15;
 }
 
-#vaultGrid.vault-auto-hide .vault-folder-icon svg {
-  filter: blur(30px) grayscale(1);
-  opacity: 0.1;
-  transition: filter 0.3s ease, opacity 0.3s ease;
+#vaultGrid[data-thumb-mode="hover"] .video-card:hover .vault-ct img,
+#vaultGrid[data-thumb-mode="hover"] .vault-folder-tile:hover .vault-folder-icon svg {
+  filter: blur(0) grayscale(0);
+  opacity: 1;
 }
 
-/* Hide badges and play buttons in auto-hide mode */
+/* SHOW MODE: Clear images */
+#vaultGrid[data-thumb-mode="show"] .vault-ct img,
+#vaultGrid[data-thumb-mode="show"] .vault-folder-icon svg {
+  filter: none;
+  opacity: 1;
+}
+
+/* --- 3. Global Auto-Hide (Privacy Mode Override) --- */
+/* When .vault-auto-hide is active, it forces blur regardless of toggle mode */
+#vaultGrid.vault-auto-hide .vault-ct img,
+#vaultGrid.vault-auto-hide .vault-folder-icon svg,
+#vaultGrid.is-blurred.vault-auto-hide .card-thumb img {
+  filter: blur(35px) grayscale(1) !important;
+  opacity: 0.1 !important;
+}
+
+/* Hide all UI elements in Auto-Hide mode */
 #vaultGrid.vault-auto-hide .size-badge,
+#vaultGrid.vault-auto-hide .ext-badge,
 #vaultGrid.vault-auto-hide .play-overlay,
 #vaultGrid.vault-auto-hide .card-title,
 #vaultGrid.vault-auto-hide .card-meta {
   opacity: 0 !important;
-  pointer-events: none;
-  transition: opacity 0.2s;
+  pointer-events: none !important;
 }
 
-/* Optional: Blur folder icons too */
-.vault-auto-hide .vault-folder-icon svg {
-  filter: blur(4px);
-  opacity: 0.3;
+/* --- 4. Logic Fixes --- */
+
+/* Ensure text is visible when NOT in auto-hide */
+#vaultGrid:not(.vault-auto-hide) .card-title,
+#vaultGrid:not(.vault-auto-hide) .card-meta {
+  opacity: 1;
+}
+
+/* Hide badges in Hide mode too (Optional, for extra clean look) */
+#vaultGrid[data-thumb-mode="hide"] .size-badge,
+#vaultGrid[data-thumb-mode="hide"] .play-overlay {
+  opacity: 0;
 }
 /* ── Studios ── */
 .studios-view{display:none}.studios-view.on{display:block}

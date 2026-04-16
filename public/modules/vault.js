@@ -10,10 +10,89 @@ async function showVault() {
   
   // Call the auto-hide initializer here
   initVaultAutoHide(); 
+  initVaultShiftSelection();   // ← NEW
+}
+let vaultThumbMode = 'hide'; // Options: 'show', 'hide', 'hover'
+let shiftKeyPressed = false;
+let isVaultDragging = false;
+let vDragStartX, vDragStartY;
+const vaultGrid = document.getElementById('vaultGrid');
+const dragBox = document.getElementById('vaultDragBox');
+function setupVaultDragSelection() {
+  const grid = $('vaultGrid').el;
+  const box = document.getElementById('vaultDragBox');
+
+  grid.addEventListener('mousedown', (e) => {
+    // ONLY start drag selection if the Shift key is held down
+    if (!e.shiftKey) return; 
+    
+    // Optional: comment out the strict grid target check if you want to be able 
+    // to start dragging directly over a card while holding shift.
+    // if (e.target !== grid || vaultSelMode) return; 
+    
+    e.preventDefault(); // Prevent text highlighting while dragging
+    isVaultDragging = true;
+    vDragStartX = e.clientX;
+    vDragStartY = e.clientY;
+    
+    box.style.display = 'block';
+    box.style.width = '0px';
+    box.style.height = '0px';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isVaultDragging) return;
+
+    const x = Math.min(e.clientX, vDragStartX);
+    const y = Math.min(e.clientY, vDragStartY);
+    const w = Math.abs(e.clientX - vDragStartX);
+    const h = Math.abs(e.clientY - vDragStartY);
+
+    box.style.left = x + 'px';
+    box.style.top = y + 'px';
+    box.style.width = w + 'px';
+    box.style.height = h + 'px';
+
+    const boxRect = box.getBoundingClientRect();
+    document.querySelectorAll('.vault-card, .vault-folder-tile').forEach(card => {
+      const cardRect = card.getBoundingClientRect();
+      const match = !(boxRect.right < cardRect.left || boxRect.left > cardRect.right || 
+                     boxRect.bottom < cardRect.top || boxRect.top > cardRect.bottom);
+      
+      const id = card.dataset.vaultId;
+      if (match) {
+        vaultSel.add(id);
+        card.classList.add('selected');
+      }
+    });
+    if (vaultSel.size > 0) {
+      vaultSelMode = true;
+      $('vaultGrid').add('vault-sel-mode');
+      $('vaultSelBtn').add('on');
+      updateVaultSelBar();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    isVaultDragging = false;
+    box.style.display = 'none';
+  });
 }
 
-let vaultThumbsHidden = false;
-
+async function deleteSelectedVaultItems() {
+  const ids = Array.from(vaultSel);
+  if (!ids.length) return;
+  
+  if (!confirm(`Delete ${ids.length} selected items?`)) return;
+  
+  for (const id of ids) {
+    await fetch(`/api/vault/delete/${id}`, { method: 'DELETE' });
+  }
+  
+  vaultSel.clear();
+  loadVaultFiles();
+  toast(`Deleted ${ids.length} items`);
+}
 async function loadVaultView() {
   const s = await (await fetch('/api/vault/status')).json();
   const auth = $('vaultAuth').el;
@@ -345,12 +424,28 @@ function applyVaultSort() {
  * Updated Thumbnails toggle (removes arrow logic)
  */
 function toggleVaultThumbs() {
-  vaultThumbsHidden = !vaultThumbsHidden;
-  const btn = document.getElementById('vaultThumbsBtn');
-  if (btn) {
-    btn.textContent = vaultThumbsHidden ? 'Show Thumbs' : 'Hide Thumbs';
+  const grid = $('vaultGrid').el;
+  const btn = document.getElementById('vault-toggle-thumbs');
+  
+  // Cycle states: show -> hide -> hover -> show
+  if (vaultThumbMode === 'show') {
+    vaultThumbMode = 'hide';
+    toast('Thumbnails: Hidden');
+  } else if (vaultThumbMode === 'hide') {
+    vaultThumbMode = 'hover';
+    toast('Thumbnails: Show on Hover');
+  } else {
+    vaultThumbMode = 'show';
+    toast('Thumbnails: Visible');
   }
-  renderVaultGrid();
+
+  // Update the grid attribute so CSS can react
+  if (grid) grid.setAttribute('data-thumb-mode', vaultThumbMode);
+  
+  // Update button icon/opacity to show it's active
+  if (btn) {
+    btn.style.color = vaultThumbMode === 'show' ? 'var(--ac)' : (vaultThumbMode === 'hover' ? 'var(--star)' : 'inherit');
+  }
 }
 
 /**
@@ -516,7 +611,8 @@ async function deleteVaultFile(id) {
 }
 
 function vaultCardClick(id, name, ext) {
-  if (typeof vaultSelMode !== 'undefined' && vaultSelMode) { 
+  // NEW: Shift key now forces selection mode (single or multiple)
+  if (shiftKeyPressed || (typeof vaultSelMode !== 'undefined' && vaultSelMode)) { 
     toggleVaultSel(id); 
     return; 
   }
@@ -525,13 +621,13 @@ function vaultCardClick(id, name, ext) {
   const isBook = extLower === '.txt' || extLower === '.pdf' || extLower === '.epub';
 
   if (isBook) {
-    // Open in the reader interface instead of the video player
     openVaultBook(id, name, extLower);
   } else if (typeof VAULT_IMG_EXTS !== 'undefined' && VAULT_IMG_EXTS.has(extLower)) {
     openVaultPhoto(id);
   } else {
     openVaultVid(id, name, ext);
   }
+
 }
 
 // 2. Create a vault-specific reader function
@@ -677,6 +773,80 @@ function _vpTouchmove(e) {
 function _vpTouchend(e) {
   if (e.touches.length < 2) _vpPinchDist = 0;
   if (e.touches.length === 0) { _vpDrag = false; _vpDragMoved = false; }
+}
+
+vaultGrid.addEventListener('mousedown', (e) => {
+  // Only trigger if clicking the grid background, not a file/button
+  if (e.target !== vaultGrid) return;
+  
+  isDraggingVault = true;
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+  
+  dragBox.style.left = dragStartX + 'px';
+  dragBox.style.top = dragStartY + 'px';
+  dragBox.style.width = '0px';
+  dragBox.style.height = '0px';
+  dragBox.style.display = 'block';
+  
+  if (!e.shiftKey) {
+    clearVaultSelection(); // Function already exists in your file
+  }
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!isDraggingVault) return;
+
+  const currentX = e.clientX;
+  const currentY = e.clientY;
+  
+  const left = Math.min(dragStartX, currentX);
+  const top = Math.min(dragStartY, currentY);
+  const width = Math.abs(currentX - dragStartX);
+  const height = Math.abs(currentY - dragStartY);
+
+  dragBox.style.left = left + 'px';
+  dragBox.style.top = top + 'px';
+  dragBox.style.width = width + 'px';
+  dragBox.style.height = height + 'px';
+
+  // Check collision with vault items
+  const rect = dragBox.getBoundingClientRect();
+  document.querySelectorAll('.vault-card').forEach(card => {
+    const cardRect = card.getBoundingClientRect();
+    const isOverlapping = !(rect.right < cardRect.left || 
+                            rect.left > cardRect.right || 
+                            rect.bottom < cardRect.top || 
+                            rect.top > cardRect.bottom);
+    
+    const id = card.dataset.vaultId;
+    if (isOverlapping) {
+        vaultSel.add(id);
+        card.classList.add('selected');
+    }
+  });
+  updateVaultSelBar(); // Update the UI bar showing "X items selected"
+});
+
+window.addEventListener('mouseup', () => {
+  isDraggingVault = false;
+  dragBox.style.display = 'none';
+});
+
+async function deleteSelectedVaultFiles() {
+  const ids = Array.from(vaultSel);
+  if (ids.length === 0) return;
+
+  if (!confirm(`Are you sure you want to delete ${ids.length} selected files?`)) return;
+
+  // Assuming your API supports bulk delete or requires individual calls
+  for (const id of ids) {
+    await fetch(`/api/vault/delete/${id}`, { method: 'DELETE' });
+  }
+
+  toast(`Deleted ${ids.length} files`);
+  vaultSel.clear();
+  loadVaultFiles(); // Refresh the grid
 }
 
 function _vpAttach() {
@@ -905,32 +1075,42 @@ vaultDynamicPool = vaultFiles.filter(f => {
 
 
 function initVaultAutoHide() {
-  const grid = document.getElementById('vaultGrid');
+  const grid = $('vaultGrid').el;
   if (!grid) return;
 
-  // 1. Mouse enters a specific card or folder: Show everything
-  grid.addEventListener('mouseover', (e) => {
-    const isOverCard = e.target.closest('.video-card, .vault-folder-tile');
-    if (isOverCard) {
+  // Set initial state based on your variable when vault loads
+  if (!vaultThumbsVisible) {
+    grid.classList.add('vault-auto-hide');
+  }
+
+  // Hover IN: Temporarily reveal thumbnails if they are in "hidden" mode
+  grid.addEventListener('mouseenter', () => {
+    if (!vaultThumbsVisible) {
       grid.classList.remove('vault-auto-hide');
     }
   });
 
-  // 2. Mouse leaves a card: Hide everything again
-  grid.addEventListener('mouseout', (e) => {
-    const toElement = e.relatedTarget;
-    // Check if we are moving to something that ISN'T a card (like the background gap)
-    if (!toElement || !toElement.closest('.video-card, .vault-folder-tile')) {
+  // Hover OUT: Hide/blur them again if they are in "hidden" mode
+  grid.addEventListener('mouseleave', () => {
+    if (!vaultThumbsVisible) {
       grid.classList.add('vault-auto-hide');
     }
   });
-
-  // Initialize: Start in hidden mode
-  grid.classList.add('vault-auto-hide');
 }
 
+function initVaultShiftSelection() {
+  // Prevent duplicate listeners if showVault() is called multiple times
+  if (window._vaultShiftInitialized) return;
+  window._vaultShiftInitialized = true;
 
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Shift') shiftKeyPressed = true;
+  });
 
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift') shiftKeyPressed = false;
+  });
+}
 function updateVaultDynamicTile(idx) {
   if (!vaultDynamicMosActive) return;
   const tile = vaultDynamicTiles[idx];
@@ -1099,21 +1279,17 @@ async function deleteVaultSelected() {
 }
 
 function showVaultSelMoveMenu(e) {
-  e.stopPropagation();
-  if (!vaultFolders.length) { toast('No folders — create one first'); return; }
-  closeVaultMoveMenu();
-  const menu = document.createElement('div');
-  menu.className = 'vault-move-menu';
-  menu.id = 'vaultMoveMenu';
-  const opts = [{ id: null, name: 'Root (no folder)' }, ...vaultFolders]
-    .map(f => '<button onclick="moveVaultSelected(\'' + escA(f.id || '') + '\')">' + esc(f.name) + '</button>')
-    .join('');
-  menu.innerHTML = '<div class="vault-move-menu-title">Move ' + vaultSel.size + ' file' + (vaultSel.size > 1 ? 's' : '') + ' to</div>' + opts;
-  document.body.appendChild(menu);
-  const rect = e.currentTarget.getBoundingClientRect();
-  menu.style.top  = (rect.bottom + 4 + window.scrollY) + 'px';
-  menu.style.left = Math.min(rect.left, window.innerWidth - 160) + 'px';
-  setTimeout(() => document.addEventListener('click', closeVaultMoveMenu, { once: true }), 0);
+closeAllViews();
+  if (location.pathname !== '/vault') history.pushState(null, '', '/vault');
+  vaultMode = true;
+  $('browse-view').add('off');
+  $('vault-sidebar').add('on');
+  $('vault-view').add('on');
+  loadVaultView();
+  
+  // Call the auto-hide initializer here
+  initVaultAutoHide(); 
+  initVaultShiftSelection();   // ← NEW
 }
 
 async function moveVaultSelected(folderId) {
