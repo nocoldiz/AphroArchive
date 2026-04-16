@@ -6,13 +6,28 @@ async function showVault() {
   $('browse-view').add('off');
   $('vault-sidebar').add('on');
   $('vault-view').add('on');
+  
+  // 1. Set the internal state
+  vaultThumbMode = 'hover'; 
+  
+  if (typeof vaultThumbsVisible !== 'undefined') {
+    vaultThumbsVisible = false; 
+  }
+  
+  // 2. Apply the attribute to the grid so CSS reacts [NEW]
+  const grid = $('vaultGrid').el;
+  if (grid) grid.setAttribute('data-thumb-mode', vaultThumbMode);
+  
+  // 3. Update the button icon/color to reflect the hover state [NEW]
+  const btn = document.getElementById('vault-toggle-thumbs');
+  if (btn) btn.style.color = 'var(--star)';
+
   loadVaultView();
   
-  // Call the auto-hide initializer here
   initVaultAutoHide(); 
-  initVaultShiftSelection();   // ← NEW
+  initVaultShiftSelection(); 
 }
-let vaultThumbMode = 'hide'; // Options: 'show', 'hide', 'hover'
+let vaultThumbMode = 'hover'; // Options: 'show', 'hide', 'hover'
 let shiftKeyPressed = false;
 let isVaultDragging = false;
 let vDragStartX, vDragStartY;
@@ -184,11 +199,14 @@ vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null;
 }
 
 function renderVaultGrid() {
-  const grid  = $('vaultGrid').el;
+  const grid = $('vaultGrid').el;
   const empty = $('vaultEmpty').el;
+  const folderRow = document.getElementById('vault-folders-row'); // Target the new row
   _renderVaultBreadcrumb();
+  
   const q = vaultQ.toLowerCase();
 
+  // 1. Generate Folder HTML
   // folders only show in root and only when not searching
   let folderHtml = '';
   if (!vaultCurFolder && !q) {
@@ -203,32 +221,43 @@ function renderVaultGrid() {
     ).join('');
   }
 
+  // 2. Filter and Sort Files
   let files = q
     ? vaultFiles.filter(f => (f.name || f.originalName).toLowerCase().includes(q))
     : vaultFiles.filter(f => (f.folder || null) === vaultCurFolder);
+
   if (vaultSort === 'size-asc') files.sort((a, b) => a.size - b.size);
   else if (vaultSort === 'size-desc') files.sort((a, b) => b.size - a.size);
   else if (vaultSort === 'name') files.sort((a, b) => (a.name || a.originalName).localeCompare(b.name || b.originalName));
 
+  // 3. Handle Empty State 
+  // (We check both folderHtml and files.length)
   if (!folderHtml && !files.length) {
+    if (folderRow) folderRow.innerHTML = '';
     grid.innerHTML = '';
     empty.style.display = 'block';
     empty.querySelector('p').textContent = vaultQ ? 'No results for "' + vaultQ + '"' : (vaultCurFolder ? 'This folder is empty' : 'Add video files using the button above');
     return;
   }
+  
   empty.style.display = 'none';
+
+  // 4. Generate Files HTML
   const cols = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
   const filesHtml = files.map(f => {
     const isImg = VAULT_IMG_EXTS.has(f.ext.toLowerCase());
     const c = cols[Math.abs(hsh(f.originalName)) % cols.length];
     const ctClass = 'card-thumb vault-ct' + (isImg ? ' has-thumb' : '');
     const ctStyle = isImg ? 'cursor:pointer' : 'background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%);cursor:pointer';
+    
     const inner = isImg
       ? '<img src="/api/vault/stream/' + escA(f.id) + '" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'
       : '<span class="ext-badge">' + f.ext.replace('.','') + '</span>';
+    
     const moveFolderOpts = vaultFolders.length
       ? '<button onclick="showVaultMoveMenu(event,\'' + escA(f.id) + '\')" title="Move to folder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>'
       : '';
+
     return '<div class="video-card fade-in" data-vault-id="' + escA(f.id) + '">' +
       '<div class="' + ctClass + '" style="' + ctStyle + '" onclick="vaultCardClick(\'' + escA(f.id) + '\',\'' + escA(f.name || f.originalName) + '\',\'' + escA(f.ext) + '\')">' +
       inner +
@@ -239,9 +268,17 @@ function renderVaultGrid() {
       '<div class="card-meta"><span class="card-category" style="color:var(--ac)">Vault</span>' +
       '<div class="card-actions">' + moveFolderOpts + '<button onclick="deleteVaultFile(\'' + escA(f.id) + '\')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button></div></div></div></div>';
   }).join('');
-  grid.innerHTML = folderHtml
-    ? '<div class="vault-folders-row">' + folderHtml + '</div>' + filesHtml
-    : filesHtml;
+
+  // 5. Render to DOM
+  // Update the dedicated folder row
+  if (folderRow) {
+    folderRow.innerHTML = folderHtml;
+    // Toggle visibility of the row container if it's empty
+    folderRow.style.display = folderHtml ? 'flex' : 'none';
+  }
+  
+  // Update the file grid
+  grid.innerHTML = filesHtml;
 }
 
 function _renderVaultBreadcrumb() {
@@ -447,7 +484,28 @@ function toggleVaultThumbs() {
     btn.style.color = vaultThumbMode === 'show' ? 'var(--ac)' : (vaultThumbMode === 'hover' ? 'var(--star)' : 'inherit');
   }
 }
-
+async function createNewVaultTextFile() {
+  let name = prompt('Enter text file name:', 'notes.txt');
+  if (!name) return;
+  
+  const r = await fetch('/api/vault/create-text', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      name: name, 
+      folder: vaultCurFolder, 
+      content: '' 
+    })
+  });
+  
+  if (!r.ok) {
+    toast('Failed to create text file');
+    return;
+  }
+  
+  loadVaultFiles();
+  toast('Empty text file created securely');
+}
 /**
  * Shuffle logic (Keep existing or use this)
  */
@@ -1197,13 +1255,57 @@ function closeVaultPhoto() {
 }
 
 function _vaultPhotoKey(e) {
-  if (e.key === 'Escape') closeVaultPhoto();
-  else if (e.key === 'ArrowLeft'  && _vpZ <= 1) { _stopVaultSs(); prevVaultPhoto(); }
-  else if (e.key === 'ArrowRight' && _vpZ <= 1) { _stopVaultSs(); nextVaultPhoto(); }
-  else if (e.key === ' ') { e.preventDefault(); toggleVaultSlideshow(); }
-  else if (e.key === '+' || e.key === '=') { const nz = Math.min(8, _vpZ * 1.25); _vpZ = nz; _vpApply(); }
-  else if (e.key === '-') { const nz = Math.max(1, _vpZ / 1.25); if (nz === 1) { _vpX = 0; _vpY = 0; } _vpZ = nz; _vpApply(); }
-  else if (e.key === '0') { _vpReset(); }
+  if (e.key === 'Escape') {
+    closeVaultPhoto();
+  } 
+  // Arrow Navigation
+  else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    _stopVaultSs();
+    prevVaultPhoto();
+  } 
+  else if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    _stopVaultSs();
+    nextVaultPhoto();
+  } 
+  // Delete Photo (Canc key)
+  else if (e.key === 'Delete') {
+    const f = vaultPhotos[vaultPhotoIdx];
+    if (f) {
+      // Clear selection and add only the current file
+      vaultSel.clear();
+      vaultSel.add(f.id);
+      
+      // Call deletion with no confirmation
+      deleteVaultFileFromPlayer(true);
+      
+      // Update the local lightbox state immediately
+      vaultPhotos.splice(vaultPhotoIdx, 1);
+      if (vaultPhotos.length === 0) {
+        closeVaultPhoto();
+      } else {
+        if (vaultPhotoIdx >= vaultPhotos.length) vaultPhotoIdx = 0;
+        _showVaultPhoto();
+      }
+    }
+  } 
+  // Existing Slidehsow and Zoom Controls
+  else if (e.key === ' ') {
+    e.preventDefault();
+    toggleVaultSlideshow();
+  } else if (e.key === '+' || e.key === '=') {
+    const nz = Math.min(8, _vpZ * 1.25);
+    _vpZ = nz;
+    _vpApply();
+  } else if (e.key === '-') {
+    const nz = Math.max(1, _vpZ / 1.25);
+    if (nz === 1) { _vpX = 0; _vpY = 0; }
+    _vpZ = nz;
+    _vpApply();
+  } else if (e.key === '0') {
+    _vpReset();
+  }
 }
 
 function toggleVaultSelMode() {

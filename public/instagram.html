@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AphroArchive — Instagram Mode</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+    body { background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; }
+
+    /* ── Layout ── */
+    .ig-app { display: flex; min-height: 100vh; }
+
+    /* ── Left nav ── */
+    .ig-nav {
+      width: 245px; position: fixed; top: 0; left: 0; height: 100vh;
+      padding: 8px 12px 20px; border-right: 1px solid #262626;
+      background: #000; z-index: 100; display: flex; flex-direction: column; gap: 4px;
+    }
+    .ig-nav-logo {
+      padding: 20px 12px 24px; font-size: 20px; font-weight: 700; font-style: italic;
+      letter-spacing: -.5px; display: flex; align-items: center; gap: 10px;
+    }
+    .ig-nav-logo svg rect { fill: #e84040; }
+    .ig-nav-item {
+      display: flex; align-items: center; gap: 16px; padding: 12px;
+      border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 400;
+      transition: background .15s; user-select: none; white-space: nowrap;
+    }
+    .ig-nav-item:hover { background: #1a1a1a; }
+    .ig-nav-item.active { font-weight: 600; }
+    .ig-nav-item.vault-on { color: #e84040; }
+    .ig-nav-spacer { flex: 1; }
+
+    /* ── Main content ── */
+    .ig-content { margin-left: 245px; flex: 1; display: flex; justify-content: center; padding: 0 20px; }
+
+    /* ── Feed ── */
+    .ig-feed { width: 470px; padding-top: 24px; display: flex; flex-direction: column; gap: 0; }
+    .ig-feed.hidden { display: none; }
+
+    /* Stories */
+    .ig-stories {
+      display: flex; gap: 14px; overflow-x: auto; padding: 8px 0 20px;
+      scrollbar-width: none; border-bottom: 1px solid #262626; margin-bottom: 16px; flex-shrink: 0;
+    }
+    .ig-stories::-webkit-scrollbar { display: none; }
+    .ig-story { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; cursor: pointer; }
+    .ig-story-ring {
+      width: 58px; height: 58px; border-radius: 50%; padding: 2px;
+      background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+    }
+    .ig-story-ring.seen { background: #333; }
+    .ig-story-inner {
+      width: 100%; height: 100%; border-radius: 50%; border: 2px solid #000;
+      overflow: hidden; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 18px;
+    }
+    .ig-story-name { font-size: 12px; color: #a8a8a8; max-width: 64px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Post */
+    .ig-post { border: 1px solid #262626; border-radius: 3px; background: #000; margin-bottom: 16px; }
+    .ig-post-header { display: flex; align-items: center; padding: 12px 16px; gap: 12px; }
+    .ig-post-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; flex-shrink: 0; color: #fff;
+    }
+    .ig-post-info { flex: 1; min-width: 0; }
+    .ig-post-username { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ig-post-meta { font-size: 12px; color: #a8a8a8; }
+    .ig-post-menu { background: none; border: none; color: #a8a8a8; cursor: pointer; padding: 4px; font-size: 18px; line-height: 1; }
+
+    /* Media */
+    .ig-post-media { position: relative; background: #111; cursor: pointer; overflow: hidden; }
+    .ig-post-media img { width: 100%; height: auto; display: block; }
+    .ig-post-media .ig-media-placeholder {
+      width: 100%; padding-bottom: 100%; position: relative; background: #1a1a1a;
+    }
+    .ig-post-media .ig-media-placeholder-inner {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: #555;
+    }
+    .ig-play-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.25); opacity: 0; transition: opacity .2s;
+    }
+    .ig-post-media:hover .ig-play-overlay { opacity: 1; }
+    .ig-play-btn {
+      width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,.6);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ig-vault-tag {
+      position: absolute; top: 10px; right: 10px; background: #e84040;
+      color: #fff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 12px;
+    }
+    .ig-duration-badge {
+      position: absolute; bottom: 8px; right: 10px; background: rgba(0,0,0,.7);
+      color: #fff; font-size: 12px; padding: 2px 6px; border-radius: 4px;
+    }
+
+    /* Actions */
+    .ig-post-actions { display: flex; align-items: center; padding: 6px 12px 0; gap: 6px; }
+    .ig-act-btn {
+      background: none; border: none; color: #fff; cursor: pointer;
+      padding: 6px; transition: transform .1s; display: flex;
+    }
+    .ig-act-btn:hover { transform: scale(1.1); }
+    .ig-act-btn.liked svg { fill: #ed4956; stroke: #ed4956; }
+    .ig-act-btn.saved svg { fill: #fff; }
+    .ig-spacer { flex: 1; }
+
+    .ig-post-likes { padding: 6px 16px 2px; font-size: 14px; font-weight: 600; }
+    .ig-post-caption { padding: 2px 16px 4px; font-size: 14px; line-height: 1.5; }
+    .ig-post-caption strong { font-weight: 600; margin-right: 6px; }
+    .ig-post-tags { padding: 0 16px 4px; font-size: 13px; color: #a8a8a8; }
+    .ig-post-time { padding: 0 16px 12px; font-size: 11px; color: #a8a8a8; text-transform: uppercase; letter-spacing: .3px; }
+
+    /* ── Explore grid ── */
+    .ig-explore { width: 935px; padding-top: 24px; display: none; }
+    .ig-explore.show { display: block; }
+    .ig-explore-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+    .ig-explore-item { position: relative; aspect-ratio: 1; overflow: hidden; cursor: pointer; background: #1a1a1a; }
+    .ig-explore-item img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
+    .ig-explore-item:hover img { transform: scale(1.04); }
+    .ig-explore-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,.45);
+      display: flex; align-items: center; justify-content: center; gap: 20px;
+      opacity: 0; transition: opacity .2s;
+    }
+    .ig-explore-item:hover .ig-explore-overlay { opacity: 1; }
+    .ig-explore-overlay span { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+    .ig-explore-item .ig-explore-placeholder {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #444;
+    }
+    .ig-explore-vault { position: absolute; top: 6px; right: 6px; background: #e84040; width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── Right sidebar ── */
+    .ig-right { width: 320px; padding: 24px 0 0 28px; flex-shrink: 0; }
+    .ig-account { display: flex; align-items: center; gap: 14px; padding-bottom: 20px; }
+    .ig-account-avatar {
+      width: 56px; height: 56px; border-radius: 50%; background: #e84040;
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 22px; flex-shrink: 0;
+    }
+    .ig-account-name { font-weight: 600; font-size: 14px; }
+    .ig-account-sub { font-size: 12px; color: #a8a8a8; }
+    .ig-sug-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .ig-sug-header span { font-size: 14px; font-weight: 600; color: #a8a8a8; }
+    .ig-sug-item { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .ig-sug-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; color: #fff; }
+    .ig-sug-info { flex: 1; min-width: 0; }
+    .ig-sug-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ig-sug-sub { font-size: 12px; color: #a8a8a8; }
+    .ig-sug-btn { background: none; border: none; color: #0095f6; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+    /* ── Modal ── */
+    .ig-modal {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85);
+      z-index: 1000; align-items: center; justify-content: center;
+    }
+    .ig-modal.open { display: flex; }
+    .ig-modal-close {
+      position: fixed; top: 16px; right: 20px; background: none; border: none;
+      color: #fff; cursor: pointer; font-size: 28px; z-index: 1001; line-height: 1;
+    }
+    .ig-modal-inner {
+      display: flex; max-width: 90vw; max-height: 90vh;
+      background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #262626;
+    }
+    .ig-modal-media { flex: 1; background: #111; display: flex; align-items: center; justify-content: center; min-width: 0; }
+    .ig-modal-media video { max-width: min(860px, 65vw); max-height: 90vh; display: block; }
+    .ig-modal-media img { max-width: min(860px, 65vw); max-height: 90vh; display: block; object-fit: contain; }
+    .ig-modal-side { width: 335px; display: flex; flex-direction: column; border-left: 1px solid #262626; flex-shrink: 0; }
+    .ig-modal-header { padding: 14px 16px; border-bottom: 1px solid #262626; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .ig-modal-info { flex: 1; min-width: 0; }
+    .ig-modal-username { font-size: 14px; font-weight: 600; }
+    .ig-modal-meta { font-size: 12px; color: #a8a8a8; }
+    .ig-modal-body { flex: 1; overflow-y: auto; padding: 16px; }
+    .ig-modal-title { font-size: 14px; line-height: 1.5; margin-bottom: 8px; }
+    .ig-modal-detail { font-size: 12px; color: #a8a8a8; margin-bottom: 4px; }
+    .ig-modal-actions { padding: 8px 12px; border-top: 1px solid #262626; display: flex; gap: 4px; flex-shrink: 0; }
+    .ig-modal-actions .ig-act-btn { color: #fff; }
+
+    /* ── Loaders ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .ig-spinner { width: 24px; height: 24px; border: 2px solid #333; border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; margin: 30px auto; }
+    .ig-loading { text-align: center; padding: 20px; }
+    .ig-end-msg { text-align: center; padding: 24px; font-size: 13px; color: #555; }
+
+    /* ── Vault unlock prompt ── */
+    .ig-vault-prompt { padding: 40px 20px; text-align: center; border: 1px solid #262626; border-radius: 8px; margin: 20px 0; }
+    .ig-vault-prompt h3 { margin-bottom: 12px; font-size: 18px; }
+    .ig-vault-prompt p { color: #a8a8a8; font-size: 14px; margin-bottom: 20px; }
+    .ig-vault-input { background: #1a1a1a; border: 1px solid #333; color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 14px; width: 240px; }
+    .ig-vault-input:focus { outline: none; border-color: #555; }
+    .ig-unlock-btn { margin-top: 12px; background: #0095f6; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; display: block; margin: 12px auto 0; }
+    .ig-unlock-btn:hover { background: #1aa3ff; }
+    .ig-vault-err { color: #ed4956; font-size: 13px; margin-top: 8px; min-height: 18px; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    /* ── Responsive ── */
+    @media (max-width: 1264px) { .ig-right { display: none; } }
+    @media (max-width: 1024px) { .ig-explore { width: 100%; } }
+    @media (max-width: 768px) {
+      .ig-nav { width: 72px; }
+      .ig-nav-item span { display: none; }
+      .ig-nav-logo-text { display: none; }
+      .ig-content { margin-left: 72px; }
+      .ig-feed { width: 100%; max-width: 470px; }
+    }
+  </style>
+</head>
+<body>
+<div class="ig-app">
+
+  <!-- ── Left Nav ── -->
+  <nav class="ig-nav" id="ig-nav">
+    <div class="ig-nav-logo">
+      <svg viewBox="0 0 28 28" fill="none" width="28" height="28">
+        <rect width="28" height="28" rx="6" fill="#e84040"/>
+        <polygon points="11,7 11,21 22,14" fill="#fff"/>
+      </svg>
+      <span class="ig-nav-logo-text">AphroArchive</span>
+    </div>
+
+    <div class="ig-nav-item active" id="nav-feed" onclick="showView('feed')">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Feed</span>
+    </div>
+
+    <div class="ig-nav-item" id="nav-explore" onclick="showView('explore')">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <span>Explore</span>
+    </div>
+
+    <div class="ig-nav-item" id="nav-vault" onclick="toggleVaultOnly()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <span>Vault Only</span>
+    </div>
+
+    <div class="ig-nav-spacer"></div>
+
+    <div class="ig-nav-item" onclick="window.location.href='/'">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="19" y1="12" x2="5" y2="12"/>
+        <polyline points="12 19 5 12 12 5"/>
+      </svg>
+      <span>Back to Archive</span>
+    </div>
+  </nav>
+
+  <!-- ── Main Content ── -->
+  <div class="ig-content">
+
+    <!-- Feed view -->
+    <div class="ig-feed" id="ig-feed">
+      <div class="ig-stories" id="ig-stories">
+        <div class="ig-loading"><div class="ig-spinner"></div></div>
+      </div>
+      <div id="ig-posts"></div>
+      <div id="ig-feed-status" class="ig-loading"><div class="ig-spinner"></div></div>
+    </div>
+
+    <!-- Explore view -->
+    <div class="ig-explore" id="ig-explore">
+      <div class="ig-explore-grid" id="ig-explore-grid"></div>
+      <div id="ig-explore-status" class="ig-loading"><div class="ig-spinner"></div></div>
+    </div>
+
+    <!-- Right sidebar (shown beside feed) -->
+    <div class="ig-right" id="ig-right">
+      <div class="ig-account">
+        <div class="ig-account-avatar">A</div>
+        <div>
+          <div class="ig-account-name">AphroArchive</div>
+          <div class="ig-account-sub">Local Library</div>
+        </div>
+      </div>
+      <div class="ig-sug-header">
+        <span>Suggested</span>
+      </div>
+      <div id="ig-suggestions"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Video / Image Modal ── -->
+<div class="ig-modal" id="ig-modal">
+  <button class="ig-modal-close" onclick="closeModal()">&#x2715;</button>
+  <div class="ig-modal-inner">
+    <div class="ig-modal-media" id="ig-modal-media"></div>
+    <div class="ig-modal-side">
+      <div class="ig-modal-header" id="ig-modal-header"></div>
+      <div class="ig-modal-body" id="ig-modal-body"></div>
+      <div class="ig-modal-actions" id="ig-modal-actions"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allVideos = [];
+let vaultFiles = [];
+let vaultUnlocked = false;
+let vaultOnly = false;
+let feedPage = 0;
+const PAGE_SIZE = 10;
+let feedLoading = false;
+let feedDone = false;
+let curView = 'feed';
+let likedIds = new Set();
+let savedIds = new Set();
+let curModal = null;
+
+const COLORS = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#14b8a6','#a855f7'];
+
+function strColor(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return COLORS[Math.abs(h) % COLORS.length];
+}
+
+function initial(s) {
+  return (s || '?').charAt(0).toUpperCase();
+}
+
+function timeAgo(mtime) {
+  const d = Date.now() - mtime;
+  const m = Math.floor(d / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h';
+  const days = Math.floor(h / 24);
+  if (days < 7) return days + 'd';
+  if (days < 30) return Math.floor(days / 7) + 'w';
+  return Math.floor(days / 30) + 'mo';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  await Promise.all([loadVideos(), checkVaultStatus()]);
+  renderStories();
+  renderSuggestions();
+  loadFeedPage();
+}
+
+async function loadVideos() {
+  try {
+    const r = await fetch('/api/videos?sort=date');
+    allVideos = await r.json();
+    // Seed liked from fav flags
+    allVideos.forEach(v => { if (v.fav) likedIds.add(v.id); });
+  } catch (e) {
+    allVideos = [];
+  }
+}
+
+async function checkVaultStatus() {
+  try {
+    const s = await (await fetch('/api/vault/status')).json();
+    vaultUnlocked = s.unlocked;
+    if (s.unlocked) await loadVaultFiles();
+  } catch {}
+}
+
+async function loadVaultFiles() {
+  try {
+    const items = await (await fetch('/api/vault/files')).json();
+    if (!items.error) {
+      vaultFiles = items.filter(f => f.type !== 'folder');
+    }
+  } catch {}
+}
+
+// ── View switching ─────────────────────────────────────────────────────────
+function showView(view) {
+  curView = view;
+  document.getElementById('nav-feed').classList.toggle('active', view === 'feed');
+  document.getElementById('nav-explore').classList.toggle('active', view === 'explore');
+  document.getElementById('ig-feed').classList.toggle('hidden', view !== 'feed');
+  document.getElementById('ig-right').style.display = view === 'feed' ? '' : 'none';
+  const exploreEl = document.getElementById('ig-explore');
+  if (view === 'explore') {
+    exploreEl.classList.add('show');
+    if (!exploreEl.dataset.loaded) {
+      exploreEl.dataset.loaded = '1';
+      renderExplore();
+    }
+  } else {
+    exploreEl.classList.remove('show');
+  }
+}
+
+// ── Vault only toggle ──────────────────────────────────────────────────────
+async function toggleVaultOnly() {
+  vaultOnly = !vaultOnly;
+  const btn = document.getElementById('nav-vault');
+  btn.classList.toggle('vault-on', vaultOnly);
+
+  if (vaultOnly && !vaultUnlocked) {
+    showVaultUnlockPrompt();
+    return;
+  }
+
+  resetFeed();
+}
+
+function showVaultUnlockPrompt() {
+  const posts = document.getElementById('ig-posts');
+  posts.innerHTML = `
+    <div class="ig-vault-prompt">
+      <h3>🔒 Vault Locked</h3>
+      <p>Enter your vault password to view encrypted content in Instagram mode.</p>
+      <input class="ig-vault-input" type="password" id="vlt-pw" placeholder="Vault password" onkeydown="if(event.key==='Enter')doUnlock()">
+      <button class="ig-unlock-btn" onclick="doUnlock()">Unlock</button>
+      <div class="ig-vault-err" id="vlt-err"></div>
+    </div>`;
+  document.getElementById('ig-feed-status').innerHTML = '';
+}
+
+async function doUnlock() {
+  const pw = document.getElementById('vlt-pw')?.value;
+  const err = document.getElementById('vlt-err');
+  if (!pw) return;
+  const r = await fetch('/api/vault/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+  const d = await r.json();
+  if (!r.ok) { if(err) err.textContent = d.error || 'Wrong password'; return; }
+  vaultUnlocked = true;
+  await loadVaultFiles();
+  resetFeed();
+}
+
+function resetFeed() {
+  feedPage = 0;
+  feedDone = false;
+  feedLoading = false;
+  document.getElementById('ig-posts').innerHTML = '';
+  document.getElementById('ig-feed-status').innerHTML = '<div class="ig-spinner"></div>';
+  loadFeedPage();
+}
+
+// ── Feed rendering ─────────────────────────────────────────────────────────
+function getFeedItems() {
+  if (vaultOnly) {
+    return vaultFiles.map(f => ({ ...f, _vault: true }));
+  }
+  // Mix regular + vault files
+  const vids = allVideos.map(v => ({ ...v, _vault: false }));
+  const vlt = vaultFiles.map(f => ({ ...f, _vault: true, mtime: f.mtime || 0 }));
+  return [...vids, ...vlt].sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+}
+
+function loadFeedPage() {
+  if (feedLoading || feedDone) return;
+  feedLoading = true;
+
+  const items = getFeedItems();
+  const start = feedPage * PAGE_SIZE;
+  const slice = items.slice(start, start + PAGE_SIZE);
+
+  if (!slice.length) {
+    feedDone = true;
+    feedLoading = false;
+    const status = document.getElementById('ig-feed-status');
+    status.innerHTML = start === 0
+      ? '<p style="color:#555;padding:30px;text-align:center">No content found</p>'
+      : '<div class="ig-end-msg">You\'re all caught up</div>';
+    return;
+  }
+
+  const container = document.getElementById('ig-posts');
+  slice.forEach(item => {
+    const el = buildPost(item);
+    container.appendChild(el);
+  });
+
+  feedPage++;
+  feedLoading = false;
+
+  if (feedPage * PAGE_SIZE >= items.length) {
+    feedDone = true;
+    document.getElementById('ig-feed-status').innerHTML = '<div class="ig-end-msg">You\'re all caught up</div>';
+  } else {
+    document.getElementById('ig-feed-status').innerHTML = '';
+  }
+}
+
+function buildPost(item) {
+  const isVault = item._vault;
+  const name = item.name || item.originalName || 'Untitled';
+  const category = isVault ? 'Vault' : (item.category || 'Uncategorized');
+  const color = strColor(category);
+  const mtime = item.mtime || 0;
+  const isLiked = likedIds.has(item.id);
+  const isSaved = savedIds.has(item.id);
+  const ext = (item.ext || '').toLowerCase();
+  const isImg = isVault && ['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes(ext);
+
+  // Thumb src
+  let thumbSrc = '';
+  if (isVault && isImg) {
+    thumbSrc = '/api/vault/stream/' + item.id;
+  } else if (!isVault) {
+    thumbSrc = '/api/thumbs/' + item.id + '/0';
+  }
+
+  const div = document.createElement('div');
+  div.className = 'ig-post';
+  div.dataset.id = item.id;
+  div.dataset.vault = isVault ? '1' : '0';
+
+  div.innerHTML = `
+    <div class="ig-post-header">
+      <div class="ig-post-avatar" style="background:${color}">${initial(category)}</div>
+      <div class="ig-post-info">
+        <div class="ig-post-username">${esc(category)}</div>
+        <div class="ig-post-meta">${timeAgo(mtime)}</div>
+      </div>
+      <button class="ig-post-menu" title="More">&#8943;</button>
+    </div>
+    <div class="ig-post-media" onclick="openModal(${JSON.stringify(item.id)}, ${isVault})">
+      ${thumbSrc
+        ? `<img src="${esc(thumbSrc)}" alt="" loading="lazy" onerror="this.parentElement.querySelector('.ig-media-placeholder').style.display='flex';this.style.display='none'">`
+        : ''}
+      <div class="ig-media-placeholder" style="display:${thumbSrc ? 'none' : 'flex'}">
+        <div class="ig-media-placeholder-inner">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.5">
+            <polygon points="5,3 19,12 5,21"/>
+          </svg>
+          <span style="font-size:12px;color:#444">${esc(name)}</span>
+        </div>
+      </div>
+      <div class="ig-play-overlay">
+        <div class="ig-play-btn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
+        </div>
+      </div>
+      ${isVault ? '<span class="ig-vault-tag">VAULT</span>' : ''}
+      ${item.durationF ? `<span class="ig-duration-badge">${esc(item.durationF)}</span>` : ''}
+    </div>
+    <div class="ig-post-actions">
+      <button class="ig-act-btn${isLiked ? ' liked' : ''}" title="Like" onclick="toggleLike(event, '${esc(item.id)}', ${isVault})">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+      </button>
+      <button class="ig-act-btn" title="Open" onclick="openModal(${JSON.stringify(item.id)}, ${isVault})">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
+      <div class="ig-spacer"></div>
+      <button class="ig-act-btn${isSaved ? ' saved' : ''}" title="Save" onclick="toggleSave(event, '${esc(item.id)}')">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
+    </div>
+    <div class="ig-post-likes">${isLiked ? '&#10084; Liked' : ''}</div>
+    <div class="ig-post-caption"><strong>${esc(category)}</strong>${esc(name)}</div>
+    ${item.tags && item.tags.length ? `<div class="ig-post-tags">${item.tags.map(t => '#' + esc(t)).join(' ')}</div>` : ''}
+    <div class="ig-post-time">${timeAgo(mtime)} ago</div>`;
+
+  return div;
+}
+
+// ── Stories ────────────────────────────────────────────────────────────────
+function renderStories() {
+  const el = document.getElementById('ig-stories');
+  const cats = [...new Set(allVideos.map(v => v.category || 'Uncategorized'))].filter(Boolean).slice(0, 14);
+  if (!cats.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = cats.map(cat => {
+    const color = strColor(cat);
+    return `
+      <div class="ig-story" onclick="filterByCat(${JSON.stringify(cat)})">
+        <div class="ig-story-ring">
+          <div class="ig-story-inner" style="background:${color}">${initial(cat)}</div>
+        </div>
+        <span class="ig-story-name">${esc(cat)}</span>
+      </div>`;
+  }).join('');
+}
+
+function filterByCat(cat) {
+  feedPage = 0;
+  feedDone = false;
+  feedLoading = false;
+  document.getElementById('ig-posts').innerHTML = '';
+  document.getElementById('ig-feed-status').innerHTML = '<div class="ig-spinner"></div>';
+
+  const items = cat
+    ? allVideos.filter(v => (v.category || 'Uncategorized') === cat).map(v => ({ ...v, _vault: false }))
+    : getFeedItems();
+
+  const container = document.getElementById('ig-posts');
+  items.slice(0, PAGE_SIZE).forEach(item => container.appendChild(buildPost(item)));
+
+  if (items.length <= PAGE_SIZE) {
+    document.getElementById('ig-feed-status').innerHTML = '<div class="ig-end-msg">You\'re all caught up</div>';
+    feedDone = true;
+  } else {
+    document.getElementById('ig-feed-status').innerHTML = '';
+    feedPage = 1;
+  }
+}
+
+// ── Suggestions ────────────────────────────────────────────────────────────
+function renderSuggestions() {
+  const el = document.getElementById('ig-suggestions');
+  const cats = [...new Set(allVideos.map(v => v.category || 'Uncategorized'))].slice(0, 5);
+  el.innerHTML = cats.map(cat => {
+    const color = strColor(cat);
+    const count = allVideos.filter(v => (v.category || 'Uncategorized') === cat).length;
+    return `
+      <div class="ig-sug-item">
+        <div class="ig-sug-avatar" style="background:${color}">${initial(cat)}</div>
+        <div class="ig-sug-info">
+          <div class="ig-sug-name">${esc(cat)}</div>
+          <div class="ig-sug-sub">${count} video${count !== 1 ? 's' : ''}</div>
+        </div>
+        <button class="ig-sug-btn" onclick="filterByCat(${JSON.stringify(cat)})">View</button>
+      </div>`;
+  }).join('');
+}
+
+// ── Explore grid ───────────────────────────────────────────────────────────
+function renderExplore() {
+  const grid = document.getElementById('ig-explore-grid');
+  const status = document.getElementById('ig-explore-status');
+  const items = getFeedItems();
+  if (!items.length) { status.innerHTML = '<p style="color:#555;padding:30px;text-align:center">No content</p>'; return; }
+
+  status.innerHTML = '';
+  grid.innerHTML = items.map(item => {
+    const isVault = item._vault;
+    const name = item.name || item.originalName || 'Untitled';
+    const ext = (item.ext || '').toLowerCase();
+    const isImg = isVault && ['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes(ext);
+    const thumbSrc = isVault && isImg
+      ? '/api/vault/stream/' + item.id
+      : (!isVault ? '/api/thumbs/' + item.id + '/0' : '');
+
+    return `
+      <div class="ig-explore-item" onclick="openModal(${JSON.stringify(item.id)}, ${isVault})">
+        ${thumbSrc
+          ? `<img src="${esc(thumbSrc)}" alt="${esc(name)}" loading="lazy">`
+          : `<div class="ig-explore-placeholder"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5"><polygon points="5,3 19,12 5,21"/></svg></div>`}
+        <div class="ig-explore-overlay">
+          <span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
+          </span>
+        </div>
+        ${isVault ? '<div class="ig-explore-vault"></div>' : ''}
+      </div>`;
+  }).join('');
+}
+
+// ── Modal ──────────────────────────────────────────────────────────────────
+async function openModal(id, isVault) {
+  curModal = { id, isVault };
+  const modal = document.getElementById('ig-modal');
+  const mediaEl = document.getElementById('ig-modal-media');
+  const headerEl = document.getElementById('ig-modal-header');
+  const bodyEl = document.getElementById('ig-modal-body');
+  const actionsEl = document.getElementById('ig-modal-actions');
+
+  mediaEl.innerHTML = '<div class="ig-spinner"></div>';
+  headerEl.innerHTML = '';
+  bodyEl.innerHTML = '';
+  actionsEl.innerHTML = '';
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  let item = null;
+  if (isVault) {
+    item = vaultFiles.find(f => f.id === id);
+  } else {
+    item = allVideos.find(v => v.id === id);
+  }
+
+  if (!item) { mediaEl.innerHTML = '<p style="color:#555;padding:30px">Not found</p>'; return; }
+
+  const name = item.name || item.originalName || 'Untitled';
+  const category = isVault ? 'Vault' : (item.category || 'Uncategorized');
+  const color = strColor(category);
+  const ext = (item.ext || '').toLowerCase();
+  const isImgVault = isVault && ['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes(ext);
+  const streamUrl = isVault ? '/api/vault/stream/' + id : '/api/stream/' + id;
+
+  // Header
+  headerEl.innerHTML = `
+    <div class="ig-post-avatar" style="background:${color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;color:#fff">${initial(category)}</div>
+    <div class="ig-modal-info">
+      <div class="ig-modal-username">${esc(category)}</div>
+      <div class="ig-modal-meta">${timeAgo(item.mtime || 0)}</div>
+    </div>`;
+
+  // Body info
+  bodyEl.innerHTML = `
+    <div class="ig-modal-title"><strong style="font-weight:600;margin-right:6px">${esc(category)}</strong>${esc(name)}</div>
+    ${item.durationF ? `<div class="ig-modal-detail">Duration: ${esc(item.durationF)}</div>` : ''}
+    ${item.size ? `<div class="ig-modal-detail">Size: ${formatBytes(item.size)}</div>` : ''}
+    ${item.tags && item.tags.length ? `<div class="ig-modal-detail" style="color:#a8a8a8">${item.tags.map(t=>'#'+esc(t)).join(' ')}</div>` : ''}`;
+
+  // Actions
+  const isLiked = likedIds.has(id);
+  const isSaved = savedIds.has(id);
+  actionsEl.innerHTML = `
+    <button class="ig-act-btn${isLiked ? ' liked' : ''}" id="modal-like-btn" title="Like" onclick="toggleLike(event,'${esc(id)}',${isVault},true)">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+    </button>
+    <div style="flex:1"></div>
+    <button class="ig-act-btn${isSaved ? ' saved' : ''}" id="modal-save-btn" title="Save" onclick="toggleSave(event,'${esc(id)}',true)">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+    </button>`;
+
+  // Media
+  if (isImgVault) {
+    mediaEl.innerHTML = `<img src="${esc(streamUrl)}" alt="${esc(name)}" style="max-width:min(860px,65vw);max-height:90vh;display:block;object-fit:contain">`;
+  } else {
+    mediaEl.innerHTML = `<video src="${esc(streamUrl)}" controls autoplay style="max-width:min(860px,65vw);max-height:90vh;display:block" preload="metadata"></video>`;
+  }
+}
+
+function closeModal() {
+  const modal = document.getElementById('ig-modal');
+  modal.classList.remove('open');
+  document.body.style.overflow = '';
+  const media = document.getElementById('ig-modal-media');
+  const vid = media.querySelector('video');
+  if (vid) { vid.pause(); vid.src = ''; }
+  curModal = null;
+}
+
+// ── Like / Save ────────────────────────────────────────────────────────────
+async function toggleLike(e, id, isVault, fromModal) {
+  e.stopPropagation();
+  if (likedIds.has(id)) likedIds.delete(id); else likedIds.add(id);
+  const liked = likedIds.has(id);
+
+  // Update all like buttons for this post
+  document.querySelectorAll(`[data-id="${id}"] .ig-act-btn`).forEach(btn => {
+    if (btn.title === 'Like') btn.classList.toggle('liked', liked);
+  });
+  const likesEl = document.querySelector(`[data-id="${id}"] .ig-post-likes`);
+  if (likesEl) likesEl.innerHTML = liked ? '&#10084; Liked' : '';
+
+  if (fromModal) {
+    const btn = document.getElementById('modal-like-btn');
+    if (btn) btn.classList.toggle('liked', liked);
+  }
+
+  if (!isVault) {
+    await fetch('/api/favourites/' + id, { method: 'POST' }).catch(() => {});
+  }
+}
+
+function toggleSave(e, id, fromModal) {
+  e.stopPropagation();
+  if (savedIds.has(id)) savedIds.delete(id); else savedIds.add(id);
+  const saved = savedIds.has(id);
+  document.querySelectorAll(`[data-id="${id}"] .ig-act-btn`).forEach(btn => {
+    if (btn.title === 'Save') btn.classList.toggle('saved', saved);
+  });
+  if (fromModal) {
+    const btn = document.getElementById('modal-save-btn');
+    if (btn) btn.classList.toggle('saved', saved);
+  }
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function formatBytes(b) {
+  if (!b) return '';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+
+// ── Infinite scroll ────────────────────────────────────────────────────────
+window.addEventListener('scroll', () => {
+  if (curView !== 'feed' || feedDone || feedLoading) return;
+  const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+  if (scrollBottom < 600) loadFeedPage();
+});
+
+// ── Keyboard ───────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ── Close modal on backdrop click ──────────────────────────────────────────
+document.getElementById('ig-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('ig-modal')) closeModal();
+});
+
+// ── Start ──────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

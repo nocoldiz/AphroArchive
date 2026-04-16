@@ -293,9 +293,59 @@ async function apiVaultMoveFile(req, res, id) {
   saveVaultMeta(meta);
   json(res, { ok: true });
 }
+async function apiVaultCreateTextFile(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
 
+  const body = await readBody(req);
+  let name = (body.name || 'Untitled.txt').trim();
+  // Ensure it has an extension
+  if (!name.includes('.')) name += '.txt';
+  
+  const folder = body.folder || null;
+  const content = body.content || ''; // Support starting with content or just empty
+
+  const id = crypto.randomUUID();
+  const outPath = path.join(VAULT_DIR, id + '.enc');
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+  
+  const out = fs.createWriteStream(outPath);
+  out.write(iv);
+  
+  let size = 0;
+  try {
+    const buf = Buffer.from(content, 'utf-8');
+    size = buf.length;
+    const enc = cipher.update(buf);
+    if (enc.length) out.write(enc);
+    const fin = cipher.final();
+    if (fin.length) out.write(fin);
+    out.write(cipher.getAuthTag());
+    out.end();
+  } catch (e) {
+    return json(res, { error: 'Encryption failed' }, 500);
+  }
+
+  const ext = path.extname(name).toLowerCase();
+  
+  const meta = loadVaultMeta();
+  meta[id] = { 
+    originalName: name, 
+    name: path.basename(name, ext), 
+    ext, 
+    size, 
+    sizeF: _fmtBytes(size), 
+    mtime: Date.now(), 
+    folder: folder 
+  };
+  saveVaultMeta(meta);
+  
+  json(res, { ok: true, id });
+}
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
-  apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultMoveFile,
+  apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultMoveFile,apiVaultCreateTextFile
 };
