@@ -31,6 +31,7 @@ let vaultThumbMode = 'hover'; // Options: 'show', 'hide', 'hover'
 let shiftKeyPressed = false;
 let isVaultDragging = false;
 let vDragStartX, vDragStartY;
+let isDraggingVault = false, dragStartX = 0, dragStartY = 0;
 const vaultGrid = document.getElementById('vaultGrid');
 const dragBox = document.getElementById('vaultDragBox');
 function setupVaultDragSelection() {

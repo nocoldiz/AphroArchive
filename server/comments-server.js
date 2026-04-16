@@ -60,9 +60,14 @@ async function reinitIfNeeded() {
 async function generateComments(videoId, videoName) {
   const cacheFile = path.join(CACHE_DIR, 'comments_' + videoId + '.json');
   if (fs.existsSync(cacheFile)) {
-    try { return JSON.parse(fs.readFileSync(cacheFile, 'utf-8')); } catch {}
+    try {
+      const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+      console.log('[comments] cached "' + videoName + '":', cached);
+      return cached;
+    } catch {}
   }
 
+  console.log('[comments] generating for "' + videoName + '"…');
   const session  = new LlamaChatSession({ contextSequence: ctx.getSequence() });
   const prompt   =
     'Generate between 3 and 5 realistic, casual internet comments that someone might write after watching a video called \'' +
@@ -84,19 +89,44 @@ async function generateComments(videoId, videoName) {
     ];
   }
 
+  console.log('[comments] generated for "' + videoName + '":', comments);
   fs.writeFileSync(cacheFile, JSON.stringify(comments));
   return comments;
+}
+
+function fallbackComments(videoName) {
+  const name = videoName;
+  return [
+    'This one is actually really good',
+    'Been looking for something like ' + name + ' for a while',
+    'Not bad at all, saved for later',
+    'The ending surprised me tbh',
+    'Anyone else come back to rewatch this?'
+  ].sort(() => Math.random() - 0.5).slice(0, 3 + Math.floor(Math.random() * 3));
 }
 
 async function apiGenerateComments(req, res) {
   const body = await readBody(req);
   const { videoId, videoName } = body;
+  console.log('[comments] request — videoId=' + videoId + ' videoName="' + videoName + '"');
   if (!videoId || !videoName) return json(res, { error: 'Missing videoId or videoName' }, 400);
-  if (!isModelReady()) return json(res, { error: 'AI comments not enabled or model not loaded' }, 400);
+
+  const prefs = loadPrefs();
+  console.log('[comments] prefs.aiCommentsEnabled =', prefs.aiCommentsEnabled);
+  if (!prefs.aiCommentsEnabled) return json(res, { error: 'AI comments disabled' }, 400);
+
   try {
-    const comments = await generateComments(videoId, videoName);
+    let comments;
+    if (isModelReady()) {
+      comments = await generateComments(videoId, videoName);
+    } else {
+      console.log('[comments] model not ready (getLlama=' + !!getLlama + ', modelFile=' + fs.existsSync(MODEL_FILE) + ') — using fallback for "' + videoName + '"');
+      comments = fallbackComments(videoName);
+      console.log('[comments] fallback for "' + videoName + '":', comments);
+    }
     return json(res, { comments });
   } catch (e) {
+    console.error('[comments] error:', e.message);
     return json(res, { error: e.message }, 500);
   }
 }

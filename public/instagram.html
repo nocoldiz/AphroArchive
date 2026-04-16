@@ -32,16 +32,16 @@
     .ig-nav-spacer { flex: 1; }
 
     /* ── Main content ── */
-    .ig-content { margin-left: 245px; flex: 1; display: flex; justify-content: center; padding: 0 20px; }
+    .ig-content { margin-left: 245px; flex: 1; display: flex; align-items: flex-start; padding: 0; min-width: 0; }
 
     /* ── Feed ── */
-    .ig-feed { width: 470px; padding-top: 24px; display: flex; flex-direction: column; }
+    .ig-feed { flex: 1; min-width: 0; padding: 24px 24px 24px 32px; display: flex; flex-direction: column; }
     .ig-feed.hidden { display: none; }
 
     /* Stories */
     .ig-stories {
       display: flex; gap: 14px; overflow-x: auto; padding: 8px 0 20px;
-      scrollbar-width: none; border-bottom: 1px solid #262626; margin-bottom: 0; flex-shrink: 0;
+      scrollbar-width: none; border-bottom: 1px solid #262626; margin-bottom: 16px; flex-shrink: 0;
     }
     .ig-stories::-webkit-scrollbar { display: none; }
     .ig-story { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; cursor: pointer; }
@@ -153,7 +153,7 @@
     .ig-post-time { padding: 0 16px 12px; font-size: 11px; color: #a8a8a8; text-transform: uppercase; letter-spacing: .3px; }
 
     /* ── Explore grid ── */
-    .ig-explore { width: 935px; padding-top: 24px; display: none; }
+    .ig-explore { flex: 1; min-width: 0; padding: 24px 24px 24px 32px; display: none; }
     .ig-explore.show { display: block; }
     .ig-explore-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
     .ig-explore-item { position: relative; aspect-ratio: 1; overflow: hidden; cursor: pointer; background: #1a1a1a; }
@@ -169,7 +169,7 @@
     .ig-explore-vault { position: absolute; top: 6px; right: 6px; background: #e84040; width: 8px; height: 8px; border-radius: 50%; }
 
     /* ── Right sidebar ── */
-    .ig-right { width: 320px; padding: 24px 0 0 28px; flex-shrink: 0; }
+    .ig-right { width: 300px; flex-shrink: 0; padding: 24px 20px 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
     .ig-account { display: flex; align-items: center; gap: 14px; padding-bottom: 20px; }
     .ig-account-avatar { width: 56px; height: 56px; border-radius: 50%; background: #e84040; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 22px; flex-shrink: 0; }
     .ig-account-name { font-weight: 600; font-size: 14px; }
@@ -182,6 +182,7 @@
     .ig-sug-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ig-sug-sub { font-size: 12px; color: #a8a8a8; }
     .ig-sug-btn { background: none; border: none; color: #0095f6; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .ig-right-controls { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #262626; }
 
     /* ── Modal ── */
     .ig-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 1000; align-items: center; justify-content: center; }
@@ -217,18 +218,27 @@
     .ig-unlock-btn:hover { background: #1aa3ff; }
     .ig-vault-err { color: #ed4956; font-size: 13px; margin-top: 8px; min-height: 18px; }
 
+    /* ── AI Comments ── */
+    .ig-comments-section { border-top: 1px solid #262626; padding: 10px 12px 4px; }
+    .ig-comment-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
+    .ig-comment-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #fff; flex-shrink: 0; }
+    .ig-comment-username { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .ig-comment-text { font-size: 13px; color: #e0e0e0; line-height: 1.45; }
+    .ig-comments-loading { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13px; color: #a8a8a8; }
+    .ig-comments-spinner { width: 14px; height: 14px; border: 2px solid #333; border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+    .ig-act-btn.comments-on svg { stroke: #0095f6; }
+
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
 
     @media (max-width: 1264px) { .ig-right { display: none; } }
-    @media (max-width: 1024px) { .ig-explore { width: 100%; } }
     @media (max-width: 768px) {
       .ig-nav { width: 72px; }
       .ig-nav-item span { display: none; }
       .ig-nav-logo-text { display: none; }
       .ig-content { margin-left: 72px; }
-      .ig-feed { width: 100%; max-width: 470px; }
+      .ig-feed { padding: 16px 12px; }
     }
   </style>
 </head>
@@ -269,32 +279,6 @@
     <!-- Feed view -->
     <div class="ig-feed" id="ig-feed">
       <div class="ig-stories" id="ig-stories"><div class="ig-loading"><div class="ig-spinner"></div></div></div>
-
-      <!-- Toolbar -->
-      <div class="ig-toolbar">
-        <div class="ig-sort-dropdown" id="ig-sort-wrap">
-          <button class="ig-tb-btn" id="ig-sort-btn" onclick="toggleSortMenu()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <span id="ig-sort-label">Sort: Date</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="ig-sort-menu" id="ig-sort-menu">
-            <div class="ig-sort-opt selected" data-sort="date" onclick="setSort('date','Date')">📅 Date</div>
-            <div class="ig-sort-opt" data-sort="duration" onclick="setSort('duration','Duration')">⏱ Duration</div>
-            <div class="ig-sort-opt" data-sort="name" onclick="setSort('name','Name')">🔤 Name</div>
-            <div class="ig-sort-opt" data-sort="size" onclick="setSort('size','Size')">📦 Size</div>
-          </div>
-        </div>
-        <button class="ig-tb-btn" onclick="shuffleFeed()" title="Shuffle">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
-          Shuffle
-        </button>
-        <button class="ig-tb-btn" id="ig-autoplay-btn" onclick="toggleAutoplay()" title="Toggle autoplay">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
-          <span id="ig-autoplay-label">Autoplay On</span>
-        </button>
-      </div>
-
       <div id="ig-posts"></div>
       <div id="ig-feed-status" class="ig-loading"><div class="ig-spinner"></div></div>
     </div>
@@ -314,6 +298,34 @@
           <div class="ig-account-sub">Local Library</div>
         </div>
       </div>
+
+      <!-- Controls -->
+      <div class="ig-right-controls">
+        <div class="ig-sort-dropdown" id="ig-sort-wrap" style="position:relative">
+          <button class="ig-tb-btn" style="width:100%;justify-content:space-between" id="ig-sort-btn" onclick="toggleSortMenu()">
+            <span style="display:flex;align-items:center;gap:6px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <span id="ig-sort-label">Sort: Date</span>
+            </span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="ig-sort-menu" id="ig-sort-menu" style="width:100%">
+            <div class="ig-sort-opt selected" data-sort="date" onclick="setSort('date','Date')">📅 Date</div>
+            <div class="ig-sort-opt" data-sort="duration" onclick="setSort('duration','Duration')">⏱ Duration</div>
+            <div class="ig-sort-opt" data-sort="name" onclick="setSort('name','Name')">🔤 Name</div>
+            <div class="ig-sort-opt" data-sort="size" onclick="setSort('size','Size')">📦 Size</div>
+          </div>
+        </div>
+        <button class="ig-tb-btn" style="width:100%;justify-content:flex-start;gap:8px" onclick="shuffleFeed()" title="Shuffle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+          Shuffle
+        </button>
+        <button class="ig-tb-btn" style="width:100%;justify-content:flex-start;gap:8px" id="ig-autoplay-btn" onclick="toggleAutoplay()" title="Toggle autoplay">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
+          <span id="ig-autoplay-label">Autoplay On</span>
+        </button>
+      </div>
+
       <div class="ig-sug-header"><span>Suggested</span></div>
       <div id="ig-suggestions"></div>
     </div>
@@ -343,6 +355,7 @@ let feedPage = 0;
 const PAGE_SIZE = 10;
 let feedLoading = false;
 let feedDone = false;
+let igAiCommentsEnabled = false;
 let curView = 'feed';
 let likedIds = new Set();
 let savedIds = new Set();
@@ -383,11 +396,18 @@ function formatBytes(b) {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
-  await Promise.all([loadVideos(), checkVaultStatus()]);
+  await Promise.all([loadVideos(), checkVaultStatus(), loadPrefs()]);
   renderStories();
   renderSuggestions();
   setupFeedObserver();
   loadFeedPage();
+}
+
+async function loadPrefs() {
+  try {
+    const p = await (await fetch('/api/settings/prefs')).json();
+    igAiCommentsEnabled = !!p.aiCommentsEnabled;
+  } catch {}
 }
 
 async function loadVideos() {
@@ -676,6 +696,9 @@ function buildPost(item) {
       <button class="ig-act-btn" title="Open" onclick="openModal(${JSON.stringify(item.id)},${isVault})">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </button>
+      ${igAiCommentsEnabled ? `<button class="ig-act-btn" title="Comments" data-comments-btn="${esc(item.id)}" onclick="toggleIgComments(event,this,'${esc(item.id)}','${esc(name).replace(/'/g,"\\'")}')">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>
+      </button>` : ''}
       <div class="ig-spacer"></div>
       <button class="ig-act-btn${isSaved?' saved':''}" title="Save" onclick="toggleSave(event,'${esc(item.id)}')">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
@@ -798,13 +821,19 @@ async function openModal(id, isVault) {
     <div class="ig-modal-title"><strong style="font-weight:600;margin-right:6px">${esc(category)}</strong>${esc(name)}</div>
     ${item.durationF ? `<div class="ig-modal-detail">Duration: ${esc(item.durationF)}</div>` : ''}
     ${item.size ? `<div class="ig-modal-detail">Size: ${formatBytes(item.size)}</div>` : ''}
-    ${item.tags&&item.tags.length ? `<div class="ig-modal-detail" style="color:#a8a8a8;margin-top:8px">${item.tags.map(t=>'#'+esc(t)).join(' ')}</div>` : ''}`;
+    ${item.tags&&item.tags.length ? `<div class="ig-modal-detail" style="color:#a8a8a8;margin-top:8px">${item.tags.map(t=>'#'+esc(t)).join(' ')}</div>` : ''}
+    <div id="modal-comments-section" style="display:none;margin-top:14px;border-top:1px solid #262626;padding-top:10px">
+      <div id="modal-comments-list"></div>
+    </div>`;
 
   const isLiked = likedIds.has(id), isSaved = savedIds.has(id);
   actionsEl.innerHTML = `
     <button class="ig-act-btn${isLiked?' liked':''}" id="modal-like-btn" onclick="toggleLike(event,'${esc(id)}',${isVault},true)">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
     </button>
+    ${igAiCommentsEnabled ? `<button class="ig-act-btn" id="modal-comments-btn" title="Comments" onclick="toggleModalComments('${esc(id)}','${esc(name).replace(/'/g,"\\'")}')">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>
+    </button>` : ''}
     <div style="flex:1"></div>
     <button class="ig-act-btn${isSaved?' saved':''}" id="modal-save-btn" onclick="toggleSave(event,'${esc(id)}',true)">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
@@ -821,6 +850,95 @@ function closeModal() {
   const vid = document.getElementById('ig-modal-media').querySelector('video');
   if (vid) { vid.pause(); vid.src = ''; }
   curModal = null;
+}
+
+// ── AI Comments ────────────────────────────────────────────────────────────
+const _igCommentCache = {};
+
+function _igAvatarColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return 'hsl(' + (Math.abs(h) % 360) + ',55%,45%)';
+}
+
+function _igUsername() {
+  const adj  = ['Curious','Sneaky','Bold','Gentle','Witty','Calm','Fuzzy','Quick','Silent','Clever'];
+  const noun = ['Otter','Falcon','Panda','Wolf','Raven','Tiger','Fox','Lynx','Elk','Bear'];
+  const num  = Math.floor(Math.random() * 90 + 10);
+  return adj[Math.floor(Math.random() * adj.length)] + noun[Math.floor(Math.random() * noun.length)] + num;
+}
+
+function _renderIgComments(comments) {
+  return comments.map(text => {
+    const user  = _igUsername();
+    const color = _igAvatarColor(user);
+    return '<div class="ig-comment-row">' +
+      '<div class="ig-comment-avatar" style="background:' + color + '">' + esc(user[0]) + '</div>' +
+      '<div><div class="ig-comment-username">' + esc(user) + '</div>' +
+      '<div class="ig-comment-text">' + esc(text) + '</div></div></div>';
+  }).join('');
+}
+
+async function _fetchIgComments(id, name, listEl) {
+  if (_igCommentCache[id]) { listEl.innerHTML = _renderIgComments(_igCommentCache[id]); return; }
+  listEl.innerHTML = '<div class="ig-comments-loading"><div class="ig-comments-spinner"></div>Generating comments…</div>';
+  try {
+    const r = await fetch('/api/comments/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videoId: id, videoName: name })
+    });
+    if (!r.ok) { listEl.innerHTML = '<div style="font-size:13px;color:#a8a8a8;padding:4px 0">Comments unavailable</div>'; return; }
+    const { comments } = await r.json();
+    _igCommentCache[id] = comments;
+    listEl.innerHTML = _renderIgComments(comments);
+  } catch {
+    listEl.innerHTML = '<div style="font-size:13px;color:#a8a8a8;padding:4px 0">Comments unavailable</div>';
+  }
+}
+
+function toggleIgComments(e, btn, id, name) {
+  e.stopPropagation();
+  const post = btn.closest('.ig-post');
+  if (!post) return;
+  let sec = post.querySelector('.ig-comments-section');
+  if (!sec) {
+    sec = document.createElement('div');
+    sec.className = 'ig-comments-section';
+    sec.innerHTML = '<div class="ig-comments-list"></div>';
+    post.appendChild(sec);
+  }
+  const visible = sec.style.display !== 'none' && sec.dataset.loaded;
+  if (visible) {
+    sec.style.display = 'none';
+    btn.classList.remove('comments-on');
+    return;
+  }
+  sec.style.display = '';
+  btn.classList.add('comments-on');
+  if (!sec.dataset.loaded) {
+    sec.dataset.loaded = '1';
+    _fetchIgComments(id, name, sec.querySelector('.ig-comments-list'));
+  }
+}
+
+function toggleModalComments(id, name) {
+  const sec  = document.getElementById('modal-comments-section');
+  const list = document.getElementById('modal-comments-list');
+  const btn  = document.getElementById('modal-comments-btn');
+  if (!sec || !list) return;
+  const visible = sec.style.display !== 'none' && sec.dataset.loaded;
+  if (visible) {
+    sec.style.display = 'none';
+    if (btn) btn.classList.remove('comments-on');
+    return;
+  }
+  sec.style.display = '';
+  if (btn) btn.classList.add('comments-on');
+  if (!sec.dataset.loaded) {
+    sec.dataset.loaded = '1';
+    _fetchIgComments(id, name, list);
+  }
 }
 
 // ── Like / Save ────────────────────────────────────────────────────────────

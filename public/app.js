@@ -23,7 +23,12 @@ const bmMatchedUrls = new Set();  // bookmark URLs that are already downloaded a
 async function init() {
   showSk();
   await fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
-  const [,, , vs] = await Promise.all([load(), loadC(), loadTagSidebar(), fetch('/api/vault/status').then(r => r.json())]);
+  const [,, , vs, prefs] = await Promise.all([
+    load(), loadC(), loadTagSidebar(),
+    fetch('/api/vault/status').then(r => r.json()),
+    fetch('/api/settings/prefs').then(r => r.json()).catch(() => ({}))
+  ]);
+  aiCommentsEnabled = !!prefs.aiCommentsEnabled;
   if (vs.hidden) $('vaultSB').show(false);
   V.sort(() => Math.random() - 0.5);
   render();
