@@ -22,6 +22,19 @@ async function loadSettings() {
   updateSettingsHint('settings-hidden-hint', lists.hidden || '');
   const sel = $('chronologyMode').el;
   if (sel) sel.value = prefs.chronologyMode || 'keep';
+  const tog = $('aiCommentsToggle').el;
+  if (tog) tog.checked = !!prefs.aiCommentsEnabled;
+  aiCommentsEnabled = !!prefs.aiCommentsEnabled;
+}
+
+async function saveAiCommentsPref(enabled) {
+  const r = await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ aiCommentsEnabled: enabled })
+  });
+  if (r.ok) { aiCommentsEnabled = enabled; toast(enabled ? 'AI Comments enabled' : 'AI Comments disabled'); }
+  else toast('Save failed');
 }
 
 async function saveChronologyMode() {

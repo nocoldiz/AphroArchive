@@ -44,6 +44,14 @@ async function apiSavePrefs(req, res) {
     if (!CHRON_MODES.has(body.chronologyMode)) return json(res, { error: 'Invalid value' }, 400);
     prefs.chronologyMode = body.chronologyMode;
   }
+  if ('aiCommentsEnabled' in body) {
+    const wasEnabled = !!prefs.aiCommentsEnabled;
+    prefs.aiCommentsEnabled = !!body.aiCommentsEnabled;
+    if (!wasEnabled && prefs.aiCommentsEnabled) {
+      const comments = require('./comments-server');
+      comments.reinitIfNeeded();
+    }
+  }
   savePrefs(prefs);
   json(res, { ok: true });
 }

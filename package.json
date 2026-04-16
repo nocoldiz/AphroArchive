@@ -12,10 +12,15 @@
     "assets": [
       "public/**/*"
     ],
-    "targets": ["node20-win-x64"],
+    "targets": [
+      "node20-win-x64"
+    ],
     "outputPath": "dist"
   },
   "devDependencies": {
     "@yao-pkg/pkg": "^5.12.0"
+  },
+  "dependencies": {
+    "node-llama-cpp": "^3.18.1"
   }
 }

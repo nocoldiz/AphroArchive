@@ -197,6 +197,32 @@ else
 fi
 
 
+# ── AI Comments: node-llama-cpp + model ──────────────────────────────────────
+echo ""
+echo -e "${BOLD}[AI] Installing node-llama-cpp (optional — enables AI comments)${NC}"
+if npm install node-llama-cpp; then
+    ok "node-llama-cpp installed"
+else
+    warn "node-llama-cpp install failed — AI comments will not work"
+fi
+
+echo ""
+echo -e "${BOLD}[AI] Creating models directory${NC}"
+mkdir -p models
+ok "models/ directory ready"
+
+echo ""
+echo -e "${BOLD}[AI] Downloading Llama-3.2-1B-Instruct model (may take several minutes)${NC}"
+if [[ -f "./models/llama-3.2-1b-instruct.gguf" ]]; then
+    ok "Model already present — skipping download"
+else
+    if npx node-llama-cpp pull --dir ./models "hf:bartowski/Llama-3.2-1B-Instruct-GGUF/Llama-3.2-1B-Instruct-Q4_K_M.gguf"; then
+        ok "Model downloaded to models/llama-3.2-1b-instruct.gguf"
+    else
+        warn "Model download failed — AI comments will not work until the model is present"
+    fi
+fi
+
 echo ""
 echo -e "${BOLD} ──────────────────────────────────────────────────────${NC}"
 echo -e "${GREEN}${BOLD}  All done!  Run ./start.sh to launch AphroArchive.${NC}"

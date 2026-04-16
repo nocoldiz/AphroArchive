@@ -1451,6 +1451,21 @@
             </div>
           </div>
         </div>
+        <div class="settings-hidden-panel" style="margin-top:16px">
+          <div class="settings-panel">
+            <div class="settings-panel-header">
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px;color:var(--ac)">
+                  <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+                </svg>AI Comments (node-llama-cpp)</span>
+            </div>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 8px">Generates realistic comments for videos using a local LLM. Requires <code>./models/llama-3.2-1b-instruct.gguf</code></p>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.82rem;color:var(--tx2)">
+              <input type="checkbox" id="aiCommentsToggle" onchange="saveAiCommentsPref(this.checked)" style="width:15px;height:15px;cursor:pointer">
+              Enable AI comments
+            </label>
+          </div>
+        </div>
         <div style="margin-top:24px">
           <a class="donate-btn" href="https://buymeacoffee.com/nocoldiz" target="_blank" rel="noopener">☕ Buy me a
             coffee</a>
@@ -1662,6 +1677,13 @@
             <div class="suggestions">
               <h3>More like this</h3>
               <div class="suggestions-row" id="suggestions-grid"></div>
+            </div>
+            <div id="ai-comments-section" style="display:none;margin-top:20px;border-top:1px solid var(--brd);padding-top:16px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                <span style="font-size:13px;color:var(--tx2);text-transform:uppercase;letter-spacing:1px">Comments</span>
+                <span style="background:rgba(var(--ac-rgb,100,100,255),0.15);color:var(--ac);font-size:10px;padding:2px 7px;border-radius:10px">AI</span>
+              </div>
+              <div id="ai-comments-list"></div>
             </div>
           </div>
           <div class="playlist-panel">

@@ -32,26 +32,7 @@ if errorlevel 1 (
 for /f "tokens=*" %%v in ('node --version 2^>nul') do echo  Node.js %%v  OK
 
 
-:: ── 2. Python ────────────────────────────────────────────────────────────────
-echo.
-echo [2/6] Checking Python...
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo  Python not found. Attempting install via winget...
-    winget install Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements
-    if errorlevel 1 (
-        echo.
-        echo  [ERROR] Could not install Python automatically.
-        echo  Please install it manually from: https://www.python.org/downloads
-        echo  Make sure to check "Add Python to PATH" during setup.
-        pause
-        exit /b 1
-    )
-    echo  Python installed. Please RESTART this installer so the PATH is refreshed.
-    pause
-    exit /b 0
-)
-for /f "tokens=*" %%v in ('python --version 2^>nul') do echo  %%v  OK
+
 
 
 :: ── 3. npm install (dev deps for building) ───────────────────────────────────
@@ -65,35 +46,6 @@ if errorlevel 1 (
 )
 echo  npm install  OK
 
-
-:: ── 4. Python dependencies ───────────────────────────────────────────────────
-echo.
-echo [4/6] Installing Python dependencies...
-python -m pip install --upgrade pip --quiet
-python -m pip install -r requirements.txt
-if errorlevel 1 (
-    echo  [ERROR] pip install failed. Make sure Python is on PATH and pip is available.
-    pause
-    exit /b 1
-)
-echo  Python deps  OK
-
-
-:: ── 5. yt-dlp ────────────────────────────────────────────────────────────────
-echo.
-echo [5/6] Downloading yt-dlp...
-if exist "yt-dlp.exe" (
-    echo  yt-dlp.exe already present — checking for update...
-    powershell -NoProfile -Command ^
-        "try { Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile 'yt-dlp.exe' -UseBasicParsing; Write-Host '  yt-dlp updated  OK' } catch { Write-Host '  Could not update yt-dlp (offline?)  skipping' }"
-) else (
-    powershell -NoProfile -Command ^
-        "try { Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile 'yt-dlp.exe' -UseBasicParsing; Write-Host '  yt-dlp downloaded  OK' } catch { Write-Host '[ERROR] Failed to download yt-dlp. Check internet connection.'; exit 1 }"
-    if errorlevel 1 (
-        echo  [WARN] yt-dlp download failed. Download queue will not work.
-        echo  Manual download: https://github.com/yt-dlp/yt-dlp/releases/latest
-    )
-)
 
 
 :: ── 6. ffmpeg + ffprobe ──────────────────────────────────────────────────────
@@ -144,6 +96,35 @@ powershell -NoProfile -Command ^
     "    Remove-Item 'geckodriver_tmp.zip' -Force;" ^
     "    Write-Host '  geckodriver downloaded  OK'" ^
     "} else { Write-Host '  [WARN] Could not find geckodriver asset — skip' }"
+
+:: ── AI Comments: node-llama-cpp + model ─────────────────────────────────────
+echo.
+echo [AI] Installing node-llama-cpp (optional — enables AI comments)...
+call npm install node-llama-cpp
+if errorlevel 1 (
+    echo  [WARN] node-llama-cpp install failed — AI comments will not work.
+) else (
+    echo  node-llama-cpp  OK
+)
+
+echo.
+echo [AI] Creating models directory...
+if not exist "models" mkdir models
+echo  models\  OK
+
+echo.
+echo [AI] Downloading Llama-3.2-1B-Instruct model (this may take several minutes)...
+echo  Target: models\llama-3.2-1b-instruct.gguf
+if exist "models\llama-3.2-1b-instruct.gguf" (
+    echo  Model already present — skipping download.
+) else (
+    call npx node-llama-cpp pull --dir ./models "hf:bartowski/Llama-3.2-1B-Instruct-GGUF/Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+    if errorlevel 1 (
+        echo  [WARN] Model download failed — AI comments will not work until you download it manually.
+    ) else (
+        echo  Model downloaded  OK
+    )
+)
 
 :done
 echo.

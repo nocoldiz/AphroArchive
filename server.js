@@ -38,6 +38,7 @@ const database    = require('./server/database-server');
 const remote      = require('./server/remote-server');
 const settings    = require('./server/settings-server');
 const prompts     = require('./server/prompts-server');
+const comments    = require('./server/comments-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -47,6 +48,9 @@ fs.mkdirSync(AUDIO_DIR,   { recursive: true });
 fs.mkdirSync(BOOKS_DIR,   { recursive: true });
 fs.mkdirSync(PHOTOS_DIR,  { recursive: true });
 fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
+fs.mkdirSync(path.join(process.cwd(), 'models'), { recursive: true });
+
+(async () => { await comments.initCommentsModel(); })();
 
 // ── Seed default category folders ────────────────────────────────────
 
@@ -242,6 +246,9 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/settings\/(hidden|whitelist)$/)) && req.method === 'PUT') return settings.apiSettingsSave(req, res, m[1]);
   if (p === '/api/settings/prefs' && req.method === 'GET') return settings.apiGetPrefs(req, res);
   if (p === '/api/settings/prefs' && req.method === 'PUT') return settings.apiSavePrefs(req, res);
+
+  // ── AI Comments ──────────────────────────────────────────────────────
+  if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
 
   // ── Local IP ─────────────────────────────────────────────────────────
   if (p === '/api/local-ip' && req.method === 'GET') {

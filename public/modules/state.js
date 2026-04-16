@@ -26,6 +26,7 @@ const bookmarkVidIds = new Set();
 const bmMatchedUrls = new Set();
 let collectionsMode = false, curCollection = null;
 let settingsMode = false;
+let aiCommentsEnabled = false;
 let dbMode = false, dbTab = 'actors', _dbData = {};
 let curVTags = [], curVAllCategories = [], curVActors = [];
 let curVRating = null;

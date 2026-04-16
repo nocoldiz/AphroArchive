@@ -58,6 +58,48 @@ async function openVid(id) {
   $('suggestions-grid').html(d.suggested.map(card).join(''));
   attachThumbs();
   requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  loadAiComments(curV.id, curV.name);
+}
+
+function _aiAvatarColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return 'hsl(' + (Math.abs(h) % 360) + ',55%,45%)';
+}
+
+function _aiUsername() {
+  const adj  = ['Curious','Sneaky','Bold','Gentle','Witty','Calm','Fuzzy','Quick','Silent','Clever'];
+  const noun = ['Otter','Falcon','Panda','Wolf','Raven','Tiger','Fox','Lynx','Elk','Bear'];
+  const num  = Math.floor(Math.random() * 90 + 10);
+  return adj[Math.floor(Math.random() * adj.length)] + noun[Math.floor(Math.random() * noun.length)] + num;
+}
+
+async function loadAiComments(videoId, videoName) {
+  const sec  = $('ai-comments-section').el;
+  const list = $('ai-comments-list').el;
+  if (!sec || !list) return;
+  if (!aiCommentsEnabled) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  list.innerHTML = '<div style="color:var(--tx2);font-size:13px;padding:8px 0">Loading…</div>';
+  try {
+    const r = await fetch('/api/comments/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videoId, videoName })
+    });
+    if (!r.ok) { sec.style.display = 'none'; return; }
+    const { comments } = await r.json();
+    if (!comments || !comments.length) { sec.style.display = 'none'; return; }
+    list.innerHTML = comments.map(text => {
+      const user  = _aiUsername();
+      const color = _aiAvatarColor(user);
+      return '<div style="display:flex;gap:10px;margin-bottom:14px">' +
+        '<div style="width:32px;height:32px;border-radius:50%;background:' + color + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0">' +
+        esc(user[0]) + '</div>' +
+        '<div><div style="font-size:13px;font-weight:600;margin-bottom:3px">' + esc(user) + '</div>' +
+        '<div style="font-size:14px;color:var(--fg);line-height:1.5">' + esc(text) + '</div></div></div>';
+    }).join('');
+  } catch { sec.style.display = 'none'; }
 }
 
 async function openVidTag(id) {
