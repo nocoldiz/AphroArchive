@@ -9,7 +9,7 @@ const http  = require('http');
 const https = require('https');
 const url   = require('url');
 const { ACTOR_PHOTOS_DIR } = require('./config-server');
-const { json, actorMatchesAny } = require('./helpers-server');
+const { json, actorMatchesAny, toId } = require('./helpers-server');
 const { loadActors, loadVideoMeta, loadFavs } = require('./db-server');
 const { allVideos } = require('./videos-server');
 
@@ -135,12 +135,28 @@ async function apiActorPhotoScrape(req, res, actorName) {
 }
 
 function apiActorPhotoImg(req, res, actorName) {
-  if (!fs.existsSync(ACTOR_PHOTOS_DIR)) { res.writeHead(404); res.end(); return; }
-  const photoPath = path.join(ACTOR_PHOTOS_DIR, actorSlug(actorName) + '.jpg');
-  if (!fs.existsSync(photoPath)) { res.writeHead(404); res.end(); return; }
-  const stat = fs.statSync(photoPath);
-  res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=86400' });
-  fs.createReadStream(photoPath).pipe(res);
+  if (fs.existsSync(ACTOR_PHOTOS_DIR)) {
+    const photoPath = path.join(ACTOR_PHOTOS_DIR, actorSlug(actorName) + '.jpg');
+    if (fs.existsSync(photoPath)) {
+      const stat = fs.statSync(photoPath);
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=86400' });
+      fs.createReadStream(photoPath).pipe(res);
+      return;
+    }
+  }
+  // fall back to first video thumbnail for this actor (deterministic)
+  const actors = loadActors();
+  const entry  = actors.find(e => e.name.toLowerCase() === actorName.toLowerCase());
+  if (entry) {
+    const actorLo = entry.name.toLowerCase();
+    const videos  = allVideos().filter(v => actorMatchesAny(v, [actorLo])).sort();
+    if (videos.length) {
+      res.writeHead(302, { Location: '/api/thumbs/' + toId(videos[0]) + '/0' });
+      res.end();
+      return;
+    }
+  }
+  res.writeHead(404); res.end();
 }
 
 module.exports = {

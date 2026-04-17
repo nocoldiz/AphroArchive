@@ -423,10 +423,41 @@ function apiVaultPromptsDeleteAll(req, res) {
   json(res, { ok: true });
 }
 
+// ── Vault Favourites (encrypted JSON array of IDs) ────────────────────
+
+const VAULT_FAVS_FILE = path.join(VAULT_DIR, '_vault_favs.enc');
+
+function _loadVaultFavs() {
+  if (!fs.existsSync(VAULT_FAVS_FILE)) return [];
+  try { return _decryptJson(fs.readFileSync(VAULT_FAVS_FILE)); } catch { return []; }
+}
+
+function _saveVaultFavs(arr) {
+  if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
+  fs.writeFileSync(VAULT_FAVS_FILE, _encryptJson(arr));
+}
+
+function apiVaultFavsGet(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  json(res, _loadVaultFavs());
+}
+
+function apiVaultFavsToggle(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const arr = _loadVaultFavs();
+  const idx = arr.indexOf(id);
+  if (idx >= 0) arr.splice(idx, 1); else arr.push(id);
+  _saveVaultFavs(arr);
+  json(res, { ok: true, fav: idx < 0 });
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
   apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultMoveFile, apiVaultCreateTextFile,
   apiVaultPromptsGet, apiVaultPromptsAdd, apiVaultPromptsUpdate,
   apiVaultPromptsDelete, apiVaultPromptsDeleteAll,
+  apiVaultFavsGet, apiVaultFavsToggle,
 };

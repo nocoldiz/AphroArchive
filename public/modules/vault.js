@@ -28,7 +28,8 @@ async function showVault() {
   initVaultShiftSelection(); 
 }
 let vaultThumbMode  = 'hover';
-let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book'
+let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book' | 'fav' | 'prompt'
+let vaultFavIds = new Set();
 
 const VAULT_VIDEO_EXTS = new Set(['.mp4','.webm','.mkv','.mov','.avi','.m4v','.mpg','.mpeg','.wmv','.ts']);
 const VAULT_PHOTO_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif']);
@@ -36,6 +37,7 @@ const VAULT_AUDIO_EXTS = new Set(['.mp3','.flac','.wav','.ogg','.aac','.m4a','.o
 const VAULT_BOOK_EXTS  = new Set(['.pdf','.epub','.txt','.mobi','.azw','.azw3','.cbz','.cbr']);
 
 const VAULT_FILTER_TILES = [
+  { key: 'fav',   label: 'Favourites', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' },
   { key: 'video', label: 'Videos', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 9l5-3v12l-5-3V9z"/></svg>' },
   { key: 'photo', label: 'Photos', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>' },
   { key: 'audio', label: 'Audio',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
@@ -206,8 +208,12 @@ vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = n
   const empty = $('vaultEmpty').el;
   grid.innerHTML = tpl('loading', { message: 'Loading\u2026' });
   empty.style.display = 'none';
-  const items = await (await fetch('/api/vault/files')).json();
+  const [items, favs] = await Promise.all([
+    fetch('/api/vault/files').then(r => r.json()),
+    fetch('/api/vault/favs').then(r => r.json()).catch(() => []),
+  ]);
   if (items.error) { grid.innerHTML = ''; return; }
+  vaultFavIds = new Set(Array.isArray(favs) ? favs : []);
   vaultFolders = items.filter(f => f.type === 'folder');
   vaultFiles   = items.filter(f => f.type !== 'folder');
   renderVaultGrid();
@@ -216,6 +222,17 @@ vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = n
 function setVaultTypeFilter(key) {
   vaultTypeFilter = vaultTypeFilter === key ? null : key;
   renderVaultGrid();
+}
+
+async function toggleVaultFav(e, id) {
+  e.stopPropagation();
+  const r = await fetch('/api/vault/favs/' + id, { method: 'POST' }).then(r => r.json()).catch(() => null);
+  if (!r) return;
+  if (r.fav) vaultFavIds.add(id); else vaultFavIds.delete(id);
+  document.querySelectorAll('[data-vault-id="' + id + '"] .vault-fav-btn').forEach(btn => {
+    btn.classList.toggle('on', r.fav);
+    btn.querySelector('svg path').setAttribute('fill', r.fav ? 'currentColor' : 'none');
+  });
 }
 
 async function showVaultPrompts() {
@@ -280,11 +297,15 @@ function renderVaultGrid() {
   // 2. Filter and Sort Files
   let files;
   if (vaultTypeFilter) {
-    const extSet = vaultTypeFilter === 'video' ? VAULT_VIDEO_EXTS
-                 : vaultTypeFilter === 'photo' ? VAULT_PHOTO_EXTS
-                 : vaultTypeFilter === 'audio' ? VAULT_AUDIO_EXTS
-                 : VAULT_BOOK_EXTS;
-    files = vaultFiles.filter(f => extSet.has((f.ext || '').toLowerCase()));
+    if (vaultTypeFilter === 'fav') {
+      files = vaultFiles.filter(f => vaultFavIds.has(f.id));
+    } else {
+      const extSet = vaultTypeFilter === 'video' ? VAULT_VIDEO_EXTS
+                   : vaultTypeFilter === 'photo' ? VAULT_PHOTO_EXTS
+                   : vaultTypeFilter === 'audio' ? VAULT_AUDIO_EXTS
+                   : VAULT_BOOK_EXTS;
+      files = vaultFiles.filter(f => extSet.has((f.ext || '').toLowerCase()));
+    }
     if (q) files = files.filter(f => (f.name || f.originalName).toLowerCase().includes(q));
   } else {
     files = q
@@ -323,15 +344,21 @@ function renderVaultGrid() {
       ? '<button onclick="showVaultMoveMenu(event,\'' + escA(f.id) + '\')" title="Move to folder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>'
       : '';
 
+    const isFav = vaultFavIds.has(f.id);
+    const favBtn = '<button onclick="toggleVaultFav(event,\'' + escA(f.id) + '\')" title="Favourite" class="vault-fav-btn' + (isFav ? ' on' : '') + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="' + (isFav ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>';
+    const metaBtn = f.ext.toLowerCase() === '.png'
+      ? '<button onclick="openVaultCardMeta(event,\'' + escA(f.id) + '\')" title="View metadata"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>'
+      : '';
+
     return '<div class="video-card fade-in" data-vault-id="' + escA(f.id) + '">' +
       '<div class="' + ctClass + '" style="' + ctStyle + '" onclick="vaultCardClick(\'' + escA(f.id) + '\',\'' + escA(f.name || f.originalName) + '\',\'' + escA(f.ext) + '\')">' +
       inner +
       '<div class="vault-chk" id="vchk-' + escA(f.id) + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>' +
       '<div class="play-overlay"></div>' +
       '<span class="size-badge">' + f.sizeF + '</span></div>' +
-      '<div class="card-body"><div class="card-title" title="' + escA(f.originalName) + '">' + esc(f.name || f.originalName) + '</div>' +
+      '<div class="card-body"><div class="card-title" title="' + escA(f.originalName) + '">' + esc(_vaultNameCache[f.id] || f.name || f.originalName) + '</div>' +
       '<div class="card-meta"><span class="card-category" style="color:var(--ac)">Vault</span>' +
-      '<div class="card-actions">' + moveFolderOpts + '<button onclick="deleteVaultFile(\'' + escA(f.id) + '\')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button></div></div></div></div>';
+      '<div class="card-actions">' + favBtn + metaBtn + moveFolderOpts + '<button onclick="deleteVaultFile(\'' + escA(f.id) + '\')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button></div></div></div></div>';
   }).join('');
 
   // 5. Render to DOM
@@ -1015,14 +1042,48 @@ function _showVaultPhoto() {
   const f = vaultPhotos[vaultPhotoIdx];
   if (!f) return;
   _vpReset();
+  closeVaultPhotoMeta();
   const overlay = $('vaultPhotoOverlay').el;
   $('vaultPhotoImg').el.src = '/api/vault/stream/' + f.id;
-  $('vaultPhotoName').text(f.name || f.originalName);
+  const cached = _vaultNameCache[f.id];
+  $('vaultPhotoName').text(cached || f.name || f.originalName);
   overlay.classList.add('on');
   const prevBtn = $('vaultPhotoPrev').el;
   const nextBtn = $('vaultPhotoNext').el;
   if (prevBtn) prevBtn.style.display = vaultPhotos.length > 1 ? '' : 'none';
   if (nextBtn) nextBtn.style.display = vaultPhotos.length > 1 ? '' : 'none';
+  _updateVaultPhotoFavBtn(f.id);
+  if (cached === undefined) {
+    _resolveVaultName(f).then(name => {
+      if (!name) return;
+      if (vaultPhotos[vaultPhotoIdx] && vaultPhotos[vaultPhotoIdx].id === f.id)
+        $('vaultPhotoName').text(name);
+      const titleEl = document.querySelector('[data-vault-id="' + f.id + '"] .card-title');
+      if (titleEl) titleEl.textContent = name;
+    });
+  }
+}
+
+function _updateVaultPhotoFavBtn(id) {
+  const btn = document.getElementById('vaultPhotoFav');
+  if (!btn) return;
+  const on = vaultFavIds.has(id);
+  btn.classList.toggle('on', on);
+  btn.querySelector('svg path').setAttribute('fill', on ? 'currentColor' : 'none');
+  btn.querySelector('svg path').setAttribute('stroke', on ? '#e84040' : 'currentColor');
+}
+
+async function toggleVaultPhotoFav() {
+  const f = vaultPhotos[vaultPhotoIdx];
+  if (!f) return;
+  const r = await fetch('/api/vault/favs/' + f.id, { method: 'POST' }).then(r => r.json()).catch(() => null);
+  if (!r) return;
+  if (r.fav) vaultFavIds.add(f.id); else vaultFavIds.delete(f.id);
+  _updateVaultPhotoFavBtn(f.id);
+  document.querySelectorAll('[data-vault-id="' + f.id + '"] .vault-fav-btn').forEach(btn => {
+    btn.classList.toggle('on', r.fav);
+    btn.querySelector('svg path').setAttribute('fill', r.fav ? 'currentColor' : 'none');
+  });
 }
 
 function prevVaultPhoto(manual) {
@@ -1310,11 +1371,179 @@ function closeVaultPhoto() {
   _stopVaultSs();
   _vpReset();
   _vpDetach();
+  closeVaultPhotoMeta();
   $('vaultPhotoOverlay').remove('on');
   $('vaultPhotoImg').el.src = '';
   document.removeEventListener('keydown', _vaultPhotoKey);
   vaultPhotos = [];
   vaultPhotoIdx = -1;
+}
+
+// ── ComfyUI name extraction ───────────────────────────────────────────────
+
+const _vaultNameCache = {}; // id → string | null
+
+function _extractComfyName(meta) {
+  if (meta.prompt) {
+    try {
+      for (const node of Object.values(JSON.parse(meta.prompt))) {
+        if (node.class_type === 'PreviewAny') {
+          const v = (node.inputs || {}).preview_markdown;
+          if (typeof v === 'string' && v.trim()) return v.trim();
+        }
+      }
+    } catch {}
+  }
+  if (meta.workflow) {
+    try {
+      const nodes = JSON.parse(meta.workflow).nodes || [];
+      for (const node of nodes) {
+        if (node.type === 'PreviewAny') {
+          if (Array.isArray(node.widgets_values)) {
+            for (const v of node.widgets_values) {
+              if (typeof v === 'string' && v.trim()) return v.trim();
+            }
+          }
+        }
+      }
+      for (const node of nodes) {
+        if (!Array.isArray(node.widgets_values)) continue;
+        for (const v of node.widgets_values) {
+          if (typeof v === 'string' && v.trim()) return v.trim();
+        }
+      }
+    } catch {}
+  }
+  if (meta.prompt) {
+    try {
+      for (const node of Object.values(JSON.parse(meta.prompt))) {
+        const t = (node.inputs || {}).text;
+        if (typeof t === 'string' && t.trim()) return t.trim();
+      }
+    } catch {}
+  }
+  return null;
+}
+
+async function _resolveVaultName(f) {
+  if (_vaultNameCache[f.id] !== undefined) return _vaultNameCache[f.id];
+  if (f.ext.toLowerCase() !== '.png') { _vaultNameCache[f.id] = null; return null; }
+  try {
+    const buf = await (await fetch('/api/vault/stream/' + f.id, { cache: 'force-cache' })).arrayBuffer();
+    const meta = _parsePngMeta(buf);
+    _vaultNameCache[f.id] = meta ? _extractComfyName(meta) : null;
+  } catch { _vaultNameCache[f.id] = null; }
+  return _vaultNameCache[f.id];
+}
+
+// ── ComfyUI / PNG metadata ────────────────────────────────────────────────
+
+function _parsePngMeta(buf) {
+  const view = new DataView(buf);
+  const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+  for (let i = 0; i < 8; i++) if (view.getUint8(i) !== sig[i]) return null;
+  const latin1 = new TextDecoder('latin1');
+  const utf8 = new TextDecoder('utf-8');
+  const result = {};
+  let pos = 8;
+  while (pos + 12 <= buf.byteLength) {
+    const len = view.getUint32(pos); pos += 4;
+    const type = latin1.decode(new Uint8Array(buf, pos, 4)); pos += 4;
+    if (type === 'IEND') break;
+    if (pos + len > buf.byteLength) break;
+    const data = new Uint8Array(buf, pos, len);
+    if (type === 'tEXt') {
+      const sep = data.indexOf(0);
+      if (sep >= 0) {
+        result[latin1.decode(data.slice(0, sep))] = latin1.decode(data.slice(sep + 1));
+      }
+    } else if (type === 'iTXt') {
+      const sep = data.indexOf(0);
+      if (sep >= 0) {
+        const key = latin1.decode(data.slice(0, sep));
+        let off = sep + 3; // skip null, compression_flag, compression_method
+        while (off < len && data[off] !== 0) off++; off++; // skip lang tag
+        while (off < len && data[off] !== 0) off++; off++; // skip translated key
+        result[key] = utf8.decode(data.slice(off));
+      }
+    }
+    pos += len + 4;
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+let _currentVaultMeta = {};
+
+function copyVaultMeta(key, btn) {
+  const val = _currentVaultMeta[key];
+  if (val == null) return;
+  navigator.clipboard.writeText(val).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  }).catch(() => {
+    btn.textContent = 'Error';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+function _fmtMetaVal(raw) {
+  try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
+}
+
+async function showVaultPhotoMeta() {
+  const panel = document.getElementById('vaultMetaPanel');
+  const body = document.getElementById('vaultMetaBody');
+  if (!panel) return;
+  if (panel.classList.contains('open')) { closeVaultPhotoMeta(); return; }
+  panel.classList.add('open');
+  document.getElementById('vaultMetaBtn').classList.add('on');
+  body.innerHTML = '<div class="vault-meta-loading">Reading metadata\u2026</div>';
+
+  const f = vaultPhotos[vaultPhotoIdx];
+  if (!f || f.ext.toLowerCase() !== '.png') {
+    body.innerHTML = '<div class="vault-meta-empty">No metadata found<br><small style="opacity:.5">Only PNG files supported</small></div>';
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/vault/stream/' + f.id, { cache: 'force-cache' });
+    if (!resp.ok) throw new Error('fetch failed');
+    const buf = await resp.arrayBuffer();
+    const meta = _parsePngMeta(buf);
+    if (!meta) { body.innerHTML = '<div class="vault-meta-empty">No embedded metadata found</div>'; return; }
+
+    _currentVaultMeta = meta;
+
+    const KNOWN = ['workflow', 'prompt', 'parameters', 'comment', 'description', 'Software', 'Creation Time'];
+    const keys = [...new Set([...KNOWN.filter(k => meta[k]), ...Object.keys(meta).filter(k => !KNOWN.includes(k))])];
+
+    body.innerHTML = keys.map(k => {
+      const val = _fmtMetaVal(meta[k]);
+      const safeKey = k.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const safeVal = val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return '<div class="vault-meta-section">' +
+        '<div class="vault-meta-key"><span>' + safeKey + '</span>' +
+        '<button class="vault-meta-copy" onclick="copyVaultMeta(' + JSON.stringify(k) + ',this)">Copy</button></div>' +
+        '<pre class="vault-meta-val">' + safeVal + '</pre>' +
+        '</div>';
+    }).join('');
+  } catch {
+    body.innerHTML = '<div class="vault-meta-empty">Failed to read metadata</div>';
+  }
+}
+
+function closeVaultPhotoMeta() {
+  const panel = document.getElementById('vaultMetaPanel');
+  if (panel) panel.classList.remove('open');
+  const btn = document.getElementById('vaultMetaBtn');
+  if (btn) btn.classList.remove('on');
+  _currentVaultMeta = {};
+}
+
+function openVaultCardMeta(e, id) {
+  e.stopPropagation();
+  openVaultPhoto(id);
+  setTimeout(showVaultPhotoMeta, 80);
 }
 
 function _vaultPhotoKey(e) {

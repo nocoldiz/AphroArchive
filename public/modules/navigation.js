@@ -100,6 +100,7 @@ function goHome() {
   $('settings-sidebar').remove('on');
   if ($('database-view').el) $('database-view').remove('on');
   if ($('database-sidebar').el) $('database-sidebar').remove('on');
+  if (vaultMode || (typeof vaultPromptsMode !== 'undefined' && vaultPromptsMode)) fetch('/api/vault/lock', { method: 'POST' }).catch(() => {});
   vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false; promptsMode = false; categoriesMode = false; if (typeof vaultPromptsMode !== 'undefined') vaultPromptsMode = false;
   curCollection = null;
   $('browse-view').remove('off');
@@ -148,6 +149,7 @@ function closeAllViews() {
     'categories-view','categories-view-sidebar',
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
   document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
+  if (vaultMode || (typeof vaultPromptsMode !== 'undefined' && vaultPromptsMode)) fetch('/api/vault/lock', { method: 'POST' }).catch(() => {});
   vaultMode = false; scraperMode = false; dbMode = false;
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;

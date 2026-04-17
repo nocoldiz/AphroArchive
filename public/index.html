@@ -704,6 +704,9 @@
         <div class="vault-photo-bar">
           <div class="vault-photo-name" id="vaultPhotoName"></div>
           <div class="vault-slideshow-controls">
+          <button class="vault-photo-nav vault-photo-fav" id="vaultPhotoFav" onclick="toggleVaultPhotoFav()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          </button>
           <button class="vault-photo-nav vault-photo-del" id="vaultPhotoDel" onclick="deleteVaultFileFromPlayer(true)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"></polyline>
@@ -723,12 +726,23 @@
             <input class="vault-ss-interval" id="vaultSsInterval" type="number" min="1" max="60" value="4"
               title="Seconds per photo" onclick="event.stopPropagation()" onchange="setVaultSsInterval(this.value)">
             <span class="vault-ss-unit">s</span>
+            <button class="vault-ss-btn" id="vaultMetaBtn" onclick="showVaultPhotoMeta()" title="View metadata">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </button>
           </div>
         </div>
         <div class="vault-ss-progress" id="vaultSsProgress">
           <div class="vault-ss-progress-bar" id="vaultSsProgressBar"></div>
         </div>
         <div class="vault-zoom-badge" id="vaultZoomBadge"></div>
+        <!-- Metadata panel -->
+        <div class="vault-meta-panel" id="vaultMetaPanel">
+          <div class="vault-meta-hdr">
+            <span class="vault-meta-title">Image Metadata</span>
+            <button class="vault-meta-close" onclick="closeVaultPhotoMeta()">&#x2715;</button>
+          </div>
+          <div class="vault-meta-body" id="vaultMetaBody"></div>
+        </div>
       </div>
 
       <!-- Tag Detail View -->

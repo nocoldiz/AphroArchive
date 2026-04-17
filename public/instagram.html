@@ -529,7 +529,7 @@ function formatBytes(b) {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
-  await Promise.all([loadVideos(), checkVaultStatus(), loadPrefs()]);
+  await Promise.all([loadVideos(), checkVaultStatus(), loadPrefs(), loadVaultFavs()]);
   renderStories();
   renderSuggestions();
   setupFeedObserver();
@@ -549,6 +549,13 @@ async function loadVideos() {
     allVideos = await r.json();
     allVideos.forEach(v => { if (v.fav) likedIds.add(v.id); });
   } catch { allVideos = []; }
+}
+
+async function loadVaultFavs() {
+  try {
+    const ids = await fetch('/api/vault/favs').then(r => r.json());
+    if (Array.isArray(ids)) ids.forEach(id => likedIds.add(id));
+  } catch {}
 }
 
 async function checkVaultStatus() {
@@ -1208,7 +1215,8 @@ async function toggleLike(e, id, isVault, fromModal) {
   const likesEl = document.querySelector(`[data-id="${id}"] .ig-post-likes`);
   if (likesEl) likesEl.innerHTML = liked ? '&#10084; Liked' : '';
   if (fromModal) document.getElementById('modal-like-btn')?.classList.toggle('liked', liked);
-  if (!isVault) fetch('/api/favourites/' + id, {method:'POST'}).catch(()=>{});
+  if (isVault) fetch('/api/vault/favs/' + id, {method:'POST'}).catch(()=>{});
+  else fetch('/api/favourites/' + id, {method:'POST'}).catch(()=>{});
 }
 
 function toggleSave(e, id, fromModal) {

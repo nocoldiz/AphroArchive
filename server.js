@@ -208,6 +208,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/prompts/all' && req.method === 'DELETE') return vault.apiVaultPromptsDeleteAll(req, res);
   if ((m = p.match(/^\/api\/vault\/prompts\/([^/]+)$/)) && req.method === 'PUT')    return vault.apiVaultPromptsUpdate(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/prompts\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultPromptsDelete(req, res, m[1]);
+  if (p === '/api/vault/favs' && req.method === 'GET') return vault.apiVaultFavsGet(req, res);
+  if ((m = p.match(/^\/api\/vault\/favs\/([^/]+)$/)) && req.method === 'POST') return vault.apiVaultFavsToggle(req, res, m[1]);
 
   // ── Database ─────────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
