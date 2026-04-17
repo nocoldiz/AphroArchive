@@ -336,6 +336,8 @@ input{font-family:inherit;color:inherit}
 .vault-bc-sep{color:rgba(255,255,255,0.25)}
 .vault-bc-cur{color:#fff;font-weight:500}
 .vault-folders-row{display:flex;flex-wrap:wrap;gap:10px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:16px}
+#vault-auto-folders-row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;-webkit-overflow-scrolling:touch;padding-bottom:12px;scroll-snap-type:x mandatory}
+#vault-auto-folders-row .vault-filter-tile{flex-shrink:0;scroll-snap-align:start}
 .vault-filter-tile{display:flex;flex-direction:column;align-items:center;gap:6px;width:90px;cursor:pointer}
 .vault-filter-icon{width:72px;height:60px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.04);border-radius:8px;border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.55);transition:background var(--tr),border-color var(--tr),color var(--tr)}
 .vault-filter-tile:hover .vault-filter-icon{background:rgba(255,255,255,0.09);color:rgba(255,255,255,0.9)}
@@ -348,6 +350,25 @@ input{font-family:inherit;color:inherit}
 .vault-folder-del{position:absolute;top:3px;right:3px;background:none;border:none;color:rgba(255,255,255,0.25);cursor:pointer;padding:2px;opacity:0;transition:opacity var(--tr)}
 .vault-folder-tile:hover .vault-folder-del{opacity:1}
 .vault-folder-del:hover{color:#e84040}
+.vault-scrape-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:4000;display:flex;align-items:center;justify-content:center}
+.vault-scrape-panel{background:var(--bg2);border:1px solid var(--brd);border-radius:12px;width:min(620px,95vw);max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+.vault-scrape-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,0.07)}
+.vault-scrape-title{font-size:0.95rem;font-weight:600}
+.vault-scrape-close{background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;padding:4px;display:flex;align-items:center}.vault-scrape-close:hover{color:#fff}
+.vault-scrape-ctrl{display:flex;gap:8px;padding:14px 18px;align-items:center}
+.vault-scrape-desc{flex:1;font-size:0.8rem;color:rgba(255,255,255,0.4);line-height:1.4}
+.vault-scrape-run{padding:7px 18px;border-radius:6px;font-size:0.85rem;font-weight:500;background:var(--ac);color:#fff;border:none;cursor:pointer}.vault-scrape-run:hover{opacity:.85}.vault-scrape-run:disabled{opacity:.45;cursor:not-allowed}
+.vault-scrape-stop{background:rgba(255,255,255,0.1)}
+.vault-scrape-prog{padding:0 18px 12px;display:flex;flex-direction:column;gap:6px}
+.vault-scrape-prog-bar{height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden}
+.vault-scrape-prog-fill{height:100%;background:var(--ac);border-radius:2px;transition:width .3s}
+.vault-scrape-prog-text{font-size:0.78rem;color:rgba(255,255,255,0.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vault-scrape-results{overflow-y:auto;flex:1;padding:0 18px 18px;display:flex;flex-direction:column;gap:10px}
+.vault-scrape-result{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.vault-scrape-result-name{font-size:0.78rem;color:rgba(255,255,255,0.4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vault-scrape-result-match{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--tx);font-size:0.85rem}.vault-scrape-result-match:hover{color:var(--ac)}
+.vault-scrape-result-match img{width:60px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0}
+.vault-scrape-no-sites{padding:20px;text-align:center;color:rgba(255,255,255,0.35);font-size:0.85rem}
 .vault-move-menu{position:fixed;z-index:3000;background:var(--bg2,#1e1e1e);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:4px;min-width:150px;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
 .vault-move-menu-title{font-size:0.73rem;color:rgba(255,255,255,0.4);padding:4px 8px 6px;border-bottom:1px solid rgba(255,255,255,0.07);margin-bottom:4px}
 .vault-move-menu button{display:block;width:100%;text-align:left;background:none;border:none;color:rgba(255,255,255,0.8);padding:6px 10px;border-radius:5px;cursor:pointer;font-size:0.83rem}

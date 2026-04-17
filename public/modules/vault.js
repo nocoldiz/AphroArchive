@@ -30,7 +30,9 @@ async function showVault() {
 let vaultThumbMode  = 'hover';
 let vaultThumbsVisible = false;
 let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book' | 'fav' | 'prompt'
+let vaultCatFilter  = null; // null | category key string
 let vaultFavIds = new Set();
+let _vaultCategories = null; // cached categories.json
 
 const VAULT_VIDEO_EXTS = new Set(['.mp4','.webm','.mkv','.mov','.avi','.m4v','.mpg','.mpeg','.wmv','.ts']);
 const VAULT_PHOTO_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif']);
@@ -153,6 +155,12 @@ async function loadVaultView() {
     $('vaultPwConfirm').show(false);
     btn.textContent = 'Unlock';
     btn.onclick = doVaultUnlock;
+    // Restore cooldown if still active from a previous attempt
+    if (s.cooldownRemaining > 0) _startVaultCooldownBar(s.cooldownRemaining);
+    else if (s.failedAttempts > 0) {
+      const bar = document.getElementById('vaultCooldownBar');
+      if (bar) { bar.style.display = ''; bar.textContent = s.failedAttempts + ' of 4 attempts used'; }
+    }
   }
 }
 
@@ -175,17 +183,51 @@ async function doVaultSetup() {
 }
 
 async function doVaultUnlock() {
-  const pw = $('vaultPw').el.value;
+  const pw  = $('vaultPw').el.value;
   const err = $('vaultErr').el;
   const btn = $('vaultAuthBtn').el;
+  const bar = document.getElementById('vaultCooldownBar');
   err.textContent = '';
   btn.disabled = true; btn.textContent = 'Verifying…';
   const r = await fetch('/api/vault/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
   const d = await r.json();
   btn.disabled = false; btn.textContent = 'Unlock';
-  if (!r.ok) { err.textContent = d.error || 'Wrong password'; return; }
+  if (!r.ok) {
+    err.textContent = d.error || 'Wrong password';
+    if (d.cooldown) {
+      _startVaultCooldownBar(d.cooldown);
+    } else if (d.attempts) {
+      if (bar) bar.textContent = d.attempts + ' of 4 attempts used';
+      if (bar) bar.style.display = '';
+    }
+    return;
+  }
+  if (bar) bar.style.display = 'none';
   $('vaultPw').val('');
   loadVaultView();
+}
+
+let _vaultCdTimer = null;
+function _startVaultCooldownBar(seconds) {
+  const bar = document.getElementById('vaultCooldownBar');
+  const btn = document.getElementById('vaultAuthBtn');
+  if (!bar) return;
+  clearInterval(_vaultCdTimer);
+  let rem = seconds;
+  bar.style.display = '';
+  btn.disabled = true;
+  const tick = () => {
+    bar.textContent = 'Too many attempts — wait ' + rem + 's';
+    if (rem <= 0) {
+      clearInterval(_vaultCdTimer);
+      btn.disabled = false;
+      bar.textContent = 'You may try again';
+      return;
+    }
+    rem--;
+  };
+  tick();
+  _vaultCdTimer = setInterval(tick, 1000);
 }
 
 async function lockVault() {
@@ -196,7 +238,7 @@ async function lockVault() {
 async function loadVaultFiles() {
   let vaultSort = 'mtime';
   let vaultSortDir = 'desc';
-vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = null;
+vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = null; vaultCatFilter = null;
   const vsi = $('vaultSearchInput').el;
   if (vsi) vsi.value = '';
   document.querySelectorAll('.vault-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.sort === 'date'));
@@ -218,6 +260,7 @@ vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = n
   vaultFolders = items.filter(f => f.type === 'folder');
   vaultFiles   = items.filter(f => f.type !== 'folder');
   _loadVaultNameCache();
+  await _ensureVaultCategories();
   renderVaultGrid();
   _scanVaultWorkflowNames();
 }
@@ -267,6 +310,7 @@ function renderVaultGrid() {
   _renderVaultBreadcrumb();
   
   const q = vaultQ.toLowerCase();
+  _renderVaultAutoFolders();
 
   // 1. Generate Folder HTML
   // Virtual filter tiles always shown at root; real user folders only at root without search
@@ -314,6 +358,15 @@ function renderVaultGrid() {
     files = q
       ? vaultFiles.filter(f => (f.name || f.originalName).toLowerCase().includes(q))
       : vaultFiles.filter(f => (f.folder || null) === vaultCurFolder);
+  }
+
+  if (vaultCatFilter && _vaultCategories && _vaultCategories[vaultCatFilter]) {
+    const cat = _vaultCategories[vaultCatFilter];
+    const terms = [cat.displayName, ...(cat.tags || [])].map(t => t.toLowerCase());
+    files = files.filter(f => {
+      const name = (_vaultNameCache[f.id] || f.name || f.originalName || '').toLowerCase();
+      return terms.some(t => name.includes(t));
+    });
   }
 
   if (vaultSort === 'size-asc') files.sort((a, b) => a.size - b.size);
@@ -372,6 +425,54 @@ function renderVaultGrid() {
   
   // Update the file grid
   grid.innerHTML = filesHtml;
+}
+
+async function _ensureVaultCategories() {
+  if (_vaultCategories) return _vaultCategories;
+  try { _vaultCategories = await fetch('/api/db/categories').then(r => r.json()); } catch { _vaultCategories = {}; }
+  return _vaultCategories;
+}
+
+function _buildVaultCatMap() {
+  const cats = _vaultCategories;
+  if (!cats) return {};
+  const map = {};
+  for (const f of vaultFiles) {
+    const name = (_vaultNameCache[f.id] || f.name || f.originalName || '').toLowerCase();
+    if (!name) continue;
+    for (const [key, cat] of Object.entries(cats)) {
+      const terms = [cat.displayName, ...(cat.tags || [])].map(t => t.toLowerCase());
+      if (terms.some(t => name.includes(t))) {
+        if (!map[key]) map[key] = { displayName: cat.displayName, count: 0 };
+        map[key].count++;
+      }
+    }
+  }
+  return map;
+}
+
+function _renderVaultAutoFolders() {
+  const row = document.getElementById('vault-auto-folders-row');
+  if (!row) return;
+  if (vaultCurFolder || vaultTypeFilter || vaultQ) { row.innerHTML = ''; row.style.display = 'none'; return; }
+  const map = _buildVaultCatMap();
+  const matched = Object.entries(map).filter(([, v]) => v.count > 0);
+  if (!matched.length) { row.innerHTML = ''; row.style.display = 'none'; return; }
+  const tagIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
+  row.style.display = 'flex';
+  row.innerHTML = matched.sort((a, b) => b[1].count - a[1].count).map(([key, v]) => {
+    const isActive = vaultCatFilter === key;
+    return '<div class="vault-filter-tile' + (isActive ? ' active' : '') + '" onclick="setVaultCatFilter(\'' + escA(key) + '\')">' +
+      '<div class="vault-filter-icon">' + tagIcon + '</div>' +
+      '<div class="vault-folder-name">' + esc(v.displayName) + ' <span style="opacity:.45;font-size:.75em">(' + v.count + ')</span></div>' +
+    '</div>';
+  }).join('');
+}
+
+function setVaultCatFilter(key) {
+  vaultCatFilter = vaultCatFilter === key ? null : key;
+  vaultTypeFilter = null;
+  renderVaultGrid();
 }
 
 function _renderVaultBreadcrumb() {
@@ -1041,13 +1142,27 @@ function openVaultPhoto(id, name) {
   _vpAttach();
 }
 
+let _vaultPhotoBlobUrl = null;
+function _revokeVaultPhotoBlob() {
+  if (_vaultPhotoBlobUrl) { URL.revokeObjectURL(_vaultPhotoBlobUrl); _vaultPhotoBlobUrl = null; }
+}
+
 function _showVaultPhoto() {
   const f = vaultPhotos[vaultPhotoIdx];
   if (!f) return;
   _vpReset();
   closeVaultPhotoMeta();
   const overlay = $('vaultPhotoOverlay').el;
-  $('vaultPhotoImg').el.src = '/api/vault/stream/' + f.id;
+  const imgEl = $('vaultPhotoImg').el;
+  // Revoke previous blob URL before loading new one
+  _revokeVaultPhotoBlob();
+  imgEl.src = '';
+  fetch('/api/vault/stream/' + f.id).then(r => r.blob()).then(blob => {
+    _vaultPhotoBlobUrl = URL.createObjectURL(blob);
+    imgEl.src = _vaultPhotoBlobUrl;
+  }).catch(() => {
+    imgEl.src = '/api/vault/stream/' + f.id; // fallback
+  });
   const cached = _vaultNameCache[f.id];
   $('vaultPhotoName').text(cached || f.name || f.originalName);
   overlay.classList.add('on');
@@ -1377,6 +1492,7 @@ function closeVaultPhoto() {
   _vpDetach();
   closeVaultPhotoMeta();
   $('vaultPhotoOverlay').remove('on');
+  _revokeVaultPhotoBlob();
   $('vaultPhotoImg').el.src = '';
   document.removeEventListener('keydown', _vaultPhotoKey);
   vaultPhotos = [];
@@ -1471,6 +1587,7 @@ async function _scanVaultWorkflowNames() {
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, next));
   _saveVaultNameCache();
+  _renderVaultAutoFolders();
 }
 
 // ── ComfyUI / PNG metadata ────────────────────────────────────────────────
@@ -1767,3 +1884,143 @@ async function deleteVaultDuplicates() {
 }
 
 window.addEventListener('pagehide', () => { navigator.sendBeacon('/api/vault/lock'); });
+
+// ─── Vault Auto-Scrape ────────────────────────────────────────────────────
+
+let _vaultScrapeAbort = false;
+
+function openVaultScrapeModal() {
+  const overlay = document.getElementById('vaultScrapeOverlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  document.getElementById('vaultScrapeResults').innerHTML = '';
+  document.getElementById('vaultScrapeProgress').style.display = 'none';
+  document.getElementById('vaultScrapeStartBtn').style.display = '';
+  document.getElementById('vaultScrapeStopBtn').style.display = 'none';
+}
+
+function closeVaultScrapeModal() {
+  _vaultScrapeAbort = true;
+  document.getElementById('vaultScrapeOverlay').style.display = 'none';
+}
+
+function stopVaultScrape() {
+  _vaultScrapeAbort = true;
+  document.getElementById('vaultScrapeStopBtn').style.display = 'none';
+  document.getElementById('vaultScrapeStartBtn').style.display = '';
+}
+
+async function startVaultScrape() {
+  _vaultScrapeAbort = false;
+
+  const pngs = vaultFiles.filter(f => f.ext.toLowerCase() === '.png');
+  if (!pngs.length) { toast('No PNG files in vault'); return; }
+
+  const resultsEl  = document.getElementById('vaultScrapeResults');
+  const progressEl = document.getElementById('vaultScrapeProgress');
+  const progText   = document.getElementById('vaultScrapeProgText');
+  const progFill   = document.getElementById('vaultScrapeProgFill');
+  const startBtn   = document.getElementById('vaultScrapeStartBtn');
+  const stopBtn    = document.getElementById('vaultScrapeStopBtn');
+
+  resultsEl.innerHTML = '';
+  progressEl.style.display = 'flex';
+  startBtn.style.display = 'none';
+  stopBtn.style.display = '';
+  progFill.style.width = '0%';
+
+  let found = 0;
+  for (let i = 0; i < pngs.length; i++) {
+    if (_vaultScrapeAbort) break;
+    const f = pngs[i];
+    progText.textContent = (i + 1) + ' / ' + pngs.length + ': ' + (f.name || f.originalName);
+    progFill.style.width = ((i + 1) / pngs.length * 100) + '%';
+
+    // force re-read even if previously null so user can re-run after adding images
+    delete _vaultNameCache[f.id];
+    const name = await _resolveVaultName(f);
+
+    if (name) {
+      found++;
+      const titleEl = document.querySelector('[data-vault-id="' + f.id + '"] .card-title');
+      if (titleEl) titleEl.textContent = name;
+      const div = document.createElement('div');
+      div.className = 'vault-scrape-result';
+      div.innerHTML =
+        '<div class="vault-scrape-result-name" title="' + escA(f.originalName) + '">' + esc(f.originalName) + '</div>' +
+        '<div class="vault-scrape-result-match"><span>' + esc(name) + '</span></div>';
+      resultsEl.appendChild(div);
+    }
+  }
+
+  _saveVaultNameCache();
+  _renderVaultAutoFolders();
+  stopBtn.style.display = 'none';
+  startBtn.style.display = '';
+  progText.textContent = 'Done — ' + found + ' name' + (found !== 1 ? 's' : '') + ' extracted from ' + pngs.length + ' PNG' + (pngs.length !== 1 ? 's' : '');
+}
+
+// ── Vault Settings ────────────────────────────────────────────────────
+
+function openVaultSettings() {
+  const panel = document.getElementById('vaultSettingsPanel');
+  if (!panel) return;
+  // Reset fields
+  ['vaultOldPw','vaultNewPw','vaultNewPw2'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const errEl = document.getElementById('vaultChPwErr');
+  if (errEl) errEl.textContent = '';
+  const btn = document.getElementById('vaultChPwBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Change Password'; }
+  panel.style.display = 'flex';
+}
+
+function closeVaultSettings() {
+  const panel = document.getElementById('vaultSettingsPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+async function doVaultChangePassword() {
+  const oldPw = (document.getElementById('vaultOldPw') || {}).value || '';
+  const newPw = (document.getElementById('vaultNewPw') || {}).value || '';
+  const newPw2 = (document.getElementById('vaultNewPw2') || {}).value || '';
+  const errEl = document.getElementById('vaultChPwErr');
+  const btn   = document.getElementById('vaultChPwBtn');
+
+  if (errEl) errEl.textContent = '';
+  if (newPw.length < 6) { if (errEl) errEl.textContent = 'New password must be at least 6 characters'; return; }
+  if (newPw !== newPw2) { if (errEl) errEl.textContent = 'New passwords do not match'; return; }
+
+  btn.disabled = true; btn.textContent = 'Re-encrypting files…';
+
+  const r = await fetch('/api/vault/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw }),
+  });
+  const d = await r.json();
+
+  btn.disabled = false; btn.textContent = 'Change Password';
+
+  if (!r.ok) {
+    if (errEl) errEl.textContent = d.error || 'Failed';
+    return;
+  }
+  closeVaultSettings();
+  toast('Password changed — all files re-encrypted');
+}
+
+async function doVaultDeleteVault() {
+  if (!confirm('WARNING: This will permanently destroy the vault and ALL encrypted files.\n\nThis cannot be undone. All data will be cryptographically shredded.\n\nClick OK to continue.')) return;
+  if (!confirm('FINAL CONFIRMATION: Delete the entire vault?\n\nType OK and click OK to confirm permanent destruction.')) return;
+  const r = await fetch('/api/vault', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm: 'DELETE_VAULT' }),
+  });
+  const d = await r.json();
+  if (!r.ok) { toast(d.error || 'Delete failed'); return; }
+  closeVaultSettings();
+  vaultFiles = []; vaultFolders = [];
+  toast('Vault destroyed');
+  loadVaultView();
+}

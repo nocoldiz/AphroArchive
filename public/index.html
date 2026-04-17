@@ -542,6 +542,7 @@
             autocomplete="new-password" style="display:none"
             onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
           <div class="vault-auth-err" id="vaultErr"></div>
+          <div id="vaultCooldownBar" style="display:none;font-size:12px;color:rgba(255,255,255,.45);margin-bottom:8px;text-align:center"></div>
           <button class="btn-primary vault-auth-btn" id="vaultAuthBtn">Unlock</button>
         </div>
         <div id="vaultFiles" style="display:none">
@@ -612,12 +613,54 @@
                 </svg> Dedup
               </button>
 
+              <button class="vault-lock-btn" onclick="openVaultScrapeModal()" title="Auto-scrape each file online">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  <path d="M11 8v6M8 11h6" stroke-width="2"/>
+                </svg> Scrape
+              </button>
+
               <button class="vault-lock-btn" onclick="lockVault()">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="11" width="18" height="11" rx="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg> Lock
               </button>
+
+              <button class="vault-lock-btn" onclick="openVaultSettings()" title="Vault Settings">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg> Settings
+              </button>
+            </div>
+          </div>
+
+          <!-- Vault Settings Panel -->
+          <div id="vaultSettingsPanel" style="display:none;background:rgba(0,0,0,.6);position:fixed;inset:0;z-index:900;align-items:center;justify-content:center">
+            <div style="background:var(--bg2,#1e1e1e);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:28px;width:380px;max-width:92vw">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                <h3 style="font-size:15px;font-weight:600">Vault Settings</h3>
+                <button onclick="closeVaultSettings()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:18px;line-height:1">&times;</button>
+              </div>
+
+              <!-- Change Password -->
+              <div style="margin-bottom:20px">
+                <div style="font-size:13px;font-weight:500;margin-bottom:10px;color:rgba(255,255,255,.7)">Change Password</div>
+                <input type="password" id="vaultOldPw" class="vault-pw-input" placeholder="Current password" style="margin-bottom:8px">
+                <input type="password" id="vaultNewPw" class="vault-pw-input" placeholder="New password (min 6 chars)" style="margin-bottom:8px">
+                <input type="password" id="vaultNewPw2" class="vault-pw-input" placeholder="Confirm new password" style="margin-bottom:8px">
+                <div id="vaultChPwErr" style="color:#e84040;font-size:12px;min-height:16px;margin-bottom:8px"></div>
+                <button class="btn-primary vault-auth-btn" id="vaultChPwBtn" onclick="doVaultChangePassword()" style="width:100%">Change Password</button>
+              </div>
+
+              <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
+
+              <!-- Delete Vault -->
+              <div>
+                <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:#e84040">Danger Zone</div>
+                <p style="font-size:12px;color:rgba(255,255,255,.45);margin-bottom:10px">Permanently destroy the vault and all encrypted files. This action is irreversible — files are cryptographically shredded.</p>
+                <button onclick="doVaultDeleteVault()" style="background:#e8404022;border:1px solid #e84040;color:#e84040;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;width:100%">Delete Vault</button>
+              </div>
             </div>
           </div>
           <div class="vault-breadcrumb" id="vaultBreadcrumb" style="display:none"></div>
@@ -635,6 +678,7 @@
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg></button>
           </div>
+            <div id="vault-auto-folders-row" class="vault-folders-row" style="display:none"></div>
             <div id="vault-folders-row" class="vault-folders-row"></div>
 
           <div class="vault-sort-row">
@@ -1946,6 +1990,28 @@
   <script src="/modules/data.js"></script>
   <script src="/modules/navigation.js"></script>
   <div id="vaultDragBox" style="position:fixed; border:1px solid var(--accent); background:rgba(232,64,64,0.15); pointer-events:none; z-index:9999; display:none; border-radius:4px;"></div>
+
+  <!-- Vault Auto-Scrape Modal -->
+  <div id="vaultScrapeOverlay" class="vault-scrape-overlay" style="display:none">
+    <div class="vault-scrape-panel">
+      <div class="vault-scrape-hdr">
+        <span class="vault-scrape-title">Auto-scrape Vault</span>
+        <button class="vault-scrape-close" onclick="closeVaultScrapeModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="vault-scrape-ctrl">
+        <span class="vault-scrape-desc">Reads ComfyUI workflow metadata from each PNG to extract its prompt name.</span>
+        <button id="vaultScrapeStartBtn" class="vault-scrape-run" onclick="startVaultScrape()">Start</button>
+        <button id="vaultScrapeStopBtn" class="vault-scrape-run vault-scrape-stop" onclick="stopVaultScrape()" style="display:none">Stop</button>
+      </div>
+      <div id="vaultScrapeProgress" class="vault-scrape-prog" style="display:none">
+        <div class="vault-scrape-prog-bar"><div id="vaultScrapeProgFill" class="vault-scrape-prog-fill"></div></div>
+        <div id="vaultScrapeProgText" class="vault-scrape-prog-text"></div>
+      </div>
+      <div id="vaultScrapeResults" class="vault-scrape-results"></div>
+    </div>
+  </div>
 </body>
 
 </html>
