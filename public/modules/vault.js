@@ -2010,17 +2010,32 @@ async function doVaultChangePassword() {
 }
 
 async function doVaultDeleteVault() {
-  if (!confirm('WARNING: This will permanently destroy the vault and ALL encrypted files.\n\nThis cannot be undone. All data will be cryptographically shredded.\n\nClick OK to continue.')) return;
-  if (!confirm('FINAL CONFIRMATION: Delete the entire vault?\n\nType OK and click OK to confirm permanent destruction.')) return;
+  const input = document.getElementById('vaultDelInput');
+  if (!input || input.value !== 'DELETE') return;
+
+  const btn = document.getElementById('vaultDelBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+
   const r = await fetch('/api/vault', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ confirm: 'DELETE_VAULT' }),
   });
   const d = await r.json();
-  if (!r.ok) { toast(d.error || 'Delete failed'); return; }
+
+  if (!r.ok) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Permanently Delete Vault'; }
+    toast(d.error || 'Delete failed');
+    return;
+  }
+
+  // Reset the confirmation box state
+  if (input) input.value = '';
+  const box = document.getElementById('vaultDelConfirmBox');
+  if (box) box.style.display = 'none';
+
   closeVaultSettings();
   vaultFiles = []; vaultFolders = [];
-  toast('Vault destroyed');
+  toast('Vault permanently destroyed');
   loadVaultView();
 }

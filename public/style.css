@@ -335,6 +335,9 @@ input{font-family:inherit;color:inherit}
 .vault-bc-root{cursor:pointer;color:rgba(255,255,255,0.5)}.vault-bc-root:hover{color:#fff}
 .vault-bc-sep{color:rgba(255,255,255,0.25)}
 .vault-bc-cur{color:#fff;font-weight:500}
+.vault-del-confirm-btn{opacity:.4;transition:opacity .15s}
+.vault-del-confirm-btn:not(:disabled){opacity:1;cursor:pointer}
+.vault-del-confirm-btn:disabled{cursor:not-allowed}
 .vault-folders-row{display:flex;flex-wrap:wrap;gap:10px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:16px}
 #vault-auto-folders-row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;-webkit-overflow-scrolling:touch;padding-bottom:12px;scroll-snap-type:x mandatory}
 #vault-auto-folders-row .vault-filter-tile{flex-shrink:0;scroll-snap-align:start}

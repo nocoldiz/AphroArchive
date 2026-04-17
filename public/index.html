@@ -635,34 +635,6 @@
             </div>
           </div>
 
-          <!-- Vault Settings Panel -->
-          <div id="vaultSettingsPanel" style="display:none;background:rgba(0,0,0,.6);position:fixed;inset:0;z-index:900;align-items:center;justify-content:center">
-            <div style="background:var(--bg2,#1e1e1e);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:28px;width:380px;max-width:92vw">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-                <h3 style="font-size:15px;font-weight:600">Vault Settings</h3>
-                <button onclick="closeVaultSettings()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:18px;line-height:1">&times;</button>
-              </div>
-
-              <!-- Change Password -->
-              <div style="margin-bottom:20px">
-                <div style="font-size:13px;font-weight:500;margin-bottom:10px;color:rgba(255,255,255,.7)">Change Password</div>
-                <input type="password" id="vaultOldPw" class="vault-pw-input" placeholder="Current password" style="margin-bottom:8px">
-                <input type="password" id="vaultNewPw" class="vault-pw-input" placeholder="New password (min 6 chars)" style="margin-bottom:8px">
-                <input type="password" id="vaultNewPw2" class="vault-pw-input" placeholder="Confirm new password" style="margin-bottom:8px">
-                <div id="vaultChPwErr" style="color:#e84040;font-size:12px;min-height:16px;margin-bottom:8px"></div>
-                <button class="btn-primary vault-auth-btn" id="vaultChPwBtn" onclick="doVaultChangePassword()" style="width:100%">Change Password</button>
-              </div>
-
-              <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
-
-              <!-- Delete Vault -->
-              <div>
-                <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:#e84040">Danger Zone</div>
-                <p style="font-size:12px;color:rgba(255,255,255,.45);margin-bottom:10px">Permanently destroy the vault and all encrypted files. This action is irreversible — files are cryptographically shredded.</p>
-                <button onclick="doVaultDeleteVault()" style="background:#e8404022;border:1px solid #e84040;color:#e84040;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;width:100%">Delete Vault</button>
-              </div>
-            </div>
-          </div>
           <div class="vault-breadcrumb" id="vaultBreadcrumb" style="display:none"></div>
           <div class="vault-search-bar">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2010,6 +1982,59 @@
         <div id="vaultScrapeProgText" class="vault-scrape-prog-text"></div>
       </div>
       <div id="vaultScrapeResults" class="vault-scrape-results"></div>
+    </div>
+  </div>
+
+  <!-- Vault Settings Panel — fixed overlay, lives at body level so display:none on parent never hides it -->
+  <div id="vaultSettingsPanel" style="display:none;background:rgba(0,0,0,.72);position:fixed;inset:0;z-index:9000;align-items:center;justify-content:center">
+    <div style="background:var(--bg2,#1e1e1e);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:28px;width:390px;max-width:92vw;max-height:90vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h3 style="font-size:15px;font-weight:600">Vault Settings</h3>
+        <button onclick="closeVaultSettings()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:20px;line-height:1">&times;</button>
+      </div>
+
+      <!-- Change Password -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:13px;font-weight:500;margin-bottom:10px;color:rgba(255,255,255,.7)">Change Password</div>
+        <input type="password" id="vaultOldPw" class="vault-pw-input" placeholder="Current password" style="margin-bottom:8px">
+        <input type="password" id="vaultNewPw" class="vault-pw-input" placeholder="New password (min 6 chars)" style="margin-bottom:8px">
+        <input type="password" id="vaultNewPw2" class="vault-pw-input" placeholder="Confirm new password" style="margin-bottom:8px">
+        <div id="vaultChPwErr" style="color:#e84040;font-size:12px;min-height:16px;margin-bottom:8px"></div>
+        <button class="btn-primary vault-auth-btn" id="vaultChPwBtn" onclick="doVaultChangePassword()" style="width:100%">Change Password</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
+
+      <!-- Delete Vault — inline confirmation, no native confirm() dialogs -->
+      <div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:#e84040">Danger Zone</div>
+        <p style="font-size:12px;color:rgba(255,255,255,.45);margin-bottom:12px">
+          Permanently destroy the vault and <strong style="color:rgba(255,255,255,.65)">all encrypted files</strong>.
+          Files are cryptographically overwritten before deletion. This cannot be undone.
+        </p>
+        <div id="vaultDelConfirmBox" style="display:none;background:#e8404011;border:1px solid #e8404044;border-radius:8px;padding:12px;margin-bottom:10px">
+          <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px">Type <strong style="color:#e84040;font-family:monospace">DELETE</strong> to confirm:</div>
+          <input type="text" id="vaultDelInput" placeholder="DELETE" autocomplete="off" spellcheck="false"
+            style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;padding:7px 10px;border-radius:5px;font-size:13px;margin-bottom:10px"
+            oninput="document.getElementById('vaultDelBtn').disabled=this.value!=='DELETE'">
+          <div style="display:flex;gap:8px">
+            <button onclick="doVaultDeleteVault()" id="vaultDelBtn" disabled
+              style="flex:1;background:#e84040;border:none;color:#fff;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700"
+              class="vault-del-confirm-btn">
+              Permanently Delete Vault
+            </button>
+            <button onclick="document.getElementById('vaultDelConfirmBox').style.display='none';document.getElementById('vaultDelInput').value='';document.getElementById('vaultDelBtn').disabled=true"
+              style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.6);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px">
+              Cancel
+            </button>
+          </div>
+        </div>
+        <button onclick="document.getElementById('vaultDelConfirmBox').style.display='block';document.getElementById('vaultDelInput').focus()"
+          id="vaultDelShowBtn"
+          style="background:#e8404016;border:1px solid #e84040;color:#e84040;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;width:100%">
+          Delete Vault…
+        </button>
+      </div>
     </div>
   </div>
 </body>
