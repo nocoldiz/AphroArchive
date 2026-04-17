@@ -12,6 +12,7 @@ bookmarks_cache.json
 .aider.tags.cache.v4/cache.db
 .aider.tags.cache.v4/cache.db-shm
 .aider.tags.cache.v4/cache.db-wal
-models/hf_bartowski_Llama-3.2-1B-Instruct-Q4_K_M.gguf
+models/llama-3.2-1b-instruct.gguf.gguf
 yt-dlp.exe
 geckodriver.exe
+models/llama-3.2-1b-instruct.gguf

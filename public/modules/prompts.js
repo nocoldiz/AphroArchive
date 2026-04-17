@@ -33,13 +33,11 @@ const PROMPT_SITES = [
   { id: 'lmstudio',   name: 'LM Studio',    url: 'http://localhost:1234',  local: true },
 ];
 
-let _prompts          = [];
-let _editId           = null;   // id being edited, null = new
-let _comfyOk          = false;  // whether ComfyUI was reachable on last check
-let _workflows        = [];     // list of available ComfyUI workflow files
-let _selectedWorkflow = '';     // currently selected workflow name
-let _templateValues   = {};     // template name (no $) → array of string values
-let _valorizedTexts   = {};     // promptId → pre-computed valorized text
+let _prompts        = [];
+let _editId         = null;
+let _searchQuery    = '';
+let _templateValues = {};
+let _valorizedTexts = {};
 
 // ─── View ───
 
@@ -52,16 +50,6 @@ async function showPrompts() {
   if (location.pathname !== '/prompts') history.pushState(null, '', '/prompts');
   await loadPrompts();
   renderPromptsTable();
-  // Background: check ComfyUI status and load workflows
-  Promise.all([
-    fetch('/api/comfyui/status').then(r => r.json()).catch(() => ({ ok: false })),
-    fetch('/api/comfyui/workflows').then(r => r.json()).catch(() => []),
-  ]).then(([status, workflows]) => {
-    _comfyOk   = status.ok;
-    _workflows = Array.isArray(workflows) ? workflows : [];
-    renderComfyWorkflowBar();
-    renderPromptsTable(); // re-render so send buttons reflect comfy state
-  });
 }
 
 async function loadPrompts() {
@@ -69,76 +57,63 @@ async function loadPrompts() {
   catch { _prompts = []; }
 }
 
-// ─── ComfyUI workflow bar ───
+// ─── Search ───
 
-function renderComfyWorkflowBar() {
-  const bar    = document.getElementById('comfyui-workflow-bar');
-  const select = document.getElementById('comfyui-workflow-select');
-  const hint   = document.getElementById('comfyui-bar-hint');
-  if (!bar || !select) return;
-
-  if (!_comfyOk) { bar.style.display = 'none'; return; }
-
-  bar.style.display = 'flex';
-
-  // Rebuild the <select> options
-  const prev = select.value;
-  select.innerHTML = '<option value="">Select workflow…</option>';
-  _workflows.forEach(w => {
-    const opt = document.createElement('option');
-    opt.value       = w.name;
-    opt.textContent = w.name;
-    select.appendChild(opt);
-  });
-
-  // Restore previous selection if still available
-  if (prev && _workflows.some(w => w.name === prev)) {
-    select.value      = prev;
-    _selectedWorkflow = prev;
-  } else {
-    _selectedWorkflow = '';
-  }
-
-  if (_workflows.length === 0) {
-    hint.textContent = 'No workflows found — drop .json files into cache/comfyui-workflows/';
-  } else {
-    hint.textContent = '';
-  }
-}
-
-function onWorkflowSelect(sel) {
-  _selectedWorkflow = sel.value;
-  // Re-render so send buttons enable/disable correctly
+function onPromptsSearch(val) {
+  _searchQuery = val.trim();
   renderPromptsTable();
 }
 
-// ─── Table rendering ───
+function getFilteredPrompts() {
+  if (!_searchQuery) return _prompts;
+  const words = _searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  return _prompts.filter(p => {
+    const hay = [p.title || '', p.text || '', ...(p.tags || [])].join(' ').toLowerCase();
+    return words.some(w => hay.includes(w));
+  });
+}
 
 // ─── Table rendering ───
 
 function renderPromptsTable() {
-  const tbody = document.getElementById('prompts-tbody');
-  const empty = document.getElementById('prompts-empty');
-  const table = document.getElementById('prompts-table');
+  const tbody   = document.getElementById('prompts-tbody');
+  const empty   = document.getElementById('prompts-empty');
+  const table   = document.getElementById('prompts-table');
+  const counter = document.getElementById('prompts-search-count');
   if (!tbody) return;
-  if (!_prompts.length) {
+
+  const filtered = getFilteredPrompts();
+
+  if (counter) {
+    counter.textContent = _searchQuery
+      ? filtered.length + ' / ' + _prompts.length
+      : (_prompts.length ? _prompts.length + ' prompts' : '');
+  }
+
+  if (!filtered.length) {
     table.style.display = 'none';
-    if (empty) empty.style.display = 'flex';
+    if (empty) {
+      empty.style.display = 'flex';
+      const h = empty.querySelector('h3');
+      const p = empty.querySelector('p');
+      if (_searchQuery && _prompts.length) {
+        if (h) h.textContent = 'No matches';
+        if (p) p.textContent = 'Try different keywords.';
+      } else {
+        if (h) h.textContent = 'No prompts yet';
+        if (p) p.innerHTML = 'Click <strong>New Prompt</strong> to add your first AI prompt.';
+      }
+    }
     return;
   }
   table.style.display = '';
   if (empty) empty.style.display = 'none';
 
-  tbody.innerHTML = _prompts.map(p => {
-    // 1. Fetch valorized text if available, fallback to default text
+  tbody.innerHTML = filtered.map(p => {
     const displayText = _valorizedTexts[p.id] || p.text;
-
     const acts = `
       <button class="pt-btn" onclick="openSendPromptModal('${escA(p.id)}')" title="Send prompt">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-      </button>
-      <button class="pt-btn pt-btn-comfy" onclick="sendToComfyUI('${escA(p.id)}')" title="Send to ComfyUI">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
       <button class="pt-btn" onclick="openEditPrompt('${escA(p.id)}')" title="Edit">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -147,7 +122,6 @@ function renderPromptsTable() {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
       </button>
     `;
-
     return `<tr>
       <td class="pt-col-title">
         <div class="pt-title">${esc(p.title)}</div>
@@ -348,23 +322,14 @@ function closePromptModal() {
 // ─── Copy All Prompts ───
 
 async function copyAllPrompts() {
-  if (!_prompts || _prompts.length === 0) {
-    if (typeof toast === 'function') toast('No prompts to copy');
-    else alert('No prompts to copy');
-    return;
-  }
-  
-  // 3. Map over valorized texts and separate prompts with double line breaks to preserve the internal newlines of the full templates
-  const textToCopy = _prompts.map(p => _valorizedTexts[p.id] || p.text).join('\n\n');
-  
+  const visible = getFilteredPrompts();
+  if (!visible.length) { toast('No prompts to copy'); return; }
+  const text = visible.map(p => _valorizedTexts[p.id] || p.text).join('\n\n');
   try {
-    await navigator.clipboard.writeText(textToCopy);
-    if (typeof toast === 'function') toast('Copied ' + _prompts.length + ' prompts');
-    else alert('Copied ' + _prompts.length + ' prompts');
-  } catch (err) {
-    console.error('Failed to copy prompts:', err);
-    if (typeof toast === 'function') toast('Failed to copy prompts');
-    else alert('Failed to copy prompts');
+    await navigator.clipboard.writeText(text);
+    toast('Copied ' + visible.length + ' prompt' + (visible.length !== 1 ? 's' : ''));
+  } catch {
+    toast('Failed to copy');
   }
 }
 async function savePrompt() {

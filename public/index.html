@@ -1041,17 +1041,10 @@
             </button>
           </div>
         </div>
-        <!-- ComfyUI workflow selector — shown only when ComfyUI is reachable -->
-        <div class="comfyui-bar" id="comfyui-workflow-bar" style="display:none">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            style="flex-shrink:0;color:var(--ac)">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-          </svg>
-          <span class="comfyui-bar-label">ComfyUI Workflow:</span>
-          <select id="comfyui-workflow-select" class="comfyui-workflow-select" onchange="onWorkflowSelect(this)">
-            <option value="">Select workflow…</option>
-          </select>
-          <span class="comfyui-bar-hint" id="comfyui-bar-hint"></span>
+        <div class="prompts-search-bar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="prompts-search" placeholder="Filter prompts…" autocomplete="off" spellcheck="false" oninput="onPromptsSearch(this.value)">
+          <span id="prompts-search-count" style="font-size:0.78rem;color:var(--tx2);white-space:nowrap"></span>
         </div>
         <div id="prompts-table-wrap">
           <table id="prompts-table">

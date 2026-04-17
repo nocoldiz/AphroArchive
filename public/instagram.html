@@ -32,10 +32,10 @@
     .ig-nav-spacer { flex: 1; }
 
     /* ── Main content ── */
-    .ig-content { margin-left: 245px; flex: 1; display: flex; align-items: flex-start; padding: 0; min-width: 0; }
+    .ig-content { margin-left: 245px; flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 0; min-width: 0; }
 
     /* ── Feed ── */
-    .ig-feed { flex: 1; min-width: 0; max-width: 540px; padding: 24px 24px 24px 60px; display: flex; flex-direction: column; }
+    .ig-feed { flex: none; width: 680px; max-width: 100%; padding: 24px 12px; display: flex; flex-direction: column; }
     .ig-feed.hidden { display: none; }
 
     /* Stories */
@@ -242,6 +242,47 @@
     .ig-comments-spinner { width: 16px; height: 16px; border: 2px solid #333; border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
     .ig-act-btn.comments-on svg { stroke: #0095f6; }
 
+    /* ── Story viewer ── */
+    .ig-story-viewer {
+      display: none; position: fixed; inset: 0; background: #000; z-index: 2000;
+      flex-direction: column; align-items: center; justify-content: center;
+    }
+    .ig-story-viewer.open { display: flex; }
+    .ig-sv-progress {
+      position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 4px; padding: 10px 12px 0; z-index: 10;
+    }
+    .ig-sv-bar { flex: 1; height: 2px; background: rgba(255,255,255,.35); border-radius: 2px; overflow: hidden; }
+    .ig-sv-bar-fill { height: 100%; background: #fff; width: 0; }
+    .ig-sv-bar-fill.done { width: 100%; }
+    .ig-sv-bar-fill.active { animation: svprogress var(--sv-dur,8s) linear forwards; }
+    @keyframes svprogress { from { width: 0 } to { width: 100% } }
+    .ig-sv-header {
+      position: absolute; top: 22px; left: 0; right: 0; display: flex; align-items: center;
+      justify-content: space-between; padding: 8px 14px; z-index: 10;
+    }
+    .ig-sv-user { display: flex; align-items: center; gap: 10px; }
+    .ig-sv-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #fff; flex-shrink: 0; }
+    .ig-sv-name { font-size: 14px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+    .ig-sv-close { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+    .ig-sv-media {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+    }
+    .ig-sv-media video {
+      width: 100%; height: 100%; object-fit: contain; display: block; max-width: 500px;
+    }
+    .ig-sv-media img {
+      max-width: 500px; max-height: 100%; object-fit: contain; display: block;
+    }
+    .ig-sv-zone {
+      position: absolute; top: 0; bottom: 0; width: 35%; cursor: pointer; z-index: 5;
+    }
+    #ig-sv-prev { left: 0; }
+    #ig-sv-next { right: 0; }
+    .ig-sv-counter {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      font-size: 13px; color: rgba(255,255,255,.7); z-index: 10; text-shadow: 0 1px 3px rgba(0,0,0,.6);
+    }
+
     /* ── Profile view ── */
     .ig-profile { display: none; flex: 1; min-width: 0; padding: 24px 24px 24px 32px; max-width: 540px; }
     .ig-profile.show { display: flex; flex-direction: column; }
@@ -292,10 +333,6 @@
       </svg>
       <span class="ig-nav-logo-text">AphroArchive</span>
     </div>
-    <div onclick="window.location.href='/reddit'" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;cursor:pointer;transition:background .15s;margin-bottom:4px" onmouseover="this.style.background='#1a1a1a'" onmouseout="this.style.background=''">
-      <svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#ff4500"/><ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff"/><circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500"/><circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500"/><path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" stroke-width="1" stroke-linecap="round" fill="none"/></svg>
-      <span class="ig-nav-logo-text" style="font-size:15px;font-weight:600">Reddit Mode</span>
-    </div>
     <div class="ig-nav-item active" id="nav-feed" onclick="showView('feed')">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       <span>Feed</span>
@@ -309,10 +346,7 @@
       <span>Vault Only</span>
     </div>
     <div class="ig-nav-spacer"></div>
-    <div class="ig-nav-item" onclick="window.location.href='/reddit'">
-      <svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#ff4500"/><ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff"/><circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500"/><circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500"/><path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" stroke-width="1" stroke-linecap="round" fill="none"/></svg>
-      <span>Reddit Mode</span>
-    </div>
+
     <div class="ig-nav-item" onclick="window.location.href='/'">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
       <span>Back to Archive</span>
@@ -392,6 +426,23 @@
       <div id="ig-suggestions"></div>
     </div>
   </div>
+</div>
+
+<!-- ── Story viewer ── -->
+<div class="ig-story-viewer" id="ig-story-viewer">
+  <div class="ig-sv-progress" id="ig-sv-progress"></div>
+  <div class="ig-sv-header">
+    <div class="ig-sv-user">
+      <div class="ig-sv-avatar" id="ig-sv-avatar"></div>
+      <span class="ig-sv-name" id="ig-sv-name"></span>
+    </div>
+    <button class="ig-sv-close" onclick="closeStoryViewer()">&#x2715;</button>
+  </div>
+  <div class="ig-sv-media" id="ig-sv-media">
+    <div class="ig-sv-zone" id="ig-sv-prev" onclick="prevStory()"></div>
+    <div class="ig-sv-zone" id="ig-sv-next" onclick="nextStory()"></div>
+  </div>
+  <div class="ig-sv-counter" id="ig-sv-counter"></div>
 </div>
 
 <!-- ── Comments modal ── -->
@@ -673,7 +724,7 @@ function openProfile(key) {
       ? (['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes((item.ext||'').toLowerCase()) ? '/api/vault/stream/'+item.id : '')
       : '/api/thumbs/'+item.id+'/0';
     const liked = likedIds.has(item.id);
-    return `<div class="ig-profile-tile" onclick="openModal(${JSON.stringify(item.id)},${isVault})">
+    return `<div class="ig-profile-tile" onclick="openModal('${item.id}',${isVault})">
       ${thumb ? `<img src="${esc(thumb)}" loading="lazy" alt="" onerror="this.style.display='none'">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#333"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5,3 19,12 5,21"/></svg></div>`}
       <div class="ig-profile-tile-overlay">
         <div class="ig-profile-tile-stat"><svg width="16" height="16" viewBox="0 0 24 24" fill="${liked?'#ed4956':'white'}" stroke="${liked?'#ed4956':'white'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
@@ -817,14 +868,14 @@ function buildPost(item) {
 
   div.innerHTML = `
     <div class="ig-post-header">
-      <div class="ig-post-avatar" style="background:${color};cursor:pointer" onclick="openProfile(${JSON.stringify(profileKey)})">${initial(category)}</div>
+      <div class="ig-post-avatar" style="background:${color};cursor:pointer" onclick="openProfile('${profileKey.replace(/'/g,"\\'")}')">${initial(category)}</div>
       <div class="ig-post-info">
-        <div class="ig-post-username" style="cursor:pointer" onclick="openProfile(${JSON.stringify(profileKey)})">${esc(category)}</div>
+        <div class="ig-post-username" style="cursor:pointer" onclick="openProfile('${profileKey.replace(/'/g,"\\'")}')">${esc(category)}</div>
         <div class="ig-post-meta">${timeAgo(mtime)}</div>
       </div>
       <button class="ig-post-menu" title="More">&#8943;</button>
     </div>
-    <div class="ig-post-media" onclick="openModal(${JSON.stringify(item.id)},${isVault})">
+    <div class="ig-post-media" onclick="openModal('${item.id}',${isVault})">
       ${thumbSrc ? `<img src="${esc(thumbSrc)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
       ${!thumbSrc ? `<div class="ig-placeholder"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.5"><polygon points="5,3 19,12 5,21"/></svg><span style="font-size:12px;color:#444">${esc(name)}</span></div>` : ''}
       <div class="ig-play-overlay" style="z-index:2">
@@ -841,7 +892,7 @@ function buildPost(item) {
       <button class="ig-act-btn${isLiked?' liked':''}" title="Like" onclick="toggleLike(event,'${esc(item.id)}',${isVault})">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
       </button>
-      <button class="ig-act-btn" title="Open" onclick="openModal(${JSON.stringify(item.id)},${isVault})">
+      <button class="ig-act-btn" title="Open" onclick="openModal('${item.id}',${isVault})">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </button>
       ${igAiCommentsEnabled ? `<button class="ig-act-btn" title="Comments" data-comments-btn="${esc(item.id)}" onclick="toggleIgComments(event,this,'${esc(item.id)}','${esc(name).replace(/'/g,"\\'")}')">
@@ -869,6 +920,89 @@ function unmutePost(e, badge) {
   badge.style.display = 'none';
 }
 
+// ── Story viewer ───────────────────────────────────────────────────────────
+let svItems = [];
+let svIndex = 0;
+let svTimer = null;
+
+function openStoryViewer(cat) {
+  svItems = allVideos.filter(v => (v.category || 'Uncategorized') === cat);
+  if (!svItems.length) { openProfile('cat:' + cat); return; }
+  svIndex = 0;
+  const color = strColor(cat);
+  document.getElementById('ig-sv-avatar').style.background = color;
+  document.getElementById('ig-sv-avatar').textContent = initial(cat);
+  document.getElementById('ig-sv-name').textContent = cat;
+  document.getElementById('ig-story-viewer').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  showStory(0);
+}
+
+function closeStoryViewer() {
+  clearSvTimer();
+  const media = document.getElementById('ig-sv-media');
+  const vid = media.querySelector('video');
+  if (vid) { vid.pause(); vid.src = ''; }
+  document.getElementById('ig-story-viewer').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function clearSvTimer() {
+  if (svTimer) { clearTimeout(svTimer); svTimer = null; }
+}
+
+function showStory(idx) {
+  clearSvTimer();
+  if (idx < 0 || idx >= svItems.length) { closeStoryViewer(); return; }
+  svIndex = idx;
+
+  const item = svItems[idx];
+  const streamUrl = '/api/stream/' + item.id;
+  const thumbSrc = '/api/thumbs/' + item.id + '/0';
+
+  const media = document.getElementById('ig-sv-media');
+  const prev = media.querySelector('video');
+  if (prev) { prev.pause(); prev.src = ''; }
+
+  const vid = document.createElement('video');
+  vid.src = streamUrl;
+  vid.autoplay = true;
+  vid.playsInline = true;
+  vid.controls = false;
+  vid.poster = thumbSrc;
+  vid.style.cssText = 'width:100%;height:100%;object-fit:contain;max-width:500px;display:block';
+
+  const prevZone = document.getElementById('ig-sv-prev');
+  const nextZone = document.getElementById('ig-sv-next');
+  media.innerHTML = '';
+  media.appendChild(vid);
+  media.appendChild(prevZone);
+  media.appendChild(nextZone);
+
+  // progress bars
+  const prog = document.getElementById('ig-sv-progress');
+  prog.innerHTML = svItems.map((_, i) => `<div class="ig-sv-bar"><div class="ig-sv-bar-fill${i < idx ? ' done' : ''}"></div></div>`).join('');
+  const fills = prog.querySelectorAll('.ig-sv-bar-fill');
+
+  vid.addEventListener('loadedmetadata', () => {
+    const dur = vid.duration || 8;
+    fills[idx].style.setProperty('--sv-dur', dur + 's');
+    fills[idx].classList.add('active');
+    svTimer = setTimeout(() => nextStory(), dur * 1000);
+  }, { once: true });
+
+  vid.addEventListener('error', () => {
+    fills[idx].style.setProperty('--sv-dur', '5s');
+    fills[idx].classList.add('active');
+    svTimer = setTimeout(() => nextStory(), 5000);
+  }, { once: true });
+
+  document.getElementById('ig-sv-counter').textContent = (idx + 1) + ' / ' + svItems.length;
+}
+
+function nextStory() { showStory(svIndex + 1); }
+function prevStory() { showStory(svIndex - 1); }
+
 // ── Stories ────────────────────────────────────────────────────────────────
 function renderStories() {
   const el = document.getElementById('ig-stories');
@@ -876,30 +1010,11 @@ function renderStories() {
   if (!cats.length) { el.innerHTML = ''; return; }
   el.innerHTML = cats.map(cat => {
     const color = strColor(cat);
-    return `<div class="ig-story" onclick="filterByCat(${JSON.stringify(cat)})">
+    return `<div class="ig-story" onclick="openStoryViewer('${cat.replace(/'/g,"\\'")}')">
       <div class="ig-story-ring"><div class="ig-story-inner" style="background:${color}">${initial(cat)}</div></div>
       <span class="ig-story-name">${esc(cat)}</span>
     </div>`;
   }).join('');
-}
-
-function filterByCat(cat) {
-  document.querySelectorAll('.ig-post-media video').forEach(v => { v.pause(); v.src = ''; });
-  feedPage = 0; feedDone = false; feedLoading = false;
-  document.getElementById('ig-posts').innerHTML = '';
-  document.getElementById('ig-feed-status').innerHTML = '<div class="ig-spinner"></div>';
-  const items = cat
-    ? allVideos.filter(v => (v.category||'Uncategorized') === cat).map(v => ({...v,_vault:false}))
-    : getFeedItems();
-  const container = document.getElementById('ig-posts');
-  items.slice(0, PAGE_SIZE).forEach(item => { const el = buildPost(item); container.appendChild(el); observePost(el); });
-  if (items.length <= PAGE_SIZE) {
-    document.getElementById('ig-feed-status').innerHTML = '<div class="ig-end-msg">You\'re all caught up</div>';
-    feedDone = true;
-  } else {
-    document.getElementById('ig-feed-status').innerHTML = '';
-    feedPage = 1;
-  }
 }
 
 // ── Suggestions ────────────────────────────────────────────────────────────
@@ -910,9 +1025,12 @@ function renderSuggestions() {
     const color = strColor(cat);
     const count = allVideos.filter(v => (v.category||'Uncategorized') === cat).length;
     return `<div class="ig-sug-item">
-      <div class="ig-sug-avatar" style="background:${color}">${initial(cat)}</div>
-      <div class="ig-sug-info"><div class="ig-sug-name">${esc(cat)}</div><div class="ig-sug-sub">${count} video${count!==1?'s':''}</div></div>
-      <button class="ig-sug-btn" onclick="filterByCat(${JSON.stringify(cat)})">View</button>
+      <div class="ig-sug-avatar" style="background:${color};cursor:pointer" onclick="openProfile('cat:${cat.replace(/'/g,"\\'")}')"><span>${initial(cat)}</span></div>
+      <div class="ig-sug-info">
+        <div class="ig-sug-name" style="cursor:pointer" onclick="openProfile('cat:${cat.replace(/'/g,"\\'")}')"><span>${esc(cat)}</span></div>
+        <div class="ig-sug-sub">${count} video${count!==1?'s':''}</div>
+      </div>
+      <button class="ig-sug-btn" onclick="openProfile('cat:${cat.replace(/'/g,"\\'")}')">View</button>
     </div>`;
   }).join('');
 }
@@ -930,7 +1048,7 @@ function renderExplore() {
     const ext = (item.ext||'').toLowerCase();
     const isImg = isVault && ['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes(ext);
     const thumbSrc = isVault && isImg ? '/api/vault/stream/'+item.id : (!isVault ? '/api/thumbs/'+item.id+'/0' : '');
-    return `<div class="ig-explore-item" onclick="openModal(${JSON.stringify(item.id)},${isVault})">
+    return `<div class="ig-explore-item" onclick="openModal('${item.id}',${isVault})">
       ${thumbSrc ? `<img src="${esc(thumbSrc)}" alt="${esc(name)}" loading="lazy">` : `<div class="ig-explore-placeholder"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5"><polygon points="5,3 19,12 5,21"/></svg></div>`}
       <div class="ig-explore-overlay"><span><svg width="16" height="16" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></span></div>
       ${isVault ? '<div class="ig-explore-vault"></div>' : ''}
@@ -963,8 +1081,8 @@ async function openModal(id, isVault) {
   const profileKey = isVault ? ('vault:' + (item.folder || '__root__')) : ('cat:' + category);
 
   headerEl.innerHTML = `
-    <div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0;cursor:pointer" onclick="openProfile(${JSON.stringify(profileKey)});closeModal()">${initial(category)}</div>
-    <div class="ig-modal-info"><div class="ig-modal-username" style="cursor:pointer" onclick="openProfile(${JSON.stringify(profileKey)});closeModal()">${esc(category)}</div><div class="ig-modal-meta">${timeAgo(item.mtime||0)}</div></div>`;
+    <div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0;cursor:pointer" onclick="openProfile('${profileKey.replace(/'/g,"\\'")}');closeModal()">${initial(category)}</div>
+    <div class="ig-modal-info"><div class="ig-modal-username" style="cursor:pointer" onclick="openProfile('${profileKey.replace(/'/g,"\\'")}');closeModal()">${esc(category)}</div><div class="ig-modal-meta">${timeAgo(item.mtime||0)}</div></div>`;
 
   bodyEl.innerHTML = `
     <div class="ig-modal-title"><strong style="font-weight:600;margin-right:6px">${esc(category)}</strong>${esc(name)}</div>
@@ -1100,7 +1218,13 @@ window.addEventListener('scroll', () => {
 });
 
 // ── Keyboard ───────────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeCommentsModal(); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); closeCommentsModal(); closeStoryViewer(); }
+  if (document.getElementById('ig-story-viewer').classList.contains('open')) {
+    if (e.key === 'ArrowRight') nextStory();
+    if (e.key === 'ArrowLeft') prevStory();
+  }
+});
 document.getElementById('ig-modal').addEventListener('click', e => { if (e.target === document.getElementById('ig-modal')) closeModal(); });
 
 init();

@@ -12,10 +12,8 @@ const { CACHE_DIR } = require('./config-server');
 const MODELS_DIR   = path.join(process.cwd(), 'models');
 const MODEL_FILE   = path.join(MODELS_DIR, 'llama-3.2-1b-instruct.gguf');
 
-let getLlama, LlamaChatSession;
-try {
-  ({ getLlama, LlamaChatSession } = require('node-llama-cpp'));
-} catch { /* package not installed */ }
+let getLlama      = null;
+let LlamaChatSession = null;
 
 let llama      = null;
 let model      = null;
@@ -26,13 +24,15 @@ async function initCommentsModel() {
   const prefs = loadPrefs();
   if (!prefs.aiCommentsEnabled) return;
 
-  if (!getLlama) {
-    console.warn('[comments] node-llama-cpp not installed — AI comments disabled');
+  if (!fs.existsSync(MODEL_FILE)) {
+    console.warn('[comments] Model file not found:', MODEL_FILE);
     return;
   }
 
-  if (!fs.existsSync(MODEL_FILE)) {
-    console.warn('[comments] Model file not found:', MODEL_FILE);
+  try {
+    ({ getLlama, LlamaChatSession } = await import('node-llama-cpp'));
+  } catch (e) {
+    console.warn('[comments] node-llama-cpp not installed — AI comments disabled:', e.message);
     return;
   }
 
@@ -69,11 +69,15 @@ async function generateComments(videoId, videoName) {
 
   console.log('[comments] generating for "' + videoName + '"…');
   const session  = new LlamaChatSession({ contextSequence: ctx.getSequence() });
-  const prompt   =
-    'Generate between 3 and 5 realistic, casual internet comments that someone might write after watching a video called \'' +
-    videoName.replace(/'/g, "\\'") +
-    '\'. Return ONLY a valid JSON array of strings, no explanation, no markdown, just the array.';
-
+const prompt = 
+    'Generate between 3 and 5 realistic, casual, vulgar internet comments that real users would post under a porn video titled "' +
+    videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') +
+    '".\n\n' +
+    'Make the comments sound like typical Pornhub / Xvideos / Reddit comments: short, thirsty, explicit, with slang, typos, emojis, and dirty talk. ' +
+    'Include words like fuck, pussy, cock, cum, creampie, riding, moaning, slut, etc. when it fits naturally.\n\n' +
+    'Vary them: some very short and horny, some praising the performer or specific acts, some funny or exaggerated.\n\n' +
+    'Return ONLY a valid JSON array of strings like this: ["comment 1", "comment 2", ...]\n' +
+    'No explanation, no extra text, no markdown, no numbering — just the raw JSON array.';
   let raw = await session.prompt(prompt);
   raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
@@ -108,12 +112,13 @@ function fallbackComments(videoName) {
 async function apiGenerateComments(req, res) {
   const body = await readBody(req);
   const { videoId, videoName } = body;
-  console.log('[comments] request — videoId=' + videoId + ' videoName="' + videoName + '"');
   if (!videoId || !videoName) return json(res, { error: 'Missing videoId or videoName' }, 400);
 
   const prefs = loadPrefs();
-  console.log('[comments] prefs.aiCommentsEnabled =', prefs.aiCommentsEnabled);
   if (!prefs.aiCommentsEnabled) return json(res, { error: 'AI comments disabled' }, 400);
+
+  // ADD THIS LINE: Try to initialize the model if it isn't ready yet
+  await reinitIfNeeded(); 
 
   try {
     let comments;

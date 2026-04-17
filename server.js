@@ -231,6 +231,7 @@ const server = http.createServer(async (req, res) => {
   // ── Prompts ──────────────────────────────────────────────────────────
   if (p === '/api/prompts' && req.method === 'GET')    return prompts.apiGetPrompts(req, res);
   if (p === '/api/prompts' && req.method === 'POST')   return prompts.apiAddPrompt(req, res);
+  if (p === '/api/prompts/all' && req.method === 'DELETE') return prompts.apiDeleteAllPrompts(req, res);
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'PATCH')  return prompts.apiUpdatePrompt(req, res, m[1]);
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'DELETE') return prompts.apiDeletePrompt(req, res, m[1]);
   if (p === '/api/comfyui/status'    && req.method === 'GET')  return prompts.apiComfyStatus(req, res);
