@@ -27,7 +27,21 @@ async function showVault() {
   initVaultAutoHide(); 
   initVaultShiftSelection(); 
 }
-let vaultThumbMode = 'hover'; // Options: 'show', 'hide', 'hover'
+let vaultThumbMode  = 'hover';
+let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book'
+
+const VAULT_VIDEO_EXTS = new Set(['.mp4','.webm','.mkv','.mov','.avi','.m4v','.mpg','.mpeg','.wmv','.ts']);
+const VAULT_PHOTO_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif']);
+const VAULT_AUDIO_EXTS = new Set(['.mp3','.flac','.wav','.ogg','.aac','.m4a','.opus','.wma']);
+const VAULT_BOOK_EXTS  = new Set(['.pdf','.epub','.txt','.mobi','.azw','.azw3','.cbz','.cbr']);
+
+const VAULT_FILTER_TILES = [
+  { key: 'video', label: 'Videos', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 9l5-3v12l-5-3V9z"/></svg>' },
+  { key: 'photo', label: 'Photos', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>' },
+  { key: 'audio', label: 'Audio',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
+  { key: 'book',  label: 'Books',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>' },
+  { key: 'prompt',label: 'Prompts',icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>' },
+];
 let shiftKeyPressed = false;
 let isVaultDragging = false;
 let vDragStartX, vDragStartY;
@@ -179,7 +193,7 @@ async function lockVault() {
 async function loadVaultFiles() {
   let vaultSort = 'mtime';
   let vaultSortDir = 'desc';
-vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null;
+vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = null;
   const vsi = $('vaultSearchInput').el;
   if (vsi) vsi.value = '';
   document.querySelectorAll('.vault-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.sort === 'date'));
@@ -199,6 +213,33 @@ vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null;
   renderVaultGrid();
 }
 
+function setVaultTypeFilter(key) {
+  vaultTypeFilter = vaultTypeFilter === key ? null : key;
+  renderVaultGrid();
+}
+
+async function showVaultPrompts() {
+  closeAllViews();
+  vaultPromptsMode = true;
+  const backBtn = document.getElementById('vault-prompts-back-btn');
+  if (backBtn) backBtn.style.display = '';
+  _searchQuery = '';
+  const si = document.getElementById('prompts-search');
+  if (si) si.value = '';
+  $('prompts-view').add('on');
+  $('vault-sidebar').add('on');
+  await loadPrompts();
+  renderPromptsTable();
+  if (location.pathname !== '/vault/prompts') history.pushState(null, '', '/vault/prompts');
+}
+
+function closeVaultPrompts() {
+  vaultPromptsMode = false;
+  const backBtn = document.getElementById('vault-prompts-back-btn');
+  if (backBtn) backBtn.style.display = 'none';
+  showVault();
+}
+
 function renderVaultGrid() {
   const grid = $('vaultGrid').el;
   const empty = $('vaultEmpty').el;
@@ -208,9 +249,23 @@ function renderVaultGrid() {
   const q = vaultQ.toLowerCase();
 
   // 1. Generate Folder HTML
-  // folders only show in root and only when not searching
+  // Virtual filter tiles always shown at root; real user folders only at root without search
+  let filterHtml = '';
+  if (!vaultCurFolder) {
+    filterHtml = VAULT_FILTER_TILES.map(t => {
+      const isActive = vaultTypeFilter === t.key;
+      const onclick  = t.key === 'prompt'
+        ? 'showVaultPrompts()'
+        : 'setVaultTypeFilter(\'' + t.key + '\')';
+      return '<div class="vault-filter-tile' + (isActive ? ' active' : '') + '" onclick="' + onclick + '">' +
+        '<div class="vault-filter-icon">' + t.icon + '</div>' +
+        '<div class="vault-folder-name">' + t.label + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
   let folderHtml = '';
-  if (!vaultCurFolder && !q) {
+  if (!vaultCurFolder && !q && !vaultTypeFilter) {
     folderHtml = vaultFolders.map(f =>
       '<div class="vault-folder-tile fade-in" data-vault-id="' + escA(f.id) + '">' +
         '<div class="vault-folder-icon" onclick="enterVaultFolder(\'' + escA(f.id) + '\',\'' + escA(f.name) + '\')">' +
@@ -223,24 +278,33 @@ function renderVaultGrid() {
   }
 
   // 2. Filter and Sort Files
-  let files = q
-    ? vaultFiles.filter(f => (f.name || f.originalName).toLowerCase().includes(q))
-    : vaultFiles.filter(f => (f.folder || null) === vaultCurFolder);
+  let files;
+  if (vaultTypeFilter) {
+    const extSet = vaultTypeFilter === 'video' ? VAULT_VIDEO_EXTS
+                 : vaultTypeFilter === 'photo' ? VAULT_PHOTO_EXTS
+                 : vaultTypeFilter === 'audio' ? VAULT_AUDIO_EXTS
+                 : VAULT_BOOK_EXTS;
+    files = vaultFiles.filter(f => extSet.has((f.ext || '').toLowerCase()));
+    if (q) files = files.filter(f => (f.name || f.originalName).toLowerCase().includes(q));
+  } else {
+    files = q
+      ? vaultFiles.filter(f => (f.name || f.originalName).toLowerCase().includes(q))
+      : vaultFiles.filter(f => (f.folder || null) === vaultCurFolder);
+  }
 
   if (vaultSort === 'size-asc') files.sort((a, b) => a.size - b.size);
   else if (vaultSort === 'size-desc') files.sort((a, b) => b.size - a.size);
   else if (vaultSort === 'name') files.sort((a, b) => (a.name || a.originalName).localeCompare(b.name || b.originalName));
 
-  // 3. Handle Empty State 
-  // (We check both folderHtml and files.length)
-  if (!folderHtml && !files.length) {
+  // 3. Handle Empty State
+  if (!filterHtml && !folderHtml && !files.length) {
     if (folderRow) folderRow.innerHTML = '';
     grid.innerHTML = '';
     empty.style.display = 'block';
     empty.querySelector('p').textContent = vaultQ ? 'No results for "' + vaultQ + '"' : (vaultCurFolder ? 'This folder is empty' : 'Add video files using the button above');
     return;
   }
-  
+
   empty.style.display = 'none';
 
   // 4. Generate Files HTML
@@ -271,11 +335,9 @@ function renderVaultGrid() {
   }).join('');
 
   // 5. Render to DOM
-  // Update the dedicated folder row
   if (folderRow) {
-    folderRow.innerHTML = folderHtml;
-    // Toggle visibility of the row container if it's empty
-    folderRow.style.display = folderHtml ? 'flex' : 'none';
+    folderRow.innerHTML = filterHtml + folderHtml;
+    folderRow.style.display = (filterHtml || folderHtml) ? 'flex' : 'none';
   }
   
   // Update the file grid
@@ -889,7 +951,7 @@ window.addEventListener('mousemove', (e) => {
 
 window.addEventListener('mouseup', () => {
   isDraggingVault = false;
-  dragBox.style.display = 'none';
+  if (dragBox) dragBox.style.display = 'none';
 });
 
 async function deleteSelectedVaultFiles() {

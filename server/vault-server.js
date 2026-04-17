@@ -344,8 +344,89 @@ async function apiVaultCreateTextFile(req, res) {
   
   json(res, { ok: true, id });
 }
+// ── Vault Prompts (encrypted JSON) ───────────────────────────────────
+
+const VAULT_PROMPTS_FILE = path.join(VAULT_DIR, '_vault_prompts.enc');
+
+function _encryptJson(data) {
+  const iv     = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+  const plain  = Buffer.from(JSON.stringify(data), 'utf8');
+  const enc    = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([iv, enc, cipher.getAuthTag()]);
+}
+
+function _decryptJson(buf) {
+  const iv  = buf.slice(0, 12);
+  const tag = buf.slice(buf.length - 16);
+  const enc = buf.slice(12, buf.length - 16);
+  const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+  dec.setAuthTag(tag);
+  return JSON.parse(Buffer.concat([dec.update(enc), dec.final()]).toString('utf8'));
+}
+
+function _loadVaultPrompts() {
+  if (!fs.existsSync(VAULT_PROMPTS_FILE)) return [];
+  try { return _decryptJson(fs.readFileSync(VAULT_PROMPTS_FILE)); } catch { return []; }
+}
+
+function _saveVaultPrompts(arr) {
+  if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
+  fs.writeFileSync(VAULT_PROMPTS_FILE, _encryptJson(arr));
+}
+
+function apiVaultPromptsGet(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  json(res, _loadVaultPrompts());
+}
+
+async function apiVaultPromptsAdd(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body  = await readBody(req);
+  const text  = (body.text || '').trim();
+  const title = (body.title || '').trim();
+  if (!text) return json(res, { error: 'text required' }, 400);
+  const arr = _loadVaultPrompts();
+  const p   = { id: crypto.randomUUID(), title, text, tags: Array.isArray(body.tags) ? body.tags : [], createdAt: Date.now() };
+  arr.unshift(p);
+  _saveVaultPrompts(arr);
+  json(res, p);
+}
+
+async function apiVaultPromptsUpdate(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body = await readBody(req);
+  const arr  = _loadVaultPrompts();
+  const idx  = arr.findIndex(p => p.id === id);
+  if (idx < 0) return json(res, { error: 'not found' }, 404);
+  if (body.title !== undefined) arr[idx].title = body.title;
+  if (body.text  !== undefined) arr[idx].text  = body.text.trim();
+  if (Array.isArray(body.tags)) arr[idx].tags  = body.tags;
+  _saveVaultPrompts(arr);
+  json(res, arr[idx]);
+}
+
+function apiVaultPromptsDelete(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  _saveVaultPrompts(_loadVaultPrompts().filter(p => p.id !== id));
+  json(res, { ok: true });
+}
+
+function apiVaultPromptsDeleteAll(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  _saveVaultPrompts([]);
+  json(res, { ok: true });
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
-  apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultMoveFile,apiVaultCreateTextFile
+  apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultMoveFile, apiVaultCreateTextFile,
+  apiVaultPromptsGet, apiVaultPromptsAdd, apiVaultPromptsUpdate,
+  apiVaultPromptsDelete, apiVaultPromptsDeleteAll,
 };

@@ -203,6 +203,11 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/download\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultDownload(req, res, m[1]);
   if (p === '/api/vault/folders' && req.method === 'POST') return vault.apiVaultCreateFolder(req, res);
   if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDeleteFolder(req, res, m[1]);
+  if (p === '/api/vault/prompts' && req.method === 'GET')    return vault.apiVaultPromptsGet(req, res);
+  if (p === '/api/vault/prompts' && req.method === 'POST')   return vault.apiVaultPromptsAdd(req, res);
+  if (p === '/api/vault/prompts/all' && req.method === 'DELETE') return vault.apiVaultPromptsDeleteAll(req, res);
+  if ((m = p.match(/^\/api\/vault\/prompts\/([^/]+)$/)) && req.method === 'PUT')    return vault.apiVaultPromptsUpdate(req, res, m[1]);
+  if ((m = p.match(/^\/api\/vault\/prompts\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultPromptsDelete(req, res, m[1]);
 
   // ── Database ─────────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);

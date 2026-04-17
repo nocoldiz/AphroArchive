@@ -319,6 +319,11 @@ input{font-family:inherit;color:inherit}
 .vault-bc-sep{color:rgba(255,255,255,0.25)}
 .vault-bc-cur{color:#fff;font-weight:500}
 .vault-folders-row{display:flex;flex-wrap:wrap;gap:10px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:16px}
+.vault-filter-tile{display:flex;flex-direction:column;align-items:center;gap:6px;width:90px;cursor:pointer}
+.vault-filter-icon{width:72px;height:60px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.04);border-radius:8px;border:1px solid rgba(255,255,255,0.07);color:rgba(255,255,255,0.55);transition:background var(--tr),border-color var(--tr),color var(--tr)}
+.vault-filter-tile:hover .vault-filter-icon{background:rgba(255,255,255,0.09);color:rgba(255,255,255,0.9)}
+.vault-filter-tile.active .vault-filter-icon{background:var(--acg,rgba(232,64,64,0.12));border-color:var(--ac,#e84040);color:var(--ac,#e84040)}
+.vault-filter-tile.active .vault-folder-name{color:var(--ac,#e84040)}
 .vault-folder-tile{display:flex;flex-direction:column;align-items:center;gap:6px;width:90px;position:relative}
 .vault-folder-icon{color:var(--ac,#e84040);cursor:pointer;width:72px;height:60px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.04);border-radius:8px;border:1px solid rgba(255,255,255,0.07);transition:background var(--tr)}
 .vault-folder-icon:hover{background:rgba(255,255,255,0.09)}

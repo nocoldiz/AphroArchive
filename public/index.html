@@ -546,11 +546,8 @@
         </div>
         <div id="vaultFiles" style="display:none">
           <div class="section-header">
-            <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-                <rect x="3" y="11" width="18" height="11" rx="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>Vault</h2>
+            <h2>
+                Vault</h2>
             <div style="display:flex;gap:8px;align-items:center">
               <label class="vault-add-label" for="vaultFileIn">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -769,10 +766,8 @@
       <!-- Categories View -->
       <div class="categories-view" id="categories-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>Categories &amp; Tags</h2>
+          <h2>
+             Categories &amp; Tags</h2>
         </div>
         <div class="cv-toolbar">
           <span class="au-toolbar-label">Sort:</span>
@@ -860,10 +855,7 @@
       <!-- Books View -->
       <div class="books-view" id="books-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          <h2>
             </svg>Books</h2>
         </div>
 
@@ -881,11 +873,7 @@
       <!-- Audio View -->
       <div class="audio-view" id="audio-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <path d="M9 18V5l12-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
+          <h2>
             </svg>Audio</h2>
         </div>
         <div class="au-toolbar">
@@ -948,11 +936,7 @@
       <!-- Photos View -->
       <div class="photos-view" id="photos-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
+          <h2>
             </svg>Photos</h2>
         </div>
         <div class="ph-toolbar">
@@ -998,11 +982,11 @@
       <!-- Prompts View -->
       <div class="prompts-view" id="prompts-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>AI Prompts</h2>
+          <h2>AI Prompts</h2>
           <div class="section-controls">
+            <button id="vault-prompts-back-btn" class="sort-btn" style="display:none" onclick="closeVaultPrompts()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:-1px"><polyline points="15 18 9 12 15 6"/></svg>Back to Vault
+            </button>
             <button class="sort-btn" onclick="copyAllPrompts()" title="Copy all prompts to clipboard">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="11" height="11" rx="2" ry="2"></rect>
@@ -1070,12 +1054,7 @@
       <!-- Search Sites View -->
       <div class="search-sites-view" id="search-sites-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-              <path d="M11 8v6M8 11h6" />
-            </svg>Search</h2>
+          <h2>Search</h2>
         </div>
         <div class="ss-tabs">
           <button class="ss-tab on" id="ss-tab-cards" onclick="ssSwitchTab('cards')">Cards</button>
@@ -1144,10 +1123,7 @@
       <!-- Bookmarks View -->
       <div class="import-favs-view" id="import-favs-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>Bookmarks</h2>
+          <h2>Bookmarks</h2>
         </div>
         <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Import bookmarks from Chrome or Firefox
           filtered by your <span style="color:var(--ac);cursor:pointer"
@@ -1301,11 +1277,7 @@
       <!-- Collections View -->
       <div class="collections-view" id="collections-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <rect x="2" y="7" width="20" height="14" rx="2" />
-              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-            </svg><span id="collection-title">Playlist</span></h2>
+          <h2><span id="collection-title">Playlist</span></h2>
         </div>
         <div class="collection-new-row" id="collection-new-row">
           <input type="text" id="collection-name-input" placeholder="New playlist name…" autocomplete="off"
@@ -1318,12 +1290,7 @@
       <!-- Settings View -->
       <div class="settings-view" id="settings-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>Settings</h2>
+          <h2>Settings</h2>
         </div>
         <div class="settings-hidden-panel" style="margin-bottom:24px">
           <div class="settings-panel">
@@ -1471,11 +1438,7 @@
       <!-- Database View -->
       <div class="database-view" id="database-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <ellipse cx="12" cy="5" rx="9" ry="3" />
-              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+          <h2>
             </svg>Database</h2>
           <button class="btn-primary" id="dbAddBtn" onclick="dbShowAdd()">+ Add</button>
         </div>
@@ -1508,11 +1471,7 @@
       <!-- Actor Scraper View -->
       <div class="scraper-view" id="scraper-view">
         <div class="section-header">
-          <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:6px;color:var(--ac)">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.35-4.35" />
-              <path d="M11 8v6M8 11h6" />
+          <h2>
             </svg>Actor Scraper</h2>
           <div style="display:flex;gap:8px;align-items:center">
             <span class="scraper-info-label" id="scraper-info"></span>

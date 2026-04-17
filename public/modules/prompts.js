@@ -38,22 +38,33 @@ let _editId         = null;
 let _searchQuery    = '';
 let _templateValues = {};
 let _valorizedTexts = {};
+let vaultPromptsMode = false;
+
+function _promptsEndpoint() {
+  return vaultPromptsMode ? '/api/vault/prompts' : '/api/prompts';
+}
 
 // ─── View ───
 
 async function showPrompts() {
+  vaultPromptsMode = false;
+  const backBtn = document.getElementById('vault-prompts-back-btn');
+  if (backBtn) backBtn.style.display = 'none';
   closeAllViews();
   promptsMode = true;
   $('browse-view').add('off');
   $('prompts-view').add('on');
   $('prompts-sidebar').add('on');
+  _searchQuery = '';
+  const si = document.getElementById('prompts-search');
+  if (si) si.value = '';
   if (location.pathname !== '/prompts') history.pushState(null, '', '/prompts');
   await loadPrompts();
   renderPromptsTable();
 }
 
 async function loadPrompts() {
-  try { _prompts = await (await fetch('/api/prompts')).json(); }
+  try { _prompts = await (await fetch(_promptsEndpoint())).json(); }
   catch { _prompts = []; }
 }
 
@@ -66,10 +77,14 @@ function onPromptsSearch(val) {
 
 function getFilteredPrompts() {
   if (!_searchQuery) return _prompts;
-  const words = _searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  const tokens   = _searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  const include  = tokens.filter(t => !t.startsWith('-'));
+  const exclude  = tokens.filter(t => t.startsWith('-')).map(t => t.slice(1)).filter(Boolean);
   return _prompts.filter(p => {
     const hay = [p.title || '', p.text || '', ...(p.tags || [])].join(' ').toLowerCase();
-    return words.some(w => hay.includes(w));
+    if (exclude.some(w => hay.includes(w))) return false;
+    if (include.length && !include.some(w => hay.includes(w))) return false;
+    return true;
   });
 }
 
@@ -212,7 +227,7 @@ function renderSiteBtns(prompt) {
   return sites.map(sid => {
     const s = PROMPT_SITES.find(x => x.id === sid);
     if (!s) return '';
-    const disabled = s.local && !_comfyOk ? ' disabled title="ComfyUI not running"' : ' title="Send to ' + s.name + '"';
+    const disabled = ' title="Send to ' + s.name + '"';
     return '<button class="pt-site-btn" onclick="sendToSite(\'' + escA(prompt.id) + '\',\'' + escA(s.id) + '\')"' + disabled + '>' + esc(s.name) + '</button>';
   }).join('');
 }
@@ -301,7 +316,7 @@ function renderSiteCheckboxes(selected) {
   if (!grid) return;
   grid.innerHTML = PROMPT_SITES.map(s => {
     const on = selected.includes(s.id);
-    const disabled = s.local && !_comfyOk ? ' pt-site-check-disabled' : '';
+    const disabled = '';
     return '<label class="pt-site-check' + (on ? ' on' : '') + disabled + '" data-site="' + escA(s.id) + '" onclick="toggleSiteCheck(this)">' +
       '<svg class="pt-check-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' +
       esc(s.name) +
@@ -342,7 +357,7 @@ async function savePrompt() {
   if (_editId) p.id = _editId;
 
   try {
-    await fetch('/api/prompts', {
+    await fetch(_editId ? _promptsEndpoint() + '/' + _editId : _promptsEndpoint(), {
       method: _editId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
@@ -357,7 +372,7 @@ async function savePrompt() {
 
 async function deletePrompt(id) {
   if (!confirm('Delete this prompt?')) return;
-  await fetch('/api/prompts/' + id, { method: 'DELETE' });
+  await fetch(_promptsEndpoint() + '/' + id, { method: 'DELETE' });
   _prompts = _prompts.filter(p => p.id !== id);
   renderPromptsTable();
   toast('Deleted');
@@ -382,7 +397,7 @@ function renderMassImportSiteCheckboxes(selected) {
   if (!grid) return;
   grid.innerHTML = PROMPT_SITES.map(s => {
     const on = selected.includes(s.id);
-    const disabled = s.local && !_comfyOk ? ' pt-site-check-disabled' : '';
+    const disabled = '';
     return '<label class="pt-site-check' + (on ? ' on' : '') + disabled + '" data-site="' + escA(s.id) + '" onclick="toggleSiteCheck(this)">' +
       '<svg class="pt-check-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' +
       esc(s.name) +
@@ -419,7 +434,7 @@ async function saveMassImport() {
 
   let added = 0;
   for (const text of lines) {
-    const r = await fetch('/api/prompts', {
+    const r = await fetch(_promptsEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, sites }),
@@ -451,7 +466,7 @@ async function confirmDeleteAllPrompts() {
   }
 
   try {
-    const response = await fetch('/api/prompts/all', {
+    const response = await fetch(_promptsEndpoint() + '/all', {
       method: 'DELETE'
     });
 

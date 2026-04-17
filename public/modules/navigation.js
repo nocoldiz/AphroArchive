@@ -100,7 +100,7 @@ function goHome() {
   $('settings-sidebar').remove('on');
   if ($('database-view').el) $('database-view').remove('on');
   if ($('database-sidebar').el) $('database-sidebar').remove('on');
-  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false; promptsMode = false; categoriesMode = false;
+  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false; promptsMode = false; categoriesMode = false; if (typeof vaultPromptsMode !== 'undefined') vaultPromptsMode = false;
   curCollection = null;
   $('browse-view').remove('off');
   $('player-view').remove('on');
@@ -152,7 +152,7 @@ function closeAllViews() {
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
-  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false; promptsMode = false; categoriesMode = false;
+  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false; promptsMode = false; categoriesMode = false; if (typeof vaultPromptsMode !== 'undefined') vaultPromptsMode = false;
   settingsMode = false; recentMode = false; recentVids = [];
   $('clearRecentBtn').show(false);
   $('clearRecentSep').show(false);
@@ -360,6 +360,7 @@ async function routeToPath(path) {
   if (path === '/bookmarks') { showImportFavs(); return; }
   if (path === '/duplicates') { showDups(); return; }
   if (path === '/vault') { showVault(); return; }
+  if (path === '/vault/prompts') { showVaultPrompts(); return; }
   if (path === '/recent') { showRecent(); return; }
   if (path === '/collections') { showCollections(); return; }
   if (path === '/scraper') { showScraper(); return; }
@@ -367,6 +368,7 @@ async function routeToPath(path) {
   if (path === '/audio') { showAudio(); return; }
   if (path === '/photos') { showPhotos(); return; }
   if (path === '/search') { showSearchSites(); return; }
+  if (path === '/prompts') { showPrompts(); return; }
   if (path === '/settings') { showSettings(); return; }
   if (path === '/database') { showDatabase(); return; }
   if (path === '/categories') { showCategoriesView(); return; }

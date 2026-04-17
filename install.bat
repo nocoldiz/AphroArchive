@@ -97,34 +97,6 @@ powershell -NoProfile -Command ^
     "    Write-Host '  geckodriver downloaded  OK'" ^
     "} else { Write-Host '  [WARN] Could not find geckodriver asset — skip' }"
 
-:: ── AI Comments: node-llama-cpp + model ─────────────────────────────────────
-echo.
-echo [AI] Installing node-llama-cpp (optional — enables AI comments)...
-call npm install node-llama-cpp
-if errorlevel 1 (
-    echo  [WARN] node-llama-cpp install failed — AI comments will not work.
-) else (
-    echo  node-llama-cpp  OK
-)
-
-echo.
-echo [AI] Creating models directory...
-if not exist "models" mkdir models
-echo  models\  OK
-
-echo.
-echo [AI] Downloading Llama-3.2-1B-Instruct model (this may take several minutes)...
-echo  Target: models\llama-3.2-1b-instruct.gguf
-if exist "models\llama-3.2-1b-instruct.gguf" (
-    echo  Model already present — skipping download.
-) else (
-    call npx node-llama-cpp pull --dir ./models "hf:bartowski/Llama-3.2-1B-Instruct-GGUF/Llama-3.2-1B-Instruct-Q4_K_M.gguf"
-    if errorlevel 1 (
-        echo  [WARN] Model download failed — AI comments will not work until you download it manually.
-    ) else (
-        echo  Model downloaded  OK
-    )
-)
 
 :done
 echo.

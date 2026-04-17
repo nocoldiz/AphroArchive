@@ -313,10 +313,18 @@
 
     @media (max-width: 1264px) { .ig-right { display: none; } }
     @media (max-width: 768px) {
-      .ig-nav { width: 72px; }
-      .ig-nav-item span { display: none; }
-      .ig-nav-logo-text { display: none; }
-      .ig-content { margin-left: 72px; }
+      .ig-nav {
+        width: 100%; height: auto;
+        top: auto; bottom: 0; left: 0;
+        flex-direction: row; align-items: center; justify-content: space-around;
+        padding: 8px 4px; border-right: none; border-top: 1px solid #262626;
+        gap: 0;
+      }
+      .ig-nav-logo { display: none; }
+      .ig-nav-item { flex-direction: column; gap: 3px; padding: 6px 10px; font-size: 10px; }
+      .ig-nav-item span { display: block; font-size: 10px; }
+      .ig-nav-spacer { display: none; }
+      .ig-content { margin-left: 0; margin-bottom: 60px; }
       .ig-feed { padding: 16px 12px; }
     }
   </style>

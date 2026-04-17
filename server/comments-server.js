@@ -73,8 +73,6 @@ const prompt =
     'Generate between 3 and 5 realistic, casual, vulgar internet comments that real users would post under a porn video titled "' +
     videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') +
     '".\n\n' +
-    'Make the comments sound like typical Pornhub / Xvideos / Reddit comments: short, thirsty, explicit, with slang, typos, emojis, and dirty talk. ' +
-    'Include words like fuck, pussy, cock, cum, creampie, riding, moaning, slut, etc. when it fits naturally.\n\n' +
     'Vary them: some very short and horny, some praising the performer or specific acts, some funny or exaggerated.\n\n' +
     'Return ONLY a valid JSON array of strings like this: ["comment 1", "comment 2", ...]\n' +
     'No explanation, no extra text, no markdown, no numbering — just the raw JSON array.';
