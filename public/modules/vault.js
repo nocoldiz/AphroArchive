@@ -28,6 +28,7 @@ async function showVault() {
   initVaultShiftSelection(); 
 }
 let vaultThumbMode  = 'hover';
+let vaultThumbsVisible = false;
 let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book' | 'fav' | 'prompt'
 let vaultFavIds = new Set();
 
@@ -216,7 +217,9 @@ vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = n
   vaultFavIds = new Set(Array.isArray(favs) ? favs : []);
   vaultFolders = items.filter(f => f.type === 'folder');
   vaultFiles   = items.filter(f => f.type !== 'folder');
+  _loadVaultNameCache();
   renderVaultGrid();
+  _scanVaultWorkflowNames();
 }
 
 function setVaultTypeFilter(key) {
@@ -1056,6 +1059,7 @@ function _showVaultPhoto() {
   if (cached === undefined) {
     _resolveVaultName(f).then(name => {
       if (!name) return;
+      _saveVaultNameCache();
       if (vaultPhotos[vaultPhotoIdx] && vaultPhotos[vaultPhotoIdx].id === f.id)
         $('vaultPhotoName').text(name);
       const titleEl = document.querySelector('[data-vault-id="' + f.id + '"] .card-title');
@@ -1382,14 +1386,34 @@ function closeVaultPhoto() {
 // ── ComfyUI name extraction ───────────────────────────────────────────────
 
 const _vaultNameCache = {}; // id → string | null
+const _VNCK = 'vault_name_cache';
+
+function _loadVaultNameCache() {
+  try { Object.assign(_vaultNameCache, JSON.parse(localStorage.getItem(_VNCK) || '{}')); } catch {}
+}
+
+function _saveVaultNameCache() {
+  try {
+    const out = {};
+    for (const [k, v] of Object.entries(_vaultNameCache)) if (v) out[k] = v;
+    localStorage.setItem(_VNCK, JSON.stringify(out));
+  } catch {}
+}
 
 function _extractComfyName(meta) {
   if (meta.prompt) {
     try {
-      for (const node of Object.values(JSON.parse(meta.prompt))) {
+      const nodes = Object.values(JSON.parse(meta.prompt));
+      for (const node of nodes) {
         if (node.class_type === 'PreviewAny') {
           const v = (node.inputs || {}).preview_markdown;
           if (typeof v === 'string' && v.trim()) return v.trim();
+        }
+      }
+      for (const node of nodes) {
+        if (node.class_type === 'CLIPTextEncode') {
+          const t = (node.inputs || {}).text;
+          if (typeof t === 'string' && t.trim()) return t.trim();
         }
       }
     } catch {}
@@ -1398,27 +1422,19 @@ function _extractComfyName(meta) {
     try {
       const nodes = JSON.parse(meta.workflow).nodes || [];
       for (const node of nodes) {
-        if (node.type === 'PreviewAny') {
-          if (Array.isArray(node.widgets_values)) {
-            for (const v of node.widgets_values) {
-              if (typeof v === 'string' && v.trim()) return v.trim();
-            }
+        if (node.type === 'PreviewAny' && Array.isArray(node.widgets_values)) {
+          for (const v of node.widgets_values) {
+            if (typeof v === 'string' && v.trim()) return v.trim();
           }
         }
       }
+      // fallback: single-element widgets_values containing prompt keywords
+      const _PROMPT_KW = /\b(masterpiece|man|woman|boy|girl)\b/i;
       for (const node of nodes) {
-        if (!Array.isArray(node.widgets_values)) continue;
-        for (const v of node.widgets_values) {
-          if (typeof v === 'string' && v.trim()) return v.trim();
+        if (Array.isArray(node.widgets_values) && node.widgets_values.length === 1) {
+          const v = node.widgets_values[0];
+          if (typeof v === 'string' && _PROMPT_KW.test(v)) return v.trim();
         }
-      }
-    } catch {}
-  }
-  if (meta.prompt) {
-    try {
-      for (const node of Object.values(JSON.parse(meta.prompt))) {
-        const t = (node.inputs || {}).text;
-        if (typeof t === 'string' && t.trim()) return t.trim();
       }
     } catch {}
   }
@@ -1434,6 +1450,27 @@ async function _resolveVaultName(f) {
     _vaultNameCache[f.id] = meta ? _extractComfyName(meta) : null;
   } catch { _vaultNameCache[f.id] = null; }
   return _vaultNameCache[f.id];
+}
+
+async function _scanVaultWorkflowNames() {
+  const toScan = vaultFiles.filter(f =>
+    !f.name && f.ext.toLowerCase() === '.png' && _vaultNameCache[f.id] === undefined
+  );
+  if (!toScan.length) return;
+  const CONCURRENCY = 3;
+  let i = 0;
+  async function next() {
+    if (i >= toScan.length) return;
+    const f = toScan[i++];
+    const name = await _resolveVaultName(f);
+    if (name) {
+      const titleEl = document.querySelector('[data-vault-id="' + f.id + '"] .card-title');
+      if (titleEl) titleEl.textContent = name;
+    }
+    return next();
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, next));
+  _saveVaultNameCache();
 }
 
 // ── ComfyUI / PNG metadata ────────────────────────────────────────────────
@@ -1523,7 +1560,7 @@ async function showVaultPhotoMeta() {
       const safeVal = val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       return '<div class="vault-meta-section">' +
         '<div class="vault-meta-key"><span>' + safeKey + '</span>' +
-        '<button class="vault-meta-copy" onclick="copyVaultMeta(' + JSON.stringify(k) + ',this)">Copy</button></div>' +
+        '<button class="vault-meta-copy" onclick="copyVaultMeta(\'' + escA(k) + '\',this)">Copy</button></div>' +
         '<pre class="vault-meta-val">' + safeVal + '</pre>' +
         '</div>';
     }).join('');
