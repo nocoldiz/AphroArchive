@@ -186,7 +186,41 @@ async function apiComfySend(req, res) {
   json(res, { ok: true, comfyData: result.data });
 }
 
+// ── Local Llama via Ollama ────────────────────────────────────────────
+
+async function apiRunLocal(req, res) {
+  const body  = await readBody(req);
+  const text  = (body.text || '').trim();
+  const model = (body.model || 'llama3').trim();
+  if (!text) return json(res, { error: 'text required' }, 400);
+
+  const payload = JSON.stringify({ model, prompt: text, stream: false });
+
+  const response = await new Promise(resolve => {
+    const r = http.request(
+      { hostname: '127.0.0.1', port: 11434, path: '/api/generate', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } },
+      res2 => {
+        let data = '';
+        res2.on('data', c => data += c);
+        res2.on('end', () => {
+          try { resolve({ ok: true, data: JSON.parse(data) }); }
+          catch { resolve({ ok: false, error: 'invalid JSON from ollama' }); }
+        });
+      }
+    );
+    r.on('error', e => resolve({ ok: false, error: 'Ollama not reachable: ' + e.message }));
+    r.setTimeout(120000, () => { r.destroy(); resolve({ ok: false, error: 'timeout' }); });
+    r.write(payload);
+    r.end();
+  });
+
+  if (!response.ok) return json(res, { error: response.error }, 502);
+  json(res, { response: response.data.response || '' });
+}
+
 module.exports = {
   apiGetPrompts, apiAddPrompt, apiUpdatePrompt, apiDeletePrompt,
-  apiComfyStatus, apiComfyWorkflows, apiComfySend, apiDeleteAllPrompts
+  apiComfyStatus, apiComfyWorkflows, apiComfySend, apiDeleteAllPrompts,
+  apiRunLocal,
 };

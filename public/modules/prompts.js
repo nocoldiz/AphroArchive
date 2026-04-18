@@ -38,18 +38,10 @@ let _editId         = null;
 let _searchQuery    = '';
 let _templateValues = {};
 let _valorizedTexts = {};
-let vaultPromptsMode = false;
-
-function _promptsEndpoint() {
-  return vaultPromptsMode ? '/api/vault/prompts' : '/api/prompts';
-}
 
 // ─── View ───
 
 async function showPrompts() {
-  vaultPromptsMode = false;
-  const backBtn = document.getElementById('vault-prompts-back-btn');
-  if (backBtn) backBtn.style.display = 'none';
   closeAllViews();
   promptsMode = true;
   $('browse-view').add('off');
@@ -64,7 +56,7 @@ async function showPrompts() {
 }
 
 async function loadPrompts() {
-  try { _prompts = await (await fetch(_promptsEndpoint())).json(); }
+  try { _prompts = await (await fetch('/api/prompts')).json(); }
   catch { _prompts = []; }
 }
 
@@ -149,108 +141,105 @@ function renderPromptsTable() {
     </tr>`;
   }).join('');
 }
+let _sendPromptId = null;
+
 function openSendPromptModal(id) {
   const p = _prompts.find(x => x.id === id);
   if (!p) return;
-  
+  _sendPromptId = id;
+
   let modal = document.getElementById('send-prompt-modal');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'send-prompt-modal';
     modal.className = 'modal';
-    modal.innerHTML = `
-      <div class="modal-dialog" style="max-width: 500px;">
-        <div class="modal-header">
-          <h3>Send Prompt</h3>
-          <button class="modal-close" onclick="closeSendPromptModal()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
-          <div>
-            <label style="font-size: 0.85rem; color: var(--tx2); margin-bottom: 6px; display: block;">Prompt Text</label>
-            <textarea id="send-prompt-text" class="modal-input" style="height: 120px; resize: vertical; background: var(--bg2);" readonly></textarea>
-          </div>
-          <div>
-            <label style="font-size: 0.85rem; color: var(--tx2); margin-bottom: 6px; display: block;">Send to API Service</label>
-            <div id="send-prompt-sites" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
-          </div>
-        </div>
-      </div>
-    `;
-// 2. Insert valorized text into the text area preview
-  const displayText = _valorizedTexts[p.id] || p.text;
-  document.getElementById('send-prompt-text').value = displayText;
-  
-  const sitesContainer = document.getElementById('send-prompt-sites');
-  sitesContainer.innerHTML = '';
-  
-  PROMPT_SITES.forEach(site => {
-    const btn = document.createElement('button');
-    btn.className = 'pt-site-btn';
-    btn.innerHTML = site.name;
-    btn.onclick = () => {
-      sendToSite(p.id, site.id);
-      closeSendPromptModal();
-    };
-    sitesContainer.appendChild(btn);
-  });
+    modal.innerHTML =
+      '<div class="modal-dialog" style="max-width:540px">' +
+        '<div class="modal-header"><h3>Send Prompt</h3>' +
+          '<button class="modal-close" onclick="closeSendPromptModal()">' +
+            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+          '</button>' +
+        '</div>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px">' +
+          '<textarea id="send-prompt-text" class="modal-input" style="height:120px;resize:vertical;background:var(--bg2)" readonly></textarea>' +
+          '<div style="display:flex;gap:8px;align-items:center">' +
+            '<select id="send-prompt-service" class="stg-ta" style="flex:1;padding:8px 10px;min-height:0" onchange="_onSendServiceChange()"></select>' +
+            '<input id="send-prompt-model" class="stg-ta" style="width:120px;padding:8px 10px;min-height:0" placeholder="Model (e.g. llama3)" value="llama3">' +
+            '<button class="pt-btn" style="padding:8px 16px;font-size:0.85rem;white-space:nowrap" onclick="execSendPrompt()">' +
+              '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Send' +
+            '</button>' +
+          '</div>' +
+          '<div id="send-prompt-response" style="display:none;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:12px;font-size:0.82rem;line-height:1.6;white-space:pre-wrap;max-height:260px;overflow-y:auto"></div>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeSendPromptModal(); });
+  }
 
-  modal.classList.add('on');  }
+  const text = _valorizedTexts[id] || p.text;
+  document.getElementById('send-prompt-text').value = text;
 
-  document.getElementById('send-prompt-text').value = p.text;
-  
-  const sitesContainer = document.getElementById('send-prompt-sites');
-  sitesContainer.innerHTML = '';
-  
-  // Show all available PROMPT_SITES
-  PROMPT_SITES.forEach(site => {
-    const btn = document.createElement('button');
-    btn.className = 'pt-site-btn';
-    btn.innerHTML = site.name;
-    btn.onclick = () => {
-      sendToSite(p.id, site.id);
-      closeSendPromptModal();
-    };
-    sitesContainer.appendChild(btn);
-  });
+  const sel = document.getElementById('send-prompt-service');
+  sel.innerHTML =
+    '<option value="__llama__">Local Llama (Ollama)</option>' +
+    PROMPT_SITES.map(s => '<option value="' + escA(s.id) + '">' + esc(s.name) + '</option>').join('');
 
+  const resp = document.getElementById('send-prompt-response');
+  resp.style.display = 'none';
+  resp.textContent = '';
+
+  _onSendServiceChange();
   modal.classList.add('on');
+}
+
+function _onSendServiceChange() {
+  const svc = document.getElementById('send-prompt-service').value;
+  const modelInput = document.getElementById('send-prompt-model');
+  if (modelInput) modelInput.style.display = svc === '__llama__' ? '' : 'none';
 }
 
 function closeSendPromptModal() {
   const modal = document.getElementById('send-prompt-modal');
   if (modal) modal.classList.remove('on');
-}
-function renderSiteBtns(prompt) {
-  const sites = prompt.sites && prompt.sites.length ? prompt.sites : PROMPT_SITES.map(s => s.id);
-  return sites.map(sid => {
-    const s = PROMPT_SITES.find(x => x.id === sid);
-    if (!s) return '';
-    const disabled = ' title="Send to ' + s.name + '"';
-    return '<button class="pt-site-btn" onclick="sendToSite(\'' + escA(prompt.id) + '\',\'' + escA(s.id) + '\')"' + disabled + '>' + esc(s.name) + '</button>';
-  }).join('');
+  _sendPromptId = null;
 }
 
-// ─── Send to AI site ───
+async function execSendPrompt() {
+  const id = _sendPromptId;
+  if (!id) return;
+  const p = _prompts.find(x => x.id === id);
+  if (!p) return;
+  const text = _valorizedTexts[id] || p.text;
+  const sel = document.getElementById('send-prompt-service');
+  const svcId = sel.value;
 
-async function sendToSite(promptId, siteId) {
-  const prompt = _prompts.find(p => p.id === promptId);
-  if (!prompt) return;
-  const site = PROMPT_SITES.find(s => s.id === siteId);
-  if (!site) return;
-
-  const text = _valorizedTexts[promptId] || prompt.text;
-  await navigator.clipboard.writeText(text).catch(() => {});
-
-  if (site.local) {
-    // ComfyUI — open browser, user pastes into text node
-    window.open(site.url, '_blank');
-    toast('Prompt copied — paste into a text node in ComfyUI', 3000);
-  } else {
-    window.open(site.url, '_blank');
-    toast('Prompt copied — paste in ' + site.name, 2500);
+  if (svcId === '__llama__') {
+    const resp = document.getElementById('send-prompt-response');
+    resp.style.display = 'block';
+    resp.textContent = 'Running…';
+    const modelSel = document.getElementById('send-prompt-model');
+    const model = modelSel ? modelSel.value.trim() : '';
+    try {
+      const r = await fetch('/api/prompts/run-local', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, model })
+      });
+      const d = await r.json();
+      if (!r.ok) { resp.textContent = 'Error: ' + (d.error || r.status); return; }
+      resp.textContent = d.response || '(no response)';
+    } catch (e) {
+      resp.textContent = 'Error: ' + e.message;
+    }
+    return;
   }
+
+  const site = PROMPT_SITES.find(s => s.id === svcId);
+  if (!site) return;
+  await navigator.clipboard.writeText(text).catch(() => {});
+  window.open(site.url, '_blank');
+  toast('Prompt copied — paste in ' + site.name, 2500);
+  closeSendPromptModal();
 }
 
 // ─── Send to ComfyUI via API ───
@@ -357,7 +346,7 @@ async function savePrompt() {
   if (_editId) p.id = _editId;
 
   try {
-    await fetch(_editId ? _promptsEndpoint() + '/' + _editId : _promptsEndpoint(), {
+    await fetch(_editId ? '/api/prompts/' + _editId : '/api/prompts', {
       method: _editId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
@@ -372,7 +361,7 @@ async function savePrompt() {
 
 async function deletePrompt(id) {
   if (!confirm('Delete this prompt?')) return;
-  await fetch(_promptsEndpoint() + '/' + id, { method: 'DELETE' });
+  await fetch('/api/prompts/' + id, { method: 'DELETE' });
   _prompts = _prompts.filter(p => p.id !== id);
   renderPromptsTable();
   toast('Deleted');
@@ -434,7 +423,7 @@ async function saveMassImport() {
 
   let added = 0;
   for (const text of lines) {
-    const r = await fetch(_promptsEndpoint(), {
+    const r = await fetch('/api/prompts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, sites }),
@@ -466,7 +455,7 @@ async function confirmDeleteAllPrompts() {
   }
 
   try {
-    const response = await fetch(_promptsEndpoint() + '/all', {
+    const response = await fetch('/api/prompts' + '/all', {
       method: 'DELETE'
     });
 

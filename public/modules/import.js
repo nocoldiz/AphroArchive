@@ -38,7 +38,7 @@ async function handleGlobalFiles(files) {
   }
 
   // 2. STANDARD IMPORTER (Videos, Audio, Books)
-  const counts = { video: 0, audio: 0, book: 0, skip: 0 };
+  const counts = { video: 0, audio: 0, book: 0, photo: 0, skip: 0 };
 
   for (const file of arr) {
     try {
@@ -53,18 +53,20 @@ async function handleGlobalFiles(files) {
     } catch { counts.skip++; }
   }
 
-  const imported = counts.video + counts.audio + counts.book;
+  const imported = counts.video + counts.audio + counts.book + (counts.photo || 0);
   if (!imported) return;
 
   const parts = [];
   if (counts.video) parts.push(counts.video + ' video' + (counts.video > 1 ? 's' : ''));
   if (counts.audio) parts.push(counts.audio + ' audio');
   if (counts.book)  parts.push(counts.book  + ' book'  + (counts.book  > 1 ? 's' : ''));
+  if (counts.photo) parts.push(counts.photo + ' photo' + (counts.photo > 1 ? 's' : ''));
   toast('Imported: ' + parts.join(', '));
 
   if (counts.video) refresh();
   if (counts.audio && audioMode) loadAudio();
   if (counts.book  && booksMode) loadBooks();
+  if (counts.photo && photosMode) loadPhotos();
 
   $('globalFileIn').el.value = '';
 }

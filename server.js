@@ -203,11 +203,6 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/download\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultDownload(req, res, m[1]);
   if (p === '/api/vault/folders' && req.method === 'POST') return vault.apiVaultCreateFolder(req, res);
   if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDeleteFolder(req, res, m[1]);
-  if (p === '/api/vault/prompts' && req.method === 'GET')    return vault.apiVaultPromptsGet(req, res);
-  if (p === '/api/vault/prompts' && req.method === 'POST')   return vault.apiVaultPromptsAdd(req, res);
-  if (p === '/api/vault/prompts/all' && req.method === 'DELETE') return vault.apiVaultPromptsDeleteAll(req, res);
-  if ((m = p.match(/^\/api\/vault\/prompts\/([^/]+)$/)) && req.method === 'PUT')    return vault.apiVaultPromptsUpdate(req, res, m[1]);
-  if ((m = p.match(/^\/api\/vault\/prompts\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultPromptsDelete(req, res, m[1]);
   if (p === '/api/vault/favs' && req.method === 'GET') return vault.apiVaultFavsGet(req, res);
   if ((m = p.match(/^\/api\/vault\/favs\/([^/]+)$/)) && req.method === 'POST') return vault.apiVaultFavsToggle(req, res, m[1]);
   if (p === '/api/vault/change-password' && req.method === 'POST') return vault.apiVaultChangePassword(req, res);
@@ -239,6 +234,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/photos\/([^/]+)$/)) && req.method === 'DELETE') return photos.apiPhotoDelete(req, res, m[1]);
 
   // ── Prompts ──────────────────────────────────────────────────────────
+  if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);
   if (p === '/api/prompts' && req.method === 'GET')    return prompts.apiGetPrompts(req, res);
   if (p === '/api/prompts' && req.method === 'POST')   return prompts.apiAddPrompt(req, res);
   if (p === '/api/prompts/all' && req.method === 'DELETE') return prompts.apiDeleteAllPrompts(req, res);

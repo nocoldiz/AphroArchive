@@ -29,7 +29,7 @@ async function showVault() {
 }
 let vaultThumbMode  = 'hover';
 let vaultThumbsVisible = false;
-let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book' | 'fav' | 'prompt'
+let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book' | 'fav'
 let vaultCatFilter  = null; // null | category key string
 let vaultFavIds = new Set();
 let _vaultCategories = null; // cached categories.json
@@ -45,7 +45,6 @@ const VAULT_FILTER_TILES = [
   { key: 'photo', label: 'Photos', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>' },
   { key: 'audio', label: 'Audio',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
   { key: 'book',  label: 'Books',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>' },
-  { key: 'prompt',label: 'Prompts',icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>' },
 ];
 let shiftKeyPressed = false;
 let isVaultDragging = false;
@@ -281,27 +280,6 @@ async function toggleVaultFav(e, id) {
   });
 }
 
-async function showVaultPrompts() {
-  closeAllViews();
-  vaultPromptsMode = true;
-  const backBtn = document.getElementById('vault-prompts-back-btn');
-  if (backBtn) backBtn.style.display = '';
-  _searchQuery = '';
-  const si = document.getElementById('prompts-search');
-  if (si) si.value = '';
-  $('prompts-view').add('on');
-  $('vault-sidebar').add('on');
-  await loadPrompts();
-  renderPromptsTable();
-  if (location.pathname !== '/vault/prompts') history.pushState(null, '', '/vault/prompts');
-}
-
-function closeVaultPrompts() {
-  vaultPromptsMode = false;
-  const backBtn = document.getElementById('vault-prompts-back-btn');
-  if (backBtn) backBtn.style.display = 'none';
-  showVault();
-}
 
 function renderVaultGrid() {
   const grid = $('vaultGrid').el;
@@ -318,9 +296,7 @@ function renderVaultGrid() {
   if (!vaultCurFolder) {
     filterHtml = VAULT_FILTER_TILES.map(t => {
       const isActive = vaultTypeFilter === t.key;
-      const onclick  = t.key === 'prompt'
-        ? 'showVaultPrompts()'
-        : 'setVaultTypeFilter(\'' + t.key + '\')';
+      const onclick  = 'setVaultTypeFilter(\'' + t.key + '\')';
       return '<div class="vault-filter-tile' + (isActive ? ' active' : '') + '" onclick="' + onclick + '">' +
         '<div class="vault-filter-icon">' + t.icon + '</div>' +
         '<div class="vault-folder-name">' + t.label + '</div>' +

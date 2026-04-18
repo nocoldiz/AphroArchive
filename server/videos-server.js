@@ -9,6 +9,7 @@ const { exec } = require('child_process');
 const {
   VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
+  PHOTOS_DIR, IMAGE_EXT,
 } = require('./config-server');
 const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, actorMatchesAny } = require('./helpers-server');
 const {
@@ -754,6 +755,7 @@ async function apiImport(req, res) {
   if (VIDEO_EXT.has(ext))      { destDir = VIDEOS_DIR; kind = 'video'; }
   else if (AUDIO_EXT.has(ext)) { destDir = AUDIO_DIR;  kind = 'audio'; }
   else if (BOOK_EXT.has(ext))  { destDir = BOOKS_DIR;  kind = 'book';  }
+  else if (IMAGE_EXT.has(ext)) { destDir = PHOTOS_DIR; kind = 'photo'; }
   else return json(res, { error: 'Unsupported file type: ' + ext }, 400);
 
   let outName = safeFilename, counter = 1;
