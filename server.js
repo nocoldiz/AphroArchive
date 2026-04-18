@@ -256,6 +256,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── AI Comments ──────────────────────────────────────────────────────
   if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
+  if (p === '/api/comments/reply'    && req.method === 'POST') return comments.apiReplyToComment(req, res);
 
   // ── Local IP ─────────────────────────────────────────────────────────
   if (p === '/api/local-ip' && req.method === 'GET') {

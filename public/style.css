@@ -67,7 +67,7 @@ input{font-family:inherit;color:inherit}
 .sort-btn.on{color:var(--ac);background:var(--acg)}
 
 /* ── Grid ── */
-.video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px;margin-bottom:36px}
+.video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--card-min,270px),1fr));gap:18px;margin-bottom:36px}
 
 /* ── Card ── */
 .video-card{display:block;border-radius:var(--rl);overflow:hidden;background:var(--bg2);transition:all 0.3s cubic-bezier(0.4,0,0.2,1);cursor:pointer;position:relative}

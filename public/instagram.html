@@ -462,6 +462,15 @@
       <button class="ig-comments-sheet-close" onclick="closeCommentsModal()">&#x2715;</button>
     </div>
     <div class="ig-comments-sheet-body" id="ig-comments-sheet-body"></div>
+    <div id="ig-comment-input-row" style="display:none;border-top:1px solid #262626;padding:10px 16px;flex-shrink:0">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="ig-comment-text" placeholder="Add a comment…"
+          style="flex:1;background:#262626;border:1px solid #363636;color:#e0e0e0;padding:8px 12px;border-radius:20px;font-size:14px;outline:none"
+          onkeydown="if(event.key==='Enter')submitIgComment()">
+        <button onclick="submitIgComment()"
+          style="background:#0095f6;border:none;color:#fff;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Post</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -812,7 +821,7 @@ function getRawItems() {
 function getFeedItems() {
   if (isShuffled) return shuffledOrder;
   const items = getRawItems();
-  if (curSort === 'date')     return [...items].sort((a,b) => (b.mtime||0)-(a.mtime||0));
+  if (curSort === 'date')     return [...items].sort((a,b) => (b.mtime||0)-(a.mtime||0) || (a.name||a.originalName||'').localeCompare(b.name||b.originalName||''));
   if (curSort === 'duration') return [...items].sort((a,b) => (b.duration||0)-(a.duration||0));
   if (curSort === 'name')     return [...items].sort((a,b) => (a.name||a.originalName||'').localeCompare(b.name||b.originalName||''));
   if (curSort === 'size')     return [...items].sort((a,b) => (b.size||0)-(a.size||0));
@@ -1137,6 +1146,7 @@ function closeModal() {
 
 // ── AI Comments ────────────────────────────────────────────────────────────
 const _igCommentCache = {};
+let _igCommentVideoId = null, _igCommentVideoName = null;
 
 function _igAvatarColor(name) {
   let h = 0;
@@ -1190,16 +1200,55 @@ function toggleModalComments(id, name) {
 }
 
 function openCommentsModal(id, name) {
-  const modal = document.getElementById('ig-comments-modal');
-  const body  = document.getElementById('ig-comments-sheet-body');
+  const modal    = document.getElementById('ig-comments-modal');
+  const body     = document.getElementById('ig-comments-sheet-body');
+  const inputRow = document.getElementById('ig-comment-input-row');
+  _igCommentVideoId = id; _igCommentVideoName = name;
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
+  if (inputRow) inputRow.style.display = '';
   if (_igCommentCache[id]) {
     body.innerHTML = _renderIgComments(_igCommentCache[id]);
     return;
   }
   body.innerHTML = '<div class="ig-comments-loading"><div class="ig-comments-spinner"></div>Generating comments…</div>';
   _fetchIgComments(id, name, body);
+}
+
+async function submitIgComment() {
+  const inputEl = document.getElementById('ig-comment-text');
+  const text = inputEl ? inputEl.value.trim() : '';
+  if (!text || !_igCommentVideoId) return;
+  inputEl.value = '';
+  const body = document.getElementById('ig-comments-sheet-body');
+  const inputRow = document.getElementById('ig-comment-input-row');
+  // Show user comment
+  const userHtml = '<div class="ig-comment-row">' +
+    '<div class="ig-comment-avatar" style="background:#0095f6">Y</div>' +
+    '<div><div class="ig-comment-username" style="color:#0095f6">You</div>' +
+    '<div class="ig-comment-text">' + esc(text) + '</div></div></div>';
+  inputRow.insertAdjacentHTML('beforebegin', userHtml);
+  // Show AI typing
+  const rid = 'igrpl' + Date.now();
+  const typingHtml = '<div class="ig-comment-row" id="' + rid + '">' +
+    '<div class="ig-comment-avatar" style="background:#555">AI</div>' +
+    '<div><div class="ig-comment-username" style="color:#a8a8a8">AI</div>' +
+    '<div class="ig-comment-text" style="color:#a8a8a8">typing…</div></div></div>';
+  inputRow.insertAdjacentHTML('beforebegin', typingHtml);
+  try {
+    const r = await fetch('/api/comments/reply', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ videoId: _igCommentVideoId, videoName: _igCommentVideoName, userComment: text })
+    });
+    const d = await r.json();
+    const el = document.getElementById(rid);
+    if (el && d.reply) {
+      const u = _igUsername(); const c = _igAvatarColor(u);
+      el.innerHTML = '<div class="ig-comment-avatar" style="background:' + c + '">' + esc(u[0]) + '</div>' +
+        '<div><div class="ig-comment-username">' + esc(u) + '</div>' +
+        '<div class="ig-comment-text">' + esc(d.reply) + '</div></div>';
+    } else { document.getElementById(rid)?.remove(); }
+  } catch { document.getElementById(rid)?.remove(); }
 }
 
 function closeCommentsModal() {

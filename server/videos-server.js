@@ -748,15 +748,25 @@ function apiSubtitleFile(req, res, id, filename) {
 
 async function apiImport(req, res) {
   const filename     = decodeURIComponent(req.headers['x-filename'] || 'file');
+  const categoryHdr  = (req.headers['x-category'] || '').trim();
   const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
   const ext          = path.extname(safeFilename).toLowerCase();
 
   let destDir, kind;
-  if (VIDEO_EXT.has(ext))      { destDir = VIDEOS_DIR; kind = 'video'; }
+  if (VIDEO_EXT.has(ext)) {
+    const safeCat = categoryHdr ? categoryHdr.replace(/[^a-zA-Z0-9 \-_]/g, '').trim() : '';
+    destDir = safeCat ? path.join(VIDEOS_DIR, safeCat) : VIDEOS_DIR;
+    kind = 'video';
+  }
   else if (AUDIO_EXT.has(ext)) { destDir = AUDIO_DIR;  kind = 'audio'; }
   else if (BOOK_EXT.has(ext))  { destDir = BOOKS_DIR;  kind = 'book';  }
   else if (IMAGE_EXT.has(ext)) { destDir = PHOTOS_DIR; kind = 'photo'; }
   else return json(res, { error: 'Unsupported file type: ' + ext }, 400);
+
+  if (kind === 'video' && !path.resolve(destDir).startsWith(path.resolve(VIDEOS_DIR)))
+    return json(res, { error: 'Invalid category' }, 400);
+
+  fs.mkdirSync(destDir, { recursive: true });
 
   let outName = safeFilename, counter = 1;
   while (fs.existsSync(path.join(destDir, outName))) {
@@ -771,7 +781,12 @@ async function apiImport(req, res) {
   });
   const data = Buffer.concat(chunks);
   fs.writeFileSync(path.join(destDir, outName), data);
-  if (kind === 'video') invalidateScanCache();
+
+  let videoId = null;
+  if (kind === 'video') {
+    invalidateScanCache();
+    videoId = toId(path.relative(VIDEOS_DIR, path.join(destDir, outName)));
+  }
 
   if (kind === 'audio') {
     const meta = loadAudioMeta();
@@ -782,7 +797,7 @@ async function apiImport(req, res) {
     meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), type: 'upload' };
     saveBooksMeta(meta);
   }
-  json(res, { ok: true, kind, name: outName });
+  json(res, { ok: true, kind, name: outName, id: videoId });
 }
 
 module.exports = {

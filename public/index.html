@@ -499,6 +499,14 @@
             <span class="sg-sep" id="clearRecentSep" style="display:none"></span>
             <button class="sort-btn" id="clearRecentBtn" style="display:none" onclick="clearRecent()">Clear
               History</button>
+            <span class="sg-sep"></span>
+            <div style="display:flex;align-items:center;gap:5px" title="Card size">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              <input type="range" id="card-size-slider" min="140" max="500" step="10" value="270"
+                oninput="setCardSize(this.value)"
+                style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </div>
           </div>
         </div>
         <div class="video-grid" id="video-grid"></div>
@@ -1665,6 +1673,15 @@
                 <span style="background:rgba(var(--ac-rgb,100,100,255),0.15);color:var(--ac);font-size:10px;padding:2px 7px;border-radius:10px">AI</span>
               </div>
               <div id="ai-comments-list"></div>
+              <div id="ai-comment-input-row" style="display:none;margin-top:10px;border-top:1px solid var(--brd);padding-top:10px">
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input type="text" id="ai-comment-text" placeholder="Write a comment…"
+                    style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:6px;font-size:13px;outline:none"
+                    onkeydown="if(event.key==='Enter')submitNormalComment()">
+                  <button onclick="submitNormalComment()"
+                    style="background:var(--ac);border:none;color:#fff;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Reply</button>
+                </div>
+              </div>
             </div>
             <div class="suggestions">
               <h3>More like this</h3>
@@ -2037,6 +2054,60 @@
       </div>
     </div>
   </div>
+<script>
+// ── Card size slider ──────────────────────────────────────────────────────────
+function setCardSize(w) {
+  document.documentElement.style.setProperty('--card-min', w + 'px');
+  localStorage.setItem('cardSize', w);
+}
+(function() {
+  const s = localStorage.getItem('cardSize');
+  if (s) {
+    document.documentElement.style.setProperty('--card-min', s + 'px');
+    const sl = document.getElementById('card-size-slider');
+    if (sl) sl.value = s;
+  }
+})();
+
+// ── Normal mode AI comment reply ──────────────────────────────────────────────
+async function submitNormalComment() {
+  if (!curV) return;
+  const inputEl = document.getElementById('ai-comment-text');
+  const text = inputEl ? inputEl.value.trim() : '';
+  if (!text) return;
+  inputEl.value = '';
+  const listEl   = document.getElementById('ai-comments-list');
+  const inputRow = document.getElementById('ai-comment-input-row');
+  if (!listEl || !inputRow) return;
+  const esc2 = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const userHtml = '<div style="display:flex;gap:10px;margin-bottom:14px">' +
+    '<div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0">You</div>' +
+    '<div><div style="font-size:13px;font-weight:600;margin-bottom:3px">You</div>' +
+    '<div style="font-size:14px;color:var(--tx);line-height:1.5">' + esc2(text) + '</div></div></div>';
+  const rid = 'nrpl' + Date.now();
+  const typingHtml = '<div id="' + rid + '" style="display:flex;gap:10px;margin-bottom:14px">' +
+    '<div style="width:32px;height:32px;border-radius:50%;background:#555;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0">AI</div>' +
+    '<div><div style="font-size:13px;font-weight:600;margin-bottom:3px;color:var(--tx2)">AI</div>' +
+    '<div style="font-size:14px;color:var(--tx2)">typing…</div></div></div>';
+  inputRow.insertAdjacentHTML('beforebegin', userHtml);
+  inputRow.insertAdjacentHTML('beforebegin', typingHtml);
+  try {
+    const r = await fetch('/api/comments/reply', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ videoId: curV.id, videoName: curV.name, userComment: text })
+    });
+    const d = await r.json();
+    const el = document.getElementById(rid);
+    if (el && d.reply) {
+      const u = _aiUsername(); const c = _aiAvatarColor(u);
+      el.innerHTML =
+        '<div style="width:32px;height:32px;border-radius:50%;background:' + c + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0">' + esc2(u[0]) + '</div>' +
+        '<div><div style="font-size:13px;font-weight:600;margin-bottom:3px">' + esc2(u) + '</div>' +
+        '<div style="font-size:14px;color:var(--tx);line-height:1.5">' + esc2(d.reply) + '</div></div>';
+    } else { document.getElementById(rid)?.remove(); }
+  } catch { document.getElementById(rid)?.remove(); }
+}
+</script>
 </body>
 
 </html>

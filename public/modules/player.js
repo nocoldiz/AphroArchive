@@ -89,6 +89,8 @@ async function loadAiComments(videoId, videoName) {
     if (!r.ok) { sec.style.display = 'none'; return; }
     const { comments } = await r.json();
     if (!comments || !comments.length) { sec.style.display = 'none'; return; }
+    const inputRow = document.getElementById('ai-comment-input-row');
+    if (inputRow) inputRow.style.display = '';
     list.innerHTML = comments.map(text => {
       const user  = _aiUsername();
       const color = _aiAvatarColor(user);

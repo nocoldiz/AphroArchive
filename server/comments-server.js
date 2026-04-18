@@ -58,7 +58,7 @@ async function reinitIfNeeded() {
 }
 
 async function generateComments(videoId, videoName) {
-  const cacheFile = path.join(CACHE_DIR, 'comments_' + videoId + '.json');
+const cacheFile = path.join(CACHE_DIR, 'comments_' + videoId + '.json');
   if (fs.existsSync(cacheFile)) {
     try {
       const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
@@ -68,6 +68,7 @@ async function generateComments(videoId, videoName) {
   }
 
   console.log('[comments] generating for "' + videoName + '"…');
+  try {
   const session  = new LlamaChatSession({ contextSequence: ctx.getSequence() });
 const prompt = 
     'Generate between 3 and 5 realistic, casual, vulgar internet comments that real users would post under a porn video titled "' +
@@ -77,8 +78,11 @@ const prompt =
     'Return ONLY a valid JSON array of strings like this: ["comment 1", "comment 2", ...]\n' +
     'No explanation, no extra text, no markdown, no numbering — just the raw JSON array.';
   let raw = await session.prompt(prompt);
-  raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-
+raw = await session.prompt(prompt);
+  } finally {
+    // 2. CRITICAL: Dispose of the sequence to prevent "No sequences left" error
+    sequence.dispose();
+  }
   let comments;
   try {
     comments = JSON.parse(raw);
@@ -134,4 +138,34 @@ async function apiGenerateComments(req, res) {
   }
 }
 
-module.exports = { initCommentsModel, isModelReady, reinitIfNeeded, generateComments, apiGenerateComments };
+async function generateReply(videoName, userComment) {
+  const session = new LlamaChatSession({ contextSequence: ctx.getSequence() });
+  const prompt =
+    'A user commented "' + userComment.replace(/"/g, '\\"') + '" on a video titled "' +
+    videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') + '". ' +
+    'Write a short, casual 1-2 sentence reply. Return ONLY the reply text, nothing else.';
+  const raw = await session.prompt(prompt);
+  return raw.trim().replace(/^["']|["']$/g, '');
+}
+
+function fallbackReply() {
+  const r = ['Totally agree!', 'Yeah exactly lol', 'Facts', 'Same here', 'Couldn\'t agree more', 'Real talk'];
+  return r[Math.floor(Math.random() * r.length)];
+}
+
+async function apiReplyToComment(req, res) {
+  const body = await readBody(req);
+  const { videoId, videoName, userComment } = body;
+  if (!videoId || !videoName || !userComment) return json(res, { error: 'Missing params' }, 400);
+  const prefs = loadPrefs();
+  if (!prefs.aiCommentsEnabled) return json(res, { error: 'AI comments disabled' }, 400);
+  await reinitIfNeeded();
+  try {
+    const reply = isModelReady() ? await generateReply(videoName, userComment) : fallbackReply();
+    return json(res, { reply });
+  } catch (e) {
+    return json(res, { error: e.message }, 500);
+  }
+}
+
+module.exports = { initCommentsModel, isModelReady, reinitIfNeeded, generateComments, apiGenerateComments, apiReplyToComment };
