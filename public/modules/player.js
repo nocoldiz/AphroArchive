@@ -1,5 +1,6 @@
 // ─── Video Player ───
-async function openVid(id) {
+async function openVid(id, prevView) {
+  _prevView = prevView || null;
   if (remoteMode) {
     await fetch('/api/remote/command', {
       method: 'POST',
@@ -19,6 +20,9 @@ async function openVid(id) {
     $('search-ghost').html('');
   }
   $('browse-view').add('off');
+  $('tag-detail-view').remove('on');
+  $('actor-detail-view').remove('on');
+  $('studio-detail-view').remove('on');
   $('player-view').add('on');
   const vid = $('video-player').el;
   // Clear any existing tracks before setting new src
@@ -89,8 +93,11 @@ async function loadAiComments(videoId, videoName) {
   }
 }
 
+let _prevView = null;
+
 async function openVidTag(id) {
-  await openVid(id);
+  const pv = curTag ? { type: 'tag', tag: curTag } : null;
+  await openVid(id, pv);
 }
 
 function searchVideoOn(engine) {

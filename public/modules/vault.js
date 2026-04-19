@@ -338,8 +338,9 @@ function renderVaultGrid() {
 
   if (vaultCatFilter && _vaultCategories && _vaultCategories[vaultCatFilter]) {
     const cat = _vaultCategories[vaultCatFilter];
-    const terms = [cat.displayName, ...(cat.tags || [])].map(t => t.toLowerCase());
-    files = files.filter(f => {
+const terms = [cat.displayName, ...(cat.tags || [])]
+  .filter(Boolean) // This removes null/undefined values
+  .map(t => t.toLowerCase());    files = files.filter(f => {
       const name = (_vaultNameCache[f.id] || f.name || f.originalName || '').toLowerCase();
       return terms.some(t => name.includes(t));
     });
@@ -417,8 +418,9 @@ function _buildVaultCatMap() {
     const name = (_vaultNameCache[f.id] || f.name || f.originalName || '').toLowerCase();
     if (!name) continue;
     for (const [key, cat] of Object.entries(cats)) {
-      const terms = [cat.displayName, ...(cat.tags || [])].map(t => t.toLowerCase());
-      if (terms.some(t => name.includes(t))) {
+const terms = [cat.displayName, ...(cat.tags || [])]
+  .filter(Boolean) // This removes null/undefined values
+  .map(t => t.toLowerCase());      if (terms.some(t => name.includes(t))) {
         if (!map[key]) map[key] = { displayName: cat.displayName, count: 0 };
         map[key].count++;
       }
@@ -1021,11 +1023,14 @@ vaultGrid.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (!isDraggingVault) return;
+if (!isDraggingVault) return;
+    
+  // Fetch the element dynamically so it isn't null
+  const dragBox = document.getElementById('vaultDragBox');
+  if (!dragBox) return; 
 
   const currentX = e.clientX;
   const currentY = e.clientY;
-  
   const left = Math.min(dragStartX, currentX);
   const top = Math.min(dragStartY, currentY);
   const width = Math.abs(currentX - dragStartX);

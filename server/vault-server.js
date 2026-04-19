@@ -6,10 +6,10 @@
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
-const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME } = require('./config-server');
+const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, HIDDEN_DIR } = require('./config-server');
 const { json, readBody, formatBytes: _fmtBytes } = require('./helpers-server');
 const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs } = require('./db-server');
-
+const VAULT_DROP_DIR = typeof HIDDEN_DIR !== 'undefined' ? HIDDEN_DIR : path.join(path.dirname(VAULT_DIR), 'hidden');
 // ── Module state ─────────────────────────────────────────────────────
 
 let vaultKey     = null;
@@ -205,7 +205,121 @@ async function _reEncryptFile(filePath, oldKey, newKey) {
   fs.unlinkSync(filePath);
   fs.renameSync(tmpPath, filePath);
 }
+// ── Auto-import hidden files ─────────────────────────────────────────
 
+let _isProcessingDrop = false;
+
+// Encrypts a local file, updates vault metadata, and shreds the original
+async function _encryptLocalFileToVault(filePath, filename) {
+  if (!vaultKey) return false;
+  
+  // Check if file is still being written to (by attempting to open it)
+  try {
+    const fd = fs.openSync(filePath, 'r+');
+    fs.closeSync(fd);
+  } catch (e) {
+    return false; // File is likely locked/in-use, skip for now
+  }
+
+  if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
+
+  const id       = crypto.randomUUID();
+  const outPath  = path.join(VAULT_DIR, id + '.enc');
+  const iv       = crypto.randomBytes(12);
+  const cipher   = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+  const out      = fs.createWriteStream(outPath);
+  out.write(iv);
+
+  const stat = fs.statSync(filePath);
+  const size = stat.size;
+  const src = fs.createReadStream(filePath);
+
+  // Stream the encryption
+  await new Promise((resolve, reject) => {
+    src.on('data', chunk => {
+      const enc = cipher.update(chunk);
+      if (enc.length && !out.write(enc)) { src.pause(); out.once('drain', () => src.resume()); }
+    });
+    src.on('end', () => {
+      try {
+        const fin = cipher.final();
+        if (fin.length) out.write(fin);
+        out.write(cipher.getAuthTag());
+        out.end(resolve);
+      } catch (e) { reject(e); }
+    });
+    src.on('error', reject);
+    out.on('error', reject);
+  });
+
+  // Update Vault Metadata
+  const ext    = path.extname(filename).toLowerCase();
+  const meta   = loadVaultMeta();
+  meta[id]     = { 
+    originalName: filename, 
+    name: path.basename(filename, ext), 
+    ext, 
+    size, 
+    sizeF: _fmtBytes(size), 
+    mtime: Date.now(), 
+    folder: null 
+  };
+  saveVaultMeta(meta);
+  
+  // Securely delete the original unencrypted file
+  _shredFile(filePath);
+  return true;
+}
+
+// Sweeps the drop directory
+async function processHiddenFolder() {
+  if (!vaultKey || _isProcessingDrop) return;
+  _isProcessingDrop = true;
+
+  try {
+    if (!fs.existsSync(VAULT_DROP_DIR)) fs.mkdirSync(VAULT_DROP_DIR, { recursive: true });
+    const files = fs.readdirSync(VAULT_DROP_DIR);
+    
+    for (const file of files) {
+      if (!vaultKey) break; // Abort if vault gets locked midway
+      const filePath = path.join(VAULT_DROP_DIR, file);
+      
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.isFile()) {
+          await _encryptLocalFileToVault(filePath, file);
+        }
+      } catch (e) {
+        // Ignore (file might have been moved/deleted during the sweep)
+      }
+    }
+  } catch (e) {
+    console.error('Error processing hidden folder:', e);
+  } finally {
+    _isProcessingDrop = false;
+  }
+}
+
+// File Watcher
+let _dropTimeout = null;
+function watchHiddenFolder() {
+  try {
+    if (!fs.existsSync(VAULT_DROP_DIR)) fs.mkdirSync(VAULT_DROP_DIR, { recursive: true });
+    
+    // Listen for all files dropped in
+    fs.watch(VAULT_DROP_DIR, (eventType, filename) => {
+      if (!vaultKey) return;
+      if (_dropTimeout) clearTimeout(_dropTimeout);
+      // Wait 2 seconds to allow file copies/downloads to finish before grabbing the file
+      _dropTimeout = setTimeout(() => processHiddenFolder(), 2000);
+    });
+  } catch (e) {
+    console.error('Could not watch hidden folder', e);
+  }
+}
+
+// Start watching immediately when the server boots
+watchHiddenFolder();
 // ── Vault API handlers ───────────────────────────────────────────────
 
 function apiVaultStatus(req, res) {
@@ -236,6 +350,7 @@ async function apiVaultSetup(req, res) {
     resetVaultTimer();
     if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
     json(res, { ok: true });
+    processHiddenFolder();
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
@@ -274,6 +389,7 @@ async function apiVaultUnlock(req, res) {
     vaultKey = encKey;
     resetVaultTimer();
     json(res, { ok: true });
+    processHiddenFolder();
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 

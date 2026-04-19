@@ -8,7 +8,7 @@ dist/
 .AphroArchive-actor-photos
 settings
 bookmarks_cache.json
-
+process
 .aider.tags.cache.v4/cache.db
 .aider.tags.cache.v4/cache.db-shm
 .aider.tags.cache.v4/cache.db-wal

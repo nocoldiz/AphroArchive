@@ -78,6 +78,14 @@ function goBack() {
     $('vault-view').add('on');
     if (location.pathname !== '/') history.pushState(null, '', '/');
     loadVaultFiles();
+  } else if (_prevView) {
+    const pv = _prevView;
+    _prevView = null;
+    const p = $('video-player').el;
+    p.pause(); p.src = '';
+    curV = null;
+    $('player-view').remove('on');
+    if (pv.type === 'tag') openTag(pv.tag);
   } else {
     goHome();
   }
