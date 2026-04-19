@@ -573,6 +573,14 @@
                 </svg> Scrape
               </button>
 
+              <button class="vault-lock-btn" onclick="importFromVaultDropDir()" title="Import files from the process folder">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg> Import
+              </button>
+
               <button class="vault-lock-btn" onclick="lockVault()">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -1426,6 +1434,38 @@
             </div>
           </div>
         </div>
+        <div class="settings-hidden-panel" style="margin-top:16px" id="settings-vault-panel">
+          <div class="settings-panel">
+            <div class="settings-panel-header">
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px;color:#e84040">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>Vault — Danger Zone</span>
+            </div>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Permanently destroy the vault and all encrypted files. Files are cryptographically overwritten. This cannot be undone.</p>
+            <div id="settingsVaultDelConfirmBox" style="display:none;background:#e8404011;border:1px solid #e8404044;border-radius:8px;padding:12px;margin-bottom:10px">
+              <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px">Type <strong style="color:#e84040;font-family:monospace">DELETE</strong> to confirm:</div>
+              <input type="text" id="settingsVaultDelInput" placeholder="DELETE" autocomplete="off" spellcheck="false"
+                style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:var(--tx);padding:7px 10px;border-radius:5px;font-size:13px;margin-bottom:10px"
+                oninput="document.getElementById('settingsVaultDelBtn').disabled=this.value!=='DELETE'">
+              <div style="display:flex;gap:8px">
+                <button onclick="doSettingsDeleteVault()" id="settingsVaultDelBtn" disabled
+                  style="flex:1;background:#e84040;border:none;color:#fff;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700">
+                  Permanently Delete Vault
+                </button>
+                <button onclick="document.getElementById('settingsVaultDelConfirmBox').style.display='none';document.getElementById('settingsVaultDelInput').value='';document.getElementById('settingsVaultDelBtn').disabled=true"
+                  style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--tx2);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px">
+                  Cancel
+                </button>
+              </div>
+            </div>
+            <button onclick="document.getElementById('settingsVaultDelConfirmBox').style.display='block';document.getElementById('settingsVaultDelInput').focus()"
+              style="background:#e8404016;border:1px solid #e84040;color:#e84040;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;width:100%">
+              Delete Vault…
+            </button>
+          </div>
+        </div>
         <div style="margin-top:24px">
           <a class="donate-btn" href="https://buymeacoffee.com/nocoldiz" target="_blank" rel="noopener">☕ Buy me a
             coffee</a>
@@ -1971,7 +2011,7 @@
         <button onclick="closeVaultPage()" title="Close (Esc)" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#10005; Close</button>
       </div>
     </div>
-    <iframe id="vaultPageFrame" sandbox="allow-scripts allow-popups allow-forms" style="flex:1;width:100%;border:none;background:#fff"></iframe>
+    <iframe id="vaultPageFrame" sandbox="allow-scripts" style="flex:1;width:100%;border:none;background:#fff"></iframe>
   </div>
 
   <!-- Vault Auto-Scrape Modal -->

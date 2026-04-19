@@ -14,9 +14,10 @@ function showSettings() {
 }
 
 async function loadSettings() {
-  const [lists, prefs] = await Promise.all([
+  const [lists, prefs, vaultStatus] = await Promise.all([
     fetch('/api/settings/lists').then(r => r.json()),
-    fetch('/api/settings/prefs').then(r => r.json()).catch(() => ({}))
+    fetch('/api/settings/prefs').then(r => r.json()).catch(() => ({})),
+    fetch('/api/vault/status').then(r => r.json()).catch(() => ({})),
   ]);
   $('settings-hidden').val(lists.hidden || '');
   updateSettingsHint('settings-hidden-hint', lists.hidden || '');
@@ -27,6 +28,8 @@ async function loadSettings() {
   aiCommentsEnabled = !!prefs.aiCommentsEnabled;
   const dstTog = $('disableSearchTrackingToggle').el;
   if (dstTog) dstTog.checked = !!prefs.disableSearchTracking;
+  const vaultPanel = document.getElementById('settings-vault-panel');
+  if (vaultPanel) vaultPanel.style.display = vaultStatus.configured ? '' : 'none';
 }
 
 async function saveDisableSearchTracking(disabled) {

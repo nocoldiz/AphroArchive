@@ -835,6 +835,7 @@ function resetFeed() {
   // Stop all autoplaying videos before clearing DOM
   document.querySelectorAll('.ig-post-media video').forEach(v => { v.pause(); v.src = ''; });
   feedPage = 0; feedDone = false; feedLoading = false;
+  if (isShuffled) shuffledOrder = [...getRawItems()].sort(() => Math.random() - .5);
   document.getElementById('ig-posts').innerHTML = '';
   document.getElementById('ig-feed-status').innerHTML = '<div class="ig-spinner"></div>';
   loadFeedPage();

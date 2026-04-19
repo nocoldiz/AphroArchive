@@ -236,6 +236,13 @@ async function lockVault() {
   loadVaultView();
 }
 
+async function importFromVaultDropDir() {
+  const r = await fetch('/api/vault/import-drop', { method: 'POST' });
+  if (!r.ok) { toast('Import failed'); return; }
+  toast('Importing files from process folder\u2026');
+  setTimeout(loadVaultFiles, 2000);
+}
+
 async function loadVaultFiles() {
   let vaultSort = 'mtime';
   let vaultSortDir = 'desc';
@@ -2007,6 +2014,38 @@ async function doVaultChangePassword() {
   toast('Password changed — all files re-encrypted');
 }
 
+async function doSettingsDeleteVault() {
+  const input = document.getElementById('settingsVaultDelInput');
+  if (!input || input.value !== 'DELETE') return;
+  const btn = document.getElementById('settingsVaultDelBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting\u2026'; }
+  const r = await fetch('/api/vault', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm: 'DELETE_VAULT' }),
+  });
+  const d = await r.json();
+  if (!r.ok) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Permanently Delete Vault'; }
+    if (r.status === 401) {
+      toast('Vault must be unlocked first — go to Vault view and unlock');
+    } else {
+      toast(d.error || 'Delete failed');
+    }
+    if (input) input.value = '';
+    const box = document.getElementById('settingsVaultDelConfirmBox');
+    if (box) box.style.display = 'none';
+    return;
+  }
+  if (input) input.value = '';
+  const box = document.getElementById('settingsVaultDelConfirmBox');
+  if (box) box.style.display = 'none';
+  vaultFiles = []; vaultFolders = [];
+  toast('Vault permanently destroyed');
+  const panel = document.getElementById('settings-vault-panel');
+  if (panel) panel.style.display = 'none';
+}
+
 async function doVaultDeleteVault() {
   const input = document.getElementById('vaultDelInput');
   if (!input || input.value !== 'DELETE') return;
@@ -2042,6 +2081,49 @@ async function doVaultDeleteVault() {
 
 let _vaultPageCurId = null;
 
+// Injected into every vault page's srcdoc to intercept navigation
+const _VAULT_PAGE_SECURITY_SCRIPT = '<script>(function(){' +
+  'document.addEventListener("click",function(e){' +
+    'var a=e.target.closest("a[href]");' +
+    'if(!a)return;' +
+    'e.preventDefault();e.stopPropagation();' +
+    'var href=a.getAttribute("href")||"";' +
+    'if(!href||href==="#"||href.startsWith("#")||href.startsWith("javascript:"))return;' +
+    'try{window.parent.postMessage({type:"vault-page-link",url:a.href||href,label:a.textContent.trim().slice(0,120)},"*");}catch(_){}' +
+  '},true);' +
+  'document.addEventListener("submit",function(e){e.preventDefault();},true);' +
+'})();<\/script>';
+
+// CSP blocks all JS-initiated network calls and dangerous features
+const _VAULT_PAGE_CSP = '<meta http-equiv="Content-Security-Policy" content="' +
+  'connect-src \'none\'; ' +      // blocks fetch, XHR, WebSocket, EventSource
+  'object-src \'none\'; ' +       // blocks Flash / plugin content
+  'frame-src \'none\'; ' +        // no nested iframes
+  'base-uri \'none\'; ' +         // no <base> tag redirection
+  'form-action \'none\';' +       // belt-and-suspenders form block
+'">';
+
+function _vaultPageInjectSecurity(html) {
+  const secBlock = _VAULT_PAGE_CSP + _VAULT_PAGE_SECURITY_SCRIPT;
+  // Inject immediately after <head> if present
+  if (/<head[\s>]/i.test(html)) return html.replace(/(<head[^>]*>)/i, '$1' + secBlock);
+  // Inject immediately after <html> if no head
+  if (/<html[\s>]/i.test(html)) return html.replace(/(<html[^>]*>)/i, '$1<head>' + secBlock + '</head>');
+  // Prepend to bare HTML
+  return secBlock + html;
+}
+
+// Single parent-side listener — registered once, dispatches by message type
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'vault-page-link') return;
+  var url   = String(e.data.url   || '').trim();
+  var label = String(e.data.label || '').trim();
+  if (!url) return;
+  var display = url.length > 80 ? url.slice(0, 80) + '…' : url;
+  var msg = 'Open link in a new tab?\n\n' + display + (label ? '\n\n"' + label + '"' : '');
+  if (confirm(msg)) window.open(url, '_blank', 'noopener,noreferrer');
+});
+
 async function openVaultPage(id, name) {
   const overlay = document.getElementById('vaultPageOverlay');
   const frame   = document.getElementById('vaultPageFrame');
@@ -2054,7 +2136,7 @@ async function openVaultPage(id, name) {
   try {
     const r = await fetch('/api/vault/stream-page/' + id);
     if (!r.ok) throw new Error(r.status);
-    frame.srcdoc = await r.text();
+    frame.srcdoc = _vaultPageInjectSecurity(await r.text());
   } catch (e) {
     frame.srcdoc = '<body style="font-family:sans-serif;padding:2rem;color:#c00">Failed to load page (' + e.message + ')</body>';
   }

@@ -920,6 +920,13 @@ function apiVaultStreamPage(req, res, id) {
   }
 }
 
+async function apiVaultImportDrop(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  if (_isProcessingDrop) return json(res, { ok: true, message: 'Already importing' });
+  processHiddenFolder().catch(() => {});
+  json(res, { ok: true });
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
@@ -928,4 +935,5 @@ module.exports = {
   apiVaultChangePassword, apiVaultDeleteVault,
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
+  apiVaultImportDrop,
 };
