@@ -234,7 +234,7 @@
     }
     .ig-comments-sheet-title { font-size: 15px; font-weight: 700; }
     .ig-comments-sheet-close { background: none; border: none; color: #a8a8a8; cursor: pointer; font-size: 22px; line-height: 1; padding: 2px 6px; }
-    .ig-comments-sheet-body { flex: 1; overflow-y: auto; padding: 12px 16px 24px; }
+    .ig-comments-sheet-body { flex: 1; overflow-y: auto; padding: 12px 16px 24px; --cw-brd: #363636; --cw-tx2: #a8a8a8; --cw-inp: #262626; --ac: #0095f6; color: #e0e0e0; }
     .ig-comment-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: flex-start; }
     .ig-comment-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; flex-shrink: 0; }
     .ig-comment-username { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
@@ -487,6 +487,7 @@
   </div>
 </div>
 
+<script src="/modules/comments.js"></script>
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
 let allVideos = [];
@@ -1144,52 +1145,7 @@ function closeModal() {
   curModal = null;
 }
 
-// ── AI Comments ────────────────────────────────────────────────────────────
-const _igCommentCache = {};
-let _igCommentVideoId = null, _igCommentVideoName = null;
-
-function _igAvatarColor(name) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return 'hsl(' + (Math.abs(h) % 360) + ',55%,45%)';
-}
-
-function _igUsername() {
-  const adj  = ['Curious','Sneaky','Bold','Gentle','Witty','Calm','Fuzzy','Quick','Silent','Clever'];
-  const noun = ['Otter','Falcon','Panda','Wolf','Raven','Tiger','Fox','Lynx','Elk','Bear'];
-  const num  = Math.floor(Math.random() * 90 + 10);
-  return adj[Math.floor(Math.random() * adj.length)] + noun[Math.floor(Math.random() * noun.length)] + num;
-}
-
-function _renderIgComments(comments) {
-  return comments.map(text => {
-    const user  = _igUsername();
-    const color = _igAvatarColor(user);
-    return '<div class="ig-comment-row">' +
-      '<div class="ig-comment-avatar" style="background:' + color + '">' + esc(user[0]) + '</div>' +
-      '<div><div class="ig-comment-username">' + esc(user) + '</div>' +
-      '<div class="ig-comment-text">' + esc(text) + '</div></div></div>';
-  }).join('');
-}
-
-async function _fetchIgComments(id, name, listEl) {
-  if (_igCommentCache[id]) { listEl.innerHTML = _renderIgComments(_igCommentCache[id]); return; }
-  listEl.innerHTML = '<div class="ig-comments-loading"><div class="ig-comments-spinner"></div>Generating comments…</div>';
-  try {
-    const r = await fetch('/api/comments/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoId: id, videoName: name })
-    });
-    if (!r.ok) { listEl.innerHTML = '<div style="font-size:13px;color:#a8a8a8;padding:4px 0">Comments unavailable</div>'; return; }
-    const { comments } = await r.json();
-    _igCommentCache[id] = comments;
-    listEl.innerHTML = _renderIgComments(comments);
-  } catch {
-    listEl.innerHTML = '<div style="font-size:13px;color:#a8a8a8;padding:4px 0">Comments unavailable</div>';
-  }
-}
-
+// ── Comments (shared widget) ───────────────────────────────────────────────
 function toggleIgComments(e, btn, id, name) {
   e.stopPropagation();
   openCommentsModal(id, name);
@@ -1200,55 +1156,12 @@ function toggleModalComments(id, name) {
 }
 
 function openCommentsModal(id, name) {
-  const modal    = document.getElementById('ig-comments-modal');
-  const body     = document.getElementById('ig-comments-sheet-body');
+  const modal = document.getElementById('ig-comments-modal');
   const inputRow = document.getElementById('ig-comment-input-row');
-  _igCommentVideoId = id; _igCommentVideoName = name;
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
-  if (inputRow) inputRow.style.display = '';
-  if (_igCommentCache[id]) {
-    body.innerHTML = _renderIgComments(_igCommentCache[id]);
-    return;
-  }
-  body.innerHTML = '<div class="ig-comments-loading"><div class="ig-comments-spinner"></div>Generating comments…</div>';
-  _fetchIgComments(id, name, body);
-}
-
-async function submitIgComment() {
-  const inputEl = document.getElementById('ig-comment-text');
-  const text = inputEl ? inputEl.value.trim() : '';
-  if (!text || !_igCommentVideoId) return;
-  inputEl.value = '';
-  const body = document.getElementById('ig-comments-sheet-body');
-  const inputRow = document.getElementById('ig-comment-input-row');
-  // Show user comment
-  const userHtml = '<div class="ig-comment-row">' +
-    '<div class="ig-comment-avatar" style="background:#0095f6">Y</div>' +
-    '<div><div class="ig-comment-username" style="color:#0095f6">You</div>' +
-    '<div class="ig-comment-text">' + esc(text) + '</div></div></div>';
-  inputRow.insertAdjacentHTML('beforebegin', userHtml);
-  // Show AI typing
-  const rid = 'igrpl' + Date.now();
-  const typingHtml = '<div class="ig-comment-row" id="' + rid + '">' +
-    '<div class="ig-comment-avatar" style="background:#555">AI</div>' +
-    '<div><div class="ig-comment-username" style="color:#a8a8a8">AI</div>' +
-    '<div class="ig-comment-text" style="color:#a8a8a8">typing…</div></div></div>';
-  inputRow.insertAdjacentHTML('beforebegin', typingHtml);
-  try {
-    const r = await fetch('/api/comments/reply', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ videoId: _igCommentVideoId, videoName: _igCommentVideoName, userComment: text })
-    });
-    const d = await r.json();
-    const el = document.getElementById(rid);
-    if (el && d.reply) {
-      const u = _igUsername(); const c = _igAvatarColor(u);
-      el.innerHTML = '<div class="ig-comment-avatar" style="background:' + c + '">' + esc(u[0]) + '</div>' +
-        '<div><div class="ig-comment-username">' + esc(u) + '</div>' +
-        '<div class="ig-comment-text">' + esc(d.reply) + '</div></div>';
-    } else { document.getElementById(rid)?.remove(); }
-  } catch { document.getElementById(rid)?.remove(); }
+  if (inputRow) inputRow.style.display = 'none'; // widget renders its own input
+  CommentsWidget.init(id, name, 'ig-comments-sheet-body', null, { theme: 'dark' });
 }
 
 function closeCommentsModal() {

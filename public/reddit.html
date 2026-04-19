@@ -47,6 +47,10 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
           Top
         </button>
+        <button class="rd-sort-btn" id="srt-saved" onclick="setSort('saved')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          Saved
+        </button>
       </div>
       <div id="rd-sub-search" class="rd-sub-search"></div>
       <div id="rd-posts"></div>
@@ -91,35 +95,63 @@
   <div class="rd-np-box">
     <div class="rd-np-title">New Post</div>
     <button class="rd-np-close" onclick="closeNewPost()">&#x2715;</button>
-    <div class="rd-np-field">
-      <label class="rd-np-label">File</label>
-      <div class="rd-np-drop" id="np-drop" onclick="document.getElementById('np-file').click()">
-        <input type="file" id="np-file" accept="video/*,image/*" style="display:none" onchange="onNpFileChange(this)">
-        <span id="np-drop-label">Click to select a video or photo</span>
-      </div>
+    <div class="rd-np-tabs">
+      <button class="rd-np-tab active" id="np-tab-media" onclick="setNpTab('media')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><polygon points="10,8 16,12 10,16"/></svg>
+        Media
+      </button>
+      <button class="rd-np-tab" id="np-tab-text" onclick="setNpTab('text')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+        Text
+      </button>
     </div>
-    <div class="rd-np-field">
-      <label class="rd-np-label" for="np-title">Title</label>
-      <input class="rd-np-input" type="text" id="np-title" placeholder="Post title...">
-    </div>
-    <div id="np-video-fields" style="display:none">
+
+    <!-- Media tab -->
+    <div id="np-media-fields">
       <div class="rd-np-field">
-        <label class="rd-np-label" for="np-category">Category</label>
-        <select class="rd-np-select" id="np-category"></select>
+        <label class="rd-np-label">File</label>
+        <div class="rd-np-drop" id="np-drop" onclick="document.getElementById('np-file').click()">
+          <input type="file" id="np-file" accept="video/*,image/*" style="display:none" onchange="onNpFileChange(this)">
+          <span id="np-drop-label">Click to select a video or photo</span>
+        </div>
       </div>
       <div class="rd-np-field">
-        <label class="rd-np-label" for="np-actors">Actors <span style="font-weight:400;text-transform:none;font-size:11px">(comma-separated)</span></label>
-        <input class="rd-np-input" type="text" id="np-actors" placeholder="Actor 1, Actor 2...">
+        <label class="rd-np-label" for="np-title">Title</label>
+        <input class="rd-np-input" type="text" id="np-title" placeholder="Post title...">
+      </div>
+      <div id="np-video-fields" style="display:none">
+        <div class="rd-np-field">
+          <label class="rd-np-label" for="np-category">Category</label>
+          <select class="rd-np-select" id="np-category"></select>
+        </div>
+        <div class="rd-np-field">
+          <label class="rd-np-label" for="np-actors">Actors <span style="font-weight:400;text-transform:none;font-size:11px">(comma-separated)</span></label>
+          <input class="rd-np-input" type="text" id="np-actors" placeholder="Actor 1, Actor 2...">
+        </div>
+      </div>
+      <div class="rd-np-field">
+        <label class="rd-np-label" for="np-tags">Tags <span style="font-weight:400;text-transform:none;font-size:11px">(comma-separated)</span></label>
+        <input class="rd-np-input" type="text" id="np-tags" placeholder="tag1, tag2...">
       </div>
     </div>
-    <div class="rd-np-field">
-      <label class="rd-np-label" for="np-tags">Tags <span style="font-weight:400;text-transform:none;font-size:11px">(comma-separated)</span></label>
-      <input class="rd-np-input" type="text" id="np-tags" placeholder="tag1, tag2...">
+
+    <!-- Text tab -->
+    <div id="np-text-fields" style="display:none">
+      <div class="rd-np-field">
+        <label class="rd-np-label" for="np-text-title">Title</label>
+        <input class="rd-np-input" type="text" id="np-text-title" placeholder="Post title...">
+      </div>
+      <div class="rd-np-field">
+        <label class="rd-np-label" for="np-text-body">Text <span style="font-weight:400;text-transform:none;font-size:11px">(markdown supported)</span></label>
+        <textarea class="rd-np-textarea" id="np-text-body" placeholder="Write your post..."></textarea>
+      </div>
     </div>
+
     <button class="rd-np-submit" id="np-submit-btn" onclick="submitNewPost()">Post</button>
   </div>
 </div>
 
+<script src="/modules/comments.js"></script>
 <script>
 'use strict';
 
@@ -137,6 +169,7 @@ let searchQ = '';
 let curDetailId = null;
 let aiEnabled = false;
 let npFile = null;
+let npTab  = 'media';
 
 const favIds  = new Set();
 const upPost = new Set(), dnPost = new Set();
@@ -403,6 +436,7 @@ function toggleSubscribe() {
 // ── Set sub ───────────────────────────────────────────────────────────────────
 async function setSub(sub, pushState = true) {
   curSub = sub;
+  clearSearchSilent();
   await loadSubVids(sub);
   if (pushState) {
     const urlName = subUrlName(sub);
@@ -429,7 +463,8 @@ async function loadSubscribedVids() {
 // ── Sort / search ──────────────────────────────────────────────────────────────
 function setSort(s) {
   curSort = s;
-  ['hot','new','top'].forEach(x => document.getElementById('srt-'+x).classList.toggle('active', x===s));
+  ['hot','new','top','saved'].forEach(x => document.getElementById('srt-'+x).classList.toggle('active', x===s));
+  clearSearchSilent();
   resetFeed();
 }
 
@@ -447,15 +482,30 @@ function updateSubSearchResults() {
   const matches = allSubs.filter(s => s.name.toLowerCase().includes(q) || (s.label||'').toLowerCase().includes(q)).slice(0, 8);
   if (!matches.length) { el.style.display = 'none'; return; }
   el.style.display = '';
-  el.innerHTML = `<div class="rd-sub-search-title">Communities</div><div class="rd-sub-search-list">` +
-    matches.map(s => `<div class="rd-sub-result" onclick="setSub('${esc(s.id)}');clearSearch()"><div class="rd-sub-result-dot" style="background:${s.color}"></div>${esc(s.name)}</div>`).join('') +
-    `</div>`;
+  el.innerHTML = `<div class="rd-sub-search-title">Communities</div>` +
+    matches.map(s => {
+      const count = s.type === 'category' ? allVids.filter(v => (v.category||'Uncategorized') === (s.label||s.id.slice(4))).length
+                  : s.type === 'tag'      ? allVids.filter(v => v.tags && v.tags.some(t => t.toLowerCase() === s.id.slice(4).toLowerCase())).length
+                  : s.type === 'actor'    ? (s.info && s.info.videoCount != null ? s.info.videoCount : '')
+                  : '';
+      return `<div class="rd-sub-result-card" onclick="setSub('${esc(s.id)}');clearSearch()">
+        <div class="rd-sub-result-dot" style="background:${s.color};width:32px;height:32px;border-radius:50%;flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700">${esc(s.name)}</div>
+          ${count !== '' ? `<div style="font-size:11px;color:#818384">${count} post${count !== 1 ? 's' : ''}</div>` : ''}
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818384" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>`;
+    }).join('');
 }
 
-function clearSearch() {
+function clearSearchSilent() {
   searchQ = '';
   document.getElementById('rd-search').value = '';
   document.getElementById('rd-sub-search').style.display = 'none';
+}
+function clearSearch() {
+  clearSearchSilent();
   resetFeed();
 }
 
@@ -494,8 +544,9 @@ function getFiltered() {
     });
   }
   if (searchQ) vs = vs.filter(v => (v.name||'').toLowerCase().includes(searchQ.toLowerCase()));
+  if (curSort === 'saved') return [...vs].filter(v => favIds.has(v.id)).sort((a,b) => (b.mtime||0)-(a.mtime||0));
   if (curSort === 'new') return [...vs].sort((a,b) => (b.mtime||0)-(a.mtime||0));
-  if (curSort === 'top') return [...vs].sort((a,b) => (postScores[b.id]||0)-(postScores[a.id]||0));
+  if (curSort === 'top') return [...vs].filter(v => (v.rating||0) >= 3).sort((a,b) => (b.rating||0)-(a.rating||0) || (postScores[b.id]||0)-(postScores[a.id]||0));
   return [...vs].sort((a,b) => ((postScores[b.id]||0)+(b.mtime||0)%1000)-((postScores[a.id]||0)+(a.mtime||0)%1000));
 }
 
@@ -739,118 +790,12 @@ function backToFeed() {
   curDetailId = null;
 }
 
-// ── Comments ──────────────────────────────────────────────────────────────────
+// ── Comments (shared widget) ───────────────────────────────────────────────────
 async function loadComments(id, name) {
-  const listEl  = document.getElementById('rd-clist');
-  const countEl = document.getElementById('rd-ccount');
-  let comments;
-  if (_commentCache[id]) {
-    comments = _commentCache[id];
-  } else {
-    try {
-      const r = await fetch('/api/comments/generate', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId:id,videoName:name})});
-      comments = r.ok ? (await r.json()).comments || [] : [];
-      _commentCache[id] = comments;
-    } catch { comments = []; }
-  }
-  const cnt = comments.length;
+  const cnt = await CommentsWidget.init(id, name, 'rd-clist', 'rd-ccount', { theme: 'dark' });
   _commentCounts[id] = cnt;
   const cardBtn = document.getElementById('cc-' + id);
   if (cardBtn) cardBtn.lastChild.textContent = ' ' + cnt + ' Comment' + (cnt !== 1 ? 's' : '');
-  if (!cnt) { listEl.innerHTML = '<div class="rd-end-msg">No comments yet.</div>'; countEl.textContent = 'Comments'; return; }
-  countEl.textContent = cnt + ' Comment' + (cnt !== 1 ? 's' : '');
-  comments.forEach((_,i) => { const k=id+'_'+i; if (!commentScores[k]) commentScores[k]=seedCScore(k); });
-  listEl.innerHTML = comments.map((text, i) => {
-    const k   = id+'_'+i;
-    const user = rndUser();
-    const col  = hsl(user+i);
-    const sc   = commentScores[k] || 0;
-    const ago  = (1 + Math.floor(Math.random()*23)) + 'h ago';
-    const isUp = !!upComment[k], isDn = !!dnComment[k];
-    const disp = sc + (isUp?1:isDn?-1:0);
-    return `<div class="rd-comment" id="rc-${k}">
-      <div class="rd-c-avatar" style="background:${col}">${user[2]}</div>
-      <div class="rd-c-right">
-        <div class="rd-c-meta"><span class="rd-c-author">${esc(user)}</span>&nbsp;&#8226;&nbsp;${ago}&nbsp;&#8226;&nbsp;<span style="color:#ff4500;font-size:11px;font-weight:700">&#9650; ${fmt(disp)}</span></div>
-        <div class="rd-c-text">${esc(text)}</div>
-        <div class="rd-c-actions">
-          <button class="rd-c-vote${isUp?' up':''}" id="cu-${k}" onclick="voteC('${k}',1)">&#9650;</button>
-          <span class="rd-c-score" id="cs-${k}">${fmt(disp)}</span>
-          <button class="rd-c-vote${isDn?' dn':''}" id="cd-${k}" onclick="voteC('${k}',-1)">&#9660;</button>
-          <button class="rd-c-btn">Reply</button>
-          <button class="rd-c-btn">Share</button>
-          <button class="rd-c-btn">Award</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  // Comment input row (always shown, AI replies if enabled)
-  const inputRow = document.createElement('div');
-  inputRow.className = 'rd-comment-input-row';
-  inputRow.dataset.vid = id;
-  inputRow.dataset.vname = name;
-  inputRow.innerHTML = `<input type="text" class="rd-comment-input" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')submitRdComment(this)">
-    <button class="rd-comment-submit" onclick="submitRdComment(this.previousElementSibling)">Comment</button>`;
-  listEl.appendChild(inputRow);
-}
-
-async function submitRdComment(inputEl) {
-  const row = inputEl.closest('.rd-comment-input-row');
-  const videoId = row.dataset.vid;
-  const videoName = row.dataset.vname;
-  const text = inputEl.value.trim();
-  if (!text) return;
-  inputEl.value = '';
-  inputEl.disabled = true;
-  row.querySelector('.rd-comment-submit').disabled = true;
-
-  const listEl = document.getElementById('rd-clist');
-  const userCol = hsl(text + Date.now());
-  const userEl = document.createElement('div');
-  userEl.className = 'rd-comment';
-  userEl.innerHTML = `<div class="rd-c-avatar" style="background:${userCol}">Y</div>
-    <div class="rd-c-right">
-      <div class="rd-c-meta"><span class="rd-c-author">You</span>&nbsp;&#8226;&nbsp;just now</div>
-      <div class="rd-c-text">${esc(text)}</div>
-    </div>`;
-  listEl.insertBefore(userEl, row);
-
-  inputEl.disabled = false;
-  row.querySelector('.rd-comment-submit').disabled = false;
-
-  // Fetch AI reply
-  try {
-    const r = await fetch('/api/comments/reply', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ videoId, videoName, userComment: text })
-    });
-    if (!r.ok) return;
-    const { reply } = await r.json();
-    if (!reply) return;
-    const replyUser = rndUser();
-    const replyCol  = hsl(replyUser);
-    const replyEl = document.createElement('div');
-    replyEl.className = 'rd-comment';
-    replyEl.innerHTML = `<div class="rd-c-avatar" style="background:${replyCol}">${replyUser[0]}</div>
-      <div class="rd-c-right">
-        <div class="rd-c-meta"><span class="rd-c-author">${esc(replyUser)}</span>&nbsp;&#8226;&nbsp;just now</div>
-        <div class="rd-c-text">${esc(reply)}</div>
-      </div>`;
-    listEl.insertBefore(replyEl, row);
-  } catch {}
-}
-
-function voteC(k, dir) {
-  const wasUp = !!upComment[k], wasDn = !!dnComment[k];
-  if (dir===1) { upComment[k]=!wasUp; if(!wasUp) dnComment[k]=false; }
-  else         { dnComment[k]=!wasDn; if(!wasDn) upComment[k]=false; }
-  const isUp=!!upComment[k], isDn=!!dnComment[k];
-  const disp=(commentScores[k]||0)+(isUp?1:isDn?-1:0);
-  const upEl=document.getElementById('cu-'+k), dnEl=document.getElementById('cd-'+k), scEl=document.getElementById('cs-'+k);
-  if (upEl) upEl.className='rd-c-vote'+(isUp?' up':'');
-  if (dnEl) dnEl.className='rd-c-vote'+(isDn?' dn':'');
-  if (scEl) { scEl.textContent=fmt(disp); scEl.style.color=isUp?'#ff4500':isDn?'#7193ff':'#818384'; }
 }
 
 // ── Video modal ───────────────────────────────────────────────────────────────
@@ -869,6 +814,14 @@ function closeModal() {
 }
 
 // ── New Post modal ─────────────────────────────────────────────────────────────
+function setNpTab(t) {
+  npTab = t;
+  document.getElementById('np-tab-media').classList.toggle('active', t === 'media');
+  document.getElementById('np-tab-text').classList.toggle('active',  t === 'text');
+  document.getElementById('np-media-fields').style.display = t === 'media' ? '' : 'none';
+  document.getElementById('np-text-fields').style.display  = t === 'text'  ? '' : 'none';
+}
+
 function openNewPost() {
   const cats = [...new Set(allVids.map(v => v.category || 'Uncategorized'))].sort();
   const sel  = document.getElementById('np-category');
@@ -876,12 +829,15 @@ function openNewPost() {
   npFile = null;
   document.getElementById('np-drop').classList.remove('has-file');
   document.getElementById('np-drop-label').textContent = 'Click to select a video or photo';
-  document.getElementById('np-title').value  = '';
-  document.getElementById('np-tags').value   = '';
-  document.getElementById('np-actors').value = '';
+  document.getElementById('np-title').value      = '';
+  document.getElementById('np-tags').value       = '';
+  document.getElementById('np-actors').value     = '';
+  document.getElementById('np-text-title').value = '';
+  document.getElementById('np-text-body').value  = '';
   document.getElementById('np-video-fields').style.display = 'none';
   document.getElementById('np-submit-btn').disabled = false;
   document.getElementById('np-submit-btn').textContent = 'Post';
+  setNpTab('media');
   document.getElementById('np-modal').classList.add('open');
 }
 function closeNewPost() {
@@ -903,30 +859,53 @@ function onNpFileChange(input) {
 }
 
 async function submitNewPost() {
-  if (!npFile) return;
   const btn = document.getElementById('np-submit-btn');
-  btn.disabled = true; btn.textContent = 'Uploading...';
-  const title    = document.getElementById('np-title').value.trim() || npFile.name.replace(/\.[^.]+$/,'');
-  const ext      = npFile.name.match(/(\.[^.]+)$/)?.[1] || '';
-  const category = document.getElementById('np-category').value;
-  const tags     = document.getElementById('np-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
-  const actors   = document.getElementById('np-actors').value.split(',').map(a=>a.trim()).filter(Boolean);
-  const filename = title.replace(/[^a-zA-Z0-9 \-_()]/g,'_') + ext;
+  btn.disabled = true; btn.textContent = 'Posting...';
+
   try {
-    const headers = { 'X-Filename': encodeURIComponent(filename) };
-    if (category) headers['X-Category'] = category;
-    const res    = await fetch('/api/import', {method:'POST', headers, body: await npFile.arrayBuffer()});
-    const result = await res.json();
-    if (!result.ok) throw new Error(result.error || 'Upload failed');
-    if (result.kind === 'video' && result.id && (tags.length || actors.length)) {
-      await fetch('/api/videos/' + result.id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tags, actors})});
+    if (npTab === 'text') {
+      // ── Text post → save as .md in books ────────────────────────────────
+      const title = document.getElementById('np-text-title').value.trim();
+      const body  = document.getElementById('np-text-body').value;
+      if (!title) { btn.disabled=false; btn.textContent='Post'; alert('Title is required'); return; }
+      const filename = title.replace(/[^a-zA-Z0-9 \-_()]/g,'_') + '.md';
+      const content  = '# ' + title + '\n\n' + body;
+      const res    = await fetch('/api/import', {
+        method: 'POST',
+        headers: { 'X-Filename': encodeURIComponent(filename), 'Content-Type': 'text/plain' },
+        body: new TextEncoder().encode(content)
+      });
+      const result = await res.json();
+      if (!result.ok) throw new Error(result.error || 'Failed');
+      await loadBooks();
+      buildAllSubs(); buildSidebarSubs(); updateSidebar();
+      closeNewPost();
+      setSub('__books__');
+    } else {
+      // ── Media post ────────────────────────────────────────────────────────
+      if (!npFile) { btn.disabled=false; btn.textContent='Post'; return; }
+      btn.textContent = 'Uploading...';
+      const title    = document.getElementById('np-title').value.trim() || npFile.name.replace(/\.[^.]+$/,'');
+      const ext      = npFile.name.match(/(\.[^.]+)$/)?.[1] || '';
+      const category = document.getElementById('np-category').value;
+      const tags     = document.getElementById('np-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+      const actors   = document.getElementById('np-actors').value.split(',').map(a=>a.trim()).filter(Boolean);
+      const filename = title.replace(/[^a-zA-Z0-9 \-_()]/g,'_') + ext;
+      const headers  = { 'X-Filename': encodeURIComponent(filename) };
+      if (category) headers['X-Category'] = category;
+      const res    = await fetch('/api/import', {method:'POST', headers, body: await npFile.arrayBuffer()});
+      const result = await res.json();
+      if (!result.ok) throw new Error(result.error || 'Upload failed');
+      if (result.kind === 'video' && result.id && (tags.length || actors.length)) {
+        await fetch('/api/videos/' + result.id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tags, actors})});
+      }
+      await Promise.all([loadVids(), ...(result.kind === 'photo' ? [loadPhotos()] : [])]);
+      buildAllSubs(); buildSidebarSubs(); updateSidebar();
+      closeNewPost(); resetFeed();
     }
-    await Promise.all([loadVids(), ...(result.kind === 'photo' ? [loadPhotos()] : [])]);
-    buildAllSubs(); buildSidebarSubs(); updateSidebar();
-    closeNewPost(); resetFeed();
   } catch(err) {
     btn.disabled = false; btn.textContent = 'Post';
-    alert('Upload error: ' + err.message);
+    alert('Error: ' + err.message);
   }
 }
 

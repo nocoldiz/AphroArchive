@@ -257,6 +257,10 @@ const server = http.createServer(async (req, res) => {
   // ── AI Comments ──────────────────────────────────────────────────────
   if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
   if (p === '/api/comments/reply'    && req.method === 'POST') return comments.apiReplyToComment(req, res);
+  { const m = p.match(/^\/api\/comments\/([^/]+)\/add$/);
+    if (m && req.method === 'POST') return comments.apiAddComment(req, res, decodeURIComponent(m[1])); }
+  { const m = p.match(/^\/api\/comments\/([^/]+)$/);
+    if (m && req.method === 'GET') return comments.apiGetComments(req, res, decodeURIComponent(m[1])); }
 
   // ── Local IP ─────────────────────────────────────────────────────────
   if (p === '/api/local-ip' && req.method === 'GET') {

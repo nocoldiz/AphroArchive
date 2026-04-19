@@ -75,32 +75,15 @@ function _aiUsername() {
 }
 
 async function loadAiComments(videoId, videoName) {
-  const sec  = $('ai-comments-section').el;
-  const list = $('ai-comments-list').el;
-  if (!sec || !list) return;
+  const sec = $('ai-comments-section').el;
+  if (!sec) return;
   sec.style.display = '';
-  list.innerHTML = '<div style="color:var(--tx2);font-size:13px;padding:8px 0">Loading…</div>';
-  try {
-    const r = await fetch('/api/comments/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoId, videoName })
-    });
-    if (!r.ok) { sec.style.display = 'none'; return; }
-    const { comments } = await r.json();
-    if (!comments || !comments.length) { sec.style.display = 'none'; return; }
-    const inputRow = document.getElementById('ai-comment-input-row');
-    if (inputRow) inputRow.style.display = '';
-    list.innerHTML = comments.map(text => {
-      const user  = _aiUsername();
-      const color = _aiAvatarColor(user);
-      return '<div style="display:flex;gap:10px;margin-bottom:14px">' +
-        '<div style="width:32px;height:32px;border-radius:50%;background:' + color + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0">' +
-        esc(user[0]) + '</div>' +
-        '<div><div style="font-size:13px;font-weight:600;margin-bottom:3px">' + esc(user) + '</div>' +
-        '<div style="font-size:14px;color:var(--fg);line-height:1.5">' + esc(text) + '</div></div></div>';
-    }).join('');
-  } catch { sec.style.display = 'none'; }
+  const inputRow = document.getElementById('ai-comment-input-row');
+  if (inputRow) inputRow.style.display = 'none'; // widget renders its own input
+  const count = await CommentsWidget.init(videoId, videoName, 'ai-comments-list', null, { theme: 'dark' });
+  if (count === 0 && !document.getElementById('ai-comments-list').textContent.trim()) {
+    sec.style.display = 'none';
+  }
 }
 
 async function openVidTag(id) {

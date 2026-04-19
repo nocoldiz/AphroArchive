@@ -1954,6 +1954,7 @@
   <script src="/modules/utils.js"></script>
   <script src="/modules/thumbnails.js"></script>
   <script src="/modules/render.js"></script>
+  <script src="/modules/comments.js"></script>
   <script src="/modules/player.js"></script>
   <script src="/modules/playlist.js"></script>
   <script src="/modules/rename-move.js"></script>
@@ -2069,44 +2070,6 @@ function setCardSize(w) {
   }
 })();
 
-// ── Normal mode AI comment reply ──────────────────────────────────────────────
-async function submitNormalComment() {
-  if (!curV) return;
-  const inputEl = document.getElementById('ai-comment-text');
-  const text = inputEl ? inputEl.value.trim() : '';
-  if (!text) return;
-  inputEl.value = '';
-  const listEl   = document.getElementById('ai-comments-list');
-  const inputRow = document.getElementById('ai-comment-input-row');
-  if (!listEl || !inputRow) return;
-  const esc2 = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const userHtml = '<div style="display:flex;gap:10px;margin-bottom:14px">' +
-    '<div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0">You</div>' +
-    '<div><div style="font-size:13px;font-weight:600;margin-bottom:3px">You</div>' +
-    '<div style="font-size:14px;color:var(--tx);line-height:1.5">' + esc2(text) + '</div></div></div>';
-  const rid = 'nrpl' + Date.now();
-  const typingHtml = '<div id="' + rid + '" style="display:flex;gap:10px;margin-bottom:14px">' +
-    '<div style="width:32px;height:32px;border-radius:50%;background:#555;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0">AI</div>' +
-    '<div><div style="font-size:13px;font-weight:600;margin-bottom:3px;color:var(--tx2)">AI</div>' +
-    '<div style="font-size:14px;color:var(--tx2)">typing…</div></div></div>';
-  inputRow.insertAdjacentHTML('beforebegin', userHtml);
-  inputRow.insertAdjacentHTML('beforebegin', typingHtml);
-  try {
-    const r = await fetch('/api/comments/reply', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ videoId: curV.id, videoName: curV.name, userComment: text })
-    });
-    const d = await r.json();
-    const el = document.getElementById(rid);
-    if (el && d.reply) {
-      const u = _aiUsername(); const c = _aiAvatarColor(u);
-      el.innerHTML =
-        '<div style="width:32px;height:32px;border-radius:50%;background:' + c + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0">' + esc2(u[0]) + '</div>' +
-        '<div><div style="font-size:13px;font-weight:600;margin-bottom:3px">' + esc2(u) + '</div>' +
-        '<div style="font-size:14px;color:var(--tx);line-height:1.5">' + esc2(d.reply) + '</div></div>';
-    } else { document.getElementById(rid)?.remove(); }
-  } catch { document.getElementById(rid)?.remove(); }
-}
 </script>
 </body>
 
