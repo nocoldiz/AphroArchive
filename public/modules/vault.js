@@ -37,7 +37,7 @@ let _vaultCategories = null; // cached categories.json
 const VAULT_VIDEO_EXTS = new Set(['.mp4','.webm','.mkv','.mov','.avi','.m4v','.mpg','.mpeg','.wmv','.ts']);
 const VAULT_PHOTO_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif']);
 const VAULT_AUDIO_EXTS = new Set(['.mp3','.flac','.wav','.ogg','.aac','.m4a','.opus','.wma']);
-const VAULT_BOOK_EXTS  = new Set(['.pdf','.epub','.txt','.mobi','.azw','.azw3','.cbz','.cbr']);
+const VAULT_BOOK_EXTS  = new Set(['.pdf','.epub','.txt','.md','.mobi','.azw','.azw3','.cbz','.cbr']);
 
 const VAULT_FILTER_TILES = [
   { key: 'fav',   label: 'Favourites', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' },
@@ -762,14 +762,12 @@ async function viewVaultFile(id) {
   const file = vaultFiles.find(f => f.id === id);
   if (!file) return;
 
-  const name = file.originalName.toLowerCase();
-  const isBook = name.endsWith('.txt') || name.endsWith('.pdf') || name.endsWith('.epub');
+  const ext = (file.ext || '').toLowerCase();
+  const isTextOrBook = ['.txt', '.md', '.pdf', '.epub'].includes(ext);
 
-  if (isBook) {
-    // Open the Book Reader interface
-    showBookReader(id, true); 
+  if (isTextOrBook) {
+    openBook(id, true);
   } else {
-    // Default behavior (download/image preview)
     openVaultFileDefault(id);
   }
 }
@@ -846,10 +844,10 @@ function vaultCardClick(id, name, ext) {
   }
   
   const extLower = (ext || '').toLowerCase();
-  const isBook = extLower === '.txt' || extLower === '.pdf' || extLower === '.epub';
+  const isBook = VAULT_BOOK_EXTS.has(extLower);
 
   if (isBook) {
-    openVaultBook(id, name, extLower);
+    openBook(id, true);
   } else if (typeof VAULT_IMG_EXTS !== 'undefined' && VAULT_IMG_EXTS.has(extLower)) {
     openVaultPhoto(id);
   } else {

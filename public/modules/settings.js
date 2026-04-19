@@ -25,6 +25,17 @@ async function loadSettings() {
   const tog = $('aiCommentsToggle').el;
   if (tog) tog.checked = !!prefs.aiCommentsEnabled;
   aiCommentsEnabled = !!prefs.aiCommentsEnabled;
+  const dstTog = $('disableSearchTrackingToggle').el;
+  if (dstTog) dstTog.checked = !!prefs.disableSearchTracking;
+}
+
+async function saveDisableSearchTracking(disabled) {
+  await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ disableSearchTracking: disabled }),
+  });
+  toast(disabled ? 'Search tracking disabled' : 'Search tracking enabled');
 }
 
 async function saveAiCommentsPref(enabled) {

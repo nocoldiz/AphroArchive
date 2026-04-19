@@ -52,6 +52,7 @@ async function apiSavePrefs(req, res) {
       comments.reinitIfNeeded();
     }
   }
+  if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   savePrefs(prefs);
   json(res, { ok: true });
 }

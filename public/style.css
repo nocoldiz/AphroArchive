@@ -900,6 +900,13 @@ input{font-family:inherit;color:inherit}
 .search-site-pin:hover{color:var(--ac);background:var(--ac)18}
 .search-site-pin.on{color:var(--ac)}
 .search-site-pin.on svg{fill:var(--ac);stroke:var(--ac)}
+.ss-hist-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;border:1px solid var(--brd);margin-bottom:6px;background:var(--bg2)}
+.ss-hist-link{flex:1;font-size:0.85rem;color:var(--tx);text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ss-hist-link:hover{color:var(--ac)}
+.ss-hist-rm{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:16px;padding:0 4px;line-height:1;flex-shrink:0}
+.ss-hist-rm:hover{color:var(--ac)}
+.ss-hist-ctrl-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--brd);background:var(--bg2);color:var(--tx2);font-size:0.78rem;cursor:pointer}
+.ss-hist-ctrl-btn:hover{border-color:var(--ac);color:var(--ac)}
 
 /* ── Home View ── */
 .home-view{display:none}.home-view.on{display:block}

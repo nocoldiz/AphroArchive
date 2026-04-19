@@ -207,6 +207,23 @@ function apiBooksRead(req, res, id) {
   }
 }
 
+async function apiBooksWrite(req, res, id) {
+  const filename = bookFromId(id);
+  const filePath = path.join(BOOKS_DIR, path.basename(filename));
+  if (!filePath.startsWith(BOOKS_DIR + path.sep) && filePath !== BOOKS_DIR) {
+    return json(res, { error: 'Invalid path' }, 400);
+  }
+  const ext = path.extname(filename).toLowerCase();
+  if (ext !== '.txt' && ext !== '.md') return json(res, { error: 'Only txt/md files are editable' }, 400);
+  const body = await readBody(req);
+  const content = typeof body.content === 'string' ? body.content : '';
+  fs.writeFileSync(filePath, content, 'utf-8');
+  const meta = loadBooksMeta();
+  if (meta[filename]) meta[filename].size = Buffer.byteLength(content);
+  saveBooksMeta(meta);
+  json(res, { ok: true });
+}
+
 function apiBooksDelete(req, res, id) {
   const filename = bookFromId(id);
   const filePath = path.join(BOOKS_DIR, path.basename(filename));
@@ -221,5 +238,5 @@ function apiBooksDelete(req, res, id) {
 }
 
 module.exports = {
-  apiBooksList, apiBooksUpload, apiBooksImportUrl, apiBooksRead, apiBooksDelete,
+  apiBooksList, apiBooksUpload, apiBooksImportUrl, apiBooksRead, apiBooksWrite, apiBooksDelete,
 };

@@ -208,6 +208,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/change-password' && req.method === 'POST') return vault.apiVaultChangePassword(req, res);
   if (p === '/api/vault' && req.method === 'DELETE') return vault.apiVaultDeleteVault(req, res);
   if (p === '/api/vault/read-book' && req.method === 'GET') return vault.apiVaultReadBook(req, res, params.get('id'));
+  if ((m = p.match(/^\/api\/vault\/text\/([^/]+)$/)) && req.method === 'PUT') return vault.apiVaultUpdateTextFile(req, res, m[1]);
 
   // ── Database ─────────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
@@ -220,6 +221,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/books/upload' && req.method === 'POST') return books.apiBooksUpload(req, res);
   if (p === '/api/books/import-url' && req.method === 'POST') return books.apiBooksImportUrl(req, res);
   if ((m = p.match(/^\/api\/books\/read\/([^/]+)$/)) && req.method === 'GET') return books.apiBooksRead(req, res, m[1]);
+  if ((m = p.match(/^\/api\/books\/([^/]+)$/)) && req.method === 'PUT') return books.apiBooksWrite(req, res, m[1]);
   if ((m = p.match(/^\/api\/books\/([^/]+)$/)) && req.method === 'DELETE') return books.apiBooksDelete(req, res, m[1]);
 
   // ── Audio ────────────────────────────────────────────────────────────
@@ -278,7 +280,7 @@ const server = http.createServer(async (req, res) => {
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath  = p === '/' ? 'index.html' : p.replace(/^\//, '');
   if (p === '/instagram') return serveStatic(req, res, 'instagram.html');
-  if (p === '/reddit' || p.startsWith('/reddit/')) return serveStatic(req, res, 'reddit.html');
+  if (p === '/reddit' || p.startsWith('/reddit/') || p === '/r' || p.startsWith('/r/')) return serveStatic(req, res, 'reddit.html');
   const spaRoutes = /^\/(bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);

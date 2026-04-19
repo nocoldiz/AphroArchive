@@ -5,13 +5,1751 @@
     "searchURL": "https://archive.org/search?query=",
     "scrapeMethod": "archive-org",
     "tags": [],
-    "description": ""
+    "description": "",
+    "hasSearch": true
   },
   {
     "name": "xvideos",
     "url": "https://xvideos.com",
     "searchURL": "https://xvideos.com/?k=",
     "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "gaytube",
+    "url": "https://gaytube.com",
+    "searchURL": "https://gaytube.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "boyfriendtv",
+    "url": "https://boyfriendtv.com",
+    "searchURL": "https://boyfriendtv.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "Extreme",
+    "url": "https://Extreme.com",
+    "searchURL": "https://Extreme/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "chaturbate",
+    "url": "https://chaturbate.com",
+    "searchURL": "https://chaturbate.com/search/?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "onlyfans",
+    "url": "https://onlyfans.com",
+    "searchURL": "https://onlyfans.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "spankbang",
+    "url": "https://spankbang.com",
+    "searchURL": "https://spankbang.com/s/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "youjizz",
+    "url": "https://youjizz.com",
+    "searchURL": "https://youjizz.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xnxx",
+    "url": "https://xnxx.com",
+    "searchURL": "https://xnxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "spankbang",
+    "url": "https://spankbang.com",
+    "searchURL": "https://spankbang.com/s/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "redtube",
+    "url": "https://redtube.com",
+    "searchURL": "https://redtube.com/video/search?search=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornhub",
+    "url": "https://pornhub.com",
+    "searchURL": "https://pornhub.com/video/search?search=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xvideos",
+    "url": "https://xvideos.com",
+    "searchURL": "https://xvideos.com/?k=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xhamster",
+    "url": "https://xhamster.com",
+    "searchURL": "https://xhamster.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xnxx",
+    "url": "https://xnxx.com",
+    "searchURL": "https://xnxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "youporn",
+    "url": "https://youporn.com",
+    "searchURL": "https://www.youporn.com/search/?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "redtube",
+    "url": "https://redtube.com",
+    "searchURL": "https://redtube.com/video/search?search=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "tube8",
+    "url": "https://tube8.com",
+    "searchURL": "https://tube8.com/searches.html/?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "youjizz",
+    "url": "https://youjizz.com",
+    "searchURL": "https://youjizz.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "ixxx",
+    "url": "https://ixxx.com",
+    "searchURL": "https://ixxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "porn",
+    "url": "https://porn.com",
+    "searchURL": "https://porn/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "spankbang",
+    "url": "https://spankbang.com",
+    "searchURL": "https://spankbang.com/s/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornone",
+    "url": "https://pornone.com",
+    "searchURL": "https://pornone.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "onlyfans",
+    "url": "https://onlyfans.com",
+    "searchURL": "https://onlyfans.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "chaturbate",
+    "url": "https://chaturbate.com",
+    "searchURL": "https://chaturbate.com/search/?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "brazzers",
+    "url": "https://brazzers.com",
+    "searchURL": "https://brazzers.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "realitykings",
+    "url": "https://realitykings.com",
+    "searchURL": "https://realitykings.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "naughtyamerica",
+    "url": "https://naughtyamerica.com",
+    "searchURL": "https://naughtyamerica.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bangbros",
+    "url": "https://bangbros.com",
+    "searchURL": "https://bangbros.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "blacked",
+    "url": "https://blacked.com",
+    "searchURL": "https://blacked.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "vixen",
+    "url": "https://vixen.com",
+    "searchURL": "https://vixen.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "tushy",
+    "url": "https://tushy.com",
+    "searchURL": "https://tushy.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "mofos",
+    "url": "https://mofos.com",
+    "searchURL": "https://mofos.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "digitalplayground",
+    "url": "https://digitalplayground.com",
+    "searchURL": "https://digitalplayground.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "evilangel",
+    "url": "https://evilangel.com",
+    "searchURL": "https://evilangel.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "puretaboo",
+    "url": "https://puretaboo.com",
+    "searchURL": "https://puretaboo.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "familystrokes",
+    "url": "https://familystrokes.com",
+    "searchURL": "https://familystrokes.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "sislovesme",
+    "url": "https://sislovesme.com",
+    "searchURL": "https://sislovesme.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "stepmom",
+    "url": "https://stepmom.com",
+    "searchURL": "https://stepmom.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "mylf",
+    "url": "https://mylf.com",
+    "searchURL": "https://mylf.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "nubiles",
+    "url": "https://nubiles.com",
+    "searchURL": "https://nubiles.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "castingcouch",
+    "url": "https://castingcouch.com",
+    "searchURL": "https://castingcouch.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "backroomcastingcouch",
+    "url": "https://backroomcastingcouch.com",
+    "searchURL": "https://backroomcastingcouch.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "teamskeet",
+    "url": "https://teamskeet.com",
+    "searchURL": "https://teamskeet.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bang",
+    "url": "https://bang.com",
+    "searchURL": "https://bang.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornhub",
+    "url": "https://pornhub.com",
+    "searchURL": "https://pornhub.com/video/search?search=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xvideos",
+    "url": "https://xvideos.com",
+    "searchURL": "https://xvideos.com/?k=",
+    "scrapeMethod": "xvideos",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xhamster",
+    "url": "https://xhamster.com",
+    "searchURL": "https://xhamster.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xnxx",
+    "url": "https://xnxx.com",
+    "searchURL": "https://xnxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "youporn",
+    "url": "https://youporn.com",
+    "searchURL": "https://.youporn.com/search/?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "redtube",
+    "url": "https://redtube.com",
+    "searchURL": "https://redtube.com/video/search?search=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "tube8",
+    "url": "https://tube8.com",
+    "searchURL": "https://tube8.com/search/?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "youjizz",
+    "url": "https://youjizz.com",
+    "searchURL": "https://youjizz.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "ixxx",
+    "url": "https://ixxx.com",
+    "searchURL": "https://ixxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "porn",
+    "url": "https://porn.com",
+    "searchURL": "https://porn/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "spankbang",
+    "url": "https://spankbang.com",
+    "searchURL": "https://spankbang.com/s/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornone",
+    "url": "https://pornone.com",
+    "searchURL": "https://pornone.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "onlyfans",
+    "url": "https://onlyfans.com",
+    "searchURL": "https://onlyfans.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "chaturbate",
+    "url": "https://chaturbate.com",
+    "searchURL": "https://chaturbate.com/search/?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "brazzers",
+    "url": "https://brazzers.com",
+    "searchURL": "https://brazzers.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "realitykings",
+    "url": "https://realitykings.com",
+    "searchURL": "https://realitykings.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "naughtyamerica",
+    "url": "https://naughtyamerica.com",
+    "searchURL": "https://naughtyamerica.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bangbros",
+    "url": "https://bangbros.com",
+    "searchURL": "https://bangbros.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "blacked",
+    "url": "https://blacked.com",
+    "searchURL": "https://blacked.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "vixen",
+    "url": "https://vixen.com",
+    "searchURL": "https://vixen.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "tushy",
+    "url": "https://tushy.com",
+    "searchURL": "https://tushy.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "mofos",
+    "url": "https://mofos.com",
+    "searchURL": "https://mofos.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "digitalplayground",
+    "url": "https://digitalplayground.com",
+    "searchURL": "https://digitalplayground.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "evilangel",
+    "url": "https://evilangel.com",
+    "searchURL": "https://evilangel.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "puretaboo",
+    "url": "https://puretaboo.com",
+    "searchURL": "https://puretaboo.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "familystrokes",
+    "url": "https://familystrokes.com",
+    "searchURL": "https://familystrokes.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "sislovesme",
+    "url": "https://sislovesme.com",
+    "searchURL": "https://sislovesme.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "stepmom",
+    "url": "https://stepmom.com",
+    "searchURL": "https://stepmom.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "mylf",
+    "url": "https://mylf.com",
+    "searchURL": "https://mylf.com/search?filter=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "nubiles",
+    "url": "https://nubiles.com",
+    "searchURL": "https://nubiles.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "castingcouch",
+    "url": "https://castingcouch.com",
+    "searchURL": "https://castingcouch.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "backroomcastingcouch",
+    "url": "https://backroomcastingcouch.com",
+    "searchURL": "https://backroomcastingcouch.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "teamskeet",
+    "url": "https://teamskeet.com",
+    "searchURL": "https://teamskeet.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bang",
+    "url": "https://bang.com",
+    "searchURL": "https://bang.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "eporner",
+    "url": "https://eporner.com",
+    "searchURL": "https://eporner.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "txxx",
+    "url": "https://txxx.com",
+    "searchURL": "https://txxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "drtuber",
+    "url": "https://drtuber.com",
+    "searchURL": "https://drtuber.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "urgayporn",
+    "url": "https://urgayporn.com",
+    "searchURL": "https://urgayporn.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "nuvid",
+    "url": "https://nuvid.com",
+    "searchURL": "https://nuvid.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "beeg",
+    "url": "https://beeg.com",
+    "searchURL": "https://beeg.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "adulttime",
+    "url": "https://adulttime.com",
+    "searchURL": "https://adulttime.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "stripchat",
+    "url": "https://stripchat.com",
+    "searchURL": "https://stripchat.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "myfreecams",
+    "url": "https://myfreecams.com",
+    "searchURL": "https://myfreecams.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "livejasmin",
+    "url": "https://livejasmin.com",
+    "searchURL": "https://livejasmin.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "jerkmate",
+    "url": "https://jerkmate.com",
+    "searchURL": "https://jerkmate.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornbaker",
+    "url": "https://pornbaker.com",
+    "searchURL": "https://pornbaker.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "wankmap",
+    "url": "https://wankmap.com",
+    "searchURL": "https://wankmap.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "fuqqt",
+    "url": "https://fuqqt.com",
+    "searchURL": "https://fuqqt.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "vxxx",
+    "url": "https://vxxx.com",
+    "searchURL": "https://vxxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "modporn",
+    "url": "https://modporn.com",
+    "searchURL": "https://modporn.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bellesa",
+    "url": "https://bellesa.com",
+    "searchURL": "https://bellesa.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornhub",
+    "url": "https://pornhub.com",
+    "searchURL": "https://pornhub.com/video/search?search=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xvideos",
+    "url": "https://xvideos.com",
+    "searchURL": "https://xvideos.com/?k=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xhamster",
+    "url": "https://xhamster.com",
+    "searchURL": "https://xhamster.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xnxx",
+    "url": "https://xnxx.com",
+    "searchURL": "https://xnxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "youporn",
+    "url": "https://youporn.com",
+    "searchURL": "https://youporn.com/search/?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "redtube",
+    "url": "https://redtube.com",
+    "searchURL": "https://redtube.com/video/search?search=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "tube8",
+    "url": "https://tube8.com",
+    "searchURL": "https://tube8.com/search/?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "youjizz",
+    "url": "https://youjizz.com",
+    "searchURL": "https://youjizz.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "ixxx",
+    "url": "https://ixxx.com",
+    "searchURL": "https://ixxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "spankbang",
+    "url": "https://spankbang.com",
+    "searchURL": "https://spankbang.com/s/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "eporner",
+    "url": "https://eporner.com",
+    "searchURL": "https://eporner.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "beeg",
+    "url": "https://beeg.com",
+    "searchURL": "https://beeg.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornone",
+    "url": "https://pornone.com",
+    "searchURL": "https://pornone.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "txxx",
+    "url": "https://txxx.com",
+    "searchURL": "https://txxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "drtuber",
+    "url": "https://drtuber.com",
+    "searchURL": "https://drtuber.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "nuvid",
+    "url": "https://nuvid.com",
+    "searchURL": "https://nuvid.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "heavy-r",
+    "url": "https://heavy-r.com",
+    "searchURL": "https://heavy-r.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "4tube",
+    "url": "https://4tube.com",
+    "searchURL": "https://4tube.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "hqporner",
+    "url": "https://hqporner.com",
+    "searchURL": "https://hqporner.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "porn300",
+    "url": "https://porn300.com",
+    "searchURL": "https://porn300.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornhat",
+    "url": "https://pornhat.com",
+    "searchURL": "https://pornhat.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "fuq",
+    "url": "https://fuq.com",
+    "searchURL": "https://fuq.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "ok.xxx",
+    "url": "https://ok.xxx.com",
+    "searchURL": "https://ok.xxx/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "sexvid",
+    "url": "https://sexvid.com",
+    "searchURL": "https://sexvid.xxx/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "upornia",
+    "url": "https://upornia.com",
+    "searchURL": "https://upornia.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "vporn",
+    "url": "https://vporn.com",
+    "searchURL": "https://vporn.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "keezmovies",
+    "url": "https://keezmovies.com",
+    "searchURL": "https://keezmovies.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "tnaflix",
+    "url": "https://tnaflix.com",
+    "searchURL": "https://tnaflix.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "empflix",
+    "url": "https://empflix.com",
+    "searchURL": "https://empflix.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "slutload",
+    "url": "https://slutload.com",
+    "searchURL": "https://slutload.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornheed",
+    "url": "https://pornheed.com",
+    "searchURL": "https://pornheed.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "alphaporno",
+    "url": "https://alphaporno.com",
+    "searchURL": "https://alphaporno.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "perfectgirls",
+    "url": "https://perfectgirls.com",
+    "searchURL": "https://perfectgirls.net/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "anyporn",
+    "url": "https://anyporn.com",
+    "searchURL": "https://anyporn.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "gaytube",
+    "url": "https://gaytube.com",
+    "searchURL": "https://gaytube.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "boyfriendtv",
+    "url": "https://boyfriendtv.com",
+    "searchURL": "https://boyfriendtv.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "urgayporn",
+    "url": "https://urgayporn.com",
+    "searchURL": "https://urgayporn.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "gaymaletube",
+    "url": "https://gaymaletube.com",
+    "searchURL": "https://gaymaletube.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "icegay",
+    "url": "https://icegay.com",
+    "searchURL": "https://icegay.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "xgaytube",
+    "url": "https://xgaytube.com",
+    "searchURL": "https://xgaytube.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "chaturbate",
+    "url": "https://chaturbate.com",
+    "searchURL": "https://chaturbate.com/search/?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "onlyfans",
+    "url": "https://onlyfans.com",
+    "searchURL": "https://onlyfans.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "stripchat",
+    "url": "https://stripchat.com",
+    "searchURL": "https://stripchat.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "myfreecams",
+    "url": "https://myfreecams.com",
+    "searchURL": "https://myfreecams.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "livejasmin",
+    "url": "https://livejasmin.com",
+    "searchURL": "https://livejasmin.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "jerkmate",
+    "url": "https://jerkmate.com",
+    "searchURL": "https://jerkmate.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "camsoda",
+    "url": "https://camsoda.com",
+    "searchURL": "https://camsoda.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bongacams",
+    "url": "https://bongacams.com",
+    "searchURL": "https://bongacams.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "flirt4free",
+    "url": "https://flirt4free.com",
+    "searchURL": "https://flirt4free.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "streamate",
+    "url": "https://streamate.com",
+    "searchURL": "https://streamate.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "cam4",
+    "url": "https://cam4.com",
+    "searchURL": "https://cam4.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "brazzers",
+    "url": "https://brazzers.com",
+    "searchURL": "https://brazzers.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "realitykings",
+    "url": "https://realitykings.com",
+    "searchURL": "https://realitykings.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "naughtyamerica",
+    "url": "https://naughtyamerica.com",
+    "searchURL": "https://naughtyamerica.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bangbros",
+    "url": "https://bangbros.com",
+    "searchURL": "https://bangbros.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "blacked",
+    "url": "https://blacked.com",
+    "searchURL": "https://blacked.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "vixen",
+    "url": "https://vixen.com",
+    "searchURL": "https://vixen.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "tushy",
+    "url": "https://tushy.com",
+    "searchURL": "https://tushy.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "mofos",
+    "url": "https://mofos.com",
+    "searchURL": "https://mofos.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "digitalplayground",
+    "url": "https://digitalplayground.com",
+    "searchURL": "https://digitalplayground.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "evilangel",
+    "url": "https://evilangel.com",
+    "searchURL": "https://evilangel.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "puretaboo",
+    "url": "https://puretaboo.com",
+    "searchURL": "https://puretaboo.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "familystrokes",
+    "url": "https://familystrokes.com",
+    "searchURL": "https://familystrokes.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "sislovesme",
+    "url": "https://sislovesme.com",
+    "searchURL": "https://sislovesme.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "mylf",
+    "url": "https://mylf.com",
+    "searchURL": "https://mylf.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "nubiles",
+    "url": "https://nubiles.com",
+    "searchURL": "https://nubiles.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "castingcouch",
+    "url": "https://castingcouch.com",
+    "searchURL": "https://castingcouch.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "backroomcastingcouch",
+    "url": "https://backroomcastingcouch.com",
+    "searchURL": "https://backroomcastingcouch.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "teamskeet",
+    "url": "https://teamskeet.com",
+    "searchURL": "https://teamskeet.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bang",
+    "url": "https://bang.com",
+    "searchURL": "https://bang.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "adulttime",
+    "url": "https://adulttime.com",
+    "searchURL": "https://adulttime.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "wankmap",
+    "url": "https://wankmap.com",
+    "searchURL": "https://wankmap.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "fuqqt",
+    "url": "https://fuqqt.com",
+    "searchURL": "https://fuqqt.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "vxxx",
+    "url": "https://vxxx.com",
+    "searchURL": "https://vxxx.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "modporn",
+    "url": "https://modporn.com",
+    "searchURL": "https://modporn.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "bellesa",
+    "url": "https://bellesa.com",
+    "searchURL": "https://bellesa.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "fansly",
+    "url": "https://fansly.com",
+    "searchURL": "https://fansly.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "manyvids",
+    "url": "https://manyvids.com",
+    "searchURL": "https://manyvids.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "21sextury",
+    "url": "https://21sextury.com",
+    "searchURL": "https://21sextury.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "julesjordan",
+    "url": "https://julesjordan.com",
+    "searchURL": "https://julesjordan.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "wicked",
+    "url": "https://wicked.com",
+    "searchURL": "https://wicked.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "elegantangel",
+    "url": "https://elegantangel.com",
+    "searchURL": "https://elegantangel.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornerbros",
+    "url": "https://pornerbros.com",
+    "searchURL": "https://pornerbros.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "spankwire",
+    "url": "https://spankwire.com",
+    "searchURL": "https://spankwire.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "fapdu",
+    "url": "https://fapdu.com",
+    "searchURL": "https://fapdu.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "porn.com",
+    "url": "https://porn.com.com",
+    "searchURL": "https://porn.com/search?query=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "porngale",
+    "url": "https://porngale.com",
+    "searchURL": "https://porngale.com/search?q=",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "pornoxo",
+    "url": "https://pornoxo.com",
+    "searchURL": "https://pornoxo.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "fux",
+    "url": "https://fux.com",
+    "searchURL": "https://fux.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "lubetube",
+    "url": "https://lubetube.com",
+    "searchURL": "https://lubetube.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "porncora",
+    "url": "https://porncora.com",
+    "searchURL": "https://porncora.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "thisav",
+    "url": "https://thisav.com",
+    "searchURL": "https://thisav.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "avgle",
+    "url": "https://avgle.com",
+    "searchURL": "https://avgle.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "tubegalore",
+    "url": "https://tubegalore.com",
+    "searchURL": "https://tubegalore.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "recurbate",
+    "url": "https://recurbate.com",
+    "searchURL": "https://recurbate.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  {
+    "name": "clicporn",
+    "url": "https://clicporn.com",
+    "searchURL": "https://clicporn.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": "",
+    "hasSearch": true
+  },
+  [
+  {
+    "name": "Archive.org",
+    "url": "https://archive.org",
+    "searchURL": "https://archive.org/search?query=",
+    "scrapeMethod": "archive-org",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "xvideos",
+    "url": "https://xvideos.com",
+    "searchURL": "https://xvideos.com/?k=",
+    "scrapeMethod": "xvideos",
     "tags": [],
     "description": ""
   },
@@ -33,16 +1771,8 @@
   },
   {
     "name": "Extreme",
-    "url": "https://Extreme.com",
-    "searchURL": "https://Extreme/search?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "less",
-    "url": "https://less.com",
-    "searchURL": "https://less/search?q=",
+    "url": "https://extreme.com",
+    "searchURL": "https://extreme/search?q=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
@@ -88,14 +1818,6 @@
     "description": ""
   },
   {
-    "name": "spankbang",
-    "url": "https://spankbang.com",
-    "searchURL": "https://spankbang.com/s/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
     "name": "redtube",
     "url": "https://redtube.com",
     "searchURL": "https://redtube.com/video/search?search=",
@@ -112,25 +1834,9 @@
     "description": ""
   },
   {
-    "name": "xvideos",
-    "url": "https://xvideos.com",
-    "searchURL": "https://xvideos.com/?k=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
     "name": "xhamster",
     "url": "https://xhamster.com",
     "searchURL": "https://xhamster.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "xnxx",
-    "url": "https://xnxx.com",
-    "searchURL": "https://xnxx.com/search/",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
@@ -144,25 +1850,9 @@
     "description": ""
   },
   {
-    "name": "redtube",
-    "url": "https://redtube.com",
-    "searchURL": "https://redtube.com/video/search?search=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
     "name": "tube8",
     "url": "https://tube8.com",
     "searchURL": "https://tube8.com/search/?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "youjizz",
-    "url": "https://youjizz.com",
-    "searchURL": "https://youjizz.com/search/",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
@@ -184,305 +1874,9 @@
     "description": ""
   },
   {
-    "name": "spankbang",
-    "url": "https://spankbang.com",
-    "searchURL": "https://spankbang.com/s/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
     "name": "pornone",
     "url": "https://pornone.com",
     "searchURL": "https://pornone.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "onlyfans",
-    "url": "https://onlyfans.com",
-    "searchURL": "https://onlyfans.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "chaturbate",
-    "url": "https://chaturbate.com",
-    "searchURL": "https://chaturbate.com/search/?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "brazzers",
-    "url": "https://brazzers.com",
-    "searchURL": "https://brazzers.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "realitykings",
-    "url": "https://realitykings.com",
-    "searchURL": "https://realitykings.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "naughtyamerica",
-    "url": "https://naughtyamerica.com",
-    "searchURL": "https://naughtyamerica.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "bangbros",
-    "url": "https://bangbros.com",
-    "searchURL": "https://bangbros.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "blacked",
-    "url": "https://blacked.com",
-    "searchURL": "https://blacked.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "vixen",
-    "url": "https://vixen.com",
-    "searchURL": "https://vixen.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "tushy",
-    "url": "https://tushy.com",
-    "searchURL": "https://tushy.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "mofos",
-    "url": "https://mofos.com",
-    "searchURL": "https://mofos.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "digitalplayground",
-    "url": "https://digitalplayground.com",
-    "searchURL": "https://digitalplayground.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "evilangel",
-    "url": "https://evilangel.com",
-    "searchURL": "https://evilangel.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "puretaboo",
-    "url": "https://puretaboo.com",
-    "searchURL": "https://puretaboo.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "familystrokes",
-    "url": "https://familystrokes.com",
-    "searchURL": "https://familystrokes.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "sislovesme",
-    "url": "https://sislovesme.com",
-    "searchURL": "https://sislovesme.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "stepmom",
-    "url": "https://stepmom.com",
-    "searchURL": "https://stepmom.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "mylf",
-    "url": "https://mylf.com",
-    "searchURL": "https://mylf.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "nubiles",
-    "url": "https://nubiles.com",
-    "searchURL": "https://nubiles.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "castingcouch",
-    "url": "https://castingcouch.com",
-    "searchURL": "https://castingcouch.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "backroomcastingcouch",
-    "url": "https://backroomcastingcouch.com",
-    "searchURL": "https://backroomcastingcouch.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "teamskeet",
-    "url": "https://teamskeet.com",
-    "searchURL": "https://teamskeet.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "bang",
-    "url": "https://bang.com",
-    "searchURL": "https://bang.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "pornhub",
-    "url": "https://pornhub.com",
-    "searchURL": "https://pornhub.com/video/search?search=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "xvideos",
-    "url": "https://xvideos.com",
-    "searchURL": "https://xvideos.com/?k=",
-    "scrapeMethod": "xvideos",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "xhamster",
-    "url": "https://xhamster.com",
-    "searchURL": "https://xhamster.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "xnxx",
-    "url": "https://xnxx.com",
-    "searchURL": "https://xnxx.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "youporn",
-    "url": "https://youporn.com",
-    "searchURL": "https://youporn.com/search/?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "redtube",
-    "url": "https://redtube.com",
-    "searchURL": "https://redtube.com/video/search?search=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "tube8",
-    "url": "https://tube8.com",
-    "searchURL": "https://tube8.com/search/?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "youjizz",
-    "url": "https://youjizz.com",
-    "searchURL": "https://youjizz.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "ixxx",
-    "url": "https://ixxx.com",
-    "searchURL": "https://ixxx.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "porn",
-    "url": "https://porn.com",
-    "searchURL": "https://porn/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "spankbang",
-    "url": "https://spankbang.com",
-    "searchURL": "https://spankbang.com/s/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "pornone",
-    "url": "https://pornone.com",
-    "searchURL": "https://pornone.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "onlyfans",
-    "url": "https://onlyfans.com",
-    "searchURL": "https://onlyfans.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "chaturbate",
-    "url": "https://chaturbate.com",
-    "searchURL": "https://chaturbate.com/search/?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
@@ -784,129 +2178,193 @@
     "description": ""
   },
   {
-    "name": "pornhub",
-    "url": "https://pornhub.com",
-    "searchURL": "https://pornhub.com/video/search?search=",
+    "name": "camsoda",
+    "url": "https://camsoda.com",
+    "searchURL": "https://camsoda.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "xvideos",
-    "url": "https://xvideos.com",
-    "searchURL": "https://xvideos.com/?k=",
+    "name": "bongacams",
+    "url": "https://bongacams.com",
+    "searchURL": "https://bongacams.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "xhamster",
-    "url": "https://xhamster.com",
-    "searchURL": "https://xhamster.com/search/",
+    "name": "flirt4free",
+    "url": "https://flirt4free.com",
+    "searchURL": "https://flirt4free.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "xnxx",
-    "url": "https://xnxx.com",
-    "searchURL": "https://xnxx.com/search/",
+    "name": "streamate",
+    "url": "https://streamate.com",
+    "searchURL": "https://streamate.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "youporn",
-    "url": "https://youporn.com",
-    "searchURL": "https://youporn.com/search/?q=",
+    "name": "cam4",
+    "url": "https://cam4.com",
+    "searchURL": "https://cam4.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "redtube",
-    "url": "https://redtube.com",
-    "searchURL": "https://redtube.com/video/search?search=",
+    "name": "fansly",
+    "url": "https://fansly.com",
+    "searchURL": "https://fansly.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "tube8",
-    "url": "https://tube8.com",
-    "searchURL": "https://tube8.com/search/?q=",
+    "name": "manyvids",
+    "url": "https://manyvids.com",
+    "searchURL": "https://manyvids.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "youjizz",
-    "url": "https://youjizz.com",
-    "searchURL": "https://youjizz.com/search/",
+    "name": "21sextury",
+    "url": "https://21sextury.com",
+    "searchURL": "https://21sextury.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "ixxx",
-    "url": "https://ixxx.com",
-    "searchURL": "https://ixxx.com/search/",
+    "name": "julesjordan",
+    "url": "https://julesjordan.com",
+    "searchURL": "https://julesjordan.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "spankbang",
-    "url": "https://spankbang.com",
-    "searchURL": "https://spankbang.com/s/",
+    "name": "wicked",
+    "url": "https://wicked.com",
+    "searchURL": "https://wicked.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "eporner",
-    "url": "https://eporner.com",
-    "searchURL": "https://eporner.com/search/",
+    "name": "elegantangel",
+    "url": "https://elegantangel.com",
+    "searchURL": "https://elegantangel.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "beeg",
-    "url": "https://beeg.com",
-    "searchURL": "https://beeg.com/search/",
+    "name": "pornerbros",
+    "url": "https://pornerbros.com",
+    "searchURL": "https://pornerbros.com/search?query=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "pornone",
-    "url": "https://pornone.com",
-    "searchURL": "https://pornone.com/search/",
+    "name": "spankwire",
+    "url": "https://spankwire.com",
+    "searchURL": "https://spankwire.com/search/",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "txxx",
-    "url": "https://txxx.com",
-    "searchURL": "https://txxx.com/search/",
+    "name": "fapdu",
+    "url": "https://fapdu.com",
+    "searchURL": "https://fapdu.com/search/",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "drtuber",
-    "url": "https://drtuber.com",
-    "searchURL": "https://drtuber.com/search/",
+    "name": "porngale",
+    "url": "https://porngale.com",
+    "searchURL": "https://porngale.com/search?q=",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
   },
   {
-    "name": "nuvid",
-    "url": "https://nuvid.com",
-    "searchURL": "https://nuvid.com/search/",
+    "name": "pornoxo",
+    "url": "https://pornoxo.com",
+    "searchURL": "https://pornoxo.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "fux",
+    "url": "https://fux.com",
+    "searchURL": "https://fux.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "lubetube",
+    "url": "https://lubetube.com",
+    "searchURL": "https://lubetube.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "porncora",
+    "url": "https://porncora.com",
+    "searchURL": "https://porncora.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "thisav",
+    "url": "https://thisav.com",
+    "searchURL": "https://thisav.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "avgle",
+    "url": "https://avgle.com",
+    "searchURL": "https://avgle.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "tubegalore",
+    "url": "https://tubegalore.com",
+    "searchURL": "https://tubegalore.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "recurbate",
+    "url": "https://recurbate.com",
+    "searchURL": "https://recurbate.com/search/",
+    "scrapeMethod": "",
+    "tags": [],
+    "description": ""
+  },
+  {
+    "name": "clicporn",
+    "url": "https://clicporn.com",
+    "searchURL": "https://clicporn.com/search/",
     "scrapeMethod": "",
     "tags": [],
     "description": ""
@@ -961,7 +2419,7 @@
   },
   {
     "name": "ok.xxx",
-    "url": "https://ok.xxx.com",
+    "url": "https://ok.xxx",
     "searchURL": "https://ok.xxx/search/",
     "scrapeMethod": "",
     "tags": [],
@@ -1056,30 +2514,6 @@
     "description": ""
   },
   {
-    "name": "gaytube",
-    "url": "https://gaytube.com",
-    "searchURL": "https://gaytube.com/search?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "boyfriendtv",
-    "url": "https://boyfriendtv.com",
-    "searchURL": "https://boyfriendtv.com/search?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "urgayporn",
-    "url": "https://urgayporn.com",
-    "searchURL": "https://urgayporn.com/search?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
     "name": "gaymaletube",
     "url": "https://gaymaletube.com",
     "searchURL": "https://gaymaletube.com/search?q=",
@@ -1104,451 +2538,44 @@
     "description": ""
   },
   {
-    "name": "chaturbate",
-    "url": "https://chaturbate.com",
-    "searchURL": "https://chaturbate.com/search/?query=",
+    "name": "PornTrex",
+    "url": "https://www.porntrex.com",
+    "searchURL": "https://www.porntrex.com/search?q=",
     "scrapeMethod": "",
     "tags": [],
-    "description": ""
+    "description": "High-quality HD/4K tube with fast loading and huge library (added as a nice modern alternative)"
   },
   {
-    "name": "onlyfans",
-    "url": "https://onlyfans.com",
-    "searchURL": "https://onlyfans.com/search?query=",
+    "name": "Erome",
+    "url": "https://www.erome.com",
+    "searchURL": "https://www.erome.com/search?q=",
     "scrapeMethod": "",
     "tags": [],
-    "description": ""
+    "description": "Popular user-uploaded amateur & pro content site (added as a nice alternative to mainstream tubes)"
   },
   {
-    "name": "stripchat",
-    "url": "https://stripchat.com",
-    "searchURL": "https://stripchat.com/search?query=",
+    "name": "Alrincon",
+    "url": "https://alrincon.com",
+    "searchURL": "https://alrincon.com/search?q=",
     "scrapeMethod": "",
     "tags": [],
-    "description": ""
+    "description": "Fast-growing free tube with excellent HD videos (added from 2026 top lists)"
   },
   {
-    "name": "myfreecams",
-    "url": "https://myfreecams.com",
-    "searchURL": "https://myfreecams.com/search?query=",
+    "name": "NudeVista",
+    "url": "https://nudevista.com",
+    "searchURL": "https://nudevista.com/search/?q=",
     "scrapeMethod": "",
     "tags": [],
-    "description": ""
+    "description": "Meta-search engine style tube aggregator (added as a nice powerful search option)"
   },
   {
-    "name": "livejasmin",
-    "url": "https://livejasmin.com",
-    "searchURL": "https://livejasmin.com/search?query=",
+    "name": "TubeSafari",
+    "url": "https://tubesafari.com",
+    "searchURL": "https://tubesafari.com/search/?q=",
     "scrapeMethod": "",
     "tags": [],
-    "description": ""
-  },
-  {
-    "name": "jerkmate",
-    "url": "https://jerkmate.com",
-    "searchURL": "https://jerkmate.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "camsoda",
-    "url": "https://camsoda.com",
-    "searchURL": "https://camsoda.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "bongacams",
-    "url": "https://bongacams.com",
-    "searchURL": "https://bongacams.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "flirt4free",
-    "url": "https://flirt4free.com",
-    "searchURL": "https://flirt4free.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "streamate",
-    "url": "https://streamate.com",
-    "searchURL": "https://streamate.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "cam4",
-    "url": "https://cam4.com",
-    "searchURL": "https://cam4.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "brazzers",
-    "url": "https://brazzers.com",
-    "searchURL": "https://brazzers.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "realitykings",
-    "url": "https://realitykings.com",
-    "searchURL": "https://realitykings.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "naughtyamerica",
-    "url": "https://naughtyamerica.com",
-    "searchURL": "https://naughtyamerica.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "bangbros",
-    "url": "https://bangbros.com",
-    "searchURL": "https://bangbros.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "blacked",
-    "url": "https://blacked.com",
-    "searchURL": "https://blacked.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "vixen",
-    "url": "https://vixen.com",
-    "searchURL": "https://vixen.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "tushy",
-    "url": "https://tushy.com",
-    "searchURL": "https://tushy.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "mofos",
-    "url": "https://mofos.com",
-    "searchURL": "https://mofos.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "digitalplayground",
-    "url": "https://digitalplayground.com",
-    "searchURL": "https://digitalplayground.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "evilangel",
-    "url": "https://evilangel.com",
-    "searchURL": "https://evilangel.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "puretaboo",
-    "url": "https://puretaboo.com",
-    "searchURL": "https://puretaboo.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "familystrokes",
-    "url": "https://familystrokes.com",
-    "searchURL": "https://familystrokes.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "sislovesme",
-    "url": "https://sislovesme.com",
-    "searchURL": "https://sislovesme.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "mylf",
-    "url": "https://mylf.com",
-    "searchURL": "https://mylf.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "nubiles",
-    "url": "https://nubiles.com",
-    "searchURL": "https://nubiles.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "castingcouch",
-    "url": "https://castingcouch.com",
-    "searchURL": "https://castingcouch.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "backroomcastingcouch",
-    "url": "https://backroomcastingcouch.com",
-    "searchURL": "https://backroomcastingcouch.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "teamskeet",
-    "url": "https://teamskeet.com",
-    "searchURL": "https://teamskeet.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "bang",
-    "url": "https://bang.com",
-    "searchURL": "https://bang.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "adulttime",
-    "url": "https://adulttime.com",
-    "searchURL": "https://adulttime.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "wankmap",
-    "url": "https://wankmap.com",
-    "searchURL": "https://wankmap.com/search?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "fuqqt",
-    "url": "https://fuqqt.com",
-    "searchURL": "https://fuqqt.com/search?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "vxxx",
-    "url": "https://vxxx.com",
-    "searchURL": "https://vxxx.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "modporn",
-    "url": "https://modporn.com",
-    "searchURL": "https://modporn.com/search?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "bellesa",
-    "url": "https://bellesa.com",
-    "searchURL": "https://bellesa.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "fansly",
-    "url": "https://fansly.com",
-    "searchURL": "https://fansly.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "manyvids",
-    "url": "https://manyvids.com",
-    "searchURL": "https://manyvids.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "21sextury",
-    "url": "https://21sextury.com",
-    "searchURL": "https://21sextury.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "julesjordan",
-    "url": "https://julesjordan.com",
-    "searchURL": "https://julesjordan.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "wicked",
-    "url": "https://wicked.com",
-    "searchURL": "https://wicked.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "elegantangel",
-    "url": "https://elegantangel.com",
-    "searchURL": "https://elegantangel.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "pornerbros",
-    "url": "https://pornerbros.com",
-    "searchURL": "https://pornerbros.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "spankwire",
-    "url": "https://spankwire.com",
-    "searchURL": "https://spankwire.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "fapdu",
-    "url": "https://fapdu.com",
-    "searchURL": "https://fapdu.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "porn.com",
-    "url": "https://porn.com.com",
-    "searchURL": "https://porn.com/search?query=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "porngale",
-    "url": "https://porngale.com",
-    "searchURL": "https://porngale.com/search?q=",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "pornoxo",
-    "url": "https://pornoxo.com",
-    "searchURL": "https://pornoxo.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "fux",
-    "url": "https://fux.com",
-    "searchURL": "https://fux.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "lubetube",
-    "url": "https://lubetube.com",
-    "searchURL": "https://lubetube.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "porncora",
-    "url": "https://porncora.com",
-    "searchURL": "https://porncora.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "thisav",
-    "url": "https://thisav.com",
-    "searchURL": "https://thisav.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "avgle",
-    "url": "https://avgle.com",
-    "searchURL": "https://avgle.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "tubegalore",
-    "url": "https://tubegalore.com",
-    "searchURL": "https://tubegalore.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "recurbate",
-    "url": "https://recurbate.com",
-    "searchURL": "https://recurbate.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
-  },
-  {
-    "name": "clicporn",
-    "url": "https://clicporn.com",
-    "searchURL": "https://clicporn.com/search/",
-    "scrapeMethod": "",
-    "tags": [],
-    "description": ""
+    "description": "Clean interface with strong HD content selection (added as a nice underrated tube)"
   }
+]
 ]

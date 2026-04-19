@@ -219,6 +219,8 @@ function _vaultToVid(f) {
 // ── Load helpers ──────────────────────────────────────────────────────────────
 function loadSubscriptions() {
   try { const s = localStorage.getItem('reddit_subs'); if (s) subscriptions = new Set(JSON.parse(s)); } catch {}
+  // Auto-subscribe to vault if not explicitly unsubscribed before
+  if (!localStorage.getItem('reddit_vault_unsub')) subscriptions.add('__vault__');
 }
 function saveSubscriptions() {
   localStorage.setItem('reddit_subs', JSON.stringify([...subscriptions]));
@@ -297,7 +299,7 @@ function titleSlug(name) {
   return (name || '').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim().split(/\s+/).slice(0,6).join('-') || 'post';
 }
 function parseSubFromUrl() {
-  const m = location.pathname.match(/^\/reddit\/r\/([^/]+)/);
+  const m = location.pathname.match(/^\/r\/([^/]+)/) || location.pathname.match(/^\/reddit\/r\/([^/]+)/);
   return m ? subFromUrlName(m[1]) : 'all';
 }
 
@@ -341,7 +343,7 @@ function buildAllSubs() {
   ];
   if (allPhotos.length)  allSubs.push({ id: '__photos__', name: 'r/photos', type: 'special', color: '#46d160' });
   if (allBooks.length)   allSubs.push({ id: '__books__',  name: 'r/books',  type: 'special', color: '#5f99cf' });
-  if (vaultItems.length) allSubs.push({ id: '__vault__',  name: 'r/vault',  type: 'special', color: '#e84040' });
+  allSubs.push({ id: '__vault__', name: 'r/vault', type: 'special', color: '#e84040' });
   allCats.forEach(c => allSubs.push({ id: 'cat:'+c, name: 'r/'+c.replace(/[\s/]+/g,''), type: 'category', color: hsl(c), label: c }));
   allActors.filter(a => a.count > 0).forEach(a => allSubs.push({ id: 'actor:'+a.name, name: 'r/'+a.name.replace(/\s+/g,''), type: 'actor', color: hsl('a'+a.name), info: a }));
   allStudios.filter(s => s.count > 0).forEach(s => allSubs.push({ id: 'studio:'+s.name, name: 'r/'+s.name.replace(/\s+/g,''), type: 'studio', color: hsl('s'+s.name), info: s }));
@@ -432,8 +434,13 @@ function updateSidebar() {
 
 // ── Subscribe ─────────────────────────────────────────────────────────────────
 function toggleSubscribe() {
-  if (subscriptions.has(curSub)) subscriptions.delete(curSub);
-  else subscriptions.add(curSub);
+  if (subscriptions.has(curSub)) {
+    subscriptions.delete(curSub);
+    if (curSub === '__vault__') localStorage.setItem('reddit_vault_unsub', '1');
+  } else {
+    subscriptions.add(curSub);
+    if (curSub === '__vault__') localStorage.removeItem('reddit_vault_unsub');
+  }
   saveSubscriptions();
   updateSidebar();
   buildSidebarSubs();
@@ -446,7 +453,7 @@ async function setSub(sub, pushState = true) {
   await loadSubVids(sub);
   if (pushState) {
     const urlName = subUrlName(sub);
-    history.pushState({ sub }, '', urlName ? '/reddit/r/' + urlName : '/reddit');
+    history.pushState({ sub }, '', urlName ? '/r/' + urlName : '/reddit');
   }
   // Always return to feed view when switching subreddit
   document.getElementById('rd-feed').style.display   = '';
@@ -745,7 +752,7 @@ async function openDetail(id, scrollComments, isVault) {
   const v = isVault ? vaultItems.find(x=>x.id===id) : allVids.find(x=>x.id===id);
   if (!v) return;
   const _sn = subUrlName(curSub); const _ts = titleSlug(v.name);
-  history.pushState({ id, sub: curSub }, '', _sn ? '/reddit/r/'+_sn+'/'+_ts : '/reddit/'+_ts);
+  history.pushState({ id, sub: curSub }, '', _sn ? '/r/'+_sn+'/'+_ts : '/reddit/'+_ts);
   document.getElementById('rd-feed').style.display   = 'none';
   document.getElementById('rd-detail').style.display = '';
 
@@ -797,7 +804,7 @@ async function openDetail(id, scrollComments, isVault) {
 
 function backToFeed() {
   const _sn = subUrlName(curSub);
-  history.pushState({ sub: curSub }, '', _sn ? '/reddit/r/'+_sn : '/reddit');
+  history.pushState({ sub: curSub }, '', _sn ? '/r/'+_sn : '/reddit');
   document.getElementById('rd-feed').style.display   = '';
   document.getElementById('rd-detail').style.display = 'none';
   curDetailId = null;

@@ -514,6 +514,30 @@ async function apiVaultCreateTextFile(req, res) {
   json(res, { ok: true, id });
 }
 
+async function apiVaultUpdateTextFile(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const meta = loadVaultMeta();
+  if (!meta[id]) return json(res, { error: 'Not found' }, 404);
+  const ext = (meta[id].ext || '').toLowerCase();
+  if (ext !== '.txt' && ext !== '.md') return json(res, { error: 'Only txt/md files are editable' }, 400);
+
+  const body    = await readBody(req);
+  const content = typeof body.content === 'string' ? body.content : '';
+  const buf     = Buffer.from(content, 'utf-8');
+  const outPath = path.join(VAULT_DIR, id + '.enc');
+  const iv      = crypto.randomBytes(12);
+  const cipher  = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+  const enc     = cipher.update(buf);
+  const fin     = cipher.final();
+  const tag     = cipher.getAuthTag();
+  fs.writeFileSync(outPath, Buffer.concat([iv, enc, fin, tag]));
+
+  meta[id] = { ...meta[id], size: buf.length, sizeF: _fmtBytes(buf.length), mtime: Date.now() };
+  saveVaultMeta(meta);
+  json(res, { ok: true });
+}
+
 // ── Vault Encrypted JSON helpers (used by Favourites) ────────────────
 
 function _encryptJson(data) {
@@ -567,6 +591,7 @@ module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
   apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultMoveFile, apiVaultCreateTextFile,
+  apiVaultUpdateTextFile,
   apiVaultChangePassword, apiVaultDeleteVault,
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook,

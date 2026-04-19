@@ -406,6 +406,10 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
           <span id="ig-autoplay-label">Autoplay On</span>
         </button>
+        <button class="ig-tb-btn" style="width:100%;justify-content:flex-start;gap:8px" id="ig-saved-btn" onclick="toggleSavedOnly()" title="View saved only">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <span id="ig-saved-label">Saved Only</span>
+        </button>
       </div>
 
       <div class="ig-sug-header"><span>Suggested</span></div>
@@ -465,6 +469,7 @@ let curSort = 'date';
 let isShuffled = false;
 let shuffledOrder = [];
 let autoplayEnabled = true;
+let savedOnly = false;
 let feedObserver = null;
 let activeVideoEl = null; // currently autoplaying video element
 
@@ -766,7 +771,19 @@ function setProfileTab(tab) {
 async function toggleVaultOnly() {
   vaultOnly = !vaultOnly;
   document.getElementById('nav-vault').classList.toggle('vault-on', vaultOnly);
-  if (vaultOnly && !vaultUnlocked) { showVaultUnlockPrompt(); return; }
+  if (vaultOnly) {
+    await checkVaultStatus();
+    if (!vaultUnlocked) { showVaultUnlockPrompt(); return; }
+  }
+  resetFeed();
+}
+
+function toggleSavedOnly() {
+  savedOnly = !savedOnly;
+  const btn = document.getElementById('ig-saved-btn');
+  const lbl = document.getElementById('ig-saved-label');
+  btn.classList.toggle('active', savedOnly);
+  lbl.textContent = savedOnly ? 'Showing Saved' : 'Saved Only';
   resetFeed();
 }
 
@@ -805,10 +822,16 @@ function resetFeed() {
 
 // ── Feed data ──────────────────────────────────────────────────────────────
 function getRawItems() {
-  if (vaultOnly) return vaultFiles.map(f => ({...f, _vault:true}));
-  const vids = allVideos.map(v => ({...v, _vault:false}));
-  const vlt  = vaultFiles.map(f => ({...f, _vault:true}));
-  return [...vids, ...vlt];
+  let items;
+  if (vaultOnly) {
+    items = vaultFiles.map(f => ({...f, _vault:true}));
+  } else {
+    const vids = allVideos.map(v => ({...v, _vault:false}));
+    const vlt  = vaultFiles.map(f => ({...f, _vault:true}));
+    items = [...vids, ...vlt];
+  }
+  if (savedOnly) items = items.filter(i => savedIds.has(i.id));
+  return items;
 }
 
 function getFeedItems() {

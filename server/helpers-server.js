@@ -49,9 +49,16 @@ function wordMatchAny(name, terms) {
 }
 
 function actorMatches(videoName, actor) {
+  // Ensure both arguments are strings before proceeding
+  if (typeof videoName !== 'string' || typeof actor !== 'string') {
+    return false; 
+  }
+  
   const vn = videoName.toLowerCase();
   const an = actor.toLowerCase();
+  
   if (vn.includes(an)) return true;
+  
   const parts = an.split(/\s+/).filter(p => p.length > 1);
   return parts.length > 1 && parts.every(p => vn.includes(p));
 }

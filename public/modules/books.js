@@ -29,7 +29,7 @@ function renderBooks(books) {
     const icon = bookTypeIcon(b.ext);
     const badge = bookTypeBadge(b.type, b.ext);
     const chapInfo = b.chapters ? `<span class="bk-chapters">${b.chapters} ch.</span>` : '';
-    return `<div class="bk-card" onclick="openBook('${b.id}')">
+    return `<div class="bk-card" onclick="openBook('${b.id}', false)">
       <div class="bk-icon">${icon}</div>
       <div class="bk-info">
         <div class="bk-title">${esc(b.title || b.filename)}</div>
@@ -55,30 +55,70 @@ function bookTypeBadge(type, ext) {
   return '';
 }
 
-async function openBook(id) {
+let _bookEditorId = null;
+let _bookEditorVault = false;
+
+async function openBook(id, isVault) {
   const reader = $('booksReader').el;
   const readerTitle = $('booksReaderTitle').el;
   const readerBody = $('booksReaderBody').el;
   readerTitle.textContent = 'Loading…';
   readerBody.innerHTML = '<div class="bk-loading">Loading…</div>';
   reader.classList.add('on');
+  _bookEditorId = null;
+  _bookEditorVault = !!isVault;
 
-  const r = await fetch(`/api/books/read/${id}`);
+  let r, data;
+  if (isVault) {
+    r = await fetch(`/api/vault/read-book?id=${id}`);
+  } else {
+    r = await fetch(`/api/books/read/${id}`);
+  }
+
   if (r.headers.get('content-type')?.includes('application/pdf') ||
       r.headers.get('content-type')?.includes('epub')) {
-    // PDF/EPUB: open in new tab
     reader.classList.remove('on');
-    window.open(`/api/books/read/${id}`, '_blank');
+    window.open(isVault ? `/api/vault/read-book?id=${id}` : `/api/books/read/${id}`, '_blank');
     return;
   }
 
-  const data = await r.json();
+  data = await r.json();
   readerTitle.textContent = data.title || '';
-  readerBody.innerHTML = renderMarkdown(data.content || '');
+
+  const ext = (data.ext || '').toLowerCase();
+  if (ext === '.txt' || ext === '.md') {
+    _bookEditorId = id;
+    readerBody.innerHTML =
+      '<textarea id="bk-editor-ta" style="width:100%;height:60vh;background:var(--bg2);color:var(--tx);border:1px solid var(--brd);border-radius:6px;padding:12px;font-family:monospace;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<button onclick="saveBookEdit()" style="background:var(--ac);color:#fff;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:13px">Save</button>' +
+        '<span id="bk-editor-status" style="font-size:12px;color:var(--tx2);align-self:center"></span>' +
+      '</div>';
+    document.getElementById('bk-editor-ta').value = data.content || '';
+  } else {
+    readerBody.innerHTML = renderMarkdown(data.content || '');
+  }
+}
+
+async function saveBookEdit() {
+  if (!_bookEditorId) return;
+  const ta = document.getElementById('bk-editor-ta');
+  const st = document.getElementById('bk-editor-status');
+  if (!ta) return;
+  st.textContent = 'Saving…';
+  const url = _bookEditorVault ? `/api/vault/text/${_bookEditorId}` : `/api/books/${_bookEditorId}`;
+  const r = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: ta.value }),
+  });
+  if (r.ok) { st.textContent = 'Saved'; setTimeout(() => { if (st) st.textContent = ''; }, 2000); }
+  else { st.textContent = 'Save failed'; }
 }
 
 function closeBookReader() {
   $('booksReader').remove('on');
+  _bookEditorId = null;
 }
 
 function renderMarkdown(md) {

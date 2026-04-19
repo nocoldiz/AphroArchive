@@ -1040,13 +1040,14 @@
           <h2>Search</h2>
         </div>
         <div class="ss-tabs">
-          <button class="ss-tab on" id="ss-tab-cards" onclick="ssSwitchTab('cards')">Cards</button>
-          <button class="ss-tab" id="ss-tab-sites" onclick="ssSwitchTab('sites')">Sites</button>
+          <button class="ss-tab" id="ss-tab-cards" onclick="ssSwitchTab('cards')">Cards</button>
+          <button class="ss-tab on" id="ss-tab-sites" onclick="ssSwitchTab('sites')">Sites</button>
+          <button class="ss-tab" id="ss-tab-history" onclick="ssSwitchTab('history')">Latest Search</button>
         </div>
         <div class="search-sites-bar">
           <input type="text" id="search-sites-input" placeholder="Search keyword…" autocomplete="off" spellcheck="false"
             oninput="ssOnInput()" onkeydown="if(event.key==='Enter')ssEnter()">
-          <button class="ss-search-btn" id="ss-search-btn" onclick="ssDoSearch()">
+          <button class="ss-search-btn" id="ss-search-btn" onclick="ssDoSearch()" style="display:none">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
@@ -1055,7 +1056,7 @@
         </div>
 
         <!-- Cards tab -->
-        <div id="ss-cards-pane">
+        <div id="ss-cards-pane" style="display:none">
           <div id="ss-site-pills" class="ss-site-pills"></div>
           <div id="ss-cards-grid" class="ss-cards-grid"></div>
           <div id="ss-cards-empty" class="empty-state" style="display:none">
@@ -1077,7 +1078,7 @@
         </div>
 
         <!-- Sites tab -->
-        <div id="ss-sites-pane" style="display:none">
+        <div id="ss-sites-pane">
           <div id="search-sites-list" class="search-sites-list"></div>
           <div id="search-sites-empty" class="empty-state" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1088,6 +1089,9 @@
             <p>Add a searchURL to sites in Settings to enable search.</p>
           </div>
         </div>
+
+        <!-- Latest Search tab -->
+        <div id="ss-history-pane" style="display:none"></div>
       </div>
 
       <!-- Books Reader -->
@@ -1394,6 +1398,10 @@
                 <option value="delete-on-startup">Delete on startup</option>
                 <option value="dont-save">Don't save history</option>
               </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+              <input type="checkbox" id="disableSearchTrackingToggle" onchange="saveDisableSearchTracking(this.checked)" style="cursor:pointer">
+              <label for="disableSearchTrackingToggle" style="font-size:0.82rem;color:var(--tx2);cursor:pointer">Disable search tracking (Latest Search tab)</label>
             </div>
           </div>
         </div>
