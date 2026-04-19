@@ -200,6 +200,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/files' && req.method === 'GET') return vault.apiVaultFiles(req, res);
   if (p === '/api/vault/add' && req.method === 'POST') return vault.apiVaultAdd(req, res);
   if ((m = p.match(/^\/api\/vault\/stream\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultStream(req, res, m[1]);
+  if ((m = p.match(/^\/api\/vault\/thumb\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultThumb(req, res, m[1]);
+  if ((m = p.match(/^\/api\/vault\/png-meta\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultPngMeta(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDelete(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'PATCH') return vault.apiVaultMoveFile(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/download\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultDownload(req, res, m[1]);
@@ -245,6 +247,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Vision ───────────────────────────────────────────────────────────
   if (p === '/api/vision/describe' && req.method === 'POST') return vision.apiVisionDescribe(req, res);
+  if (p === '/api/vision/status' && req.method === 'GET') return vision.apiVisionStatus(req, res);
 
   // ── Prompts ──────────────────────────────────────────────────────────
   if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);

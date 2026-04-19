@@ -32,6 +32,41 @@ async function loadSettings() {
   if (vaultPanel) vaultPanel.style.display = vaultStatus.configured ? '' : 'none';
   const akInput = document.getElementById('anthropicApiKeyInput');
   if (akInput) akInput.value = prefs.anthropicApiKey || '';
+  const ollamaInput = document.getElementById('ollamaVisionModelInput');
+  if (ollamaInput) ollamaInput.value = prefs.ollamaVisionModel || '';
+  _refreshOllamaStatus();
+}
+
+async function saveOllamaVisionModel() {
+  const input = document.getElementById('ollamaVisionModelInput');
+  const model = (input ? input.value : '').trim();
+  const r = await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ollamaVisionModel: model })
+  });
+  if (r.ok) { toast(model ? 'Ollama model saved: ' + model : 'Ollama model cleared'); _refreshOllamaStatus(); }
+  else toast('Save failed');
+}
+
+async function _refreshOllamaStatus() {
+  const dot = document.getElementById('ollamaStatusDot');
+  if (!dot) return;
+  dot.textContent = '…';
+  dot.style.color = 'var(--tx3)';
+  try {
+    const d = await fetch('/api/vision/status').then(r => r.json());
+    if (d.ollama) {
+      dot.textContent = '● running' + (d.models.length ? ' (' + d.models.join(', ') + ')' : '');
+      dot.style.color = '#10b981';
+    } else {
+      dot.textContent = '● not running';
+      dot.style.color = 'var(--tx3)';
+    }
+  } catch {
+    dot.textContent = '● unavailable';
+    dot.style.color = 'var(--tx3)';
+  }
 }
 
 async function saveAnthropicApiKey(key) {
