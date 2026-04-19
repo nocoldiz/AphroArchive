@@ -614,17 +614,21 @@
             <div id="vault-auto-folders-row" class="vault-folders-row" style="display:none"></div>
             <div id="vault-folders-row" class="vault-folders-row"></div>
 
-          <div class="vault-sort-row">
-            <span class="vault-sort-label">Sort:</span>
-
-            <button onclick="handleVaultSort('mtime')">Date <span id="vault-sort-mtime-dir">↓</span></button>
-            <button onclick="handleVaultSort('name')">Name <span id="vault-sort-name-dir"></span></button>
-            <button onclick="handleVaultSort('size')">Size <span id="vault-sort-size-dir"></span></button>
-            <button id="vault-toggle-thumbs" class="p-btn" title="Cycle Thumbnail Modes" onclick="toggleVaultThumbs()">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="section-controls" id="vault-controls">
+            <button class="sort-btn vault-sort-btn on" data-vs="mtime" data-label="Recent" onclick="handleVaultSort('mtime')">Recent ↓</button>
+            <button class="sort-btn vault-sort-btn" data-vs="name" data-label="Name" onclick="handleVaultSort('name')">Name</button>
+            <button class="sort-btn vault-sort-btn" data-vs="size" data-label="Size" onclick="handleVaultSort('size')">Size</button>
+            <button class="sort-btn" id="vaultShufBtn" onclick="toggleVaultShuf()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l5.1 5.1"/><path d="M4 4l5 5"/></svg>Shuffle</button>
+            <span class="sg-sep"></span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            <input type="range" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            <span class="sg-sep"></span>
+            <button id="vault-toggle-thumbs" class="sort-btn p-btn" title="Cycle Thumbnail Modes" onclick="toggleVaultThumbs()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:3px">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                 <circle cx="12" cy="12" r="3"></circle>
-              </svg>
+              </svg>Thumbs
             </button>
           </div>
           <div class="vault-progress" id="vaultProgress" style="display:none"></div>
@@ -637,6 +641,10 @@
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>Download</button>
+            <button onclick="openVaultZipModal()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
+                <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>
+              </svg>ZIP</button>
             <button onclick="showVaultSelMoveMenu(event)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
@@ -1960,6 +1968,24 @@
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>
+
+  <!-- Vault ZIP download modal -->
+  <div class="vision-modal" id="vaultZipModal" onclick="if(event.target===this)closeVaultZipModal()">
+    <div class="vision-modal-box" onclick="event.stopPropagation()" style="max-width:360px">
+      <div style="font-size:1rem;font-weight:600;color:var(--tx)">Download as ZIP</div>
+      <div id="vaultZipHint" style="font-size:0.8rem;color:var(--tx3)"></div>
+      <label style="font-size:0.82rem;color:var(--tx2)">Password <span style="opacity:.5">(leave blank for no encryption)</span></label>
+      <input id="vaultZipPassword" type="password" placeholder="enter password\u2026" autocomplete="new-password"
+        style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:7px 10px;border-radius:var(--r);font-size:0.85rem;outline:none;width:100%;box-sizing:border-box"
+        onfocus="this.type='text'" onblur="this.type='password'"
+        onkeydown="if(event.key==='Enter')downloadVaultZip()">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="closeVaultZipModal()" class="vision-modal-close">Cancel</button>
+        <button id="vaultZipDownloadBtn" onclick="downloadVaultZip()"
+          style="background:var(--ac);color:#fff;border:none;padding:6px 16px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Download ZIP</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Vision description modal -->
   <div class="vision-modal" id="visionModal" onclick="closeVisionModal()">

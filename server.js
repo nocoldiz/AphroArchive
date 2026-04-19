@@ -40,6 +40,7 @@ const settings    = require('./server/settings-server');
 const prompts     = require('./server/prompts-server');
 const comments    = require('./server/comments-server');
 const vision      = require('./server/vision-server');
+const vaultZip    = require('./server/vault-zip-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -202,6 +203,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDelete(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'PATCH') return vault.apiVaultMoveFile(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/download\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultDownload(req, res, m[1]);
+  if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/ai-tag$/)) && req.method === 'POST') return vault.apiVaultAiTag(req, res, m[1]);
+  if (p === '/api/vault/download-zip' && req.method === 'POST') return vaultZip.apiVaultDownloadZip(req, res);
   if (p === '/api/vault/folders' && req.method === 'POST') return vault.apiVaultCreateFolder(req, res);
   if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDeleteFolder(req, res, m[1]);
   if (p === '/api/vault/favs' && req.method === 'GET') return vault.apiVaultFavsGet(req, res);

@@ -927,6 +927,20 @@ async function apiVaultImportDrop(req, res) {
   json(res, { ok: true });
 }
 
+function getFileMeta(id) {
+  const meta = loadVaultMeta();
+  return meta[id] || null;
+}
+
+function apiVaultAiTag(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  const meta = loadVaultMeta();
+  if (!meta[id]) return json(res, { error: 'not found' }, 404);
+  meta[id].aiTagged = true;
+  saveVaultMeta(meta);
+  json(res, { ok: true });
+}
+
 function decryptToBuffer(id) {
   if (!vaultKey) return null;
   const encPath = path.join(VAULT_DIR, id + '.enc');
@@ -955,5 +969,5 @@ module.exports = {
   apiVaultChangePassword, apiVaultDeleteVault,
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
-  apiVaultImportDrop, decryptToBuffer,
+  apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag,
 };

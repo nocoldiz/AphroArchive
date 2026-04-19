@@ -10,7 +10,7 @@ let mosaicOn = false, mosaicTimer = null, mosaicIv = 8;
 let vaultMode = false, vaultSelMode = false, scraperMode = false, importFavsMode = false, booksMode = false, audioMode = false, photosMode = false, categoriesMode = false;
 let remoteMode = false;
 const vaultSel = new Set();
-let vaultFiles = [], vaultPl = [], vaultPlIdx = 0, vaultQ = '', vaultSort = 'date', vaultPhotoIdx = -1, vaultPhotos = [];
+let vaultFiles = [], vaultPl = [], vaultPlIdx = 0, vaultQ = '', vaultSort = 'mtime', vaultSortDir = 'desc', vaultShuf = false, vaultPhotoIdx = -1, vaultPhotos = [];
 let vaultFolders = [], vaultCurFolder = null; // null = root
 const VAULT_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);
 const VAULT_IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);

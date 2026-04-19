@@ -29,7 +29,7 @@ async function showVault() {
 }
 let vaultThumbMode  = 'hover';
 let vaultThumbsVisible = false;
-let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book' | 'fav'
+let vaultTypeFilter = null; // null | 'video' | 'photo' | 'audio' | 'book' | 'fav' | 'ai'
 let vaultCatFilter  = null; // null | category key string
 let vaultFavIds = new Set();
 let _vaultCategories = null; // cached categories.json
@@ -44,6 +44,7 @@ const VAULT_FILTER_TILES = [
   { key: 'fav',   label: 'Favourites', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' },
   { key: 'video', label: 'Videos', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 9l5-3v12l-5-3V9z"/></svg>' },
   { key: 'photo', label: 'Photos', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>' },
+  { key: 'ai',    label: 'AI Images', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
   { key: 'audio', label: 'Audio',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
   { key: 'book',  label: 'Books',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>' },
   { key: 'page',  label: 'Pages',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="12" y1="9" x2="8" y2="9"/></svg>' },
@@ -244,12 +245,10 @@ async function importFromVaultDropDir() {
 }
 
 async function loadVaultFiles() {
-  let vaultSort = 'mtime';
-  let vaultSortDir = 'desc';
-vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = null; vaultCatFilter = null;
+  vaultQ = ''; vaultSort = 'mtime'; vaultSortDir = 'desc'; vaultShuf = false; vaultCurFolder = null; vaultTypeFilter = null; vaultCatFilter = null;
   const vsi = $('vaultSearchInput').el;
   if (vsi) vsi.value = '';
-  document.querySelectorAll('.vault-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.sort === 'date'));
+  _updateVaultSortBtns();
   vaultSelMode = false;
   vaultSel.clear();
   updateVaultSelBar();
@@ -268,6 +267,9 @@ vaultQ = ''; vaultSort = 'date-desc'; vaultCurFolder = null; vaultTypeFilter = n
   vaultFolders = items.filter(f => f.type === 'folder');
   vaultFiles   = items.filter(f => f.type !== 'folder');
   _loadVaultNameCache();
+  _loadVaultAiIds();
+  // Seed _vaultAiIds from server-persisted aiTagged field
+  items.filter(f => f.aiTagged).forEach(f => _vaultAiIds.add(f.id));
   await _ensureVaultCategories();
   renderVaultGrid();
   _scanVaultWorkflowNames();
@@ -331,13 +333,20 @@ function renderVaultGrid() {
   if (vaultTypeFilter) {
     if (vaultTypeFilter === 'fav') {
       files = vaultFiles.filter(f => vaultFavIds.has(f.id));
+    } else if (vaultTypeFilter === 'ai') {
+      files = vaultFiles.filter(f => _vaultAiIds.has(f.id));
     } else {
       const extSet = vaultTypeFilter === 'video' ? VAULT_VIDEO_EXTS
                    : vaultTypeFilter === 'photo' ? VAULT_PHOTO_EXTS
                    : vaultTypeFilter === 'audio' ? VAULT_AUDIO_EXTS
                    : vaultTypeFilter === 'page'  ? VAULT_PAGE_EXTS
                    : VAULT_BOOK_EXTS;
-      files = vaultFiles.filter(f => extSet.has((f.ext || '').toLowerCase()));
+      files = vaultFiles.filter(f => {
+        const inExt = extSet.has((f.ext || '').toLowerCase());
+        // Exclude AI images from the Photos filter — they live under AI Images
+        if (vaultTypeFilter === 'photo') return inExt && !_vaultAiIds.has(f.id);
+        return inExt;
+      });
     }
     if (q) files = files.filter(f => (f.name || f.originalName).toLowerCase().includes(q));
   } else {
@@ -348,17 +357,30 @@ function renderVaultGrid() {
 
   if (vaultCatFilter && _vaultCategories && _vaultCategories[vaultCatFilter]) {
     const cat = _vaultCategories[vaultCatFilter];
-const terms = [cat.displayName, ...(cat.tags || [])]
-  .filter(Boolean) // This removes null/undefined values
-  .map(t => t.toLowerCase());    files = files.filter(f => {
+    const terms = [cat.displayName, ...(cat.tags || [])].filter(Boolean).map(t => t.toLowerCase());
+    files = files.filter(f => {
       const name = (_vaultNameCache[f.id] || f.name || f.originalName || '').toLowerCase();
       return terms.some(t => name.includes(t));
     });
   }
 
-  if (vaultSort === 'size-asc') files.sort((a, b) => a.size - b.size);
-  else if (vaultSort === 'size-desc') files.sort((a, b) => b.size - a.size);
-  else if (vaultSort === 'name') files.sort((a, b) => (a.name || a.originalName).localeCompare(b.name || b.originalName));
+  if (vaultShuf) {
+    for (let i = files.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [files[i], files[j]] = [files[j], files[i]];
+    }
+  } else {
+    files.sort((a, b) => {
+      if (vaultSort === 'name') {
+        const va = (a.originalName || a.name || '').toLowerCase();
+        const vb = (b.originalName || b.name || '').toLowerCase();
+        return vaultSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      const va = vaultSort === 'size' ? (a.size || 0) : (a.mtime || 0);
+      const vb = vaultSort === 'size' ? (b.size || 0) : (b.mtime || 0);
+      return vaultSortDir === 'asc' ? va - vb : vb - va;
+    });
+  }
 
   // 3. Handle Empty State
   if (!filterHtml && !folderHtml && !files.length) {
@@ -554,8 +576,8 @@ function searchVault(q) {
 }
 
 function setVaultSort(s) {
-  vaultSort = s;
-  document.querySelectorAll('.vault-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.sort === s));
+  vaultSort = s; vaultShuf = false;
+  _updateVaultSortBtns();
   renderVaultGrid();
 }
 
@@ -589,56 +611,34 @@ async function addVaultFiles() {
   toast('Encrypted and stored in vault');
 }
 
-async function handleVaultSort(key) {
+function handleVaultSort(key) {
+  vaultShuf = false;
   if (vaultSort === key) {
-    // If clicking the same key, toggle direction
-    vaultSortDir = (vaultSortDir === 'desc') ? 'asc' : 'desc';
+    vaultSortDir = vaultSortDir === 'desc' ? 'asc' : 'desc';
   } else {
-    // New key selected
     vaultSort = key;
-    // Default: Names sort A-Z (asc), Dates and Size sort Newest/Largest (desc)
-    vaultSortDir = (key === 'name') ? 'asc' : 'desc';
+    vaultSortDir = key === 'name' ? 'asc' : 'desc';
   }
-  applyVaultSort();
+  _updateVaultSortBtns();
+  renderVaultGrid();
 }
 
-/**
- * Applies the sort to vaultFiles and refreshes the UI
- */
-function applyVaultSort() {
-  // 1. Update Arrows in UI
-  const keys = ['mtime', 'name', 'size'];
-  keys.forEach(k => {
-    const el = document.getElementById(`vault-sort-${k}-dir`);
-    if (!el) return;
-    if (vaultSort === k) {
-      el.textContent = (vaultSortDir === 'desc') ? ' ↓' : ' ↑';
-    } else {
-      el.textContent = '';
-    }
-  });
-
-  // 2. Perform Sort
-  vaultFiles.sort((a, b) => {
-    let valA, valB;
-
-    if (vaultSort === 'mtime') {
-      valA = a.mtime || 0;
-      valB = b.mtime || 0;
-    } else if (vaultSort === 'name') {
-      valA = (a.originalName || '').toLowerCase();
-      valB = (b.originalName || '').toLowerCase();
-    } else if (vaultSort === 'size') {
-      valA = a.size || 0;
-      valB = b.size || 0;
-    }
-
-    if (valA < valB) return vaultSortDir === 'asc' ? -1 : 1;
-    if (valA > valB) return vaultSortDir === 'asc' ? 1 : -1;
-    return 0;
-  });
-
+function toggleVaultShuf() {
+  vaultShuf = !vaultShuf;
+  const btn = document.getElementById('vaultShufBtn');
+  if (btn) btn.classList.toggle('on', vaultShuf);
   renderVaultGrid();
+}
+
+function _updateVaultSortBtns() {
+  document.querySelectorAll('.vault-sort-btn[data-vs]').forEach(b => {
+    const active = b.dataset.vs === vaultSort && !vaultShuf;
+    b.classList.toggle('on', active);
+    const arrow = active ? (vaultSortDir === 'desc' ? ' ↓' : ' ↑') : '';
+    b.textContent = b.dataset.label + arrow;
+  });
+  const shufBtn = document.getElementById('vaultShufBtn');
+  if (shufBtn) shufBtn.classList.toggle('on', vaultShuf);
 }
 
 /**
@@ -690,24 +690,6 @@ async function createNewVaultTextFile() {
   loadVaultFiles();
   toast('Empty text file created securely');
 }
-/**
- * Shuffle logic (Keep existing or use this)
- */
-function shuffleVault() {
-  // Clear sort indicators
-  vaultSort = 'shuffle';
-  ['mtime', 'name', 'size'].forEach(k => {
-    const el = document.getElementById(`vault-sort-${k}-dir`);
-    if (el) el.textContent = '';
-  });
-
-  for (let i = vaultFiles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [vaultFiles[i], vaultFiles[j]] = [vaultFiles[j], vaultFiles[i]];
-  }
-  renderVaultGrid();
-}
-
 
 async function openVaultVid(id, name, ext) {
   $('browse-view').add('off');
@@ -1123,9 +1105,16 @@ function _vpDetach() {
 function openVaultPhoto(id, name) {
   const q = vaultQ.toLowerCase();
   let files = q ? vaultFiles.filter(f => (f.name || f.originalName).toLowerCase().includes(q)) : vaultFiles.slice();
-  if (vaultSort === 'size-asc') files.sort((a, b) => a.size - b.size);
-  else if (vaultSort === 'size-desc') files.sort((a, b) => b.size - a.size);
-  else if (vaultSort === 'name') files.sort((a, b) => (a.name || a.originalName).localeCompare(b.name || b.originalName));
+  files.sort((a, b) => {
+    if (vaultSort === 'name') {
+      const va = (a.originalName || a.name || '').toLowerCase();
+      const vb = (b.originalName || b.name || '').toLowerCase();
+      return vaultSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    const va = vaultSort === 'size' ? (a.size || 0) : (a.mtime || 0);
+    const vb = vaultSort === 'size' ? (b.size || 0) : (b.mtime || 0);
+    return vaultSortDir === 'asc' ? va - vb : vb - va;
+  });
   vaultPhotos = files.filter(f => VAULT_IMG_EXTS.has(f.ext.toLowerCase()));
   vaultPhotoIdx = vaultPhotos.findIndex(f => f.id === id);
   if (vaultPhotoIdx < 0) vaultPhotoIdx = 0;
@@ -1393,7 +1382,6 @@ function initVaultAutoHide() {
 }
 
 function initVaultShiftSelection() {
-  // Prevent duplicate listeners if showVault() is called multiple times
   if (window._vaultShiftInitialized) return;
   window._vaultShiftInitialized = true;
 
@@ -1402,7 +1390,28 @@ function initVaultShiftSelection() {
   });
 
   document.addEventListener('keyup', (e) => {
-    if (e.key === 'Shift') shiftKeyPressed = false;
+    if (e.key === 'Shift') { shiftKeyPressed = false; }
+  });
+
+  // Shift+hover: hovering over a vault card while Shift is held adds it to selection
+  document.addEventListener('mouseover', (e) => {
+    if (!shiftKeyPressed) return;
+    const card = e.target.closest('[data-vault-id]');
+    if (!card || card.classList.contains('vault-folder-tile') || card.classList.contains('vault-filter-tile')) return;
+    const id = card.dataset.vaultId;
+    if (!id || vaultSel.has(id)) return;
+    vaultSel.add(id);
+    card.classList.add('vault-selected');
+    const chk = document.getElementById('vchk-' + id);
+    if (chk) chk.classList.add('on');
+    if (!vaultSelMode) {
+      vaultSelMode = true;
+      const grid = document.getElementById('vaultGrid');
+      if (grid) grid.classList.add('vault-sel-mode');
+      const selBtn = document.getElementById('vaultSelBtn');
+      if (selBtn) selBtn.classList.add('on');
+    }
+    updateVaultSelBar();
   });
 }
 function updateVaultDynamicTile(idx) {
@@ -1496,6 +1505,8 @@ function closeVaultPhoto() {
 
 const _vaultNameCache = {}; // id → string | null
 const _VNCK = 'vault_name_cache';
+const _vaultAiIds = new Set(); // ids of vault images with detected AI prompts
+const _VAIK = 'vault_ai_ids';
 
 function _loadVaultNameCache() {
   try { Object.assign(_vaultNameCache, JSON.parse(localStorage.getItem(_VNCK) || '{}')); } catch {}
@@ -1507,6 +1518,14 @@ function _saveVaultNameCache() {
     for (const [k, v] of Object.entries(_vaultNameCache)) if (v) out[k] = v;
     localStorage.setItem(_VNCK, JSON.stringify(out));
   } catch {}
+}
+
+function _loadVaultAiIds() {
+  try { JSON.parse(localStorage.getItem(_VAIK) || '[]').forEach(id => _vaultAiIds.add(id)); } catch {}
+}
+
+function _saveVaultAiIds() {
+  try { localStorage.setItem(_VAIK, JSON.stringify([..._vaultAiIds])); } catch {}
 }
 
 function _extractComfyName(meta) {
@@ -1550,12 +1569,19 @@ function _extractComfyName(meta) {
   return null;
 }
 
+const _AI_PROMPT_KEYS = new Set(['workflow', 'prompt', 'parameters']);
+
 async function _resolveVaultName(f) {
   if (_vaultNameCache[f.id] !== undefined) return _vaultNameCache[f.id];
   if (f.ext.toLowerCase() !== '.png') { _vaultNameCache[f.id] = null; return null; }
   try {
-    const buf = await (await fetch('/api/vault/stream/' + f.id, { cache: 'force-cache' })).arrayBuffer();
+    const buf  = await (await fetch('/api/vault/stream/' + f.id, { cache: 'force-cache' })).arrayBuffer();
     const meta = _parsePngMeta(buf);
+    if (meta && Object.keys(meta).some(k => _AI_PROMPT_KEYS.has(k.toLowerCase())) && !_vaultAiIds.has(f.id)) {
+      _vaultAiIds.add(f.id);
+      _saveVaultAiIds();
+      fetch('/api/vault/files/' + f.id + '/ai-tag', { method: 'POST' }).catch(() => {});
+    }
     _vaultNameCache[f.id] = meta ? _extractComfyName(meta) : null;
   } catch { _vaultNameCache[f.id] = null; }
   return _vaultNameCache[f.id];
@@ -1581,6 +1607,8 @@ async function _scanVaultWorkflowNames() {
   await Promise.all(Array.from({ length: CONCURRENCY }, next));
   _saveVaultNameCache();
   _renderVaultAutoFolders();
+  // Re-render grid to apply AI filter exclusions if photo filter is active
+  if (vaultTypeFilter === 'photo' || vaultTypeFilter === 'ai') renderVaultGrid();
 }
 
 // ── ComfyUI / PNG metadata ────────────────────────────────────────────────
@@ -1798,6 +1826,53 @@ function downloadVaultSelected() {
     }, i * 300);
   });
   toast('Downloading ' + ids.length + ' file' + (ids.length > 1 ? 's' : '') + '\u2026');
+}
+
+function openVaultZipModal(ids) {
+  const modal = document.getElementById('vaultZipModal');
+  if (!modal) return;
+  modal._ids = ids || [...vaultSel];
+  const inp = document.getElementById('vaultZipPassword');
+  if (inp) inp.value = '';
+  const hint = document.getElementById('vaultZipHint');
+  if (hint) hint.textContent = modal._ids.length + ' file' + (modal._ids.length !== 1 ? 's' : '') + ' selected';
+  modal.classList.add('on');
+  if (inp) setTimeout(() => inp.focus(), 50);
+}
+
+function closeVaultZipModal() {
+  document.getElementById('vaultZipModal')?.classList.remove('on');
+}
+
+async function downloadVaultZip() {
+  const modal = document.getElementById('vaultZipModal');
+  const ids   = modal?._ids || [...vaultSel];
+  const pw    = (document.getElementById('vaultZipPassword')?.value || '').trim();
+  const btn   = document.getElementById('vaultZipDownloadBtn');
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Building\u2026'; }
+  try {
+    const r = await fetch('/api/vault/download-zip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, password: pw })
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      toast(d.error || 'ZIP failed'); return;
+    }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'vault-export-' + Date.now() + '.zip';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    closeVaultZipModal();
+    toast('ZIP downloaded' + (pw ? ' (encrypted)' : ''));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Download ZIP'; }
+  }
 }
 
 function vaultCardDownload(id) {
