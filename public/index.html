@@ -1461,26 +1461,15 @@
         <div class="settings-hidden-panel" style="margin-top:16px">
           <div class="settings-panel">
             <div class="settings-panel-header">
-              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>AI Vision</span>
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>AI Vision (Anthropic)</span>
             </div>
-            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Describe vault images locally via <a href="https://ollama.com" target="_blank" style="color:var(--ac)">Ollama</a>. Falls back to Claude API if Ollama is not running.</p>
-
-            <label style="font-size:0.78rem;color:var(--tx3);display:block;margin-bottom:4px">Local model (Ollama) <span id="ollamaStatusDot" style="margin-left:6px;font-size:0.72rem"></span></label>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-              <input type="text" id="ollamaVisionModelInput" placeholder="moondream  or  llava-phi3  or  llava:7b" autocomplete="off"
-                style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:var(--r);font-size:0.82rem;outline:none">
-              <button onclick="saveOllamaVisionModel()"
-                style="background:var(--ac);color:#fff;border:none;padding:6px 14px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Save</button>
-            </div>
-            <p style="font-size:0.75rem;color:var(--tx3);margin:0 0 10px">Pull a model with: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">ollama pull moondream</code></p>
-
-            <label style="font-size:0.78rem;color:var(--tx3);display:block;margin-bottom:4px">Anthropic API key (fallback)</label>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 8px">Describe photos and thumbnails using Claude. Requires an <a href="https://console.anthropic.com" target="_blank" style="color:var(--ac)">Anthropic API key</a>.</p>
             <div style="display:flex;gap:8px;align-items:center">
-              <input type="password" id="anthropicApiKeyInput" placeholder="sk-ant-… (optional fallback)" autocomplete="off"
+              <input type="password" id="anthropicApiKeyInput" placeholder="sk-ant-…" autocomplete="off"
                 style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:var(--r);font-size:0.82rem;outline:none"
                 onfocus="this.type='text'" onblur="this.type='password'">
               <button onclick="saveAnthropicApiKey(document.getElementById('anthropicApiKeyInput').value)"
-                style="background:var(--bg2);color:var(--tx);border:1px solid var(--brd);padding:6px 14px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Save</button>
+                style="background:var(--ac);color:#fff;border:none;padding:6px 14px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Save</button>
             </div>
           </div>
         </div>

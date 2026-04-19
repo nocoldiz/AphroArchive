@@ -401,9 +401,8 @@ function renderVaultGrid() {
     const ctClass = 'card-thumb vault-ct' + (isImg ? ' has-thumb' : '');
     const ctStyle = isImg ? 'cursor:pointer' : 'background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%);cursor:pointer';
     
-    const isThumbable = isImg || VAULT_VIDEO_EXTS.has(f.ext.toLowerCase());
-    const inner = isThumbable
-      ? '<img src="/api/vault/thumb/' + escA(f.id) + '" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'
+    const inner = isImg
+      ? '<img src="/api/vault/stream/' + escA(f.id) + '" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'
       : '<span class="ext-badge">' + f.ext.replace('.','') + '</span>';
     
     const moveFolderOpts = vaultFolders.length
@@ -418,7 +417,7 @@ function renderVaultGrid() {
     const dlBtn   = '<button onclick="event.stopPropagation();vaultCardDownload(\'' + escA(f.id) + '\')" title="Download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
     const descBtn = isImg ? '<button onclick="event.stopPropagation();describeVaultCard(\'' + escA(f.id) + '\')" title="Describe with AI"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>' : '';
 
-    return '<div class="video-card" data-vault-id="' + escA(f.id) + '">' +
+    return '<div class="video-card fade-in" data-vault-id="' + escA(f.id) + '">' +
       '<div class="' + ctClass + '" style="' + ctStyle + '" onclick="vaultCardClick(\'' + escA(f.id) + '\',\'' + escA(f.name || f.originalName) + '\',\'' + escA(f.ext) + '\')">' +
       inner +
       '<div class="vault-chk" id="vchk-' + escA(f.id) + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>' +
@@ -1576,7 +1575,8 @@ async function _resolveVaultName(f) {
   if (_vaultNameCache[f.id] !== undefined) return _vaultNameCache[f.id];
   if (f.ext.toLowerCase() !== '.png') { _vaultNameCache[f.id] = null; return null; }
   try {
-    const meta = await fetch('/api/vault/png-meta/' + f.id).then(r => r.ok ? r.json() : null);
+    const buf  = await (await fetch('/api/vault/stream/' + f.id, { cache: 'force-cache' })).arrayBuffer();
+    const meta = _parsePngMeta(buf);
     if (meta && Object.keys(meta).some(k => _AI_PROMPT_KEYS.has(k.toLowerCase())) && !_vaultAiIds.has(f.id)) {
       _vaultAiIds.add(f.id);
       _saveVaultAiIds();
@@ -1592,7 +1592,7 @@ async function _scanVaultWorkflowNames() {
     !f.name && f.ext.toLowerCase() === '.png' && _vaultNameCache[f.id] === undefined
   );
   if (!toScan.length) return;
-  const CONCURRENCY = 8;
+  const CONCURRENCY = 3;
   let i = 0;
   async function next() {
     if (i >= toScan.length) return;
@@ -1681,10 +1681,11 @@ async function showVaultPhotoMeta() {
   }
 
   try {
-    const resp = await fetch('/api/vault/png-meta/' + f.id);
+    const resp = await fetch('/api/vault/stream/' + f.id, { cache: 'force-cache' });
     if (!resp.ok) throw new Error('fetch failed');
-    const meta = await resp.json();
-    if (!meta || !Object.keys(meta).length) { body.innerHTML = '<div class="vault-meta-empty">No embedded metadata found</div>'; return; }
+    const buf = await resp.arrayBuffer();
+    const meta = _parsePngMeta(buf);
+    if (!meta) { body.innerHTML = '<div class="vault-meta-empty">No embedded metadata found</div>'; return; }
 
     _currentVaultMeta = meta;
 

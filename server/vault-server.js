@@ -6,8 +6,7 @@
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
-const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, PROCESS_DIR, CACHE_DIR, FFMPEG_BIN } = require('./config-server');
+const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, PROCESS_DIR } = require('./config-server');
 const { json, readBody, formatBytes: _fmtBytes } = require('./helpers-server');
 const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs } = require('./db-server');
 const VAULT_DROP_DIR = typeof PROCESS_DIR !== 'undefined' ? PROCESS_DIR : path.join(path.dirname(VAULT_DIR), 'hidden');
@@ -68,12 +67,10 @@ function _shredFile(filePath) {
 // Silently shred the entire vault — called on silent wipe
 function _silentWipe() {
   try {
-    if (fs.existsSync(VAULT_THUMB_DIR)) {
-      for (const f of fs.readdirSync(VAULT_THUMB_DIR)) _shredFile(path.join(VAULT_THUMB_DIR, f));
-      try { fs.rmdirSync(VAULT_THUMB_DIR); } catch {}
-    }
     if (fs.existsSync(VAULT_DIR)) {
-      for (const file of fs.readdirSync(VAULT_DIR)) _shredFile(path.join(VAULT_DIR, file));
+      for (const file of fs.readdirSync(VAULT_DIR)) {
+        _shredFile(path.join(VAULT_DIR, file));
+      }
     }
     _shredFile(VAULT_CONFIG_FILE);
     _shredFile(VAULT_META_FILE);
@@ -155,12 +152,11 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     dec.on('error', () => { try { res.end(); } catch {} });
     src.pipe(dec);
   } else {
-    const isImage = /\.(jpg|jpeg|png|gif|webp|avif|bmp)$/i.test(meta[id].ext || '');
     res.writeHead(200, {
       'Content-Length': contentSize,
       'Content-Type': ct,
       'Accept-Ranges': 'bytes',
-      ...(isImage ? { 'Cache-Control': 'private, max-age=600' } : NO_CACHE_HEADERS),
+      ...NO_CACHE_HEADERS,
     });
     const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
     dec.setAuthTag(tag);
@@ -709,12 +705,6 @@ async function apiVaultChangePassword(req, res) {
     // Save new config
     saveVaultConfig({ salt: newSalt, verifyHash: newHash });
     vaultKey = newKey;
-    // Thumbnail cache was encrypted with old key — delete so they get regenerated
-    try {
-      if (fs.existsSync(VAULT_THUMB_DIR)) {
-        for (const f of fs.readdirSync(VAULT_THUMB_DIR)) fs.unlinkSync(path.join(VAULT_THUMB_DIR, f));
-      }
-    } catch {}
     resetVaultTimer();
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -937,125 +927,6 @@ async function apiVaultImportDrop(req, res) {
   json(res, { ok: true });
 }
 
-// ── PNG text-chunk extractor (server-side) ────────────────────────────────
-function _readPngTextChunks(buf) {
-  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  const sig = [137, 80, 78, 71, 13, 10, 26, 10];
-  for (let i = 0; i < 8; i++) if (buf[i] !== sig[i]) return null;
-  const latin1 = (b) => Buffer.from(b).toString('latin1');
-  const result = {};
-  let pos = 8;
-  while (pos + 12 <= buf.length) {
-    const len = view.getUint32(pos); pos += 4;
-    const type = buf.slice(pos, pos + 4).toString('ascii'); pos += 4;
-    if (type === 'IEND' || type === 'IDAT') break;
-    if (pos + len > buf.length) break;
-    const data = buf.slice(pos, pos + len);
-    if (type === 'tEXt') {
-      const sep = data.indexOf(0);
-      if (sep >= 0) result[latin1(data.slice(0, sep))] = latin1(data.slice(sep + 1));
-    } else if (type === 'iTXt') {
-      const sep = data.indexOf(0);
-      if (sep >= 0) {
-        const key = latin1(data.slice(0, sep));
-        let off = sep + 3;
-        while (off < len && data[off] !== 0) off++; off++;
-        while (off < len && data[off] !== 0) off++; off++;
-        result[key] = data.slice(off).toString('utf8');
-      }
-    }
-    pos += len + 4;
-  }
-  return Object.keys(result).length ? result : null;
-}
-
-// ── Vault thumbnail (ffmpeg resize, encrypted disk cache) ────────────────
-// Thumbnails are stored as AES-256-GCM .enc files — same format as vault files.
-// Without the vault key they are unreadable; auto-lock invalidates them in memory.
-const VAULT_THUMB_DIR = path.join(VAULT_DIR, '.thumbs');
-const VAULT_PHOTO_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif']);
-const VAULT_VIDEO_EXTS_S = new Set(['.mp4','.webm','.mkv','.mov','.avi','.m4v','.mpg','.mpeg','.wmv','.ts']);
-
-function _encryptThumb(plaintext) {
-  const iv     = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
-  const ct     = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-  const tag    = cipher.getAuthTag();
-  return Buffer.concat([iv, ct, tag]); // same layout as vault .enc files
-}
-
-function _decryptThumb(buf) {
-  const iv  = buf.slice(0, 12);
-  const tag = buf.slice(buf.length - 16);
-  const ct  = buf.slice(12, buf.length - 16);
-  const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
-  dec.setAuthTag(tag);
-  return Buffer.concat([dec.update(ct), dec.final()]);
-}
-
-async function apiVaultThumb(req, res, id) {
-  if (!vaultKey) { res.writeHead(401); res.end('locked'); return; }
-  resetVaultTimer();
-  const meta = loadVaultMeta();
-  if (!meta[id]) { res.writeHead(404); res.end(); return; }
-  const ext = (meta[id].ext || '').toLowerCase();
-  const isImg = VAULT_PHOTO_EXTS.has(ext);
-  const isVid = VAULT_VIDEO_EXTS_S.has(ext);
-  if (!isImg && !isVid) { res.writeHead(415); res.end(); return; }
-
-  if (!fs.existsSync(VAULT_THUMB_DIR)) fs.mkdirSync(VAULT_THUMB_DIR, { recursive: true });
-  const thumbPath = path.join(VAULT_THUMB_DIR, id + '.enc');
-
-  if (fs.existsSync(thumbPath)) {
-    try {
-      const thumb = _decryptThumb(fs.readFileSync(thumbPath));
-      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400', 'Content-Length': thumb.length });
-      res.end(thumb);
-      return;
-    } catch {
-      // Stale cache (e.g. password changed) — regenerate
-      try { fs.unlinkSync(thumbPath); } catch {}
-    }
-  }
-
-  const result = decryptToBuffer(id);
-  if (!result) { res.writeHead(500); res.end(); return; }
-
-  const ffArgs = isVid
-    ? ['-loglevel','error','-i','pipe:0','-vf','thumbnail=30,scale=320:-2','-frames:v','1','-f','image2pipe','-vcodec','mjpeg','pipe:1']
-    : ['-loglevel','error','-i','pipe:0','-vf','scale=320:-2','-f','image2pipe','-vcodec','mjpeg','pipe:1'];
-
-  await new Promise(resolve => {
-    const ff = spawn(FFMPEG_BIN, ffArgs);
-    const chunks = [];
-    ff.stdout.on('data', c => chunks.push(c));
-    ff.stdin.write(result.buffer);
-    ff.stdin.end();
-    ff.on('close', () => {
-      const thumb = Buffer.concat(chunks);
-      if (thumb.length) {
-        try { fs.writeFileSync(thumbPath, _encryptThumb(thumb)); } catch {}
-        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400', 'Content-Length': thumb.length });
-        res.end(thumb);
-      } else {
-        res.writeHead(500); res.end();
-      }
-      resolve();
-    });
-    ff.on('error', () => { res.writeHead(500); res.end(); resolve(); });
-  });
-}
-
-// ── PNG metadata endpoint (avoids transferring full image for scan) ────────
-function apiVaultPngMeta(req, res, id) {
-  if (!vaultKey) { res.writeHead(401); res.end(); return; }
-  resetVaultTimer();
-  const result = decryptToBuffer(id);
-  if (!result) { res.writeHead(404); res.end(); return; }
-  const chunks = _readPngTextChunks(result.buffer);
-  json(res, chunks || {});
-}
-
 function getFileMeta(id) {
   const meta = loadVaultMeta();
   return meta[id] || null;
@@ -1099,5 +970,4 @@ module.exports = {
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag,
-  apiVaultThumb, apiVaultPngMeta,
 };
