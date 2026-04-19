@@ -6,10 +6,10 @@
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
-const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, HIDDEN_DIR } = require('./config-server');
+const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, PROCESS_DIR } = require('./config-server');
 const { json, readBody, formatBytes: _fmtBytes } = require('./helpers-server');
 const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs } = require('./db-server');
-const VAULT_DROP_DIR = typeof HIDDEN_DIR !== 'undefined' ? HIDDEN_DIR : path.join(path.dirname(VAULT_DIR), 'hidden');
+const VAULT_DROP_DIR = typeof PROCESS_DIR !== 'undefined' ? PROCESS_DIR : path.join(path.dirname(VAULT_DIR), 'hidden');
 // ── Module state ─────────────────────────────────────────────────────
 
 let vaultKey     = null;
@@ -212,7 +212,7 @@ async function _reEncryptFile(filePath, oldKey, newKey) {
 
 let _isProcessingDrop = false;
 
-// ── HTML page bundling helpers ───────────────────────────────────────
+// ── HTML page helpers ────────────────────────────────────────────────
 
 function _shredDir(dirPath) {
   try {
@@ -226,71 +226,30 @@ function _shredDir(dirPath) {
   } catch {}
 }
 
-function _resolveLocalPath(src, baseDir, resDir) {
-  if (!src || /^https?:\/\//.test(src) || src.startsWith('//') || src.startsWith('data:')) return null;
-  const clean = decodeURIComponent(src.split('?')[0].split('#')[0]);
-  for (const base of [resDir, baseDir].filter(Boolean)) {
-    const full = path.resolve(base, clean);
-    if (fs.existsSync(full) && fs.statSync(full).isFile()) return full;
-  }
-  return null;
-}
-
-const _IMG_MIME = {
+const _PAGE_MIME = {
+  '.css':'text/css','.js':'application/javascript','.html':'text/html',
+  '.svg':'image/svg+xml','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf',
   '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif',
-  '.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon','.bmp':'image/bmp',
-  '.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf',
+  '.webp':'image/webp','.ico':'image/x-icon','.bmp':'image/bmp','.json':'application/json',
 };
 
-function _bundleHtml(filePath) {
-  const baseDir = path.dirname(filePath);
-  const basename = path.basename(filePath, path.extname(filePath));
-
-  let resDir = null;
-  for (const c of [basename + '_files', basename + ' files', basename + '.files', basename]) {
-    const full = path.join(baseDir, c);
-    if (fs.existsSync(full) && fs.statSync(full).isDirectory()) { resDir = full; break; }
+function _listDirFiles(dir, relBase) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    const rel  = relBase ? relBase + '/' + entry : entry;
+    if (fs.statSync(full).isDirectory()) out.push(..._listDirFiles(full, rel));
+    else out.push({ full, rel });
   }
+  return out;
+}
 
-  let html = fs.readFileSync(filePath, 'utf-8');
-
-  const inlineCssUrls = (css, cssPath) => css.replace(/url\(["']?([^"')]+)["']?\)/gi, (m, src) => {
-    const p2 = _resolveLocalPath(src, cssPath ? path.dirname(cssPath) : baseDir, resDir);
-    if (!p2) return m;
-    try {
-      const ext = path.extname(p2).toLowerCase();
-      return 'url(data:' + (_IMG_MIME[ext] || 'application/octet-stream') + ';base64,' + fs.readFileSync(p2).toString('base64') + ')';
-    } catch { return m; }
-  });
-
-  // Inline <link rel="stylesheet">
-  html = html.replace(/<link([^>]+)>/gi, (m, attrs) => {
-    if (!/rel=["']stylesheet["']/i.test(attrs)) return m;
-    const hrefM = attrs.match(/href=["']([^"']+)["']/i);
-    if (!hrefM) return m;
-    const p2 = _resolveLocalPath(hrefM[1], baseDir, resDir);
-    if (!p2) return m;
-    try { return '<style>' + inlineCssUrls(fs.readFileSync(p2, 'utf-8'), p2) + '</style>'; } catch { return m; }
-  });
-
-  // Inline <script src="...">
-  html = html.replace(/<script([^>]*)src=["']([^"']+)["']([^>]*)><\/script>/gi, (m, pre, src, post) => {
-    const p2 = _resolveLocalPath(src, baseDir, resDir);
-    if (!p2) return m;
-    try { return '<script' + pre + post + '>' + fs.readFileSync(p2, 'utf-8') + '</script>'; } catch { return m; }
-  });
-
-  // Inline <img src="...">
-  html = html.replace(/(<img[^>]+src=["'])([^"']+)(["'])/gi, (m, pre, src, q) => {
-    const p2 = _resolveLocalPath(src, baseDir, resDir);
-    if (!p2) return m;
-    try {
-      const ext = path.extname(p2).toLowerCase();
-      return pre + 'data:' + (_IMG_MIME[ext] || 'image/png') + ';base64,' + fs.readFileSync(p2).toString('base64') + q;
-    } catch { return m; }
-  });
-
-  return { html, resDir };
+function _encryptBuf(buf) {
+  const iv     = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+  const enc    = cipher.update(buf);
+  const fin    = cipher.final();
+  return Buffer.concat([iv, enc, fin, cipher.getAuthTag()]);
 }
 
 async function _encryptHtmlPageToVault(filePath, filename) {
@@ -299,20 +258,92 @@ async function _encryptHtmlPageToVault(filePath, filename) {
 
   if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
 
-  const { html, resDir } = _bundleHtml(filePath);
-  const buf = Buffer.from(html, 'utf-8');
+  // ── Dedup: skip if already imported under this filename ─────────────
+  const existingMeta = loadVaultMeta();
+  const duplicate = Object.values(existingMeta).find(m => m.type === 'page' && m.originalName === filename);
+  if (duplicate) {
+    // Already in vault — just clean up originals if still around
+    console.log('[vault] page already imported, cleaning up:', filename);
+    _shredFile(filePath);
+    const baseDir0 = path.dirname(filePath);
+    const bn0 = path.basename(filePath, path.extname(filePath));
+    for (const c of [bn0 + '_files', bn0 + ' files', bn0 + '.files', bn0]) {
+      const d = path.join(baseDir0, c);
+      if (fs.existsSync(d) && fs.statSync(d).isDirectory()) { _shredDir(d); break; }
+    }
+    return false;
+  }
 
-  const id      = crypto.randomUUID();
-  const outPath = path.join(VAULT_DIR, id + '.enc');
-  const iv      = crypto.randomBytes(12);
-  const cipher  = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
-  const enc     = cipher.update(buf);
-  const fin     = cipher.final();
-  fs.writeFileSync(outPath, Buffer.concat([iv, enc, fin, cipher.getAuthTag()]));
+  const pageId   = crypto.randomUUID();
+  const baseDir  = path.dirname(filePath);
+  const basename = path.basename(filename, path.extname(filename));
+
+  // ── Locate resource folder ───────────────────────────────────────────
+  let resDir = null;
+  for (const c of [basename + '_files', basename + ' files', basename + '.files', basename]) {
+    const full = path.join(baseDir, c);
+    try {
+      if (fs.existsSync(full) && fs.statSync(full).isDirectory()) { resDir = full; break; }
+    } catch {}
+  }
+  console.log('[vault] html import:', filename, '| resDir:', resDir || '(none)');
+
+  // ── Encrypt each resource file → VAULT_DIR/<pageId>/<fileId>.enc ────
+  const resources = {};
+  const pathMap   = {};
+
+  if (resDir) {
+    const pageResDir = path.join(VAULT_DIR, pageId);
+    fs.mkdirSync(pageResDir, { recursive: true });
+    const resDirName = path.basename(resDir);
+
+    let resFiles;
+    try { resFiles = _listDirFiles(resDir, resDirName); } catch (e) {
+      console.error('[vault] failed to list resource dir:', e.message);
+      resFiles = [];
+    }
+
+    for (const { full, rel } of resFiles) {
+      try {
+        const fileId = crypto.randomUUID();
+        const ext    = path.extname(rel).toLowerCase();
+        const data   = fs.readFileSync(full);
+        fs.writeFileSync(path.join(pageResDir, fileId + '.enc'), _encryptBuf(data));
+        resources[fileId] = { name: path.basename(rel), ext, size: data.length };
+        const newUrl = '/api/vault/page-resource/' + pageId + '/' + fileId;
+        // Map by full relative path, by basename, and by URL-encoded variants
+        pathMap[rel] = newUrl;
+        pathMap[path.basename(rel)] = newUrl;
+        // Also map the encoded version (browser may encode spaces etc.)
+        const encodedRel = rel.split('/').map(encodeURIComponent).join('/');
+        if (encodedRel !== rel) pathMap[encodedRel] = newUrl;
+      } catch (e) {
+        console.error('[vault] failed to encrypt resource:', rel, e.message);
+      }
+    }
+    console.log('[vault] encrypted', Object.keys(resources).length, 'resources');
+  }
+
+  // ── Rewrite resource URLs in HTML and encrypt ────────────────────────
+  let html = fs.readFileSync(filePath, 'utf-8');
+  for (const [orig, newUrl] of Object.entries(pathMap)) {
+    const esc = orig.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    html = html.replace(new RegExp('(href|src)=(["\'])' + esc + '\\2', 'gi'),
+      (_, attr, q) => attr + '=' + q + newUrl + q);
+    html = html.replace(new RegExp('url\\((["\']?)' + esc + '\\1\\)', 'gi'),
+      () => 'url(' + newUrl + ')');
+  }
+
+  const buf = Buffer.from(html, 'utf-8');
+  fs.writeFileSync(path.join(VAULT_DIR, pageId + '.enc'), _encryptBuf(buf));
 
   const ext  = path.extname(filename).toLowerCase();
   const meta = loadVaultMeta();
-  meta[id]   = { originalName: filename, name: path.basename(filename, ext), ext, size: buf.length, sizeF: _fmtBytes(buf.length), mtime: Date.now(), folder: null, type: 'page' };
+  meta[pageId] = {
+    originalName: filename, name: path.basename(filename, ext), ext,
+    size: buf.length, sizeF: _fmtBytes(buf.length), mtime: Date.now(),
+    folder: null, type: 'page', resources,
+  };
   saveVaultMeta(meta);
 
   _shredFile(filePath);
@@ -425,28 +456,10 @@ async function processHiddenFolder() {
 // Poll the folder every 15 seconds
 setInterval(() => {
   processHiddenFolder();
-}, 15000);
+}, 30000);
 
 // File Watcher
-let _dropTimeout = null;
-function watchHiddenFolder() {
-  try {
-    if (!fs.existsSync(VAULT_DROP_DIR)) fs.mkdirSync(VAULT_DROP_DIR, { recursive: true });
-    
-    // Listen for all files dropped in
-    fs.watch(VAULT_DROP_DIR, (eventType, filename) => {
-      if (!vaultKey) return;
-      if (_dropTimeout) clearTimeout(_dropTimeout);
-      // Wait 2 seconds to allow file copies/downloads to finish before grabbing the file
-      _dropTimeout = setTimeout(() => processHiddenFolder(), 2000);
-    });
-  } catch (e) {
-    console.error('Could not watch hidden folder', e);
-  }
-}
 
-// Start watching immediately when the server boots
-watchHiddenFolder();
 // ── Vault API handlers ───────────────────────────────────────────────
 
 function apiVaultStatus(req, res) {
@@ -611,9 +624,38 @@ function apiVaultDelete(req, res, id) {
   const meta = loadVaultMeta();
   if (!meta[id]) return json(res, { error: 'Not found' }, 404);
   _shredFile(path.join(VAULT_DIR, id + '.enc'));
+  // Shred per-page resource subdirectory if present
+  const pageDir = path.join(VAULT_DIR, id);
+  if (fs.existsSync(pageDir)) _shredDir(pageDir);
   delete meta[id];
   saveVaultMeta(meta);
   json(res, { ok: true });
+}
+
+function apiVaultPageResource(req, res, pageId, fileId) {
+  if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
+  resetVaultTimer();
+  const meta = loadVaultMeta();
+  const page = meta[pageId];
+  if (!page || !page.resources || !page.resources[fileId]) { res.writeHead(404); res.end(); return; }
+  const encPath = path.join(VAULT_DIR, pageId, fileId + '.enc');
+  if (!fs.existsSync(encPath)) { res.writeHead(404); res.end(); return; }
+  try {
+    const raw  = fs.readFileSync(encPath);
+    const iv   = raw.slice(0, 12);
+    const tag  = raw.slice(raw.length - 16);
+    const ct   = raw.slice(12, raw.length - 16);
+    const dec  = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    const out  = Buffer.concat([dec.update(ct), dec.final()]);
+    const ext  = page.resources[fileId].ext || '';
+    const ct2  = MIME[ext] || _PAGE_MIME[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': ct2, 'Content-Length': out.length, ...NO_CACHE_HEADERS });
+    res.end(out);
+  } catch (e) {
+    if (!res.headersSent) res.writeHead(500);
+    res.end('Decryption failed');
+  }
 }
 
 function apiVaultDownload(req, res, id) {
@@ -885,5 +927,5 @@ module.exports = {
   apiVaultUpdateTextFile,
   apiVaultChangePassword, apiVaultDeleteVault,
   apiVaultFavsGet, apiVaultFavsToggle,
-  apiVaultReadBook, apiVaultStreamPage,
+  apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
 };

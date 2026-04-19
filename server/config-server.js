@@ -34,7 +34,7 @@ const CACHE_DIR        = path.join(DATA_DIR, 'cache');
 const THUMBS_DIR       = path.join(CACHE_DIR, '.AphroArchive-thumbs');
 const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');
 const VAULT_DIR        = path.join(VIDEOS_DIR, 'hidden');
-const HIDDEN_DIR        = path.join(DATA_DIR, 'process');
+const PROCESS_DIR        = path.join(DATA_DIR, 'process');
 const IGNORED_DIR      = path.join(VIDEOS_DIR, 'Z');
 const DB_DIR           = path.join(ROOT_DIR, 'db');
 const BOOKS_DIR        = path.join(DATA_DIR, 'books');
@@ -120,7 +120,7 @@ module.exports = {
   ROOT_DIR, IS_PKG, DATA_DIR, BM_DIR,
   FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN,
   VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
-  THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, HIDDEN_DIR, IGNORED_DIR,
+  THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, PROCESS_DIR, IGNORED_DIR,
   DB_DIR, BOOKS_DIR, PHOTOS_DIR,
   FAVOURITES_FILE, HISTORY_FILE, THUMBS_CACHE_FILE,
   VAULT_CONFIG_FILE, VAULT_META_FILE, BROWSER_WHITELIST_FILE,

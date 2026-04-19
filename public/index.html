@@ -1966,12 +1966,12 @@
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--bg2);flex-shrink:0;border-bottom:1px solid var(--border)">
       <span id="vaultPageTitle" style="font-size:13px;color:var(--tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%"></span>
       <div style="display:flex;gap:8px;flex-shrink:0">
-        <button onclick="document.getElementById('vaultPageFrame').contentWindow.location.reload()" title="Reload" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#8635; Reload</button>
+        <button onclick="if(_vaultPageCurId)openVaultPage(_vaultPageCurId,document.getElementById('vaultPageTitle').textContent)" title="Reload" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#8635; Reload</button>
         <button onclick="deleteVaultPageFromViewer()" title="Delete this page" style="background:transparent;border:none;color:#e84040;cursor:pointer;padding:4px 8px;font-size:12px">&#128465; Delete</button>
         <button onclick="closeVaultPage()" title="Close (Esc)" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#10005; Close</button>
       </div>
     </div>
-    <iframe id="vaultPageFrame" src="about:blank" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" style="flex:1;width:100%;border:none;background:#fff"></iframe>
+    <iframe id="vaultPageFrame" sandbox="allow-scripts allow-popups allow-forms" style="flex:1;width:100%;border:none;background:#fff"></iframe>
   </div>
 
   <!-- Vault Auto-Scrape Modal -->

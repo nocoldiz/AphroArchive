@@ -719,7 +719,7 @@ async function openVaultVid(id, name, ext) {
   updPStar();
   if (!vaultFiles.length) vaultFiles = await (await fetch('/api/vault/files')).then(r => r.json()).catch(() => []);
   const _vaultBase = vaultQ ? vaultFiles.filter(f => (f.name || f.originalName).toLowerCase().includes(vaultQ.toLowerCase())) : vaultFiles;
-  vaultPl = _vaultBase.filter(f => !VAULT_IMG_EXTS.has((f.ext || '').toLowerCase()));
+  vaultPl = _vaultBase.filter(f => !VAULT_IMG_EXTS.has((f.ext || '').toLowerCase()) && !VAULT_PAGE_EXTS.has((f.ext || '').toLowerCase()));
   vaultPlIdx = vaultPl.findIndex(f => f.id === id);
   if (vaultPlIdx < 0) vaultPlIdx = 0;
   renderVaultPlaylist();
@@ -2042,16 +2042,22 @@ async function doVaultDeleteVault() {
 
 let _vaultPageCurId = null;
 
-function openVaultPage(id, name) {
+async function openVaultPage(id, name) {
   const overlay = document.getElementById('vaultPageOverlay');
   const frame   = document.getElementById('vaultPageFrame');
   const title   = document.getElementById('vaultPageTitle');
   if (!overlay || !frame) return;
   _vaultPageCurId = id;
   if (title) title.textContent = name || 'Page';
-  frame.src = '/api/vault/stream-page/' + id;
   overlay.style.display = 'flex';
   document.addEventListener('keydown', _vaultPageKey);
+  try {
+    const r = await fetch('/api/vault/stream-page/' + id);
+    if (!r.ok) throw new Error(r.status);
+    frame.srcdoc = await r.text();
+  } catch (e) {
+    frame.srcdoc = '<body style="font-family:sans-serif;padding:2rem;color:#c00">Failed to load page (' + e.message + ')</body>';
+  }
 }
 
 function closeVaultPage() {
