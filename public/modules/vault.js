@@ -392,6 +392,8 @@ const terms = [cat.displayName, ...(cat.tags || [])]
     const metaBtn = f.ext.toLowerCase() === '.png'
       ? '<button onclick="openVaultCardMeta(event,\'' + escA(f.id) + '\')" title="View metadata"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>'
       : '';
+    const dlBtn   = '<button onclick="event.stopPropagation();vaultCardDownload(\'' + escA(f.id) + '\')" title="Download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
+    const descBtn = isImg ? '<button onclick="event.stopPropagation();describeVaultCard(\'' + escA(f.id) + '\')" title="Describe with AI"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>' : '';
 
     return '<div class="video-card fade-in" data-vault-id="' + escA(f.id) + '">' +
       '<div class="' + ctClass + '" style="' + ctStyle + '" onclick="vaultCardClick(\'' + escA(f.id) + '\',\'' + escA(f.name || f.originalName) + '\',\'' + escA(f.ext) + '\')">' +
@@ -401,7 +403,7 @@ const terms = [cat.displayName, ...(cat.tags || [])]
       '<span class="size-badge">' + f.sizeF + '</span></div>' +
       '<div class="card-body"><div class="card-title" title="' + escA(f.originalName) + '">' + esc(_vaultNameCache[f.id] || f.name || f.originalName) + '</div>' +
       '<div class="card-meta"><span class="card-category" style="color:var(--ac)">Vault</span>' +
-      '<div class="card-actions">' + favBtn + metaBtn + moveFolderOpts + '<button onclick="deleteVaultFile(\'' + escA(f.id) + '\')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button></div></div></div></div>';
+      '<div class="card-actions">' + favBtn + metaBtn + dlBtn + descBtn + moveFolderOpts + '<button onclick="deleteVaultFile(\'' + escA(f.id) + '\')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button></div></div></div></div>';
   }).join('');
 
   // 5. Render to DOM
@@ -1796,6 +1798,44 @@ function downloadVaultSelected() {
     }, i * 300);
   });
   toast('Downloading ' + ids.length + ' file' + (ids.length > 1 ? 's' : '') + '\u2026');
+}
+
+function vaultCardDownload(id) {
+  const a = document.createElement('a');
+  a.href = '/api/vault/download/' + id;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function downloadCurrentVaultPhoto() {
+  const f = vaultPhotos[vaultPhotoIdx];
+  if (!f) return;
+  vaultCardDownload(f.id);
+}
+
+async function describeVaultCard(id) {
+  showVisionModal('Analyzing image\u2026');
+  const r = await fetch('/api/vision/describe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'vault', id })
+  }).then(r => r.json()).catch(() => null);
+  showVisionModal(r ? (r.description || r.error || 'No description returned') : 'Request failed');
+}
+
+async function describeCurrentVaultPhoto() {
+  const f = vaultPhotos[vaultPhotoIdx];
+  if (!f) return;
+  const panel = document.getElementById('vaultPhotoDescPanel');
+  if (panel) { panel.style.display = ''; panel.textContent = 'Analyzing\u2026'; }
+  const r = await fetch('/api/vision/describe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'vault', id: f.id })
+  }).then(r => r.json()).catch(() => null);
+  if (panel) panel.textContent = r ? (r.description || r.error || 'No description returned') : 'Request failed';
 }
 
 async function deleteVaultSelected() {

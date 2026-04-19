@@ -39,6 +39,7 @@ const remote      = require('./server/remote-server');
 const settings    = require('./server/settings-server');
 const prompts     = require('./server/prompts-server');
 const comments    = require('./server/comments-server');
+const vision      = require('./server/vision-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -236,7 +237,11 @@ const server = http.createServer(async (req, res) => {
   // ── Photos ───────────────────────────────────────────────────────────
   if (p === '/api/photos' && req.method === 'GET') return photos.apiPhotosList(req, res);
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/img$/)) && req.method === 'GET') return photos.apiPhotoServe(req, res, m[1]);
+  if ((m = p.match(/^\/api\/photos\/([^/]+)\/download$/)) && req.method === 'GET') return photos.apiPhotoDownload(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)$/)) && req.method === 'DELETE') return photos.apiPhotoDelete(req, res, m[1]);
+
+  // ── Vision ───────────────────────────────────────────────────────────
+  if (p === '/api/vision/describe' && req.method === 'POST') return vision.apiVisionDescribe(req, res);
 
   // ── Prompts ──────────────────────────────────────────────────────────
   if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);

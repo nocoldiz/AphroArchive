@@ -30,6 +30,17 @@ async function loadSettings() {
   if (dstTog) dstTog.checked = !!prefs.disableSearchTracking;
   const vaultPanel = document.getElementById('settings-vault-panel');
   if (vaultPanel) vaultPanel.style.display = vaultStatus.configured ? '' : 'none';
+  const akInput = document.getElementById('anthropicApiKeyInput');
+  if (akInput) akInput.value = prefs.anthropicApiKey || '';
+}
+
+async function saveAnthropicApiKey(key) {
+  const r = await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anthropicApiKey: key.trim() })
+  });
+  if (r.ok) toast('API key saved'); else toast('Save failed');
 }
 
 async function saveDisableSearchTracking(disabled) {

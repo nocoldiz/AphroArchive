@@ -927,6 +927,26 @@ async function apiVaultImportDrop(req, res) {
   json(res, { ok: true });
 }
 
+function decryptToBuffer(id) {
+  if (!vaultKey) return null;
+  const encPath = path.join(VAULT_DIR, id + '.enc');
+  if (!fs.existsSync(encPath)) return null;
+  const meta = loadVaultMeta();
+  if (!meta[id]) return null;
+  try {
+    const raw      = fs.readFileSync(encPath);
+    const iv       = raw.slice(0, 12);
+    const tag      = raw.slice(raw.length - 16);
+    const ct       = raw.slice(12, raw.length - 16);
+    const dec      = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    const buffer   = Buffer.concat([dec.update(ct), dec.final()]);
+    const ext      = (meta[id].ext || '.jpg').toLowerCase();
+    const mimeType = MIME[ext] || 'image/jpeg';
+    return { buffer, mimeType };
+  } catch { return null; }
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
@@ -935,5 +955,5 @@ module.exports = {
   apiVaultChangePassword, apiVaultDeleteVault,
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
-  apiVaultImportDrop,
+  apiVaultImportDrop, decryptToBuffer,
 };

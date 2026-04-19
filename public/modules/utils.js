@@ -52,3 +52,26 @@ function toggleSection(name) {
   h.classList.toggle('closed', closed);
   localStorage.setItem('sc_' + name, closed ? '1' : '');
 }
+
+// ─── Vision modal ───
+function showVisionModal(text) {
+  const modal = document.getElementById('visionModal');
+  const body  = document.getElementById('visionModalBody');
+  if (!modal || !body) return;
+  body.textContent = text;
+  modal.classList.add('on');
+}
+
+function closeVisionModal() {
+  document.getElementById('visionModal')?.classList.remove('on');
+}
+
+async function describeVideoThumb(videoId) {
+  showVisionModal('Analyzing thumbnail\u2026');
+  const r = await fetch('/api/vision/describe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'thumb', id: videoId, thumbIdx: 0 })
+  }).then(r => r.json()).catch(() => null);
+  showVisionModal(r ? (r.description || r.error || 'No description returned') : 'Request failed');
+}

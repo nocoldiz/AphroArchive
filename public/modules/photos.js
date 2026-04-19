@@ -3,6 +3,7 @@
 let photoFiles = [];
 let photosSort = 'date';
 let photosLightboxIdx = -1;
+let photosLightboxFile = null;
 
 function showPhotos() {
   closeAllViews();
@@ -64,14 +65,17 @@ function openPhotoLightbox(idx) {
   else if (photosSort === 'size') files.sort((a, b) => b.size - a.size);
   else files.sort((a, b) => b.date - a.date);
 
-  photosLightboxIdx = idx;
-  const f = files[idx];
+  photosLightboxIdx  = idx;
+  photosLightboxFile = files[idx];
+  const f = photosLightboxFile;
   if (!f) return;
-  const lb = $('photosLightbox').el;
+  const lb  = $('photosLightbox').el;
   const img = document.getElementById('photosLbImg');
   const cap = document.getElementById('photosLbCaption');
+  const dp  = document.getElementById('photosLbDesc');
   img.src = '/api/photos/' + f.id + '/img';
   cap.textContent = f.filename + '  ·  ' + f.sizeF;
+  if (dp) { dp.style.display = 'none'; dp.textContent = ''; }
   lb.classList.add('on');
 }
 
@@ -80,10 +84,13 @@ function photosLightboxPrev() {
   if (photosSort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
   else if (photosSort === 'size') files.sort((a, b) => b.size - a.size);
   else files.sort((a, b) => b.date - a.date);
-  photosLightboxIdx = (photosLightboxIdx - 1 + files.length) % files.length;
-  const f = files[photosLightboxIdx];
+  photosLightboxIdx  = (photosLightboxIdx - 1 + files.length) % files.length;
+  photosLightboxFile = files[photosLightboxIdx];
+  const f = photosLightboxFile;
   document.getElementById('photosLbImg').src = '/api/photos/' + f.id + '/img';
   document.getElementById('photosLbCaption').textContent = f.filename + '  ·  ' + f.sizeF;
+  const dp = document.getElementById('photosLbDesc');
+  if (dp) { dp.style.display = 'none'; dp.textContent = ''; }
 }
 
 function photosLightboxNext() {
@@ -91,16 +98,43 @@ function photosLightboxNext() {
   if (photosSort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
   else if (photosSort === 'size') files.sort((a, b) => b.size - a.size);
   else files.sort((a, b) => b.date - a.date);
-  photosLightboxIdx = (photosLightboxIdx + 1) % files.length;
-  const f = files[photosLightboxIdx];
+  photosLightboxIdx  = (photosLightboxIdx + 1) % files.length;
+  photosLightboxFile = files[photosLightboxIdx];
+  const f = photosLightboxFile;
   document.getElementById('photosLbImg').src = '/api/photos/' + f.id + '/img';
   document.getElementById('photosLbCaption').textContent = f.filename + '  ·  ' + f.sizeF;
+  const dp = document.getElementById('photosLbDesc');
+  if (dp) { dp.style.display = 'none'; dp.textContent = ''; }
 }
 
 function closePhotoLightbox() {
   $('photosLightbox').remove('on');
   document.getElementById('photosLbImg').src = '';
-  photosLightboxIdx = -1;
+  photosLightboxIdx  = -1;
+  photosLightboxFile = null;
+}
+
+function downloadPhotoLightbox() {
+  if (!photosLightboxFile) return;
+  const a = document.createElement('a');
+  a.href = '/api/photos/' + photosLightboxFile.id + '/download';
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+async function describePhotoLightbox() {
+  if (!photosLightboxFile) return;
+  const dp = document.getElementById('photosLbDesc');
+  if (dp) { dp.style.display = ''; dp.textContent = 'Analyzing\u2026'; }
+  const r = await fetch('/api/vision/describe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'photo', id: photosLightboxFile.id })
+  }).then(r => r.json()).catch(() => null);
+  const text = r ? (r.description || r.error || 'No description returned') : 'Request failed';
+  if (dp) dp.textContent = text;
 }
 
 async function deletePhoto(id, btn) {

@@ -70,4 +70,23 @@ function apiPhotoDelete(req, res, id) {
   json(res, { ok: true });
 }
 
-module.exports = { apiPhotosList, apiPhotoServe, apiPhotoDelete };
+function apiPhotoDownload(req, res, id) {
+  const rel = photoFromId(id);
+  const fp  = path.resolve(path.join(PHOTOS_DIR, rel));
+  if (!fp.startsWith(path.resolve(PHOTOS_DIR) + path.sep) && fp !== path.resolve(PHOTOS_DIR)) {
+    res.writeHead(403); res.end(); return;
+  }
+  if (!fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
+  const ext      = path.extname(fp).toLowerCase();
+  const ct       = MIME[ext] || 'application/octet-stream';
+  const stat     = fs.statSync(fp);
+  const filename = path.basename(fp).replace(/"/g, '');
+  res.writeHead(200, {
+    'Content-Type':        ct,
+    'Content-Length':      stat.size,
+    'Content-Disposition': 'attachment; filename="' + filename + '"',
+  });
+  fs.createReadStream(fp).pipe(res);
+}
+
+module.exports = { apiPhotosList, apiPhotoServe, apiPhotoDelete, apiPhotoDownload };

@@ -1032,6 +1032,17 @@ input{font-family:inherit;color:inherit}
 .ph-lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.12);border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .15s}
 .ph-lb-nav:hover{background:rgba(255,255,255,.25)}
 .ph-lb-prev{left:16px}.ph-lb-next{right:16px}
+.ph-lb-actions{display:flex;gap:6px;margin-top:10px}
+.ph-lb-action-btn{background:rgba(255,255,255,.12);border:none;border-radius:8px;padding:7px 12px;color:#fff;cursor:pointer;display:flex;align-items:center;gap:5px;font-size:0.8rem;transition:background .15s}
+.ph-lb-action-btn:hover{background:rgba(255,255,255,.25)}
+
+/* ── Vision modal ── */
+.vision-modal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.7);align-items:center;justify-content:center}
+.vision-modal.on{display:flex}
+.vision-modal-box{background:var(--bg2);border:1px solid var(--brd);border-radius:12px;padding:20px 24px;max-width:480px;width:90%;display:flex;flex-direction:column;gap:14px}
+.vision-modal-body{font-size:0.88rem;color:var(--tx);line-height:1.6;white-space:pre-wrap}
+.vision-modal-close{align-self:flex-end;background:var(--bg3);border:1px solid var(--brd);color:var(--tx2);padding:6px 16px;border-radius:var(--r);font-size:0.82rem;cursor:pointer;transition:all var(--tr)}
+.vision-modal-close:hover{border-color:var(--ac);color:var(--ac)}
 
 /* ── Categories View ── */
 .categories-view{display:none}.categories-view.on{display:block}

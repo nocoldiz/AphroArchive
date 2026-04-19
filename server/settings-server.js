@@ -54,6 +54,7 @@ async function apiSavePrefs(req, res) {
   }
   if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   if ('vaultSelfDestruct' in body) prefs.vaultSelfDestruct = !!body.vaultSelfDestruct;
+  if ('anthropicApiKey' in body) prefs.anthropicApiKey = String(body.anthropicApiKey || '').trim();
   savePrefs(prefs);
   json(res, { ok: true });
 }

@@ -706,8 +706,15 @@
             <button class="vault-ss-btn" id="vaultMetaBtn" onclick="showVaultPhotoMeta()" title="View metadata">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </button>
+            <button class="vault-ss-btn" onclick="downloadCurrentVaultPhoto()" title="Download">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <button class="vault-ss-btn" onclick="describeCurrentVaultPhoto()" title="Describe with AI">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
           </div>
         </div>
+        <div id="vaultPhotoDescPanel" style="display:none;padding:8px 14px;background:rgba(0,0,0,.75);font-size:0.8rem;color:#eee;max-width:640px;border-radius:6px;margin:4px auto 0;line-height:1.5;text-align:center;cursor:pointer" onclick="this.style.display='none'"></div>
         <div class="vault-ss-progress" id="vaultSsProgress">
           <div class="vault-ss-progress-bar" id="vaultSsProgressBar"></div>
         </div>
@@ -962,6 +969,15 @@
           </svg>
         </button>
         <div class="ph-lb-caption" id="photosLbCaption"></div>
+        <div class="ph-lb-actions">
+          <button class="ph-lb-action-btn" onclick="event.stopPropagation();downloadPhotoLightbox()" title="Download">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button class="ph-lb-action-btn" onclick="event.stopPropagation();describePhotoLightbox()" title="Describe with AI">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div id="photosLbDesc" style="display:none;padding:8px 14px;background:rgba(0,0,0,.8);font-size:0.8rem;color:#eee;max-width:640px;border-radius:6px;margin-top:6px;line-height:1.5;text-align:center;cursor:pointer" onclick="event.stopPropagation();this.style.display='none'"></div>
         <button class="ph-lb-close" onclick="closePhotoLightbox()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18" />
@@ -1431,6 +1447,21 @@
                 Clear all generated comments
               </button>
               <span id="clear-comments-hint" style="font-size:0.75rem;color:var(--tx3);margin-left:8px"></span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-hidden-panel" style="margin-top:16px">
+          <div class="settings-panel">
+            <div class="settings-panel-header">
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>AI Vision (Anthropic)</span>
+            </div>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 8px">Describe photos and thumbnails using Claude. Requires an <a href="https://console.anthropic.com" target="_blank" style="color:var(--ac)">Anthropic API key</a>.</p>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="password" id="anthropicApiKeyInput" placeholder="sk-ant-…" autocomplete="off"
+                style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:var(--r);font-size:0.82rem;outline:none"
+                onfocus="this.type='text'" onblur="this.type='password'">
+              <button onclick="saveAnthropicApiKey(document.getElementById('anthropicApiKeyInput').value)"
+                style="background:var(--ac);color:#fff;border:none;padding:6px 14px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Save</button>
             </div>
           </div>
         </div>
@@ -1929,6 +1960,14 @@
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>
+
+  <!-- Vision description modal -->
+  <div class="vision-modal" id="visionModal" onclick="closeVisionModal()">
+    <div class="vision-modal-box" onclick="event.stopPropagation()">
+      <div class="vision-modal-body" id="visionModalBody"></div>
+      <button class="vision-modal-close" onclick="closeVisionModal()">Close</button>
+    </div>
+  </div>
 
   <!-- Bookmark iframe viewer modal -->
   <div class="bfiframe-mo" id="bfiframeMo" onclick="closeBfIframe(event)">
