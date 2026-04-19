@@ -394,6 +394,12 @@ input{font-family:inherit;color:inherit}
   transition: filter 0.25s ease, opacity 0.25s ease, transform 0.2s ease;
 }
 
+#vaultPhotoImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 /* --- 2. Toggle Modes (Controlled by JS data-thumb-mode) --- */
 
 /* HIDE MODE: Blur everything by default */
@@ -454,6 +460,18 @@ input{font-family:inherit;color:inherit}
 #vaultGrid[data-thumb-mode="hide"] .size-badge,
 #vaultGrid[data-thumb-mode="hide"] .play-overlay {
   opacity: 0;
+}
+.video-card,
+.vault-folder-tile,
+.vault-filter-tile {
+  content-visibility: auto;
+  contain-intrinsic-size: 260px 320px;
+}
+#vaultGrid {
+  overflow-y: auto;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 /* ── Studios ── */
 .studios-view{display:none}.studios-view.on{display:block}

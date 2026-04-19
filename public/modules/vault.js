@@ -1,4 +1,6 @@
 // ─── Vault ───
+let vaultRenderLimit = 100;
+let vaultObserver = null;
 async function showVault() {
   closeAllViews();
   if (location.pathname !== '/vault') history.pushState(null, '', '/vault');
@@ -245,6 +247,7 @@ async function importFromVaultDropDir() {
 }
 
 async function loadVaultFiles() {
+  resetVaultLimit()
   vaultQ = ''; vaultSort = 'mtime'; vaultSortDir = 'desc'; vaultShuf = false; vaultCurFolder = null; vaultTypeFilter = null; vaultCatFilter = null;
   const vsi = $('vaultSearchInput').el;
   if (vsi) vsi.value = '';
@@ -271,6 +274,7 @@ async function loadVaultFiles() {
   // Seed _vaultAiIds from server-persisted aiTagged field
   items.filter(f => f.aiTagged).forEach(f => _vaultAiIds.add(f.id));
   await _ensureVaultCategories();
+  resetVaultLimit()
   renderVaultGrid();
   _scanVaultWorkflowNames();
 }
@@ -381,7 +385,8 @@ function renderVaultGrid() {
       return vaultSortDir === 'asc' ? va - vb : vb - va;
     });
   }
-
+  const totalCount = files.length;
+  const visibleFiles = files.slice(0, vaultRenderLimit);
   // 3. Handle Empty State
   if (!filterHtml && !folderHtml && !files.length) {
     if (folderRow) folderRow.innerHTML = '';
@@ -402,7 +407,7 @@ function renderVaultGrid() {
     const ctStyle = isImg ? 'cursor:pointer' : 'background:linear-gradient(135deg,' + c + '12 0%,' + c + '06 100%);cursor:pointer';
     
     const inner = isImg
-      ? '<img src="/api/vault/stream/' + escA(f.id) + '" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'
+      ? '<img src="/api/vault/stream/' + escA(f.id) + '" alt="" loading="lazy" decoding="async" fetchpriority="low" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'
       : '<span class="ext-badge">' + f.ext.replace('.','') + '</span>';
     
     const moveFolderOpts = vaultFolders.length
@@ -429,15 +434,48 @@ function renderVaultGrid() {
   }).join('');
 
   // 5. Render to DOM
-  if (folderRow) {
+if (folderRow) {
     folderRow.innerHTML = filterHtml + folderHtml;
     folderRow.style.display = (filterHtml || folderHtml) ? 'flex' : 'none';
   }
   
   // Update the file grid
   grid.innerHTML = filesHtml;
+  if (totalCount > vaultRenderLimit) {
+    const sentinel = document.createElement('div');
+    sentinel.id = 'vaultInfiniteSentinel';
+    sentinel.style = 'grid-column: 1 / -1; height: 50px; display: flex; align-items: center; justify-content: center; opacity: 0.5; font-size: 0.9em;';
+    sentinel.innerHTML = 'Loading more...';
+    grid.appendChild(sentinel);
+    initVaultInfiniteScroll(sentinel);
+  }
+}
+function initVaultInfiniteScroll(target) {
+  // Clean up old observer if it exists
+  if (vaultObserver) vaultObserver.disconnect();
+
+  vaultObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      loadMoreVaultItems();
+    }
+  }, {
+    root: null, // use the viewport
+    rootMargin: '200px', // trigger before user actually reaches the bottom
+    threshold: 0.1
+  });
+
+  vaultObserver.observe(target);
 }
 
+function loadMoreVaultItems() {
+  vaultRenderLimit += 100;
+  renderVaultGrid();
+}
+
+function resetVaultLimit() {
+  vaultRenderLimit = 100;
+  if (vaultObserver) vaultObserver.disconnect();
+}
 async function _ensureVaultCategories() {
   if (_vaultCategories) return _vaultCategories;
   try { _vaultCategories = await fetch('/api/db/categories').then(r => r.json()); } catch { _vaultCategories = {}; }
@@ -484,6 +522,7 @@ function _renderVaultAutoFolders() {
 function setVaultCatFilter(key) {
   vaultCatFilter = vaultCatFilter === key ? null : key;
   vaultTypeFilter = null;
+  resetVaultLimit()
   renderVaultGrid();
 }
 
@@ -502,11 +541,13 @@ function _renderVaultBreadcrumb() {
 
 function enterVaultFolder(id, name) {
   vaultCurFolder = id;
+resetVaultLimit()
   renderVaultGrid();
 }
 
 function exitVaultFolder() {
   vaultCurFolder = null;
+resetVaultLimit()
   renderVaultGrid();
 }
 
@@ -1104,26 +1145,49 @@ function _vpDetach() {
 
 function openVaultPhoto(id, name) {
   const q = vaultQ.toLowerCase();
-  let files = q ? vaultFiles.filter(f => (f.name || f.originalName).toLowerCase().includes(q)) : vaultFiles.slice();
-  files.sort((a, b) => {
-    if (vaultSort === 'name') {
-      const va = (a.originalName || a.name || '').toLowerCase();
-      const vb = (b.originalName || b.name || '').toLowerCase();
-      return vaultSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+
+  let files = vaultFiles.slice();
+
+  // search filter
+  if (q) {
+    files = files.filter(f =>
+      (f.name || f.originalName || '').toLowerCase().includes(q)
+    );
+  }
+
+  // type filter
+  if (vaultTypeFilter) {
+    if (vaultTypeFilter === 'fav') {
+      files = files.filter(f => vaultFavIds.has(f.id));
+    } else if (vaultTypeFilter === 'ai') {
+      files = files.filter(f => _vaultAiIds.has(f.id));
+    } else {
+      const extSet =
+        vaultTypeFilter === 'video' ? VAULT_VIDEO_EXTS :
+        vaultTypeFilter === 'photo' ? VAULT_PHOTO_EXTS :
+        vaultTypeFilter === 'audio' ? VAULT_AUDIO_EXTS :
+        vaultTypeFilter === 'book'  ? VAULT_BOOK_EXTS :
+        null;
+
+      if (extSet) {
+        files = files.filter(f => extSet.has(f.ext.toLowerCase()));
+      }
     }
-    const va = vaultSort === 'size' ? (a.size || 0) : (a.mtime || 0);
-    const vb = vaultSort === 'size' ? (b.size || 0) : (b.mtime || 0);
-    return vaultSortDir === 'asc' ? va - vb : vb - va;
-  });
-  vaultPhotos = files.filter(f => VAULT_IMG_EXTS.has(f.ext.toLowerCase()));
+  }
+
+  // only images for lightbox
+  vaultPhotos = files.filter(f =>
+    VAULT_IMG_EXTS.has(f.ext.toLowerCase())
+  );
+
   vaultPhotoIdx = vaultPhotos.findIndex(f => f.id === id);
   if (vaultPhotoIdx < 0) vaultPhotoIdx = 0;
+
   _vpReset();
   _showVaultPhoto();
   document.addEventListener('keydown', _vaultPhotoKey);
   _vpAttach();
 }
-
 let _vaultPhotoBlobUrl = null;
 function _revokeVaultPhotoBlob() {
   if (_vaultPhotoBlobUrl) { URL.revokeObjectURL(_vaultPhotoBlobUrl); _vaultPhotoBlobUrl = null; }
