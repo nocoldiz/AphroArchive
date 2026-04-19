@@ -87,6 +87,9 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
   const encPath = path.join(VAULT_DIR, id + '.enc');
   const stat    = fs.statSync(encPath);
   const total   = stat.size;
+  if (total < 28) { // 12 bytes IV + 16 bytes auth tag = 28 bytes minimum
+  throw new Error('Encrypted file is too small or corrupted.');
+}
   const ivLen   = 12, tagLen = 16;
   const contentSize = total - ivLen - tagLen;
   const ct      = MIME[meta[id].ext] || (isDownload ? 'application/octet-stream' : 'video/mp4');
@@ -209,6 +212,114 @@ async function _reEncryptFile(filePath, oldKey, newKey) {
 
 let _isProcessingDrop = false;
 
+// ── HTML page bundling helpers ───────────────────────────────────────
+
+function _shredDir(dirPath) {
+  try {
+    if (!fs.existsSync(dirPath)) return;
+    for (const entry of fs.readdirSync(dirPath)) {
+      const full = path.join(dirPath, entry);
+      if (fs.statSync(full).isDirectory()) _shredDir(full);
+      else _shredFile(full);
+    }
+    fs.rmdirSync(dirPath);
+  } catch {}
+}
+
+function _resolveLocalPath(src, baseDir, resDir) {
+  if (!src || /^https?:\/\//.test(src) || src.startsWith('//') || src.startsWith('data:')) return null;
+  const clean = decodeURIComponent(src.split('?')[0].split('#')[0]);
+  for (const base of [resDir, baseDir].filter(Boolean)) {
+    const full = path.resolve(base, clean);
+    if (fs.existsSync(full) && fs.statSync(full).isFile()) return full;
+  }
+  return null;
+}
+
+const _IMG_MIME = {
+  '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif',
+  '.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon','.bmp':'image/bmp',
+  '.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf',
+};
+
+function _bundleHtml(filePath) {
+  const baseDir = path.dirname(filePath);
+  const basename = path.basename(filePath, path.extname(filePath));
+
+  let resDir = null;
+  for (const c of [basename + '_files', basename + ' files', basename + '.files', basename]) {
+    const full = path.join(baseDir, c);
+    if (fs.existsSync(full) && fs.statSync(full).isDirectory()) { resDir = full; break; }
+  }
+
+  let html = fs.readFileSync(filePath, 'utf-8');
+
+  const inlineCssUrls = (css, cssPath) => css.replace(/url\(["']?([^"')]+)["']?\)/gi, (m, src) => {
+    const p2 = _resolveLocalPath(src, cssPath ? path.dirname(cssPath) : baseDir, resDir);
+    if (!p2) return m;
+    try {
+      const ext = path.extname(p2).toLowerCase();
+      return 'url(data:' + (_IMG_MIME[ext] || 'application/octet-stream') + ';base64,' + fs.readFileSync(p2).toString('base64') + ')';
+    } catch { return m; }
+  });
+
+  // Inline <link rel="stylesheet">
+  html = html.replace(/<link([^>]+)>/gi, (m, attrs) => {
+    if (!/rel=["']stylesheet["']/i.test(attrs)) return m;
+    const hrefM = attrs.match(/href=["']([^"']+)["']/i);
+    if (!hrefM) return m;
+    const p2 = _resolveLocalPath(hrefM[1], baseDir, resDir);
+    if (!p2) return m;
+    try { return '<style>' + inlineCssUrls(fs.readFileSync(p2, 'utf-8'), p2) + '</style>'; } catch { return m; }
+  });
+
+  // Inline <script src="...">
+  html = html.replace(/<script([^>]*)src=["']([^"']+)["']([^>]*)><\/script>/gi, (m, pre, src, post) => {
+    const p2 = _resolveLocalPath(src, baseDir, resDir);
+    if (!p2) return m;
+    try { return '<script' + pre + post + '>' + fs.readFileSync(p2, 'utf-8') + '</script>'; } catch { return m; }
+  });
+
+  // Inline <img src="...">
+  html = html.replace(/(<img[^>]+src=["'])([^"']+)(["'])/gi, (m, pre, src, q) => {
+    const p2 = _resolveLocalPath(src, baseDir, resDir);
+    if (!p2) return m;
+    try {
+      const ext = path.extname(p2).toLowerCase();
+      return pre + 'data:' + (_IMG_MIME[ext] || 'image/png') + ';base64,' + fs.readFileSync(p2).toString('base64') + q;
+    } catch { return m; }
+  });
+
+  return { html, resDir };
+}
+
+async function _encryptHtmlPageToVault(filePath, filename) {
+  if (!vaultKey) return false;
+  try { const fd = fs.openSync(filePath, 'r+'); fs.closeSync(fd); } catch { return false; }
+
+  if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
+
+  const { html, resDir } = _bundleHtml(filePath);
+  const buf = Buffer.from(html, 'utf-8');
+
+  const id      = crypto.randomUUID();
+  const outPath = path.join(VAULT_DIR, id + '.enc');
+  const iv      = crypto.randomBytes(12);
+  const cipher  = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+  const enc     = cipher.update(buf);
+  const fin     = cipher.final();
+  fs.writeFileSync(outPath, Buffer.concat([iv, enc, fin, cipher.getAuthTag()]));
+
+  const ext  = path.extname(filename).toLowerCase();
+  const meta = loadVaultMeta();
+  meta[id]   = { originalName: filename, name: path.basename(filename, ext), ext, size: buf.length, sizeF: _fmtBytes(buf.length), mtime: Date.now(), folder: null, type: 'page' };
+  saveVaultMeta(meta);
+
+  _shredFile(filePath);
+  if (resDir) _shredDir(resDir);
+  return true;
+}
+
 // Encrypts a local file, updates vault metadata, and shreds the original
 async function _encryptLocalFileToVault(filePath, filename) {
   if (!vaultKey) return false;
@@ -272,33 +383,49 @@ async function _encryptLocalFileToVault(filePath, filename) {
 }
 
 // Sweeps the drop directory
+// Sweeps the drop directory
 async function processHiddenFolder() {
-  if (!vaultKey || _isProcessingDrop) return;
-  _isProcessingDrop = true;
+  if (!vaultKey || _isProcessingDrop) return;
+  _isProcessingDrop = true;
 
-  try {
-    if (!fs.existsSync(VAULT_DROP_DIR)) fs.mkdirSync(VAULT_DROP_DIR, { recursive: true });
-    const files = fs.readdirSync(VAULT_DROP_DIR);
-    
-    for (const file of files) {
-      if (!vaultKey) break; // Abort if vault gets locked midway
-      const filePath = path.join(VAULT_DROP_DIR, file);
-      
-      try {
-        const stat = fs.statSync(filePath);
-        if (stat.isFile()) {
-          await _encryptLocalFileToVault(filePath, file);
-        }
-      } catch (e) {
-        // Ignore (file might have been moved/deleted during the sweep)
-      }
-    }
-  } catch (e) {
-    console.error('Error processing hidden folder:', e);
-  } finally {
-    _isProcessingDrop = false;
-  }
+  try {
+    if (!fs.existsSync(VAULT_DROP_DIR)) fs.mkdirSync(VAULT_DROP_DIR, { recursive: true });
+    const files = fs.readdirSync(VAULT_DROP_DIR);
+    
+    // Define extensions that should be ignored by the auto-importer
+    const ignoredExtensions = ['.zip', '.rar', '.7z'];
+    
+    for (const file of files) {
+      if (!vaultKey) break; // Abort if vault gets locked midway
+      
+      // Check the file extension and skip if it's an ignored archive type
+      const ext = path.extname(file).toLowerCase();
+      if (ignoredExtensions.includes(ext)) {
+        continue;
+      }
+
+      const filePath = path.join(VAULT_DROP_DIR, file);
+      
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.isFile()) {
+          await _encryptLocalFileToVault(filePath, file);
+        }
+      } catch (e) {
+        // Ignore (file might have been moved/deleted during the sweep)
+      }
+    }
+  } catch (e) {
+    console.error('Error processing hidden folder:', e);
+  } finally {
+    _isProcessingDrop = false;
+  }
 }
+
+// Poll the folder every 15 seconds
+setInterval(() => {
+  processHiddenFolder();
+}, 15000);
 
 // File Watcher
 let _dropTimeout = null;
@@ -449,8 +576,34 @@ function apiVaultStream(req, res, id) {
   resetVaultTimer();
   const meta = loadVaultMeta();
   if (!meta[id] || !fs.existsSync(path.join(VAULT_DIR, id + '.enc'))) { res.writeHead(404); res.end(); return; }
-  try { _streamDecrypt(req, res, id, meta, false); }
-  catch (e) { res.writeHead(500); res.end('Decryption failed'); }
+  
+  try { 
+    _streamDecrypt(req, res, id, meta, false); 
+  } catch (e) { 
+    // Only write the 500 header if headers haven't been sent yet
+    if (!res.headersSent) {
+      res.writeHead(500); 
+    }
+    res.end('Decryption failed'); 
+  }
+}
+
+function apiVaultDownload(req, res, id) {
+  if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
+  resetVaultTimer();
+  const meta    = loadVaultMeta();
+  const encPath = path.join(VAULT_DIR, id + '.enc');
+  if (!meta[id] || !fs.existsSync(encPath)) { res.writeHead(404); res.end(); return; }
+  
+  try { 
+    _streamDecrypt(req, res, id, meta, true); 
+  } catch (e) { 
+    // Only write the 500 header if headers haven't been sent yet
+    if (!res.headersSent) {
+      res.writeHead(500); 
+    }
+    res.end('Decryption failed'); 
+  }
 }
 
 function apiVaultDelete(req, res, id) {
@@ -703,6 +856,28 @@ function apiVaultFavsToggle(req, res, id) {
   json(res, { ok: true, fav: idx < 0 });
 }
 
+function apiVaultStreamPage(req, res, id) {
+  if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
+  resetVaultTimer();
+  const meta = loadVaultMeta();
+  const encPath = path.join(VAULT_DIR, id + '.enc');
+  if (!meta[id] || !fs.existsSync(encPath)) { res.writeHead(404); res.end(); return; }
+  try {
+    const raw  = fs.readFileSync(encPath);
+    const iv   = raw.slice(0, 12);
+    const tag  = raw.slice(raw.length - 16);
+    const ct   = raw.slice(12, raw.length - 16);
+    const dec  = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    const out  = Buffer.concat([dec.update(ct), dec.final()]);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': out.length, ...NO_CACHE_HEADERS });
+    res.end(out);
+  } catch (e) {
+    if (!res.headersSent) res.writeHead(500);
+    res.end('Decryption failed');
+  }
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
@@ -710,5 +885,5 @@ module.exports = {
   apiVaultUpdateTextFile,
   apiVaultChangePassword, apiVaultDeleteVault,
   apiVaultFavsGet, apiVaultFavsToggle,
-  apiVaultReadBook,
+  apiVaultReadBook, apiVaultStreamPage,
 };

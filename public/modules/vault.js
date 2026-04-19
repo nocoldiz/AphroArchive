@@ -38,6 +38,7 @@ const VAULT_VIDEO_EXTS = new Set(['.mp4','.webm','.mkv','.mov','.avi','.m4v','.m
 const VAULT_PHOTO_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif']);
 const VAULT_AUDIO_EXTS = new Set(['.mp3','.flac','.wav','.ogg','.aac','.m4a','.opus','.wma']);
 const VAULT_BOOK_EXTS  = new Set(['.pdf','.epub','.txt','.md','.mobi','.azw','.azw3','.cbz','.cbr']);
+const VAULT_PAGE_EXTS  = new Set(['.html','.htm']);
 
 const VAULT_FILTER_TILES = [
   { key: 'fav',   label: 'Favourites', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' },
@@ -45,6 +46,7 @@ const VAULT_FILTER_TILES = [
   { key: 'photo', label: 'Photos', icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>' },
   { key: 'audio', label: 'Audio',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
   { key: 'book',  label: 'Books',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>' },
+  { key: 'page',  label: 'Pages',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="12" y1="9" x2="8" y2="9"/></svg>' },
 ];
 let shiftKeyPressed = false;
 let isVaultDragging = false;
@@ -326,6 +328,7 @@ function renderVaultGrid() {
       const extSet = vaultTypeFilter === 'video' ? VAULT_VIDEO_EXTS
                    : vaultTypeFilter === 'photo' ? VAULT_PHOTO_EXTS
                    : vaultTypeFilter === 'audio' ? VAULT_AUDIO_EXTS
+                   : vaultTypeFilter === 'page'  ? VAULT_PAGE_EXTS
                    : VAULT_BOOK_EXTS;
       files = vaultFiles.filter(f => extSet.has((f.ext || '').toLowerCase()));
     }
@@ -848,7 +851,9 @@ function vaultCardClick(id, name, ext) {
   const extLower = (ext || '').toLowerCase();
   const isBook = VAULT_BOOK_EXTS.has(extLower);
 
-  if (isBook) {
+  if (VAULT_PAGE_EXTS.has(extLower)) {
+    openVaultPage(id, name);
+  } else if (isBook) {
     openBook(id, true);
   } else if (typeof VAULT_IMG_EXTS !== 'undefined' && VAULT_IMG_EXTS.has(extLower)) {
     openVaultPhoto(id);
@@ -2031,4 +2036,44 @@ async function doVaultDeleteVault() {
   vaultFiles = []; vaultFolders = [];
   toast('Vault permanently destroyed');
   loadVaultView();
+}
+
+// ── Vault Page Viewer ────────────────────────────────────────────────
+
+let _vaultPageCurId = null;
+
+function openVaultPage(id, name) {
+  const overlay = document.getElementById('vaultPageOverlay');
+  const frame   = document.getElementById('vaultPageFrame');
+  const title   = document.getElementById('vaultPageTitle');
+  if (!overlay || !frame) return;
+  _vaultPageCurId = id;
+  if (title) title.textContent = name || 'Page';
+  frame.src = '/api/vault/stream-page/' + id;
+  overlay.style.display = 'flex';
+  document.addEventListener('keydown', _vaultPageKey);
+}
+
+function closeVaultPage() {
+  const overlay = document.getElementById('vaultPageOverlay');
+  const frame   = document.getElementById('vaultPageFrame');
+  if (overlay) overlay.style.display = 'none';
+  if (frame) frame.src = 'about:blank';
+  _vaultPageCurId = null;
+  document.removeEventListener('keydown', _vaultPageKey);
+}
+
+async function deleteVaultPageFromViewer() {
+  if (!_vaultPageCurId) return;
+  if (!confirm('Permanently delete this page?')) return;
+  const r = await fetch('/api/vault/files/' + _vaultPageCurId, { method: 'DELETE' });
+  if (!r.ok) { toast('Delete failed'); return; }
+  vaultFiles = vaultFiles.filter(f => f.id !== _vaultPageCurId);
+  closeVaultPage();
+  renderVaultGrid();
+  toast('Page deleted');
+}
+
+function _vaultPageKey(e) {
+  if (e.key === 'Escape') closeVaultPage();
 }

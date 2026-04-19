@@ -208,6 +208,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/change-password' && req.method === 'POST') return vault.apiVaultChangePassword(req, res);
   if (p === '/api/vault' && req.method === 'DELETE') return vault.apiVaultDeleteVault(req, res);
   if (p === '/api/vault/read-book' && req.method === 'GET') return vault.apiVaultReadBook(req, res, params.get('id'));
+  if ((m = p.match(/^\/api\/vault\/stream-page\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultStreamPage(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/text\/([^/]+)$/)) && req.method === 'PUT') return vault.apiVaultUpdateTextFile(req, res, m[1]);
 
   // ── Database ─────────────────────────────────────────────────────────
