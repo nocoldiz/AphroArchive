@@ -179,7 +179,6 @@
     "nationality": "Canadian",
     "movies": "Various adult films; full filmography on IMDb"
   },
-  
   "Natasha Starr": {
     "imdb_page": "https://www.imdb.com/name/nm5418910/",
     "date_of_birth": "October 10, 1987",
@@ -238,8 +237,8 @@
   },
   "Milton Twins": {
     "imdb_page": null,
-    "date_of_birth": "May 30, 1985",
-    "nationality": "American",
+    "date_of_birth": "N/A",
+    "nationality": "N/A",
     "socials": []
   },
   "Maressa Milton": {
@@ -827,12 +826,6 @@
     "nationality": "N/A",
     "socials": []
   },
-  "Milton Twins": {
-    "imdb_page": null,
-    "date_of_birth": "N/A",
-    "nationality": "N/A",
-    "socials": []
-  },
   "Yabuki Chiharu": {
     "imdb_page": null,
     "date_of_birth": "May 15, 1966",
@@ -1111,5 +1104,21 @@
     "date_of_birth": "N/A",
     "nationality": "Australian",
     "socials": []
-  }
+  },
+  "Austin Spears": {},
+  "Fabio Fabricio": {},
+  "Danny Delano": {},
+  "Tymothyfire": {},
+  "Viktor Rom": {},
+  "Ashe Vex": {},
+  "Thaysa Carvalho": {},
+  "Bendamonxxx": {},
+  "Zariah Aura": {},
+  "Yuna Yule": {},
+  "Troy River": {},
+  "Jake Wild": {},
+  "Luis Duarte": {},
+  "Noah Star": {},
+  "Marcus McNeil": {},
+  "Mirella Dias": {}
 }

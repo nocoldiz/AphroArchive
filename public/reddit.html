@@ -161,6 +161,8 @@ let allActors = [], allStudios = [], allTags = [], allSubs = [];
 let actorPhotos = {};
 let subVids = null;
 let subscriptions = new Set();
+let vaultUnlocked = false;
+let vaultConfigured = false;
 let feedPage = 0, feedDone = false, feedLoading = false;
 const PAGE = 15;
 let curSort = 'hot';
@@ -234,6 +236,8 @@ async function loadVids() {
 async function loadVaultVids() {
   try {
     const s = await (await fetch('/api/vault/status')).json();
+    vaultUnlocked = !!s.unlocked;
+    vaultConfigured = !!s.configured;
     if (!s.unlocked) return;
     const items = await (await fetch('/api/vault/files')).json();
     if (!Array.isArray(items)) return;
@@ -461,6 +465,55 @@ async function setSub(sub, pushState = true) {
   curDetailId = null;
   updateSidebar();
   buildSidebarSubs();
+  if (sub === '__vault__' && !vaultUnlocked) { showRdVaultPrompt(); return; }
+  resetFeed();
+}
+
+function showRdVaultPrompt() {
+  const isSetup = !vaultConfigured;
+  const cont = document.getElementById('rd-posts');
+  const foot = document.getElementById('rd-feed-foot');
+  cont.innerHTML = `
+    <div style="text-align:center;padding:60px 20px;color:#d7dadc">
+      <div style="font-size:36px;margin-bottom:12px">🔒</div>
+      <h3 style="margin:0 0 8px;font-size:18px">${isSetup ? 'Set Up Vault' : 'Vault Locked'}</h3>
+      <p style="color:#818384;font-size:14px;margin-bottom:20px">${isSetup ? 'Create a password to secure your encrypted content.' : 'Enter your vault password to view encrypted content.'}</p>
+      <input type="password" id="rd-vlt-pw" placeholder="${isSetup ? 'New password (min 6 chars)' : 'Password'}"
+        style="display:block;margin:0 auto 10px;padding:10px 14px;background:#1a1a1b;border:1px solid #343536;border-radius:6px;color:#d7dadc;font-size:14px;width:240px;max-width:90%"
+        onkeydown="if(event.key==='Enter')rdVaultUnlock()">
+      ${isSetup ? `<input type="password" id="rd-vlt-pw2" placeholder="Confirm password"
+        style="display:block;margin:0 auto 10px;padding:10px 14px;background:#1a1a1b;border:1px solid #343536;border-radius:6px;color:#d7dadc;font-size:14px;width:240px;max-width:90%"
+        onkeydown="if(event.key==='Enter')rdVaultUnlock()">` : ''}
+      <button onclick="rdVaultUnlock()"
+        style="background:#ff4500;border:none;color:#fff;padding:10px 24px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:700">
+        ${isSetup ? 'Create Vault' : 'Unlock'}
+      </button>
+      <div id="rd-vlt-err" style="color:#ff585b;font-size:13px;margin-top:10px;min-height:16px"></div>
+    </div>`;
+  foot.innerHTML = '';
+  feedDone = true;
+  document.getElementById('rd-vlt-pw')?.focus();
+}
+
+async function rdVaultUnlock() {
+  const pw  = document.getElementById('rd-vlt-pw')?.value?.trim();
+  const err = document.getElementById('rd-vlt-err');
+  if (!pw) return;
+  if (!vaultConfigured) {
+    const pw2 = document.getElementById('rd-vlt-pw2')?.value?.trim();
+    if (pw.length < 6) { if (err) err.textContent = 'Password must be at least 6 characters'; return; }
+    if (pw !== pw2) { if (err) err.textContent = 'Passwords do not match'; return; }
+    const r = await fetch('/api/vault/setup', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) });
+    const d = await r.json();
+    if (!r.ok) { if (err) err.textContent = d.error || 'Setup failed'; return; }
+    vaultUnlocked = true; vaultConfigured = true;
+  } else {
+    const r = await fetch('/api/vault/unlock', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) });
+    const d = await r.json();
+    if (!r.ok) { if (err) err.textContent = d.error || 'Wrong password'; return; }
+    vaultUnlocked = true;
+  }
+  await loadVaultVids();
   resetFeed();
 }
 

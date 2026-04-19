@@ -73,6 +73,7 @@ async function openActor(name) {
   const d = await (await fetch('/api/actors/' + encodeURIComponent(name))).json();
   if (d.error) { $('actor-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   $('actor-detail-grid').html(d.videos.map(card).join(''));
+  _staggerFadeIn($('actor-detail-grid').el);
   attachThumbs();
 }
 
@@ -91,6 +92,7 @@ async function openActorFromVideo(name) {
   const d = await (await fetch('/api/actors/' + encodeURIComponent(name))).json();
   if (d.error) { $('actor-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   $('actor-detail-grid').html(d.videos.map(card).join(''));
+  _staggerFadeIn($('actor-detail-grid').el);
   attachThumbs();
 }
 

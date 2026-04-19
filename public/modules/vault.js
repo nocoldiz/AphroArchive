@@ -1936,7 +1936,7 @@ async function startVaultScrape() {
 
 // ── Vault Settings ────────────────────────────────────────────────────
 
-function openVaultSettings() {
+async function openVaultSettings() {
   const panel = document.getElementById('vaultSettingsPanel');
   if (!panel) return;
   // Reset fields
@@ -1945,7 +1945,21 @@ function openVaultSettings() {
   if (errEl) errEl.textContent = '';
   const btn = document.getElementById('vaultChPwBtn');
   if (btn) { btn.disabled = false; btn.textContent = 'Change Password'; }
+  // Load self-destruct pref
+  try {
+    const prefs = await fetch('/api/settings/prefs').then(r => r.json());
+    const tog = document.getElementById('vaultSelfDestructToggle');
+    if (tog) tog.checked = !!prefs.vaultSelfDestruct;
+  } catch {}
   panel.style.display = 'flex';
+}
+
+async function saveVaultSelfDestruct(enabled) {
+  await fetch('/api/settings/prefs', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vaultSelfDestruct: enabled })
+  });
+  toast(enabled ? 'Self-destruct enabled' : 'Self-destruct disabled');
 }
 
 function closeVaultSettings() {

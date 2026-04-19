@@ -189,10 +189,10 @@
     .ig-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 1000; align-items: center; justify-content: center; }
     .ig-modal.open { display: flex; }
     .ig-modal-close { position: fixed; top: 16px; right: 20px; background: none; border: none; color: #fff; cursor: pointer; font-size: 28px; z-index: 1001; line-height: 1; }
-    .ig-modal-inner { display: flex; max-width: 90vw; max-height: 90vh; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #262626; }
+    .ig-modal-inner { display: flex; max-width: 96vw; max-height: 94vh; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #262626; }
     .ig-modal-media { flex: 1; background: #111; display: flex; align-items: center; justify-content: center; min-width: 0; }
-    .ig-modal-media video { max-width: min(860px,65vw); max-height: 90vh; display: block; }
-    .ig-modal-media img { max-width: min(860px,65vw); max-height: 90vh; display: block; object-fit: contain; }
+    .ig-modal-media video { max-width: min(1100px,72vw); max-height: 94vh; display: block; }
+    .ig-modal-media img { max-width: min(1100px,72vw); max-height: 94vh; display: block; object-fit: contain; }
     .ig-modal-side { width: 335px; display: flex; flex-direction: column; border-left: 1px solid #262626; flex-shrink: 0; --cw-brd: #262626; --cw-tx2: #a8a8a8; --cw-inp: #1a1a1a; --ac: #0095f6; }
     .ig-modal-header { padding: 14px 16px; border-bottom: 1px solid #262626; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
     .ig-modal-info { flex: 1; min-width: 0; }
@@ -274,7 +274,7 @@
     .ig-profile-bio { font-size: 13px; color: #a8a8a8; }
     .ig-profile-back { display: flex; align-items: center; gap: 8px; background: none; border: none; color: #a8a8a8; cursor: pointer; font-size: 14px; margin-bottom: 16px; padding: 0; transition: color .15s; }
     .ig-profile-back:hover { color: #fff; }
-    .ig-profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+    .ig-profile-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
     .ig-profile-tile { aspect-ratio: 1; position: relative; background: #1a1a1a; overflow: hidden; cursor: pointer; }
     .ig-profile-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
     .ig-profile-tile:hover img { transform: scale(1.05); }
@@ -455,6 +455,7 @@ let allVideos = [];
 let vaultFiles = [];
 let vaultFolderMap = {}; // folderId → folderName
 let vaultUnlocked = false;
+let vaultConfigured = false;
 let vaultOnly = false;
 let feedPage = 0;
 const PAGE_SIZE = 10;
@@ -564,7 +565,8 @@ async function loadVaultFavs() {
 async function checkVaultStatus() {
   try {
     const s = await (await fetch('/api/vault/status')).json();
-    vaultUnlocked = s.unlocked;
+    vaultUnlocked = !!s.unlocked;
+    vaultConfigured = !!s.configured;
     if (s.unlocked) await loadVaultFiles();
   } catch {}
 }
@@ -788,15 +790,33 @@ function toggleSavedOnly() {
 }
 
 function showVaultUnlockPrompt() {
+  const isSetup = !vaultConfigured;
   document.getElementById('ig-posts').innerHTML = `
     <div class="ig-vault-prompt">
-      <h3>🔒 Vault Locked</h3>
-      <p>Enter your vault password to view encrypted content.</p>
-      <input class="ig-vault-input" type="password" id="vlt-pw" placeholder="Vault password" onkeydown="if(event.key==='Enter')doUnlock()">
-      <button class="ig-unlock-btn" onclick="doUnlock()">Unlock</button>
+      <h3>🔒 ${isSetup ? 'Set Up Vault' : 'Vault Locked'}</h3>
+      <p>${isSetup ? 'Create a password to secure your encrypted content.' : 'Enter your vault password to view encrypted content.'}</p>
+      <input class="ig-vault-input" type="password" id="vlt-pw" placeholder="${isSetup ? 'New password (min 6 chars)' : 'Vault password'}" onkeydown="if(event.key==='Enter')${isSetup ? 'doSetupVault()' : 'doUnlock()'}">
+      ${isSetup ? '<input class="ig-vault-input" type="password" id="vlt-pw2" placeholder="Confirm password" style="margin-top:8px" onkeydown="if(event.key===\'Enter\')doSetupVault()">' : ''}
+      <button class="ig-unlock-btn" onclick="${isSetup ? 'doSetupVault()' : 'doUnlock()'}">${isSetup ? 'Create Vault' : 'Unlock'}</button>
       <div class="ig-vault-err" id="vlt-err"></div>
     </div>`;
   document.getElementById('ig-feed-status').innerHTML = '';
+  document.getElementById('vlt-pw')?.focus();
+}
+
+async function doSetupVault() {
+  const pw  = document.getElementById('vlt-pw')?.value;
+  const pw2 = document.getElementById('vlt-pw2')?.value;
+  const err = document.getElementById('vlt-err');
+  if (!pw) return;
+  if (pw.length < 6) { if (err) err.textContent = 'Password must be at least 6 characters'; return; }
+  if (pw !== pw2) { if (err) err.textContent = 'Passwords do not match'; return; }
+  const r = await fetch('/api/vault/setup', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) });
+  const d = await r.json();
+  if (!r.ok) { if (err) err.textContent = d.error || 'Setup failed'; return; }
+  vaultUnlocked = true; vaultConfigured = true;
+  await loadVaultFiles();
+  resetFeed();
 }
 
 async function doUnlock() {

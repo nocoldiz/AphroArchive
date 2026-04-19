@@ -11,7 +11,7 @@ const {
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
   PHOTOS_DIR, IMAGE_EXT,
 } = require('./config-server');
-const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, actorMatchesAny } = require('./helpers-server');
+const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, studioMatchAny, actorMatchesAny } = require('./helpers-server');
 const {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -110,7 +110,7 @@ function initVideoMeta() {
     for (const v of videos) {
       if (!meta[v.id]) {
         const detectedTags   = categories.filter(e => wordMatchAny(v.name, e.terms)).map(e => e.displayName);
-        const detectedStudio = studios.find(e => wordMatchAny(v.name, e.terms));
+        const detectedStudio = studios.find(e => studioMatchAny(v.name, e.terms));
         const detectedActors = actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name);
         meta[v.id] = {
           title: v.name,

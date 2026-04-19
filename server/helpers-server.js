@@ -48,6 +48,17 @@ function wordMatchAny(name, terms) {
   return terms.some(t => wordMatch(name, t));
 }
 
+// Normalize a string for fuzzy studio matching: lowercase, strip spaces/dashes/underscores
+function normStudio(s) { return s.toLowerCase().replace(/[\s\-_]+/g, ''); }
+function studioMatchAny(name, terms) {
+  const normName = normStudio(name);
+  return terms.some(t => {
+    if (wordMatch(name, t)) return true;
+    const normT = normStudio(t);
+    return normT.length > 2 && normName.includes(normT);
+  });
+}
+
 function actorMatches(videoName, actor) {
   // Ensure both arguments are strings before proceeding
   if (typeof videoName !== 'string' || typeof actor !== 'string') {
@@ -111,7 +122,7 @@ function serveStatic(req, res, filePath) {
 module.exports = {
   formatBytes, formatDuration,
   toId, fromId, safePath,
-  wordMatch, wordMatchAny, actorMatches, actorMatchesAny,
+  wordMatch, wordMatchAny, studioMatchAny, actorMatches, actorMatchesAny,
   json, readBody,
   serveStatic,
 };

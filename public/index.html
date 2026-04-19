@@ -2003,6 +2003,21 @@
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
 
+      <!-- Self-Destruct -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:rgba(255,255,255,.7)">Self-Destruct</div>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+          <input type="checkbox" id="vaultSelfDestructToggle" onchange="saveVaultSelfDestruct(this.checked)"
+            style="width:15px;height:15px;cursor:pointer;flex-shrink:0;margin-top:2px">
+          <span style="font-size:12px;color:rgba(255,255,255,.55);line-height:1.5">
+            Wipe vault after 4 failed unlock attempts. <strong style="color:rgba(255,255,255,.4)">Disabled by default.</strong>
+            All encrypted files are permanently destroyed — this cannot be undone.
+          </span>
+        </label>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
+
       <!-- Delete Vault — inline confirmation, no native confirm() dialogs -->
       <div>
         <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:#e84040">Danger Zone</div>

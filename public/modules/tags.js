@@ -75,6 +75,14 @@ async function addTagModal(tag) {
   if (!_tmVidId) return;
   tag = tag.trim();
   if (!tag || _tmTags.some(t => t.toLowerCase() === tag.toLowerCase())) return;
+  const exists = (_tagSuggestions || []).some(t => t.toLowerCase() === tag.toLowerCase());
+  if (!exists) {
+    await fetch('/api/db/categories', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: tag, data: {} })
+    });
+    _tagSuggestions = null; // invalidate cache so it refreshes next time
+  }
   _tmTags = [..._tmTags, tag];
   await _saveTagModal();
   _renderTagModal();
@@ -139,9 +147,8 @@ async function openTag(name) {
     const localVids = srcFilter === 'remote' ? [] : filterVideosByTag(terms);
     const bms = srcFilter !== 'local' ? getBmList() : [];
     const g = $('tag-grid').el;
-    const isRerender = g.childElementCount > 0 && !g.querySelector('.skeleton');
     g.innerHTML = localVids.map(card).join('') + bms.map(bmCard).join('');
-    if (isRerender) g.querySelectorAll('.video-card.fade-in').forEach(el => el.classList.remove('fade-in'));
+    _staggerFadeIn(g);
     attachThumbs();
     attachBmThumbs();
     return;
@@ -164,7 +171,7 @@ async function openTag(name) {
   const bms = srcFilter !== 'local' ? getBmList() : [];
   const g2 = $('tag-grid').el;
   g2.innerHTML = localVids.map(card).join('') + bms.map(bmCard).join('');
-  // Skeletons were showing before — this is the first real render, keep fade-in
+  _staggerFadeIn(g2);
   attachThumbs();
   attachBmThumbs();
 }

@@ -151,7 +151,7 @@ function apiActorPhotoImg(req, res, actorName) {
     const actorLo = entry.name.toLowerCase();
     const videos  = allVideos().filter(v => actorMatchesAny(v.name, [actorLo])).sort((a, b) => a.name.localeCompare(b.name));
     if (videos.length) {
-      res.writeHead(302, { Location: '/api/thumbs/' + toId(videos[0]) + '/0' });
+      res.writeHead(302, { Location: '/api/thumbs/' + videos[0].id + '/0' });
       res.end();
       return;
     }

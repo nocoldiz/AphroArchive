@@ -214,8 +214,8 @@ input{font-family:inherit;color:inherit}
 @media(max-width:560px){.video-grid{grid-template-columns:1fr}.tb-acts .hsm{display:none}}
 
 /* ── Animation ── */
-.fade-in{animation:fin 0.3s ease-out}
-@keyframes fin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fade-in{animation:fin 0.35s ease-out both}
+@keyframes fin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* ── Duplicates ── */
 .side-sep{border-top:1px solid var(--brd);margin:12px 0}
@@ -506,6 +506,7 @@ input{font-family:inherit;color:inherit}
 .p-tag-picker-item:hover{border-color:var(--tx3);color:var(--tx)}
 .p-tag-picker-item.sel{background:var(--acg);border-color:var(--ac);color:var(--ac)}
 .p-tag-picker-empty{font-size:0.8rem;color:var(--tx3);padding:4px 0}
+.p-tag-picker-new{border-style:dashed;color:var(--ac);border-color:var(--ac);background:var(--acg);width:100%}
 .p-tag-picker-foot{display:flex;gap:8px;justify-content:flex-end}
 
 /* ── Actor Scraper ── */

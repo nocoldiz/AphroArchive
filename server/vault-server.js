@@ -8,7 +8,7 @@ const path   = require('path');
 const crypto = require('crypto');
 const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME } = require('./config-server');
 const { json, readBody, formatBytes: _fmtBytes } = require('./helpers-server');
-const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta } = require('./db-server');
+const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs } = require('./db-server');
 
 // ── Module state ─────────────────────────────────────────────────────
 
@@ -256,7 +256,7 @@ async function apiVaultUnlock(req, res) {
     if (verifyHash !== cfg.verifyHash) {
       failedAttempts++;
 
-      if (failedAttempts >= 4) {
+      if (failedAttempts >= 4 && !!loadPrefs().vaultSelfDestruct) {
         // Silent wipe — attacker must not know this happened
         setImmediate(_silentWipe);
         return json(res, { error: 'Wrong password' }, 401);

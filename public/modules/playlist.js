@@ -100,8 +100,17 @@ function pinVideo() {
   pinnedPl = buildPl().slice();
   pinnedIdx = pinnedPl.findIndex(v => v.id === pinnedV.id);
   if (pinnedIdx < 0) pinnedIdx = 0;
+  const mainVid = $('video-player').el;
+  const syncTime = mainVid ? mainVid.currentTime : 0;
+  if (mainVid) mainVid.pause();
   const vPin = $('vPin').el;
   vPin.src = '/api/stream/' + pinnedV.id;
+  if (syncTime > 0) {
+    vPin.addEventListener('loadedmetadata', function onMeta() {
+      vPin.removeEventListener('loadedmetadata', onMeta);
+      vPin.currentTime = syncTime;
+    });
+  }
   $('pinTitle').text(pinnedV.name);
   renderPinPlaylist();
   $('pinPanel').add('on');

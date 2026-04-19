@@ -68,6 +68,7 @@ async function openStudio(name) {
   const d = await (await fetch('/api/studios/' + encodeURIComponent(name))).json();
   if (d.error) { $('studio-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   $('studio-detail-grid').html(d.videos.map(card).join(''));
+  _staggerFadeIn($('studio-detail-grid').el);
   attachThumbs();
 }
 

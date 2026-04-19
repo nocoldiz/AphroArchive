@@ -1,3 +1,12 @@
+// ─── Staggered fade-in for card grids ───
+function _staggerFadeIn(container) {
+  const cards = container.querySelectorAll('.video-card, .bm-card');
+  cards.forEach((el, i) => {
+    el.classList.add('fade-in');
+    el.style.animationDelay = Math.min(i * 35, 420) + 'ms';
+  });
+}
+
 // ─── Skeleton ───
 function showSk() {
   $('video-grid').html(Array(8).fill(tpl('skeleton')).join(''));
@@ -70,13 +79,8 @@ function render() {
     return;
   }
   e.style.display = 'none';
-  // Only animate cards on a fresh render (grid had skeletons or was empty).
-  // On re-renders (search, sort, fav toggle) the fade-in would cause all
-  // currently-visible cards to flash from opacity:0 — strip the class before
-  // the browser gets a chance to paint it.
-  const isRerender = g.childElementCount > 0 && !g.querySelector('.skeleton');
   g.innerHTML = local.map(card).join('') + bms.map(bmCard).join('');
-  if (isRerender) g.querySelectorAll('.video-card.fade-in').forEach(el => el.classList.remove('fade-in'));
+  _staggerFadeIn(g);
   attachThumbs();
   attachBmThumbs();
   renderSearchExtras(q);
@@ -199,6 +203,8 @@ function card(v) {
     renBtn:     `<button onclick="event.preventDefault();event.stopPropagation();openRen('${v.id}','${escA(v.name)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`,
     moveBtn:    `<button onclick="event.preventDefault();event.stopPropagation();openMov('${v.id}','${escA(v.name)}','${escA(v.catPath || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>`,
     tagBtn:     `<button onclick="event.preventDefault();event.stopPropagation();openTagModal('${v.id}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>`,
+    actorBtn:   `<button onclick="event.preventDefault();event.stopPropagation();openActorModalForCard('${v.id}')" title="Tag actors"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></button>`,
+    studioBtn:  `<button onclick="event.preventDefault();event.stopPropagation();openStudioModalForCard('${v.id}')" title="Tag studio"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2M8 7V5a2 2 0 0 0-4 0v2"/></svg></button>`,
     plBtn:      `<button class="pl-card-btn${playlistSkipped.has(v.id) ? ' pl-off' : ''}" onclick="event.preventDefault();event.stopPropagation();toggleCardPlaylist('${v.id}',this)" title="${playlistSkipped.has(v.id) ? 'Add to playlist' : 'Remove from playlist'}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/></svg></button>`,
   });
 }

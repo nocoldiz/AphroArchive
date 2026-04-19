@@ -79,6 +79,7 @@ function _aiUsername() {
 async function loadAiComments(videoId, videoName) {
   const sec = $('ai-comments-section').el;
   if (!sec) return;
+  if (!aiCommentsEnabled) { sec.style.display = 'none'; return; }
   sec.style.display = '';
   const inputRow = document.getElementById('ai-comment-input-row');
   if (inputRow) inputRow.style.display = 'none'; // widget renders its own input
@@ -204,6 +205,25 @@ async function applyVideoRename(newName) {
   return true;
 }
 
+// ─── Card-level actor/studio modals (no view navigation) ───
+async function openActorModalForCard(id) {
+  const d = await fetch('/api/videos/' + id).then(r => r.json()).catch(() => null);
+  if (!d) return;
+  curV = d.video;
+  curVActors = d.actors || [];
+  curVStudio = d.studio || '';
+  openActorModal();
+}
+
+async function openStudioModalForCard(id) {
+  const d = await fetch('/api/videos/' + id).then(r => r.json()).catch(() => null);
+  if (!d) return;
+  curV = d.video;
+  curVActors = d.actors || [];
+  curVStudio = d.studio || '';
+  openStudioModal();
+}
+
 // ─── Actor Modal ───
 let _actorModalList = [];
 
@@ -238,13 +258,19 @@ function _renderActorModalChips() {
 }
 
 function _renderActorModalSuggestions(q) {
-  const lo = q.trim().toLowerCase();
+  const trimmed = q.trim();
+  const lo = trimmed.toLowerCase();
   const hits = lo
     ? _actorModalList.filter(a => a.name.toLowerCase().includes(lo) && !curVActors.includes(a.name))
     : _actorModalList.filter(a => !curVActors.includes(a.name));
-  document.getElementById('actor-modal-list').innerHTML = hits.slice(0, 40).map(a =>
+  const exactMatch = lo && _actorModalList.some(a => a.name.toLowerCase() === lo);
+  const hitsHtml = hits.slice(0, 40).map(a =>
     '<div class="p-tag-picker-item" onclick="addActorFromModal(\'' + escA(a.name) + '\')">' + esc(a.name) + '</div>'
   ).join('');
+  const addHtml = (lo && !exactMatch)
+    ? '<div class="p-tag-picker-item p-tag-picker-new" onclick="addActorFromModal(\'' + escA(trimmed) + '\')">Add "<strong>' + esc(trimmed) + '</strong>" as new actor</div>'
+    : '';
+  document.getElementById('actor-modal-list').innerHTML = hitsHtml + addHtml;
 }
 
 function onActorModalInput(v) { _renderActorModalSuggestions(v); }
@@ -259,7 +285,17 @@ function onActorModalKeydown(e) {
 }
 
 async function addActorFromModal(name) {
+  name = (name || '').trim();
   if (!name || !curV || curV.isVault) return;
+  const exists = _actorModalList.some(a => a.name.toLowerCase() === name.toLowerCase());
+  if (!exists) {
+    const r = await fetch('/api/db/actors', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, data: {} })
+    });
+    if (r.ok) toast('Added "' + name + '" to actors database');
+    _actorModalList = await (await fetch('/api/actors')).json().catch(() => _actorModalList);
+  }
   const newActors = [...new Set([...curVActors, name])];
   const r = await fetch('/api/videos/' + curV.id + '/meta', {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -315,13 +351,19 @@ function closeStudioModal() {
 }
 
 function _renderStudioModalList(q) {
-  const lo = q.trim().toLowerCase();
+  const trimmed = q.trim();
+  const lo = trimmed.toLowerCase();
   const hits = lo
     ? _studioModalList.filter(s => s.name.toLowerCase().includes(lo))
     : _studioModalList;
-  document.getElementById('studio-modal-list').innerHTML = hits.slice(0, 40).map(s =>
+  const exactMatch = lo && _studioModalList.some(s => s.name.toLowerCase() === lo);
+  const hitsHtml = hits.slice(0, 40).map(s =>
     '<div class="p-tag-picker-item' + (s.name === curVStudio ? ' selected' : '') + '" onclick="pickStudio(\'' + escA(s.name) + '\')">' + esc(s.name) + '</div>'
   ).join('');
+  const addHtml = (lo && !exactMatch)
+    ? '<div class="p-tag-picker-item p-tag-picker-new" onclick="pickStudio(\'' + escA(trimmed) + '\')">Add "<strong>' + esc(trimmed) + '</strong>" as new studio</div>'
+    : '';
+  document.getElementById('studio-modal-list').innerHTML = hitsHtml + addHtml;
 }
 
 function onStudioModalInput(v) { _renderStudioModalList(v); }
@@ -332,14 +374,26 @@ function onStudioModalKeydown(e) {
 }
 
 function pickStudio(name) {
+  name = (name || '').trim();
   document.getElementById('studio-modal-input').value = name;
   _renderStudioModalList(name);
 }
 
 async function submitStudio() {
-  const name = document.getElementById('studio-modal-input').value.trim();
+  const name = (document.getElementById('studio-modal-input').value || '').trim();
   closeStudioModal();
   if (!curV || curV.isVault) return;
+  let createdStudio = false;
+  if (name) {
+    const exists = _studioModalList.some(s => s.name.toLowerCase() === name.toLowerCase());
+    if (!exists) {
+      const dr = await fetch('/api/db/studios', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, data: {} })
+      });
+      if (dr.ok) createdStudio = true;
+    }
+  }
   const r = await fetch('/api/videos/' + curV.id + '/meta', {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ studio: name })
@@ -347,7 +401,7 @@ async function submitStudio() {
   if (!r.ok) { toast('Failed to set studio'); return; }
   curVStudio = name;
   renderPlayerStudio();
-  toast(name ? 'Studio set' : 'Studio cleared');
+  toast(createdStudio ? 'Added "' + name + '" to studios database' : name ? 'Studio set' : 'Studio cleared');
 }
 
 // ─── Playback position persistence ───
