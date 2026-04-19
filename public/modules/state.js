@@ -30,6 +30,7 @@ let aiCommentsEnabled = false;
 let dbMode = false, dbTab = 'actors', _dbData = {};
 let curVTags = [], curVAllCategories = [], curVActors = [];
 let curVRating = null;
+let curVStudio = '';
 let mosTileCount = 6, mosHoveredIdx = -1, mosTilesState = [];
 const playlistSkipped = new Set();
 let bmThumbObs = null;

@@ -255,6 +255,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/settings/prefs' && req.method === 'PUT') return settings.apiSavePrefs(req, res);
 
   // ── AI Comments ──────────────────────────────────────────────────────
+  if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);
   if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
   if (p === '/api/comments/reply'    && req.method === 'POST') return comments.apiReplyToComment(req, res);
   { const m = p.match(/^\/api\/comments\/([^/]+)\/add$/);

@@ -275,7 +275,7 @@ function apiVideoDetail(req, res, id) {
     .slice(0, 12)
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
-  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort() });
+  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
 }
 
 function apiStream(req, res, id) {

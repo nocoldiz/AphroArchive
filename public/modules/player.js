@@ -52,8 +52,10 @@ async function openVid(id) {
   curVTags = d.tags || [];
   curVAllCategories = d.allCategories || [];
   curVActors = d.actors || [];
+  curVStudio = d.studio || '';
   renderVideoTags();
   renderRating(d.video.rating || null);
+  renderPlayerStudio();
   renderPlaylist();
   $('suggestions-grid').html(d.suggested.map(card).join(''));
   attachThumbs();
@@ -202,43 +204,150 @@ async function applyVideoRename(newName) {
   return true;
 }
 
-// ─── Actor Input Panel ───
-function toggleActorInput() {
-  const panel = $('player-actor-input').el;
-  if (panel.style.display === 'none') {
-    panel.style.display = '';
-    $('player-actor-add-btn').add('on');
-    const inp = $('player-actor-input-val').el;
-    inp.value = '';
-    inp.focus();
-  } else {
-    closeActorInput();
-  }
-}
+// ─── Actor Modal ───
+let _actorModalList = [];
 
-function closeActorInput() {
-  $('player-actor-input').show(false);
-  $('player-actor-add-btn').remove('on');
-}
-
-async function submitActorInput() {
-  const name = $('player-actor-input-val').el.value.trim();
-  closeActorInput();
-  if (!name || !curV || curV.isVault) return;
-  const newActors = [...new Set([...curVActors, name])];
-  const r = await fetch('/api/videos/' + curV.id + '/meta', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ actors: newActors })
-  });
-  if (!r.ok) { toast('Failed to add actor'); return; }
-  curVActors = newActors;
+function renderPlayerActors() {
   $('player-actors').el.innerHTML = curVActors.map(a =>
     '<button class="p-actor-tag" onclick="openActorFromVideo(\'' + escA(a) + '\')">' +
     '<img class="p-actor-ph" src="/api/actor-photos/' + encodeURIComponent(a) + '/img" alt="" onerror="this.style.display=\'none\'">' +
     esc(a) + '</button>'
   ).join('');
-  toast('Actor added');
+}
+
+async function openActorModal() {
+  if (!curV || curV.isVault) return;
+  _actorModalList = await (await fetch('/api/actors')).json().catch(() => []);
+  document.getElementById('actor-modal').classList.add('on');
+  _renderActorModalChips();
+  _renderActorModalSuggestions('');
+  const inp = document.getElementById('actor-modal-input');
+  inp.value = '';
+  inp.focus();
+}
+
+function closeActorModal() {
+  document.getElementById('actor-modal').classList.remove('on');
+}
+
+function _renderActorModalChips() {
+  document.getElementById('actor-modal-actors').innerHTML = curVActors.map(a =>
+    '<span class="tag-chip">' + esc(a) +
+    '<button onclick="removeActorFromVideo(\'' + escA(a) + '\')" title="Remove">✕</button></span>'
+  ).join('');
+}
+
+function _renderActorModalSuggestions(q) {
+  const lo = q.trim().toLowerCase();
+  const hits = lo
+    ? _actorModalList.filter(a => a.name.toLowerCase().includes(lo) && !curVActors.includes(a.name))
+    : _actorModalList.filter(a => !curVActors.includes(a.name));
+  document.getElementById('actor-modal-list').innerHTML = hits.slice(0, 40).map(a =>
+    '<div class="p-tag-picker-item" onclick="addActorFromModal(\'' + escA(a.name) + '\')">' + esc(a.name) + '</div>'
+  ).join('');
+}
+
+function onActorModalInput(v) { _renderActorModalSuggestions(v); }
+
+function onActorModalKeydown(e) {
+  if (e.key === 'Enter') {
+    const v = document.getElementById('actor-modal-input').value.trim();
+    if (v) addActorFromModal(v);
+  } else if (e.key === 'Escape') {
+    closeActorModal();
+  }
+}
+
+async function addActorFromModal(name) {
+  if (!name || !curV || curV.isVault) return;
+  const newActors = [...new Set([...curVActors, name])];
+  const r = await fetch('/api/videos/' + curV.id + '/meta', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actors: newActors })
+  });
+  if (!r.ok) { toast('Failed to add actor'); return; }
+  curVActors = newActors;
+  renderPlayerActors();
+  _renderActorModalChips();
+  const inp = document.getElementById('actor-modal-input');
+  _renderActorModalSuggestions(inp.value);
+  inp.value = '';
+  inp.focus();
+}
+
+async function removeActorFromVideo(name) {
+  if (!curV || curV.isVault) return;
+  const newActors = curVActors.filter(a => a !== name);
+  const r = await fetch('/api/videos/' + curV.id + '/meta', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actors: newActors })
+  });
+  if (!r.ok) { toast('Failed to remove actor'); return; }
+  curVActors = newActors;
+  renderPlayerActors();
+  _renderActorModalChips();
+  _renderActorModalSuggestions(document.getElementById('actor-modal-input').value);
+}
+
+// ─── Studio Modal ───
+let _studioModalList = [];
+
+function renderPlayerStudio() {
+  const el = document.getElementById('player-studio');
+  if (el) el.textContent = curVStudio || '';
+  const row = document.getElementById('player-studio-row');
+  if (row) row.style.display = (curV && !curV.isVault) ? '' : 'none';
+}
+
+async function openStudioModal() {
+  if (!curV || curV.isVault) return;
+  _studioModalList = await (await fetch('/api/studios')).json().catch(() => []);
+  document.getElementById('studio-modal').classList.add('on');
+  const inp = document.getElementById('studio-modal-input');
+  inp.value = curVStudio || '';
+  _renderStudioModalList(inp.value);
+  inp.focus();
+  inp.select();
+}
+
+function closeStudioModal() {
+  document.getElementById('studio-modal').classList.remove('on');
+}
+
+function _renderStudioModalList(q) {
+  const lo = q.trim().toLowerCase();
+  const hits = lo
+    ? _studioModalList.filter(s => s.name.toLowerCase().includes(lo))
+    : _studioModalList;
+  document.getElementById('studio-modal-list').innerHTML = hits.slice(0, 40).map(s =>
+    '<div class="p-tag-picker-item' + (s.name === curVStudio ? ' selected' : '') + '" onclick="pickStudio(\'' + escA(s.name) + '\')">' + esc(s.name) + '</div>'
+  ).join('');
+}
+
+function onStudioModalInput(v) { _renderStudioModalList(v); }
+
+function onStudioModalKeydown(e) {
+  if (e.key === 'Enter') submitStudio();
+  else if (e.key === 'Escape') closeStudioModal();
+}
+
+function pickStudio(name) {
+  document.getElementById('studio-modal-input').value = name;
+  _renderStudioModalList(name);
+}
+
+async function submitStudio() {
+  const name = document.getElementById('studio-modal-input').value.trim();
+  closeStudioModal();
+  if (!curV || curV.isVault) return;
+  const r = await fetch('/api/videos/' + curV.id + '/meta', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ studio: name })
+  });
+  if (!r.ok) { toast('Failed to set studio'); return; }
+  curVStudio = name;
+  renderPlayerStudio();
+  toast(name ? 'Studio set' : 'Studio cleared');
 }
 
 // ─── Playback position persistence ───

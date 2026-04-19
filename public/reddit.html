@@ -166,6 +166,7 @@ const PAGE = 15;
 let curSort = 'hot';
 let curSub  = 'all';
 let searchQ = '';
+const _hotRnd = new Map(); // session-random weights for hot tab
 let curDetailId = null;
 let aiEnabled = false;
 let npFile = null;
@@ -318,6 +319,11 @@ async function loadSubVids(sub) {
 async function init() {
   loadSubscriptions();
   await Promise.all([loadVids(), loadVaultVids(), loadPrefs(), loadPhotos(), loadBooks(), loadActorsList(), loadStudiosList(), loadTagsList(), loadActorPhotoMap()]);
+  // Assign session-random weights for hot tab order
+  [...allVids, ...vaultItems, ...allPhotos, ...allBooks].forEach(v => {
+    const id = v.id || ('bk_' + v.name);
+    _hotRnd.set(id, Math.random());
+  });
   buildAllSubs();
   const initSub = parseSubFromUrl();
   if (initSub !== 'all') { curSub = initSub; await loadSubVids(initSub); }
@@ -442,6 +448,10 @@ async function setSub(sub, pushState = true) {
     const urlName = subUrlName(sub);
     history.pushState({ sub }, '', urlName ? '/reddit/r/' + urlName : '/reddit');
   }
+  // Always return to feed view when switching subreddit
+  document.getElementById('rd-feed').style.display   = '';
+  document.getElementById('rd-detail').style.display = 'none';
+  curDetailId = null;
   updateSidebar();
   buildSidebarSubs();
   resetFeed();
@@ -522,13 +532,15 @@ function getFiltered() {
     let vs = allPhotos.map(p => ({...p, _photo: true, mtime: p.date||0}));
     if (searchQ) vs = vs.filter(v => (v.filename||'').toLowerCase().includes(searchQ.toLowerCase()));
     if (curSort === 'top') return [...vs].sort((a,b) => (postScores[b.id]||0)-(postScores[a.id]||0));
-    return [...vs].sort((a,b) => (b.mtime||0)-(a.mtime||0));
+    if (curSort === 'new') return [...vs].sort((a,b) => (b.mtime||0)-(a.mtime||0));
+    return [...vs].sort((a,b) => (_hotRnd.get(b.id)||0) - (_hotRnd.get(a.id)||0));
   }
   if (curSub === '__books__') {
     let vs = allBooks.map(b => ({...b, _book: true, id: 'bk_'+b.name, mtime: b.date||0}));
     if (searchQ) vs = vs.filter(v => (v.title||v.name||'').toLowerCase().includes(searchQ.toLowerCase()));
     if (curSort === 'top') return [...vs].sort((a,b) => (postScores[b.id]||0)-(postScores[a.id]||0));
-    return [...vs].sort((a,b) => (b.mtime||0)-(a.mtime||0));
+    if (curSort === 'new') return [...vs].sort((a,b) => (b.mtime||0)-(a.mtime||0));
+    return [...vs].sort((a,b) => (_hotRnd.get(b.id)||0) - (_hotRnd.get(a.id)||0));
   }
 
   let vs;
@@ -547,7 +559,8 @@ function getFiltered() {
   if (curSort === 'saved') return [...vs].filter(v => favIds.has(v.id)).sort((a,b) => (b.mtime||0)-(a.mtime||0));
   if (curSort === 'new') return [...vs].sort((a,b) => (b.mtime||0)-(a.mtime||0));
   if (curSort === 'top') return [...vs].filter(v => (v.rating||0) >= 3).sort((a,b) => (b.rating||0)-(a.rating||0) || (postScores[b.id]||0)-(postScores[a.id]||0));
-  return [...vs].sort((a,b) => ((postScores[b.id]||0)+(b.mtime||0)%1000)-((postScores[a.id]||0)+(a.mtime||0)%1000));
+  // hot: session-randomized order
+  return [...vs].sort((a,b) => (_hotRnd.get(b.id)||0) - (_hotRnd.get(a.id)||0));
 }
 
 // ── Feed rendering ─────────────────────────────────────────────────────────────

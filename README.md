@@ -25,6 +25,14 @@ This zero-dependencies degenerate little apparatus, permits the discerning house
 - Editorial Cabinet — Amend details of performers, categories, and studios through a civilised card-based interface directly in the browser.  
 - Direct Import — Bring new motion studies into the collection by simple path, with automatic sorting into appropriate chambers.
 
+### Altogether Novel Innovations of the Most Recent Vintage:
+
+- Reddit Mode — The entire collection presented as a Reddit-style community, complete with subreddits derived from one’s folder categories, upvote tallies, hot/new/top/rising sorting, a sidebar, search with subreddit cards, and a New Post modal for both media and self-posts stored as Markdown books.  
+- Instagram Mode — A full social-feed experience with scrollable posts, stories drawn from categories, an Explore grid, profile pages per category, autoplay with mute, like & save buttons, and a right-hand panel of suggestions — all without leaving one’s comfortable browser.  
+- AI Comment Generation (Llama) — Powered by a locally-running `llama-3.2-1b-instruct` model via `node-llama-cpp`, each video receives a seeded number of realistic comment threads (4–30) complete with nested replies, deterministic threading, and a Best/Top/New/Old sort. Comments are cached to JSON files and shared across all three viewing modes. When the model is absent, a curated fallback pool is employed with equal grace.  
+- AI Photo Tagging — The local language model examines thumbnail frames and proposes descriptive tags for one’s videos, sparing the householder the tedium of manual annotation.  
+- Shared Comment Widget — A single unified comment system (`CommentsWidget`) employed across standard, Reddit, and Instagram modes alike, featuring nested reply threads, per-comment vote buttons with localStorage persistence, collapsible branches, and optimistic display of one’s own remarks whilst the artificial intelligence composes its rejoinder.
+
 All of this is accomplished with no external dependencies, requiring only a modest Node.js installation or a single executable for Windows users of gentle constitution.
 
 Should any reader of refined taste and private inclinations feel the stirrings of curiosity, one may direct their gaze to the aforementioned GitHub address and install the contraption with the greatest of ease

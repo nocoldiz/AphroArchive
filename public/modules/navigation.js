@@ -1,11 +1,30 @@
+// ─── Filter state persistence ───
+function _restoreFilterState() {
+  const s = localStorage.getItem('aa_sort');
+  if (s && ['date','name','size','duration'].includes(s)) sort = s;
+  if (localStorage.getItem('aa_shuf') === '1') shuf = true;
+}
+
+function _syncSortButtons() {
+  if (shuf) {
+    document.querySelectorAll('.sort-btn[data-s]').forEach(b => b.classList.remove('on'));
+    document.querySelectorAll('#shBtn, #shBtnTag').forEach(b => b.classList.add('on'));
+  } else {
+    document.querySelectorAll('.sort-btn[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === sort));
+    document.querySelectorAll('#shBtn, #shBtnTag').forEach(b => b.classList.remove('on'));
+  }
+}
+
 // ─── Init ───
 async function init() {
+  _restoreFilterState();
   await loadTemplates();
   showSk();
   await fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
   const [,, , vs] = await Promise.all([load(), loadC(), loadTagSidebar(), fetch('/api/vault/status').then(r => r.json())]);
   if (vs.hidden) $('vault-sidebar').show(false);
-  V.sort(() => Math.random() - 0.5);
+  if (!shuf && sort === 'date') V.sort(() => Math.random() - 0.5);
+  _syncSortButtons();
   render();
   loadBookmarkVidsOnInit();
 }
@@ -200,6 +219,8 @@ function toggleFav() {
 async function setSort(s, el) {
   sort = s;
   shuf = false;
+  localStorage.setItem('aa_sort', s);
+  localStorage.removeItem('aa_shuf');
   document.querySelectorAll('.sort-btn[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   document.querySelectorAll('#shBtn, #shBtnTag').forEach(b => b.classList.remove('on'));
   if (curTag) { await openTag(curTag); return; }
@@ -208,6 +229,7 @@ async function setSort(s, el) {
 
 async function toggleShuf() {
   shuf = !shuf;
+  localStorage.setItem('aa_shuf', shuf ? '1' : '');
   document.querySelectorAll('#shBtn, #shBtnTag').forEach(b => b.classList.toggle('on', shuf));
   if (shuf) document.querySelectorAll('.sort-btn[data-s]').forEach(b => b.classList.remove('on'));
   else document.querySelector('.sort-btn[data-s="' + sort + '"]')?.classList.add('on');

@@ -138,14 +138,6 @@ function extractActorNames(title, knownActors = []) {
   return [...found].filter(n => n && n.length > 1 && !stop.has(n.toLowerCase()));
 }
 
-function extractAndRenameActors() {
-  if (!curV) return;
-  const actors = extractActorNames(curV.name, curVActors);
-  if (!actors.length) { toast('No actor names detected'); return; }
-  const newName = actors.join(', ') + ' - ' + curV.name;
-  openRen(curV.id, newName);
-}
-
 // ─── Move ───
 let _movBmUrl = null;
 

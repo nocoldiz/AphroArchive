@@ -37,6 +37,20 @@ async function saveAiCommentsPref(enabled) {
   else toast('Save failed');
 }
 
+async function clearAllAiComments() {
+  const hint = document.getElementById('clear-comments-hint');
+  if (hint) hint.textContent = 'Clearing…';
+  const r = await fetch('/api/comments/clear-all', { method: 'DELETE' });
+  if (r.ok) {
+    const d = await r.json();
+    toast('Cleared ' + d.deleted + ' comment file' + (d.deleted !== 1 ? 's' : ''));
+    if (hint) hint.textContent = d.deleted + ' file' + (d.deleted !== 1 ? 's' : '') + ' deleted';
+  } else {
+    toast('Clear failed');
+    if (hint) hint.textContent = '';
+  }
+}
+
 async function saveChronologyMode() {
   const sel = $('chronologyMode').el;
   if (!sel) return;

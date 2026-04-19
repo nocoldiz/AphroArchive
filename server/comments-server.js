@@ -138,53 +138,10 @@ async function _generateCommentTexts(videoName, count) {
     const parsed = JSON.parse(raw.trim());
     if (!Array.isArray(parsed)) throw new Error('not array');
     const texts = parsed.filter(c => typeof c === 'string' && c.trim());
-    // Pad to requested count with fallbacks if AI returned fewer
-    while (texts.length < count) texts.push(..._fallbackPool(videoName).slice(0, count - texts.length));
     return texts.slice(0, count);
   } finally {
     sequence.dispose();
   }
-}
-
-const _FALLBACK_POOL = [
-  'This one is actually really good',
-  'Been looking for this for ages',
-  'Not bad at all, saved for later',
-  'The ending surprised me tbh',
-  'Anyone else keep coming back to this?',
-  'Absolute quality',
-  'Why did this take so long to find',
-  'Top tier, no notes',
-  'The production value here is insane',
-  'This needs way more attention',
-  'Came back for the third time already',
-  'Peak content right here',
-  'Hard to find stuff this good',
-  'Lowkey one of the best',
-  'Can\'t believe I almost scrolled past this',
-  'Bookmarked immediately',
-  'This is exactly what I was looking for',
-  'The way this is filmed is actually impressive',
-  'Sharing this with everyone I know lol',
-  'How does this not have more comments',
-  'Genuinely surprised by this one',
-  'Started watching for 5 minutes, watched the whole thing',
-  'The vibe on this is immaculate',
-  'First time watching, definitely not the last',
-  'This got recommended and I\'m not mad about it',
-  'Saved to like 4 different playlists',
-  'Why is this so good??',
-  'The casting on this is perfect',
-  'OK this one goes crazy',
-  'Instant classic'
-];
-function _fallbackPool() { return [..._FALLBACK_POOL].sort(() => Math.random() - 0.5); }
-
-function _fallbackCommentTexts(videoName, count) {
-  const pool = _fallbackPool();
-  const result = [];
-  for (let i = 0; i < count; i++) result.push(pool[i % pool.length]);
-  return result;
 }
 
 async function _generateReplyText(videoName, userComment) {
@@ -202,11 +159,6 @@ async function _generateReplyText(videoName, userComment) {
   }
 }
 
-function _fallbackReplyText() {
-  const r = ["Totally agree!","Yeah exactly lol","Facts","Same here","Couldn't agree more","Real talk"];
-  return r[Math.floor(Math.random()*r.length)];
-}
-
 // ── API: GET /api/comments/:id?name=... ───────────────────────────────────────
 async function apiGetComments(req, res, videoId) {
   try {
@@ -218,15 +170,19 @@ async function apiGetComments(req, res, videoId) {
     if (comments === null) {
       // Not yet generated — attempt AI generation
       const prefs = loadPrefs();
-      if (prefs.aiCommentsEnabled) {
+      if (prefs.aiCommentsEnabled && isModelReady()) {
         await reinitIfNeeded();
         const count = _seededCount(videoId);
-        let texts;
         try {
-          texts = isModelReady() ? await _generateCommentTexts(videoName, count) : _fallbackCommentTexts(videoName, count);
-        } catch { texts = _fallbackCommentTexts(videoName, count); }
-        comments = _buildComments(texts, videoId);
-        saveCommentFile(videoId, comments);
+          const texts = await _generateCommentTexts(videoName, count);
+          if (texts.length > 0) {
+            comments = _buildComments(texts, videoId);
+            saveCommentFile(videoId, comments);
+          }
+        } catch (e) {
+          console.error('[comments] generation failed:', e.message);
+        }
+        if (comments === null) comments = [];
       } else {
         comments = [];
       }
@@ -259,21 +215,24 @@ async function apiAddComment(req, res, videoId) {
 
     let aiReply = null;
     const prefs = loadPrefs();
-    if (prefs.aiCommentsEnabled && videoName) {
+    if (prefs.aiCommentsEnabled && videoName && isModelReady()) {
       await reinitIfNeeded();
-      let replyText;
       try {
-        replyText = isModelReady() ? await _generateReplyText(videoName, text) : _fallbackReplyText();
-      } catch { replyText = _fallbackReplyText(); }
-      aiReply = {
-        id: 'ai_' + _uid(),
-        text: replyText,
-        author: _rndUser(),
-        isAI: true,
-        parentId: userComment.id,
-        ts: Date.now() + 1000
-      };
-      comments.push(aiReply);
+        const replyText = await _generateReplyText(videoName, text);
+        if (replyText) {
+          aiReply = {
+            id: 'ai_' + _uid(),
+            text: replyText,
+            author: _rndUser(),
+            isAI: true,
+            parentId: userComment.id,
+            ts: Date.now() + 1000
+          };
+          comments.push(aiReply);
+        }
+      } catch (e) {
+        console.error('[comments] reply generation failed:', e.message);
+      }
     }
 
     saveCommentFile(videoId, comments);
@@ -308,10 +267,21 @@ async function apiReplyToComment(req, res) {
   if (!videoId || !videoName || !userComment) return json(res, { error: 'Missing params' }, 400);
   const prefs = loadPrefs();
   if (!prefs.aiCommentsEnabled) return json(res, { error: 'AI comments disabled' }, 400);
+  if (!isModelReady()) return json(res, { error: 'Model not ready' }, 503);
   await reinitIfNeeded();
   try {
-    const reply = isModelReady() ? await _generateReplyText(videoName, userComment) : _fallbackReplyText();
+    const reply = await _generateReplyText(videoName, userComment);
     return json(res, { reply });
+  } catch (e) {
+    return json(res, { error: e.message }, 500);
+  }
+}
+
+function apiClearAllComments(req, res) {
+  try {
+    const files = fs.readdirSync(CACHE_DIR).filter(f => f.startsWith('comments_') && f.endsWith('.json'));
+    files.forEach(f => fs.unlinkSync(path.join(CACHE_DIR, f)));
+    return json(res, { ok: true, deleted: files.length });
   } catch (e) {
     return json(res, { error: e.message }, 500);
   }
@@ -320,5 +290,5 @@ async function apiReplyToComment(req, res) {
 module.exports = {
   initCommentsModel, isModelReady, reinitIfNeeded,
   apiGetComments, apiAddComment,
-  apiGenerateComments, apiReplyToComment
+  apiGenerateComments, apiReplyToComment, apiClearAllComments
 };
