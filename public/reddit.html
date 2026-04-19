@@ -581,7 +581,7 @@ function makeVideoCard(v) {
   const score   = postScores[v.id] || 0;
   const isUp = upPost.has(v.id), isDn = dnPost.has(v.id);
   const disp = score + (isUp?1:isDn?-1:0);
-  const nComments = _commentCounts[v.id] !== undefined ? _commentCounts[v.id] : (5 + (_hashId(v.id) % 195));
+  const nComments = _commentCounts[v.id] !== undefined ? _commentCounts[v.id] : (4 + (_hashId(v.id) % 27));
   const streamUrl = isVault ? `/api/vault/stream/${esc(v.id)}` : `/api/stream/${esc(v.id)}`;
   const thumbHtml = isVault
     ? `<div style="display:flex;align-items:center;justify-content:center;height:120px;background:#1a1a1a"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e84040" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>`
@@ -792,7 +792,14 @@ function backToFeed() {
 
 // ── Comments (shared widget) ───────────────────────────────────────────────────
 async function loadComments(id, name) {
-  const cnt = await CommentsWidget.init(id, name, 'rd-clist', 'rd-ccount', { theme: 'dark' });
+  const cnt = await CommentsWidget.init(id, name, 'rd-clist', 'rd-ccount', {
+    theme: 'dark',
+    onCountChange: (n) => {
+      _commentCounts[id] = n;
+      const cardBtn = document.getElementById('cc-' + id);
+      if (cardBtn) cardBtn.lastChild.textContent = ' ' + n + ' Comment' + (n !== 1 ? 's' : '');
+    }
+  });
   _commentCounts[id] = cnt;
   const cardBtn = document.getElementById('cc-' + id);
   if (cardBtn) cardBtn.lastChild.textContent = ' ' + cnt + ' Comment' + (cnt !== 1 ? 's' : '');

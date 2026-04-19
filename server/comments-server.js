@@ -52,6 +52,45 @@ function _rndUser() {
 }
 function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
+// Deterministic hash — MUST match _hashId() in reddit.html and _hash() in comments.js
+function _hashId(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+// Seeded count: 4–30 comments, same formula as client card estimate
+function _seededCount(videoId) { return 4 + (_hashId(videoId) % 27); }
+
+// Seeded LCG — assigns reply structure deterministically
+function _seededRng(videoId) {
+  let s = (_hashId(videoId) >>> 0) || 1;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+// Wrap flat texts into structured comment objects, some as replies
+function _buildComments(texts, videoId) {
+  const rng = _seededRng(videoId);
+  const out = [];
+  for (let i = 0; i < texts.length; i++) {
+    let parentId = null;
+    // From 3rd comment onwards, ~35% chance of replying to a random earlier top-level
+    if (i >= 3 && rng() < 0.35) {
+      const topLevel = out.filter(c => !c.parentId);
+      if (topLevel.length > 0)
+        parentId = topLevel[Math.floor(rng() * topLevel.length)].id;
+    }
+    out.push({
+      id: 'ai_' + _uid(),
+      text: texts[i],
+      author: _rndUser(),
+      isAI: true,
+      parentId,
+      ts: Date.now() - Math.floor(rng() * 86400000 * 14)
+    });
+  }
+  return out;
+}
+
 function _cacheFile(videoId) {
   const safe = videoId.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0, 200);
   return path.join(CACHE_DIR, 'comments_' + safe + '.json');
@@ -85,33 +124,67 @@ function saveCommentFile(videoId, comments) {
 }
 
 // ── AI text generation ────────────────────────────────────────────────────────
-async function _generateCommentTexts(videoName) {
+async function _generateCommentTexts(videoName, count) {
   const sequence = ctx.getSequence();
   try {
     const session = new LlamaChatSession({ contextSequence: sequence });
     const prompt =
-      'Generate between 3 and 5 realistic, casual internet comments that real users would post under a video titled "' +
+      'Generate exactly ' + count + ' realistic, casual internet comments that real users would post under a video titled "' +
       videoName.replace(/"/g,'\\"').replace(/\n/g,' ') + '".\n\n' +
-      'Vary them: some short, some praising, some funny.\n\n' +
-      'Return ONLY a valid JSON array of strings: ["comment 1", "comment 2", ...]\n' +
+      'Vary them: mix of very short reactions, detailed praise, funny one-liners, and relatable observations. Make them feel like real different people.\n\n' +
+      'Return ONLY a valid JSON array of exactly ' + count + ' strings: ["comment 1", "comment 2", ...]\n' +
       'No explanation, no markdown — just the raw JSON array.';
     const raw = await session.prompt(prompt);
-    const comments = JSON.parse(raw.trim());
-    if (!Array.isArray(comments)) throw new Error('not array');
-    return comments.filter(c => typeof c === 'string' && c.trim());
+    const parsed = JSON.parse(raw.trim());
+    if (!Array.isArray(parsed)) throw new Error('not array');
+    const texts = parsed.filter(c => typeof c === 'string' && c.trim());
+    // Pad to requested count with fallbacks if AI returned fewer
+    while (texts.length < count) texts.push(..._fallbackPool(videoName).slice(0, count - texts.length));
+    return texts.slice(0, count);
   } finally {
     sequence.dispose();
   }
 }
 
-function _fallbackCommentTexts(videoName) {
-  return [
-    'This one is actually really good',
-    'Been looking for something like ' + videoName + ' for a while',
-    'Not bad at all, saved for later',
-    'The ending surprised me tbh',
-    'Anyone else come back to rewatch this?'
-  ].sort(() => Math.random()-.5).slice(0, 3 + Math.floor(Math.random()*3));
+const _FALLBACK_POOL = [
+  'This one is actually really good',
+  'Been looking for this for ages',
+  'Not bad at all, saved for later',
+  'The ending surprised me tbh',
+  'Anyone else keep coming back to this?',
+  'Absolute quality',
+  'Why did this take so long to find',
+  'Top tier, no notes',
+  'The production value here is insane',
+  'This needs way more attention',
+  'Came back for the third time already',
+  'Peak content right here',
+  'Hard to find stuff this good',
+  'Lowkey one of the best',
+  'Can\'t believe I almost scrolled past this',
+  'Bookmarked immediately',
+  'This is exactly what I was looking for',
+  'The way this is filmed is actually impressive',
+  'Sharing this with everyone I know lol',
+  'How does this not have more comments',
+  'Genuinely surprised by this one',
+  'Started watching for 5 minutes, watched the whole thing',
+  'The vibe on this is immaculate',
+  'First time watching, definitely not the last',
+  'This got recommended and I\'m not mad about it',
+  'Saved to like 4 different playlists',
+  'Why is this so good??',
+  'The casting on this is perfect',
+  'OK this one goes crazy',
+  'Instant classic'
+];
+function _fallbackPool() { return [..._FALLBACK_POOL].sort(() => Math.random() - 0.5); }
+
+function _fallbackCommentTexts(videoName, count) {
+  const pool = _fallbackPool();
+  const result = [];
+  for (let i = 0; i < count; i++) result.push(pool[i % pool.length]);
+  return result;
 }
 
 async function _generateReplyText(videoName, userComment) {
@@ -147,18 +220,12 @@ async function apiGetComments(req, res, videoId) {
       const prefs = loadPrefs();
       if (prefs.aiCommentsEnabled) {
         await reinitIfNeeded();
+        const count = _seededCount(videoId);
         let texts;
         try {
-          texts = isModelReady() ? await _generateCommentTexts(videoName) : _fallbackCommentTexts(videoName);
-        } catch { texts = _fallbackCommentTexts(videoName); }
-        comments = texts.map(text => ({
-          id: 'ai_' + _uid(),
-          text,
-          author: _rndUser(),
-          isAI: true,
-          parentId: null,
-          ts: Date.now() - Math.floor(Math.random() * 86400000 * 7)
-        }));
+          texts = isModelReady() ? await _generateCommentTexts(videoName, count) : _fallbackCommentTexts(videoName, count);
+        } catch { texts = _fallbackCommentTexts(videoName, count); }
+        comments = _buildComments(texts, videoId);
         saveCommentFile(videoId, comments);
       } else {
         comments = [];

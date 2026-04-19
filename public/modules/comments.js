@@ -37,7 +37,7 @@ window.CommentsWidget = (() => {
   function _score(c)     { return _baseScore(c)+(_getVote(c.id)||0); }
 
   // ── Widget state ───────────────────────────────────────────────────────────
-  let _vid='', _vname='', _listEl=null, _countEl=null, _sort='best', _theme='dark';
+  let _vid='', _vname='', _listEl=null, _countEl=null, _sort='best', _theme='dark', _onCountChange=null;
   let _all=[];          // flat comment array
   const _collapsed=new Set(); // comment ids that are collapsed
 
@@ -127,6 +127,7 @@ window.CommentsWidget = (() => {
     const roots = _sortList(_tree(_all));
     const total = _all.length;
     if (_countEl) _countEl.textContent = total + ' Comment' + (total!==1?'s':'');
+    if (_onCountChange) _onCountChange(total);
 
     let html = _sortBar(total);
     if (!roots.length) {
@@ -211,8 +212,9 @@ window.CommentsWidget = (() => {
     _vname  = videoName;
     _listEl = typeof listEl==='string' ? document.getElementById(listEl) : listEl;
     _countEl= typeof countEl==='string' ? document.getElementById(countEl) : (countEl||null);
-    _sort   = (opts&&opts.sort) || 'best';
-    _theme  = (opts&&opts.theme) || 'dark';
+    _sort          = (opts&&opts.sort) || 'best';
+    _theme         = (opts&&opts.theme) || 'dark';
+    _onCountChange = (opts&&opts.onCountChange) || null;
     _all    = [];
     _collapsed.clear();
     if (!_listEl) return 0;
