@@ -55,6 +55,9 @@ async function apiSavePrefs(req, res) {
   if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   if ('vaultSelfDestruct' in body) prefs.vaultSelfDestruct = !!body.vaultSelfDestruct;
   if ('anthropicApiKey' in body) prefs.anthropicApiKey = String(body.anthropicApiKey || '').trim();
+  if ('visionProvider' in body) prefs.visionProvider = body.visionProvider === 'claude' ? 'claude' : 'ollama';
+  if ('ollamaUrl' in body) prefs.ollamaUrl = String(body.ollamaUrl || '').trim();
+  if ('ollamaVisionModel' in body) prefs.ollamaVisionModel = String(body.ollamaVisionModel || '').trim();
   savePrefs(prefs);
   json(res, { ok: true });
 }

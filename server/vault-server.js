@@ -415,42 +415,67 @@ async function _encryptLocalFileToVault(filePath, filename) {
 
 // Sweeps the drop directory
 // Sweeps the drop directory
+// Sweeps the drop directory and recursively processes nested folders
 async function processHiddenFolder() {
-  if (!vaultKey || _isProcessingDrop) return;
-  _isProcessingDrop = true;
+  if (!vaultKey || _isProcessingDrop) return;
+  _isProcessingDrop = true;
 
-  try {
-    if (!fs.existsSync(VAULT_DROP_DIR)) fs.mkdirSync(VAULT_DROP_DIR, { recursive: true });
-    const files = fs.readdirSync(VAULT_DROP_DIR);
-    
-    // Define extensions that should be ignored by the auto-importer
-    const ignoredExtensions = ['.zip', '.rar', '.7z'];
-    
-    for (const file of files) {
-      if (!vaultKey) break; // Abort if vault gets locked midway
-      
-      // Check the file extension and skip if it's an ignored archive type
-      const ext = path.extname(file).toLowerCase();
-      if (ignoredExtensions.includes(ext)) {
-        continue;
-      }
+  try {
+    if (!fs.existsSync(VAULT_DROP_DIR)) fs.mkdirSync(VAULT_DROP_DIR, { recursive: true });
+    
+    // Define extensions that should be ignored by the auto-importer
+    const ignoredExtensions = ['.zip', '.rar', '.7z'];
 
-      const filePath = path.join(VAULT_DROP_DIR, file);
-      
-      try {
-        const stat = fs.statSync(filePath);
-        if (stat.isFile()) {
-          await _encryptLocalFileToVault(filePath, file);
-        }
-      } catch (e) {
-        // Ignore (file might have been moved/deleted during the sweep)
-      }
-    }
-  } catch (e) {
-    console.error('Error processing hidden folder:', e);
-  } finally {
-    _isProcessingDrop = false;
-  }
+    // Recursive helper function to scan inside directories
+    async function scanDirectory(currentDir) {
+      let files;
+      try {
+        files = fs.readdirSync(currentDir);
+      } catch (e) {
+        return; // Skip if directory cannot be read
+      }
+
+      for (const file of files) {
+        if (!vaultKey) break; // Abort if vault gets locked midway
+
+        const filePath = path.join(currentDir, file);
+
+        try {
+          const stat = fs.statSync(filePath);
+          
+          if (stat.isDirectory()) {
+            // 1. Recursively process the nested folder
+            await scanDirectory(filePath);
+            
+            // 2. Safely remove the folder if it is now empty
+            try {
+              if (fs.readdirSync(filePath).length === 0) {
+                fs.rmdirSync(filePath);
+              }
+            } catch (err) {}
+            
+          } else if (stat.isFile()) {
+            // Check the file extension and skip if it's an ignored archive type
+            const ext = path.extname(file).toLowerCase();
+            if (!ignoredExtensions.includes(ext)) {
+              // Note: Passing 'file' keeps the original base filename for metadata
+              await _encryptLocalFileToVault(filePath, file);
+            }
+          }
+        } catch (e) {
+          // Ignore (file might have been moved/deleted during the sweep)
+        }
+      }
+    }
+
+    // Start the recursive scan from the root drop directory
+    await scanDirectory(VAULT_DROP_DIR);
+
+  } catch (e) {
+    console.error('Error processing hidden folder:', e);
+  } finally {
+    _isProcessingDrop = false;
+  }
 }
 
 // Poll the folder every 15 seconds

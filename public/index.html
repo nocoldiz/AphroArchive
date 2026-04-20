@@ -1463,15 +1463,39 @@
         <div class="settings-hidden-panel" style="margin-top:16px">
           <div class="settings-panel">
             <div class="settings-panel-header">
-              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>AI Vision (Anthropic)</span>
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>AI Vision</span>
             </div>
-            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 8px">Describe photos and thumbnails using Claude. Requires an <a href="https://console.anthropic.com" target="_blank" style="color:var(--ac)">Anthropic API key</a>.</p>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input type="password" id="anthropicApiKeyInput" placeholder="sk-ant-…" autocomplete="off"
-                style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:var(--r);font-size:0.82rem;outline:none"
-                onfocus="this.type='text'" onblur="this.type='password'">
-              <button onclick="saveAnthropicApiKey(document.getElementById('anthropicApiKeyInput').value)"
-                style="background:var(--ac);color:#fff;border:none;padding:6px 14px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Save</button>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Describe photos, thumbnails and videos using a local Ollama model or Claude (Anthropic).</p>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+              <label style="font-size:0.82rem;color:var(--tx2);white-space:nowrap">Provider:</label>
+              <select id="visionProviderSelect" onchange="saveVisionProvider(this.value)"
+                style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:5px 8px;border-radius:var(--r);font-size:0.82rem;outline:none">
+                <option value="ollama">Ollama (local)</option>
+                <option value="claude">Claude (Anthropic)</option>
+              </select>
+            </div>
+            <div id="visionOllamaFields">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                <label style="font-size:0.82rem;color:var(--tx2);white-space:nowrap">URL:</label>
+                <input type="text" id="ollamaUrlInput" placeholder="http://127.0.0.1:11434" autocomplete="off"
+                  style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:var(--r);font-size:0.82rem;outline:none">
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <label style="font-size:0.82rem;color:var(--tx2);white-space:nowrap">Model:</label>
+                <input type="text" id="ollamaVisionModelInput" placeholder="minicpm-v" autocomplete="off"
+                  style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:var(--r);font-size:0.82rem;outline:none">
+                <button onclick="saveOllamaVisionSettings()"
+                  style="background:var(--ac);color:#fff;border:none;padding:6px 14px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Save</button>
+              </div>
+            </div>
+            <div id="visionClaudeFields" style="display:none">
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="password" id="anthropicApiKeyInput" placeholder="sk-ant-…" autocomplete="off"
+                  style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:var(--r);font-size:0.82rem;outline:none"
+                  onfocus="this.type='text'" onblur="this.type='password'">
+                <button onclick="saveAnthropicApiKey(document.getElementById('anthropicApiKeyInput').value)"
+                  style="background:var(--ac);color:#fff;border:none;padding:6px 14px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Save</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1697,6 +1721,13 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
                   <span>Yandex</span>
+                </button>
+                <button onclick="curV && (curV.isVault ? describeVaultCard(curV.id,'vault-video') : describeVideoThumb(curV.id))">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <span>Describe</span>
                 </button>
               </div>
             </div>

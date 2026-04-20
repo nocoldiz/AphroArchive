@@ -32,6 +32,42 @@ async function loadSettings() {
   if (vaultPanel) vaultPanel.style.display = vaultStatus.configured ? '' : 'none';
   const akInput = document.getElementById('anthropicApiKeyInput');
   if (akInput) akInput.value = prefs.anthropicApiKey || '';
+  const provSel = document.getElementById('visionProviderSelect');
+  if (provSel) {
+    provSel.value = prefs.visionProvider || 'ollama';
+    _updateVisionProviderFields(provSel.value);
+  }
+  const ollamaUrlInput = document.getElementById('ollamaUrlInput');
+  if (ollamaUrlInput) ollamaUrlInput.value = prefs.ollamaUrl || '';
+  const ollamaModelInput = document.getElementById('ollamaVisionModelInput');
+  if (ollamaModelInput) ollamaModelInput.value = prefs.ollamaVisionModel || '';
+}
+
+function _updateVisionProviderFields(provider) {
+  const ollamaFields = document.getElementById('visionOllamaFields');
+  const claudeFields = document.getElementById('visionClaudeFields');
+  if (ollamaFields) ollamaFields.style.display = provider === 'ollama' ? '' : 'none';
+  if (claudeFields) claudeFields.style.display = provider === 'claude' ? '' : 'none';
+}
+
+async function saveVisionProvider(value) {
+  _updateVisionProviderFields(value);
+  await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visionProvider: value }),
+  });
+}
+
+async function saveOllamaVisionSettings() {
+  const url   = document.getElementById('ollamaUrlInput')?.value.trim() || '';
+  const model = document.getElementById('ollamaVisionModelInput')?.value.trim() || '';
+  const r = await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ollamaUrl: url, ollamaVisionModel: model }),
+  });
+  if (r.ok) toast('Ollama settings saved'); else toast('Save failed');
 }
 
 async function saveAnthropicApiKey(key) {

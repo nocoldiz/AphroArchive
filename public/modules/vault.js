@@ -420,7 +420,9 @@ function renderVaultGrid() {
       ? '<button onclick="openVaultCardMeta(event,\'' + escA(f.id) + '\')" title="View metadata"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></button>'
       : '';
     const dlBtn   = '<button onclick="event.stopPropagation();vaultCardDownload(\'' + escA(f.id) + '\')" title="Download"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
-    const descBtn = isImg ? '<button onclick="event.stopPropagation();describeVaultCard(\'' + escA(f.id) + '\')" title="Describe with AI"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>' : '';
+    const isVid = VAULT_VIDEO_EXTS.has(f.ext.toLowerCase());
+    const descSource = isImg ? 'vault' : (isVid ? 'vault-video' : '');
+    const descBtn = descSource ? '<button onclick="event.stopPropagation();describeVaultCard(\'' + escA(f.id) + '\',\'' + descSource + '\')" title="Describe with AI"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>' : '';
 
     return '<div class="video-card fade-in" data-vault-id="' + escA(f.id) + '">' +
       '<div class="' + ctClass + '" style="' + ctStyle + '" onclick="vaultCardClick(\'' + escA(f.id) + '\',\'' + escA(f.name || f.originalName) + '\',\'' + escA(f.ext) + '\')">' +
@@ -1954,12 +1956,13 @@ function downloadCurrentVaultPhoto() {
   vaultCardDownload(f.id);
 }
 
-async function describeVaultCard(id) {
-  showVisionModal('Analyzing image\u2026');
+async function describeVaultCard(id, source) {
+  source = source || 'vault';
+  showVisionModal(source === 'vault-video' ? 'Extracting frame\u2026' : 'Analyzing image\u2026');
   const r = await fetch('/api/vision/describe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source: 'vault', id })
+    body: JSON.stringify({ source, id })
   }).then(r => r.json()).catch(() => null);
   showVisionModal(r ? (r.description || r.error || 'No description returned') : 'Request failed');
 }
