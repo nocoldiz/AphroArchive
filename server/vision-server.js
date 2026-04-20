@@ -38,9 +38,12 @@ function _extractVideoFrame(videoBuffer) {
   });
 }
 
+const DEFAULT_DESCRIBE_PROMPT = 'Describe this image concisely in 2-3 sentences. Focus on what is visually depicted.';
+const DEFAULT_TITLE_PROMPT    = 'List the main visible subjects in this image as a short title of 2-5 words. Only the subjects, no punctuation, no extra explanation.';
+
 async function apiVisionDescribe(req, res) {
   const body = await readBody(req);
-  const { source, id, thumbIdx = 0 } = body;
+  const { source, id, thumbIdx = 0, prompt } = body;
 
   const prefs    = loadPrefs();
   const provider = prefs.visionProvider || 'ollama';
@@ -82,16 +85,18 @@ async function apiVisionDescribe(req, res) {
 
   const base64 = imageBuffer.toString('base64');
 
+  const visionPrompt = (typeof prompt === 'string' && prompt.trim()) ? prompt.trim() : DEFAULT_DESCRIBE_PROMPT;
+
   try {
     let description;
     if (provider === 'ollama') {
       const ollamaUrl = prefs.ollamaUrl || 'http://127.0.0.1:11434';
       const model     = prefs.ollamaVisionModel || 'minicpm-v';
-      description = await _callOllamaVision(ollamaUrl, model, base64);
+      description = await _callOllamaVision(ollamaUrl, model, base64, visionPrompt);
     } else {
       const apiKey = prefs.anthropicApiKey || process.env.ANTHROPIC_API_KEY || '';
       if (!apiKey) return json(res, { error: 'No Anthropic API key configured. Add it in Settings → AI Vision.' }, 400);
-      description = await _callClaudeVision(apiKey, base64, mimeType);
+      description = await _callClaudeVision(apiKey, base64, mimeType, visionPrompt);
     }
     json(res, { description });
   } catch (e) {
@@ -99,13 +104,13 @@ async function apiVisionDescribe(req, res) {
   }
 }
 
-function _callOllamaVision(ollamaBaseUrl, model, base64Image) {
+function _callOllamaVision(ollamaBaseUrl, model, base64Image, prompt) {
   return new Promise((resolve, reject) => {
     let url;
     try { url = new URL('/api/generate', ollamaBaseUrl); } catch { url = new URL('http://127.0.0.1:11434/api/generate'); }
     const payload = JSON.stringify({
       model,
-      prompt: 'Describe this image concisely in 2-3 sentences. Focus on what is visually depicted.',
+      prompt: prompt || DEFAULT_DESCRIBE_PROMPT,
       images: [base64Image],
       stream: false,
     });
@@ -134,7 +139,7 @@ function _callOllamaVision(ollamaBaseUrl, model, base64Image) {
   });
 }
 
-function _callClaudeVision(apiKey, base64Image, mimeType) {
+function _callClaudeVision(apiKey, base64Image, mimeType, prompt) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
@@ -143,7 +148,7 @@ function _callClaudeVision(apiKey, base64Image, mimeType) {
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
-          { type: 'text',  text: 'Describe this image concisely in 2-3 sentences. Focus on what is visually depicted.' }
+          { type: 'text',  text: prompt || DEFAULT_DESCRIBE_PROMPT }
         ]
       }]
     });

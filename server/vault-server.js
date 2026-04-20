@@ -957,6 +957,18 @@ function getFileMeta(id) {
   return meta[id] || null;
 }
 
+async function apiVaultRename(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  const meta = loadVaultMeta();
+  if (!meta[id] || meta[id].type === 'folder') return json(res, { error: 'Not found' }, 404);
+  const body = await readBody(req);
+  const name = (body.name || '').trim();
+  if (!name) return json(res, { error: 'Name required' }, 400);
+  meta[id] = { ...meta[id], name };
+  saveVaultMeta(meta);
+  json(res, { ok: true });
+}
+
 function apiVaultAiTag(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   const meta = loadVaultMeta();
@@ -994,5 +1006,5 @@ module.exports = {
   apiVaultChangePassword, apiVaultDeleteVault,
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
-  apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag,
+  apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
 };

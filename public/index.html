@@ -1499,7 +1499,7 @@
             </div>
           </div>
         </div>
-        <div class="settings-hidden-panel" style="margin-top:16px" id="settings-vault-panel">
+<div class="settings-hidden-panel" style="margin-top:16px" id="settings-vault-panel">
           <div class="settings-panel">
             <div class="settings-panel-header">
               <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -2141,6 +2141,22 @@
         <h3 style="font-size:15px;font-weight:600">Vault Settings</h3>
         <button onclick="closeVaultSettings()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:20px;line-height:1">&times;</button>
       </div>
+
+      <!-- AI Titles -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:rgba(255,255,255,.7)">AI Titles</div>
+        <p style="font-size:12px;color:rgba(255,255,255,.45);margin-bottom:10px">Generate a short subject title for every image, GIF and video using the configured AI Vision provider.</p>
+        <div id="vaultAiTitleProgress" style="display:none;font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px;padding:6px 10px;background:rgba(255,255,255,.05);border-radius:6px;justify-content:space-between;align-items:center">
+          <span id="vaultAiTitleProgressText">Starting…</span>
+          <button onclick="vaultAiTitleStop()" style="background:none;border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:12px;padding:0;margin-left:8px">Stop</button>
+        </div>
+        <button id="vaultAiTitleBtn" onclick="startVaultAiTitles()"
+          style="background:rgba(99,102,241,.2);border:1px solid rgba(99,102,241,.4);color:rgba(255,255,255,.8);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;width:100%">
+          Generate AI Titles for All Media…
+        </button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
 
       <!-- Change Password -->
       <div style="margin-bottom:20px">

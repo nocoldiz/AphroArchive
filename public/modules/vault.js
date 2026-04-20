@@ -1967,6 +1967,84 @@ async function describeVaultCard(id, source) {
   showVisionModal(r ? (r.description || r.error || 'No description returned') : 'Request failed');
 }
 
+// ─── Bulk AI Title Generation ───
+let _vaultAiTitleRunning = false;
+const VAULT_AI_TITLE_PROMPT = 'List the main visible subjects in this image as a short title of 2-5 words. Only the subjects, no punctuation, no extra explanation. Reply with the title only.';
+
+function vaultAiTitleStop() {
+  _vaultAiTitleRunning = false;
+}
+
+async function startVaultAiTitles() {
+  if (_vaultAiTitleRunning) return;
+  _vaultAiTitleRunning = true;
+
+  const progress  = document.getElementById('vaultAiTitleProgress');
+  const progText  = document.getElementById('vaultAiTitleProgressText');
+  const btn       = document.getElementById('vaultAiTitleBtn');
+  if (progress) progress.style.display = 'flex';
+  if (btn) btn.disabled = true;
+
+  const MEDIA_EXTS = new Set([
+    '.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif',
+    '.mp4','.webm','.mkv','.mov','.avi','.m4v','.mpg','.mpeg','.wmv','.ts',
+  ]);
+
+  let files;
+  try {
+    files = await fetch('/api/vault/files').then(r => r.json());
+  } catch {
+    if (progText) progText.textContent = 'Failed to load vault files.';
+    _vaultAiTitleRunning = false;
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const targets = files.filter(f => f.type !== 'folder' && MEDIA_EXTS.has((f.ext || '').toLowerCase()));
+  let done = 0, failed = 0;
+
+  for (const f of targets) {
+    if (!_vaultAiTitleRunning) break;
+    if (progText) progText.textContent = `Processing ${done + 1} / ${targets.length}… (${failed} failed)`;
+
+    const isVideo = VAULT_VIDEO_EXTS.has((f.ext || '').toLowerCase());
+    const source  = isVideo ? 'vault-video' : 'vault';
+
+    try {
+      const r = await fetch('/api/vision/describe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, id: f.id, prompt: VAULT_AI_TITLE_PROMPT }),
+      }).then(r => r.json());
+
+      if (r && r.description && !r.error) {
+        const title = r.description.trim().replace(/[.!?]+$/, '').trim();
+        await fetch('/api/vault/files/' + f.id + '/rename', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: title }),
+        });
+        _vaultNameCache[f.id] = title;
+        const cardTitle = document.querySelector('[data-vault-id="' + f.id + '"] .card-title');
+        if (cardTitle) cardTitle.textContent = title;
+      } else {
+        failed++;
+      }
+    } catch { failed++; }
+
+    done++;
+  }
+
+  const wasStopped = !_vaultAiTitleRunning;
+  _vaultAiTitleRunning = false;
+  if (btn) btn.disabled = false;
+  if (progText) progText.textContent = wasStopped
+    ? `Stopped — ${done - failed} titled, ${failed} failed`
+    : `Done — ${done - failed} titled, ${failed} failed`;
+  _saveVaultNameCache();
+  if (vaultMode) renderVaultGrid();
+}
+
 async function describeCurrentVaultPhoto() {
   const f = vaultPhotos[vaultPhotoIdx];
   if (!f) return;
