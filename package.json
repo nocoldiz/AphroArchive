@@ -7,14 +7,17 @@
   "scripts": {
     "start": "node server.js",
     "build:win": "pkg . --targets node20-win-x64 --output dist/AphroArchive.exe --compress GZip",
-    "build:linux": "pkg . --targets node20-linux-x64 --output dist/AphroArchive --compress GZip"
+    "build:linux": "pkg . --targets node20-linux-x64 --output dist/AphroArchive --compress GZip",
+    "build:tails": "npm run build:linux && npm run create-tails-wrapper",
+    "create-tails-wrapper": "echo '#!/bin/bash\n# Creates an isolated network namespace to bypass Tails Tor proxy blocks\nbwrap --dev-bind / / --unshare-net --die-with-parent /bin/bash -c \"./AphroArchive & sleep 2 && x-www-browser http://127.0.0.1:3000\"' > dist/AphroArchive-Tails.sh && chmod +x dist/AphroArchive-Tails.sh"
   },
   "pkg": {
     "assets": [
       "public/**/*"
     ],
     "targets": [
-      "node20-win-x64"
+      "node20-win-x64",
+      "node20-linux-x64"
     ],
     "outputPath": "dist"
   },
