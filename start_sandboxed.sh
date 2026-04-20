@@ -1,37 +1,27 @@
 #!/bin/sh
 
-# Ensure bubblewrap is installed
-if ! command -v bwrap >/dev/null 2>&1; then
-  echo "Error: bubblewrap is not installed. (sudo apt install bubblewrap)"
-  exit 1
+echo "Starting Node.js server..."
+node server.js &
+NODE_PID=$!
+
+# Give the server a moment to bind to the port
+sleep 2
+
+echo "Attempting to open browser..."
+
+# Check if Tails Unsafe Browser is available
+if command -v unsafe-browser >/dev/null 2>&1; then
+  echo "Tails OS detected. Launching Unsafe Browser..."
+  # Note: You may be prompted to confirm you want to launch it
+  unsafe-browser "http://localhost:3000" &
+else
+  # Fallback for standard Linux/macOS
+  case "$(uname -s)" in
+    Darwin) open "http://localhost:3000" ;;
+    Linux)  xdg-open "http://localhost:3000" 2>/dev/null || \
+            sensible-browser "http://localhost:3000" 2>/dev/null & ;;
+  esac
 fi
 
-echo "Launching isolated network namespace..."
-
-# Create a sandbox with its own user and network namespace
-bwrap \
-  --unshare-user --uid 0 --gid 0 \
-  --unshare-net \
-  --dev-bind / / \
-  --proc /proc \
-  sh -c '
-    # 1. Bring up the loopback interface inside the sandbox
-    # (By default, new network namespaces have "lo" set to DOWN)
-    ip link set dev lo up
-
-    # 2. Start the Node server in the background
-    echo "Starting Node.js server..."
-    node server.js &
-    NODE_PID=$!
-
-    # Give the server a moment to bind to the port
-    sleep 2
-
-    # 3. Launch the browser
-    echo "Attempting to open browser..."
-    xdg-open "http://localhost:3000" 2>/dev/null || \
-    sensible-browser "http://localhost:3000" 2>/dev/null &
-
-    # 4. Keep the sandbox alive as long as the server is running
-    wait $NODE_PID
-  '
+# Keep the script alive as long as the server is running
+wait $NODE_PID
