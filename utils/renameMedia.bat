@@ -1,0 +1,1 @@
+.\Rename-MediaWithOllama.ps1 -ModelName "moondream"

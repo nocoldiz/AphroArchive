@@ -25,7 +25,6 @@ async function initCommentsModel() {
   if (!prefs.aiCommentsEnabled) return;
   if (!fs.existsSync(MODEL_FILE)) { console.warn('[comments] Model not found:', MODEL_FILE); return; }
   try {
-    ({ getLlama, LlamaChatSession } = await import('node-llama-cpp'));
   } catch (e) {
     console.warn('[comments] node-llama-cpp not installed:', e.message); return;
   }

@@ -189,8 +189,42 @@ input{font-family:inherit;color:inherit}
 #panBtn{padding:6px 8px;border-radius:var(--r);border:1px solid var(--brd);transition:all var(--tr);display:flex;align-items:center}
 #panBtn:hover{background:var(--bg3);border-color:var(--tx3)}
 #panBtn.on{background:var(--acg);border-color:var(--ac);color:var(--ac)}
-.pan .side{display:none}
-.pan .main-content{padding:20px 32px}
+.pan .side {
+  display: none;
+}
+
+/* 2. Make the main content a flex container to center the player */
+.pan .main-content {
+  padding: 0; /* Remove padding to allow max size */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  
+  /* Calculate height: 100vh minus the topbar height (approx 60px) */
+  height: calc(100vh - 60px); 
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 3. Target the player container/video to be as large as possible */
+/* Replace '.player-container' or 'video' with the actual class/tag you use */
+.pan .player-container, 
+.pan video {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100vw;
+  max-height: calc(100vh - 80px); /* Keeps it within view below the topbar */
+  object-fit: contain; /* Ensures the video isn't cropped */
+  background: #000;    /* Cinematic black background */
+  margin: 0;
+}
+
+/* Optional: Hide scrollbars in pan mode for a cleaner look */
+.pan {
+  overflow: hidden;
+}
+
 
 /* ── Dual Mode ── */
 #dualBtn{background:none;border:1px solid var(--brd);border-radius:var(--r);padding:5px 8px;cursor:pointer;display:flex;align-items:center;color:var(--tx2);transition:all var(--tr)}
