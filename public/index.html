@@ -1592,7 +1592,10 @@
         <div class="section-header">
           <h2>
             </svg>Database</h2>
-          <button class="btn-primary" id="dbAddBtn" onclick="dbShowAdd()">+ Add</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="back-btn" onclick="openPresetPickerManual()" title="Re-apply or change DB presets" style="font-size:0.8rem">Presets</button>
+            <button class="btn-primary" id="dbAddBtn" onclick="dbShowAdd()">+ Add</button>
+          </div>
         </div>
         <div class="db-tabs">
           <button class="db-tab on" data-tab="actors" onclick="dbSwitchTab('actors')">Actors</button>
@@ -2120,6 +2123,7 @@
   <script src="/actor-scraper.js"></script>
   <script src="/modules/state.js"></script>
   <script src="/modules/utils.js"></script>
+  <script src="/modules/preset-picker.js"></script>
   <script src="/modules/thumbnails.js"></script>
   <script src="/modules/render.js"></script>
   <script src="/modules/comments.js"></script>
@@ -2151,6 +2155,23 @@
   <div id="vaultDragBox" style="position:fixed; border:1px solid var(--accent); background:rgba(232,64,64,0.15); pointer-events:none; z-index:9999; display:none; border-radius:4px;"></div>
 
   <!-- Vault Page Viewer -->
+  <!-- DB Preset Picker (shown on first launch or manually from Database view) -->
+  <div id="preset-overlay" style="display:none;position:fixed;inset:0;z-index:20000;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px)">
+    <div class="preset-dialog">
+      <div class="preset-dialog-hd">
+        <h2 id="preset-picker-title" style="margin:0;font-size:1.2rem">Choose a Database Preset</h2>
+        <p id="preset-picker-subtitle" style="margin:6px 0 0;font-size:0.83rem;color:var(--tx2)">Pick one or more presets to populate your initial actors, categories, studios and websites — or start with an empty database.</p>
+      </div>
+      <div id="preset-picker-list" class="preset-picker-list"></div>
+      <div class="preset-dialog-footer">
+        <span id="preset-status" style="font-size:0.8rem;color:var(--tx3);flex:1"></span>
+        <button class="preset-foot-btn" onclick="presetApplyBlank()">Start Blank</button>
+        <button class="preset-foot-btn" onclick="presetApplyAll()">Use All Presets</button>
+        <button class="preset-foot-btn preset-foot-btn--primary" id="preset-apply-btn" onclick="presetApplySelected()">Apply Selected</button>
+      </div>
+    </div>
+  </div>
+
   <div id="vaultPageOverlay" style="display:none;position:fixed;inset:0;z-index:10000;flex-direction:column;background:#111">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--bg2);flex-shrink:0;border-bottom:1px solid var(--border)">
       <span id="vaultPageTitle" style="font-size:13px;color:var(--tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%"></span>

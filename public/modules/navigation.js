@@ -17,6 +17,7 @@ function _syncSortButtons() {
 
 // ─── Init ───
 async function init() {
+  await checkAndShowPresetPicker();
   _restoreFilterState();
   await loadTemplates();
   showSk();

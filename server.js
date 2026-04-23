@@ -14,7 +14,7 @@ const { exec } = require('child_process');
 
 const cfg = require('./server/config-server');
 const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, CACHE_DIR,
-        WEBSITES_JSON, BM_DIR, BM_CACHE_FILE,
+        WEBSITES_JSON, CATEGORIES_JSON, BM_DIR, BM_CACHE_FILE,
         BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
@@ -35,6 +35,7 @@ const books       = require('./server/books-server');
 const audio       = require('./server/audio-server');
 const photos      = require('./server/photos-server');
 const database    = require('./server/database-server');
+const presets     = require('./server/presets-server');
 const remote      = require('./server/remote-server');
 const settings    = require('./server/settings-server');
 const prompts     = require('./server/prompts-server');
@@ -62,8 +63,13 @@ for (const name of DEFAULT_CATEGORIES) {
 }
 
 // ── Migration: whitelist.txt → websites.json ─────────────────────────
+// Only run if the DB has already been initialised via the preset picker
+// (categories.json exists). On a fresh install the preset picker handles
+// writing all DB files — we don't want to pre-create websites.json and
+// interfere with that flow.
 
 (function migrateWhitelist() {
+  if (!fs.existsSync(CATEGORIES_JSON)) return; // wait for preset picker
   if (fs.existsSync(WEBSITES_JSON)) return;
   let entries = [];
   if (fs.existsSync(BROWSER_WHITELIST_FILE)) {
@@ -204,6 +210,10 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/page-resource\/([^/]+)\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultPageResource(req, res, m[1], m[2]);
   if ((m = p.match(/^\/api\/vault\/text\/([^/]+)$/)) && req.method === 'PUT') return vault.apiVaultUpdateTextFile(req, res, m[1]);
   if (p === '/api/vault/import-drop' && req.method === 'POST') return vault.apiVaultImportDrop(req, res);
+
+  // ── Presets ──────────────────────────────────────────────────────────
+  if (p === '/api/presets' && req.method === 'GET') return presets.apiGetPresets(req, res);
+  if (p === '/api/presets/apply' && req.method === 'POST') return presets.apiApplyPreset(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);

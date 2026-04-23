@@ -9,7 +9,10 @@
       "Bash(grep -n \"settings-view\\\\|settings-grid\\\\|donate-btn\\\\|buymeacoffee\\\\|</div>$\\\\|</aside>\" C:/AphroArchive/public/index.html)",
       "Bash(grep -E \"\\\\.js$|\\\\.html$\")",
       "Bash(find:*)",
-      "Bash(awk '{print NR\": \"$0}')"
+      "Bash(awk '{print NR\": \"$0}')",
+      "Bash(git -C C:/github/AphroArchive ls-files --error-unmatch db/categories.json)",
+      "Bash(git -C C:/github/AphroArchive status --short db/presets/actors.json db/presets/categories.json)",
+      "Bash(git *)"
     ]
   }
 }
