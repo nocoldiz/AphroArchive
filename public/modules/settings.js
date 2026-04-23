@@ -148,30 +148,81 @@ async function saveSettingsList(file) {
 }
 
 // ─── Connect Modal ───
+let _connectUrls = [], _connectIdx = 0, _connectNetEnabled = false;
+
 async function showConnect() {
   $('connectModal').add('on');
-  const urlEl = $('connectUrl').el;
+  const urlEl  = $('connectUrl').el;
   const canvas = $('connectQR').el;
-  urlEl.innerHTML = 'Loading…';
-  canvas.style.display = 'none';
+  if (urlEl)  urlEl.innerHTML = '';
+  if (canvas) canvas.style.display = 'none';
   renderRemoteToggle();
+
+  // Only main device sees the network access toggle
+  const netRow = document.getElementById('connectNetworkRow');
+  if (netRow) netRow.style.display = _isMainDevice ? '' : 'none';
+
+  if (_isMainDevice) {
+    try {
+      const prefs = await fetch('/api/settings/prefs').then(r => r.json()).catch(() => ({}));
+      _connectNetEnabled = !!prefs.networkEnabled;
+    } catch { _connectNetEnabled = false; }
+    _renderNetworkToggle();
+  }
+
+  if (!_connectNetEnabled) return; // don't load QR when disabled
+
   try {
     const d = await (await fetch('/api/local-ip')).json();
-    if (!d.url) { urlEl.textContent = 'Could not detect local IP address.'; return; }
+    if (!d.url) { if (urlEl) urlEl.textContent = 'Could not detect local IP address.'; return; }
     _connectUrls = d.all && d.all.length ? d.all : [{ url: d.url, name: 'Network', ip: d.ip }];
-    _connectIdx = 0;
+    _connectIdx  = 0;
     renderConnectModal();
   } catch (e) {
-    urlEl.textContent = 'Error loading network info.';
+    if (urlEl) urlEl.textContent = 'Error loading network info.';
   }
 }
 
-let _connectUrls = [], _connectIdx = 0;
+function _renderNetworkToggle() {
+  const tog  = document.getElementById('connectNetTog');
+  const lbl  = document.getElementById('connectNetLabel');
+  const desc = document.getElementById('connectNetDesc');
+  const body = document.getElementById('connectModalBody');
+  if (tog)  tog.classList.toggle('on', _connectNetEnabled);
+  if (lbl)  lbl.textContent = _connectNetEnabled ? 'Network access — enabled' : 'Network access — disabled';
+  if (desc) desc.textContent = _connectNetEnabled
+    ? 'Other devices on the network can connect'
+    : 'Server only accepts connections from this machine';
+  if (body) body.style.display = _connectNetEnabled ? '' : 'none';
+}
+
+async function toggleNetworkAccess() {
+  if (!_isMainDevice) return;
+  _connectNetEnabled = !_connectNetEnabled;
+  _renderNetworkToggle();
+  await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ networkEnabled: _connectNetEnabled }),
+  }).catch(() => {});
+  if (_connectNetEnabled && !_connectUrls.length) {
+    // Lazy-load the IP/QR now that access is enabled
+    try {
+      const d = await (await fetch('/api/local-ip')).json();
+      if (d.url) {
+        _connectUrls = d.all && d.all.length ? d.all : [{ url: d.url, name: 'Network', ip: d.ip }];
+        _connectIdx  = 0;
+        renderConnectModal();
+      }
+    } catch {}
+  }
+}
 
 function renderConnectModal() {
-  const entry = _connectUrls[_connectIdx];
-  const urlEl = $('connectUrl').el;
+  const entry  = _connectUrls[_connectIdx];
+  const urlEl  = $('connectUrl').el;
   const canvas = $('connectQR').el;
+  if (!entry || !urlEl || !canvas) return;
   if (_connectUrls.length > 1) {
     urlEl.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap">' +

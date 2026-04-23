@@ -2,6 +2,7 @@
 	"title": "Movies",
 	"description": "Lorem ipsum",
 	"rename":{
-		"studios": "series"
+		"studios": "series",
+		"actors": "authors"
 	}
 }

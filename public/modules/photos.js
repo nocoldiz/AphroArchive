@@ -2,8 +2,14 @@
 
 let photoFiles = [];
 let photosSort = 'date';
+let photosQuery = '';
 let photosLightboxIdx = -1;
 let photosLightboxFile = null;
+
+// ─── Slideshow ───
+let photosSlideOn = false;
+let photosSlideTimer = null;
+let photosSlideSecs = 3;
 
 function showPhotos() {
   closeAllViews();
@@ -30,15 +36,29 @@ function setPhotosSort(s) {
   renderPhotos();
 }
 
+function setPhotosQuery(q) {
+  photosQuery = q;
+  renderPhotos();
+}
+
+function _getSortedFilteredPhotos() {
+  let files = [...photoFiles];
+  if (photosSort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
+  else if (photosSort === 'size') files.sort((a, b) => b.size - a.size);
+  else files.sort((a, b) => b.date - a.date);
+  if (photosQuery) {
+    const q = photosQuery.toLowerCase();
+    files = files.filter(f => f.filename.toLowerCase().includes(q));
+  }
+  return files;
+}
+
 function renderPhotos() {
   const grid  = $('photosGrid').el;
   const empty = $('photosEmpty').el;
   if (!grid) return;
 
-  let files = [...photoFiles];
-  if (photosSort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
-  else if (photosSort === 'size') files.sort((a, b) => b.size - a.size);
-  else files.sort((a, b) => b.date - a.date);
+  const files = _getSortedFilteredPhotos();
 
   if (!files.length) {
     grid.innerHTML = '';
@@ -60,11 +80,7 @@ function renderPhotos() {
 }
 
 function openPhotoLightbox(idx) {
-  let files = [...photoFiles];
-  if (photosSort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
-  else if (photosSort === 'size') files.sort((a, b) => b.size - a.size);
-  else files.sort((a, b) => b.date - a.date);
-
+  const files = _getSortedFilteredPhotos();
   photosLightboxIdx  = idx;
   photosLightboxFile = files[idx];
   const f = photosLightboxFile;
@@ -77,34 +93,31 @@ function openPhotoLightbox(idx) {
   cap.textContent = f.filename + '  ·  ' + f.sizeF;
   if (dp) { dp.style.display = 'none'; dp.textContent = ''; }
   lb.classList.add('on');
+  _updateSlideBtn();
 }
 
 function photosLightboxPrev() {
-  let files = [...photoFiles];
-  if (photosSort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
-  else if (photosSort === 'size') files.sort((a, b) => b.size - a.size);
-  else files.sort((a, b) => b.date - a.date);
+  const files = _getSortedFilteredPhotos();
+  if (!files.length) return;
   photosLightboxIdx  = (photosLightboxIdx - 1 + files.length) % files.length;
   photosLightboxFile = files[photosLightboxIdx];
-  const f = photosLightboxFile;
-  document.getElementById('photosLbImg').src = '/api/photos/' + f.id + '/img';
-  document.getElementById('photosLbCaption').textContent = f.filename + '  ·  ' + f.sizeF;
+  document.getElementById('photosLbImg').src = '/api/photos/' + photosLightboxFile.id + '/img';
+  document.getElementById('photosLbCaption').textContent = photosLightboxFile.filename + '  ·  ' + photosLightboxFile.sizeF;
   const dp = document.getElementById('photosLbDesc');
   if (dp) { dp.style.display = 'none'; dp.textContent = ''; }
+  if (photosSlideOn) _scheduleSlide();
 }
 
 function photosLightboxNext() {
-  let files = [...photoFiles];
-  if (photosSort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
-  else if (photosSort === 'size') files.sort((a, b) => b.size - a.size);
-  else files.sort((a, b) => b.date - a.date);
+  const files = _getSortedFilteredPhotos();
+  if (!files.length) return;
   photosLightboxIdx  = (photosLightboxIdx + 1) % files.length;
   photosLightboxFile = files[photosLightboxIdx];
-  const f = photosLightboxFile;
-  document.getElementById('photosLbImg').src = '/api/photos/' + f.id + '/img';
-  document.getElementById('photosLbCaption').textContent = f.filename + '  ·  ' + f.sizeF;
+  document.getElementById('photosLbImg').src = '/api/photos/' + photosLightboxFile.id + '/img';
+  document.getElementById('photosLbCaption').textContent = photosLightboxFile.filename + '  ·  ' + photosLightboxFile.sizeF;
   const dp = document.getElementById('photosLbDesc');
   if (dp) { dp.style.display = 'none'; dp.textContent = ''; }
+  if (photosSlideOn) _scheduleSlide();
 }
 
 function closePhotoLightbox() {
@@ -112,7 +125,50 @@ function closePhotoLightbox() {
   document.getElementById('photosLbImg').src = '';
   photosLightboxIdx  = -1;
   photosLightboxFile = null;
+  photosSlideOn = false;
+  clearTimeout(photosSlideTimer);
+  _updateSlideBtn();
 }
+
+// ─── Slideshow ───
+
+function togglePhotoSlideshow() {
+  photosSlideOn = !photosSlideOn;
+  _updateSlideBtn();
+  if (photosSlideOn) _scheduleSlide();
+  else clearTimeout(photosSlideTimer);
+}
+
+function _scheduleSlide() {
+  clearTimeout(photosSlideTimer);
+  photosSlideTimer = setTimeout(() => {
+    if (!photosSlideOn) return;
+    photosLightboxNext();
+  }, photosSlideSecs * 1000);
+}
+
+function setPhotoSlideSecs(s) {
+  photosSlideSecs = parseInt(s) || 3;
+  if (photosSlideOn) _scheduleSlide();
+}
+
+function _updateSlideBtn() {
+  const btn = document.getElementById('photosLbSlideBtn');
+  if (!btn) return;
+  btn.innerHTML = photosSlideOn
+    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'
+    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+  btn.title = photosSlideOn ? 'Pause slideshow' : 'Start slideshow';
+}
+
+// ─── Photo Mosaic ───
+
+function startPhotoMosaic() {
+  if (!photoFiles.length) { toast('No photos to show'); return; }
+  startMosaicWithPhotos([...photoFiles]);
+}
+
+// ─── Other ───
 
 function downloadPhotoLightbox() {
   if (!photosLightboxFile) return;
@@ -127,7 +183,7 @@ function downloadPhotoLightbox() {
 async function describePhotoLightbox() {
   if (!photosLightboxFile) return;
   const dp = document.getElementById('photosLbDesc');
-  if (dp) { dp.style.display = ''; dp.textContent = 'Analyzing\u2026'; }
+  if (dp) { dp.style.display = ''; dp.textContent = 'Analyzing…'; }
   const r = await fetch('/api/vision/describe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -144,10 +200,10 @@ async function deletePhoto(id, btn) {
   else toast('Delete failed');
 }
 
-// keyboard navigation for lightbox
 document.addEventListener('keydown', e => {
   if (!$('photosLightbox').el?.classList.contains('on')) return;
   if (e.key === 'ArrowLeft')  photosLightboxPrev();
   if (e.key === 'ArrowRight') photosLightboxNext();
   if (e.key === 'Escape')     closePhotoLightbox();
+  if (e.key === ' ')          { e.preventDefault(); togglePhotoSlideshow(); }
 });

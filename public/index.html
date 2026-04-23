@@ -879,6 +879,12 @@
       <div class="books-view" id="books-view">
         <div class="section-header">
           <h2>Books</h2>
+        </div>
+        <div class="prompts-search-bar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Filter books…" autocomplete="off" spellcheck="false" oninput="setBooksQuery(this.value)">
+        </div>
+        <div class="section-header">
           <div class="section-controls">
             <button class="sort-btn on" data-s="date" onclick="setBookSort('date')">Date</button>
             <button class="sort-btn" data-s="name" onclick="setBookSort('name')">Name</button>
@@ -938,6 +944,10 @@
             </button>
           </div>
         </div>
+        <div class="prompts-search-bar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Filter audio…" autocomplete="off" spellcheck="false" oninput="setAudioQuery(this.value)">
+        </div>
         <div id="audioGrid" class="au-grid"></div>
         <div class="empty-state" id="audioEmpty" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -981,7 +991,15 @@
               <input type="range" class="card-size-slider" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             </div>
+            <span class="sg-sep"></span>
+            <button class="sort-btn" onclick="startPhotoMosaic()" title="Photo Mosaic">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
           </div>
+        </div>
+        <div class="prompts-search-bar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Filter photos…" autocomplete="off" spellcheck="false" oninput="setPhotosQuery(this.value)">
         </div>
         <div id="photosGrid" class="ph-grid"></div>
         <div class="empty-state" id="photosEmpty" style="display:none">
@@ -1003,6 +1021,10 @@
             + Add
             <input type="file" accept=".html,.htm,.xhtml,.mhtml" multiple style="display:none" onchange="pagesUpload(this)">
           </label>
+        </div>
+        <div class="prompts-search-bar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Filter pages…" autocomplete="off" spellcheck="false" oninput="setPagesQuery(this.value)">
         </div>
         <div id="pagesGrid" class="pages-grid"></div>
         <div class="empty-state" id="pagesEmpty" style="display:none">
@@ -1036,6 +1058,16 @@
           <button class="ph-lb-action-btn" onclick="event.stopPropagation();describePhotoLightbox()" title="Describe with AI">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
+          <button id="photosLbSlideBtn" class="ph-lb-action-btn" onclick="event.stopPropagation();togglePhotoSlideshow()" title="Start slideshow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </button>
+          <select onclick="event.stopPropagation()" onchange="setPhotoSlideSecs(this.value)" title="Slideshow interval" style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx2);font-size:0.75rem;border-radius:4px;padding:2px 4px;cursor:pointer">
+            <option value="2">2s</option>
+            <option value="3" selected>3s</option>
+            <option value="5">5s</option>
+            <option value="10">10s</option>
+            <option value="20">20s</option>
+          </select>
         </div>
         <div id="photosLbDesc" style="display:none;padding:8px 14px;background:rgba(0,0,0,.8);font-size:0.8rem;color:#eee;max-width:640px;border-radius:6px;margin-top:6px;line-height:1.5;text-align:center;cursor:pointer" onclick="event.stopPropagation();this.style.display='none'"></div>
         <button class="ph-lb-close" onclick="closePhotoLightbox()">
@@ -1967,7 +1999,7 @@
         <button onclick="setMosaicIv(2)">+</button>
       </div>
       <div class="mos-ctrl">
-        <span>Players</span>
+        <span id="mosaic-count-label">Players</span>
         <input type="number" class="mos-cnt-in" id="mosaic-count" min="1" max="16" value="6"
           onchange="setMosaicCount(this.value)">
       </div>
@@ -2056,14 +2088,25 @@
   <!-- Connect Modal -->
   <div class="collection-modal" id="connectModal" onclick="if(event.target===this)closeConnectModal()">
     <div class="collection-modal-box" style="text-align:center;width:360px;max-width:95vw">
-      <h3 style="margin-bottom:6px">Connect from another device</h3>
-      <p id="connectUrl" style="font-size:0.8rem;color:var(--tx2);margin-bottom:16px;word-break:break-all"></p>
-      <canvas id="connectQR" style="display:block;margin:0 auto;border-radius:8px"></canvas>
-      <div id="connectRemoteRow" class="rm-row" onclick="toggleRemoteMode()">
-        <div class="rm-toggle"></div>
+      <h3 style="margin-bottom:12px">Connect from another device</h3>
+      <!-- Network access toggle (main device only) -->
+      <div id="connectNetworkRow" class="rm-row" onclick="toggleNetworkAccess()" style="margin-bottom:12px">
+        <div class="rm-toggle" id="connectNetTog"></div>
         <div>
-          <div class="rm-label">Remote Mode — off</div>
-          <div class="rm-desc">Videos you pick play on the main device</div>
+          <div class="rm-label" id="connectNetLabel">Network access — disabled</div>
+          <div class="rm-desc" id="connectNetDesc">Server only accepts connections from this machine</div>
+        </div>
+      </div>
+      <!-- Body shown only when network is enabled -->
+      <div id="connectModalBody">
+        <p id="connectUrl" style="font-size:0.8rem;color:var(--tx2);margin-bottom:16px;word-break:break-all"></p>
+        <canvas id="connectQR" style="display:block;margin:0 auto;border-radius:8px"></canvas>
+        <div id="connectRemoteRow" class="rm-row" onclick="toggleRemoteMode()" style="margin-top:12px">
+          <div class="rm-toggle"></div>
+          <div>
+            <div class="rm-label">Remote Mode — off</div>
+            <div class="rm-desc">Videos you pick play on the main device</div>
+          </div>
         </div>
       </div>
       <div class="collection-modal-actions" style="justify-content:center;margin-top:12px">

@@ -2,6 +2,7 @@
 // Local HTML files stored in pages/, viewed with the shared HTML viewer.
 
 let _pagesList = [];
+let pagesQuery = '';
 
 async function showPages() {
   closeAllViews();
@@ -24,17 +25,27 @@ async function loadPages() {
   renderPages();
 }
 
+function setPagesQuery(q) { pagesQuery = q; renderPages(); }
+
 function renderPages() {
   const grid  = document.getElementById('pagesGrid');
   const empty = document.getElementById('pagesEmpty');
   if (!grid) return;
-  if (!_pagesList.length) {
+  let items = _pagesList;
+  if (pagesQuery) { const q = pagesQuery.toLowerCase(); items = items.filter(p => p.name.toLowerCase().includes(q)); }
+  if (!items.length) {
     grid.innerHTML = '';
     if (empty) empty.style.display = '';
     return;
   }
   if (empty) empty.style.display = 'none';
-  grid.innerHTML = _pagesList.map(p => `
+  // reassign to items for the map below
+  _renderPagesItems(items);
+}
+
+function _renderPagesItems(items) {
+  const grid = document.getElementById('pagesGrid');
+  grid.innerHTML = items.map(p => `
     <div class="page-card" onclick="openPageFile('${escA(p.id)}','${escA(p.name)}')">
       <div class="page-card-icon">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">

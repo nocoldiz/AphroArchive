@@ -86,12 +86,26 @@ for (const name of DEFAULT_CATEGORIES) {
   fs.writeFileSync(WEBSITES_JSON, JSON.stringify(entries, null, 2));
 })();
 
+// ── Network access guard ─────────────────────────────────────────────
+
+function isLocalhost(req) {
+  const addr = req.socket?.remoteAddress || '';
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+}
+
 // ── HTTP server ───────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const p      = parsed.pathname;
   const params = new URLSearchParams(parsed.search || '');
+
+  // Block remote connections unless network access is explicitly enabled
+  if (!isLocalhost(req) && !loadPrefs().networkEnabled) {
+    res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end('<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:3rem;color:#555"><h2>Network access is disabled</h2><p>Enable it from the <b>Connect</b> menu on the main device.</p></body></html>');
+    return;
+  }
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');

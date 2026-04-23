@@ -1,6 +1,7 @@
 // ─── Audio ───
 
 let audioSort = 'date';
+let audioQuery = '';
 let audioView = localStorage.getItem('audioView') || 'card';
 let audioFiles = [];
 let curAudio = null;
@@ -38,6 +39,8 @@ function setAudioView(v) {
   renderAudio();
 }
 
+function setAudioQuery(q) { audioQuery = q; renderAudio(); }
+
 function renderAudio() {
   const grid = $('audioGrid').el;
   const empty = $('audioEmpty').el;
@@ -47,6 +50,7 @@ function renderAudio() {
   if (audioSort === 'name') files.sort((a, b) => a.title.localeCompare(b.title));
   else if (audioSort === 'size') files.sort((a, b) => b.size - a.size);
   else files.sort((a, b) => b.date - a.date);
+  if (audioQuery) { const q = audioQuery.toLowerCase(); files = files.filter(f => f.title.toLowerCase().includes(q)); }
 
   if (!files.length) {
     grid.innerHTML = '';

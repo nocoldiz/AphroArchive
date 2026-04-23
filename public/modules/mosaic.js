@@ -1,10 +1,14 @@
 // ─── Mosaic Mode ───
+let _mosaicPhotoMode = false;
+let _mosaicPhotos = [];
+
 function toggleMosaic() {
   if (mosaicOn) stopMosaic(); else startMosaic();
 }
 
 function startMosaic() {
   if (!V.length) { toast('No videos to show'); return; }
+  _mosaicPhotoMode = false;
   mosaicOn = true;
   $('browse-view').add('off');
   $('player-view').remove('on');
@@ -12,6 +16,24 @@ function startMosaic() {
   $('mosaic-category-label').el.textContent = cat
     ? (cats.find(x => x.path === cat)?.name || cat) + ' — Mosaic'
     : 'All Videos — Mosaic';
+  const cntLbl = document.getElementById('mosaic-count-label');
+  if (cntLbl) cntLbl.textContent = 'Players';
+  $('mosaic-interval').text(mosaicIv + 's');
+  $('mosaic-view').add('on');
+  $('mosBtn').add('on');
+  buildMosaicTiles();
+  scheduleMosaic();
+}
+
+function startMosaicWithPhotos(photos) {
+  _mosaicPhotoMode = true;
+  _mosaicPhotos = photos;
+  mosaicOn = true;
+  $('player-view').remove('on');
+  if (curV) { const vp = $('video-player').el; vp.pause(); vp.src = ''; curV = null; }
+  $('mosaic-category-label').el.textContent = 'Photos — Mosaic';
+  const cntLbl = document.getElementById('mosaic-count-label');
+  if (cntLbl) cntLbl.textContent = 'Tiles';
   $('mosaic-interval').text(mosaicIv + 's');
   $('mosaic-view').add('on');
   $('mosBtn').add('on');
@@ -20,17 +42,21 @@ function startMosaic() {
 }
 
 function stopMosaic() {
+  const wasPhotoMode = _mosaicPhotoMode;
   mosaicOn = false;
+  _mosaicPhotoMode = false;
+  _mosaicPhotos = [];
   clearTimeout(mosaicTimer);
   mosTilesState.forEach(t => {
-    t.a.pause(); t.a.src = '';
-    t.b.pause(); t.b.src = '';
+    if (!t.isPhoto) { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; }
   });
   mosTilesState = [];
   mosHoveredIdx = -1;
   $('mosaic-view').remove('on');
   $('mosBtn').remove('on');
-  $('browse-view').remove('off');
+  const cntLbl = document.getElementById('mosaic-count-label');
+  if (cntLbl) cntLbl.textContent = 'Players';
+  if (!wasPhotoMode) $('browse-view').remove('off');
 }
 
 function mosPick(n) {
@@ -48,6 +74,20 @@ function mosPickExcluding(excludeId) {
   const src = pool.length ? pool : V;
   const shuffled = [...src].sort(() => Math.random() - 0.5);
   return shuffled.find(v => v.id !== excludeId) || shuffled[0];
+}
+
+function _mosPickPhotos(n) {
+  if (!_mosaicPhotos.length) return [];
+  const a = [..._mosaicPhotos].sort(() => Math.random() - 0.5);
+  const result = [];
+  while (result.length < n) result.push(...a);
+  return result.slice(0, n);
+}
+
+function _mosPickPhotoExcluding(excludeId) {
+  const others = _mosaicPhotos.filter(p => p.id !== excludeId);
+  const pool = others.length ? others : _mosaicPhotos;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function mosSeekRandom(el) {
@@ -71,7 +111,9 @@ function preloadMosTile(tile, v) {
 
 function buildMosaicTiles() {
   const grid = $('mosaic-grid').el;
-  mosTilesState.forEach(t => { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; });
+  mosTilesState.forEach(t => {
+    if (!t.isPhoto) { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; }
+  });
   mosTilesState = [];
   mosHoveredIdx = -1;
   grid.innerHTML = '';
@@ -86,6 +128,24 @@ function buildMosaicTiles() {
     const cols = n <= 2 ? n : n <= 4 ? 2 : n <= 9 ? 3 : 4;
     grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
     grid.style.gridTemplateRows = '';
+  }
+
+  if (_mosaicPhotoMode) {
+    const picks = _mosPickPhotos(n);
+    picks.forEach((f, i) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'mos-tile';
+      const img = document.createElement('img');
+      img.className = 'mos-v mos-v-active';
+      img.src = '/api/photos/' + f.id + '/img';
+      wrap.appendChild(img);
+      grid.appendChild(wrap);
+      const tile = { wrap, img, photoId: f.id, isPhoto: true };
+      mosTilesState.push(tile);
+      wrap.addEventListener('mouseenter', () => { mosHoveredIdx = i; wrap.classList.add('mos-hovered'); });
+      wrap.addEventListener('mouseleave', () => { if (mosHoveredIdx === i) mosHoveredIdx = -1; wrap.classList.remove('mos-hovered'); });
+    });
+    return;
   }
 
   const picks = mosPick(n);
@@ -106,7 +166,7 @@ function buildMosaicTiles() {
     wrap.appendChild(a); wrap.appendChild(b);
     grid.appendChild(wrap);
 
-    const tile = { wrap, a, b, active: 'a', vidId: v.id };
+    const tile = { wrap, a, b, active: 'a', vidId: v.id, isPhoto: false };
     mosTilesState.push(tile);
 
     a.src = '/api/stream/' + v.id;
@@ -127,7 +187,7 @@ function buildMosaicTiles() {
     wrap.addEventListener('mouseleave', () => {
       if (mosHoveredIdx === i) mosHoveredIdx = -1;
       wrap.classList.remove('mos-hovered');
-      mosTilesState.forEach(t => { t.a.muted = true; t.b.muted = true; });
+      mosTilesState.forEach(t => { if (!t.isPhoto) { t.a.muted = true; t.b.muted = true; } });
     });
   });
 }
@@ -139,6 +199,21 @@ function scheduleMosaic() {
 }
 
 function refreshMosaicTiles() {
+  if (_mosaicPhotoMode) {
+    mosTilesState.forEach((tile, i) => {
+      if (i === mosHoveredIdx) return;
+      const next = _mosPickPhotoExcluding(tile.photoId);
+      if (!next) return;
+      tile.img.classList.remove('mos-v-active');
+      setTimeout(() => {
+        tile.img.src = '/api/photos/' + next.id + '/img';
+        tile.img.classList.add('mos-v-active');
+        tile.photoId = next.id;
+      }, 450);
+    });
+    return;
+  }
+
   mosTilesState.forEach((tile, i) => {
     if (i === mosHoveredIdx) return;
 

@@ -66,6 +66,16 @@ function closeVisionModal() {
   document.getElementById('visionModal')?.classList.remove('on');
 }
 
+async function deleteVideoFromCard(id, name) {
+  if (!confirm('Delete "' + name + '"?\nThis cannot be undone.')) return;
+  const r = await fetch('/api/videos/' + id, { method: 'DELETE' });
+  if (!r.ok) { toast('Delete failed'); return; }
+  V = V.filter(v => v.id !== id);
+  _allVideos = _allVideos.filter(v => v.id !== id);
+  render();
+  toast('Deleted');
+}
+
 async function describeVideoThumb(videoId) {
   showVisionModal('Analyzing thumbnail\u2026');
   const r = await fetch('/api/vision/describe', {

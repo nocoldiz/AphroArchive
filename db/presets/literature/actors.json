@@ -1,0 +1,50 @@
+{
+  "Clint Eastwood": {
+    "imdb_page": "https://www.imdb.com/name/nm0000142/",
+    "date_of_birth": "May 31, 1930",
+    "nationality": "American",
+    "movies": "A Fistful of Dollars, For a Few Dollars More, The Good, the Bad and the Ugly, Dirty Harry, Unforgiven, Million Dollar Baby, Gran Torino"
+  },
+  "Meryl Streep": {
+    "imdb_page": "https://www.imdb.com/name/nm0000658/",
+    "date_of_birth": "June 22, 1949",
+    "nationality": "American",
+    "movies": "Sophie's Choice, Out of Africa, The Devil Wears Prada, Mamma Mia!, The Iron Lady, Doubt, The Post"
+  },
+  "Robert De Niro": {
+    "imdb_page": "https://www.imdb.com/name/nm0000134/",
+    "date_of_birth": "August 17, 1943",
+    "nationality": "American",
+    "movies": "The Godfather Part II, Taxi Driver, Raging Bull, Goodfellas, Heat, Casino, The Irishman"
+  },
+  "Cate Blanchett": {
+    "imdb_page": "https://www.imdb.com/name/nm0000949/",
+    "date_of_birth": "May 14, 1969",
+    "nationality": "Australian",
+    "movies": "Elizabeth, The Lord of the Rings, The Aviator, Blue Jasmine, Carol, Tár, Thor: Ragnarok"
+  },
+  "Denzel Washington": {
+    "imdb_page": "https://www.imdb.com/name/nm0000243/",
+    "date_of_birth": "December 28, 1954",
+    "nationality": "American",
+    "movies": "Glory, Malcolm X, Training Day, Man on Fire, Fences, The Equalizer, Flight"
+  },
+  "Margot Robbie": {
+    "imdb_page": "https://www.imdb.com/name/nm3053338/",
+    "date_of_birth": "July 2, 1990",
+    "nationality": "Australian",
+    "movies": "The Wolf of Wall Street, I, Tonya, Once Upon a Time in Hollywood, Birds of Prey, Barbie, Babylon"
+  },
+  "Leonardo DiCaprio": {
+    "imdb_page": "https://www.imdb.com/name/nm0000138/",
+    "date_of_birth": "November 11, 1974",
+    "nationality": "American",
+    "movies": "Titanic, Inception, The Departed, The Wolf of Wall Street, The Revenant, Killers of the Flower Moon"
+  },
+  "Michelle Yeoh": {
+    "imdb_page": "https://www.imdb.com/name/nm0000706/",
+    "date_of_birth": "August 6, 1962",
+    "nationality": "Malaysian",
+    "movies": "Crouching Tiger, Hidden Dragon, Tomorrow Never Dies, Memoirs of a Geisha, Crazy Rich Asians, Everything Everywhere All at Once"
+  }
+}

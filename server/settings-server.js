@@ -58,6 +58,7 @@ async function apiSavePrefs(req, res) {
   if ('visionProvider' in body) prefs.visionProvider = body.visionProvider === 'claude' ? 'claude' : 'ollama';
   if ('ollamaUrl' in body) prefs.ollamaUrl = String(body.ollamaUrl || '').trim();
   if ('ollamaVisionModel' in body) prefs.ollamaVisionModel = String(body.ollamaVisionModel || '').trim();
+  if ('networkEnabled' in body)   prefs.networkEnabled   = !!body.networkEnabled;
   savePrefs(prefs);
   json(res, { ok: true });
 }

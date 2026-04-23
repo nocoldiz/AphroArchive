@@ -1,6 +1,7 @@
 // ─── Books ───
 
 let bookSort = 'date';
+let booksQuery = '';
 let _allBooks = [];
 
 function showBooks() {
@@ -20,6 +21,8 @@ function setBookSort(s) {
   renderBooks(_allBooks);
 }
 
+function setBooksQuery(q) { booksQuery = q; renderBooks(_allBooks); }
+
 async function loadBooks() {
   const res = await fetch('/api/books');
   _allBooks = await res.json();
@@ -29,15 +32,16 @@ async function loadBooks() {
 function renderBooks(books) {
   const grid = $('booksGrid').el;
   const empty = $('booksEmpty').el;
-  if (!books.length) {
-    grid.innerHTML = '';
-    empty.style.display = '';
-    return;
-  }
   let sorted = [...books];
   if (bookSort === 'name') sorted.sort((a, b) => (a.title || a.filename).localeCompare(b.title || b.filename));
   else if (bookSort === 'size') sorted.sort((a, b) => (b.size || 0) - (a.size || 0));
   else sorted.sort((a, b) => (b.date || 0) - (a.date || 0));
+  if (booksQuery) { const q = booksQuery.toLowerCase(); sorted = sorted.filter(b => (b.title || b.filename || '').toLowerCase().includes(q)); }
+  if (!sorted.length) {
+    grid.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
   empty.style.display = 'none';
   grid.innerHTML = sorted.map(b => {
     const icon = bookTypeIcon(b.ext);
