@@ -1,0 +1,18 @@
+{
+  "Universal Music Group": {
+    "website": "https://www.universalmusic.com/",
+    "short_description": "The world's leading music company, owning and operating a broad array of businesses engaged in recorded music, music publishing, merchandising, and audiovisual content."
+  },
+  "Sony Music Entertainment": {
+    "website": "https://www.sonymusic.com/",
+    "short_description": "A global recorded music company with a roster that includes a broad array of both local artists and international superstars, operating iconic labels like Columbia and RCA."
+  },
+  "Warner Records": {
+    "website": "https://www.warnerrecords.com/",
+    "short_description": "A premier American record label owned by Warner Music Group, home to a diverse roster of legendary artists and modern chart-toppers across various genres."
+  },
+  "Def Jam Recordings": {
+    "website": "https://www.defjam.com/",
+    "short_description": "An iconic American multinational record label owned by Universal Music Group, historically focused predominantly on hip hop, pop, and urban music."
+  }
+}

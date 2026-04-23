@@ -4,6 +4,10 @@ audio
 photos
 cache/
 node_modules/
+db/actors.json
+db/categories.json
+db/websites.json
+db/studios.json
 dist/
 .AphroArchive-thumbs
 .AphroArchive-actor-photos

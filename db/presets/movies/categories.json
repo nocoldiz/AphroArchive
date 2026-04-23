@@ -1,0 +1,90 @@
+{
+  "Horror": {
+    "displayName": "Horror",
+    "tags": [
+      "Dracula",
+      "Blood",
+      "Scary",
+      "Supernatural",
+      "Slasher",
+      "Psychological"
+    ]
+  },
+  "Sci-Fi": {
+    "displayName": "Science Fiction",
+    "tags": [
+      "Space",
+      "Future",
+      "Robot",
+      "AI",
+      "Time Travel",
+      "Alien"
+    ]
+  },
+  "Action": {
+    "displayName": "Action",
+    "tags": [
+      "Explosion",
+      "Chase",
+      "Fight",
+      "Hero",
+      "Stunt",
+      "Adrenaline"
+    ]
+  },
+  "Comedy": {
+    "displayName": "Comedy",
+    "tags": [
+      "Funny",
+      "Satire",
+      "Slapstick",
+      "Parody",
+      "Laughter",
+      "Sitcom"
+    ]
+  },
+  "Drama": {
+    "displayName": "Drama",
+    "tags": [
+      "Emotion",
+      "Conflict",
+      "Family",
+      "Historical",
+      "Character Study",
+      "Tragedy"
+    ]
+  },
+  "Fantasy": {
+    "displayName": "Fantasy",
+    "tags": [
+      "Magic",
+      "Dragon",
+      "Quest",
+      "Mythology",
+      "Sword",
+      "Sorcery"
+    ]
+  },
+  "Thriller": {
+    "displayName": "Thriller",
+    "tags": [
+      "Suspense",
+      "Mystery",
+      "Crime",
+      "Twist",
+      "Intrigue",
+      "Danger"
+    ]
+  },
+  "Western": {
+    "displayName": "Western",
+    "tags": [
+      "Cowboy",
+      "Frontier",
+      "Outlaw",
+      "Saloon",
+      "Gunslinger",
+      "Desert"
+    ]
+  }
+}

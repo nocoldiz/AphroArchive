@@ -986,6 +986,7 @@ input{font-family:inherit;color:inherit}
 
 /* ── Photos View ── */
 .photos-view{display:none}.photos-view.on{display:block}
+.websites-view{display:none;padding:20px 24px 40px}.websites-view.on{display:block}
 
 /* ── Prompts ── */
 .prompts-view{display:none}.prompts-view.on{display:block}

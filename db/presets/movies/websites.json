@@ -1,0 +1,56 @@
+[
+  {
+    "name": "Archive.org",
+    "url": "https://archive.org",
+    "searchURL": "https://archive.org/search?query=",
+    "scrapeMethod": "archive-org",
+    "tags": ["public-domain", "non-profit", "historical"],
+    "description": "A digital library offering free universal access to books, movies, software, music, and more than 866 billion web pages.",
+    "hasSearch": true
+  },
+  {
+    "name": "Netflix",
+    "url": "https://www.netflix.com",
+    "searchURL": "https://www.netflix.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["subscription", "originals", "movies", "tv-shows"],
+    "description": "A premier subscription-based streaming service featuring a vast library of award-winning Netflix originals, feature films, and documentaries.",
+    "hasSearch": true
+  },
+  {
+    "name": "YouTube",
+    "url": "https://www.youtube.com",
+    "searchURL": "https://www.youtube.com/results?search_query=",
+    "scrapeMethod": "youtube-api",
+    "tags": ["free", "user-generated", "live-stream"],
+    "description": "The world's largest video-sharing platform, hosting everything from professional music videos and movies to independent creator content.",
+    "hasSearch": true
+  },
+  {
+    "name": "Disney Plus",
+    "url": "https://www.disneyplus.com",
+    "searchURL": "https://www.disneyplus.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["subscription", "family", "marvel", "star-wars"],
+    "description": "The dedicated streaming home for movies and shows from Disney, Pixar, Marvel, Star Wars, and National Geographic.",
+    "hasSearch": true
+  },
+  {
+    "name": "Amazon Prime Video",
+    "url": "https://www.primevideo.com",
+    "searchURL": "https://www.primevideo.com/search/?phrase=",
+    "scrapeMethod": "standard-web",
+    "tags": ["subscription", "rent-buy", "originals"],
+    "description": "A comprehensive streaming service offering popular movies, TV shows, and Amazon Original series, with options to rent or buy new releases.",
+    "hasSearch": true
+  },
+  {
+    "name": "Hulu",
+    "url": "https://www.hulu.com",
+    "searchURL": "https://www.hulu.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["subscription", "current-tv", "originals"],
+    "description": "A leading streaming platform known for providing next-day access to major network TV shows, original series, and a deep movie library.",
+    "hasSearch": true
+  }
+]
