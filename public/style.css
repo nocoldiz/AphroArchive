@@ -986,7 +986,19 @@ input{font-family:inherit;color:inherit}
 
 /* ── Photos View ── */
 .photos-view{display:none}.photos-view.on{display:block}
+#vaultPageResizeHandle:hover,#vaultPageResizeHandle.vp-resizing{background:rgba(255,255,255,.12)}
+body:has(#vaultPageResizeHandle.vp-resizing){cursor:ew-resize;user-select:none}
 .websites-view{display:none;padding:20px 24px 40px}.websites-view.on{display:block}
+.pages-view{display:none;padding:20px 24px 40px}.pages-view.on{display:block}
+.pages-grid{display:flex;flex-direction:column;gap:6px;margin-top:16px}
+.page-card{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;cursor:pointer;transition:border-color .15s}
+.page-card:hover{border-color:var(--ac)}
+.page-card-icon{flex-shrink:0;color:var(--ac);opacity:.75}
+.page-card-body{flex:1;min-width:0}
+.page-card-name{font-size:.88rem;font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.page-card-meta{font-size:.74rem;color:var(--tx3);margin-top:2px}
+.page-card-del{flex-shrink:0;background:transparent;border:none;color:var(--tx3);cursor:pointer;padding:4px;border-radius:4px;line-height:0;transition:color .15s}
+.page-card-del:hover{color:#e84040}
 
 /* ── Prompts ── */
 .prompts-view{display:none}.prompts-view.on{display:block}

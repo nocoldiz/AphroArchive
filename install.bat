@@ -53,14 +53,12 @@ echo.
 echo [6/6] Checking ffmpeg...
 if exist "ffmpeg.exe" if exist "ffprobe.exe" (
     echo  ffmpeg.exe + ffprobe.exe already present  OK
-    goto :geckodriver
 )
 
 :: Try winget first (adds to system PATH, server falls back to PATH)
 where ffmpeg >nul 2>&1
 if not errorlevel 1 (
     echo  ffmpeg already on PATH  OK
-    goto :geckodriver
 )
 
 echo  Downloading ffmpeg from BtbN builds (this may take a minute)...
@@ -78,24 +76,6 @@ powershell -NoProfile -Command ^
     "    Write-Host '  ffmpeg + ffprobe downloaded  OK'" ^
     "} catch { Write-Host '[WARN] ffmpeg download failed — thumbnails and duration detection will not work.'; Remove-Item $zip,'ffmpeg_tmp' -Recurse -Force -ErrorAction SilentlyContinue }"
 
-:geckodriver
-:: ── Optional: geckodriver (only needed for firefox_downloader.py) ────────────
-echo.
-echo [Optional] geckodriver for Firefox downloader...
-if exist "geckodriver.exe" (
-    echo  geckodriver.exe already present  OK
-    goto :done
-)
-echo  Downloading geckodriver (needed only for Firefox-based downloading)...
-powershell -NoProfile -Command ^
-    "$api = Invoke-RestMethod 'https://api.github.com/repos/mozilla/geckodriver/releases/latest' -UseBasicParsing;" ^
-    "$asset = $api.assets | Where-Object { $_.name -match 'win64.zip$' } | Select-Object -First 1;" ^
-    "if ($asset) {" ^
-    "    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile 'geckodriver_tmp.zip' -UseBasicParsing;" ^
-    "    Expand-Archive 'geckodriver_tmp.zip' -DestinationPath '.' -Force;" ^
-    "    Remove-Item 'geckodriver_tmp.zip' -Force;" ^
-    "    Write-Host '  geckodriver downloaded  OK'" ^
-    "} else { Write-Host '  [WARN] Could not find geckodriver asset — skip' }"
 
 
 :done

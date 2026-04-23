@@ -13,7 +13,7 @@ const url  = require('url');
 const { exec } = require('child_process');
 
 const cfg = require('./server/config-server');
-const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, CACHE_DIR,
+const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, CACHE_DIR,
         WEBSITES_JSON, CATEGORIES_JSON, BM_DIR, BM_CACHE_FILE,
         BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
@@ -28,6 +28,7 @@ const videos      = require('./server/videos-server');
 const actors      = require('./server/actors-server');
 const vault       = require('./server/vault-server');
 const thumbnails  = require('./server/thumbnails-server');
+const genThumbs   = require('./server/gen-thumbs-server');
 const collections = require('./server/collections-server');
 const downloads   = require('./server/downloads-server');
 const bookmarks   = require('./server/bookmarks-server');
@@ -42,6 +43,7 @@ const prompts     = require('./server/prompts-server');
 const comments    = require('./server/comments-server');
 const vision      = require('./server/vision-server');
 const vaultZip    = require('./server/vault-zip-server');
+const pages       = require('./server/pages-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -50,6 +52,7 @@ fs.mkdirSync(VIDEOS_DIR,  { recursive: true });
 fs.mkdirSync(AUDIO_DIR,   { recursive: true });
 fs.mkdirSync(BOOKS_DIR,   { recursive: true });
 fs.mkdirSync(PHOTOS_DIR,  { recursive: true });
+fs.mkdirSync(PAGES_DIR,   { recursive: true });
 fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
 fs.mkdirSync(path.join(process.cwd(), 'models'), { recursive: true });
 
@@ -144,6 +147,9 @@ const server = http.createServer(async (req, res) => {
   // ── Thumbnails ───────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/generate$/)) && req.method === 'POST') return thumbnails.apiThumbGen(req, res, m[1]);
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return thumbnails.apiThumbImg(req, res, m[1], parseInt(m[2], 10));
+  if (p === '/api/gen-thumbs/start'  && req.method === 'POST') return genThumbs.apiGenThumbsStart(req, res);
+  if (p === '/api/gen-thumbs/stop'   && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
+  if (p === '/api/gen-thumbs/status' && req.method === 'GET')  return genThumbs.apiGenThumbsStatus(req, res);
 
   // ── Collections ──────────────────────────────────────────────────────
   if (p === '/api/collections' && req.method === 'GET') return collections.apiCollections(req, res);
@@ -241,6 +247,12 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/download$/)) && req.method === 'GET') return photos.apiPhotoDownload(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)$/)) && req.method === 'DELETE') return photos.apiPhotoDelete(req, res, m[1]);
 
+  // ── Pages ────────────────────────────────────────────────────────────
+  if (p === '/api/pages' && req.method === 'GET') return pages.apiPagesList(req, res);
+  if (p === '/api/pages/upload' && req.method === 'POST') return pages.apiPageUpload(req, res);
+  if ((m = p.match(/^\/api\/pages\/([^/]+)\/stream$/)) && req.method === 'GET') return pages.apiPageStream(req, res, m[1]);
+  if ((m = p.match(/^\/api\/pages\/([^/]+)$/)) && req.method === 'DELETE') return pages.apiPageDelete(req, res, m[1]);
+
   // ── Vision ───────────────────────────────────────────────────────────
   if (p === '/api/vision/describe' && req.method === 'POST') return vision.apiVisionDescribe(req, res);
 
@@ -290,7 +302,7 @@ const server = http.createServer(async (req, res) => {
   const filePath  = p === '/' ? 'index.html' : p.replace(/^\//, '');
   if (p === '/instagram') return serveStatic(req, res, 'instagram.html');
   if (p === '/reddit' || p.startsWith('/reddit/') || p === '/r' || p.startsWith('/r/')) return serveStatic(req, res, 'reddit.html');
-  const spaRoutes = /^\/(bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|websites|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

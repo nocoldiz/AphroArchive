@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Maker MZ Enemies.json Battler Image Updater</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+        }
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            color: #333;
+        }
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        .tab button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .tabcontent {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            background-color: white;
+        }
+        .visible {
+            display: block;
+        }
+        .file-input {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        .output {
+            font-family: monospace;
+            margin-top: 10px;
+        }
+        .log {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            border: 1px solid #ddd;
+        }
+        .checkbox-container {
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>RPG Maker MZ Enemies.json Battler Image Updater</h1>
+    
+    <div class="container">
+        <p><strong>Instructions:</strong> This tool updates enemy battler images in your enemies.json file based on matching filenames. It prioritizes matching the creature type/species (usually the second word in multi-word enemy names). The tool also checks for <code>&lt;Archetype: Name&gt;</code> tags in enemy notes. When multiple numbered variations exist (like Goblin, Goblin1, Goblin2), the tool will randomly select one of them.</p>
+    </div>
+    
+    <div class="tab">
+        <button class="tablinks active" onclick="openTab(event, 'fileParser')">File List Parser</button>
+        <button class="tablinks" onclick="openTab(event, 'jsonUpdater')">Update enemies.json</button>
+    </div>
+    
+    <div id="fileParser" class="tabcontent visible">
+        <div class="container">
+            <h2>Directory Listing Parser</h2>
+            <p>Paste the output of your directory listing (like "dir" command) here:</p>
+            <textarea id="directoryListing" placeholder="-a---- 06/05/2025 18:39 2678749 WaterElemental.png
+-a---- 05/05/2025 23:27 2275647 WaterSprite.png
+-a---- 06/05/2025 12:24 2194263 ZombieHand.png"></textarea>
+            <button onclick="parseDirectoryListing()">Parse Directory Listing</button>
+            
+            <div class="result">
+                <label>Comma-separated list:</label>
+                <div id="parsedFiles" class="output"></div>
+                <button onclick="copyToClipboard('parsedFiles')" style="margin-top: 10px;">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="jsonUpdater" class="tabcontent">
+        <div class="container">
+            <h2>Update enemies.json</h2>
+            <div class="file-input">
+                <label for="enemiesJsonFile">Upload enemies.json file:</label>
+                <input type="file" id="enemiesJsonFile" accept=".json">
+            </div>
+            
+            <div>
+                <label for="filesList">Enter comma-separated list of battler filenames (without extensions):</label>
+                <textarea id="filesList" placeholder="WaterElemental, WaterSprite, ZombieHand"></textarea>
+            </div>
+            
+            <div class="checkbox-container">
+                <input type="checkbox" id="updateAllEnemies" checked>
+                <label for="updateAllEnemies" style="display: inline;">Update all enemies (even those already with battler images)</label>
+            </div>
+            
+            <button onclick="updateEnemiesJson()">Update enemies.json</button>
+            <button onclick="downloadUpdatedJson()" id="downloadBtn" style="display: none; background-color: #2196F3;">Download Updated enemies.json</button>
+            
+            <div class="log" id="updateLog"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let updatedEnemiesJson = null;
+        
+        // Tab functionality
+        function openTab(evt, tabName) {
+            const tabcontent = document.getElementsByClassName("tabcontent");
+            for (let i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("visible");
+            }
+            
+            const tablinks = document.getElementsByClassName("tablinks");
+            for (let i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            
+            document.getElementById(tabName).classList.add("visible");
+            evt.currentTarget.classList.add("active");
+        }
+        
+        // Parse directory listing
+        function parseDirectoryListing() {
+            const listing = document.getElementById("directoryListing").value;
+            const lines = listing.trim().split('\n');
+            const fileNames = [];
+            
+            for (const line of lines) {
+                // Extract filename from line
+                // Regular expression to match the filename at the end of the line
+                const match = line.match(/([^\s\\\/]+)\.[a-zA-Z0-9]+$/);
+                if (match && match[1]) {
+                    fileNames.push(match[1]);
+                }
+            }
+            
+            const result = fileNames.join(', ');
+            document.getElementById("parsedFiles").textContent = result;
+        }
+        
+        // Copy text to clipboard
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Copied to clipboard!");
+            }, () => {
+                alert("Failed to copy to clipboard.");
+            });
+        }
+        
+        // Function to calculate similarity between two strings
+        function calculateSimilarity(str1, str2) {
+            // If strings are exactly equal
+            if (str1 === str2) return 1.0;
+            
+            // If either string contains the other, it's a good match
+            if (str1.includes(str2)) return 0.9;
+            if (str2.includes(str1)) return 0.8;
+            
+            // Normalize strings: remove special characters and extra spaces
+            const normalizeStr = (s) => s.replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+            const normalizedStr1 = normalizeStr(str1);
+            const normalizedStr2 = normalizeStr(str2);
+            
+            // If normalized strings are equal
+            if (normalizedStr1 === normalizedStr2) return 0.95;
+            
+            // If normalized versions contain each other
+            if (normalizedStr1.includes(normalizedStr2)) return 0.85;
+            if (normalizedStr2.includes(normalizedStr1)) return 0.85;
+            
+            // Count matching words
+            const words1 = normalizedStr1.split(/\s+/);
+            const words2 = normalizedStr2.split(/\s+/);
+            
+            let matchCount = 0;
+            for (const word1 of words1) {
+                if (word1.length < 3) continue; // Skip short words
+                
+                for (const word2 of words2) {
+                    if (word2.length < 3) continue; // Skip short words
+                    
+                    if (word1 === word2 || word1.includes(word2) || word2.includes(word1)) {
+                        matchCount++;
+                        break;
+                    }
+                }
+            }
+            
+            // Calculate score based on matching words
+            const totalWords = Math.max(words1.length, words2.length);
+            return totalWords > 0 ? matchCount / totalWords : 0;
+        }
+        
+        // Function to extract creature type/species from an enemy name
+        function extractCreatureType(enemyName) {
+            if (!enemyName) return "";
+            
+            // First, check for CamelCase (like SpikyWorm)
+            const camelCaseMatch = enemyName.match(/[A-Z][a-z]+$/);
+            if (camelCaseMatch) {
+                return camelCaseMatch[0].toLowerCase();
+            }
+            
+            // For space-separated words (like "Frozen Wyrm"), get the last word
+            const words = enemyName.trim().split(/\s+/);
+            if (words.length > 1) {
+                return words[words.length - 1].toLowerCase();
+            }
+            
+            // If no pattern is detected, return the whole name
+            return enemyName.toLowerCase();
+        }
+        
+        // Function to find all matching filenames (including numbered variants)
+        function findMatchingVariants(baseName, filesList) {
+            if (!baseName) return [];
+            
+            // Extract base name without numbers
+            const baseNameLower = baseName.toLowerCase().replace(/\d+$/, '');
+            const variants = [];
+            
+            // Look for base and numbered variants
+            const basePattern = new RegExp(`^${baseNameLower}\\d*$`, 'i');
+            
+            for (const file of filesList) {
+                const fileName = file.split('.')[0];
+                const fileNameLower = fileName.toLowerCase();
+                
+                // Check if it matches the pattern
+                if (basePattern.test(fileNameLower)) {
+                    variants.push(fileName); // Keep original case
+                }
+            }
+            
+            return variants;
+        }
+        
+        // Update enemies.json
+        function updateEnemiesJson() {
+            const fileInput = document.getElementById("enemiesJsonFile");
+            const filesListInput = document.getElementById("filesList");
+            const updateAllCheckbox = document.getElementById("updateAllEnemies");
+            const updateLog = document.getElementById("updateLog");
+            
+            // Clear previous log
+            updateLog.innerHTML = "";
+            
+            // Check if file is selected
+            if (!fileInput.files || fileInput.files.length === 0) {
+                log("Please select an enemies.json file.");
+                return;
+            }
+            
+            // Get files list
+            const filesList = filesListInput.value.split(',').map(file => file.trim());
+            if (filesList.length === 0 || (filesList.length === 1 && filesList[0] === "")) {
+                log("Please enter a comma-separated list of battler filenames.");
+                return;
+            }
+            
+            // Read and process the enemies.json file
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    // Parse the JSON
+                    const enemiesData = JSON.parse(e.target.result);
+                    log("Enemies.json loaded successfully.");
+                    log(`Found ${enemiesData.length} entries.`);
+                    
+                    // Ensure first element is null
+                    if (enemiesData[0] !== null) {
+                        enemiesData[0] = null;
+                        log("Set first element to null.");
+                    } else {
+                        log("Verified first element is null.");
+                    }
+                    
+                    // Update enemies data
+                    let updatedCount = 0;
+                    const updateAll = updateAllCheckbox.checked;
+                    
+                    if (updateAll) {
+                        log("Update all enemies mode: ON - will update all enemies including those with existing battler images.");
+                    } else {
+                        log("Update all enemies mode: OFF - will only update enemies without battler images.");
+                    }
+                    
+                    // Process each enemy (skip index 0 as it's null)
+                    for (let i = 1; i < enemiesData.length; i++) {
+                        const enemy = enemiesData[i];
+                        if (!enemy) continue; // Skip null entries
+                        
+                        // Skip empty enemies (no name)
+                        if (!enemy.name || enemy.name.trim() === "") {
+                            log(`Skipping empty enemy at index ${i}`);
+                            continue;
+                        }
+                        
+                        // Skip enemies with battler images if not in updateAll mode
+                        if (!updateAll && enemy.battlerName && enemy.battlerName.trim() !== "") {
+                            log(`Skipping enemy "${enemy.name}" - already has battler image "${enemy.battlerName}"`);
+                            continue;
+                        }
+                        
+                        // Get enemy name for comparison
+                        const enemyName = enemy.name.toLowerCase();
+                        
+                        // Extract creature type for better matching
+                        const creatureType = extractCreatureType(enemy.name);
+                        
+                        // Check for archetype in notes
+                        let archetype = null;
+                        if (enemy.note) {
+                            const archetypeMatch = enemy.note.match(/<Archetype:\s*([^>]+)>/i);
+                            if (archetypeMatch && archetypeMatch[1]) {
+                                archetype = archetypeMatch[1].trim().toLowerCase();
+                                log(`Found archetype "${archetypeMatch[1]}" for enemy "${enemy.name}"`);
+                            }
+                        }
+                        
+                        // Find the best matching filename by full name
+                        let nameMatch = null;
+                        let nameScore = 0;
+                        
+                        // Try matching by full name
+                        for (const file of filesList) {
+                            // Remove file extension if present and convert to lowercase
+                            const fileName = file.split('.')[0].toLowerCase();
+                            
+                            // Skip empty filenames
+                            if (!fileName) continue;
+                            
+                            // Calculate similarity score with full enemy name
+                            const score = calculateSimilarity(enemyName, fileName);
+                            
+                            if (score > nameScore) {
+                                nameScore = score;
+                                nameMatch = file.split('.')[0]; // Use original case for battler name
+                            }
+                        }
+                        
+                        // Find the best matching filename by creature type
+                        let typeMatch = null;
+                        let typeScore = 0;
+                        
+                        // Try matching by creature type
+                        for (const file of filesList) {
+                            // Remove file extension if present and convert to lowercase
+                            const fileName = file.split('.')[0].toLowerCase();
+                            
+                            // Skip empty filenames
+                            if (!fileName) continue;
+                            
+                            // Calculate similarity score with creature type
+                            const score = calculateSimilarity(creatureType, fileName);
+                            
+                            if (score > typeScore) {
+                                typeScore = score;
+                                typeMatch = file.split('.')[0]; // Use original case for battler name
+                            }
+                        }
+                        
+                        // Boost the creature type score a bit to prioritize it
+                        const typeBoost = 0.15;
+                        typeScore += typeBoost;
+                        
+                        // Get variants for the best name match
+                        let nameVariants = [];
+                        if (nameMatch && nameScore > 0.7) {
+                            nameVariants = findMatchingVariants(nameMatch, filesList);
+                            if (nameVariants.length > 1) {
+                                log(`Found ${nameVariants.length} variants for name match "${nameMatch}": ${nameVariants.join(', ')}`);
+                            }
+                        }
+                        
+                        // Get variants for the creature type match
+                        let typeVariants = [];
+                        if (typeMatch && typeScore > 0.7) {
+                            typeVariants = findMatchingVariants(typeMatch, filesList);
+                            if (typeVariants.length > 1) {
+                                log(`Found ${typeVariants.length} variants for creature type "${creatureType}" match "${typeMatch}": ${typeVariants.join(', ')}`);
+                            }
+                        }
+                        
+                        // If archetype exists, try matching by that too
+                        let archetypeMatch = null;
+                        let archetypeScore = 0;
+                        let archetypeVariants = [];
+                        
+                        if (archetype) {
+                            for (const file of filesList) {
+                                // Remove file extension if present and convert to lowercase
+                                const fileName = file.split('.')[0].toLowerCase();
+                                
+                                // Skip empty filenames
+                                if (!fileName) continue;
+                                
+                                // Calculate similarity score with archetype
+                                const score = calculateSimilarity(archetype, fileName);
+                                
+                                if (score > archetypeScore) {
+                                    archetypeScore = score;
+                                    archetypeMatch = file.split('.')[0]; // Use original case for battler name
+                                }
+                            }
+                            
+                            // Get archetype variants if we have a good match
+                            if (archetypeMatch && archetypeScore > 0.7) {
+                                archetypeVariants = findMatchingVariants(archetypeMatch, filesList);
+                                if (archetypeVariants.length > 1) {
+                                    log(`Found ${archetypeVariants.length} variants for archetype "${archetypeMatch}": ${archetypeVariants.join(', ')}`);
+                                }
+                            }
+                        }
+                        
+                        // Determine the best match among full name, creature type, and archetype
+                        let bestMatch = null;
+                        let bestScore = 0;
+                        let bestVariants = [];
+                        let matchSource = "";
+                        
+                        // Check exact match first (highest priority)
+                        const exactMatchThreshold = 0.95;
+                        if (nameScore >= exactMatchThreshold) {
+                            bestMatch = nameMatch;
+                            bestScore = nameScore;
+                            bestVariants = nameVariants;
+                            matchSource = "exact name match";
+                        }
+                        // Then check creature type (second priority)
+                        else if (typeScore > nameScore && typeScore > archetypeScore && typeScore > 0.6) {
+                            bestMatch = typeMatch;
+                            bestScore = typeScore;
+                            bestVariants = typeVariants;
+                            matchSource = "creature type";
+                        }
+                        // Then check full name (third priority)
+                        else if (nameScore > archetypeScore && nameScore > 0.6) {
+                            bestMatch = nameMatch;
+                            bestScore = nameScore;
+                            bestVariants = nameVariants;
+                            matchSource = "name";
+                        }
+                        // Finally check archetype (fallback)
+                        else if (archetypeScore > 0.6) {
+                            bestMatch = archetypeMatch;
+                            bestScore = archetypeScore;
+                            bestVariants = archetypeVariants;
+                            matchSource = "archetype";
+                        }
+                        
+                        // Check if we have a good match
+                        if (bestMatch && bestScore > 0.6) {
+                            // Choose a random variant if we have multiple
+                            let selectedMatch = bestMatch;
+                            if (bestVariants.length > 1) {
+                                // Always choose randomly, even if the enemy already has a sprite
+                                const randomIndex = Math.floor(Math.random() * bestVariants.length);
+                                selectedMatch = bestVariants[randomIndex];
+                                log(`Randomly selected variant: ${selectedMatch} from ${bestVariants.length} options`);
+                            }
+                            
+                            // Check if enemy already has a battler image
+                            if (enemy.battlerName && enemy.battlerName.trim() !== "") {
+                                if (updateAll) {
+                                    // Always update if in updateAll mode or it's a variant situation
+                                    if (bestVariants.length > 1) {
+                                        log(`Replacing battler image for "${enemy.name}": "${enemy.battlerName}" → "${selectedMatch}" (random variant selection, matched by ${matchSource})`);
+                                    } else {
+                                        log(`Replacing battler image for "${enemy.name}": "${enemy.battlerName}" → "${selectedMatch}" (forced update, matched by ${matchSource})`);
+                                    }
+                                    enemy.battlerName = selectedMatch;
+                                    updatedCount++;
+                                } else {
+                                    // Calculate similarity of current battler name to enemy name
+                                    const currentScore = calculateSimilarity(enemyName, enemy.battlerName.toLowerCase());
+                                    
+                                    // Only update if new match is better than current
+                                    if (bestScore > currentScore) {
+                                        log(`Replacing battler image for "${enemy.name}": "${enemy.battlerName}" → "${selectedMatch}" (improved match score: ${currentScore.toFixed(2)} → ${bestScore.toFixed(2)}, matched by ${matchSource})`);
+                                        enemy.battlerName = selectedMatch;
+                                        updatedCount++;
+                                    } else {
+                                        log(`Keeping current battler "${enemy.battlerName}" for enemy "${enemy.name}" (current match score: ${currentScore.toFixed(2)} is better than new match: ${bestScore.toFixed(2)})`);
+                                    }
+                                }
+                            } else {
+                                // Enemy doesn't have a battler image yet
+                                log(`Assigning battler image to "${enemy.name}": "${selectedMatch}" (match score: ${bestScore.toFixed(2)}, matched by ${matchSource})`);
+                                enemy.battlerName = selectedMatch;
+                                updatedCount++;
+                            }
+                        } else {
+                            log(`No good match found for enemy "${enemy.name}" - not updating`);
+                        }
+                    }
+                    
+                    log(`Updated ${updatedCount} enemies in total.`);
+                    
+                    // Save the updated enemies.json
+                    updatedEnemiesJson = enemiesData;
+                    document.getElementById("downloadBtn").style.display = "inline-block";
+                    
+                } catch (error) {
+                    log("Error processing enemies.json: " + error);
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        // Download updated enemies.json
+        function downloadUpdatedJson() {
+            if (!updatedEnemiesJson) {
+                alert("No updated JSON available. Please update enemies.json first.");
+                return;
+            }
+            
+            const jsonStr = JSON.stringify(updatedEnemiesJson, null, 4);
+            const blob = new Blob([jsonStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "enemies.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Helper function to log messages
+        function log(message) {
+            const updateLog = document.getElementById("updateLog");
+            updateLog.innerHTML += message + "<br>";
+            updateLog.scrollTop = updateLog.scrollHeight;
+        }
+    </script>
+</body>
+</html>

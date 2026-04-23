@@ -7,7 +7,7 @@ let recentMode = false, recentVids = [];
 let movId = null, movCurCat = '', shuf = false;
 let pinnedV = null, pinnedPl = [], pinnedIdx = 0;
 let mosaicOn = false, mosaicTimer = null, mosaicIv = 8;
-let vaultMode = false, vaultSelMode = false, scraperMode = false, importFavsMode = false, booksMode = false, audioMode = false, photosMode = false, websitesMode = false, categoriesMode = false;
+let vaultMode = false, vaultSelMode = false, scraperMode = false, importFavsMode = false, booksMode = false, audioMode = false, photosMode = false, pagesMode = false, categoriesMode = false;
 let remoteMode = false;
 const vaultSel = new Set();
 let vaultFiles = [], vaultPl = [], vaultPlIdx = 0, vaultQ = '', vaultSort = 'mtime', vaultSortDir = 'desc', vaultShuf = false, vaultPhotoIdx = -1, vaultPhotos = [];

@@ -159,44 +159,6 @@ else
 fi
 
 
-# ── 7. geckodriver (optional — only for Firefox downloader) ───────────────────
-sep 7 "Checking geckodriver (optional)"
-if command -v geckodriver &>/dev/null; then
-    ok "geckodriver already on PATH"
-elif [[ -f "./geckodriver" ]]; then
-    ok "geckodriver already present in project dir"
-else
-    warn "geckodriver not found — only needed for Firefox-based downloading."
-    if [[ "$OS" == "Darwin" ]]; then
-        if command -v brew &>/dev/null; then
-            brew install geckodriver && ok "geckodriver installed via Homebrew"
-        else
-            warn "Install manually: brew install geckodriver"
-        fi
-    elif [[ "$OS" == "Linux" ]]; then
-        # Download from GitHub releases
-        GD_API="https://api.github.com/repos/mozilla/geckodriver/releases/latest"
-        if command -v curl &>/dev/null; then
-            if [[ "$ARCH" == "x86_64" ]]; then
-                GD_ASSET="linux64.tar.gz"
-            elif [[ "$ARCH" == arm* ]] || [[ "$ARCH" == aarch64 ]]; then
-                GD_ASSET="linux-aarch64.tar.gz"
-            else
-                GD_ASSET="linux64.tar.gz"
-            fi
-            GD_URL=$(curl -fsSL "$GD_API" | grep "browser_download_url" | grep "$GD_ASSET" | head -1 | cut -d'"' -f4)
-            if [[ -n "$GD_URL" ]]; then
-                curl -fsSL "$GD_URL" | tar xz -C .
-                chmod +x geckodriver
-                ok "geckodriver downloaded"
-            else
-                warn "Could not resolve geckodriver download URL."
-            fi
-        fi
-    fi
-fi
-
-
 
 echo ""
 echo -e "${BOLD} ──────────────────────────────────────────────────────${NC}"

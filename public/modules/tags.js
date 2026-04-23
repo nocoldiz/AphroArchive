@@ -151,6 +151,7 @@ async function openTag(name) {
     _staggerFadeIn(g);
     attachThumbs();
     attachBmThumbs();
+    queueAllThumbs(localVids);
     return;
   }
 
@@ -174,6 +175,7 @@ async function openTag(name) {
   _staggerFadeIn(g2);
   attachThumbs();
   attachBmThumbs();
+  queueAllThumbs(localVids);
 }
 
 function closeTag() {

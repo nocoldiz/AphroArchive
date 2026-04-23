@@ -196,13 +196,14 @@
                 <circle cx="18" cy="16" r="3" />
               </svg>Audio</span>
           </div>
-          <div class="sidebar-item" id="websites-sidebar" onclick="showWebsites()">
+          <div class="sidebar-item" id="pages-sidebar" onclick="showPages()">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 style="vertical-align:-2px;margin-right:5px">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>Websites</span>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="9" y1="13" x2="15" y2="13"/>
+                <line x1="9" y1="17" x2="13" y2="17"/>
+              </svg>Pages</span>
           </div>
           <div class="sidebar-item" id="books-sidebar" onclick="showBooks()">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -994,24 +995,23 @@
         </div>
       </div>
 
-      <!-- Websites View -->
-      <div class="websites-view" id="websites-view">
+      <!-- Pages View -->
+      <div class="pages-view" id="pages-view">
         <div class="section-header">
-          <h2>Websites</h2>
-          <div class="section-controls">
-            <button class="sort-btn on" data-s="name" onclick="setWebsitesSort('name')">Name</button>
-            <button class="sort-btn" data-s="starred" onclick="setWebsitesSort('starred')">Starred first</button>
-          </div>
+          <h2>Pages</h2>
+          <label class="btn-primary" style="cursor:pointer" title="Upload HTML files">
+            + Add
+            <input type="file" accept=".html,.htm,.xhtml,.mhtml" multiple style="display:none" onchange="pagesUpload(this)">
+          </label>
         </div>
-        <div id="websitesGrid" class="search-sites-list"></div>
-        <div class="empty-state" id="websitesEmpty" style="display:none">
+        <div id="pagesGrid" class="pages-grid"></div>
+        <div class="empty-state" id="pagesEmpty" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
           </svg>
-          <h3>No websites yet</h3>
-          <p>Add websites in <span style="color:var(--ac);cursor:pointer" onclick="showDatabase();dbSwitchTab('websites')">Settings → Websites</span></p>
+          <h3>No pages yet</h3>
+          <p>Upload HTML files or drop them in the <code>pages/</code> folder</p>
         </div>
       </div>
 
@@ -1486,6 +1486,26 @@
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
               <input type="checkbox" id="disableSearchTrackingToggle" onchange="saveDisableSearchTracking(this.checked)" style="cursor:pointer">
               <label for="disableSearchTrackingToggle" style="font-size:0.82rem;color:var(--tx2);cursor:pointer">Disable search tracking (Latest Search tab)</label>
+            </div>
+          </div>
+        </div>
+        <div class="settings-hidden-panel" style="margin-top:16px">
+          <div class="settings-panel">
+            <div class="settings-panel-header">
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px;color:var(--ac)">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                </svg>Thumbnails</span>
+            </div>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Pre-generate thumbnails for every video in your library. Thumbnails also generate automatically as you browse.</p>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <button class="btn-primary" id="genThumbsBtn" onclick="startGenThumbs()">Generate All</button>
+              <span id="genThumbsStatus" style="font-size:0.8rem;color:var(--tx2)"></span>
+            </div>
+            <div id="genThumbsProgress" style="display:none;margin-top:10px">
+              <div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--brd)">
+                <div id="genThumbsBar" style="height:100%;background:var(--ac);width:0%;transition:width 0.4s ease"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -2147,10 +2167,12 @@
   <script src="/modules/audio.js"></script>
   <script src="/modules/photos.js"></script>
   <script src="/modules/websites.js"></script>
+  <script src="/modules/pages.js"></script>
   <script src="/modules/categories-view.js"></script>
   <script src="/modules/import.js"></script>
   <script src="/modules/search-sites.js"></script>
   <script src="/modules/data.js"></script>
+  <script src="/modules/gen-thumbs.js"></script>
   <script src="/modules/navigation.js"></script>
   <div id="vaultDragBox" style="position:fixed; border:1px solid var(--accent); background:rgba(232,64,64,0.15); pointer-events:none; z-index:9999; display:none; border-radius:4px;"></div>
 
@@ -2167,17 +2189,19 @@
         <span id="preset-status" style="font-size:0.8rem;color:var(--tx3);flex:1"></span>
         <button class="preset-foot-btn" onclick="presetApplyBlank()">Start Blank</button>
         <button class="preset-foot-btn" onclick="presetApplyAll()">Use All Presets</button>
+        <button class="preset-foot-btn" onclick="presetApplyReplace()">Replace</button>
         <button class="preset-foot-btn preset-foot-btn--primary" id="preset-apply-btn" onclick="presetApplySelected()">Apply Selected</button>
       </div>
     </div>
   </div>
 
-  <div id="vaultPageOverlay" style="display:none;position:fixed;inset:0;z-index:10000;flex-direction:column;background:#111">
+  <div id="vaultPageOverlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;flex-direction:column;background:#111">
+    <div id="vaultPageResizeHandle" style="position:absolute;top:0;left:0;width:5px;height:100%;cursor:ew-resize;z-index:1;background:transparent"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--bg2);flex-shrink:0;border-bottom:1px solid var(--border)">
       <span id="vaultPageTitle" style="font-size:13px;color:var(--tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%"></span>
       <div style="display:flex;gap:8px;flex-shrink:0">
-        <button onclick="if(_vaultPageCurId)openVaultPage(_vaultPageCurId,document.getElementById('vaultPageTitle').textContent)" title="Reload" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#8635; Reload</button>
-        <button onclick="deleteVaultPageFromViewer()" title="Delete this page" style="background:transparent;border:none;color:#e84040;cursor:pointer;padding:4px 8px;font-size:12px">&#128465; Delete</button>
+        <button onclick="_pageViewerReload()" title="Reload" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#8635; Reload</button>
+        <button onclick="_pageViewerDelete()" title="Delete this page" style="background:transparent;border:none;color:#e84040;cursor:pointer;padding:4px 8px;font-size:12px">&#128465; Delete</button>
         <button onclick="closeVaultPage()" title="Close (Esc)" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#10005; Close</button>
       </div>
     </div>

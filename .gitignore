@@ -3,6 +3,7 @@ books
 audio
 photos
 cache/
+pages
 node_modules/
 db/actors.json
 db/categories.json
@@ -19,5 +20,4 @@ process
 .aider.tags.cache.v4/cache.db-wal
 models/llama-3.2-1b-instruct.gguf.gguf
 yt-dlp.exe
-geckodriver.exe
 models

@@ -83,6 +83,8 @@ function render() {
   _staggerFadeIn(g);
   attachThumbs();
   attachBmThumbs();
+  // Pre-generate thumbs for the whole filtered set so scrolling is instant
+  if (q || cat || favM || recentMode) queueAllThumbs(local);
   renderSearchExtras(q);
 }
 

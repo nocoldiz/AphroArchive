@@ -2337,9 +2337,11 @@ async function doVaultDeleteVault() {
   loadVaultView();
 }
 
-// ── Vault Page Viewer ────────────────────────────────────────────────
+// ── HTML Page Viewer (shared by vault pages and the Pages section) ────
 
-let _vaultPageCurId = null;
+let _vaultPageCurId  = null;   // set only when viewing a vault file
+let _pageViewerUrl   = null;   // current fetch URL
+let _pageViewerOnDel = null;   // callback for the delete button
 
 // Injected into every vault page's srcdoc to intercept navigation
 const _VAULT_PAGE_SECURITY_SCRIPT = '<script>(function(){' +
@@ -2384,17 +2386,19 @@ window.addEventListener('message', function(e) {
   if (confirm(msg)) window.open(url, '_blank', 'noopener,noreferrer');
 });
 
-async function openVaultPage(id, name) {
+// Generic viewer — used by both vault pages and the Pages section
+async function _openHtmlViewer(fetchUrl, name, onDelete) {
   const overlay = document.getElementById('vaultPageOverlay');
   const frame   = document.getElementById('vaultPageFrame');
   const title   = document.getElementById('vaultPageTitle');
   if (!overlay || !frame) return;
-  _vaultPageCurId = id;
+  _pageViewerUrl   = fetchUrl;
+  _pageViewerOnDel = onDelete || null;
   if (title) title.textContent = name || 'Page';
   overlay.style.display = 'flex';
   document.addEventListener('keydown', _vaultPageKey);
   try {
-    const r = await fetch('/api/vault/stream-page/' + id);
+    const r = await fetch(fetchUrl);
     if (!r.ok) throw new Error(r.status);
     frame.srcdoc = _vaultPageInjectSecurity(await r.text());
   } catch (e) {
@@ -2402,26 +2406,72 @@ async function openVaultPage(id, name) {
   }
 }
 
+async function openVaultPage(id, name) {
+  _vaultPageCurId = id;
+  await _openHtmlViewer('/api/vault/stream-page/' + id, name, async () => {
+    if (!confirm('Permanently delete this page?')) return;
+    const r = await fetch('/api/vault/files/' + id, { method: 'DELETE' });
+    if (!r.ok) { toast('Delete failed'); return; }
+    vaultFiles = vaultFiles.filter(f => f.id !== id);
+    closeVaultPage();
+    renderVaultGrid();
+    toast('Page deleted');
+  });
+}
+
 function closeVaultPage() {
   const overlay = document.getElementById('vaultPageOverlay');
   const frame   = document.getElementById('vaultPageFrame');
   if (overlay) overlay.style.display = 'none';
   if (frame) frame.src = 'about:blank';
-  _vaultPageCurId = null;
+  _vaultPageCurId  = null;
+  _pageViewerUrl   = null;
+  _pageViewerOnDel = null;
   document.removeEventListener('keydown', _vaultPageKey);
 }
 
-async function deleteVaultPageFromViewer() {
-  if (!_vaultPageCurId) return;
-  if (!confirm('Permanently delete this page?')) return;
-  const r = await fetch('/api/vault/files/' + _vaultPageCurId, { method: 'DELETE' });
-  if (!r.ok) { toast('Delete failed'); return; }
-  vaultFiles = vaultFiles.filter(f => f.id !== _vaultPageCurId);
-  closeVaultPage();
-  renderVaultGrid();
-  toast('Page deleted');
+function _pageViewerDelete() {
+  if (_pageViewerOnDel) _pageViewerOnDel();
+}
+
+function _pageViewerReload() {
+  if (!_pageViewerUrl) return;
+  const name = document.getElementById('vaultPageTitle')?.textContent || '';
+  _openHtmlViewer(_pageViewerUrl, name, _pageViewerOnDel);
 }
 
 function _vaultPageKey(e) {
   if (e.key === 'Escape') closeVaultPage();
 }
+
+// ── Page viewer horizontal resize ────────────────────────────────────
+
+(function() {
+  let _dragStartX, _dragStartLeft;
+
+  function onMove(e) {
+    const overlay = document.getElementById('vaultPageOverlay');
+    if (!overlay) return;
+    const dx      = e.clientX - _dragStartX;
+    const newLeft = Math.max(0, Math.min(_dragStartLeft + dx, window.innerWidth - 320));
+    overlay.style.left = newLeft + 'px';
+  }
+
+  function onUp() {
+    document.getElementById('vaultPageResizeHandle')?.classList.remove('vp-resizing');
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+
+  document.addEventListener('mousedown', e => {
+    const handle = e.target.closest('#vaultPageResizeHandle');
+    if (!handle) return;
+    e.preventDefault();
+    const overlay = document.getElementById('vaultPageOverlay');
+    _dragStartX    = e.clientX;
+    _dragStartLeft = overlay.getBoundingClientRect().left;
+    handle.classList.add('vp-resizing');
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+})();

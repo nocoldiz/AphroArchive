@@ -68,7 +68,8 @@ function _renderPresetPicker() {
   `).join('');
 }
 
-async function _applyPreset(selection) {
+async function _applyPreset(selection, merge) {
+  if (merge === undefined) merge = _pickerMergeMode;
   const btn    = document.getElementById('preset-apply-btn');
   const status = document.getElementById('preset-status');
   if (btn)    btn.disabled = true;
@@ -77,7 +78,7 @@ async function _applyPreset(selection) {
     const r = await fetch('/api/presets/apply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selection, merge: _pickerMergeMode }),
+      body: JSON.stringify({ selection, merge }),
     });
     if (!r.ok) throw new Error('Server error');
   } catch (e) {
@@ -88,7 +89,6 @@ async function _applyPreset(selection) {
   document.getElementById('preset-overlay').style.display = 'none';
   if (window._presetPickerResolve) { window._presetPickerResolve(); window._presetPickerResolve = null; }
   if (_pickerMergeMode) {
-    // Reload the current DB tab so the user sees merged data immediately
     if (typeof loadDbTab === 'function' && typeof dbTab !== 'undefined') loadDbTab(dbTab);
     if (typeof toast === 'function') toast('Database updated');
   }
@@ -100,8 +100,17 @@ function presetApplySelected() {
     document.getElementById('preset-status').textContent = 'Select at least one preset, or use Blank / All.';
     return;
   }
-  _applyPreset(checked);
+  _applyPreset(checked); // uses _pickerMergeMode (merge when re-opening, replace on first setup)
+}
+
+function presetApplyReplace() {
+  const checked = [...document.querySelectorAll('.preset-cb:checked')].map(cb => cb.value);
+  if (!checked.length) {
+    document.getElementById('preset-status').textContent = 'Select at least one preset to replace with.';
+    return;
+  }
+  _applyPreset(checked, false); // always overwrites, never merges
 }
 
 function presetApplyAll()   { _applyPreset('all'); }
-function presetApplyBlank() { _applyPreset('blank'); }
+function presetApplyBlank() { _applyPreset('blank', false); } // always clears, never merges

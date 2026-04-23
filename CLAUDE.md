@@ -18,7 +18,7 @@ Start scripts:
 - **Windows**: `start.bat`
 - **Linux/macOS**: `./start.sh`
 
-Install dependencies (ffmpeg, yt-dlp, geckodriver):
+Install dependencies (ffmpeg, yt-dlp):
 - **Windows**: `install.bat`
 - **Linux/macOS**: `./install.sh`
 
@@ -27,10 +27,7 @@ Build Windows standalone executable:
 npm run build:win   # outputs dist/AphroArchive.exe
 ```
 
-Pre-generate thumbnails in batch (requires ffmpeg):
-```bash
-node gen-thumbs.js [videos_dir] [--concurrency=N]
-```
+Pre-generate thumbnails in batch: use the **Settings → Thumbnails → Generate All** button in the web UI, or trigger `POST /api/gen-thumbs/start` (SSE progress at `GET /api/gen-thumbs/status`).
 
 There are no tests or linting configured.
 
@@ -72,6 +69,5 @@ The SPA has no client-side router — view state is managed by toggling mode fla
 The server shells out to:
 - **ffmpeg / ffprobe** — thumbnail generation, video duration extraction. Resolved from project root first, then PATH.
 - **yt-dlp** — video downloading. Looked up in `cache/` first, then project root, then PATH.
-- **geckodriver + selenium** — optional Firefox-based scraping (Python scripts in `server/scrapeMethods-server.js`).
 
 Binaries can be placed in the project root directory or `cache/` as alternatives to system PATH installation.
