@@ -12,8 +12,8 @@ function showAudio() {
   $('browse-view').add('off');
   $('audio-sidebar').add('on');
   $('audio-view').add('on');
-  document.querySelectorAll('.au-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.s === audioSort));
-  document.querySelectorAll('.au-view-btn').forEach(b => b.classList.toggle('on', b.dataset.v === audioView));
+  document.querySelectorAll('#audio-view .sort-btn[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === audioSort));
+  document.querySelectorAll('#audio-view .sort-btn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === audioView));
   loadAudio();
 }
 
@@ -27,14 +27,14 @@ async function loadAudio() {
 
 function setAudioSort(s) {
   audioSort = s;
-  document.querySelectorAll('.au-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  document.querySelectorAll('#audio-view .sort-btn[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   renderAudio();
 }
 
 function setAudioView(v) {
   audioView = v;
   localStorage.setItem('audioView', v);
-  document.querySelectorAll('.au-view-btn').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  document.querySelectorAll('#audio-view .sort-btn[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   renderAudio();
 }
 

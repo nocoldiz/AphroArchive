@@ -56,23 +56,10 @@ fs.mkdirSync(path.join(process.cwd(), 'models'), { recursive: true });
 
 // ── Seed default category folders ────────────────────────────────────
 
-const DEFAULT_CATEGORIES = ['Straight', 'Gay', 'Lesbian', 'Bisexual', 'Transgender'];
+const DEFAULT_CATEGORIES = [];
 for (const name of DEFAULT_CATEGORIES) {
   fs.mkdirSync(path.join(VIDEOS_DIR, name), { recursive: true });
 }
-
-// ── Migration: bookmarks_cache.json old location ─────────────────────
-
-(function migrateBookmarksCache() {
-  const oldPath = path.join(BM_DIR, 'bookmarks_cache.json');
-  if (fs.existsSync(oldPath) && !fs.existsSync(BM_CACHE_FILE)) {
-    try {
-      fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
-      fs.copyFileSync(oldPath, BM_CACHE_FILE);
-      fs.unlinkSync(oldPath);
-    } catch {}
-  }
-})();
 
 // ── Migration: whitelist.txt → websites.json ─────────────────────────
 

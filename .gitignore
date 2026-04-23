@@ -1,6 +1,7 @@
 videos
 books
 audio
+photos
 cache/
 node_modules/
 dist/
@@ -15,4 +16,4 @@ process
 models/llama-3.2-1b-instruct.gguf.gguf
 yt-dlp.exe
 geckodriver.exe
-models/llama-3.2-1b-instruct.gguf
+models

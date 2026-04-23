@@ -95,7 +95,7 @@ input{font-family:inherit;color:inherit}
 .player-view{display:none}.player-view.on{display:block}.browse-view.off{display:none}
 .back-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:999px;font-size:0.83rem;color:var(--tx2);border:1px solid var(--brd);transition:all var(--tr);margin-bottom:14px}
 .back-btn:hover{background:var(--bg2);color:var(--tx)}
-.video-player-wrap{width:100%;max-width:940px;border-radius:var(--rl);overflow:hidden;background:#000;box-shadow:0 12px 48px rgba(0,0,0,0.6)}
+.video-player-wrap{width:100%;max-width:940px;margin:0 auto;border-radius:var(--rl);overflow:hidden;background:#000;box-shadow:0 12px 48px rgba(0,0,0,0.6)}
 .video-player-wrap video{width:100%;display:block;max-height:70vh}
 .video-nav{display:flex;gap:8px;margin-top:10px}
 .video-nav button{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 16px;border-radius:var(--r);font-size:0.85rem;font-weight:500;border:1px solid var(--brd);color:var(--tx2);transition:all var(--tr)}
@@ -189,40 +189,47 @@ input{font-family:inherit;color:inherit}
 #panBtn{padding:6px 8px;border-radius:var(--r);border:1px solid var(--brd);transition:all var(--tr);display:flex;align-items:center}
 #panBtn:hover{background:var(--bg3);border-color:var(--tx3)}
 #panBtn.on{background:var(--acg);border-color:var(--ac);color:var(--ac)}
+/* ── Panoramic Mode ── */
+/* Sidebar: off-screen by default, peeks 4px, slides in on hover */
 .pan .side {
-  display: none;
+  position: fixed;
+  left: 0;
+  top: 53px;
+  height: calc(100vh - 53px);
+  transform: translateX(-216px);
+  transition: transform 0.22s ease;
+  z-index: 200;
+  background: var(--bg);
+  box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+  border-right: 1px solid var(--brd);
 }
+.pan .side:hover { transform: translateX(0); }
 
-/* 2. Make the main content a flex container to center the player */
-.pan .main-content {
-  padding: 0; /* Remove padding to allow max size */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  
-  /* Calculate height: 100vh minus the topbar height (approx 60px) */
-  height: calc(100vh - 60px); 
+/* Main content: no padding, full width */
+.pan .main-content { padding: 0; width: 100%; }
+/* Restore small padding for back-btn and player info below the video */
+.pan .player-view.on { padding: 0; }
+.pan .back-btn { margin: 10px 0 10px 16px; display: block; }
+
+/* Player layout: single column, no playlist */
+.pan .pv-layout { grid-template-columns: 1fr; gap: 0; }
+.pan .playlist-panel { display: none; }
+
+/* Video wrapper: full width, flush */
+.pan .video-player-wrap {
+  max-width: 100%;
+  border-radius: 0;
   width: 100%;
-  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  background: #000;
 }
-
-/* 3. Target the player container/video to be as large as possible */
-/* Replace '.player-container' or 'video' with the actual class/tag you use */
-.pan .player-container, 
-.pan video {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: 100vw;
-  max-height: calc(100vh - 80px); /* Keeps it within view below the topbar */
-  object-fit: contain; /* Ensures the video isn't cropped */
-  background: #000;    /* Cinematic black background */
-  margin: 0;
-}
-
-/* Optional: Hide scrollbars in pan mode for a cleaner look */
-.pan {
-  overflow: hidden;
+/* Video: fill width, cap at viewport height minus topbar, never overflow top */
+.pan .video-player-wrap video {
+  width: 100%;
+  max-height: calc(100vh - 53px);
+  max-width: 100%;
+  object-fit: contain;
 }
 
 
@@ -832,7 +839,7 @@ input{font-family:inherit;color:inherit}
 .bk-url-row input{flex:1;padding:7px 10px;background:var(--bg3);border:1px solid var(--brd);border-radius:var(--r);color:var(--tx);font-size:0.82rem;font-family:inherit}
 .bk-url-row input:focus{outline:none;border-color:var(--ac)}
 .bk-hint{font-size:0.75rem;color:var(--tx3);margin:0}
-.bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.bk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--card-min,260px),1fr));gap:12px}
 .bk-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rl);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all var(--tr);position:relative}
 .bk-card:hover{border-color:var(--ac);background:var(--bg3)}
 .bk-icon{color:var(--tx3);flex-shrink:0}
@@ -873,7 +880,7 @@ input{font-family:inherit;color:inherit}
 .au-sort-btn.on,.au-view-btn.on{background:var(--bg3);color:var(--ac);border-color:var(--brd)}
 .au-view-btn{padding:5px 8px;display:inline-flex;align-items:center}
 /* Card grid */
-.au-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.au-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--card-min,240px),1fr));gap:10px}
 .au-card{background:var(--bg2);border:1px solid var(--brd);border-radius:var(--rl);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all var(--tr);position:relative}
 .au-card:hover{border-color:var(--ac);background:var(--bg3)}
 .au-card.playing{border-color:var(--ac);background:var(--acg)}
@@ -1066,7 +1073,7 @@ input{font-family:inherit;color:inherit}
 .ph-sort-btn{padding:4px 10px;border-radius:var(--r);border:1px solid var(--brd);background:var(--bg2);color:var(--tx2);font-size:0.78rem;cursor:pointer;transition:all var(--tr)}
 .ph-sort-btn:hover{border-color:var(--ac);color:var(--ac)}
 .ph-sort-btn.on{background:var(--ac);border-color:var(--ac);color:#fff}
-.ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.ph-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--card-min,180px),1fr));gap:8px}
 .ph-card{position:relative;aspect-ratio:1;border-radius:var(--rl);overflow:hidden;cursor:pointer;background:var(--bg2);border:1px solid var(--brd)}
 .ph-card:hover .ph-overlay{opacity:1}
 .ph-thumb{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s}

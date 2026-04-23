@@ -70,7 +70,6 @@
 - [ ] **Standardize error responses** — All API errors should return `{ error: "message" }` JSON with appropriate HTTP status codes, not mixed plain-text/empty responses.
 - [ ] **Validate JSON input** — Add a lightweight validator for all POST/PATCH bodies: required fields, type checks, max string lengths.
 - [ ] **Consistent async** — Avoid mixing `readFileSync` in async functions. Decide on one I/O style per module.
-- [ ] **Remove hardcoded category init** — `server.js` auto-creates `Straight/Gay/Lesbian/Transgender` subdirectories on startup. This should be opt-in or configurable.
 - [ ] **Structured logging** — Replace `console.log` with a minimal logger that includes timestamp and level, and can be silenced in production.
 - [ ] **Graceful shutdown** — Handle `SIGINT`/`SIGTERM` to flush any in-progress downloads and clean up vault temp files before exit.
 - [ ] **Input length limits** — Actor names, category names, collection names, and URLs should be capped at reasonable lengths on the server.

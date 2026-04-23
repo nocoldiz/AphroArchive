@@ -12,7 +12,7 @@ function showPhotos() {
   $('browse-view').add('off');
   $('photos-sidebar').add('on');
   $('photos-view').add('on');
-  document.querySelectorAll('.ph-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.s === photosSort));
+  document.querySelectorAll('#photos-view .sort-btn[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === photosSort));
   loadPhotos();
 }
 
@@ -26,7 +26,7 @@ async function loadPhotos() {
 
 function setPhotosSort(s) {
   photosSort = s;
-  document.querySelectorAll('.ph-sort-btn').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  document.querySelectorAll('#photos-view .sort-btn[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   renderPhotos();
 }
 

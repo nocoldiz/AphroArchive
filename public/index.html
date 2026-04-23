@@ -174,6 +174,12 @@
             <path d="m6 9 6 6 6-6" />
           </svg></h3>
         <div class="side-section" id="mediaSection">
+          <div class="sidebar-item" id="videos-media-sidebar" onclick="goHome()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+              </svg>Videos</span>
+          </div>
           <div class="sidebar-item" id="books-sidebar" onclick="showBooks()">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 style="vertical-align:-2px;margin-right:5px">
@@ -445,9 +451,9 @@
             <button class="sort-btn" id="clearRecentBtn" style="display:none" onclick="clearRecent()">Clear
               History</button>
             <span class="sg-sep"></span>
-            <div style="display:flex;align-items:center;gap:5px" title="Card size">
+            <div style="display:flex;align-items:center;gap:5px" class="card-size-control" title="Card size">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-              <input type="range" id="card-size-slider" min="140" max="500" step="10" value="270"
+              <input type="range" id="card-size-slider" class="card-size-slider" min="140" max="500" step="10" value="270"
                 oninput="setCardSize(this.value)"
                 style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -863,8 +869,18 @@
       <!-- Books View -->
       <div class="books-view" id="books-view">
         <div class="section-header">
-          <h2>
-            </svg>Books</h2>
+          <h2>Books</h2>
+          <div class="section-controls">
+            <button class="sort-btn on" data-s="date" onclick="setBookSort('date')">Date</button>
+            <button class="sort-btn" data-s="name" onclick="setBookSort('name')">Name</button>
+            <button class="sort-btn" data-s="size" onclick="setBookSort('size')">Size</button>
+            <span class="sg-sep"></span>
+            <div style="display:flex;align-items:center;gap:5px" class="card-size-control" title="Card size">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              <input type="range" class="card-size-slider" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </div>
+          </div>
         </div>
 
         <div id="booksGrid" class="bk-grid"></div>
@@ -881,18 +897,19 @@
       <!-- Audio View -->
       <div class="audio-view" id="audio-view">
         <div class="section-header">
-          <h2>
-            </svg>Audio</h2>
-        </div>
-        <div class="au-toolbar">
-          <div class="au-sort-group">
-            <span class="au-toolbar-label">Sort:</span>
-            <button class="au-sort-btn on" data-s="date" onclick="setAudioSort('date')">Date</button>
-            <button class="au-sort-btn" data-s="name" onclick="setAudioSort('name')">Name</button>
-            <button class="au-sort-btn" data-s="size" onclick="setAudioSort('size')">Size</button>
-          </div>
-          <div class="au-view-group">
-            <button class="au-view-btn on" data-v="card" onclick="setAudioView('card')" title="Card view">
+          <h2>Audio</h2>
+          <div class="section-controls">
+            <button class="sort-btn on" data-s="date" onclick="setAudioSort('date')">Date</button>
+            <button class="sort-btn" data-s="name" onclick="setAudioSort('name')">Name</button>
+            <button class="sort-btn" data-s="size" onclick="setAudioSort('size')">Size</button>
+            <span class="sg-sep"></span>
+            <div style="display:flex;align-items:center;gap:5px" class="card-size-control" title="Card size">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              <input type="range" class="card-size-slider" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </div>
+            <span class="sg-sep"></span>
+            <button class="sort-btn on" data-v="card" onclick="setAudioView('card')" title="Card view">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7" rx="1" />
                 <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -900,7 +917,7 @@
                 <rect x="14" y="14" width="7" height="7" rx="1" />
               </svg>
             </button>
-            <button class="au-view-btn" data-v="list" onclick="setAudioView('list')" title="List view">
+            <button class="sort-btn" data-v="list" onclick="setAudioView('list')" title="List view">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="8" y1="6" x2="21" y2="6" />
                 <line x1="8" y1="12" x2="21" y2="12" />
@@ -944,14 +961,18 @@
       <!-- Photos View -->
       <div class="photos-view" id="photos-view">
         <div class="section-header">
-          <h2>
-            </svg>Photos</h2>
-        </div>
-        <div class="ph-toolbar">
-          <span class="au-toolbar-label">Sort:</span>
-          <button class="ph-sort-btn on" data-s="date" onclick="setPhotosSort('date')">Date</button>
-          <button class="ph-sort-btn" data-s="name" onclick="setPhotosSort('name')">Name</button>
-          <button class="ph-sort-btn" data-s="size" onclick="setPhotosSort('size')">Size</button>
+          <h2>Photos</h2>
+          <div class="section-controls">
+            <button class="sort-btn on" data-s="date" onclick="setPhotosSort('date')">Date</button>
+            <button class="sort-btn" data-s="name" onclick="setPhotosSort('name')">Name</button>
+            <button class="sort-btn" data-s="size" onclick="setPhotosSort('size')">Size</button>
+            <span class="sg-sep"></span>
+            <div style="display:flex;align-items:center;gap:5px" class="card-size-control" title="Card size">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              <input type="range" class="card-size-slider" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </div>
+          </div>
         </div>
         <div id="photosGrid" class="ph-grid"></div>
         <div class="empty-state" id="photosEmpty" style="display:none">
@@ -2222,13 +2243,13 @@
 function setCardSize(w) {
   document.documentElement.style.setProperty('--card-min', w + 'px');
   localStorage.setItem('cardSize', w);
+  document.querySelectorAll('.card-size-slider').forEach(sl => { sl.value = w; });
 }
 (function() {
   const s = localStorage.getItem('cardSize');
   if (s) {
     document.documentElement.style.setProperty('--card-min', s + 'px');
-    const sl = document.getElementById('card-size-slider');
-    if (sl) sl.value = s;
+    document.querySelectorAll('.card-size-slider').forEach(sl => { sl.value = s; });
   }
 })();
 
