@@ -26,7 +26,7 @@ function renCats() {
   const dropAttrs = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'\')"';
   // In dual-right mode, highlight the right pane's active category
   const activeCat = (dualMode && dualActive === 'right') ? dualR.cat : cat;
-  let h = '<div class="sidebar-item' + (activeCat ? '' : ' on') + '" onclick="selCat(\'\')"' + dropAttrs + '><span>All Videos</span><span class="count-badge">' + all + '</span></div>';
+  let h = '<div class="sidebar-item' + (activeCat ? '' : ' on') + '" onclick="selCat(\'\')"' + dropAttrs + ' oncontextmenu="showContextMenu(event, \'all_videos\', {})"><span>All Videos</span><span class="count-badge">' + all + '</span></div>';
   cats.forEach(c => {
     const bmC = bmCountFor(c.path);
     const displayCount = c.count + bmC;

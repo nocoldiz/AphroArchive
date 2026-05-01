@@ -77,8 +77,87 @@ function renderCtxMenu(type, data) {
         ${isEnc ? 'Unlock' : 'Encrypt'}
       </div>
     `;
+  } else if (type === 'all_videos') {
+    html = `
+      <div class="ctx-item" onclick="ctxLockAllCategories()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Lock all unencrypted
+      </div>
+    `;
   }
   menu.innerHTML = html;
+}
+
+let encryptTarget = null;
+
+function ctxEncryptCategory(path, name) {
+  encryptTarget = { path, name };
+  const modal = document.getElementById('encrypt-cat-modal');
+  const title = document.getElementById('encrypt-cat-title');
+  const desc = document.getElementById('encrypt-cat-desc');
+  const pw1 = document.getElementById('encrypt-cat-pw1');
+  const pw2 = document.getElementById('encrypt-cat-pw2');
+  if (!modal) return;
+  
+  title.innerText = `Encrypt "${name}"`;
+  desc.innerText = "Secure this category with a password.";
+  pw1.value = ''; pw2.value = '';
+  modal.style.display = 'flex';
+  setTimeout(() => pw1.focus(), 50);
+}
+
+function ctxLockAllCategories() {
+  encryptTarget = { path: 'ALL', name: 'All Categories' };
+  const modal = document.getElementById('encrypt-cat-modal');
+  const title = document.getElementById('encrypt-cat-title');
+  const desc = document.getElementById('encrypt-cat-desc');
+  const pw1 = document.getElementById('encrypt-cat-pw1');
+  const pw2 = document.getElementById('encrypt-cat-pw2');
+  if (!modal) return;
+  
+  title.innerText = "Lock All Categories";
+  desc.innerText = "Encrypt ALL categories that are not currently locked.";
+  pw1.value = ''; pw2.value = '';
+  modal.style.display = 'flex';
+  setTimeout(() => pw1.focus(), 50);
+}
+
+function closeEncryptCatModal() {
+  const modal = document.getElementById('encrypt-cat-modal');
+  if (modal) modal.style.display = 'none';
+  encryptTarget = null;
+}
+
+async function execEncryptCat() {
+  if (!encryptTarget) return;
+  const pw1 = document.getElementById('encrypt-cat-pw1').value;
+  const pw2 = document.getElementById('encrypt-cat-pw2').value;
+  
+  if (!pw1) { toast('Password required'); return; }
+  if (pw1 !== pw2) { toast('Passwords do not match'); return; }
+
+  const isAll = encryptTarget.path === 'ALL';
+  const endpoint = isAll ? '/api/categories/encrypt-all' : '/api/categories/encrypt';
+  
+  if (isAll && !confirm('This will encrypt ALL categories. Continue?')) return;
+  
+  toast(isAll ? 'Locking all categories...' : 'Encrypting category...');
+  closeEncryptCatModal();
+
+  const r = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: encryptTarget.path, password: pw1 })
+  });
+  
+  if (r.ok) {
+    const d = await r.json();
+    toast(isAll ? `Locked ${d.count} categories` : 'Category encrypted');
+    if (typeof refresh === 'function') refresh(true);
+  } else {
+    const err = await r.json();
+    toast('Action failed: ' + (err.error || 'Unknown error'));
+  }
 }
 
 async function ctxRenameCategory(path, oldName) {
@@ -168,34 +247,61 @@ async function ctxEncryptCategory(path, name) {
   
   if (r.ok) {
     toast('Category encrypted successfully');
-    // Refresh everything
-    const r2 = await fetch('/api/categories');
-    cats = await r2.json();
-    if (typeof renCats === 'function') renCats();
-    if (typeof loadCategoriesView === 'function' && categoriesMode) loadCategoriesView();
-    if (typeof renderMainCategories === 'function') renderMainCategories();
-    render(); // Refresh grid
+    if (typeof refresh === 'function') refresh(true);
   } else {
     const err = await r.json();
     toast('Encryption failed: ' + (err.error || 'Unknown error'));
   }
 }
 
+let unlockTarget = null;
+
 async function ctxUnlockCategory(path, name) {
-  const pw = prompt(`Enter password to unlock "${name}":`);
-  if (!pw) return;
+  unlockTarget = { path, name };
+  const modal = document.getElementById('unlock-cat-modal');
+  const title = document.getElementById('unlock-cat-title');
+  const pwInput = document.getElementById('unlock-cat-pw');
   
-  const r = await fetch('/api/categories/unlock', {
+  if (!modal) return;
+  
+  title.innerText = `Unlock "${name}"`;
+  pwInput.value = '';
+  modal.style.display = 'flex';
+  setTimeout(() => pwInput.focus(), 50);
+}
+
+function closeUnlockCatModal() {
+  const modal = document.getElementById('unlock-cat-modal');
+  if (modal) modal.style.display = 'none';
+  unlockTarget = null;
+}
+
+async function execUnlockCat(type) {
+  if (!unlockTarget) return;
+  const pw = document.getElementById('unlock-cat-pw').value;
+  if (!pw) { toast('Password required'); return; }
+  
+  const isPermanent = type === 'P';
+  const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
+  
+  if (isPermanent) {
+    if (!confirm('Are you sure you want to PERMANENTLY decrypt this category? This will remove the lock.')) return;
+    toast('Decrypting category... please wait.');
+  }
+
+  closeUnlockCatModal();
+
+  const r = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, password: pw })
+    body: JSON.stringify({ path: unlockTarget.path, password: pw })
   });
   
   if (r.ok) {
-    toast('Category unlocked');
-    render(); // Refresh grid to show videos
+    toast(isPermanent ? 'Category decrypted and lock removed' : 'Category unlocked temporarily');
+    if (typeof refresh === 'function') refresh(true);
   } else {
     const err = await r.json();
-    toast('Unlock failed: ' + (err.error || 'Unknown error'));
+    toast('Action failed: ' + (err.error || 'Unknown error'));
   }
 }
