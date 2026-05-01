@@ -2507,6 +2507,30 @@ function setCardSize(w) {
 })();
 
 </script>
+  <!-- Bulk Action Progress Modal -->
+  <div id="bulk-prog-modal" class="modal-overlay" style="display:none; position:fixed; inset:0; z-index:22000; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px)">
+    <div class="modal-content" style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; width:420px; max-width:92%; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)">
+      <div style="padding:32px 24px; text-align:center">
+        <div id="bulk-prog-icon" style="width:56px; height:56px; background:rgba(99,102,241,0.1); color:var(--ac); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px">
+           <svg class="spin" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        </div>
+        <h3 id="bulk-prog-title" style="margin:0; font-size:1.25rem; font-weight:600; color:var(--tx)">Processing...</h3>
+        <p id="bulk-prog-desc" style="margin:10px 0 20px; font-size:0.9rem; color:var(--tx2); line-height:1.5">Please wait while we complete the bulk action.</p>
+        
+        <div style="background:rgba(255,255,255,0.05); border-radius:8px; height:8px; overflow:hidden; margin-bottom:12px">
+          <div id="bulk-prog-fill" style="width:0%; height:100%; background:var(--ac); transition:width 0.3s ease"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--tx3); font-family:monospace">
+          <span id="bulk-prog-count">0 / 0</span>
+          <span id="bulk-prog-percent">0%</span>
+        </div>
+      </div>
+      <div id="bulk-prog-footer" style="padding:16px 24px; background:rgba(0,0,0,0.2); text-align:center; display:none">
+        <button class="modal-btn modal-btn--primary" onclick="closeBulkProgModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
   <div id="videoDragBox"
     style="position:fixed;border:1px solid var(--ac);background:var(--acg);pointer-events:none;display:none;z-index:9999">
   </div>

@@ -83,6 +83,10 @@ function renderCtxMenu(type, data) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         Lock all unencrypted
       </div>
+      <div class="ctx-item" onclick="ctxUnlockAllCategories()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 11V7a5 5 0 0 1 10 0v4"/><rect x="3" y="11" width="18" height="11" rx="2"/></svg>
+        Unlock all encrypted
+      </div>
     `;
   }
   menu.innerHTML = html;
@@ -137,26 +141,61 @@ async function execEncryptCat() {
   if (pw1 !== pw2) { toast('Passwords do not match'); return; }
 
   const isAll = encryptTarget.path === 'ALL';
-  const endpoint = isAll ? '/api/categories/encrypt-all' : '/api/categories/encrypt';
-  
-  if (isAll && !confirm('This will encrypt ALL categories. Continue?')) return;
-  
-  toast(isAll ? 'Locking all categories...' : 'Encrypting category...');
-  closeEncryptCatModal();
+  if (!isAll) {
+    toast('Encrypting category...');
+    const targetPath = encryptTarget.path;
+    closeEncryptCatModal();
 
-  const r = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: encryptTarget.path, password: pw1 })
-  });
-  
-  if (r.ok) {
-    const d = await r.json();
-    toast(isAll ? `Locked ${d.count} categories` : 'Category encrypted');
-    if (typeof refresh === 'function') refresh(true);
+    const r = await fetch('/api/categories/encrypt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: targetPath, password: pw1 })
+    });
+    
+    if (r.ok) {
+      toast('Category encrypted');
+      if (typeof refresh === 'function') refresh(true);
+    } else {
+      const err = await r.json();
+      toast('Action failed: ' + (err.error || 'Unknown error'));
+    }
   } else {
-    const err = await r.json();
-    toast('Action failed: ' + (err.error || 'Unknown error'));
+    // Bulk action
+    if (!confirm('This will encrypt ALL categories. Continue?')) return;
+    closeEncryptCatModal();
+    
+    try {
+      const categories = await (await fetch('/api/categories')).json();
+      const toEncrypt = categories.filter(c => !c.encrypted && c.count > 0);
+      
+      if (toEncrypt.length === 0) {
+        toast('No unencrypted categories found.');
+        return;
+      }
+
+      openBulkProgModal('Locking All Categories', `Encrypting ${toEncrypt.length} categories...`);
+      
+      let count = 0;
+      for (const cat of toEncrypt) {
+        updateBulkProg(count, toEncrypt.length);
+        const r = await fetch('/api/categories/encrypt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: cat.path, password: pw1 })
+        });
+        if (r.ok) count++;
+      }
+      
+      updateBulkProg(toEncrypt.length, toEncrypt.length);
+      document.getElementById('bulk-prog-title').innerText = 'Action Complete';
+      document.getElementById('bulk-prog-desc').innerText = `Successfully locked ${count} categories.`;
+      document.getElementById('bulk-prog-footer').style.display = 'block';
+      
+      if (typeof refresh === 'function') refresh(true);
+    } catch (e) {
+      toast('Bulk encryption failed: ' + e.message);
+      closeBulkProgModal();
+    }
   }
 }
 
@@ -260,14 +299,30 @@ async function ctxUnlockCategory(path, name) {
   unlockTarget = { path, name };
   const modal = document.getElementById('unlock-cat-modal');
   const title = document.getElementById('unlock-cat-title');
-  const pwInput = document.getElementById('unlock-cat-pw');
-  
+  const desc = document.getElementById('unlock-cat-desc');
+  const pw = document.getElementById('unlock-cat-pw');
   if (!modal) return;
   
-  title.innerText = `Unlock "${name}"`;
-  pwInput.value = '';
+  title.innerText = "Unlock Category";
+  desc.innerText = "Enter the password to access this category.";
+  pw.value = '';
   modal.style.display = 'flex';
-  setTimeout(() => pwInput.focus(), 50);
+  setTimeout(() => pw.focus(), 50);
+}
+
+function ctxUnlockAllCategories() {
+  unlockTarget = { path: 'ALL', name: 'All Categories' };
+  const modal = document.getElementById('unlock-cat-modal');
+  const title = document.getElementById('unlock-cat-title');
+  const desc = document.getElementById('unlock-cat-desc');
+  const pw = document.getElementById('unlock-cat-pw');
+  if (!modal) return;
+  
+  title.innerText = "Unlock All Categories";
+  desc.innerText = "Access ALL encrypted categories with one password.";
+  pw.value = '';
+  modal.style.display = 'flex';
+  setTimeout(() => pw.focus(), 50);
 }
 
 function closeUnlockCatModal() {
@@ -282,26 +337,92 @@ async function execUnlockCat(type) {
   if (!pw) { toast('Password required'); return; }
   
   const isPermanent = type === 'P';
-  const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
+  const isAll = unlockTarget.path === 'ALL';
   
-  if (isPermanent) {
-    if (!confirm('Are you sure you want to PERMANENTLY decrypt this category? This will remove the lock.')) return;
-    toast('Decrypting category... please wait.');
-  }
+  if (!isAll) {
+    const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
+    if (isPermanent) {
+      if (!confirm('Are you sure you want to PERMANENTLY decrypt this category? This will remove the lock.')) return;
+      toast('Decrypting category... please wait.');
+    }
 
-  closeUnlockCatModal();
+    const targetPath = unlockTarget.path;
+    closeUnlockCatModal();
 
-  const r = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: unlockTarget.path, password: pw })
-  });
-  
-  if (r.ok) {
-    toast(isPermanent ? 'Category decrypted and lock removed' : 'Category unlocked temporarily');
-    if (typeof refresh === 'function') refresh(true);
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: targetPath, password: pw })
+    });
+    
+    if (r.ok) {
+      toast(isPermanent ? 'Category decrypted and lock removed' : 'Category unlocked temporarily');
+      if (typeof refresh === 'function') refresh(true);
+    } else {
+      const err = await r.json();
+      toast('Action failed: ' + (err.error || 'Unknown error'));
+    }
   } else {
-    const err = await r.json();
-    toast('Action failed: ' + (err.error || 'Unknown error'));
+    // Bulk action
+    if (isPermanent && !confirm('Permanently decrypt ALL categories? This will remove all locks.')) return;
+    
+    closeUnlockCatModal();
+    
+    try {
+      const categories = await (await fetch('/api/categories')).json();
+      const toProcess = categories.filter(c => c.encrypted);
+      
+      if (toProcess.length === 0) {
+        toast('No locked categories found.');
+        return;
+      }
+
+      openBulkProgModal(isPermanent ? 'Decrypting All' : 'Unlocking All', `${isPermanent ? 'Decrypting' : 'Unlocking'} ${toProcess.length} categories...`);
+      
+      let count = 0;
+      const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
+      
+      for (const cat of toProcess) {
+        updateBulkProg(count, toProcess.length);
+        const r = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: cat.path, password: pw })
+        });
+        if (r.ok) count++;
+      }
+      
+      updateBulkProg(toProcess.length, toProcess.length);
+      document.getElementById('bulk-prog-title').innerText = 'Action Complete';
+      document.getElementById('bulk-prog-desc').innerText = `Successfully ${isPermanent ? 'decrypted' : 'unlocked'} ${count} categories.`;
+      document.getElementById('bulk-prog-footer').style.display = 'block';
+      
+      if (typeof refresh === 'function') refresh(true);
+    } catch (e) {
+      toast('Bulk action failed: ' + e.message);
+      closeBulkProgModal();
+    }
   }
+}
+
+// ── Bulk Progress Helpers ──
+function openBulkProgModal(title, desc) {
+  document.getElementById('bulk-prog-title').innerText = title;
+  document.getElementById('bulk-prog-desc').innerText = desc;
+  document.getElementById('bulk-prog-fill').style.width = '0%';
+  document.getElementById('bulk-prog-count').innerText = '0 / 0';
+  document.getElementById('bulk-prog-percent').innerText = '0%';
+  document.getElementById('bulk-prog-footer').style.display = 'none';
+  document.getElementById('bulk-prog-modal').style.display = 'flex';
+}
+
+function updateBulkProg(cur, total) {
+  const p = Math.floor((cur / total) * 100);
+  document.getElementById('bulk-prog-fill').style.width = p + '%';
+  document.getElementById('bulk-prog-count').innerText = `${cur} / ${total}`;
+  document.getElementById('bulk-prog-percent').innerText = p + '%';
+}
+
+function closeBulkProgModal() {
+  document.getElementById('bulk-prog-modal').style.display = 'none';
 }

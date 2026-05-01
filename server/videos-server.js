@@ -12,6 +12,9 @@ const {
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
   PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR,
 } = require('./config-server');
+const { pipeline } = require('stream');
+const { promisify } = require('util');
+const pipe = promisify(pipeline);
 const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, studioMatchAny, actorMatchesAny } = require('./helpers-server');
 const {
   loadFavs, saveFavs,
@@ -122,9 +125,31 @@ function allVideos() {
   const hidden = loadHidden();
   return all.filter(v => {
     if (hidden.length && isVideoHidden(v, hidden)) return false;
-    if (v.encrypted && !unlockedCategories.has(getCatKey(v.catPath))) return false;
+    if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
   });
+}
+
+function isUnlocked(catPath) {
+  let p = getCatKey(catPath);
+  while (true) {
+    if (unlockedCategories.has(p)) return true;
+    const idx = p.lastIndexOf('/');
+    if (idx === -1) break;
+    p = p.substring(0, idx);
+  }
+  return false;
+}
+
+function getUnlockKey(catPath) {
+  let p = getCatKey(catPath);
+  while (true) {
+    if (unlockedCategories.has(p)) return unlockedCategories.get(p);
+    const idx = p.lastIndexOf('/');
+    if (idx === -1) break;
+    p = p.substring(0, idx);
+  }
+  return null;
 }
 
 // ── Video meta init (runs on startup) ───────────────────────────────
@@ -384,7 +409,7 @@ function apiStream(req, res, id) {
   
   const v = allVideos().find(v => v.id === id);
   const isEnc = v && v.encrypted;
-  const key   = isEnc ? unlockedCategories.get(getCatKey(v.catPath)) : null;
+  const key   = isEnc ? getUnlockKey(v.catPath) : null;
   
   if (isEnc && !key) {
     res.writeHead(401);
@@ -428,16 +453,25 @@ function apiStream(req, res, id) {
       const src = fs.createReadStream(fp, { start: ivLen, end: size - tagLen - 1 });
 
       let pos = 0;
-      dec.on('data', chunk => {
+      let ended = false;
+      
+      const writeRange = (chunk) => {
         const chunkEnd = pos + chunk.length - 1;
-        if (chunkEnd < start || pos > end) { pos += chunk.length; return; }
-        const sl = Math.max(0, start - pos);
-        const se = Math.min(chunk.length, end - pos + 1);
-        res.write(chunk.slice(sl, se));
+        if (chunkEnd >= start && pos <= end) {
+          const sl = Math.max(0, start - pos);
+          const se = Math.min(chunk.length, end - pos + 1);
+          res.write(chunk.slice(sl, se));
+        }
         pos += chunk.length;
+      };
+
+      dec.on('data', writeRange);
+      dec.on('end', () => {
+        if (!ended) { ended = true; res.end(); }
       });
-      dec.on('end', () => { try { res.end(); } catch {} });
-      dec.on('error', () => { try { res.end(); } catch {} });
+      dec.on('error', () => {
+        if (!ended) { ended = true; res.end(); }
+      });
       src.pipe(dec);
     } else {
       res.writeHead(200, {
@@ -449,8 +483,7 @@ function apiStream(req, res, id) {
       const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
       dec.setAuthTag(tag);
       const src = fs.createReadStream(fp, { start: ivLen, end: size - tagLen - 1 });
-      src.pipe(dec).pipe(res);
-      dec.on('error', () => { try { res.end(); } catch {} });
+      pipeline(src, dec, res, (err) => { if (err) try { res.end(); } catch {} });
     }
     return;
   }
@@ -723,7 +756,12 @@ function apiCategoriesOverview(req, res) {
 
   const result = [...filteredCats, ...tagMap.values()].map(e => {
     const thumbId = e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null;
-    return { type: e.type, name: e.name, path: e.path || null, count: e.count, thumbId };
+    let encrypted = false;
+    if (e.type === 'cat') {
+      const full = path.join(VIDEOS_DIR, e.path);
+      encrypted = fs.existsSync(path.join(full, '.cat-enc-config.json'));
+    }
+    return { type: e.type, name: e.name, path: e.path || null, count: e.count, thumbId, encrypted };
   });
   json(res, result);
 }
@@ -1210,7 +1248,8 @@ async function apiEncryptAllCategories(req, res) {
 async function apiEncryptCategory(req, res) {
   const { deriveKeys } = require('./vault-server');
   const body = await readBody(req);
-  const { path: catPath, password } = body;
+  const { path: catPath, password: rawPw } = body;
+  const password = (rawPw || '').trim();
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
   
@@ -1228,26 +1267,27 @@ async function apiEncryptCategory(req, res) {
     fs.writeFileSync(configPath, JSON.stringify({ salt, verifyHash }));
     
     // Encrypt files in category
-    const files = fs.readdirSync(dir);
-    for (const file of files) {
-      if (file.startsWith('.')) continue;
-      const ext = path.extname(file).toLowerCase();
-      if (VIDEO_EXT.has(ext)) {
-        const full = path.join(dir, file);
-        await encryptFileInPlace(full, encKey);
-      }
-    }
-    
-    // Encrypt thumbnails
-    const videos = cachedScan().filter(v => v.catPath === catPath.replace(/\\/g, '/'));
+    const videos = cachedScan().filter(v => getCatKey(v.catPath) === getCatKey(catPath));
     for (const v of videos) {
-      const thumbDir = path.join(THUMBS_DIR, v.id);
-      if (fs.existsSync(thumbDir)) {
-        const tFiles = fs.readdirSync(thumbDir);
+      if (v.encrypted) continue;
+      const full = path.join(VIDEOS_DIR, v.rel);
+      if (!fs.existsSync(full)) continue;
+
+      await encryptFileInPlace(full, encKey);
+      
+      // Move thumbnail folder to new ID
+      const newRel = v.rel + '.enc';
+      const newId = toId(newRel);
+      const oldThumb = path.join(THUMBS_DIR, v.id);
+      const newThumb = path.join(THUMBS_DIR, newId);
+      
+      if (fs.existsSync(oldThumb)) {
+        if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
+        fs.renameSync(oldThumb, newThumb);
+        // Also encrypt the jpg files in thumbnails
+        const tFiles = fs.readdirSync(newThumb);
         for (const tf of tFiles) {
-          if (tf.endsWith('.jpg')) {
-            await encryptFileInPlace(path.join(thumbDir, tf), encKey);
-          }
+          if (tf.endsWith('.jpg')) await encryptFileInPlace(path.join(newThumb, tf), encKey);
         }
       }
     }
@@ -1262,34 +1302,23 @@ async function encryptFileInPlace(filePath, key) {
   const outPath = filePath + '.enc';
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  
   const out = fs.createWriteStream(outPath);
   out.write(iv);
   
   const src = fs.createReadStream(filePath);
-  await new Promise((resolve, reject) => {
-    src.on('data', chunk => {
-      const enc = cipher.update(chunk);
-      if (enc.length) out.write(enc);
-    });
-    src.on('end', () => {
-      try {
-        const fin = cipher.final();
-        if (fin.length) out.write(fin);
-        out.write(cipher.getAuthTag());
-        out.end(resolve);
-      } catch (e) { reject(e); }
-    });
-    src.on('error', reject);
-    out.on('error', reject);
-  });
+  await pipe(src, cipher, out);
   
+  // Write tag
+  fs.appendFileSync(outPath, cipher.getAuthTag());
   fs.unlinkSync(filePath);
 }
 
 async function apiUnlockCategory(req, res) {
   const { deriveKeys } = require('./vault-server');
   const body = await readBody(req);
-  const { path: catPath, password } = body;
+  const { path: catPath, password: rawPw } = body;
+  const password = (rawPw || '').trim();
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
   
@@ -1304,6 +1333,36 @@ async function apiUnlockCategory(req, res) {
     if (verifyHash !== config.verifyHash) return json(res, { error: 'Wrong password' }, 401);
     
     unlockedCategories.set(getCatKey(catPath), encKey);
+
+    // Try to unlock subfolders recursively if they use the same password
+    const ck = getCatKey(catPath);
+    const subCats = [...new Set(cachedScan().filter(v => {
+      const vk = getCatKey(v.catPath);
+      return vk.startsWith(ck + '/');
+    }).map(v => v.catPath))];
+
+    const keyCache = new Map();
+    keyCache.set(config.salt, encKey);
+
+    for (const sc of subCats) {
+      const sDir = path.join(VIDEOS_DIR, sc);
+      const sConfPath = path.join(sDir, '.cat-enc-config.json');
+      if (fs.existsSync(sConfPath)) {
+        try {
+          const sConf = JSON.parse(fs.readFileSync(sConfPath, 'utf-8'));
+          if (keyCache.has(sConf.salt)) {
+             unlockedCategories.set(getCatKey(sc), keyCache.get(sConf.salt));
+          } else {
+             const { encKey: sKey, verifyHash: sHash } = await deriveKeys(password, sConf.salt);
+             if (sHash === sConf.verifyHash) {
+                keyCache.set(sConf.salt, sKey);
+                unlockedCategories.set(getCatKey(sc), sKey);
+             }
+          }
+        } catch {}
+      }
+    }
+
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -1311,7 +1370,8 @@ async function apiUnlockCategory(req, res) {
 async function apiDecryptCategory(req, res) {
   const { deriveKeys } = require('./vault-server');
   const body = await readBody(req);
-  const { path: catPath, password } = body;
+  const { path: catPath, password: rawPw } = body;
+  const password = (rawPw || '').trim();
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
   
@@ -1326,30 +1386,85 @@ async function apiDecryptCategory(req, res) {
     
     toastServer(`Decrypting ${catPath}...`);
 
-    // Decrypt files in category
-    const files = fs.readdirSync(dir);
-    for (const file of files) {
-      if (file.endsWith('.enc')) {
-        await decryptFileInPlace(path.join(dir, file), encKey);
-      }
-    }
-    
-    // Decrypt thumbnails
-    const videos = cachedScan().filter(v => getCatKey(v.catPath) === getCatKey(catPath));
+    const ck = getCatKey(catPath);
+    const videos = cachedScan().filter(v => {
+      const vk = getCatKey(v.catPath);
+      return vk === ck || vk.startsWith(ck + '/');
+    });
+
+    const keyCache = new Map();
+    keyCache.set(config.salt, encKey);
+    const verifiedCats = new Set();
+    verifiedCats.add(ck);
+
     for (const v of videos) {
-      const thumbDir = path.join(THUMBS_DIR, v.id);
-      if (fs.existsSync(thumbDir)) {
-        const tFiles = fs.readdirSync(thumbDir);
+      if (!v.encrypted) continue;
+      const full = path.join(VIDEOS_DIR, v.rel);
+      if (!fs.existsSync(full)) continue;
+
+      const vk = getCatKey(v.catPath);
+      let vKey = null;
+
+      if (verifiedCats.has(vk)) {
+        // Find which salt this cat uses
+        const vDir = path.join(VIDEOS_DIR, v.catPath);
+        const vConfPath = path.join(vDir, '.cat-enc-config.json');
+        try {
+          const vConf = JSON.parse(fs.readFileSync(vConfPath, 'utf-8'));
+          vKey = keyCache.get(vConf.salt);
+        } catch {}
+      } else {
+        const vDir = path.join(VIDEOS_DIR, v.catPath);
+        const vConfPath = path.join(vDir, '.cat-enc-config.json');
+        if (fs.existsSync(vConfPath)) {
+          try {
+            const vConf = JSON.parse(fs.readFileSync(vConfPath, 'utf-8'));
+            if (keyCache.has(vConf.salt)) {
+              vKey = keyCache.get(vConf.salt);
+              verifiedCats.add(vk);
+            } else {
+              const { encKey: sKey, verifyHash: sHash } = await deriveKeys(password, vConf.salt);
+              if (sHash === vConf.verifyHash) {
+                vKey = sKey;
+                keyCache.set(vConf.salt, sKey);
+                verifiedCats.add(vk);
+              }
+            }
+          } catch {}
+        }
+      }
+
+      if (!vKey) continue; // Password doesn't match this subfolder or no config
+
+      await decryptFileInPlace(full, vKey);
+      
+      const newRel = v.rel.replace(/\.enc$/, '');
+      const newId = toId(newRel);
+      const oldThumb = path.join(THUMBS_DIR, v.id);
+      const newThumb = path.join(THUMBS_DIR, newId);
+      
+      if (fs.existsSync(oldThumb)) {
+        if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
+        fs.renameSync(oldThumb, newThumb);
+        const tFiles = fs.readdirSync(newThumb);
         for (const tf of tFiles) {
-          if (tf.endsWith('.enc')) {
-            await decryptFileInPlace(path.join(thumbDir, tf), encKey);
-          }
+          if (tf.endsWith('.enc')) await decryptFileInPlace(path.join(newThumb, tf), vKey);
         }
       }
     }
     
-    fs.unlinkSync(configPath);
-    unlockedCategories.delete(getCatKey(catPath));
+    // Clean up configs for all verified cats that are now empty of .enc files
+    for (const vc of verifiedCats) {
+      const vDir = path.join(VIDEOS_DIR, vc);
+      const vConfPath = path.join(vDir, '.cat-enc-config.json');
+      if (fs.existsSync(vConfPath)) {
+        const remaining = fs.readdirSync(vDir).some(f => f.endsWith('.enc'));
+        if (!remaining) {
+          fs.unlinkSync(vConfPath);
+          unlockedCategories.delete(vc);
+        }
+      }
+    }
     invalidateScanCache();
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -1373,22 +1488,7 @@ async function decryptFileInPlace(filePath, key) {
   
   const out = fs.createWriteStream(outPath);
   const src = fs.createReadStream(filePath, { start: ivLen, end: size - tagLen - 1 });
-  
-  await new Promise((resolve, reject) => {
-    src.on('data', chunk => {
-      const dec = decipher.update(chunk);
-      if (dec.length) out.write(dec);
-    });
-    src.on('end', () => {
-      try {
-        const fin = decipher.final();
-        if (fin.length) out.write(fin);
-        out.end(resolve);
-      } catch (e) { reject(e); }
-    });
-    src.on('error', reject);
-    out.on('error', reject);
-  });
+  await pipe(src, decipher, out);
   
   fs.unlinkSync(filePath);
 }
