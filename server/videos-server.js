@@ -152,9 +152,33 @@ function apiVideos(req, res, params) {
   const sort = params.get('sort') || 'date';
   const fav  = params.get('fav') === '1' || params.get('fav') === 'true';
   
-  if (q) { 
-    const l = q.toLowerCase(); 
-    list = list.filter(v => v.name.toLowerCase().includes(l) || v.category.toLowerCase().includes(l) || (meta[v.id]?.tags || []).some(t => t.toLowerCase().includes(l))); 
+  const relevance = new Map();
+  if (q) {
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+    list = list.filter(v => {
+      const vName = v.name.toLowerCase();
+      const vCat  = v.category.toLowerCase();
+      const vTags = (meta[v.id]?.tags || []).map(t => t.toLowerCase());
+      
+      const match = tokens.every(token =>
+        vName.includes(token) ||
+        vCat.includes(token) ||
+        vTags.some(t => t.includes(token))
+      );
+      
+      if (match) {
+        let score = 0;
+        tokens.forEach(token => {
+          if (vName.includes(token)) score += 10;
+          if (vName.startsWith(token)) score += 5;
+          if (vCat.includes(token)) score += 3;
+          if (vTags.some(t => t.includes(token))) score += 5;
+        });
+        if (vName.includes(q.toLowerCase())) score += 20;
+        relevance.set(v.id, score);
+      }
+      return match;
+    });
   }
 
   if (fav) {
@@ -180,6 +204,14 @@ function apiVideos(req, res, params) {
   if (sort === 'name')     list.sort((a, b) => a.name.localeCompare(b.name));
   else if (sort === 'size')     list.sort((a, b) => b.size - a.size);
   else if (sort === 'duration') list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+  else if (q && relevance.size) {
+    list.sort((a, b) => {
+      const sA = relevance.get(a.id) || 0;
+      const sB = relevance.get(b.id) || 0;
+      if (sA !== sB) return sB - sA;
+      return b.mtime - a.mtime;
+    });
+  }
   else list.sort((a, b) => b.mtime - a.mtime);
   json(res, list);
 }
@@ -216,16 +248,24 @@ function apiCategories(req, res) {
 function apiMainCategories(req, res) {
   const hidden = loadHidden();
   const result = [{ name: 'Uncategorized', path: '' }];
-  if (fs.existsSync(VIDEOS_DIR)) {
-    for (const ent of fs.readdirSync(VIDEOS_DIR, { withFileTypes: true })) {
-      if (ent.isDirectory()) {
-        const fp = path.join(VIDEOS_DIR, ent.name);
-        if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR)) continue;
+
+  function walk(dir, rel = '') {
+    if (!fs.existsSync(dir)) return;
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue;
+        const subRel = rel ? path.join(rel, ent.name) : ent.name;
+        const full = path.join(VIDEOS_DIR, subRel);
+        if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
         if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
-        result.push({ name: ent.name, path: ent.name });
+        result.push({ name: subRel.replace(/[\\/]/g, ' / '), path: subRel.replace(/\\/g, '/') });
+        walk(full, subRel);
       }
-    }
+    } catch (e) {}
   }
+
+  walk(VIDEOS_DIR);
   result.sort((a, b) => {
     if (a.path === '') return -1;
     if (b.path === '') return 1;
@@ -236,7 +276,7 @@ function apiMainCategories(req, res) {
 
 async function apiCreateCategory(req, res) {
   const body = await readBody(req);
-  const name = (body.name || '').trim().replace(/[<>:"/\\|?*]/g, '_');
+  const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
   if (!name) return json(res, { error: 'Name required' }, 400);
   const dir = path.join(VIDEOS_DIR, name);
   if (fs.existsSync(dir)) return json(res, { error: 'Already exists' }, 409);

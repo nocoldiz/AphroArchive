@@ -257,7 +257,7 @@ async function doMove(targetCat) {
 async function doMoveNew() {
   const name = $('move-new-input').el.value.trim();
   if (!name) return;
-  const safe = name.replace(/[<>:"/\\|?*]/g, '_');
+  const safe = name.replace(/[<>:"|?*]/g, '_');
   if (_bulkMoveIds.length) await doBulkMove(safe);
   else await doMove(safe);
 }

@@ -60,11 +60,13 @@ function _renderTagModal() {
 
 function _filterTagModal(q) {
   _tmQuery = q;
-  const lo = q.trim().toLowerCase();
-  const available = (_tagSuggestions || []).filter(t =>
-    !_tmTags.some(x => x.toLowerCase() === t.toLowerCase()) &&
-    (!lo || t.toLowerCase().includes(lo))
-  );
+  const tokens = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const available = (_tagSuggestions || []).filter(t => {
+    if (_tmTags.some(x => x.toLowerCase() === t.toLowerCase())) return false;
+    if (!tokens.length) return true;
+    const tLo = t.toLowerCase();
+    return tokens.every(token => tLo.includes(token));
+  });
   const list = $('tag-modal-list').el;
   list.innerHTML = available.slice(0, 60).map(t =>
     '<span class="p-tag-picker-item" onclick="addTagModal(\'' + escA(t) + '\')">' + esc(t) + '</span>'
