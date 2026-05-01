@@ -122,6 +122,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/main-categories' && req.method === 'GET') return videos.apiMainCategories(req, res);
   if (p === '/api/main-categories' && req.method === 'POST') return videos.apiCreateCategory(req, res);
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);
+  if (p === '/api/open-category-folder' && req.method === 'POST') return videos.apiOpenCategoryFolder(req, res);
   if (p === '/api/favourites' && req.method === 'GET') return videos.apiFavourites(req, res);
   if (p === '/api/history' && req.method === 'GET') return videos.apiGetHistory(req, res);
   if (p === '/api/history' && req.method === 'DELETE') return videos.apiClearHistory(req, res);

@@ -349,3 +349,65 @@ function attachBmThumbs() {
   initBmThumbObs();
   document.querySelectorAll('.bookmark-thumb[data-bm-url]').forEach(el => bmThumbObs.observe(el));
 }
+function renderChaptersView() {
+  const grid = $('chaptersGrid').el;
+  const empty = $('chaptersEmpty').el;
+  const searchInput = $('chapters-search-input').el;
+  if (!grid || !empty) return;
+  
+  const q = searchInput ? searchInput.value.toLowerCase().trim() : '';
+  
+  let list = V.filter(v => v.chapters && v.chapters.length > 0);
+  
+  if (q) {
+    list = list.filter(v => 
+      v.name.toLowerCase().includes(q) || 
+      v.chapters.some(c => c.title.toLowerCase().includes(q))
+    );
+  }
+  
+  if (!list.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  
+  empty.style.display = 'none';
+  grid.innerHTML = list.map(v => {
+    const chapters = q 
+      ? v.chapters.filter(c => c.title.toLowerCase().includes(q) || v.name.toLowerCase().includes(q))
+      : v.chapters;
+      
+    if (!chapters.length) return '';
+
+    return `
+      <div class="chapters-video-group" style="background:var(--bg2); border-radius:12px; padding:15px; border:1px solid var(--brd); margin-bottom: 20px">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:15px; border-bottom: 1px solid var(--brd); padding-bottom: 12px">
+           <div style="width:50px; height:50px; border-radius:6px; overflow:hidden; flex-shrink:0">
+             <img src="/api/thumbs/${v.id}/0" style="width:100%; height:100%; object-fit:cover">
+           </div>
+           <div>
+             <div style="font-weight:600; font-size:1rem; color:var(--tx)">${esc(v.name)}</div>
+             <div style="font-size:0.8rem; color:var(--tx2)">${esc(v.category)} • ${v.chapters.length} chapters</div>
+           </div>
+           <button class="cta-btn" style="margin-left:auto" onclick="openVid('${v.id}')">Open Video</button>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px">
+          ${chapters.map(c => `
+            <div class="chapter-card" onclick="openVid('${v.id}', null, ${c.time})" style="cursor:pointer; background:var(--bg3); border-radius:10px; overflow:hidden; transition:all 0.2s; border:1px solid transparent" onmouseover="this.style.transform='translateY(-3px)'; this.style.borderColor='var(--ac)'" onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='transparent'">
+              <div style="height:120px; background:url(/api/thumbs/${v.id}/chapter/${c.id}) center/cover no-repeat, url(/api/thumbs/${v.id}/0) center/cover no-repeat"></div>
+              <div style="padding:10px">
+                <div style="font-size:0.75rem; color:var(--ac); font-weight:700; margin-bottom:2px">${formatDuration(c.time)}</div>
+                <div style="font-size:0.85rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--tx)">${esc(c.title)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterChapters(val) {
+  renderChaptersView();
+}

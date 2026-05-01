@@ -1,4 +1,5 @@
 // ─── Filter state persistence ───
+let chaptersMode = false;
 function _restoreFilterState() {
   const s = localStorage.getItem('aa_sort');
   if (s && ['date','name','size','duration'].includes(s)) sort = s;
@@ -126,8 +127,10 @@ function goHome() {
   $('settings-sidebar').remove('on');
   if ($('database-view').el) $('database-view').remove('on');
   if ($('database-sidebar').el) $('database-sidebar').remove('on');
+  if ($('chapters-view').el) $('chapters-view').remove('on');
+  if ($('chapters-sidebar').el) $('chapters-sidebar').remove('on');
   if (vaultMode || (typeof vaultPromptsMode !== 'undefined' && vaultPromptsMode)) fetch('/api/vault/lock', { method: 'POST' }).catch(() => {});
-  vaultMode = false; scraperMode = false; importFavsMode = false; collectionsMode = false; settingsMode = false; dbMode = false; booksMode = false; audioMode = false; photosMode = false; pagesMode = false; promptsMode = false; categoriesMode = false; if (typeof vaultPromptsMode !== 'undefined') vaultPromptsMode = false;
+  promptsMode = false; categoriesMode = false; chaptersMode = false; if (typeof vaultPromptsMode !== 'undefined') vaultPromptsMode = false;
   curCollection = null;
   $('browse-view').remove('off');
   $('player-view').remove('on');
@@ -157,6 +160,14 @@ function goHome() {
   document.querySelectorAll('#gallery-filter, #gallery-filter-tag').forEach(i => i.value = '');
   refresh();
 }
+function showChaptersView() {
+  closeAllViews();
+  chaptersMode = true;
+  $('browse-view').add('off');
+  $('chapters-view').add('on');
+  $('chapters-sidebar').add('on');
+  renderChaptersView();
+}
 
 // ─── Close All Views ───
 function closeAllViews() {
@@ -174,7 +185,7 @@ function closeAllViews() {
     'collections-view','collections-sidebar',
     'books-view','books-sidebar','audio-view','audio-sidebar','photos-view','photos-sidebar','pages-view','pages-sidebar','prompts-view','prompts-sidebar','search-sites-view','search-sites-sidebar',
     'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','database-view','database-sidebar','recent-sidebar',
-    'categories-view','categories-view-sidebar',
+    'categories-view','categories-view-sidebar','chapters-view','chapters-sidebar',
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });
   document.querySelectorAll('.sidebar-item.on').forEach(el => el.classList.remove('on'));
   if (vaultMode || (typeof vaultPromptsMode !== 'undefined' && vaultPromptsMode)) fetch('/api/vault/lock', { method: 'POST' }).catch(() => {});
@@ -182,7 +193,7 @@ function closeAllViews() {
   studioMode = false; curStudio = null;
   actorMode = false; curActor = null;
   collectionsMode = false; curCollection = null;
-  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false; pagesMode = false; promptsMode = false; categoriesMode = false; if (typeof vaultPromptsMode !== 'undefined') vaultPromptsMode = false;
+  importFavsMode = false; booksMode = false; audioMode = false; photosMode = false; pagesMode = false; promptsMode = false; categoriesMode = false; chaptersMode = false; if (typeof vaultPromptsMode !== 'undefined') vaultPromptsMode = false;
   settingsMode = false; recentMode = false; recentVids = [];
   $('clearRecentBtn').show(false);
   $('clearRecentSep').show(false);

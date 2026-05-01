@@ -165,6 +165,12 @@
                 <line x1="10" y1="14" x2="14" y2="14" />
               </svg>Studios</span>
           </div>
+          <div class="sidebar-item" id="chapters-sidebar" onclick="showChaptersView()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>Chapters</span>
+          </div>
         </div>
 
         <!-- Media -->
@@ -935,6 +941,25 @@
           </svg>
           <h3>No books yet</h3>
           <p>Add book files to the <code>books/</code> folder</p>
+        </div>
+      </div>
+
+      <!-- Chapters View -->
+      <div class="chapters-view" id="chapters-view">
+        <div class="section-header">
+          <h2>Video Chapters</h2>
+        </div>
+        <div class="actor-search-bar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="chapters-search-input" placeholder="Filter chapters or videos…" autocomplete="off" spellcheck="false" oninput="filterChapters(this.value)">
+        </div>
+        <div id="chaptersGrid" style="display:flex; flex-direction:column; gap:20px; padding:20px"></div>
+        <div class="empty-state" id="chaptersEmpty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+          <h3>No chapters found</h3>
+          <p>Add chapters to your videos to see them listed here.</p>
         </div>
       </div>
 

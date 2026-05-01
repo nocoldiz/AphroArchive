@@ -1,5 +1,5 @@
 // ─── Video Player ───
-async function openVid(id, prevView) {
+async function openVid(id, prevView, timestamp = null) {
   if (window.shiftKeyPressed || (typeof videoSelMode !== 'undefined' && videoSelMode)) {
     if (window.toggleVideoSel) { toggleVideoSel(id); return; }
   }
@@ -31,6 +31,14 @@ async function openVid(id, prevView) {
   // Clear any existing tracks before setting new src
   while (vid.firstChild) vid.removeChild(vid.firstChild);
   vid.src = '/api/stream/' + id;
+  if (timestamp !== null) {
+    const onLoaded = () => {
+      vid.currentTime = timestamp;
+      vid.play();
+      vid.removeEventListener('loadedmetadata', onLoaded);
+    };
+    vid.addEventListener('loadedmetadata', onLoaded);
+  }
   fetch('/api/subtitles/' + id).then(r => r.json()).then(tracks => {
     tracks.forEach((t, i) => {
       const el = document.createElement('track');

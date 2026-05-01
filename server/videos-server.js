@@ -203,7 +203,7 @@ function apiVideos(req, res, params) {
     const cached   = thumbsCache[v.id];
     const duration = cached?.duration || null;
     const vMeta    = meta[v.id] || {};
-    return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: vMeta.tags || [] };
+    return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: vMeta.tags || [], chapters: vMeta.chapters || [] };
   });
   const q    = params.get('q');
   const cat  = params.get('category');
@@ -710,6 +710,19 @@ async function apiOpenFolder(req, res) {
   const cmd = process.platform === 'win32' ? `explorer "${folder}"`
     : process.platform === 'darwin' ? `open "${folder}"`
     : `xdg-open "${folder}"`;
+  exec(cmd, () => {});
+  json(res, { ok: true });
+}
+
+async function apiOpenCategoryFolder(req, res) {
+  const body = await readBody(req);
+  const { path: catPath } = body;
+  const full = path.join(VIDEOS_DIR, catPath || '');
+  if (!fs.existsSync(full)) return json(res, { error: 'Not found' }, 404);
+
+  const cmd = process.platform === 'win32' ? `explorer "${full}"`
+    : process.platform === 'darwin' ? `open "${full}"`
+    : `xdg-open "${full}"`;
   exec(cmd, () => {});
   json(res, { ok: true });
 }
@@ -1578,7 +1591,7 @@ module.exports = {
   apiFavourites, apiToggleFav,
   apiAddHistory, apiGetHistory, apiClearHistory,
   apiSetRating, apiDeleteRating,
-  apiUpdateVideoMeta, apiOpenFolder, apiDuplicates,
+  apiUpdateVideoMeta, apiOpenFolder, apiOpenCategoryFolder, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
   apiDbTags, apiDbTagVideos,
   apiStudios, apiStudioVideos,

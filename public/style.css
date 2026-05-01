@@ -602,6 +602,14 @@ input {
   display: block
 }
 
+.chapters-view {
+  display: none
+}
+
+.chapters-view.on {
+  display: block
+}
+
 .browse-view.off {
   display: none
 }
