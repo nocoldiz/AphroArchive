@@ -311,7 +311,7 @@ function apiVideoDetail(req, res, id) {
   const favs  = loadFavs();
   const meta  = loadVideoMeta();
   const vMeta = meta[v.id] || {};
-  const video = { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null };
+  const video = { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, chapters: vMeta.chapters || [] };
 
   const actors         = loadActors();
   const metaActors     = vMeta.actors || [];
@@ -888,6 +888,46 @@ async function apiImport(req, res) {
   json(res, { ok: true, kind, name: outName, id: videoId });
 }
 
+async function apiAddChapter(req, res, id) {
+  const fp = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+  const body = await readBody(req);
+  const { time, title } = body;
+  if (time === undefined) return json(res, { error: 'Time required' }, 400);
+
+  const meta = loadVideoMeta();
+  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
+  if (!meta[id].chapters) meta[id].chapters = [];
+  
+  const chapterId = Date.now().toString();
+  meta[id].chapters.push({ id: chapterId, time, title: title || `Chapter ${meta[id].chapters.length + 1}` });
+  meta[id].chapters.sort((a, b) => a.time - b.time);
+  
+  saveVideoMeta(meta);
+  
+  const thumbnails = require('./thumbnails-server');
+  await thumbnails.genChapterThumb(id, fp, time, chapterId);
+  
+  json(res, { ok: true, chapterId });
+}
+
+async function apiDeleteChapter(req, res, id, chapterId) {
+  const meta = loadVideoMeta();
+  if (!meta[id] || !meta[id].chapters) return json(res, { error: 'Not found' }, 404);
+  
+  const idx = meta[id].chapters.findIndex(c => c.id === chapterId);
+  if (idx === -1) return json(res, { error: 'Chapter not found' }, 404);
+  
+  meta[id].chapters.splice(idx, 1);
+  saveVideoMeta(meta);
+  
+  const { THUMBS_DIR } = require('./config-server');
+  const thumbPath = path.join(THUMBS_DIR, id, 'chapters', `${chapterId}.jpg`);
+  if (fs.existsSync(thumbPath)) try { fs.unlinkSync(thumbPath); } catch {}
+  
+  json(res, { ok: true });
+}
+
 module.exports = {
   scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
@@ -901,4 +941,5 @@ module.exports = {
   apiStudios, apiStudioVideos,
   apiSubtitles, apiSubtitleFile,
   apiImport,
+  apiAddChapter, apiDeleteChapter,
 };

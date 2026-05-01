@@ -1855,6 +1855,12 @@
                   </svg>
                   <span>Yandex</span>
                 </button>
+                <button onclick="addChapter()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  <span>Chapter</span>
+                </button>
                 <button onclick="curV && (curV.isVault ? describeVaultCard(curV.id,'vault-video') : describeVideoThumb(curV.id))">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -1913,7 +1919,14 @@
               <div class="suggestions-row" id="suggestions-grid"></div>
             </div>
           </div>
-          <div class="playlist-panel">
+            <div class="chapters-panel" id="chapters-panel" style="display:none">
+              <div class="playlist-header">
+                <span>Chapters</span>
+                <span class="playlist-count" id="chapters-count"></span>
+              </div>
+              <div class="playlist-list" id="chapters-list"></div>
+            </div>
+            <div class="playlist-panel">
             <div class="playlist-header">
               <span>Next</span>
               <span class="playlist-count" id="playlist-count"></span>

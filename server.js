@@ -145,6 +145,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/meta$/)) && req.method === 'PATCH') return videos.apiUpdateVideoMeta(req, res, m[1]);
   if ((m = p.match(/^\/api\/subtitles\/([^/]+)$/)) && req.method === 'GET') return videos.apiSubtitles(req, res, m[1]);
   if ((m = p.match(/^\/api\/subtitle-file\/([^/]+)\/(.+)$/)) && req.method === 'GET') return videos.apiSubtitleFile(req, res, m[1], decodeURIComponent(m[2]));
+  if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters$/)) && req.method === 'POST') return videos.apiAddChapter(req, res, m[1]);
+  if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDeleteChapter(req, res, m[1], m[2]);
 
   // ── Tags / Studios ───────────────────────────────────────────────────
   if (p === '/api/tags' && req.method === 'GET') return videos.apiTags(req, res);
@@ -166,6 +168,7 @@ const server = http.createServer(async (req, res) => {
   // ── Thumbnails ───────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/generate$/)) && req.method === 'POST') return thumbnails.apiThumbGen(req, res, m[1]);
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return thumbnails.apiThumbImg(req, res, m[1], parseInt(m[2], 10));
+  if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/chapter\/([^/]+)$/)) && req.method === 'GET') return thumbnails.apiChapterThumbImg(req, res, m[1], m[2]);
   if (p === '/api/gen-thumbs/start'  && req.method === 'POST') return genThumbs.apiGenThumbsStart(req, res);
   if (p === '/api/gen-thumbs/stop'   && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
   if (p === '/api/gen-thumbs/status' && req.method === 'GET')  return genThumbs.apiGenThumbsStatus(req, res);

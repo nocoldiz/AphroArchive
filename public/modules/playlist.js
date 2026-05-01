@@ -102,7 +102,7 @@ function pinVideo() {
   if (pinnedIdx < 0) pinnedIdx = 0;
   const mainVid = $('video-player').el;
   const syncTime = mainVid ? mainVid.currentTime : 0;
-  if (mainVid) mainVid.pause();
+  if (mainVid && !dualMode) mainVid.pause();
   const vPin = $('vPin').el;
   vPin.src = '/api/stream/' + pinnedV.id;
   if (syncTime > 0) {

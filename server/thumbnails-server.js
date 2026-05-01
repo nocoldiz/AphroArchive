@@ -62,6 +62,17 @@ async function apiThumbGen(req, res, id) {
   } catch { json(res, { count: 0 }); } finally { genLock.delete(id); }
 }
 
+async function genChapterThumb(id, fp, time, chapterId) {
+  const dir = path.join(THUMBS_DIR, id, 'chapters');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const outPath = path.join(dir, `${chapterId}.jpg`);
+  return new Promise(resolve => {
+    execFile(FFMPEG_BIN, ['-ss', time, '-i', fp, '-vframes', '1', '-vf', 'scale=480:-1', '-q:v', '3', '-y', outPath],
+      { timeout: 30000 },
+      err => resolve(!err));
+  });
+}
+
 function apiThumbImg(req, res, id, idx) {
   const fp = path.resolve(path.join(THUMBS_DIR, id, `${idx}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
@@ -70,4 +81,12 @@ function apiThumbImg(req, res, id, idx) {
   fs.createReadStream(fp).pipe(res);
 }
 
-module.exports = { apiThumbGen, apiThumbImg };
+function apiChapterThumbImg(req, res, id, chapterId) {
+  const fp = path.resolve(path.join(THUMBS_DIR, id, 'chapters', `${chapterId}.jpg`));
+  if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
+  if (!fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
+  res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
+  fs.createReadStream(fp).pipe(res);
+}
+
+module.exports = { apiThumbGen, apiThumbImg, genChapterThumb, apiChapterThumbImg };

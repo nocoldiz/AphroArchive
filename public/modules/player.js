@@ -63,6 +63,7 @@ async function openVid(id, prevView) {
   renderVideoTags();
   renderRating(d.video.rating || null);
   renderPlayerStudio();
+  renderChapters();
   renderPlaylist();
   $('suggestions-grid').html(d.suggested.map(card).join(''));
   attachThumbs();
@@ -460,6 +461,78 @@ async function submitStudio() {
     });
   });
 })();
+
+async function addChapter() {
+  if (!curV || curV.isVault) return;
+  const vid = $('video-player').el;
+  const time = vid.currentTime;
+  const title = prompt('Chapter title (optional):');
+  if (title === null) return;
+
+  const r = await fetch('/api/videos/' + curV.id + '/chapters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ time, title: title.trim() })
+  });
+  
+  if (!r.ok) { toast('Failed to add chapter'); return; }
+  
+  const d = await r.json();
+  if (!curV.chapters) curV.chapters = [];
+  curV.chapters.push({ id: d.chapterId, time, title: title.trim() || `Chapter ${curV.chapters.length + 1}` });
+  curV.chapters.sort((a, b) => a.time - b.time);
+  
+  renderChapters();
+  toast('📍 Chapter added');
+}
+
+function renderChapters() {
+  const panel = $('chapters-panel').el;
+  const list = $('chapters-list').el;
+  const count = $('chapters-count').el;
+  if (!panel) return;
+  
+  if (!curV || !curV.chapters || !curV.chapters.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  
+  panel.style.display = 'flex';
+  count.textContent = curV.chapters.length;
+  
+  list.innerHTML = curV.chapters.map(c => `
+    <div class="chapter-item" onclick="jumpToChapter(${c.time})">
+      <div class="chapter-thumb">
+        <img src="/api/thumbs/${curV.id}/chapter/${c.id}" alt="" onerror="this.src='/api/thumbs/${curV.id}/0'">
+      </div>
+      <div class="chapter-info">
+        <span class="chapter-time">${formatDuration(c.time)}</span>
+        <span class="chapter-name">${esc(c.title)}</span>
+      </div>
+      <button class="chapter-remove" onclick="event.stopPropagation();deleteChapter('${c.id}')" title="Remove chapter">✕</button>
+    </div>
+  `).join('');
+}
+
+function jumpToChapter(time) {
+  const vid = $('video-player').el;
+  vid.currentTime = time;
+  vid.play();
+}
+
+async function deleteChapter(chapterId) {
+  if (!curV || !confirm('Delete this chapter?')) return;
+  
+  const r = await fetch('/api/videos/' + curV.id + '/chapters/' + chapterId, {
+    method: 'DELETE'
+  });
+  
+  if (!r.ok) { toast('Failed to delete chapter'); return; }
+  
+  curV.chapters = curV.chapters.filter(c => c.id !== chapterId);
+  renderChapters();
+  toast('Chapter deleted');
+}
 
 // ─── Keyboard Shortcuts ───
 document.addEventListener('keydown', e => {

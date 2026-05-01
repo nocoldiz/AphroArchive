@@ -44,6 +44,15 @@ function fmtBytes(b) {
   return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
 }
 
+function formatDuration(s) {
+  if (s === undefined || s === null) return '';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  if (h > 0) return h + ':' + m.toString().padStart(2, '0') + ':' + sec.toString().padStart(2, '0');
+  return m + ':' + sec.toString().padStart(2, '0');
+}
+
 // ─── Collapsible sections ───
 function toggleSection(name) {
   const sec = $(name + 'Section').el;
