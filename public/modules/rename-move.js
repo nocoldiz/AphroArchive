@@ -140,6 +140,54 @@ function extractActorNames(title, knownActors = []) {
 
 // ─── Move ───
 let _movBmUrl = null;
+let _bulkMoveIds = [];
+
+async function openBulkMove(ids) {
+  _bulkMoveIds = ids;
+  movId = null; 
+  _movBmUrl = null;
+  
+  $('move-info').text('Moving ' + ids.length + ' videos');
+  $('move-error').show(false);
+  $('move-new-input').val('');
+  
+  const mainCats = await (await fetch('/api/main-categories')).json();
+  const list = $('move-list').el;
+  list.innerHTML = mainCats.map(c => {
+    return '<div class="move-item" data-cat="' + esc(c.path) + '">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
+      '<span>' + esc(c.name) + '</span></div>';
+  }).join('');
+  
+  list.querySelectorAll('.move-item').forEach(el => {
+    el.addEventListener('click', () => doBulkMove(el.dataset.cat));
+  });
+  
+  $('move-modal').add('on');
+}
+
+async function doBulkMove(targetCat) {
+  if (!_bulkMoveIds.length) return;
+  
+  toast('Moving ' + _bulkMoveIds.length + ' videos\u2026');
+  
+  for (const id of _bulkMoveIds) {
+    try {
+      await fetch('/api/videos/' + id + '/move', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: targetCat })
+      });
+    } catch (err) { console.error('Failed to move ' + id, err); }
+  }
+  
+  closeMov();
+  toast('Moved ' + _bulkMoveIds.length + ' videos to ' + (targetCat || 'Uncategorized'));
+  _bulkMoveIds = [];
+  
+  if (window.clearVideoSelection) window.clearVideoSelection();
+  await refresh();
+}
 
 async function openMov(id, name, curCatPath) {
   movId = id; _movBmUrl = null;
@@ -168,7 +216,7 @@ async function openBmMov(url, title, curCatPath) {
 }
 
 function openMovP() { if (curV) openMov(curV.id, curV.name, curV.catPath || ''); }
-function closeMov() { $('move-modal').remove('on'); movId = null; _movBmUrl = null; }
+function closeMov() { $('move-modal').remove('on'); movId = null; _movBmUrl = null; _bulkMoveIds = []; }
 
 async function doMove(targetCat) {
   if (_movBmUrl) {
@@ -210,7 +258,8 @@ async function doMoveNew() {
   const name = $('move-new-input').el.value.trim();
   if (!name) return;
   const safe = name.replace(/[<>:"/\\|?*]/g, '_');
-  await doMove(safe);
+  if (_bulkMoveIds.length) await doBulkMove(safe);
+  else await doMove(safe);
 }
 
 // ─── Drag-drop Move ───

@@ -190,6 +190,7 @@ function card(v) {
     ? `background:url(${cached[0]}) center/cover no-repeat`
     : `background:linear-gradient(135deg,${color}12 0%,${color}06 100%)`;
   return tpl('video-card', {
+    selClass:   videoSel.has(v.id) ? 'selected' : '',
     id:         v.id,
     thumbClass,
     thumbStyle,

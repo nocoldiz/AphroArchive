@@ -470,6 +470,15 @@
             </div>
           </div>
         </div>
+        <div class="video-sel-bar" id="videoSelBar" style="display:none">
+          <span id="videoSelCount"></span>
+          <button onclick="showVideoSelMoveMenu(event)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg> Move to
+          </button>
+          <button onclick="clearVideoSelection()">Deselect all</button>
+        </div>
         <div class="video-grid" id="video-grid"></div>
         <div class="empty-state" id="empty-placeholder" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -2199,6 +2208,7 @@
   <script src="/modules/utils.js"></script>
   <script src="/modules/preset-picker.js"></script>
   <script src="/modules/thumbnails.js"></script>
+  <script src="/modules/video-selection.js"></script>
   <script src="/modules/render.js"></script>
   <script src="/modules/comments.js"></script>
   <script src="/modules/player.js"></script>
@@ -2383,6 +2393,9 @@ function setCardSize(w) {
 })();
 
 </script>
+  <div id="videoDragBox"
+    style="position:fixed;border:1px solid var(--ac);background:var(--acg);pointer-events:none;display:none;z-index:9999">
+  </div>
 </body>
 
 </html>

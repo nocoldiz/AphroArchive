@@ -1156,8 +1156,3 @@ body:has(#vaultPageResizeHandle.vp-resizing){cursor:ew-resize;user-select:none}
 .preset-card-desc{font-size:0.79rem;color:var(--tx2);margin-top:3px}
 .preset-card-counts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .preset-card-counts span{font-size:0.72rem;color:var(--tx3);background:var(--bg);border:1px solid var(--brd);border-radius:20px;padding:2px 9px}
-.preset-dialog-footer{display:flex;align-items:center;gap:8px;padding:16px 24px;border-top:1px solid var(--brd);flex-wrap:wrap}
-.preset-foot-btn{padding:7px 16px;border-radius:8px;border:1px solid var(--brd);background:var(--bg3);color:var(--tx2);font-size:0.83rem;cursor:pointer;transition:all .15s}
-.preset-foot-btn:hover{border-color:var(--tx3);color:var(--tx)}
-.preset-foot-btn--primary{background:var(--ac);border-color:var(--ac);color:#fff}
-.preset-foot-btn--primary:hover{opacity:.88}

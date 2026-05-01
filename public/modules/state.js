@@ -11,7 +11,7 @@ let vaultMode = false, vaultSelMode = false, scraperMode = false, importFavsMode
 let remoteMode = false;
 const vaultSel = new Set();
 const videoSel = new Set();
-let videoSelMode = false;
+let videoSelMode = false; var shiftKeyPressed = false;
 let vaultFiles = [], vaultPl = [], vaultPlIdx = 0, vaultQ = '', vaultSort = 'mtime', vaultSortDir = 'desc', vaultShuf = false, vaultPhotoIdx = -1, vaultPhotos = [];
 let vaultFolders = [], vaultCurFolder = null; // null = root
 const VAULT_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);

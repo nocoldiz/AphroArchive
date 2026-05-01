@@ -1,5 +1,8 @@
 // ─── Video Player ───
 async function openVid(id, prevView) {
+  if (window.shiftKeyPressed || (typeof videoSelMode !== 'undefined' && videoSelMode)) {
+    if (window.toggleVideoSel) { toggleVideoSel(id); return; }
+  }
   _prevView = prevView || null;
   if (remoteMode) {
     await fetch('/api/remote/command', {
