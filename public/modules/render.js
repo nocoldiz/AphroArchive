@@ -31,8 +31,13 @@ function renCats() {
     const bmC = bmCountFor(c.path);
     const displayCount = c.count + bmC;
     const da = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'' + escA(c.path) + '\')"';
-    const lockIcon = c.encrypted ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;opacity:0.7"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' : '';
-    h += '<div class="sidebar-item' + (activeCat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + ' oncontextmenu="showContextMenu(event, \'category\', {path:\'' + escA(c.path) + '\', name:\'' + escA(c.name) + '\', encrypted:' + !!c.encrypted + '})"><span>' + lockIcon + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
+    let lockIcon = '';
+    if (c.partial) {
+      lockIcon = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" stroke-width="3" style="margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
+    } else if (c.encrypted) {
+      lockIcon = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;opacity:0.7"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+    }
+    h += '<div class="sidebar-item' + (activeCat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + ' oncontextmenu="showContextMenu(event, \'category\', {path:\'' + escA(c.path) + '\', name:\'' + escA(c.name) + '\', encrypted:' + !!c.encrypted + ', partial:' + !!c.partial + '})"><span>' + lockIcon + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
   });
   el.innerHTML = h;
 }
@@ -244,6 +249,16 @@ function bmNorm(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); 
 function getBmList() {
   if (!_bfItems.length) return [];
   let items = _bfItems.filter(it => !bmMatchedUrls.has(it.url));
+
+  // Filter out bookmarks from locked categories
+  items = items.filter(it => {
+    if (!it.category) return true;
+    const cpath = it.category.replace(/\\/g, '/').toLowerCase();
+    const c = cats.find(x => (x.path || '').toLowerCase() === cpath);
+    if (c && c.encrypted && !c.unlocked) return false;
+    return true;
+  });
+
   if (cat) {
     items = items.filter(it => {
       if (it.category && it.category === cat) return true;

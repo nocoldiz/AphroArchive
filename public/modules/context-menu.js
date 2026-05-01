@@ -72,10 +72,23 @@ function renderCtxMenu(type, data) {
         Hide
       </div>
       <div class="ctx-sep"></div>
-      <div class="ctx-item" onclick="${isEnc ? 'ctxUnlockCategory' : 'ctxEncryptCategory'}('${escA(data.path)}', '${escA(data.name)}')">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        ${isEnc ? 'Unlock' : 'Encrypt'}
-      </div>
+      ${isEnc ? `
+        <div class="ctx-item" onclick="ctxUnlockCategory('${escA(data.path)}', '${escA(data.name)}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Unlock
+        </div>
+      ` : ''}
+      ${data.partial ? `
+        <div class="ctx-item" onclick="ctxEncryptCategory('${escA(data.path)}', '${escA(data.name)}', true)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e84040" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+          Finish Encryption
+        </div>
+      ` : (!isEnc ? `
+        <div class="ctx-item" onclick="ctxEncryptCategory('${escA(data.path)}', '${escA(data.name)}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Encrypt
+        </div>
+      ` : '')}
     `;
   } else if (type === 'all_videos') {
     html = `
@@ -94,8 +107,8 @@ function renderCtxMenu(type, data) {
 
 let encryptTarget = null;
 
-function ctxEncryptCategory(path, name) {
-  encryptTarget = { path, name };
+function ctxEncryptCategory(path, name, isPartial = false) {
+  encryptTarget = { path, name, isPartial };
   const modal = document.getElementById('encrypt-cat-modal');
   const title = document.getElementById('encrypt-cat-title');
   const desc = document.getElementById('encrypt-cat-desc');
@@ -103,8 +116,8 @@ function ctxEncryptCategory(path, name) {
   const pw2 = document.getElementById('encrypt-cat-pw2');
   if (!modal) return;
   
-  title.innerText = `Encrypt "${name}"`;
-  desc.innerText = "Secure this category with a password.";
+  title.innerText = isPartial ? "Finish Encryption" : "Encrypt Category";
+  desc.innerText = isPartial ? "Encrypt the remaining files in this category." : "Encrypt all files in this category.";
   pw1.value = ''; pw2.value = '';
   modal.style.display = 'flex';
   setTimeout(() => pw1.focus(), 50);
@@ -142,9 +155,11 @@ async function execEncryptCat() {
 
   const isAll = encryptTarget.path === 'ALL';
   if (!isAll) {
-    toast('Encrypting category...');
     const targetPath = encryptTarget.path;
+    const isPartial = encryptTarget.isPartial;
     closeEncryptCatModal();
+
+    openBulkProgModal(isPartial ? 'Finishing Encryption' : 'Encrypting Category', `Processing files in ${targetPath}...`);
 
     const r = await fetch('/api/categories/encrypt', {
       method: 'POST',
@@ -153,11 +168,34 @@ async function execEncryptCat() {
     });
     
     if (r.ok) {
-      toast('Category encrypted');
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      
+      while(true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream: true});
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.total) updateBulkProg(msg.cur, msg.total);
+            if (msg.error) { toast('Error: ' + msg.error); closeBulkProgModal(); return; }
+          } catch(e) {}
+        }
+      }
+      
+      document.getElementById('bulk-prog-title').innerText = 'Complete';
+      document.getElementById('bulk-prog-desc').innerText = 'Category encryption finished successfully.';
+      document.getElementById('bulk-prog-footer').style.display = 'block';
       if (typeof refresh === 'function') refresh(true);
     } else {
       const err = await r.json();
       toast('Action failed: ' + (err.error || 'Unknown error'));
+      closeBulkProgModal();
     }
   } else {
     // Bulk action
@@ -271,27 +309,6 @@ async function ctxHideCategory(path, name) {
   }
 }
 
-async function ctxEncryptCategory(path, name) {
-  const pw = prompt(`Enter encryption password for "${name}":`);
-  if (!pw) return;
-  const pw2 = prompt(`Confirm password:`);
-  if (pw !== pw2) return alert('Passwords do not match');
-  
-  toast('Encrypting category... please wait.');
-  const r = await fetch('/api/categories/encrypt', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, password: pw })
-  });
-  
-  if (r.ok) {
-    toast('Category encrypted successfully');
-    if (typeof refresh === 'function') refresh(true);
-  } else {
-    const err = await r.json();
-    toast('Encryption failed: ' + (err.error || 'Unknown error'));
-  }
-}
 
 let unlockTarget = null;
 
@@ -340,14 +357,13 @@ async function execUnlockCat(type) {
   const isAll = unlockTarget.path === 'ALL';
   
   if (!isAll) {
-    const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
-    if (isPermanent) {
-      if (!confirm('Are you sure you want to PERMANENTLY decrypt this category? This will remove the lock.')) return;
-      toast('Decrypting category... please wait.');
-    }
-
     const targetPath = unlockTarget.path;
+    const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
     closeUnlockCatModal();
+
+    if (isPermanent) {
+      openBulkProgModal('Decrypting Category', `Permanently restoring files in ${targetPath}...`);
+    }
 
     const r = await fetch(endpoint, {
       method: 'POST',
@@ -356,11 +372,36 @@ async function execUnlockCat(type) {
     });
     
     if (r.ok) {
-      toast(isPermanent ? 'Category decrypted and lock removed' : 'Category unlocked temporarily');
+      if (isPermanent) {
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while(true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, {stream: true});
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const msg = JSON.parse(line);
+              if (msg.total) updateBulkProg(msg.cur, msg.total);
+              if (msg.error) { toast('Error: ' + msg.error); closeBulkProgModal(); return; }
+            } catch(e) {}
+          }
+        }
+        document.getElementById('bulk-prog-title').innerText = 'Complete';
+        document.getElementById('bulk-prog-desc').innerText = 'Category decryption finished successfully.';
+        document.getElementById('bulk-prog-footer').style.display = 'block';
+      } else {
+        toast('Category unlocked temporarily');
+      }
       if (typeof refresh === 'function') refresh(true);
     } else {
       const err = await r.json();
       toast('Action failed: ' + (err.error || 'Unknown error'));
+      if (isPermanent) closeBulkProgModal();
     }
   } else {
     // Bulk action
