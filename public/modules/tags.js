@@ -140,6 +140,8 @@ async function openTag(name) {
   $('browse-view').add('off');
   $('tag-detail-view').add('on');
   q = ''; $('search-input').val(''); $('search-ghost').html('');
+  galleryFilter = '';
+  document.querySelectorAll('#gallery-filter, #gallery-filter-tag').forEach(i => i.value = '');
   $('tag-name').text(name);
   renCats();
   loadTagSidebar();
@@ -147,10 +149,24 @@ async function openTag(name) {
   const terms = _dbTagTerms[name];
   if (_allVideos.length && terms && terms.length) {
     // Fast path — filter in memory, no network request
-    const localVids = srcFilter === 'remote' ? [] : filterVideosByTag(terms);
+    let localVids = srcFilter === 'remote' ? [] : filterVideosByTag(terms);
+    
+    if (galleryFilter) {
+      localVids = localVids.filter(v => 
+        v.name.toLowerCase().includes(galleryFilter) || 
+        (v.category && v.category.toLowerCase().includes(galleryFilter)) ||
+        (v.tags && v.tags.some(t => t.toLowerCase().includes(galleryFilter)))
+      );
+    }
+
     const bms = srcFilter !== 'local' ? getBmList() : [];
+    let finalBms = bms;
+    if (galleryFilter) {
+      finalBms = bms.filter(it => it.title.toLowerCase().includes(galleryFilter) || it.url.toLowerCase().includes(galleryFilter));
+    }
+
     const g = $('tag-grid').el;
-    g.innerHTML = localVids.map(card).join('') + bms.map(bmCard).join('');
+    g.innerHTML = localVids.map(card).join('') + finalBms.map(bmCard).join('');
     _staggerFadeIn(g);
     attachThumbs();
     attachBmThumbs();
@@ -164,6 +180,15 @@ async function openTag(name) {
   const d = await (await fetch(url)).json();
   if (d.error) { $('tag-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   let localVids = srcFilter === 'remote' ? [] : d.videos;
+  
+  if (galleryFilter) {
+    localVids = localVids.filter(v => 
+      v.name.toLowerCase().includes(galleryFilter) || 
+      (v.category && v.category.toLowerCase().includes(galleryFilter)) ||
+      (v.tags && v.tags.some(t => t.toLowerCase().includes(galleryFilter)))
+    );
+  }
+
   if (shuf) {
     localVids = localVids.slice().sort(() => Math.random() - 0.5);
   } else if (sort === 'name') {
@@ -174,8 +199,13 @@ async function openTag(name) {
     localVids = localVids.slice().sort((a, b) => (b.duration || 0) - (a.duration || 0));
   }
   const bms = srcFilter !== 'local' ? getBmList() : [];
+  let finalBms = bms;
+  if (galleryFilter) {
+    finalBms = bms.filter(it => it.title.toLowerCase().includes(galleryFilter) || it.url.toLowerCase().includes(galleryFilter));
+  }
+
   const g2 = $('tag-grid').el;
-  g2.innerHTML = localVids.map(card).join('') + bms.map(bmCard).join('');
+  g2.innerHTML = localVids.map(card).join('') + finalBms.map(bmCard).join('');
   _staggerFadeIn(g2);
   attachThumbs();
   attachBmThumbs();

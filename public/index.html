@@ -468,6 +468,12 @@
                 style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             </div>
+            <span class="sg-sep"></span>
+            <div class="gallery-filter-wrap" style="display:flex;align-items:center">
+              <input type="text" id="gallery-filter" placeholder="Filter current view…" oninput="onGalleryFilter(this.value)" autocomplete="off" spellcheck="false" 
+                style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:4px 10px;border-radius:999px;font-size:0.75rem;width:120px;transition:all 0.2s;outline:none" 
+                onfocus="this.style.width='180px';this.style.borderColor='var(--ac)'" onblur="if(!this.value)this.style.width='120px';this.style.borderColor='var(--brd)'">
+            </div>
           </div>
         </div>
         <div class="video-sel-bar" id="videoSelBar" style="display:none">
@@ -792,6 +798,12 @@
             <button class="sort-btn src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
             <button class="sort-btn src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
             <button class="sort-btn src-btn" data-src="remote" onclick="setSrcFilter('remote')">Remote</button>
+            <span class="sg-sep"></span>
+            <div class="gallery-filter-wrap" style="display:flex;align-items:center">
+              <input type="text" id="gallery-filter-tag" placeholder="Filter current view…" oninput="onGalleryFilter(this.value)" autocomplete="off" spellcheck="false" 
+                style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:4px 10px;border-radius:999px;font-size:0.75rem;width:120px;transition:all 0.2s;outline:none" 
+                onfocus="this.style.width='180px';this.style.borderColor='var(--ac)'" onblur="if(!this.value)this.style.width='120px';this.style.borderColor='var(--brd)'">
+            </div>
           </div>
         </div>
         <div class="video-grid" id="tag-grid"></div>
@@ -1557,6 +1569,30 @@
             <div id="genThumbsProgress" style="display:none;margin-top:10px">
               <div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--brd)">
                 <div id="genThumbsBar" style="height:100%;background:var(--ac);width:0%;transition:width 0.4s ease"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-hidden-panel" style="margin-top:16px">
+          <div class="settings-panel">
+            <div class="settings-panel-header">
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px;color:var(--ac)">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>Duplicate Finder</span>
+            </div>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Scan your library for duplicate videos based on name, size, and visual thumbnail similarity. Visual scan requires thumbnails to be generated.</p>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <button class="btn-primary" id="dupScanBtn" onclick="startDuplicateScan()">Deep Visual Scan</button>
+              <button class="btn-primary" id="dupStopBtn" onclick="stopDuplicateScan()" style="display:none;background:#e84040;border:none">Stop</button>
+              <button class="btn-primary" onclick="showDups()" style="background:var(--bg3);color:var(--tx);border-color:var(--brd)">Quick Size Scan</button>
+              <span id="dupScanStatus" style="font-size:0.8rem;color:var(--tx2)"></span>
+            </div>
+            <div id="dupScanProgress" style="display:none;margin-top:10px">
+              <div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--brd)">
+                <div id="dupScanBar" style="height:100%;background:var(--ac);width:0%;transition:width 0.4s ease"></div>
               </div>
             </div>
           </div>

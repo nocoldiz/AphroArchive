@@ -155,6 +155,8 @@ function goHome() {
   p.pause();
   p.src = '';
   curV = null;
+  galleryFilter = '';
+  document.querySelectorAll('#gallery-filter, #gallery-filter-tag').forEach(i => i.value = '');
   refresh();
 }
 
@@ -200,6 +202,8 @@ function selCat(c) {
   q = ''; 
   $('search-input').val('');
   $('search-ghost').html('');
+  galleryFilter = '';
+  document.querySelectorAll('#gallery-filter, #gallery-filter-tag').forEach(i => i.value = '');
 
   const catUrl = c ? '/cat/' + encodeURIComponent(c) : '/';
   if (location.pathname !== catUrl) history.pushState(null, '', catUrl);

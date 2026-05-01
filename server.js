@@ -44,6 +44,7 @@ const comments    = require('./server/comments-server');
 const vision      = require('./server/vision-server');
 const vaultZip    = require('./server/vault-zip-server');
 const pages       = require('./server/pages-server');
+const duplicates  = require('./server/duplicates-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -125,6 +126,10 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/history' && req.method === 'GET') return videos.apiGetHistory(req, res);
   if (p === '/api/history' && req.method === 'DELETE') return videos.apiClearHistory(req, res);
   if (p === '/api/duplicates' && req.method === 'GET') return videos.apiDuplicates(req, res);
+  if (p === '/api/duplicates/scan' && req.method === 'POST') return duplicates.apiDuplicatesScan(req, res, videos.cachedScan());
+  if (p === '/api/duplicates/stop' && req.method === 'POST') return duplicates.apiDuplicatesStop(req, res);
+  if (p === '/api/duplicates/status' && req.method === 'GET') return duplicates.apiDuplicatesStatus(req, res);
+  if (p === '/api/duplicates/results' && req.method === 'GET') return duplicates.apiDuplicatesResults(req, res);
   if (p === '/api/auto-sort' && req.method === 'POST') return videos.apiAutoSort(req, res);
   if (p === '/api/import' && req.method === 'POST') return videos.apiImport(req, res);
 

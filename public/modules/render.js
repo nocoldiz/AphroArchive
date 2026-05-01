@@ -58,28 +58,51 @@ function dragVideoStart(e, id) {
   e.dataTransfer.effectAllowed = 'move';
 }
 
+function onGalleryFilter(val) {
+  galleryFilter = val.trim().toLowerCase();
+  if (curTag) openTag(curTag);
+  else render();
+}
+
 // ─── Main Grid ───
 function render() {
   const g = $('video-grid').el, e = $('empty-placeholder').el;
   let base = recentMode ? recentVids : favM ? V.filter(v => v.fav) : V;
+  
+  // Local gallery filter
+  if (galleryFilter) {
+    base = base.filter(v => 
+      v.name.toLowerCase().includes(galleryFilter) || 
+      (v.category && v.category.toLowerCase().includes(galleryFilter)) ||
+      (v.tags && v.tags.some(t => t.toLowerCase().includes(galleryFilter)))
+    );
+  }
+
   const local = srcFilter === 'remote' ? [] : base;
   const bms   = (!recentMode && !favM && srcFilter !== 'local') ? getBmList() : [];
+  
+  // Also filter bookmarks if galleryFilter is active
+  let finalBms = bms;
+  if (galleryFilter) {
+    finalBms = bms.filter(it => it.title.toLowerCase().includes(galleryFilter) || it.url.toLowerCase().includes(galleryFilter));
+  }
+
   const countEl = document.getElementById('result-count');
-  const total = local.length + bms.length;
+  const total = local.length + finalBms.length;
   if (countEl) {
-    const filtered = q || favM || recentMode || (cat && cat !== '');
+    const filtered = q || favM || recentMode || (cat && cat !== '') || galleryFilter;
     countEl.textContent = filtered ? total + ' result' + (total !== 1 ? 's' : '') : '';
   }
-  if (!local.length && !bms.length) {
+  if (!local.length && !finalBms.length) {
     g.innerHTML = '';
     e.style.display = 'block';
-    $('empty-title').text(q ? 'No video results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found');
-    $('empty-desc').text(q ? 'Nothing matched "' + q + '" in videos' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder');
+    $('empty-title').text(galleryFilter ? 'No matches in current view' : q ? 'No video results' : recentMode ? 'No history yet' : favM ? 'No favourites yet' : 'No videos found');
+    $('empty-desc').text(galleryFilter ? 'Try a different filter term' : q ? 'Nothing matched "' + q + '" in videos' : recentMode ? 'Videos you watch will appear here' : favM ? 'Star videos to save them here' : 'Add videos to your folder');
     renderSearchExtras(q);
     return;
   }
   e.style.display = 'none';
-  g.innerHTML = local.map(card).join('') + bms.map(bmCard).join('');
+  g.innerHTML = local.map(card).join('') + finalBms.map(bmCard).join('');
   _staggerFadeIn(g);
   attachThumbs();
   attachBmThumbs();

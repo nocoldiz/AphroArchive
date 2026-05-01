@@ -30,7 +30,10 @@ function filterVideosCat(catFilter) {
   if (!catFilter) return _applySort(favFilter ? _allVideos.filter(v => v.fav) : _allVideos);
   return _applySort(_allVideos.filter(v => {
     if (favFilter && !v.fav) return false;
-    return v.catPath === catFilter || v.category === catFilter;
+    if (catFilter === '__uncategorized__' || catFilter === '') return v.catPath === '';
+    const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
+    const cl = catFilter.toLowerCase().replace(/\\/g, '/');
+    return vp === cl || vp.startsWith(cl + '/') || v.category === catFilter;
   }));
 }
 

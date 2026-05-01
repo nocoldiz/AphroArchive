@@ -187,18 +187,19 @@ function apiVideos(req, res, params) {
   
   // 1. Check for strict null instead of truthiness
   if (cat !== null) {
-    // 2. Handle both representations of the Uncategorized category
     if (cat === '__uncategorized__' || cat === '') {
       const defined = loadCategories();
       list = list.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms)));
     } else {
-      const defined      = loadCategories();
-      const catLo        = cat.toLowerCase();
+      const defined = loadCategories();
+      const catLo = cat.toLowerCase();
       const matchingEntry = defined.find(e => e.name.toLowerCase() === catLo);
-      list = list.filter(v =>
-        v.catPath === cat || v.category === cat ||
-        (matchingEntry && v.catPath === '' && wordMatchAny(v.name, matchingEntry.terms))
-      );
+      const cl = cat.toLowerCase().replace(/\\/g, '/');
+      list = list.filter(v => {
+        const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
+        const isChild = vp === cl || vp.startsWith(cl + '/');
+        return isChild || v.category === cat || (matchingEntry && v.catPath === '' && wordMatchAny(v.name, matchingEntry.terms));
+      });
     }
   }
   if (sort === 'name')     list.sort((a, b) => a.name.localeCompare(b.name));
@@ -218,31 +219,49 @@ function apiVideos(req, res, params) {
 
 function apiCategories(req, res) {
   const videos = cachedScan();
-  const m      = new Map();
-  for (const v of videos) {
-    const displayPath = v.catPath === '' ? '__uncategorized__' : v.catPath;
-    if (!m.has(displayPath)) m.set(displayPath, { name: v.catPath === '' ? 'Uncategorized' : v.category, path: displayPath, count: 0 });
-    m.get(displayPath).count++;
+  const hidden = loadHidden();
+  const cats = [];
+
+  function walk(dir, rel = '') {
+    if (!fs.existsSync(dir)) return;
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue;
+        const subRel = rel ? path.join(rel, ent.name) : ent.name;
+        const subRelFwd = subRel.replace(/\\/g, '/');
+        const full = path.join(VIDEOS_DIR, subRel);
+        
+        if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
+        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
+
+        // Recursive count
+        const count = videos.filter(v => {
+          const vp = v.catPath.toLowerCase();
+          const cl = subRelFwd.toLowerCase();
+          return vp === cl || vp.startsWith(cl + '/') || vp.startsWith(cl + '\\');
+        }).length;
+
+        cats.push({ name: subRel.replace(/[\\/]/g, ' / '), path: subRelFwd, count });
+        walk(full, subRel);
+      }
+    } catch (e) {}
   }
-  const result   = [...m.values()];
-  const hidden   = loadHidden();
-  const filtered = hidden.length ? result.filter(c => {
-    if (c.path === '__uncategorized__') return true;
-    const pathLo = c.path.toLowerCase();
-    return !hidden.some(t => {
-      const tLo = t.toLowerCase();
-      return pathLo === tLo || pathLo.startsWith(tLo + '/') || pathLo.startsWith(tLo + '\\');
-    });
-  }) : result;
-  const sorted = filtered.sort((a, b) => {
+
+  walk(VIDEOS_DIR);
+
+  // Uncategorized count
+  const defined = loadCategories();
+  const uncatCount = videos.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms))).length;
+  cats.unshift({ name: 'Uncategorized', path: '__uncategorized__', count: uncatCount });
+
+  cats.sort((a, b) => {
     if (a.path === '__uncategorized__') return -1;
     if (b.path === '__uncategorized__') return 1;
     return a.name.localeCompare(b.name);
   });
-  if (!sorted.find(c => c.path === '__uncategorized__')) {
-    sorted.unshift({ name: 'Uncategorized', path: '__uncategorized__', count: 0 });
-  }
-  json(res, sorted);
+
+  json(res, cats);
 }
 
 function apiMainCategories(req, res) {
