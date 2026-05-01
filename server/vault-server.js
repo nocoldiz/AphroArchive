@@ -1007,4 +1007,5 @@ module.exports = {
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
+  deriveKeys, NO_CACHE_HEADERS
 };

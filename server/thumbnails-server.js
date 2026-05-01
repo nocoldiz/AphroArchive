@@ -9,6 +9,7 @@ const { execFile }      = require('child_process');
 const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config-server');
 const { json, safePath }               = require('./helpers-server');
 const { loadThumbsCache, saveThumbsCache } = require('./db-server');
+const crypto = require('crypto');
 
 // ── ffprobe helper ───────────────────────────────────────────────────
 
@@ -74,16 +75,56 @@ async function genChapterThumb(id, fp, time, chapterId) {
 }
 
 function apiThumbImg(req, res, id, idx) {
-  const fp = path.resolve(path.join(THUMBS_DIR, id, `${idx}.jpg`));
+  const { allVideos, getUnlockedCategoryKey } = require('./videos-server');
+  const v = allVideos().find(v => v.id === id);
+  let fp = path.resolve(path.join(THUMBS_DIR, id, `${idx}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
+
+  const encFp = fp + '.enc';
+  if (v && v.encrypted && fs.existsSync(encFp)) {
+    const key = getUnlockedCategoryKey(v.catPath);
+    if (!key) { res.writeHead(401); res.end(); return; }
+    try {
+      const dec = decryptBuffer(fs.readFileSync(encFp), key);
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
+      res.end(dec);
+      return;
+    } catch (e) { res.writeHead(500); res.end(); return; }
+  }
+
   if (!fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
   fs.createReadStream(fp).pipe(res);
 }
 
+function decryptBuffer(raw, key) {
+  const ivLen = 12, tagLen = 16;
+  const iv  = raw.slice(0, ivLen);
+  const tag = raw.slice(raw.length - tagLen);
+  const ct  = raw.slice(ivLen, raw.length - tagLen);
+  const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  dec.setAuthTag(tag);
+  return Buffer.concat([dec.update(ct), dec.final()]);
+}
+
 function apiChapterThumbImg(req, res, id, chapterId) {
-  const fp = path.resolve(path.join(THUMBS_DIR, id, 'chapters', `${chapterId}.jpg`));
+  const { allVideos, getUnlockedCategoryKey } = require('./videos-server');
+  const v = allVideos().find(v => v.id === id);
+  let fp = path.resolve(path.join(THUMBS_DIR, id, 'chapters', `${chapterId}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
+
+  const encFp = fp + '.enc';
+  if (v && v.encrypted && fs.existsSync(encFp)) {
+    const key = getUnlockedCategoryKey(v.catPath);
+    if (!key) { res.writeHead(401); res.end(); return; }
+    try {
+      const dec = decryptBuffer(fs.readFileSync(encFp), key);
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
+      res.end(dec);
+      return;
+    } catch (e) { res.writeHead(500); res.end(); return; }
+  }
+
   if (!fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
   fs.createReadStream(fp).pipe(res);

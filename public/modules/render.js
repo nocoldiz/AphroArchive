@@ -31,7 +31,8 @@ function renCats() {
     const bmC = bmCountFor(c.path);
     const displayCount = c.count + bmC;
     const da = ' ondragover="catDragOver(event,this)" ondragleave="catDragLeave(this)" ondrop="catDrop(event,\'' + escA(c.path) + '\')"';
-    h += '<div class="sidebar-item' + (activeCat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + '><span>' + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
+    const lockIcon = c.encrypted ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;opacity:0.7"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' : '';
+    h += '<div class="sidebar-item' + (activeCat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + ' oncontextmenu="showContextMenu(event, \'category\', {path:\'' + escA(c.path) + '\', name:\'' + escA(c.name) + '\', encrypted:' + !!c.encrypted + '})"><span>' + lockIcon + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
   });
   el.innerHTML = h;
 }

@@ -226,6 +226,10 @@ function invalidateDbTypeCache(type) {
 function readDbFile(file)       { try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return {}; } }
 function writeDbFile(file, obj) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(obj, null, 2)); }
 
+function saveHidden(lines) {
+  fs.writeFileSync(HIDDEN_FILE, lines.join('\n') + (lines.length ? '\n' : ''));
+}
+
 module.exports = {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -235,7 +239,7 @@ module.exports = {
   loadThumbsCache, saveThumbsCache,
   loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta,
   loadCollections, saveCollections,
-  loadHidden,
+  loadHidden, saveHidden,
   loadWebsites, saveWebsites,
   loadStarredSites, saveStarredSites,
   loadOgThumbCache, saveOgThumbCache,

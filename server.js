@@ -132,6 +132,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/duplicates/results' && req.method === 'GET') return duplicates.apiDuplicatesResults(req, res);
   if (p === '/api/auto-sort' && req.method === 'POST') return videos.apiAutoSort(req, res);
   if (p === '/api/import' && req.method === 'POST') return videos.apiImport(req, res);
+  if (p === '/api/categories/rename' && req.method === 'PATCH') return videos.apiRenameCategory(req, res);
+  if (p === '/api/categories/delete' && req.method === 'DELETE') return videos.apiDeleteCategory(req, res);
+  if (p === '/api/categories/hide' && req.method === 'POST') return videos.apiHideCategory(req, res);
+  if (p === '/api/categories/encrypt' && req.method === 'POST') return videos.apiEncryptCategory(req, res);
+  if (p === '/api/categories/unlock' && req.method === 'POST') return videos.apiUnlockCategory(req, res);
 
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetail(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
