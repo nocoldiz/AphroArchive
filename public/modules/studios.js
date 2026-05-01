@@ -70,7 +70,8 @@ async function openStudio(name) {
   const url = '/api/studios/' + encodeURIComponent(name) + (favFilter ? '?fav=1' : '');
   const d = await (await fetch(url)).json();
   if (d.error) { $('studio-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
-  $('studio-detail-grid').html(d.videos.map(card).join(''));
+  const sortedVids = _applySort(d.videos);
+  $('studio-detail-grid').html(sortedVids.map(card).join(''));
   _staggerFadeIn($('studio-detail-grid').el);
   attachThumbs();
 }

@@ -22,11 +22,9 @@ async function init() {
   await loadTemplates();
   showSk();
   await fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
-  const [,, , vs] = await Promise.all([load(), loadC(), loadTagSidebar(), fetch('/api/vault/status').then(r => r.json())]);
-  if (vs.hidden) $('vault-sidebar').show(false);
-  if (!shuf && sort === 'date') V.sort(() => Math.random() - 0.5);
+  const [,, vs] = await Promise.all([loadC(), loadTagSidebar(), fetch('/api/vault/status').then(r => r.json())]);
+  vaultMode = vs.unlocked;
   _syncSortButtons();
-  render();
   loadBookmarkVidsOnInit();
 }
 

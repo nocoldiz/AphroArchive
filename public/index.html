@@ -1793,34 +1793,6 @@
               <h1 id="player-title"></h1>
               <div class="player-meta"><span id="player-category"></span><span id="player-size"></span><span
                   id="player-duration"></span></div>
-              <div class="p-actors-row">
-                <div class="p-actors" id="player-actors"></div>
-                <button class="p-tag-add-btn" id="player-actor-add-btn" onclick="openActorModal()">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>Add Actors
-                </button>
-              </div>
-              <div class="p-studio-row" id="player-studio-row">
-                <span class="p-studio-name" id="player-studio"></span>
-                <button class="p-tag-add-btn" id="player-studio-btn" onclick="openStudioModal()">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>Studio
-                </button>
-              </div>
-              <div class="p-rating" id="player-rating"></div>
-              <div class="p-tags-row" id="player-tags-row" style="display:none">
-                <div class="p-tags" id="player-tags"></div>
-                <button class="p-tag-add-btn" id="player-tag-add-btn" onclick="curV && openTagModal(curV.id)">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>Tag
-                </button>
-              </div>
               <div class="player-info-actions">
 
                 <button id="player-star-btn" onclick="togglePStar()">
@@ -1889,6 +1861,34 @@
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
                   <span>Describe</span>
+                </button>
+              </div>
+              <div class="p-actors-row">
+                <div class="p-actors" id="player-actors"></div>
+                <button class="p-tag-add-btn" id="player-actor-add-btn" onclick="openActorModal()">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>Add Actors
+                </button>
+              </div>
+              <div class="p-studio-row" id="player-studio-row">
+                <span class="p-studio-name" id="player-studio"></span>
+                <button class="p-tag-add-btn" id="player-studio-btn" onclick="openStudioModal()">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>Studio
+                </button>
+              </div>
+              <div class="p-rating" id="player-rating"></div>
+              <div class="p-tags-row" id="player-tags-row" style="display:none">
+                <div class="p-tags" id="player-tags"></div>
+                <button class="p-tag-add-btn" id="player-tag-add-btn" onclick="curV && openTagModal(curV.id)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>Tag
                 </button>
               </div>
             </div>

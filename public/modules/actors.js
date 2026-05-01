@@ -75,7 +75,8 @@ async function openActor(name) {
   const url = '/api/actors/' + encodeURIComponent(name) + (favFilter ? '?fav=1' : '');
   const d = await (await fetch(url)).json();
   if (d.error) { $('actor-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
-  $('actor-detail-grid').html(d.videos.map(card).join(''));
+  const sortedVids = _applySort(d.videos);
+  $('actor-detail-grid').html(sortedVids.map(card).join(''));
   _staggerFadeIn($('actor-detail-grid').el);
   attachThumbs();
 }
@@ -96,7 +97,8 @@ async function openActorFromVideo(name) {
   const url = '/api/actors/' + encodeURIComponent(name) + (favFilter ? '?fav=1' : '');
   const d = await (await fetch(url)).json();
   if (d.error) { $('actor-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
-  $('actor-detail-grid').html(d.videos.map(card).join(''));
+  const sortedVids = _applySort(d.videos);
+  $('actor-detail-grid').html(sortedVids.map(card).join(''));
   _staggerFadeIn($('actor-detail-grid').el);
   attachThumbs();
 }

@@ -186,7 +186,7 @@ async function doBulkMove(targetCat) {
   _bulkMoveIds = [];
   
   if (window.clearVideoSelection) window.clearVideoSelection();
-  await refresh();
+  await refresh(true);
 }
 
 async function openMov(id, name, curCatPath) {

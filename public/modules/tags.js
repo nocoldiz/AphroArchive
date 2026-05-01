@@ -166,6 +166,7 @@ async function openTag(name) {
     }
 
     const g = $('tag-grid').el;
+    localVids = _applySort(localVids);
     g.innerHTML = localVids.map(card).join('') + finalBms.map(bmCard).join('');
     _staggerFadeIn(g);
     attachThumbs();
@@ -205,6 +206,7 @@ async function openTag(name) {
   }
 
   const g2 = $('tag-grid').el;
+  localVids = _applySort(localVids);
   g2.innerHTML = localVids.map(card).join('') + finalBms.map(bmCard).join('');
   _staggerFadeIn(g2);
   attachThumbs();

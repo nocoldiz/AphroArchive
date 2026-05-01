@@ -44,7 +44,7 @@ async function openCollectionDetail(name) {
   el.innerHTML =
     '<button class="back-btn" style="margin-bottom:16px" onclick="showCollections()">' +
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Playlist</button>' +
-    (videos.length ? '<div class="video-grid">' + videos.map(v => card(v)).join('') + '</div>'
+    (videos.length ? '<div class="video-grid">' + _applySort(videos).map(v => card(v)).join('') + '</div>'
       : '<div class="collection-empty">No videos in this playlist.</div>');
 }
 

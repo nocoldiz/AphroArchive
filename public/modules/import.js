@@ -63,7 +63,7 @@ async function handleGlobalFiles(files) {
   if (counts.photo) parts.push(counts.photo + ' photo' + (counts.photo > 1 ? 's' : ''));
   toast('Imported: ' + parts.join(', '));
 
-  if (counts.video) refresh();
+  if (counts.video) refresh(true);
   if (counts.audio && audioMode) loadAudio();
   if (counts.book  && booksMode) loadBooks();
   if (counts.photo && photosMode) loadPhotos();

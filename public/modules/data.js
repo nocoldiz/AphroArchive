@@ -6,8 +6,8 @@ async function load() {
   if (favFilter) p.set('fav', '1');
   p.set('sort', sort);
   V = await (await fetch('/api/videos?' + p)).json();
+  V = _applySort(V);
   if (!q && !cat) _allVideos = V; // cache for local filtering
-  if (shuf) V.sort(() => Math.random() - 0.5);
 }
 
 // ─── Local filtering helpers (avoids a round-trip for category/tag switches) ───
@@ -59,10 +59,10 @@ async function createCategory() {
   if (!r.ok) { toast(d.error || 'Failed'); return; }
   toast('Created folder: ' + d.name);
   await loadC();
-  refresh();
+  refresh(true);
 }
 
-async function refresh() {
+async function refresh(full = false) {
   if (categoriesMode) {
     $('categories-view').remove('on');
     $('categories-view-sidebar').remove('on');
@@ -103,6 +103,8 @@ async function refresh() {
     $('browse-view').remove('off');
     curTag = null;
   }
-  await Promise.all([load(), loadC(), loadTagSidebar()]);
+  const tasks = [load()];
+  if (full) { tasks.push(loadC()); tasks.push(loadTagSidebar()); }
+  await Promise.all(tasks);
   render();
 }
