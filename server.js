@@ -144,6 +144,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/move$/)) && req.method === 'PATCH') return videos.apiMove(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/meta$/)) && req.method === 'PATCH') return videos.apiUpdateVideoMeta(req, res, m[1]);
   if ((m = p.match(/^\/api\/subtitles\/([^/]+)$/)) && req.method === 'GET') return videos.apiSubtitles(req, res, m[1]);
+  if ((m = p.match(/^\/api\/subtitles\/([^/]+)$/)) && req.method === 'POST') return videos.apiSaveSubtitles(req, res, m[1]);
   if ((m = p.match(/^\/api\/subtitle-file\/([^/]+)\/(.+)$/)) && req.method === 'GET') return videos.apiSubtitleFile(req, res, m[1], decodeURIComponent(m[2]));
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters$/)) && req.method === 'POST') return videos.apiAddChapter(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDeleteChapter(req, res, m[1], m[2]);

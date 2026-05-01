@@ -813,6 +813,26 @@ function apiSubtitles(req, res, id) {
   json(res, found);
 }
 
+async function apiSaveSubtitles(req, res, id) {
+  const fp = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+  const body = await readBody(req);
+  const { vtt } = body;
+  if (!vtt) return json(res, { error: 'VTT content required' }, 400);
+
+  const dir  = path.dirname(fp);
+  const base = path.basename(fp, path.extname(fp));
+  const filename = `${base}.en.vtt`;
+  const full = path.join(dir, filename);
+
+  try {
+    fs.writeFileSync(full, vtt);
+    json(res, { ok: true, filename });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
 function apiSubtitleFile(req, res, id, filename) {
   const fp = safePath(id);
   if (!fp) { res.writeHead(404); res.end('Not found'); return; }
@@ -939,7 +959,7 @@ module.exports = {
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
   apiDbTags, apiDbTagVideos,
   apiStudios, apiStudioVideos,
-  apiSubtitles, apiSubtitleFile,
+  apiSubtitles, apiSaveSubtitles, apiSubtitleFile,
   apiImport,
   apiAddChapter, apiDeleteChapter,
 };

@@ -243,13 +243,7 @@ async function doMove(targetCat) {
   closeMov();
   toast('Moved to ' + (targetCat || 'Uncategorized'));
   if (curV && curV.id === movId) {
-    curV.id = d.newId;
-    curV.catPath = targetCat;
-    curV.category = targetCat || 'Uncategorized';
-    $('player-category').text(curV.category);
-    const p = $('video-player').el, t = p.currentTime;
-    p.src = '/api/stream/' + d.newId;
-    p.currentTime = t;
+    playNext();
   }
   await refresh();
 }
@@ -273,13 +267,7 @@ async function dropMoveVideo(id, catPath) {
   if (!r.ok) { toast(d.error || 'Move failed'); return; }
   toast('Moved to ' + (catPath || 'Uncategorized'));
   if (curV && curV.id === id) {
-    curV.id = d.newId;
-    curV.catPath = catPath;
-    curV.category = catPath || 'Uncategorized';
-    $('player-category').text(curV.category);
-    const p = $('video-player').el, t = p.currentTime;
-    p.src = '/api/stream/' + d.newId;
-    p.currentTime = t;
+    playNext();
   }
   await refresh();
 }

@@ -52,71 +52,9 @@ const VAULT_FILTER_TILES = [
   { key: 'page',  label: 'Pages',  icon: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="12" y1="9" x2="8" y2="9"/></svg>' },
 ];
 
-let isVaultDragging = false;
-let vDragStartX, vDragStartY;
 let isDraggingVault = false, dragStartX = 0, dragStartY = 0;
 const vaultGrid = document.getElementById('vaultGrid');
 const dragBox = document.getElementById('vaultDragBox');
-function setupVaultDragSelection() {
-  const grid = $('vaultGrid').el;
-  const box = document.getElementById('vaultDragBox');
-
-  grid.addEventListener('mousedown', (e) => {
-    // ONLY start drag selection if the Shift key is held down
-    if (!e.shiftKey) return; 
-    
-    // Optional: comment out the strict grid target check if you want to be able 
-    // to start dragging directly over a card while holding shift.
-    // if (e.target !== grid || vaultSelMode) return; 
-    
-    e.preventDefault(); // Prevent text highlighting while dragging
-    isVaultDragging = true;
-    vDragStartX = e.clientX;
-    vDragStartY = e.clientY;
-    
-    box.style.display = 'block';
-    box.style.width = '0px';
-    box.style.height = '0px';
-  });
-
-  window.addEventListener('mousemove', (e) => {
-    if (!isVaultDragging) return;
-
-    const x = Math.min(e.clientX, vDragStartX);
-    const y = Math.min(e.clientY, vDragStartY);
-    const w = Math.abs(e.clientX - vDragStartX);
-    const h = Math.abs(e.clientY - vDragStartY);
-
-    box.style.left = x + 'px';
-    box.style.top = y + 'px';
-    box.style.width = w + 'px';
-    box.style.height = h + 'px';
-
-    const boxRect = box.getBoundingClientRect();
-    document.querySelectorAll('.vault-card, .vault-folder-tile').forEach(card => {
-      const cardRect = card.getBoundingClientRect();
-      const match = !(boxRect.right < cardRect.left || boxRect.left > cardRect.right || 
-                     boxRect.bottom < cardRect.top || boxRect.top > cardRect.bottom);
-      
-      const id = card.dataset.vaultId;
-      if (match) {
-        vaultSel.add(id);
-        card.classList.add('selected');
-      }
-    });
-    if (vaultSel.size > 0) {
-      vaultSelMode = true;
-      $('vaultGrid').add('vault-sel-mode');
-      $('vaultSelBtn').add('on');
-      updateVaultSelBar();
-    }
-  });
-
-  window.addEventListener('mouseup', () => {
-    isVaultDragging = false;
-    box.style.display = 'none';
-  });
-}
 
 async function deleteSelectedVaultItems() {
   const ids = Array.from(vaultSel);

@@ -1868,6 +1868,12 @@
                   </svg>
                   <span>Describe</span>
                 </button>
+                <button onclick="toggleSubtitlesPanel()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span>Subtitles</span>
+                </button>
               </div>
               <div class="p-actors-row">
                 <div class="p-actors" id="player-actors"></div>
@@ -1919,6 +1925,7 @@
               <div class="suggestions-row" id="suggestions-grid"></div>
             </div>
           </div>
+          <div class="pv-side">
             <div class="chapters-panel" id="chapters-panel" style="display:none">
               <div class="playlist-header">
                 <span>Chapters</span>
@@ -1926,12 +1933,27 @@
               </div>
               <div class="playlist-list" id="chapters-list"></div>
             </div>
-            <div class="playlist-panel">
-            <div class="playlist-header">
-              <span>Next</span>
-              <span class="playlist-count" id="playlist-count"></span>
+            <div class="playlist-panel" id="subtitles-panel" style="display:none">
+              <div class="playlist-header">
+                <span>Subtitle Generator</span>
+              </div>
+              <div class="sub-gen-body" style="padding:15px;display:flex;flex-direction:column;gap:10px">
+                <p style="font-size:11px;color:var(--tx2);line-height:1.4">Uses browser speech recognition. <strong>Keep speakers on</strong> so the browser can hear the audio.</p>
+                <div style="display:flex;gap:5px">
+                  <button class="btn-primary" id="sub-gen-btn" onclick="startSubtitleGen()" style="flex:1;font-size:12px;padding:6px">Generate (EN)</button>
+                  <button class="btn-primary" id="sub-save-btn" onclick="saveGeneratedSubtitles()" style="flex:1;font-size:12px;padding:6px;display:none;background:var(--bg3);color:var(--tx);border-color:var(--brd)">Save VTT</button>
+                </div>
+                <div id="sub-gen-status" style="font-size:11px;color:var(--ac);font-weight:700;display:none">● Listening...</div>
+                <div id="sub-transcript-preview" style="background:var(--bg);border:1px solid var(--brd);border-radius:6px;padding:8px;font-size:12px;height:140px;overflow-y:auto;font-family:var(--m);color:var(--tx2);line-height:1.4">Transcript will appear here...</div>
+              </div>
             </div>
-            <div class="playlist-list" id="playlist-list"></div>
+            <div class="playlist-panel">
+              <div class="playlist-header">
+                <span>Next</span>
+                <span class="playlist-count" id="playlist-count"></span>
+              </div>
+              <div class="playlist-list" id="playlist-list"></div>
+            </div>
           </div>
         </div>
       </div>

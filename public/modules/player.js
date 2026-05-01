@@ -588,3 +588,130 @@ document.addEventListener('keydown', e => {
       break;
   }
 });
+
+let subtitleRecognition = null;
+let subtitleSegments = [];
+
+function toggleSubtitlesPanel() {
+  const panel = $('subtitles-panel');
+  if (panel.el.style.display === 'none') {
+    panel.el.style.display = 'flex';
+  } else {
+    panel.el.style.display = 'none';
+  }
+}
+
+function startSubtitleGen() {
+  if (subtitleRecognition) {
+    subtitleRecognition.stop();
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Speech recognition not supported in this browser.");
+    return;
+  }
+
+  subtitleRecognition = new SpeechRecognition();
+  subtitleRecognition.continuous = true;
+  subtitleRecognition.interimResults = true;
+  subtitleRecognition.lang = 'en-US';
+
+  subtitleSegments = [];
+  $('sub-transcript-preview').el.textContent = '';
+  $('sub-gen-status').el.style.display = 'block';
+  $('sub-gen-btn').el.text('Stop Generating');
+  $('sub-save-btn').el.style.display = 'none';
+
+  const vid = $('video-player').el;
+
+  subtitleRecognition.onresult = (event) => {
+    let interimTranscript = '';
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        const time = vid.currentTime;
+        subtitleSegments.push({ time, text: transcript });
+        const p = document.createElement('div');
+        p.textContent = `[${formatVttTime(time)}] ${transcript}`;
+        $('sub-transcript-preview').el.appendChild(p);
+        $('sub-transcript-preview').el.scrollTop = $('sub-transcript-preview').el.scrollHeight;
+      } else {
+        interimTranscript += transcript;
+      }
+    }
+  };
+
+  subtitleRecognition.onend = () => {
+    subtitleRecognition = null;
+    $('sub-gen-status').el.style.display = 'none';
+    $('sub-gen-btn').el.text('Generate (EN)');
+    if (subtitleSegments.length > 0) {
+      $('sub-save-btn').el.style.display = 'block';
+    }
+  };
+
+  subtitleRecognition.onerror = (event) => {
+    console.error("Speech recognition error:", event.error);
+    if (subtitleRecognition) subtitleRecognition.stop();
+  };
+
+  subtitleRecognition.start();
+}
+
+async function saveGeneratedSubtitles() {
+  if (subtitleSegments.length === 0) return;
+
+  let vtt = "WEBVTT\n\n";
+  for (let i = 0; i < subtitleSegments.length; i++) {
+    const start = subtitleSegments[i].time;
+    // Estimate end time as next segment start or +3s
+    const end = (i < subtitleSegments.length - 1) ? subtitleSegments[i+1].time : start + 3;
+    vtt += `${formatVttTime(start)} --> ${formatVttTime(end)}\n${subtitleSegments[i].text.trim()}\n\n`;
+  }
+
+  try {
+    const res = await fetch(`/api/subtitles/${curV.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vtt })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toast('✅ Subtitles saved!');
+      // Refresh subtitles list in player
+      const vid = $('video-player').el;
+      const subsRes = await fetch(`/api/subtitles/${curV.id}`);
+      const subs = await subsRes.json();
+      
+      // Remove existing tracks
+      Array.from(vid.querySelectorAll('track')).forEach(t => t.remove());
+      
+      // Add new tracks
+      subs.forEach((s, idx) => {
+        const track = document.createElement('track');
+        track.kind = 'subtitles';
+        track.label = s.label;
+        track.srclang = 'en';
+        track.src = `/api/subtitle-file/${curV.id}/${encodeURIComponent(s.filename)}`;
+        if (s.filename === data.filename) track.default = true;
+        vid.appendChild(track);
+      });
+      
+      $('sub-save-btn').el.style.display = 'none';
+    } else {
+      alert("Error saving subtitles: " + data.error);
+    }
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+}
+
+function formatVttTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+}
