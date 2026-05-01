@@ -1,5 +1,5 @@
 // ─── Global State ───
-let V = [], cats = [], sort = 'date', cat = '', q = '', favM = false, curV = null, renId = null;
+let V = [], cats = [], sort = 'date', cat = '', q = '', favM = false, favFilter = false, curV = null, renId = null;
 let _allVideos = []; // full unfiltered video list for local filtering
 let _dbTagTerms = {}; // displayName → terms[], populated by loadTagSidebar
 let srcFilter = 'both'; // 'both' | 'local' | 'remote'
@@ -10,6 +10,8 @@ let mosaicOn = false, mosaicTimer = null, mosaicIv = 8;
 let vaultMode = false, vaultSelMode = false, scraperMode = false, importFavsMode = false, booksMode = false, audioMode = false, photosMode = false, pagesMode = false, categoriesMode = false;
 let remoteMode = false;
 const vaultSel = new Set();
+const videoSel = new Set();
+let videoSelMode = false;
 let vaultFiles = [], vaultPl = [], vaultPlIdx = 0, vaultQ = '', vaultSort = 'mtime', vaultSortDir = 'desc', vaultShuf = false, vaultPhotoIdx = -1, vaultPhotos = [];
 let vaultFolders = [], vaultCurFolder = null; // null = root
 const VAULT_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);

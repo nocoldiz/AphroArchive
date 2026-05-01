@@ -150,10 +150,15 @@ function apiVideos(req, res, params) {
   const q    = params.get('q');
   const cat  = params.get('category');
   const sort = params.get('sort') || 'date';
+  const fav  = params.get('fav') === '1' || params.get('fav') === 'true';
   
   if (q) { 
     const l = q.toLowerCase(); 
     list = list.filter(v => v.name.toLowerCase().includes(l) || v.category.toLowerCase().includes(l) || (meta[v.id]?.tags || []).some(t => t.toLowerCase().includes(l))); 
+  }
+
+  if (fav) {
+    list = list.filter(v => v.fav);
   }
   
   // 1. Check for strict null instead of truthiness
@@ -582,11 +587,19 @@ function apiTagVideos(req, res, tagName) {
   const videos = allVideos();
   const favs   = loadFavs();
   const tagLo  = tagName.toLowerCase();
-  const list   = videos
+  
+  const parsed = require('url').parse(req.url, true);
+  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+
+  let list = videos
     .filter(v => (meta[v.id]?.tags || []).some(t => t.toLowerCase() === tagLo))
-    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }))
-    .sort((a, b) => b.mtime - a.mtime);
-  if (!list.length) return json(res, { error: 'Not found' }, 404);
+    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
+  
+  if (fav) list = list.filter(v => v.fav);
+  
+  list.sort((a, b) => b.mtime - a.mtime);
+  
+  if (!list.length && !fav) return json(res, { error: 'Not found' }, 404);
   json(res, { tag: tagName, videos: list });
 }
 
@@ -624,14 +637,22 @@ function apiDbTagVideos(req, res, name) {
   const videos  = allVideos();
   const favs    = loadFavs();
   const termsLo = cat.terms.map(t => t.toLowerCase());
-  const list    = videos
+
+  const parsed = require('url').parse(req.url, true);
+  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+
+  let list = videos
     .filter(v => {
       const vTagsLo = (meta[v.id]?.tags || []).map(t => t.toLowerCase());
       return vTagsLo.some(t => termsLo.includes(t)) || wordMatchAny(v.name, cat.terms);
     })
-    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }))
-    .sort((a, b) => b.mtime - a.mtime);
-  if (!list.length) return json(res, { error: 'Not found' }, 404);
+    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
+
+  if (fav) list = list.filter(v => v.fav);
+
+  list.sort((a, b) => b.mtime - a.mtime);
+
+  if (!list.length && !fav) return json(res, { error: 'Not found' }, 404);
   json(res, { tag: cat.displayName, videos: list });
 }
 
@@ -689,13 +710,21 @@ function apiStudioVideos(req, res, studioName) {
   const meta     = loadVideoMeta();
   const favs     = loadFavs();
   const studioLo = entry.name.toLowerCase();
-  const list     = videos
+
+  const parsed = require('url').parse(req.url, true);
+  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+
+  let list = videos
     .filter(v => {
       const ms = (meta[v.id]?.studio || '').toLowerCase();
       return ms === studioLo || wordMatchAny(v.name, entry.terms);
     })
-    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }))
-    .sort((a, b) => b.mtime - a.mtime);
+    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
+
+  if (fav) list = list.filter(v => v.fav);
+
+  list.sort((a, b) => b.mtime - a.mtime);
+
   json(res, { studio: entry.name, videos: list });
 }
 

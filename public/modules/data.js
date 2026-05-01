@@ -3,6 +3,7 @@ async function load() {
   const p = new URLSearchParams();
   if (q) p.set('q', q);
   if (cat) p.set('category', cat);
+  if (favFilter) p.set('fav', '1');
   p.set('sort', sort);
   V = await (await fetch('/api/videos?' + p)).json();
   if (!q && !cat) _allVideos = V; // cache for local filtering
@@ -26,13 +27,17 @@ function _applySort(list) {
 }
 
 function filterVideosCat(catFilter) {
-  if (!catFilter) return _applySort(_allVideos);
-  return _applySort(_allVideos.filter(v => v.catPath === catFilter || v.category === catFilter));
+  if (!catFilter) return _applySort(favFilter ? _allVideos.filter(v => v.fav) : _allVideos);
+  return _applySort(_allVideos.filter(v => {
+    if (favFilter && !v.fav) return false;
+    return v.catPath === catFilter || v.category === catFilter;
+  }));
 }
 
 function filterVideosByTag(terms) {
   const termsLo = terms.map(t => t.toLowerCase());
   return _applySort(_allVideos.filter(v => {
+    if (favFilter && !v.fav) return false;
     const vTagsLo = (v.tags || []).map(t => t.toLowerCase());
     return vTagsLo.some(t => termsLo.includes(t)) || terms.some(t => _wordMatch(v.name, t));
   }));

@@ -33,10 +33,13 @@ function renderCollections(cols) {
 
 async function openCollectionDetail(name) {
   if (location.pathname !== '/collection/' + encodeURIComponent(name)) history.pushState(null, '', '/collection/' + encodeURIComponent(name));
+  if (curCollection !== name) closeAllViews();
   curCollection = name;
+  collectionsMode = true;
   $('collection-title').text(name);
   $('collection-new-row').show(false);
-  const videos = await (await fetch('/api/collections/' + encodeURIComponent(name) + '/videos')).json();
+  const url = '/api/collections/' + encodeURIComponent(name) + '/videos' + (favFilter ? '?fav=1' : '');
+  const videos = await (await fetch(url)).json();
   const el = $('collection-content').el;
   el.innerHTML =
     '<button class="back-btn" style="margin-bottom:16px" onclick="showCollections()">' +

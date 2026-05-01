@@ -444,6 +444,7 @@
             <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
             <button class="sort-btn" data-s="size" onclick="setSort('size',this)">Size</button>
             <button class="sort-btn" data-s="duration" onclick="setSort('duration',this)">Length</button>
+            <button class="sort-btn" id="favFilterBtn" onclick="toggleStarredFilter()">Starred Only</button>
             <button class="sort-btn" id="shBtn" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24"
                 fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px">
                 <path d="M16 3h5v5" />
@@ -768,6 +769,7 @@
             <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
             <button class="sort-btn" data-s="size" onclick="setSort('size',this)">Size</button>
             <button class="sort-btn" data-s="duration" onclick="setSort('duration',this)">Length</button>
+            <button class="sort-btn" id="favFilterBtnTag" onclick="toggleStarredFilter()">Starred Only</button>
             <button class="sort-btn" id="shBtnTag" onclick="toggleShuf()"><svg width="11" height="11"
                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                 style="margin-right:3px;vertical-align:-1px">
@@ -845,6 +847,9 @@
         </button>
         <div class="section-header">
           <h2 id="studio-detail-name"></h2>
+          <div class="section-controls">
+            <button class="sort-btn" id="favFilterBtnStudio" onclick="toggleStarredFilter()">Starred Only</button>
+          </div>
         </div>
         <div class="video-grid" id="studio-detail-grid"></div>
       </div>
@@ -870,6 +875,9 @@
         </button>
         <div class="section-header">
           <h2 id="actor-detail-name"></h2>
+          <div class="section-controls">
+            <button class="sort-btn" id="favFilterBtnActor" onclick="toggleStarredFilter()">Starred Only</button>
+          </div>
         </div>
         <div class="video-grid" id="actor-detail-grid"></div>
       </div>
@@ -1381,6 +1389,9 @@
       <div class="collections-view" id="collections-view">
         <div class="section-header">
           <h2><span id="collection-title">Playlist</span></h2>
+          <div class="section-controls">
+            <button class="sort-btn" id="favFilterBtnCol" onclick="toggleStarredFilter()">Starred Only</button>
+          </div>
         </div>
         <div class="collection-new-row" id="collection-new-row">
           <input type="text" id="collection-name-input" placeholder="New playlist name…" autocomplete="off"

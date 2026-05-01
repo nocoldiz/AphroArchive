@@ -94,13 +94,21 @@ function apiActorVideos(req, res, actorName) {
   const meta     = loadVideoMeta();
   const favs     = loadFavs();
   const actorLo  = entry.name.toLowerCase();
-  const list     = videos
+
+  const parsed = require('url').parse(req.url, true);
+  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+
+  let list = videos
     .filter(v => {
       const ma = meta[v.id]?.actors || [];
       return ma.some(a => a.toLowerCase() === actorLo) || actorMatchesAny(v.name, entry.terms);
     })
-    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }))
-    .sort((a, b) => b.mtime - a.mtime);
+    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
+
+  if (fav) list = list.filter(v => v.fav);
+
+  list.sort((a, b) => b.mtime - a.mtime);
+
   json(res, { actor: entry.name, videos: list });
 }
 

@@ -60,12 +60,15 @@ function renderStudios(studios) {
 
 async function openStudio(name) {
   if (location.pathname !== '/studio/' + encodeURIComponent(name)) history.pushState(null, '', '/studio/' + encodeURIComponent(name));
+  if (curStudio !== name) closeAllViews();
   curStudio = name;
+  studioMode = true;
   $('studios-view').remove('on');
   $('studio-detail-view').add('on');
   $('studio-detail-name').text(name);
   $('studio-detail-grid').html(tpl('loading', { message: 'Loading\u2026' }));
-  const d = await (await fetch('/api/studios/' + encodeURIComponent(name))).json();
+  const url = '/api/studios/' + encodeURIComponent(name) + (favFilter ? '?fav=1' : '');
+  const d = await (await fetch(url)).json();
   if (d.error) { $('studio-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   $('studio-detail-grid').html(d.videos.map(card).join(''));
   _staggerFadeIn($('studio-detail-grid').el);

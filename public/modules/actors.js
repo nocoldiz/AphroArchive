@@ -65,12 +65,15 @@ function renderActors(actors) {
 
 async function openActor(name) {
   if (location.pathname !== '/actor/' + encodeURIComponent(name)) history.pushState(null, '', '/actor/' + encodeURIComponent(name));
+  if (curActor !== name) closeAllViews();
   curActor = name;
+  actorMode = true;
   $('actors-view').remove('on');
   $('actor-detail-view').add('on');
   $('actor-detail-name').text(name);
   $('actor-detail-grid').html(tpl('loading', { message: 'Loading\u2026' }));
-  const d = await (await fetch('/api/actors/' + encodeURIComponent(name))).json();
+  const url = '/api/actors/' + encodeURIComponent(name) + (favFilter ? '?fav=1' : '');
+  const d = await (await fetch(url)).json();
   if (d.error) { $('actor-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   $('actor-detail-grid').html(d.videos.map(card).join(''));
   _staggerFadeIn($('actor-detail-grid').el);
@@ -79,6 +82,7 @@ async function openActor(name) {
 
 async function openActorFromVideo(name) {
   if (location.pathname !== '/actor/' + encodeURIComponent(name)) history.pushState(null, '', '/actor/' + encodeURIComponent(name));
+  if (curActor !== name) closeAllViews();
   actorMode = true;
   curActor = name;
   $('player-view').remove('on');
@@ -89,7 +93,8 @@ async function openActorFromVideo(name) {
   $('actor-detail-view').add('on');
   $('actor-detail-name').text(name);
   $('actor-detail-grid').html(tpl('loading', { message: 'Loading\u2026' }));
-  const d = await (await fetch('/api/actors/' + encodeURIComponent(name))).json();
+  const url = '/api/actors/' + encodeURIComponent(name) + (favFilter ? '?fav=1' : '');
+  const d = await (await fetch(url)).json();
   if (d.error) { $('actor-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   $('actor-detail-grid').html(d.videos.map(card).join(''));
   _staggerFadeIn($('actor-detail-grid').el);

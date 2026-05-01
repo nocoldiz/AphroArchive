@@ -221,7 +221,27 @@ function toggleFav() {
   $('section-title').text(favM ? 'Favourites' : 'All Videos');
   if (favM) { cat = ''; history.pushState(null, '', '/favourites'); }
   else history.pushState(null, '', '/');
+  
+  // Reset the inline fav filter when switching to global favourites
+  favFilter = false;
+  document.querySelectorAll('#favFilterBtn, #favFilterBtnTag, #favFilterBtnStudio, #favFilterBtnActor, #favFilterBtnCol').forEach(b => b.classList.remove('on'));
+  
   refresh();
+}
+
+function toggleStarredFilter() {
+  favFilter = !favFilter;
+  document.querySelectorAll('#favFilterBtn, #favFilterBtnTag, #favFilterBtnStudio, #favFilterBtnActor, #favFilterBtnCol').forEach(b => {
+    b.classList.toggle('on', favFilter);
+  });
+  
+  if (curTag) openTag(curTag);
+  else if (studioMode && curStudio) openStudio(curStudio);
+  else if (actorMode && curActor) openActor(curActor);
+  else if (collectionsMode && curCollection) openCollectionDetail(curCollection);
+  else {
+    load().then(() => render());
+  }
 }
 
 // ─── Sorting ───
@@ -389,7 +409,7 @@ if (localStorage.getItem('pan')) { document.body.classList.add('pan'); $('panBtn
 async function routeToPath(path) {
   let m;
   if (path === '/' || path === '') { showHome(); return; }
-  if (path === '/favourites') { if (!favM) toggleFav(); return; }
+  if (path === '/favourites') { if (!favM) { favM = true; $('fBtn').add('on'); } refresh(); return; }
   if (path === '/bookmarks') { showImportFavs(); return; }
   if (path === '/duplicates') { showDups(); return; }
   if (path === '/vault') { showVault(); return; }

@@ -132,7 +132,8 @@ function onTagModalKeydown(e) {
 async function openTag(name) {
   if (dualMode && dualActive === 'right') { await dualOpenTag(name); return; }
   if (location.pathname !== '/tag/' + encodeURIComponent(name)) history.pushState(null, '', '/tag/' + encodeURIComponent(name));
-  closeAllViews();
+  
+  if (curTag !== name) closeAllViews();
   curTag = name;
   $('browse-view').add('off');
   $('tag-detail-view').add('on');
@@ -157,7 +158,8 @@ async function openTag(name) {
 
   // Slow path — fetch from server (first visit or cache miss)
   $('tag-grid').html(Array(8).fill(tpl('skeleton')).join(''));
-  const d = await (await fetch('/api/db-tags/' + encodeURIComponent(name))).json();
+  const url = '/api/db-tags/' + encodeURIComponent(name) + (favFilter ? '?fav=1' : '');
+  const d = await (await fetch(url)).json();
   if (d.error) { $('tag-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   let localVids = srcFilter === 'remote' ? [] : d.videos;
   if (shuf) {

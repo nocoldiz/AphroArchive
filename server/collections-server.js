@@ -65,7 +65,20 @@ function apiCollectionVideos(req, res, name) {
   const col    = cols.find(c => c.name === name);
   if (!col) return json(res, { error: 'Not found' }, 404);
   const videos = allVideos();
-  json(res, col.ids.map(id => videos.find(v => v.id === id)).filter(Boolean));
+  const favs   = require('./db-server').loadFavs();
+  
+  const parsed = require('url').parse(req.url, true);
+  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+
+  let list = col.ids.map(id => {
+    const v = videos.find(x => x.id === id);
+    if (!v) return null;
+    return { ...v, fav: favs.includes(v.id) };
+  }).filter(Boolean);
+
+  if (fav) list = list.filter(v => v.fav);
+
+  json(res, list);
 }
 
 module.exports = {
