@@ -1756,7 +1756,7 @@
         </button>
         <div class="pv-layout">
           <div class="pv-main">
-            <div class="video-player-wrap"><video id="video-player" controls autoplay></video></div>
+            <div class="video-player-wrap" draggable="true" ondragstart="if(curV) dragVideoStart(event,curV.id)"><video id="video-player" controls autoplay></video></div>
             <div class="mos-ui" id="zap-ui"
               style="display:none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 8px; align-items: center; gap: 15px;">
               <div class="mos-c" style="display:flex; align-items:center; gap:8px;">
@@ -2126,7 +2126,7 @@
 
   <!-- Move Modal -->
   <div class="modal-overlay" id="move-modal">
-    <div class="modal-dialog">
+    <div class="modal-dialog" style="max-width:800px; width:90vw">
       <h3>Move to category</h3>
       <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:12px" id="move-info"></p>
       <div id="move-list" class="move-list"></div>
