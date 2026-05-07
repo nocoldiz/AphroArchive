@@ -399,6 +399,33 @@ async function loadBmThumb(el) {
       applyThumb(el, d.img);
       const item = _bfItems.find(it => it.url === url);
       if (item && item.img !== d.img) { item.img = d.img; bfSaveCache(); }
+      
+      // If it's just an OG image (external), trigger a local screenshot generation in background
+      if (d.img.startsWith('http')) {
+        fetch('/api/bookmarks/generate-thumb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        }).then(r => r.json()).then(res => {
+          if (res.img) {
+            applyThumb(el, res.img);
+            if (item) { item.img = res.img; bfSaveCache(); }
+          }
+        }).catch(() => {});
+      }
+    } else {
+      // No OG image found, trigger generation
+      fetch('/api/bookmarks/generate-thumb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      }).then(r => r.json()).then(res => {
+        if (res.img) {
+          applyThumb(el, res.img);
+          const item = _bfItems.find(it => it.url === url);
+          if (item) { item.img = res.img; bfSaveCache(); }
+        }
+      }).catch(() => {});
     }
   } catch {}
 }

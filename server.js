@@ -54,6 +54,7 @@ fs.mkdirSync(AUDIO_DIR, { recursive: true });
 fs.mkdirSync(BOOKS_DIR, { recursive: true });
 fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 fs.mkdirSync(PAGES_DIR, { recursive: true });
+fs.mkdirSync(cfg.BM_THUMBS_DIR, { recursive: true });
 fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
 fs.mkdirSync(path.join(process.cwd(), 'models'), { recursive: true });
 
@@ -217,6 +218,10 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'PUT') return bookmarks.apiWebsiteUpdate(req, res, parseInt(m[1]));
   if (p === '/api/scrape' && req.method === 'GET') return bookmarks.apiScrape(req, res);
   if (p === '/api/og-thumb' && req.method === 'GET') return bookmarks.apiOgThumb(req, res);
+  if (p === '/api/bookmarks/generate-thumb' && req.method === 'POST') return bookmarks.apiGenerateBookmarkThumb(req, res);
+  if (p === '/api/bookmarks/generate-all' && req.method === 'POST') return bookmarks.apiGenerateAllBookmarkThumbs(req, res);
+  if (p === '/api/bookmarks/generation-status' && req.method === 'GET') return bookmarks.apiBookmarkGenerationStatus(req, res);
+  if ((m = p.match(/^\/api\/bookmarks\/thumbs\/(.+)$/)) && req.method === 'GET') return bookmarks.apiBookmarkThumbImg(req, res, m[1]);
   if (p === '/api/bookmarks/cache' && req.method === 'GET') return bookmarks.apiGetBookmarksCache(req, res);
   if (p === '/api/bookmarks/cache' && req.method === 'POST') return bookmarks.apiSaveBookmarksCache(req, res);
   if (p === '/api/browser-favs' && req.method === 'GET') return bookmarks.apiBrowserFavs(req, res);

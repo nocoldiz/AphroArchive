@@ -324,10 +324,35 @@ async function bfFetchThumb(item, idx) {
     const r = await fetch('/api/og-thumb?url=' + encodeURIComponent(item.url));
     const d = await r.json();
     if (!thumbEl.isConnected) return;
+    const setImg = (src) => {
+      thumbEl.outerHTML = '<img src="' + esc(src) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.outerHTML=\'<div class=bf-card-thumb-ph><svg width=28 height=28 viewBox=&quot;0 0 24 24&quot; fill=none stroke=currentColor stroke-width=1.5><path d=&quot;M15 10l4.553-2.553A1 1 0 0 1 21 8.382V17a1 1 0 0 1-1.553.832L15 15M3 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z&quot;/></svg></div>\'">';
+    };
     if (d.img) {
-      thumbEl.outerHTML = '<img src="' + esc(d.img) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.outerHTML=\'<div class=bf-card-thumb-ph><svg width=28 height=28 viewBox=&quot;0 0 24 24&quot; fill=none stroke=currentColor stroke-width=1.5><path d=&quot;M15 10l4.553-2.553A1 1 0 0 1 21 8.382V17a1 1 0 0 1-1.553.832L15 15M3 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z&quot;/></svg></div>\'">';
+      setImg(d.img);
+      if (d.img.startsWith('http')) {
+        fetch('/api/bookmarks/generate-thumb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: item.url })
+        }).then(res => res.json()).then(data => {
+          if (data.img) item.img = data.img;
+        }).catch(() => {});
+      }
     } else {
-      thumbEl.outerHTML = '<div class="bf-card-thumb-ph"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l4.553-2.553A1 1 0 0 1 21 8.382V17a1 1 0 0 1-1.553.832L15 15M3 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>';
+      fetch('/api/bookmarks/generate-thumb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: item.url })
+      }).then(res => res.json()).then(data => {
+        if (data.img) {
+          item.img = data.img;
+          if (thumbEl.isConnected) setImg(data.img);
+        } else {
+          thumbEl.outerHTML = '<div class="bf-card-thumb-ph"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l4.553-2.553A1 1 0 0 1 21 8.382V17a1 1 0 0 1-1.553.832L15 15M3 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>';
+        }
+      }).catch(() => {
+        if (thumbEl.isConnected) thumbEl.outerHTML = '<div class="bf-card-thumb-ph"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l4.553-2.553A1 1 0 0 1 21 8.382V17a1 1 0 0 1-1.553.832L15 15M3 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>';
+      });
     }
   } catch {
     if (thumbEl && thumbEl.isConnected) thumbEl.outerHTML = '<div class="bf-card-thumb-ph"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l4.553-2.553A1 1 0 0 1 21 8.382V17a1 1 0 0 1-1.553.832L15 15M3 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>';
@@ -472,4 +497,60 @@ async function clearDoneJobs() {
     fetch('/api/download/jobs/' + j.id, { method: 'DELETE' })
   ));
   renderDlQueue();
+}
+// ─── Bookmark Thumbnail Generation ───
+let _bmGenEvtSource = null;
+
+async function bfGenerateAllThumbs() {
+  const btn = $('bfGenAllBtn').el;
+  if (btn.disabled) return;
+  
+  if (!confirm('This will launch a headless browser for each bookmark to take a screenshot. It may take some time. Continue?')) return;
+  
+  try {
+    const r = await fetch('/api/bookmarks/generate-all', { method: 'POST' });
+    if (!r.ok) throw new Error('Failed to start generation');
+    bfStartStatusPoller();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+function bfStartStatusPoller() {
+  if (_bmGenEvtSource) return;
+  const prog = $('bfGenProgress').el;
+  const btn = $('bfGenAllBtn').el;
+  
+  prog.style.display = 'block';
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+
+  _bmGenEvtSource = new EventSource('/api/bookmarks/generation-status');
+  _bmGenEvtSource.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.running) {
+      const pct = Math.round((data.done / data.total) * 100) || 0;
+      prog.innerHTML = `
+        <div class="vault-progress-bar"><div class="vault-progress-fill" style="width:${pct}%"></div></div>
+        <div class="vault-progress-text">Generating thumbnails: ${data.done} / ${data.total} (${pct}%) — ${esc(data.current)}</div>
+      `;
+    } else if (data.done !== undefined) {
+      prog.innerHTML = `<div class="vault-progress-text" style="color:var(--ac)">Generation complete: ${data.done} done, ${data.failed} failed.</div>`;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      setTimeout(() => { 
+        prog.style.display = 'none';
+        if (importFavsMode) bfRenderList(_bfVisible);
+        else render();
+      }, 3000);
+      _bmGenEvtSource.close();
+      _bmGenEvtSource = null;
+    }
+  };
+  _bmGenEvtSource.onerror = () => {
+    _bmGenEvtSource.close();
+    _bmGenEvtSource = null;
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  };
 }

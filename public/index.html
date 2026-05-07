@@ -1538,9 +1538,13 @@
         <div class="section-header">
           <h2>Bookmarks</h2>
         </div>
-        <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Import bookmarks from Chrome or Firefox
-          filtered by your <span style="color:var(--ac);cursor:pointer"
-            onclick="showDatabase();dbSwitchTab('websites')">websites list</span>.</p>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+          <p style="font-size:0.82rem;color:var(--tx2);margin:0">Import bookmarks from Chrome or Firefox filtered by your <span style="color:var(--ac);cursor:pointer" onclick="showDatabase();dbSwitchTab('websites')">websites list</span>.</p>
+          <button class="sort-btn" id="bfGenAllBtn" onclick="bfGenerateAllThumbs()" style="margin-left:auto">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:-1px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Generate All Thumbnails
+          </button>
+        </div>
+        <div id="bfGenProgress" class="vault-progress" style="display:none;margin-bottom:15px"></div>
 
         <div class="bf-import-grid">
           <!-- Chrome -->
