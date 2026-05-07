@@ -65,7 +65,10 @@ function renderActors(actors) {
 
 async function openActor(name) {
   if (location.pathname !== '/actor/' + encodeURIComponent(name)) history.pushState(null, '', '/actor/' + encodeURIComponent(name));
-  if (curActor !== name) closeAllViews();
+  if (curActor !== name) {
+    closeAllViews();
+    resetRenderLimit();
+  }
   curActor = name;
   actorMode = true;
   $('actors-view').remove('on');
@@ -76,7 +79,8 @@ async function openActor(name) {
   const d = await (await fetch(url)).json();
   if (d.error) { $('actor-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   const sortedVids = _applySort(d.videos);
-  $('actor-detail-grid').html(sortedVids.map(card).join(''));
+  const slice = sortedVids.slice(0, _renderLimit);
+  $('actor-detail-grid').html(slice.map(card).join(''));
   _staggerFadeIn($('actor-detail-grid').el);
   attachThumbs();
 }

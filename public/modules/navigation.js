@@ -452,6 +452,21 @@ async function routeToPath(path) {
 
 window.addEventListener('popstate', () => { routeToPath(location.pathname); });
 
+window.addEventListener('scroll', () => {
+  const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+  const scrolled = window.scrollY;
+  if (scrollable - scrolled < 800) {
+    const total = (V ? V.length : 0) + (typeof getBmList === 'function' ? getBmList().length : 0);
+    if (_renderLimit < total) {
+      _renderLimit += 60;
+      if (curTag) openTag(curTag);
+      else if (studioMode && curStudio) openStudio(curStudio);
+      else if (actorMode && curActor) openActor(curActor);
+      else render();
+    }
+  }
+});
+
 init().then(() => {
   routeToPath(location.pathname);
 });

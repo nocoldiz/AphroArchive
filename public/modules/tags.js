@@ -135,7 +135,10 @@ async function openTag(name) {
   if (dualMode && dualActive === 'right') { await dualOpenTag(name); return; }
   if (location.pathname !== '/tag/' + encodeURIComponent(name)) history.pushState(null, '', '/tag/' + encodeURIComponent(name));
   
-  if (curTag !== name) closeAllViews();
+  if (curTag !== name) {
+    closeAllViews();
+    resetRenderLimit();
+  }
   curTag = name;
   $('browse-view').add('off');
   $('tag-detail-view').add('on');
@@ -167,11 +170,15 @@ async function openTag(name) {
 
     const g = $('tag-grid').el;
     localVids = _applySort(localVids);
-    g.innerHTML = localVids.map(card).join('') + finalBms.map(bmCard).join('');
+    
+    const localSlice = localVids.slice(0, _renderLimit);
+    const remainingLimit = Math.max(0, _renderLimit - localSlice.length);
+    const bmSlice = finalBms.slice(0, remainingLimit);
+
+    g.innerHTML = localSlice.map(card).join('') + bmSlice.map(bmCard).join('');
     _staggerFadeIn(g);
     attachThumbs();
     attachBmThumbs();
-    queueAllThumbs(localVids);
     return;
   }
 
@@ -190,15 +197,8 @@ async function openTag(name) {
     );
   }
 
-  if (shuf) {
-    localVids = localVids.slice().sort(() => Math.random() - 0.5);
-  } else if (sort === 'name') {
-    localVids = localVids.slice().sort((a, b) => a.name.localeCompare(b.name));
-  } else if (sort === 'size') {
-    localVids = localVids.slice().sort((a, b) => b.size - a.size);
-  } else if (sort === 'duration') {
-    localVids = localVids.slice().sort((a, b) => (b.duration || 0) - (a.duration || 0));
-  }
+  localVids = _applySort(localVids);
+  
   const bms = srcFilter !== 'local' ? getBmList() : [];
   let finalBms = bms;
   if (galleryFilter) {
@@ -206,12 +206,15 @@ async function openTag(name) {
   }
 
   const g2 = $('tag-grid').el;
-  localVids = _applySort(localVids);
-  g2.innerHTML = localVids.map(card).join('') + finalBms.map(bmCard).join('');
+  
+  const localSlice2 = localVids.slice(0, _renderLimit);
+  const remainingLimit2 = Math.max(0, _renderLimit - localSlice2.length);
+  const bmSlice2 = finalBms.slice(0, remainingLimit2);
+
+  g2.innerHTML = localSlice2.map(card).join('') + bmSlice2.map(bmCard).join('');
   _staggerFadeIn(g2);
   attachThumbs();
   attachBmThumbs();
-  queueAllThumbs(localVids);
 }
 
 function closeTag() {

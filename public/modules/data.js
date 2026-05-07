@@ -63,6 +63,7 @@ async function createCategory() {
 }
 
 async function refresh(full = false) {
+  resetRenderLimit();
   if (categoriesMode) {
     $('categories-view').remove('on');
     $('categories-view-sidebar').remove('on');

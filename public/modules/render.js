@@ -2,6 +2,10 @@
 function _staggerFadeIn(container) {
   const cards = container.querySelectorAll('.video-card, .bm-card');
   cards.forEach((el, i) => {
+    if (i > 40) {
+      el.classList.add('fade-in'); // Still add class for opacity 1 if needed by CSS
+      return;
+    }
     el.classList.add('fade-in');
     el.style.animationDelay = Math.min(i * 35, 420) + 'ms';
   });
@@ -64,15 +68,26 @@ function dragVideoStart(e, id) {
   e.dataTransfer.effectAllowed = 'move';
 }
 
+let galleryFilterTO;
 function onGalleryFilter(val) {
-  galleryFilter = val.trim().toLowerCase();
-  if (curTag) openTag(curTag);
-  else render();
+  clearTimeout(galleryFilterTO);
+  galleryFilterTO = setTimeout(() => {
+    galleryFilter = val.trim().toLowerCase();
+    resetRenderLimit();
+    if (curTag) openTag(curTag);
+    else render();
+  }, 200);
+}
+
+function resetRenderLimit() {
+  _renderLimit = 60;
 }
 
 // ─── Main Grid ───
 function render() {
   const g = $('video-grid').el, e = $('empty-placeholder').el;
+  if (!g) return;
+  
   let base = recentMode ? recentVids : favM ? V.filter(v => v.fav) : V;
   
   // Local gallery filter
@@ -99,6 +114,7 @@ function render() {
     const filtered = q || favM || recentMode || (cat && cat !== '') || galleryFilter;
     countEl.textContent = filtered ? total + ' result' + (total !== 1 ? 's' : '') : '';
   }
+
   if (!local.length && !finalBms.length) {
     g.innerHTML = '';
     e.style.display = 'block';
@@ -108,12 +124,16 @@ function render() {
     return;
   }
   e.style.display = 'none';
-  g.innerHTML = local.map(card).join('') + finalBms.map(bmCard).join('');
+
+  // Infinite Scroll Slice
+  const localSlice = local.slice(0, _renderLimit);
+  const remainingLimit = Math.max(0, _renderLimit - localSlice.length);
+  const bmSlice = finalBms.slice(0, remainingLimit);
+
+  g.innerHTML = localSlice.map(card).join('') + bmSlice.map(bmCard).join('');
   _staggerFadeIn(g);
   attachThumbs();
   attachBmThumbs();
-  // Pre-generate thumbs for the whole filtered set so scrolling is instant
-  if (q || cat || favM || recentMode) queueAllThumbs(local);
   renderSearchExtras(q);
 }
 

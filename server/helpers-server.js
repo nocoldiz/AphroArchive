@@ -40,16 +40,32 @@ function safePath(id) {
 
 // ── String matching ──────────────────────────────────────────────────
 
+const _matchCache = new Map();
 function wordMatch(name, term) {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp('\\b' + escaped + '\\b', 'i').test(name);
+  let re = _matchCache.get(term);
+  if (!re) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    re = new RegExp('\\b' + escaped + '\\b', 'i');
+    if (_matchCache.size > 1000) _matchCache.clear(); // simple LRU-ish
+    _matchCache.set(term, re);
+  }
+  return re.test(name);
 }
 function wordMatchAny(name, terms) {
   return terms.some(t => wordMatch(name, t));
 }
 
 // Normalize a string for fuzzy studio matching: lowercase, strip spaces/dashes/underscores
-function normStudio(s) { return s.toLowerCase().replace(/[\s\-_]+/g, ''); }
+const _normCache = new Map();
+function normStudio(s) {
+  let res = _normCache.get(s);
+  if (!res) {
+    res = s.toLowerCase().replace(/[\s\-_]+/g, '');
+    if (_normCache.size > 2000) _normCache.clear();
+    _normCache.set(s, res);
+  }
+  return res;
+}
 function studioMatchAny(name, terms) {
   const normName = normStudio(name);
   return terms.some(t => {
@@ -59,18 +75,21 @@ function studioMatchAny(name, terms) {
   });
 }
 
+const _actorPartsCache = new Map();
 function actorMatches(videoName, actor) {
-  // Ensure both arguments are strings before proceeding
-  if (typeof videoName !== 'string' || typeof actor !== 'string') {
-    return false; 
-  }
+  if (typeof videoName !== 'string' || typeof actor !== 'string') return false;
   
   const vn = videoName.toLowerCase();
   const an = actor.toLowerCase();
-  
   if (vn.includes(an)) return true;
   
-  const parts = an.split(/\s+/).filter(p => p.length > 1);
+  let parts = _actorPartsCache.get(an);
+  if (!parts) {
+    parts = an.split(/\s+/).filter(p => p.length > 1);
+    if (_actorPartsCache.size > 2000) _actorPartsCache.clear();
+    _actorPartsCache.set(an, parts);
+  }
+  
   return parts.length > 1 && parts.every(p => vn.includes(p));
 }
 function actorMatchesAny(videoName, terms) {

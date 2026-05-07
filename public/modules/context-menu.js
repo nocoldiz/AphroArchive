@@ -255,6 +255,11 @@ async function ctxRenameCategory(path, oldName) {
     toast('Category renamed');
     if (typeof loadCategoriesView === 'function' && categoriesMode) loadCategoriesView();
     if (typeof refresh === 'function') refresh(true);
+    // Update sidebar
+    const r2 = await fetch('/api/categories');
+    cats = await r2.json();
+    if (typeof renCats === 'function') renCats();
+    if (typeof renderMainCategories === 'function') renderMainCategories();
   } else {
     const err = await r.json();
     toast('Rename failed: ' + (err.error || 'Unknown error'));
@@ -269,16 +274,7 @@ async function ctxOpenCategoryFolder(path) {
   });
   if (!r.ok) toast('Failed to open folder');
 }
-    // Also update sidebar
-    const r2 = await fetch('/api/categories');
-    cats = await r2.json();
-    if (typeof renCats === 'function') renCats();
-    if (typeof renderMainCategories === 'function') renderMainCategories();
-  } else {
-    const err = await r.json();
-    toast('Rename failed: ' + (err.error || 'Unknown error'));
-  }
-}
+
 
 async function ctxDeleteCategory(path, name) {
   if (!confirm(`Delete category "${name}"?\nAll videos inside will be moved to the main videos folder.`)) return;

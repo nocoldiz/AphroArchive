@@ -60,7 +60,10 @@ function renderStudios(studios) {
 
 async function openStudio(name) {
   if (location.pathname !== '/studio/' + encodeURIComponent(name)) history.pushState(null, '', '/studio/' + encodeURIComponent(name));
-  if (curStudio !== name) closeAllViews();
+  if (curStudio !== name) {
+    closeAllViews();
+    resetRenderLimit();
+  }
   curStudio = name;
   studioMode = true;
   $('studios-view').remove('on');
@@ -71,7 +74,8 @@ async function openStudio(name) {
   const d = await (await fetch(url)).json();
   if (d.error) { $('studio-detail-grid').html(tpl('empty-state', { title: esc(d.error) })); return; }
   const sortedVids = _applySort(d.videos);
-  $('studio-detail-grid').html(sortedVids.map(card).join(''));
+  const slice = sortedVids.slice(0, _renderLimit);
+  $('studio-detail-grid').html(slice.map(card).join(''));
   _staggerFadeIn($('studio-detail-grid').el);
   attachThumbs();
 }
