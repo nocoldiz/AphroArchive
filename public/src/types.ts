@@ -1,0 +1,40 @@
+export interface Video {
+  id: string;
+  name: string;
+  path: string;
+  relPath: string;
+  size: number;
+  duration: number;
+  mtime: number;
+  category: string;
+  starred: boolean;
+  rating?: number;
+  tags?: string[];
+  studio?: string;
+  actors?: string[];
+  isVault?: boolean;
+}
+
+export interface Category {
+  name: string;
+  path: string;
+  count: number;
+}
+
+export interface Actor {
+  name: string;
+  count: number;
+  photo?: string;
+}
+
+export interface Studio {
+  name: string;
+  count: number;
+}
+
+export interface AppPrefs {
+  theme: string;
+  cardSize: number;
+  networkEnabled: boolean;
+  chronologyMode: 'keep' | 'delete-on-startup' | 'dont-save';
+}
