@@ -1,5 +1,5 @@
 {
-  "name": "AphroArchive",
+  "name": "aphro-archive",
   "version": "1.0.0",
   "description": "Zero-dependency local video organizer",
   "main": "server.js",
@@ -25,10 +25,12 @@
   },
   "dependencies": {
     "@preact/signals": "^2.9.0",
+    "node-llama-cpp": "^3.18.1",
     "preact": "^10.29.1"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.5",
+    "@types/node": "^20.17.10",
     "@yao-pkg/pkg": "^5.12.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.10"
