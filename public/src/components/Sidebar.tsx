@@ -70,6 +70,8 @@ export const Sidebar = () => {
         {categories.value.length > 15 && (
           <SidebarItem label="More Categories..." onClick={() => setView('categories', 'showCategoriesView')} />
         )}
+      </div>
+
       <div className="side-sep" id="tags-sep" style={{ display: 'none' }}></div>
       <SectionHeader label="Tags" id="sh3-tags" style={{ display: 'none' }} />
       <div className="side-section" id="tagList"></div>

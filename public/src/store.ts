@@ -1,5 +1,5 @@
 import { signal, computed } from '@preact/signals';
-import { Video, Category, Actor, Studio } from './types';
+import { Video, Category, Actor, Studio, AppPrefs } from './types';
 
 // ─── Core State ──────────────────────────────────────────────────────
 export const videos = signal<Video[]>([]);
@@ -14,6 +14,11 @@ export const currentView = signal<string>('home');
 export const currentVideo = signal<Video | null>(null);
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
+
+// Bridge for legacy JS
+(window as any)._categoriesSignal = categories;
+(window as any)._videosSignal = videos;
+(window as any)._currentViewSignal = currentView;
 export const searchQuery = signal<string>('');
 export const sortMode = signal<string>('date');
 export const isShuffle = signal<boolean>(false);

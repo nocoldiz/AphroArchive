@@ -43,6 +43,7 @@ function renCats() {
     }
     h += '<div class="sidebar-item' + (activeCat === c.path ? ' on' : '') + '" onclick="selCat(\'' + escA(c.path) + '\')"' + da + ' oncontextmenu="showContextMenu(event, \'category\', {path:\'' + escA(c.path) + '\', name:\'' + escA(c.name) + '\', encrypted:' + !!c.encrypted + ', partial:' + !!c.partial + '})"><span>' + lockIcon + esc(c.name) + '</span><span class="count-badge">' + displayCount + '</span></div>';
   });
+  if (!el) return;
   el.innerHTML = h;
 }
 

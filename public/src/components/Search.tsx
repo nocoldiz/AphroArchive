@@ -23,7 +23,7 @@ export const Search = () => {
         value={searchQuery.value}
         onInput={onInput}
         autoComplete="off" 
-        spellCheck={false} 
+        spellcheck={false} 
       />
       <div className="search-ghost" id="search-ghost"></div>
     </>

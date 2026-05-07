@@ -1,5 +1,5 @@
 import { useEffect } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, currentView } from './store';
+import { videos, loadVideos, loadCategories, loadPrefs, currentView } from './store';
 
 export function App() {
   useEffect(() => {

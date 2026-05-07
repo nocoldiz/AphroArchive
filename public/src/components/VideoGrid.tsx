@@ -1,5 +1,13 @@
 import { Video } from '../types';
-import { filteredVideos } from '../store';
+import { filteredVideos, currentVideo, currentView } from '../store';
+
+const openCtx = (e: any) => {
+  e.preventDefault();
+  // Call legacy context menu if available
+  if ((window as any).showContextMenu) {
+    (window as any).showContextMenu(e, 'video', { id: e.currentTarget.id.replace('v-', '') });
+  }
+};
 
 interface VideoCardProps {
   video: Video;

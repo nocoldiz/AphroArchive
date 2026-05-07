@@ -3,6 +3,7 @@ import { App } from './App';
 import { Sidebar } from './components/Sidebar';
 import { Search } from './components/Search';
 import { MainContent } from './components/MainContent';
+import { PlayerView } from './components/PlayerView';
 
 // 1. Mount the Sidebar
 const sidebarEl = document.getElementById('side');

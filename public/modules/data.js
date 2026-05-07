@@ -7,6 +7,7 @@ async function load() {
   p.set('sort', sort);
   V = await (await fetch('/api/videos?' + p)).json();
   V = _applySort(V);
+  if (window._videosSignal) window._videosSignal.value = V;
   if (!q && !cat) _allVideos = V; // cache for local filtering
 }
 
@@ -48,6 +49,7 @@ function filterVideosByTag(terms) {
 
 async function loadC() {
   cats = await (await fetch('/api/categories')).json();
+  if (window._categoriesSignal) window._categoriesSignal.value = cats;
   renCats();
 }
 
