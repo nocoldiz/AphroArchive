@@ -1,13 +1,19 @@
 // ─── Thumbnails View (Legacy) ───
-async function showThumbnails() {
-  closeAllViews();
+async function showThumbnails(skipNav = false) {
+  if (!skipNav) {
+    closeAllViews();
+    document.getElementById('thumbnails-sidebar')?.classList.add('on');
+  }
+
   const view = document.getElementById('thumbnails-view');
   if (!view) return;
-  view.style.display = 'block';
-  document.getElementById('thumbnails-sidebar')?.classList.add('on');
 
   const grid = document.getElementById('thumbnails-grid');
   grid.innerHTML = '<div class="loading">Loading thumbnails...</div>';
+
+  if (!skipNav) {
+    view.scrollIntoView({ behavior: 'smooth' });
+  }
 
   try {
     const res = await fetch('/api/thumbnails');

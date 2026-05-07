@@ -1,5 +1,8 @@
 let _mosaicPhotos = [];
 let _mosPool = []; // Cached pool for performance
+let _mosLayoutIdx = 0;
+const _mosLayouts = ['mos-layout-a', 'mos-layout-b', 'mos-layout-c', 'mos-layout-d', 'mos-layout-e'];
+let _mosCycleCounter = 0;
 
 function toggleMosaic() {
   if (mosaicOn) stopMosaic(); else startMosaic();
@@ -127,11 +130,11 @@ function buildMosaicTiles() {
 
   const n = mosTileCount;
   if (n === 6) {
-    grid.classList.add('mos-layout-6');
+    grid.classList.add(_mosLayouts[_mosLayoutIdx]);
     grid.style.gridTemplateColumns = '';
     grid.style.gridTemplateRows = '';
   } else {
-    grid.classList.remove('mos-layout-6');
+    _mosLayouts.forEach(l => grid.classList.remove(l));
     const cols = n <= 2 ? n : n <= 4 ? 2 : n <= 9 ? 3 : 4;
     grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
     grid.style.gridTemplateRows = '';
@@ -203,8 +206,32 @@ function buildMosaicTiles() {
 function scheduleMosaic() {
   clearTimeout(mosaicTimer);
   if (!mosaicOn) return;
-  mosaicTimer = setTimeout(() => { refreshMosaicTiles(); scheduleMosaic(); }, mosaicIv * 1000);
+  mosaicTimer = setTimeout(() => {
+    refreshMosaicTiles();
+    _mosCycleCounter++;
+    if (_mosCycleCounter >= 2) { // Change layout every 2 refresh intervals
+      _mosCycleCounter = 0;
+      cycleMosaicLayout();
+    }
+    scheduleMosaic();
+  }, mosaicIv * 1000);
 }
+
+function cycleMosaicLayout() {
+  if (mosTileCount !== 6) return;
+  const grid = $('mosaic-grid').el;
+  grid.classList.remove(_mosLayouts[_mosLayoutIdx]);
+  
+  // Pick a random layout different from current
+  let nextIdx = _mosLayoutIdx;
+  while (nextIdx === _mosLayoutIdx) {
+    nextIdx = Math.floor(Math.random() * _mosLayouts.length);
+  }
+  _mosLayoutIdx = nextIdx;
+  
+  grid.classList.add(_mosLayouts[_mosLayoutIdx]);
+}
+
 
 function refreshMosaicTiles() {
   if (_mosaicPhotoMode) {

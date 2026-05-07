@@ -141,6 +141,15 @@
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>Vault</span>
           </div>
+          <div class="sidebar-item" id="thumbnails-sidebar" onclick="showThumbnails()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>Thumbnails</span>
+          </div>
         </div>
 
         <!-- Browse -->
@@ -201,15 +210,7 @@
                 <polyline points="21 15 16 10 5 21" />
               </svg>Photos</span>
           </div>
-          <div class="sidebar-item" id="thumbnails-sidebar" onclick="showThumbnails()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>Thumbnails</span>
-          </div>
+
           <div class="sidebar-item" id="audio-sidebar" onclick="showAudio()">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 style="vertical-align:-2px;margin-right:5px">
@@ -2059,13 +2060,7 @@
         <div id="duplicates-content" style="display:none"></div>
       </div>
 
-      <!-- Thumbnails View -->
-      <div class="thumbnails-view" id="thumbnails-view" style="display:none">
-        <div class="section-header">
-          <h2>All Generated Thumbnails</h2>
-        </div>
-        <div class="video-grid" id="thumbnails-grid"></div>
-      </div>
+
 
       <!-- DB Add/Edit Modal -->
       <div class="modal-overlay" id="dbMo" style="display:none" onclick="if(event.target===this)closeDbModal()">
@@ -2353,6 +2348,13 @@
           </button>
         </div>
       </div>
+      <!-- Thumbnails View -->
+      <div class="thumbnails-view" id="thumbnails-view">
+        <div class="section-header">
+          <h2>All Generated Thumbnails</h2>
+        </div>
+        <div class="video-grid" id="thumbnails-grid"></div>
+      </div>
     </div>
 
     <!-- Dual Mode Right Pane -->
@@ -2460,6 +2462,16 @@
         <input type="number" class="mos-cnt-in" id="mosaic-count" min="1" max="16" value="6"
           onchange="setMosaicCount(this.value)">
       </div>
+      <button class="mos-exit" onclick="cycleMosaicLayout()" style="margin-left:12px; margin-right:0" title="Shuffle Layout">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px">
+          <polyline points="16 3 21 3 21 8" />
+          <line x1="4" y1="20" x2="21" y2="3" />
+          <polyline points="21 16 21 21 16 21" />
+          <line x1="15" y1="15" x2="21" y2="21" />
+          <line x1="4" y1="4" x2="9" y2="9" />
+        </svg>
+      </button>
+
       <button class="mos-exit" onclick="stopMosaic()">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           style="margin-right:5px;vertical-align:-2px">
