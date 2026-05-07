@@ -1265,7 +1265,7 @@ async function apiEncryptAllCategories(req, res) {
       }
 
       const relCat = path.relative(VIDEOS_DIR, dir).replace(/\\/g, '/');
-      const videos = cachedScan().filter(v => getCatKey(v.catPath) === getCatKey(relCat));
+      const videos = (await cachedScan()).filter(v => getCatKey(v.catPath) === getCatKey(relCat));
       for (const v of videos) {
         const thumbDir = path.join(THUMBS_DIR, v.id);
         if (fs.existsSync(thumbDir)) {
@@ -1314,7 +1314,7 @@ async function apiEncryptCategory(req, res) {
     }
     
     const ck = getCatKey(catPath);
-    const videos = cachedScan().filter(v => {
+    const videos = (await cachedScan()).filter(v => {
       const vk = getCatKey(v.catPath);
       return vk === ck || vk.startsWith(ck + '/');
     });
@@ -1411,7 +1411,7 @@ async function apiUnlockCategory(req, res) {
 
     // Try to unlock subfolders recursively if they use the same password
     const ck = getCatKey(catPath);
-    const subCats = [...new Set(cachedScan().filter(v => {
+    const subCats = [...new Set((await cachedScan()).filter(v => {
       const vk = getCatKey(v.catPath);
       return vk.startsWith(ck + '/');
     }).map(v => v.catPath))];
@@ -1462,7 +1462,7 @@ async function apiDecryptCategory(req, res) {
     toastServer(`Decrypting ${catPath}...`);
 
     const ck = getCatKey(catPath);
-    const videos = cachedScan().filter(v => {
+    const videos = (await cachedScan()).filter(v => {
       const vk = getCatKey(v.catPath);
       return vk === ck || vk.startsWith(ck + '/');
     });

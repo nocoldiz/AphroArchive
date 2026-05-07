@@ -195,6 +195,9 @@ async function execEncryptCat() {
       document.getElementById('bulk-prog-title').innerText = 'Complete';
       document.getElementById('bulk-prog-desc').innerText = 'Category encryption finished successfully.';
       document.getElementById('bulk-prog-footer').style.display = 'block';
+      if (document.getElementById('bulk-prog-modal').style.display === 'none') {
+        toast('Encryption complete');
+      }
       if (typeof refresh === 'function') refresh(true);
     } else {
       const err = await r.json();
@@ -232,6 +235,9 @@ async function execEncryptCat() {
       document.getElementById('bulk-prog-title').innerText = 'Action Complete';
       document.getElementById('bulk-prog-desc').innerText = `Successfully locked ${count} categories.`;
       document.getElementById('bulk-prog-footer').style.display = 'block';
+      if (document.getElementById('bulk-prog-modal').style.display === 'none') {
+        toast(`Successfully locked ${count} categories`);
+      }
       
       if (typeof refresh === 'function') refresh(true);
     } catch (e) {
@@ -409,6 +415,9 @@ async function execUnlockCat(type) {
         document.getElementById('bulk-prog-title').innerText = 'Complete';
         document.getElementById('bulk-prog-desc').innerText = 'Category decryption finished successfully.';
         document.getElementById('bulk-prog-footer').style.display = 'block';
+        if (document.getElementById('bulk-prog-modal').style.display === 'none') {
+          toast('Decryption complete');
+        }
       } else {
         toast('Category unlocked temporarily');
       }
@@ -452,6 +461,9 @@ async function execUnlockCat(type) {
       document.getElementById('bulk-prog-title').innerText = 'Action Complete';
       document.getElementById('bulk-prog-desc').innerText = `Successfully ${isPermanent ? 'decrypted' : 'unlocked'} ${count} categories.`;
       document.getElementById('bulk-prog-footer').style.display = 'block';
+      if (document.getElementById('bulk-prog-modal').style.display === 'none') {
+        toast(`Successfully ${isPermanent ? 'decrypted' : 'unlocked'} ${count} categories`);
+      }
       
       if (typeof refresh === 'function') refresh(true);
     } catch (e) {
