@@ -26,6 +26,12 @@ async function loadSettings() {
   const tog = $('aiCommentsToggle').el;
   if (tog) tog.checked = !!prefs.aiCommentsEnabled;
   aiCommentsEnabled = !!prefs.aiCommentsEnabled;
+
+  const cpInput = document.getElementById('aiCommentMasterPrompt');
+  if (cpInput) cpInput.value = prefs.aiCommentMasterPrompt || '';
+  const rpInput = document.getElementById('aiReplyMasterPrompt');
+  if (rpInput) rpInput.value = prefs.aiReplyMasterPrompt || '';
+
   const dstTog = $('disableSearchTrackingToggle').el;
   if (dstTog) dstTog.checked = !!prefs.disableSearchTracking;
   const vaultPanel = document.getElementById('settings-vault-panel');
@@ -41,6 +47,49 @@ async function loadSettings() {
   if (ollamaUrlInput) ollamaUrlInput.value = prefs.ollamaUrl || '';
   const ollamaModelInput = document.getElementById('ollamaVisionModelInput');
   if (ollamaModelInput) ollamaModelInput.value = prefs.ollamaVisionModel || '';
+}
+
+const _AI_PERSONALITIES = {
+  casual: {
+    prompt: 'Generate exactly {count} realistic, casual internet comments for a video titled "{videoName}". Mix of short reactions and relatable observations. Return ONLY a JSON array of strings.',
+    replyPrompt: 'Reply to "{userComment}" on video "{videoName}" in a casual, friendly way. 1 sentence.'
+  },
+  hype: {
+    prompt: 'Generate {count} extremely hyped and excited comments for "{videoName}". Use lots of emojis, ALL CAPS occasionally, and show massive support. Return ONLY a JSON array of strings.',
+    replyPrompt: 'Reply to "{userComment}" with massive excitement and fire emojis! 1 sentence.'
+  },
+  sarcastic: {
+    prompt: 'Generate {count} witty, slightly sarcastic, and cynical comments for "{videoName}". Be funny but a bit dry. Return ONLY a JSON array of strings.',
+    replyPrompt: 'Reply to "{userComment}" with a dry, sarcastic wit. 1 sentence.'
+  },
+  intellectual: {
+    prompt: 'Generate {count} sophisticated, analytical comments for "{videoName}". Use advanced vocabulary and focus on technical or artistic details. Return ONLY a JSON array of strings.',
+    replyPrompt: 'Provide a formal, intellectual response to "{userComment}". 1-2 sentences.'
+  },
+  toxic: {
+    prompt: 'Generate {count} typical "internet hater" comments for "{videoName}". Complaining about nothing, being nitpicky, and slightly annoying. Return ONLY a JSON array of strings.',
+    replyPrompt: 'Reply to "{userComment}" with a nitpicky, slightly annoying hater attitude. 1 sentence.'
+  }
+};
+
+function applyAiCommentPreset(id) {
+  const p = _AI_PERSONALITIES[id];
+  if (!p) return;
+  const cpInput = document.getElementById('aiCommentMasterPrompt');
+  if (cpInput) cpInput.value = p.prompt;
+  const rpInput = document.getElementById('aiReplyMasterPrompt');
+  if (rpInput) rpInput.value = p.replyPrompt;
+}
+
+async function saveAiCommentPrompts() {
+  const commentPrompt = document.getElementById('aiCommentMasterPrompt')?.value.trim() || '';
+  const replyPrompt   = document.getElementById('aiReplyMasterPrompt')?.value.trim() || '';
+  const r = await fetch('/api/settings/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ aiCommentMasterPrompt: commentPrompt, aiReplyMasterPrompt: replyPrompt })
+  });
+  if (r.ok) toast('Prompts saved'); else toast('Save failed');
 }
 
 function _updateVisionProviderFields(provider) {

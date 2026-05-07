@@ -1905,14 +1905,35 @@
                 style="width:15px;height:15px;cursor:pointer">
               Enable AI comments
             </label>
-            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)">
+              <label style="display:block;font-size:0.82rem;color:var(--tx2);margin-bottom:6px">Preset Personality:</label>
+              <select id="aiCommentPresetSelect" onchange="applyAiCommentPreset(this.value)"
+                style="width:100%;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 8px;border-radius:var(--r);font-size:0.82rem;outline:none;margin-bottom:12px">
+                <option value="">-- Custom --</option>
+                <option value="casual">Casual — Realistic, everyday comments</option>
+                <option value="hype">Hype — Excited, emojis and praise</option>
+                <option value="sarcastic">Sarcastic — Witty and cynical</option>
+                <option value="intellectual">Intellectual — Deep analysis</option>
+                <option value="toxic">Troll — Classic internet hater</option>
+              </select>
+              
+              <label style="display:block;font-size:0.82rem;color:var(--tx2);margin-bottom:6px">Main Comments Master Prompt:</label>
+              <textarea id="aiCommentMasterPrompt" placeholder="Master prompt for comments..."
+                style="width:100%;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:8px;border-radius:var(--r);font-size:0.8rem;min-height:80px;font-family:monospace;resize:vertical;outline:none;margin-bottom:12px"></textarea>
+              
+              <label style="display:block;font-size:0.82rem;color:var(--tx2);margin-bottom:6px">AI Reply Master Prompt:</label>
+              <textarea id="aiReplyMasterPrompt" placeholder="Master prompt for replies..."
+                style="width:100%;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:8px;border-radius:var(--r);font-size:0.8rem;min-height:60px;font-family:monospace;resize:vertical;outline:none;margin-bottom:12px"></textarea>
+              
+              <button class="btn-primary" onclick="saveAiCommentPrompts()" style="width:100%;margin-bottom:10px">Save Prompts</button>
+              
               <button onclick="clearAllAiComments()"
-                style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx2);padding:5px 12px;border-radius:var(--r);font-size:0.78rem;cursor:pointer;transition:all var(--tr)"
+                style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx2);padding:5px 12px;border-radius:var(--r);font-size:0.78rem;cursor:pointer;transition:all var(--tr);width:100%"
                 onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ac)'"
                 onmouseout="this.style.borderColor='var(--brd)';this.style.color='var(--tx2)'">
                 Clear all generated comments
               </button>
-              <span id="clear-comments-hint" style="font-size:0.75rem;color:var(--tx3);margin-left:8px"></span>
+              <span id="clear-comments-hint" style="font-size:0.75rem;color:var(--tx3);display:block;margin-top:5px;text-align:center"></span>
             </div>
           </div>
         </div>

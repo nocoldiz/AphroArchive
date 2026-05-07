@@ -61,15 +61,15 @@ export async function loadCategories() {
 }
 
 export async function loadPrefs() {
-  const res = await fetch('/api/prefs');
+  const res = await fetch('/api/settings/prefs');
   const data = await res.json();
   appPrefs.value = data;
 }
 
 export async function updatePrefs(updates: Partial<AppPrefs>) {
   appPrefs.value = { ...appPrefs.value, ...updates };
-  await fetch('/api/prefs', {
-    method: 'POST',
+  await fetch('/api/settings/prefs', {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates)
   });
