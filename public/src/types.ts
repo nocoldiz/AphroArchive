@@ -40,3 +40,8 @@ export interface AppPrefs {
   aiCommentMasterPrompt?: string;
   aiReplyMasterPrompt?: string;
 }
+export interface ThumbnailGroup {
+  id: string;
+  count: number;
+  thumbs: string[];
+}

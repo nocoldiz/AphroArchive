@@ -201,6 +201,15 @@
                 <polyline points="21 15 16 10 5 21" />
               </svg>Photos</span>
           </div>
+          <div class="sidebar-item" id="thumbnails-sidebar" onclick="showThumbnails()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>Thumbnails</span>
+          </div>
           <div class="sidebar-item" id="audio-sidebar" onclick="showAudio()">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 style="vertical-align:-2px;margin-right:5px">
@@ -2050,6 +2059,14 @@
         <div id="duplicates-content" style="display:none"></div>
       </div>
 
+      <!-- Thumbnails View -->
+      <div class="thumbnails-view" id="thumbnails-view" style="display:none">
+        <div class="section-header">
+          <h2>All Generated Thumbnails</h2>
+        </div>
+        <div class="video-grid" id="thumbnails-grid"></div>
+      </div>
+
       <!-- DB Add/Edit Modal -->
       <div class="modal-overlay" id="dbMo" style="display:none" onclick="if(event.target===this)closeDbModal()">
         <div class="modal-dialog" style="width:480px;max-width:95vw">
@@ -2720,6 +2737,7 @@
   <script src="/modules/search-sites.js"></script>
   <script src="/modules/data.js"></script>
   <script src="/modules/gen-thumbs.js"></script>
+  <script src="/modules/thumbnails-view.js"></script>
   <script src="/modules/navigation.js"></script>
   <div id="vaultDragBox"
     style="position:fixed; border:1px solid var(--accent); background:rgba(232,64,64,0.15); pointer-events:none; z-index:9999; display:none; border-radius:4px;">

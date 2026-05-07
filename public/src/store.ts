@@ -74,3 +74,10 @@ export async function updatePrefs(updates: Partial<AppPrefs>) {
     body: JSON.stringify(updates)
   });
 }
+export const thumbnails = signal<ThumbnailGroup[]>([]);
+
+export async function loadThumbnails() {
+  const res = await fetch('/api/thumbnails');
+  const data = await res.json();
+  thumbnails.value = data;
+}

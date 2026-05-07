@@ -1,6 +1,5 @@
-// ─── Mosaic Mode ───
-let _mosaicPhotoMode = false;
 let _mosaicPhotos = [];
+let _mosPool = []; // Cached pool for performance
 
 function toggleMosaic() {
   if (mosaicOn) stopMosaic(); else startMosaic();
@@ -21,6 +20,11 @@ function startMosaic() {
   $('mosaic-interval').text(mosaicIv + 's');
   $('mosaic-view').add('on');
   $('mosBtn').add('on');
+
+  // Cache eligible videos for performance
+  _mosPool = V.filter(v => !bookmarkVidIds.has(v.id));
+  if (!_mosPool.length) _mosPool = V;
+
   buildMosaicTiles();
   scheduleMosaic();
 }
@@ -60,8 +64,7 @@ function stopMosaic() {
 }
 
 function mosPick(n) {
-  const pool = V.filter(v => !bookmarkVidIds.has(v.id));
-  const src = pool.length ? pool : V;
+  const src = _mosPool.length ? _mosPool : V;
   if (!src.length) return [];
   const a = [...src].sort(() => Math.random() - 0.5);
   const result = [];
@@ -70,8 +73,8 @@ function mosPick(n) {
 }
 
 function mosPickExcluding(excludeId) {
-  const pool = V.filter(v => !bookmarkVidIds.has(v.id));
-  const src = pool.length ? pool : V;
+  const src = _mosPool.length ? _mosPool : V;
+  if (!src.length) return null;
   const shuffled = [...src].sort(() => Math.random() - 0.5);
   return shuffled.find(v => v.id !== excludeId) || shuffled[0];
 }
@@ -101,6 +104,10 @@ function preloadMosTile(tile, v) {
   pre.dataset.vid = v.id;
   pre.dataset.dur = v.duration || 0;
   pre.dataset.ready = '0';
+  
+  // Use thumbnail as poster to avoid black flash during transition
+  pre.poster = '/api/thumbnails/' + v.id + '/0';
+  
   pre.src = '/api/stream/' + v.id;
   pre.addEventListener('loadedmetadata', () => {
     mosSeekRandom(pre);
@@ -169,6 +176,7 @@ function buildMosaicTiles() {
     const tile = { wrap, a, b, active: 'a', vidId: v.id, isPhoto: false };
     mosTilesState.push(tile);
 
+    a.poster = '/api/thumbnails/' + v.id + '/0';
     a.src = '/api/stream/' + v.id;
     a.addEventListener('loadedmetadata', () => { mosSeekRandom(a); a.play().catch(() => {}); }, { once: true });
     a.play().catch(() => {});
@@ -214,26 +222,33 @@ function refreshMosaicTiles() {
     return;
   }
 
+  // Staggered refresh to improve performance and avoid network saturation
   mosTilesState.forEach((tile, i) => {
     if (i === mosHoveredIdx) return;
 
-    const nextEl = tile.active === 'a' ? tile.b : tile.a;
-    const curEl  = tile.active === 'a' ? tile.a : tile.b;
+    // Use a small delay between each tile's refresh check/update
+    setTimeout(() => {
+      const nextEl = tile.active === 'a' ? tile.b : tile.a;
+      const curEl  = tile.active === 'a' ? tile.a : tile.b;
 
-    if (nextEl.dataset.ready === '1') {
-      nextEl.muted = true;
-      nextEl.play().catch(() => {});
-      nextEl.classList.add('mos-v-active');
-      curEl.classList.remove('mos-v-active');
-      tile.active = tile.active === 'a' ? 'b' : 'a';
-      tile.vidId = nextEl.dataset.vid;
-      setTimeout(() => {
-        curEl.pause();
-        preloadMosTile(tile, mosPickExcluding(tile.vidId));
-      }, 650);
-    } else {
-      mosSeekRandom(curEl);
-    }
+      if (nextEl.dataset.ready === '1') {
+        nextEl.muted = true;
+        nextEl.play().catch(() => {});
+        nextEl.classList.add('mos-v-active');
+        curEl.classList.remove('mos-v-active');
+        tile.active = tile.active === 'a' ? 'b' : 'a';
+        tile.vidId = nextEl.dataset.vid;
+        
+        // Slightly longer delay before pausing the old video and preloading the next
+        setTimeout(() => {
+          curEl.pause();
+          preloadMosTile(tile, mosPickExcluding(tile.vidId));
+        }, 800);
+      } else {
+        // If next is not ready, just seek current to a new spot to keep it fresh
+        mosSeekRandom(curEl);
+      }
+    }, i * 150); // Stagger by 150ms per tile
   });
 }
 

@@ -178,6 +178,7 @@ const server = http.createServer(async (req, res) => {
   // ── Thumbnails ───────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/generate$/)) && req.method === 'POST') return thumbnails.apiThumbGen(req, res, m[1]);
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return thumbnails.apiThumbImg(req, res, m[1], parseInt(m[2], 10));
+  if (p === '/api/thumbnails' && req.method === 'GET') return thumbnails.apiThumbnailsList(req, res);
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/chapter\/([^/]+)$/)) && req.method === 'GET') return thumbnails.apiChapterThumbImg(req, res, m[1], m[2]);
   if (p === '/api/gen-thumbs/start' && req.method === 'POST') return genThumbs.apiGenThumbsStart(req, res);
   if (p === '/api/gen-thumbs/stop' && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
@@ -342,7 +343,7 @@ const server = http.createServer(async (req, res) => {
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
   if (p === '/instagram') return serveStatic(req, res, 'instagram.html');
   if (p === '/reddit' || p.startsWith('/reddit/') || p === '/r' || p.startsWith('/r/')) return serveStatic(req, res, 'reddit.html');
-  const spaRoutes = /^\/(bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

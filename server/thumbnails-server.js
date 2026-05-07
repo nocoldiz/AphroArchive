@@ -130,4 +130,27 @@ async function apiChapterThumbImg(req, res, id, chapterId) {
   fs.createReadStream(fp).pipe(res);
 }
 
-module.exports = { apiThumbGen, apiThumbImg, genChapterThumb, apiChapterThumbImg };
+async function apiThumbnailsList(req, res) {
+  try {
+    if (!fs.existsSync(THUMBS_DIR)) return json(res, []);
+    const dirs = fs.readdirSync(THUMBS_DIR).filter(d => !d.startsWith('.'));
+    const results = [];
+    for (const id of dirs) {
+      const dirPath = path.join(THUMBS_DIR, id);
+      if (!fs.statSync(dirPath).isDirectory()) continue;
+      const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jpg') && !isNaN(parseInt(f)));
+      if (files.length > 0) {
+        results.push({
+          id,
+          count: files.length,
+          thumbs: files.sort((a, b) => parseInt(a) - parseInt(b)).map(f => `/api/thumbs/${id}/${path.parse(f).name}`)
+        });
+      }
+    }
+    json(res, results);
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+module.exports = { apiThumbGen, apiThumbImg, genChapterThumb, apiChapterThumbImg, apiThumbnailsList };
