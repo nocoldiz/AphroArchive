@@ -127,12 +127,14 @@ async function _generateCommentTexts(videoName, count) {
   const sequence = ctx.getSequence();
   try {
     const session = new LlamaChatSession({ contextSequence: sequence });
-    const prompt =
-      'Generate exactly ' + count + ' realistic, casual internet comments that real users would post under a video titled "' +
-      videoName.replace(/"/g,'\\"').replace(/\n/g,' ') + '".\n\n' +
-      'Vary them: mix of very short reactions, detailed praise, funny one-liners, and relatable observations. Make them feel like real different people.\n\n' +
-      'Return ONLY a valid JSON array of exactly ' + count + ' strings: ["comment 1", "comment 2", ...]\n' +
-      'No explanation, no markdown — just the raw JSON array.';
+    const prefs = loadPrefs();
+    const prompt = (prefs.aiCommentMasterPrompt && prefs.aiCommentMasterPrompt.trim())
+      ? prefs.aiCommentMasterPrompt.replace(/\{count\}/g, count.toString()).replace(/\{videoName\}/g, videoName.replace(/"/g,'\\"').replace(/\n/g,' '))
+      : 'Generate exactly ' + count + ' realistic, casual internet comments that real users would post under a video titled "' +
+        videoName.replace(/"/g,'\\"').replace(/\n/g,' ') + '".\n\n' +
+        'Vary them: mix of very short reactions, detailed praise, funny one-liners, and relatable observations. Make them feel like real different people.\n\n' +
+        'Return ONLY a valid JSON array of exactly ' + count + ' strings: ["comment 1", "comment 2", ...]\n' +
+        'No explanation, no markdown — just the raw JSON array.';
     const raw = await session.prompt(prompt);
     const parsed = JSON.parse(raw.trim());
     if (!Array.isArray(parsed)) throw new Error('not array');
@@ -147,10 +149,12 @@ async function _generateReplyText(videoName, userComment) {
   const sequence = ctx.getSequence();
   try {
     const session = new LlamaChatSession({ contextSequence: sequence });
-    const prompt =
-      'A user commented "' + userComment.replace(/"/g,'\\"') + '" on a video titled "' +
-      videoName.replace(/"/g,'\\"').replace(/\n/g,' ') + '". ' +
-      'Write a short, casual 1-2 sentence reply. Return ONLY the reply text.';
+    const prefs = loadPrefs();
+    const prompt = (prefs.aiReplyMasterPrompt && prefs.aiReplyMasterPrompt.trim())
+      ? prefs.aiReplyMasterPrompt.replace(/\{userComment\}/g, userComment.replace(/"/g,'\\"')).replace(/\{videoName\}/g, videoName.replace(/"/g,'\\"').replace(/\n/g,' '))
+      : 'A user commented "' + userComment.replace(/"/g,'\\"') + '" on a video titled "' +
+        videoName.replace(/"/g,'\\"').replace(/\n/g,' ') + '". ' +
+        'Write a short, casual 1-2 sentence reply. Return ONLY the reply text.';
     const raw = await session.prompt(prompt);
     return raw.trim().replace(/^["']|["']$/g,'');
   } finally {

@@ -37,4 +37,6 @@ export interface AppPrefs {
   cardSize: number;
   networkEnabled: boolean;
   chronologyMode: 'keep' | 'delete-on-startup' | 'dont-save';
+  aiCommentMasterPrompt?: string;
+  aiReplyMasterPrompt?: string;
 }

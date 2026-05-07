@@ -70,6 +70,9 @@ export const Sidebar = () => {
         {categories.value.length > 15 && (
           <SidebarItem label="More Categories..." onClick={() => setView('categories', 'showCategoriesView')} />
         )}
+      <div className="side-sep"></div>
+      <div className="side-section">
+        <SidebarItem label="Settings" icon={<i className="icon-settings" />} onClick={() => currentView.value = 'settings'} isActive={currentView.value === 'settings'} />
       </div>
     </div>
   );

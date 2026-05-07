@@ -6,8 +6,11 @@ interface VideoCardProps {
 }
 
 export const VideoCard = ({ video }: VideoCardProps) => {
-  const play = () => (window as any).playVideo(video.id);
-  const openCtx = (e: any) => (window as any).openCtx(event, video.id);
+  const play = () => {
+    currentVideo.value = video;
+    currentView.value = 'player';
+    if ((window as any).playVideo) (window as any).playVideo(video.id);
+  };
 
   return (
     <div className="video-card" id={`v-${video.id}`} onClick={play} onContextMenu={openCtx}>

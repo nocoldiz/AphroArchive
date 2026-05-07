@@ -7,9 +7,11 @@ export const allVideos = signal<Video[]>([]); // Full unfiltered list
 export const categories = signal<Category[]>([]);
 export const actors = signal<Actor[]>([]);
 export const studios = signal<Studio[]>([]);
+export const appPrefs = signal<Partial<AppPrefs>>({});
 
 // ─── Navigation & View State ──────────────────────────────────────────
 export const currentView = signal<string>('home');
+export const currentVideo = signal<Video | null>(null);
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const searchQuery = signal<string>('');
@@ -51,4 +53,19 @@ export async function loadCategories() {
   const res = await fetch('/api/categories');
   const data = await res.json();
   categories.value = data;
+}
+
+export async function loadPrefs() {
+  const res = await fetch('/api/prefs');
+  const data = await res.json();
+  appPrefs.value = data;
+}
+
+export async function updatePrefs(updates: Partial<AppPrefs>) {
+  appPrefs.value = { ...appPrefs.value, ...updates };
+  await fetch('/api/prefs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates)
+  });
 }

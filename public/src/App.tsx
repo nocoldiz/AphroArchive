@@ -5,6 +5,7 @@ export function App() {
   useEffect(() => {
     loadVideos();
     loadCategories();
+    loadPrefs();
   }, []);
 
   return (
