@@ -2556,7 +2556,7 @@ input {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.72);
-  z-index: 4000;
+  z-index: 3000;
   display: flex;
   align-items: center;
   justify-content: center
@@ -6952,8 +6952,15 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 }
 
 @keyframes ctxFadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .ctx-item {
@@ -7014,26 +7021,35 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   transition: all 0.2s;
   display: flex;
   align-items: center;
-  justify-content:center;
+  justify-content: center;
   gap: 8px;
 }
-.modal-btn:hover { background: var(--border); }
+
+.modal-btn:hover {
+  background: var(--border);
+}
+
 .modal-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
   color: white;
 }
+
 .modal-btn--primary:hover {
   filter: brightness(1.1);
   box-shadow: 0 4px 12px rgba(232, 64, 64, 0.3);
 }
+
 .modal-btn--flat {
   background: transparent;
   border: none;
   color: var(--tx3);
   font-size: 13px;
 }
-.modal-btn--flat:hover { color: var(--tx); }
+
+.modal-btn--flat:hover {
+  color: var(--tx);
+}
 
 .premium-input {
   padding: 12px;
@@ -7045,4 +7061,7 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   outline: none;
   transition: border-color 0.2s;
 }
-.premium-input:focus { border-color: var(--accent); }
+
+.premium-input:focus {
+  border-color: var(--accent);
+}

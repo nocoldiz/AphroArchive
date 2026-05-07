@@ -20,8 +20,8 @@ const SidebarItem = ({ id, label, icon, onClick, isActive, indent }: SidebarItem
   </div>
 );
 
-const SectionHeader = ({ label, id }: { label: string, id: string }) => (
-  <h3 className="sidebar-heading" id={id}>
+const SectionHeader = ({ label, id, style }: { label: string, id: string, style?: any }) => (
+  <h3 className="sidebar-heading" id={id} style={style}>
     {label}
     <svg className="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
       <path d="m6 9 6 6 6-6" />
@@ -70,6 +70,10 @@ export const Sidebar = () => {
         {categories.value.length > 15 && (
           <SidebarItem label="More Categories..." onClick={() => setView('categories', 'showCategoriesView')} />
         )}
+      <div className="side-sep" id="tags-sep" style={{ display: 'none' }}></div>
+      <SectionHeader label="Tags" id="sh3-tags" style={{ display: 'none' }} />
+      <div className="side-section" id="tagList"></div>
+
       <div className="side-sep"></div>
       <div className="side-section">
         <SidebarItem label="Settings" icon={<i className="icon-settings" />} onClick={() => currentView.value = 'settings'} isActive={currentView.value === 'settings'} />

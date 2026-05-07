@@ -3,14 +3,14 @@
 //  gen-thumbs-server.js — batch thumbnail pre-generation with SSE progress
 // ═══════════════════════════════════════════════════════════════════
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
 const { json } = require('./helpers-server');
 const { loadThumbsCache, saveThumbsCache } = require('./db-server');
 
-const VIDEO_EXT = new Set(['.mp4','.mkv','.avi','.mov','.wmv','.flv','.webm','.m4v','.mpg','.mpeg','.3gp','.ogv','.ts']);
+const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
 const THUMB_PCT = [0.1, 0.25, 0.5, 0.75, 0.9];
 const CONCURRENCY = 2;
 
@@ -58,7 +58,7 @@ function broadcast(ev) {
 // ── Batch runner ─────────────────────────────────────────────────────
 
 async function runBatch() {
-  const all     = scanVideos(VIDEOS_DIR);
+  const all = scanVideos(VIDEOS_DIR);
   const pending = all.filter(v => !isComplete(v.id));
   const skipped = all.length - pending.length;
 
@@ -82,7 +82,7 @@ async function runBatch() {
 
       try {
         const dur = await new Promise(resolve => {
-          execFile(FFPROBE_BIN, ['-v','quiet','-print_format','json','-show_format', item.fp],
+          execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', item.fp],
             { timeout: 15000 },
             (err, out) => {
               if (err) return resolve(null);
@@ -105,7 +105,7 @@ async function runBatch() {
         try {
           const stat = fs.statSync(item.fp);
           cache[item.id] = { mtime: stat.mtimeMs, count: n, duration: dur };
-        } catch {}
+        } catch { }
         if (n === 0) _job.failed++;
       } catch { _job.failed++; }
 

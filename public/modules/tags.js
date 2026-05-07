@@ -228,19 +228,26 @@ function closeTag() {
 async function loadTagSidebar() {
   let tags = [];
   try { tags = await (await fetch('/api/db-tags')).json(); } catch {}
-  const listEl   = $('tagList').el;
-  const sepEl    = document.getElementById('tags-sep');
-  const headEl   = document.getElementById('sh3-tags');
+  
+  const listEl = $('tagList').el;
+  const sepEl  = document.getElementById('tags-sep');
+  const headEl = document.getElementById('sh3-tags');
+
+  if (!listEl) return; // Sidebar might be managed by Preact now
+
   if (!tags.length) {
     listEl.innerHTML = '';
-    sepEl.style.display = 'none';
-    headEl.style.display = 'none';
+    if (sepEl) sepEl.style.display = 'none';
+    if (headEl) headEl.style.display = 'none';
     return;
   }
-  sepEl.style.display = '';
-  headEl.style.display = '';
+  
+  if (sepEl) sepEl.style.display = '';
+  if (headEl) headEl.style.display = '';
+  
   _dbTagTerms = {};
   tags.forEach(t => { _dbTagTerms[t.displayName] = t.terms || [t.displayName]; });
+  
   listEl.innerHTML = tags.map(t =>
     '<div class="sidebar-item' + (curTag === t.displayName ? ' on' : '') + '" data-tag="' + escA(t.displayName) + '" onclick="openTag(\'' + escA(t.displayName) + '\')">' +
     '<span>' + esc(t.displayName) + '</span><span class="count-badge">' + t.count + '</span></div>'

@@ -7,7 +7,7 @@ async function bfEnsureKnownTerms() {
     _bfKnownTerms = [...new Set([...acTerms, ...tagNames])]
       .filter(t => t.length >= 3)
       .sort((a, b) => b.length - a.length); // longest first for greedy match
-  } catch {}
+  } catch { }
 }
 
 function bfMatchTitle(title) {
@@ -55,7 +55,7 @@ async function bfLoadCache() {
     if (!r.ok) return;
     const d = await r.json();
     if (d.items && d.items.length) renderBrowserFavs(d.items, '_cache_');
-  } catch {}
+  } catch { }
 }
 
 async function bfSaveCache() {
@@ -65,7 +65,7 @@ async function bfSaveCache() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: _bfItems })
     });
-  } catch {}
+  } catch { }
 }
 
 async function bfClearAll() {
@@ -227,7 +227,7 @@ async function preFetchBmThumbs(items) {
     try {
       const d = await (await fetch('/api/og-thumb?url=' + encodeURIComponent(item.url))).json();
       if (d.img) item.img = d.img;
-    } catch {}
+    } catch { }
     await new Promise(r => setTimeout(r, 80));
   }
   if (missing.some(it => it.img)) bfSaveCache();
@@ -240,11 +240,11 @@ function bfRenderList(items) {
   const pct = total ? Math.round(_bfMatchedCount / total * 100) : 0;
   const statsHtml =
     '<div class="bf-stats">' +
-      '<span class="bf-stats-label">' + items.length + ' bookmark' + (items.length !== 1 ? 's' : '') + '</span>' +
-      '<div class="bf-pct-wrap" title="' + _bfMatchedCount + ' of ' + total + ' already in library">' +
-        '<div class="bf-pct-bar"><div class="bf-pct-fill" style="width:' + pct + '%"></div></div>' +
-        '<span class="bf-pct-num">' + pct + '% in library</span>' +
-      '</div>' +
+    '<span class="bf-stats-label">' + items.length + ' bookmark' + (items.length !== 1 ? 's' : '') + '</span>' +
+    '<div class="bf-pct-wrap" title="' + _bfMatchedCount + ' of ' + total + ' already in library">' +
+    '<div class="bf-pct-bar"><div class="bf-pct-fill" style="width:' + pct + '%"></div></div>' +
+    '<span class="bf-pct-num">' + pct + '% in library</span>' +
+    '</div>' +
     '</div>';
 
   if (_bfViewMode === 'grid') {
@@ -254,26 +254,26 @@ function bfRenderList(items) {
         const encUrl = escA(item.url);
         const encTitle = escA(item.title);
         let hostname = '';
-        try { hostname = new URL(item.url).hostname; } catch {}
+        try { hostname = new URL(item.url).hostname; } catch { }
         return '<div class="bf-card' + (inLib ? ' bf-downloaded' : '') + '" data-bf-idx="' + i + '" onclick="window.open(\'' + encUrl + '\',\'_blank\')">' +
           '<div class="bf-card-thumb">' +
-            '<div class="bf-card-thumb-loading" id="bfth' + i + '">' +
-              '<div class="bf-card-thumb-spin"></div>' +
-            '</div>' +
-            '<div class="bf-card-play"><svg width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5,3 19,12 5,21"/></svg></div>' +
-            '<button class="bf-card-rm" onclick="event.stopPropagation();bfRemoveItem(\'' + encUrl + '\')" title="Remove bookmark"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
+          '<div class="bf-card-thumb-loading" id="bfth' + i + '">' +
+          '<div class="bf-card-thumb-spin"></div>' +
+          '</div>' +
+          '<div class="bf-card-play"><svg width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5,3 19,12 5,21"/></svg></div>' +
+          '<button class="bf-card-rm" onclick="event.stopPropagation();bfRemoveItem(\'' + encUrl + '\')" title="Remove bookmark"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
           '</div>' +
           '<div class="bf-card-info">' +
-            '<div class="bf-card-title">' + esc(item.title || item.url) + '</div>' +
-            '<div class="bf-card-host">' +
-              '<img src="https://www.google.com/s2/favicons?sz=12&domain_url=' + encodeURIComponent(item.url) + '" width="12" height="12" onerror="this.style.display=\'none\'" style="flex-shrink:0">' +
-              esc(hostname) +
-            '</div>' +
-            (bfMatchTitle(item.title) ? '<div class="bf-match-badge">' + esc(bfMatchTitle(item.title)) + '</div>' : '') +
+          '<div class="bf-card-title">' + esc(item.title || item.url) + '</div>' +
+          '<div class="bf-card-host">' +
+          '<img src="https://www.google.com/s2/favicons?sz=12&domain_url=' + encodeURIComponent(item.url) + '" width="12" height="12" onerror="this.style.display=\'none\'" style="flex-shrink:0">' +
+          esc(hostname) +
           '</div>' +
-        '</div>';
+          (bfMatchTitle(item.title) ? '<div class="bf-match-badge">' + esc(bfMatchTitle(item.title)) + '</div>' : '') +
+          '</div>' +
+          '</div>';
       }).join('') +
-    '</div>';
+      '</div>';
     bfLoadGridThumbs(items);
   } else {
     out.innerHTML = statsHtml +
@@ -384,7 +384,7 @@ function openBfIframe(url, title) {
   iframe.src = '';
   let loaded = false;
   iframe.onload = () => { loaded = true; };
-  setTimeout(() => { if (!loaded) blocked.classList.add('on'); }, 4000);
+  setTimeout(() => { if (!loaded) blocked.classList.add('on'); }, 3000);
   iframe.src = url;
   modalOverlay.classList.add('on');
 }
@@ -445,19 +445,19 @@ async function renderDlQueue(jobs) {
     const statusTx = j.status === 'running'
       ? pct.toFixed(1) + '%' + (j.speed && j.speed !== 'Unknown' ? ' · ' + j.speed : '') + (j.eta && j.eta !== 'Unknown' ? ' ETA ' + j.eta : '')
       : j.status === 'done' ? 'Done'
-      : j.status === 'error' ? (j.error || 'Error')
-      : 'Queued';
+        : j.status === 'error' ? (j.error || 'Error')
+          : 'Queued';
     const statusCls = j.status === 'done' ? 'download-job-done' : j.status === 'error' ? 'download-job-error' : '';
     return '<div class="download-job-row">' +
       '<div class="download-job-info">' +
-        '<span class="download-job-title" title="' + esc(j.url) + '">' + esc(j.title === j.url ? new URL(j.url).hostname + '/…' : j.title) + '</span>' +
-        '<span class="download-job-status ' + statusCls + '">' + esc(statusTx) + '</span>' +
+      '<span class="download-job-title" title="' + esc(j.url) + '">' + esc(j.title === j.url ? new URL(j.url).hostname + '/…' : j.title) + '</span>' +
+      '<span class="download-job-status ' + statusCls + '">' + esc(statusTx) + '</span>' +
       '</div>' +
       (j.status === 'running' ? '<div class="download-job-bar"><div class="download-job-fill" style="width:' + pct + '%"></div></div>' : '') +
       '<button class="folder-remove" onclick="removeDlJob(\'' + j.id + '\')" title="' + (j.status === 'running' ? 'Cancel' : 'Remove') + '">' +
-        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>' +
       '</button>' +
-    '</div>';
+      '</div>';
   }).join('');
 }
 

@@ -357,43 +357,57 @@ function acUpdateGhost(val) {
   ghost.innerHTML = '<span class="ghost-typed">' + val + '</span><span class="ghost-hint">' + hint + '</span>';
 }
 
-const sIEl = $('search-input').el;
-let sTO;
-sIEl.addEventListener('input', e => {
-  acUpdateGhost(e.target.value);
-  clearTimeout(sTO);
-  sTO = setTimeout(() => {
-    q = e.target.value.trim();
-    if (q) {
-      // Close any active detail views (actors, studios, etc.)
-      closeAllViews();
-      
-      // Reset Category and Tag to "All Videos"
-      cat = '';
-      curTag = null;
-      $('section-title').text('All Videos'); 
-      
-      $('browse-view').remove('off');
-      if (location.pathname !== '/') history.pushState(null, '', '/');
-    }
-    refresh();
-  }, 300);
-})
-sIEl.addEventListener('blur', () => { $('search-ghost').html(''); });
-sIEl.addEventListener('keydown', e => {
-  if (e.key === 'Tab') {
-    const hint = acSuggest(sIEl.value);
-    if (hint) {
-      e.preventDefault();
-      sIEl.value += hint;
-      acUpdateGhost(sIEl.value);
-      clearTimeout(sTO);
-      sTO = setTimeout(() => { q = sIEl.value.trim(); refresh(); }, 300);
-    }
-  } else if (e.key === 'Escape') {
-    $('search-ghost').html('');
+function setupSearchInputListeners() {
+  const sIEl = $('search-input').el;
+  if (!sIEl) {
+    // If not found yet (e.g. Preact hasn't mounted it), try again in a bit
+    setTimeout(setupSearchInputListeners, 50);
+    return;
   }
-});
+  
+  if (sIEl._listenersAttached) return;
+  sIEl._listenersAttached = true;
+
+  let sTO;
+  sIEl.addEventListener('input', e => {
+    acUpdateGhost(e.target.value);
+    clearTimeout(sTO);
+    sTO = setTimeout(() => {
+      q = e.target.value.trim();
+      if (q) {
+        // Close any active detail views (actors, studios, etc.)
+        closeAllViews();
+        
+        // Reset Category and Tag to "All Videos"
+        cat = '';
+        curTag = null;
+        $('section-title').text('All Videos'); 
+        
+        $('browse-view').remove('off');
+        if (location.pathname !== '/') history.pushState(null, '', '/');
+      }
+      refresh();
+    }, 300);
+  });
+
+  sIEl.addEventListener('blur', () => { $('search-ghost').html(''); });
+  sIEl.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      const hint = acSuggest(sIEl.value);
+      if (hint) {
+        e.preventDefault();
+        sIEl.value += hint;
+        acUpdateGhost(sIEl.value);
+        clearTimeout(sTO);
+        sTO = setTimeout(() => { q = sIEl.value.trim(); refresh(); }, 300);
+      }
+    } else if (e.key === 'Escape') {
+      $('search-ghost').html('');
+    }
+  });
+}
+
+setupSearchInputListeners();
 
 // ─── Themes ───
 function applyTheme(name) {
