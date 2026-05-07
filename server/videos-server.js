@@ -53,60 +53,68 @@ try {
   // fs.watch unavailable in this environment; cache is invalidated by explicit calls only
 }
 
-function cachedScan() {
-  if (!_scanCache) _scanCache = scan(VIDEOS_DIR);
+async function cachedScan() {
+  if (!_scanCache) _scanCache = await scan(VIDEOS_DIR);
   return _scanCache;
 }
 
 // ── Video scanning ───────────────────────────────────────────────────
 
-function scan(dir, base = dir) {
+async function scan(dir, base = dir) {
   const out = [];
   if (!fs.existsSync(dir)) return out;
   const isDirEncrypted = fs.existsSync(path.join(dir, '.cat-enc-config.json'));
   
   try {
-    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-      const fp = path.join(dir, ent.name);
-      if (ent.isDirectory()) {
-        if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR)) continue;
-        out.push(...scan(fp, base));
-        continue;
-      }
-      if (!ent.isFile()) continue;
-
-      const ext = path.extname(ent.name).toLowerCase();
-      let originalName = ent.name;
-      let realExt = ext;
-      let encrypted = false;
-
-      if (ext === '.enc' && isDirEncrypted) {
-        const parts = ent.name.split('.');
-        if (parts.length >= 3) {
-          realExt = '.' + parts[parts.length - 2];
-          originalName = parts.slice(0, parts.length - 1).join('.');
-          encrypted = true;
-        } else {
-          realExt = '.mp4';
-          encrypted = true;
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    
+    // Process in sequential chunks to avoid overwhelming the file system
+    const chunkSize = 32;
+    for (let i = 0; i < entries.length; i += chunkSize) {
+      const chunk = entries.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(async (ent) => {
+        const fp = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR)) return;
+          const sub = await scan(fp, base);
+          out.push(...sub);
+          return;
         }
-      } else if (!VIDEO_EXT.has(ext)) continue;
+        if (!ent.isFile()) return;
 
-      const rel = path.relative(base, fp);
-      const cat = path.dirname(rel);
-      const st  = fs.statSync(fp);
-      const catPath = cat === '.' ? '' : cat.replace(/\\/g, '/');
-      out.push({
-        id: toId(rel),
-        name: path.basename(originalName, realExt),
-        filename: ent.name,
-        ext: realExt,
-        encrypted,
-        rel, category: cat === '.' ? 'Uncategorized' : cat.replace(/[\\/]/g, ' / '),
-        catPath,
-        size: st.size, sizeF: formatBytes(st.size),
-        modified: st.mtime.toISOString(), mtime: st.mtimeMs,
-      });
+        const ext = path.extname(ent.name).toLowerCase();
+        let originalName = ent.name;
+        let realExt = ext;
+        let encrypted = false;
+
+        if (ext === '.enc' && isDirEncrypted) {
+          const parts = ent.name.split('.');
+          if (parts.length >= 3) {
+            realExt = '.' + parts[parts.length - 2];
+            originalName = parts.slice(0, parts.length - 1).join('.');
+            encrypted = true;
+          } else {
+            realExt = '.mp4';
+            encrypted = true;
+          }
+        } else if (!VIDEO_EXT.has(ext)) return;
+
+        const rel = path.relative(base, fp);
+        const cat = path.dirname(rel);
+        const st  = await fs.promises.stat(fp);
+        const catPath = cat === '.' ? '' : cat.replace(/\\/g, '/');
+        out.push({
+          id: toId(rel),
+          name: path.basename(originalName, realExt),
+          filename: ent.name,
+          ext: realExt,
+          encrypted,
+          rel, category: cat === '.' ? 'Uncategorized' : cat.replace(/[\\/]/g, ' / '),
+          catPath,
+          size: st.size, sizeF: formatBytes(st.size),
+          modified: st.mtime.toISOString(), mtime: st.mtimeMs,
+        });
+      }));
     }
   } catch (e) {}
   return out;
@@ -120,8 +128,8 @@ function isVideoHidden(v, hiddenTerms) {
   });
 }
 
-function allVideos() {
-  const all    = cachedScan();
+async function allVideos() {
+  const all    = await cachedScan();
   const hidden = loadHidden();
   return all.filter(v => {
     if (hidden.length && isVideoHidden(v, hidden)) return false;
@@ -154,10 +162,10 @@ function getUnlockKey(catPath) {
 
 // ── Video meta init (runs on startup) ───────────────────────────────
 
-function initVideoMeta() {
+async function initVideoMeta() {
   try {
     const meta       = loadVideoMeta();
-    const videos     = scan(VIDEOS_DIR);
+    const videos     = await scan(VIDEOS_DIR);
     let changed      = false;
     const categories = loadCategories();
     const studios    = loadStudios();
@@ -194,8 +202,8 @@ function initVideoMeta() {
 
 // ── Video API handlers ───────────────────────────────────────────────
 
-function apiVideos(req, res, params) {
-  const videos      = allVideos();
+async function apiVideos(req, res, params) {
+  const videos      = await allVideos();
   const favs        = loadFavs();
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
@@ -275,15 +283,15 @@ function apiVideos(req, res, params) {
   json(res, list);
 }
 
-function apiCategories(req, res) {
-  const videos = cachedScan();
+async function apiCategories(req, res) {
+  const videos = await cachedScan();
   const hidden = loadHidden();
   const cats = [];
 
-  function walk(dir, rel = '') {
+  async function walk(dir, rel = '') {
     if (!fs.existsSync(dir)) return;
     try {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
       for (const ent of entries) {
         if (!ent.isDirectory()) continue;
         const subRel = rel ? path.join(rel, ent.name) : ent.name;
@@ -314,12 +322,12 @@ function apiCategories(req, res) {
           partial: isPartial,
           unlocked: isUnlocked(subRelFwd)
         });
-        walk(full, subRel);
+        await walk(full, subRel);
       }
     } catch (e) {}
   }
 
-  walk(VIDEOS_DIR);
+  await walk(VIDEOS_DIR);
 
   // Uncategorized count
   const defined = loadCategories();
@@ -335,14 +343,14 @@ function apiCategories(req, res) {
   json(res, cats);
 }
 
-function apiMainCategories(req, res) {
+async function apiMainCategories(req, res) {
   const hidden = loadHidden();
   const result = [{ name: 'Uncategorized', path: '' }];
 
-  function walk(dir, rel = '') {
+  async function walk(dir, rel = '') {
     if (!fs.existsSync(dir)) return;
     try {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
       for (const ent of entries) {
         if (!ent.isDirectory()) continue;
         const subRel = rel ? path.join(rel, ent.name) : ent.name;
@@ -350,12 +358,12 @@ function apiMainCategories(req, res) {
         if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
         if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
         result.push({ name: subRel.replace(/[\\/]/g, ' / '), path: subRel.replace(/\\/g, '/') });
-        walk(full, subRel);
+        await walk(full, subRel);
       }
     } catch (e) {}
   }
 
-  walk(VIDEOS_DIR);
+  await walk(VIDEOS_DIR);
   result.sort((a, b) => {
     if (a.path === '') return -1;
     if (b.path === '') return 1;
@@ -374,8 +382,8 @@ async function apiCreateCategory(req, res) {
   catch (e) { json(res, { error: e.message }, 500); }
 }
 
-function apiVideoDetail(req, res, id) {
-  const videos = allVideos();
+async function apiVideoDetail(req, res, id) {
+  const videos = await allVideos();
   const v      = videos.find(x => x.id === id);
   if (!v) return json(res, { error: 'Not found' }, 404);
 
@@ -413,11 +421,11 @@ function apiVideoDetail(req, res, id) {
   json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
 }
 
-function apiStream(req, res, id) {
+async function apiStream(req, res, id) {
   const fp = safePath(id);
   if (!fp) { res.writeHead(404); res.end('Not found'); return; }
   
-  const v = allVideos().find(v => v.id === id);
+  const v = (await allVideos()).find(v => v.id === id);
   const isEnc = v && v.encrypted;
   const key   = isEnc ? getUnlockKey(v.catPath) : null;
   
@@ -426,7 +434,7 @@ function apiStream(req, res, id) {
     return res.end('Category locked');
   }
 
-  const stat = fs.statSync(fp);
+  const stat = await fs.promises.stat(fp);
   const size = stat.size;
   const ext  = path.extname(fp).toLowerCase();
   const ct   = MIME[v?.ext || ext] || 'application/octet-stream';
@@ -589,11 +597,11 @@ async function apiMove(req, res, id) {
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
-function apiAutoSort(req, res) {
+async function apiAutoSort(req, res) {
   const systemDirs = new Set([path.basename(VAULT_DIR), path.basename(IGNORED_DIR)]);
   let folders;
   try {
-    folders = fs.readdirSync(VIDEOS_DIR, { withFileTypes: true })
+    folders = (await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true }))
       .filter(e => e.isDirectory() && !systemDirs.has(e.name))
       .map(e => e.name);
   } catch { return json(res, { moved: 0 }); }
@@ -601,7 +609,7 @@ function apiAutoSort(req, res) {
 
   let loose;
   try {
-    loose = fs.readdirSync(VIDEOS_DIR, { withFileTypes: true })
+    loose = (await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true }))
       .filter(e => e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
       .map(e => e.name);
   } catch { return json(res, { moved: 0 }); }
@@ -620,7 +628,7 @@ function apiAutoSort(req, res) {
     const dst = path.join(VIDEOS_DIR, match, filename);
     if (fs.existsSync(dst)) continue;
     try {
-      fs.renameSync(src, dst);
+      await fs.promises.rename(src, dst);
       moved++;
       const oldId = toId(filename);
       const newId = toId(path.join(match, filename));
@@ -635,9 +643,9 @@ function apiAutoSort(req, res) {
 
 // ── Favourites / History / Ratings ───────────────────────────────────
 
-function apiFavourites(req, res) {
+async function apiFavourites(req, res) {
   const favs   = loadFavs();
-  const videos = allVideos();
+  const videos = await allVideos();
   json(res, videos.filter(v => favs.includes(v.id)).map(v => ({ ...v, fav: true })));
 }
 
@@ -649,9 +657,9 @@ function apiToggleFav(req, res, id) {
   json(res, { fav: i === -1 });
 }
 
-function apiAddHistory(req, res, id) {
+async function apiAddHistory(req, res, id) {
   if (loadPrefs().chronologyMode === 'dont-save') return json(res, { ok: true });
-  const videos = allVideos();
+  const videos = await allVideos();
   if (!videos.find(v => v.id === id)) return json(res, { ok: false });
   let h = loadHistory().filter(x => x !== id);
   h.unshift(id);
@@ -660,9 +668,9 @@ function apiAddHistory(req, res, id) {
   json(res, { ok: true });
 }
 
-function apiGetHistory(req, res) {
+async function apiGetHistory(req, res) {
   const h      = loadHistory();
-  const videos = allVideos();
+  const videos = await allVideos();
   const map    = Object.fromEntries(videos.map(v => [v.id, v]));
   json(res, h.map(id => map[id]).filter(Boolean));
 }
@@ -686,7 +694,7 @@ function apiDeleteRating(req, res, id) {
 }
 
 async function apiUpdateVideoMeta(req, res, id) {
-  const videos = allVideos();
+  const videos = await allVideos();
   if (!videos.find(v => v.id === id)) return json(res, { error: 'Not found' }, 404);
   const body    = await readBody(req);
   const allowed = ['title', 'actors', 'tags', 'studio', 'rating', 'category', 'note', 'date'];
@@ -727,8 +735,8 @@ async function apiOpenCategoryFolder(req, res) {
   json(res, { ok: true });
 }
 
-function apiDuplicates(req, res) {
-  const videos = allVideos();
+async function apiDuplicates(req, res) {
+  const videos = await allVideos();
   const favs   = loadFavs();
   const bySize = new Map();
   for (const v of videos) {
@@ -743,8 +751,8 @@ function apiDuplicates(req, res) {
 
 // ── Tags ─────────────────────────────────────────────────────────────
 
-function apiCategoriesOverview(req, res) {
-  const videos = cachedScan();
+async function apiCategoriesOverview(req, res) {
+  const videos = await cachedScan();
   const meta   = loadVideoMeta();
   const hidden = loadHidden();
 
@@ -795,9 +803,9 @@ function apiCategoriesOverview(req, res) {
   json(res, result);
 }
 
-function apiTags(req, res) {
+async function apiTags(req, res) {
   const meta    = loadVideoMeta();
-  const videos  = allVideos();
+  const videos  = await allVideos();
   const folderNames = new Set(
     videos.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
   );
@@ -814,9 +822,9 @@ function apiTags(req, res) {
   json(res, [...tagMap.values()].sort((a, b) => a.name.localeCompare(b.name)));
 }
 
-function apiTagVideos(req, res, tagName) {
+async function apiTagVideos(req, res, tagName) {
   const meta   = loadVideoMeta();
-  const videos = allVideos();
+  const videos = await allVideos();
   const favs   = loadFavs();
   const tagLo  = tagName.toLowerCase();
   
@@ -844,10 +852,10 @@ function _catForName(name) {
       || cats.find(c => c.terms.some(t => t.toLowerCase() === nameLo));
 }
 
-function apiDbTags(req, res) {
+async function apiDbTags(req, res) {
   const cats   = loadCategories();
   const meta   = loadVideoMeta();
-  const videos = allVideos();
+  const videos = await allVideos();
   const result = cats
     .map(cat => {
       const termsLo = cat.terms.map(t => t.toLowerCase());
@@ -862,11 +870,11 @@ function apiDbTags(req, res) {
   json(res, result);
 }
 
-function apiDbTagVideos(req, res, name) {
+async function apiDbTagVideos(req, res, name) {
   const cat = _catForName(name);
   if (!cat) return json(res, { error: 'Not found' }, 404);
   const meta    = loadVideoMeta();
-  const videos  = allVideos();
+  const videos  = await allVideos();
   const favs    = loadFavs();
   const termsLo = cat.terms.map(t => t.toLowerCase());
 
@@ -916,9 +924,9 @@ function apiTagSuggestions(req, res) {
 
 // ── Studios ──────────────────────────────────────────────────────────
 
-function apiStudios(req, res) {
+async function apiStudios(req, res) {
   const studios = loadStudios();
-  const videos  = allVideos();
+  const videos  = await allVideos();
   const meta    = loadVideoMeta();
   const result  = studios
     .map(e => ({
@@ -934,11 +942,11 @@ function apiStudios(req, res) {
   json(res, result);
 }
 
-function apiStudioVideos(req, res, studioName) {
+async function apiStudioVideos(req, res, studioName) {
   const studios = loadStudios();
   const entry   = studios.find(e => e.name.toLowerCase() === studioName.toLowerCase());
   if (!entry) return json(res, { error: 'Not found' }, 404);
-  const videos   = allVideos();
+  const videos   = await allVideos();
   const meta     = loadVideoMeta();
   const favs     = loadFavs();
   const studioLo = entry.name.toLowerCase();

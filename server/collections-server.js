@@ -7,9 +7,9 @@ const { json, readBody }               = require('./helpers-server');
 const { loadCollections, saveCollections } = require('./db-server');
 const { allVideos }                    = require('./videos-server');
 
-function apiCollections(req, res) {
+async function apiCollections(req, res) {
   const cols   = loadCollections();
-  const videos = allVideos();
+  const videos = await allVideos();
   const result = cols.map(col => ({
     name: col.name,
     ids: col.ids,
@@ -60,11 +60,11 @@ async function apiCollectionRemoveVideo(req, res, name, id) {
   json(res, { ok: true });
 }
 
-function apiCollectionVideos(req, res, name) {
+async function apiCollectionVideos(req, res, name) {
   const cols   = loadCollections();
   const col    = cols.find(c => c.name === name);
   if (!col) return json(res, { error: 'Not found' }, 404);
-  const videos = allVideos();
+  const videos = await allVideos();
   const favs   = require('./db-server').loadFavs();
   
   const parsed = require('url').parse(req.url, true);

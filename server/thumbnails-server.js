@@ -74,9 +74,9 @@ async function genChapterThumb(id, fp, time, chapterId) {
   });
 }
 
-function apiThumbImg(req, res, id, idx) {
+async function apiThumbImg(req, res, id, idx) {
   const { allVideos, getUnlockedCategoryKey } = require('./videos-server');
-  const v = allVideos().find(v => v.id === id);
+  const v = (await allVideos()).find(v => v.id === id);
   let fp = path.resolve(path.join(THUMBS_DIR, id, `${idx}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
 
@@ -107,9 +107,9 @@ function decryptBuffer(raw, key) {
   return Buffer.concat([dec.update(ct), dec.final()]);
 }
 
-function apiChapterThumbImg(req, res, id, chapterId) {
+async function apiChapterThumbImg(req, res, id, chapterId) {
   const { allVideos, getUnlockedCategoryKey } = require('./videos-server');
-  const v = allVideos().find(v => v.id === id);
+  const v = (await allVideos()).find(v => v.id === id);
   let fp = path.resolve(path.join(THUMBS_DIR, id, 'chapters', `${chapterId}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
 

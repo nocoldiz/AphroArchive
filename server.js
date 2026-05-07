@@ -127,7 +127,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/history' && req.method === 'GET') return videos.apiGetHistory(req, res);
   if (p === '/api/history' && req.method === 'DELETE') return videos.apiClearHistory(req, res);
   if (p === '/api/duplicates' && req.method === 'GET') return videos.apiDuplicates(req, res);
-  if (p === '/api/duplicates/scan' && req.method === 'POST') return duplicates.apiDuplicatesScan(req, res, videos.cachedScan());
+  if (p === '/api/duplicates/scan' && req.method === 'POST') return duplicates.apiDuplicatesScan(req, res, await videos.cachedScan());
   if (p === '/api/duplicates/stop' && req.method === 'POST') return duplicates.apiDuplicatesStop(req, res);
   if (p === '/api/duplicates/status' && req.method === 'GET') return duplicates.apiDuplicatesStatus(req, res);
   if (p === '/api/duplicates/results' && req.method === 'GET') return duplicates.apiDuplicatesResults(req, res);
@@ -340,9 +340,9 @@ const server = http.createServer(async (req, res) => {
 
 // ── Listen ───────────────────────────────────────────────────────────
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
-  initVideoMeta();
+  await initVideoMeta();
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);

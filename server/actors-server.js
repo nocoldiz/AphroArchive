@@ -66,9 +66,9 @@ async function fetchImdbPhotoUrl(actorName) {
 
 // ── Actor API handlers ───────────────────────────────────────────────
 
-function apiActors(req, res) {
+async function apiActors(req, res) {
   const actors = loadActors();
-  const videos = allVideos();
+  const videos = await allVideos();
   const meta   = loadVideoMeta();
   const result = actors
     .map(e => ({
@@ -86,11 +86,11 @@ function apiActors(req, res) {
   json(res, result);
 }
 
-function apiActorVideos(req, res, actorName) {
+async function apiActorVideos(req, res, actorName) {
   const actors = loadActors();
   const entry  = actors.find(e => e.name.toLowerCase() === actorName.toLowerCase());
   if (!entry) return json(res, { error: 'Not found' }, 404);
-  const videos   = allVideos();
+  const videos   = await allVideos();
   const meta     = loadVideoMeta();
   const favs     = loadFavs();
   const actorLo  = entry.name.toLowerCase();
@@ -142,7 +142,7 @@ async function apiActorPhotoScrape(req, res, actorName) {
   }
 }
 
-function apiActorPhotoImg(req, res, actorName) {
+async function apiActorPhotoImg(req, res, actorName) {
   if (fs.existsSync(ACTOR_PHOTOS_DIR)) {
     const photoPath = path.join(ACTOR_PHOTOS_DIR, actorSlug(actorName) + '.jpg');
     if (fs.existsSync(photoPath)) {
@@ -157,7 +157,7 @@ function apiActorPhotoImg(req, res, actorName) {
   const entry  = actors.find(e => e.name.toLowerCase() === actorName.toLowerCase());
   if (entry) {
     const actorLo = entry.name.toLowerCase();
-    const videos  = allVideos().filter(v => actorMatchesAny(v.name, [actorLo])).sort((a, b) => a.name.localeCompare(b.name));
+    const videos  = (await allVideos()).filter(v => actorMatchesAny(v.name, [actorLo])).sort((a, b) => a.name.localeCompare(b.name));
     if (videos.length) {
       res.writeHead(302, { Location: '/api/thumbs/' + videos[0].id + '/0' });
       res.end();

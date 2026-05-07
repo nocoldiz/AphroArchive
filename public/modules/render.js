@@ -83,14 +83,49 @@ function resetRenderLimit() {
   _renderLimit = 60;
 }
 
+let _worker = null;
+let _workerReqId = 0;
+
+function initWorker() {
+  if (window.Worker && !_worker) {
+    _worker = new Worker('/worker.js');
+    _worker.onmessage = (e) => {
+      const { type, local, finalBms, requestId } = e.data;
+      if (type === 'filterResult' && requestId === _workerReqId) {
+        _doRender(local, finalBms);
+      }
+    };
+  }
+}
+initWorker();
+
 // ─── Main Grid ───
 function render() {
-  const g = $('video-grid').el, e = $('empty-placeholder').el;
+  const g = $('video-grid').el;
   if (!g) return;
+
+  if (_worker) {
+    _workerReqId++;
+    _worker.postMessage({
+      type: 'filter',
+      requestId: _workerReqId,
+      data: {
+        videos: V,
+        bookmarks: typeof getBmList === 'function' ? getBmList() : [],
+        galleryFilter,
+        recentMode,
+        favM,
+        srcFilter,
+        recentVids,
+        shuf,
+        sort
+      }
+    });
+    return;
+  }
   
-  let base = recentMode ? recentVids : favM ? V.filter(v => v.fav) : V;
-  
-  // Local gallery filter
+  // Sync fallback
+  let base = recentMode ? recentVids : (favM ? V.filter(v => v.fav) : V);
   if (galleryFilter) {
     base = base.filter(v => 
       v.name.toLowerCase().includes(galleryFilter) || 
@@ -98,15 +133,17 @@ function render() {
       (v.tags && v.tags.some(t => t.toLowerCase().includes(galleryFilter)))
     );
   }
-
   const local = srcFilter === 'remote' ? [] : base;
-  const bms   = (!recentMode && !favM && srcFilter !== 'local') ? getBmList() : [];
-  
-  // Also filter bookmarks if galleryFilter is active
-  let finalBms = bms;
+  let finalBms = (!recentMode && !favM && srcFilter !== 'local') ? getBmList() : [];
   if (galleryFilter) {
-    finalBms = bms.filter(it => it.title.toLowerCase().includes(galleryFilter) || it.url.toLowerCase().includes(galleryFilter));
+    finalBms = finalBms.filter(it => it.title.toLowerCase().includes(galleryFilter) || it.url.toLowerCase().includes(galleryFilter));
   }
+  _doRender(local, finalBms);
+}
+
+function _doRender(local, finalBms) {
+  const g = $('video-grid').el, e = $('empty-placeholder').el;
+  if (!g) return;
 
   const countEl = document.getElementById('result-count');
   const total = local.length + finalBms.length;
