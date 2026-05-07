@@ -30,6 +30,8 @@ async function openVid(id, prevView, timestamp = null) {
   const vid = $('video-player').el;
   // Clear any existing tracks before setting new src
   while (vid.firstChild) vid.removeChild(vid.firstChild);
+  const overlay = document.getElementById('video-subtitle-overlay');
+  if (overlay) { overlay.innerHTML = ''; overlay.style.display = 'none'; }
   vid.src = '/api/stream/' + id;
   if (timestamp !== null) {
     const onLoaded = () => {
@@ -467,8 +469,81 @@ async function submitStudio() {
     vid.addEventListener('ended', () => {
       if (curV) clearPos(curV.id);
     });
+
+    setupSubtitleOverlay(vid);
   });
 })();
+
+function setupSubtitleOverlay(vid) {
+  const overlay = document.getElementById('video-subtitle-overlay');
+  if (!overlay) return;
+
+  const updateOverlay = () => {
+    let activeText = '';
+    // Use textTracks to find active cues
+    for (let i = 0; i < vid.textTracks.length; i++) {
+      const track = vid.textTracks[i];
+      // We check for 'showing' or 'hidden'. 
+      // If we want to hide the browser's default but still get cues, we set mode to 'hidden'.
+      if (track.mode === 'showing' || track.mode === 'hidden') {
+        const cues = track.activeCues;
+        if (cues && cues.length > 0) {
+          for (let j = 0; j < cues.length; j++) {
+            activeText += cues[j].text + '\n';
+          }
+        }
+      }
+    }
+
+    if (activeText.trim()) {
+      overlay.innerHTML = `<span>${esc(activeText.trim())}</span>`;
+      overlay.style.display = 'block';
+    } else {
+      overlay.style.display = 'none';
+    }
+  };
+
+  // The 'cuechange' event is more efficient than 'timeupdate' for this
+  const bindTrack = (track) => {
+    track.addEventListener('cuechange', updateOverlay);
+  };
+
+  // Bind existing tracks
+  for (let i = 0; i < vid.textTracks.length; i++) {
+    bindTrack(vid.textTracks[i]);
+  }
+
+  // Bind new tracks as they are added
+  vid.textTracks.addEventListener('addtrack', (e) => {
+    bindTrack(e.track);
+    // If it's showing (like a default track), hide it so we can use our overlay
+    if (e.track.mode === 'showing') {
+      e.track.mode = 'hidden';
+    }
+  });
+
+  // If a track is set to 'showing', we might want to hide the native UI
+  // and use our overlay instead.
+  vid.textTracks.addEventListener('change', () => {
+    for (let i = 0; i < vid.textTracks.length; i++) {
+      const track = vid.textTracks[i];
+      if (track.mode === 'showing') {
+        track.mode = 'hidden'; // Hide native, but our logic still works
+      }
+    }
+    updateOverlay();
+  });
+
+  // Initial check for any tracks already present
+  for (let i = 0; i < vid.textTracks.length; i++) {
+    if (vid.textTracks[i].mode === 'showing') {
+      vid.textTracks[i].mode = 'hidden';
+    }
+  }
+  
+  // Backup timeupdate in case cuechange is finicky in some browsers
+  vid.addEventListener('timeupdate', updateOverlay);
+}
 
 async function addChapter() {
   if (!curV || curV.isVault) return;
@@ -604,9 +679,54 @@ function toggleSubtitlesPanel() {
   const panel = $('subtitles-panel');
   if (panel.el.style.display === 'none') {
     panel.el.style.display = 'flex';
+    checkSubtitleCache();
   } else {
     panel.el.style.display = 'none';
   }
+}
+
+function checkSubtitleCache() {
+  if (!curV) return;
+  const cacheKey = `sub_cache_${curV.id}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      const segments = JSON.parse(cached);
+      if (segments.length > 0) {
+        $('sub-transcript-preview').el.innerHTML = `<div style="color:var(--ac);margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--brd)">` +
+          `Found ${segments.length} cached segments. ` +
+          `<button onclick="loadSubtitleCache()" style="background:var(--ac);color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:10px">Load</button> ` +
+          `<button onclick="clearSubtitleCache()" style="background:var(--bg3);color:var(--tx);border:1px solid var(--brd);padding:2px 8px;border-radius:4px;cursor:pointer;font-size:10px">Clear</button>` +
+          `</div>` + $('sub-transcript-preview').el.innerHTML;
+      }
+    } catch (e) { localStorage.removeItem(cacheKey); }
+  }
+}
+
+function loadSubtitleCache() {
+  if (!curV) return;
+  const cacheKey = `sub_cache_${curV.id}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    subtitleSegments = JSON.parse(cached);
+    $('sub-transcript-preview').el.innerHTML = '';
+    subtitleSegments.forEach(s => {
+      const p = document.createElement('div');
+      p.textContent = `[${formatVttTime(s.time)}] ${s.text}`;
+      $('sub-transcript-preview').el.appendChild(p);
+    });
+    $('sub-save-btn').show();
+    toast('✅ Cache loaded');
+  }
+}
+
+function clearSubtitleCache() {
+  if (!curV) return;
+  localStorage.removeItem(`sub_cache_${curV.id}`);
+  $('sub-transcript-preview').html('Transcript will appear here...');
+  $('sub-save-btn').show(false);
+  subtitleSegments = [];
+  toast('🗑️ Cache cleared');
 }
 
 function startSubtitleGen() {
@@ -627,10 +747,10 @@ function startSubtitleGen() {
   subtitleRecognition.lang = 'en-US';
 
   subtitleSegments = [];
-  $('sub-transcript-preview').el.textContent = '';
-  $('sub-gen-status').el.style.display = 'block';
-  $('sub-gen-btn').el.text('Stop Generating');
-  $('sub-save-btn').el.style.display = 'none';
+  $('sub-transcript-preview').text('');
+  $('sub-gen-status').show();
+  $('sub-gen-btn').text('Stop Generating');
+  $('sub-save-btn').show(false);
 
   const vid = $('video-player').el;
 
@@ -641,6 +761,12 @@ function startSubtitleGen() {
       if (event.results[i].isFinal) {
         const time = vid.currentTime;
         subtitleSegments.push({ time, text: transcript });
+        
+        // Cache to localStorage
+        if (curV) {
+          localStorage.setItem(`sub_cache_${curV.id}`, JSON.stringify(subtitleSegments));
+        }
+
         const p = document.createElement('div');
         p.textContent = `[${formatVttTime(time)}] ${transcript}`;
         $('sub-transcript-preview').el.appendChild(p);
@@ -653,10 +779,10 @@ function startSubtitleGen() {
 
   subtitleRecognition.onend = () => {
     subtitleRecognition = null;
-    $('sub-gen-status').el.style.display = 'none';
-    $('sub-gen-btn').el.text('Generate (EN)');
+    $('sub-gen-status').show(false);
+    $('sub-gen-btn').text('Generate (EN)');
     if (subtitleSegments.length > 0) {
-      $('sub-save-btn').el.style.display = 'block';
+      $('sub-save-btn').show();
     }
   };
 
@@ -688,6 +814,10 @@ async function saveGeneratedSubtitles() {
     const data = await res.json();
     if (data.ok) {
       toast('✅ Subtitles saved!');
+      // Clear cache upon successful save
+      localStorage.removeItem(`sub_cache_${curV.id}`);
+      subtitleSegments = [];
+
       // Refresh subtitles list in player
       const vid = $('video-player').el;
       const subsRes = await fetch(`/api/subtitles/${curV.id}`);
@@ -707,7 +837,7 @@ async function saveGeneratedSubtitles() {
         vid.appendChild(track);
       });
       
-      $('sub-save-btn').el.style.display = 'none';
+      $('sub-save-btn').show(false);
     } else {
       alert("Error saving subtitles: " + data.error);
     }

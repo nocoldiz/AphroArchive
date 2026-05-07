@@ -229,6 +229,7 @@ function selCat(c) {
 
 // ─── Favourites Toggle ───
 function toggleFav() {
+  closeAllViews();
   favM = !favM;
   $('fBtn').toggle('on', favM);
   $('section-title').text(favM ? 'Favourites' : 'All Videos');

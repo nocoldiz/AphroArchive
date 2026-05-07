@@ -639,13 +639,48 @@ input {
   border-radius: var(--rl);
   overflow: hidden;
   background: #000;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6)
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  position: relative
 }
 
 .video-player-wrap video {
   width: 100%;
   display: block;
   max-height: 70vh
+}
+
+.video-subtitle-overlay {
+  position: absolute;
+  bottom: 12%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+  z-index: 10;
+  padding: 0 40px;
+  display: none;
+  transition: bottom 0.3s;
+}
+
+.video-subtitle-overlay span {
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 1.25rem;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  display: inline-block;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Move subtitles up when controls are likely visible (though native controls are hard to detect, 
+   we can at least give some breathing room) */
+.video-player-wrap:hover .video-subtitle-overlay {
+  bottom: 15%;
 }
 
 .video-nav {
@@ -1360,8 +1395,7 @@ input {
 }
 
 .pan .back-btn {
-  margin: 10px 0 10px 16px;
-  display: block;
+  display: none;
 }
 
 /* Player layout: single column, no playlist */
