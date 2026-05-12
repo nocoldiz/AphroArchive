@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { thumbnails, loadThumbnails } from '../store';
+import { thumbnails, loadThumbnails, allVideos, loadVideos } from '../store';
 
 interface FlatThumb {
   videoId: string;
@@ -10,9 +10,11 @@ interface FlatThumb {
 export const ThumbnailsView = () => {
   const [lightboxIdx, setLightboxIdx] = useState(-1);
   const [query, setQuery] = useState('');
+  const [sortMode, setSortMode] = useState('date');
 
   useEffect(() => {
     loadThumbnails();
+    if (allVideos.value.length === 0) loadVideos();
   }, []);
 
   const list = thumbnails.value;
@@ -27,13 +29,31 @@ export const ThumbnailsView = () => {
   }
 
   // Flatten the list: each video has multiple thumbs
-  let allThumbs: FlatThumb[] = list.flatMap(group => 
+  const baseThumbs: FlatThumb[] = list.flatMap(group => 
     group.thumbs.map((url: string, i: number) => ({ videoId: group.id, url, index: i }))
   );
 
+  let allThumbs = baseThumbs.map(t => {
+    const video = allVideos.value.find(v => v.id === t.videoId);
+    return {
+      ...t,
+      title: video?.name || t.videoId,
+      date: video?.mtime || 0,
+      size: video?.size || 0
+    };
+  });
+
+  if (sortMode === 'name') {
+    allThumbs.sort((a, b) => a.title.localeCompare(b.title));
+  } else if (sortMode === 'size') {
+    allThumbs.sort((a, b) => b.size - a.size);
+  } else { // date
+    allThumbs.sort((a, b) => b.date - a.date);
+  }
+
   if (query) {
     const q = query.toLowerCase();
-    allThumbs = allThumbs.filter(t => t.videoId.toLowerCase().includes(q));
+    allThumbs = allThumbs.filter(t => t.title.toLowerCase().includes(q));
   }
 
   const prev = () => setLightboxIdx((lightboxIdx - 1 + allThumbs.length) % allThumbs.length);
@@ -53,9 +73,16 @@ export const ThumbnailsView = () => {
 
   return (
     <div className="thumbnails-view" style={{ padding: '20px' }}>
-      <div className="section-header" style={{ marginBottom: '15px' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Thumbnails</h2>
-        <span style={{ color: 'var(--tx3)', marginLeft: '10px' }}>{allThumbs.length} images</span>
+      <div className="section-header" style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'inline' }}>Thumbnails</h2>
+          <span style={{ color: 'var(--tx3)', marginLeft: '10px' }}>{allThumbs.length} images</span>
+        </div>
+        <div className="section-controls" style={{ display: 'flex', gap: '5px' }}>
+          <button className={`sort-btn ${sortMode === 'date' ? 'on' : ''}`} onClick={() => setSortMode('date')}>Date</button>
+          <button className={`sort-btn ${sortMode === 'name' ? 'on' : ''}`} onClick={() => setSortMode('name')}>Name</button>
+          <button className={`sort-btn ${sortMode === 'size' ? 'on' : ''}`} onClick={() => setSortMode('size')}>Size</button>
+        </div>
       </div>
 
       <div className="prompts-search-bar" style={{ marginBottom: '20px' }}>
@@ -76,7 +103,7 @@ export const ThumbnailsView = () => {
           <div key={`${t.videoId}-${t.index}`} className="ph-card" onClick={() => setLightboxIdx(i)}>
             <img className="ph-thumb" src={t.url} alt={`Thumb ${t.index}`} loading="lazy" />
             <div className="ph-overlay">
-              <span className="ph-name">{t.videoId}</span>
+              <span className="ph-name">{t.title} {t.index + 1}</span>
             </div>
           </div>
         ))}
@@ -101,7 +128,7 @@ export const ThumbnailsView = () => {
             </svg>
           </button>
           <div className="ph-lb-caption">
-            {allThumbs[lightboxIdx].videoId} · Image {allThumbs[lightboxIdx].index + 1}
+            {allThumbs[lightboxIdx].title} · Image {allThumbs[lightboxIdx].index + 1}
           </div>
           <button className="ph-lb-close" onClick={() => setLightboxIdx(-1)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

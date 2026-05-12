@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { Search } from './components/Search';
 import { MainContent } from './components/MainContent';
 import { PlayerView } from './components/PlayerView';
+import { setupRouter } from './router';
 
 // 1. Mount the Sidebar
 const sidebarEl = document.getElementById('side');
@@ -26,3 +27,6 @@ const root = document.createElement('div');
 root.id = 'preact-root';
 document.body.appendChild(root);
 render(<App />, root);
+
+// Initialize Router
+setupRouter();

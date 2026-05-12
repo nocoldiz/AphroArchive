@@ -80,7 +80,7 @@ export const Sidebar = () => {
       <SectionHeader label="Media" id="sh3-media" />
       <div className="side-section" id="mediaSection">
         <SidebarItem label="Photos" icon={<i className="icon-image" />} onClick={() => setView('photos', 'showPhotos')} isActive={currentView.value === 'photos'} />
-        <SidebarItem label="Thumbnails" icon={<i className="icon-grid" />} onClick={() => setView('thumbnails')} isActive={currentView.value === 'thumbnails'} />
+        <SidebarItem label="Thumbnails" icon={<i className="icon-grid" />} onClick={() => setView('thumbnails', 'showThumbnails')} isActive={currentView.value === 'thumbnails'} />
       </div>
 
       <div className="side-sep"></div>
