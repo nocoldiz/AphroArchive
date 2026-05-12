@@ -44,7 +44,7 @@ export const SettingsView = () => {
             <input 
               type="checkbox" 
               checked={!!appPrefs.value.aiCommentsEnabled}
-              onChange={(e: any) => updatePrefs({ aiCommentsEnabled: e.target.checked })}
+              onChange={(e) => updatePrefs({ aiCommentsEnabled: (e.currentTarget as HTMLInputElement).checked })}
               style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--ac)' }}
             />
             Enable AI comments
@@ -109,8 +109,8 @@ export const SettingsView = () => {
               resize: 'vertical',
               outline: 'none'
             }}
-            onFocus={(e) => e.target.style.borderColor = 'var(--ac)'}
-            onBlur={(e) => e.target.style.borderColor = 'var(--brd)'}
+            onFocus={(e) => (e.currentTarget as HTMLTextAreaElement).style.borderColor = 'var(--ac)'}
+            onBlur={(e) => (e.currentTarget as HTMLTextAreaElement).style.borderColor = 'var(--brd)'}
           />
         </div>
 
@@ -139,8 +139,8 @@ export const SettingsView = () => {
               resize: 'vertical',
               outline: 'none'
             }}
-            onFocus={(e) => e.target.style.borderColor = 'var(--ac)'}
-            onBlur={(e) => e.target.style.borderColor = 'var(--brd)'}
+            onFocus={(e) => (e.currentTarget as HTMLTextAreaElement).style.borderColor = 'var(--ac)'}
+            onBlur={(e) => (e.currentTarget as HTMLTextAreaElement).style.borderColor = 'var(--brd)'}
           />
         </div>
 

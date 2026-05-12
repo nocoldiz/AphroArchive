@@ -39,6 +39,7 @@ export interface AppPrefs {
   chronologyMode: 'keep' | 'delete-on-startup' | 'dont-save';
   aiCommentMasterPrompt?: string;
   aiReplyMasterPrompt?: string;
+  aiCommentsEnabled?: boolean;
 }
 export interface ThumbnailGroup {
   id: string;

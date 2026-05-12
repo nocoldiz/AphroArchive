@@ -28,6 +28,16 @@ async function init() {
   _syncSortButtons();
   loadBookmarkVidsOnInit();
   showThumbnails(true);
+  
+  // Enable browser tab audio control on first interaction
+  const startDummyAudio = () => {
+    const dummy = document.getElementById('dummy-audio');
+    if (dummy) dummy.play().catch(() => {});
+    document.removeEventListener('click', startDummyAudio);
+    document.removeEventListener('keydown', startDummyAudio);
+  };
+  document.addEventListener('click', startDummyAudio);
+  document.addEventListener('keydown', startDummyAudio);
 }
 
 async function loadBookmarkVidsOnInit() {
@@ -184,7 +194,7 @@ function closeAllViews() {
     'studios-view','studio-detail-view','studio-sidebar','actors-view','actor-detail-view','actor-sidebar','tag-detail-view',
     'vault-view','vault-sidebar','scraper-view','scraper-sidebar',
     'collections-view','collections-sidebar',
-    'books-view','books-sidebar','audio-view','audio-sidebar','photos-view','photos-sidebar','thumbnails-sidebar','pages-view','pages-sidebar','prompts-view','prompts-sidebar','search-sites-view','search-sites-sidebar',
+    'books-view','books-sidebar','audio-view','audio-sidebar','photos-view','photos-sidebar','thumbnails-sidebar','thumbnails-view','pages-view','pages-sidebar','prompts-view','prompts-sidebar','search-sites-view','search-sites-sidebar',
     'import-favs-view','import-favs-sidebar','settings-view','settings-sidebar','database-view','database-sidebar','recent-sidebar',
     'categories-view','categories-view-sidebar','chapters-view','chapters-sidebar',
   ].forEach(id => { const el = $(id).el; if (el) el.classList.remove('on'); });

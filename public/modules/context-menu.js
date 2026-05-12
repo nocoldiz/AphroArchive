@@ -75,7 +75,14 @@ function renderCtxMenu(type, data) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         Open folder
       </div>
+      <div class="ctx-item" onclick="ctxCompressCategory('${escA(data.path)}', '${escA(data.name)}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M4 14V4h16v10"/><path d="M12 10v9m0 0l-3-3m3 3l3-3"/>
+        </svg>
+        Compress Videos
+      </div>
       <div class="ctx-sep"></div>
+
       ${isEnc ? `
         <div class="ctx-item" onclick="ctxUnlockCategory('${escA(data.path)}', '${escA(data.name)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -279,6 +286,22 @@ async function ctxOpenCategoryFolder(path) {
     body: JSON.stringify({ path })
   });
   if (!r.ok) toast('Failed to open folder');
+}
+
+async function ctxCompressCategory(path, name) {
+  if (!confirm(`Start high-compression for all videos in "${name}"?\nThis runs in the background and may take a while.`)) return;
+  
+  const r = await fetch('/api/categories/compress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path })
+  });
+  
+  if (r.ok) {
+    toast('Compression started in background');
+  } else {
+    toast('Failed to start compression');
+  }
 }
 
 

@@ -141,15 +141,6 @@
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>Vault</span>
           </div>
-          <div class="sidebar-item" id="thumbnails-sidebar" onclick="showThumbnails()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>Thumbnails</span>
-          </div>
         </div>
 
         <!-- Browse -->
@@ -201,6 +192,15 @@
                 style="vertical-align:-2px;margin-right:5px">
                 <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
               </svg>Videos</span>
+          </div>
+          <div class="sidebar-item" id="thumbnails-sidebar" onclick="showThumbnails()">
+            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="vertical-align:-2px;margin-right:5px">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+              </svg>Thumbnails</span>
           </div>
           <div class="sidebar-item" id="photos-sidebar" onclick="showPhotos()">
             <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -2991,6 +2991,8 @@
   </div>
   <div id="context-menu" class="ctx-menu"></div>
   <script type="module" src="/src/main.tsx"></script>
+  <!-- Dummy audio to keep browser tab audio indicator active -->
+  <audio id="dummy-audio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAABAAAA" style="display:none"></audio>
 </body>
 
 </html>

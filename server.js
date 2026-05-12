@@ -141,6 +141,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/categories/unlock' && req.method === 'POST') return videos.apiUnlockCategory(req, res);
   if (p === '/api/categories/decrypt' && req.method === 'POST') return videos.apiDecryptCategory(req, res);
   if (p === '/api/categories/encrypt-all' && req.method === 'POST') return videos.apiEncryptAllCategories(req, res);
+  if (p === '/api/categories/compress' && req.method === 'POST') return videos.apiCompressCategory(req, res);
 
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetail(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);

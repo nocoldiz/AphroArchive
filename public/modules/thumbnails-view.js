@@ -3,6 +3,7 @@ async function showThumbnails(skipNav = false) {
   if (!skipNav) {
     closeAllViews();
     document.getElementById('thumbnails-sidebar')?.classList.add('on');
+    document.getElementById('thumbnails-view')?.classList.add('on');
   }
 
   const view = document.getElementById('thumbnails-view');

@@ -1,5 +1,5 @@
 import { signal, computed } from '@preact/signals';
-import { Video, Category, Actor, Studio, AppPrefs } from './types';
+import { Video, Category, Actor, Studio, AppPrefs, ThumbnailGroup } from './types';
 
 // ─── Core State ──────────────────────────────────────────────────────
 export const videos = signal<Video[]>([]);

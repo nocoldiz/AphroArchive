@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const {
   VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
-  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR,
+  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN
 } = require('./config-server');
 const { pipeline } = require('stream');
 const { promisify } = require('util');
