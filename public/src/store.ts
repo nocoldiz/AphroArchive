@@ -333,6 +333,12 @@ w.goHome = () => {
   if (w.refresh) w.refresh();
 };
 
+w.showBooks = () => { currentView.value = 'books'; };
+w.showPages = () => { currentView.value = 'pages'; };
+w.showAudio = () => { currentView.value = 'audio'; };
+w.showSearchSites = () => { currentView.value = 'search'; };
+w.showPrompts = () => { currentView.value = 'prompts'; };
+
 // Subscriber to handle legacy view visibility
 currentView.subscribe(view => {
   const legacyViews = [
@@ -350,9 +356,6 @@ currentView.subscribe(view => {
   
   if (view === 'home') {
     document.getElementById('home-view')?.classList.add('on');
-    browseView?.classList.add('off');
-  } else if (view === 'vault') {
-    document.getElementById('vault-view')?.classList.add('on');
     browseView?.classList.add('off');
   } else if (view === 'scraper') {
     document.getElementById('scraper-view')?.classList.add('on');

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 
 interface AudioFile {
   id: string;
@@ -16,6 +16,7 @@ export const AudioView = () => {
   const [query, setQuery] = useState('');
   const [curAudio, setCurAudio] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const w = window as any;
 
@@ -44,17 +45,7 @@ export const AudioView = () => {
 
   const playAudio = (id: string) => {
     setCurAudio(id);
-    const f = audioFiles.find(x => x.id === id);
-    const audioEl = document.getElementById('audioEl') as HTMLAudioElement;
-    const playerTitle = document.getElementById('audioPlayerTitle');
-    const player = document.getElementById('audioPlayer');
-
-    if (playerTitle) playerTitle.innerText = f ? f.title : '';
-    if (audioEl) {
-      audioEl.src = `/api/audio/${id}/stream`;
-      if (player) player.style.display = '';
-      audioEl.play().catch(() => {});
-    }
+    // Auto-play is handled by the audio element's autoPlay prop when src changes
   };
 
   const deleteAudio = async (id: string) => {
@@ -63,14 +54,7 @@ export const AudioView = () => {
       const r = await fetch(`/api/audio/${id}`, { method: 'DELETE' });
       if (r.ok) {
         if (curAudio === id) {
-          const audioEl = document.getElementById('audioEl') as HTMLAudioElement;
-          if (audioEl) {
-            audioEl.pause();
-            audioEl.src = '';
-          }
           setCurAudio(null);
-          const player = document.getElementById('audioPlayer');
-          if (player) player.style.display = 'none';
         }
         if (w.toast) w.toast('Deleted');
         loadAudio();
@@ -122,6 +106,8 @@ export const AudioView = () => {
       <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
     </svg>
   );
+
+  const currentPlayingFile = audioFiles.find(f => f.id === curAudio);
 
   return (
     <div className="audio-view on">
@@ -200,6 +186,28 @@ export const AudioView = () => {
           </div>
         ))}
       </div>
+
+      {/* Mini Player */}
+      {curAudio && currentPlayingFile && (
+        <div className="au-player" id="audioPlayer" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg3)', padding: '12px', borderRadius: '8px', marginTop: '16px', border: '1px solid var(--brd)' }}>
+          <div className="au-player-icon" style={{ color: 'var(--ac)' }}>{auIcon}</div>
+          <span className="au-player-title" style={{ flex: 1, minWidth: 0, fontWeight: '500', color: 'var(--tx)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {currentPlayingFile.title}
+          </span>
+          <audio ref={audioRef} src={`/api/audio/${curAudio}/stream`} controls autoPlay style={{ height: '30px' }}></audio>
+          <button 
+            className="au-player-close" 
+            onClick={() => setCurAudio(null)} 
+            title="Close"
+            style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '4px' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

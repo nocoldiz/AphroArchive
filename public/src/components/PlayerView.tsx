@@ -18,7 +18,7 @@ export const PlayerView = () => {
   if (!video) return null;
 
   useEffect(() => {
-    if (!video) return;
+    if (!video || video.isVault) return;
     fetch(`/api/videos/${video.id}`)
       .then(r => r.json())
       .then(d => {
@@ -134,7 +134,7 @@ export const PlayerView = () => {
             <video 
               ref={videoRef}
               id="video-player" 
-              src={`/stream?id=${video.id}`} 
+              src={video.isVault ? `/api/vault/stream/${video.id}` : `/stream?id=${video.id}`} 
               controls 
               autoPlay 
             >

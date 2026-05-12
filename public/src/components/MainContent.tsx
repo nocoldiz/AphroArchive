@@ -19,6 +19,8 @@ import { TagModal } from './TagModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from './RenameModal';
 import { MoveModal } from './MoveModal';
+import { VaultView } from './VaultView';
+import { PromptsView } from './PromptsView';
 
 export const MainContent = () => {
   const view = currentView.value;
@@ -39,6 +41,8 @@ export const MainContent = () => {
     if (view === 'search') return <SearchSitesView />;
     if (view === 'audio') return <AudioView />;
     if (view === 'books') return <BooksView />;
+    if (view === 'vault') return <VaultView />;
+    if (view === 'prompts') return <PromptsView />;
     return <VideoGrid />;
   };
 

@@ -1,6 +1,7 @@
 import { useEffect } from 'preact/hooks';
 import { videos, loadVideos, loadCategories, loadPrefs, currentView, presetPickerState } from './store';
 import { PresetPicker } from './components/PresetPicker';
+import { DropOverlay } from './components/DropOverlay';
 
 export function App() {
   useEffect(() => {
@@ -40,6 +41,7 @@ export function App() {
         </button>
       </div>
       <PresetPicker />
+      <DropOverlay />
     </>
   );
 }

@@ -3,7 +3,10 @@ export function extractActorNames(title: string, knownActors: string[] = []): st
 
   let t = title.replace(/\.[a-z0-9]{2,5}$/i, '').trim();
 
-  t.replace(/\b([A-Za-z]+_[A-Za-z]+(?:_[A-Za-z]+)*)\b/g, (_, g) => { found.add(g.replace(/_/g, ' ')); });
+  t.replace(/\b([A-Za-z]+_[A-Za-z]+(?:_[A-Za-z]+)*)\b/g, (_, g) => {
+    found.add(g.replace(/_/g, ' '));
+    return _;
+  });
   t = t.replace(/_/g, ' ');
 
   (t.match(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b/g) || []).forEach(w => found.add(w));
