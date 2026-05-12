@@ -1,4 +1,4 @@
-import { currentView } from './store';
+import { currentView, currentActor, currentStudio } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
@@ -25,15 +25,15 @@ export async function routeToPath(path: string) {
   if (path === '/search') { if (w.showSearchSites) w.showSearchSites(); return; }
   if (path === '/prompts') { if (w.showPrompts) w.showPrompts(); return; }
   if (path === '/database') { if (w.showDatabase) w.showDatabase(); return; }
-  if (path === '/categories') { if (w.showCategoriesView) w.showCategoriesView(); return; }
-  if (path === '/actors') { if (w.showActors) w.showActors(); return; }
-  if (path === '/studios') { if (w.showStudios) w.showStudios(); return; }
+  if (path === '/categories') { currentView.value = 'categories'; return; }
+  if (path === '/actors') { currentView.value = 'actors'; currentActor.value = null; return; }
+  if (path === '/studios') { currentView.value = 'studios'; currentStudio.value = null; return; }
   
   if ((m = path.match(/^\/video\/([^/]+)$/))) { if (w.openVid) w.openVid(decodeURIComponent(m[1])); return; }
   if ((m = path.match(/^\/tag\/(.+)$/))) { if (w.openTag) w.openTag(decodeURIComponent(m[1])); return; }
   if ((m = path.match(/^\/cat\/(.+)$/))) { if (w.selCat) w.selCat(decodeURIComponent(m[1])); return; }
-  if ((m = path.match(/^\/actor\/(.+)$/))) { if (w.showActors) await w.showActors(); if (w.openActor) w.openActor(decodeURIComponent(m[1])); return; }
-  if ((m = path.match(/^\/studio\/(.+)$/))) { if (w.showStudios) await w.showStudios(); if (w.openStudio) w.openStudio(decodeURIComponent(m[1])); return; }
+  if ((m = path.match(/^\/actor\/(.+)$/))) { currentView.value = 'actors'; currentActor.value = decodeURIComponent(m[1]); return; }
+  if ((m = path.match(/^\/studio\/(.+)$/))) { currentView.value = 'studios'; currentStudio.value = decodeURIComponent(m[1]); return; }
   if ((m = path.match(/^\/collection\/(.+)$/))) { if (w.showCollections) w.showCollections(); if (w.openCollectionDetail) w.openCollectionDetail(decodeURIComponent(m[1])); return; }
   
   if (w.goHome) w.goHome();

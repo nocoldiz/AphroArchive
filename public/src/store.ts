@@ -15,6 +15,8 @@ export const currentView = signal<string>('home');
 export const currentVideo = signal<Video | null>(null);
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
+export const currentActor = signal<string | null>(null);
+export const currentStudio = signal<string | null>(null);
 
 // Bridge for legacy JS
 export const searchQuery = signal<string>('');
@@ -286,4 +288,22 @@ w.refresh = async (full = false) => {
   }
   await Promise.all(tasks);
   if (w.render) w.render();
+};
+
+w.openActorFromVideo = (name: string) => {
+  currentView.value = 'actors';
+  currentActor.value = name;
+  history.pushState(null, '', `/actor/${encodeURIComponent(name)}`);
+};
+
+w.openActor = (name: string) => {
+  currentView.value = 'actors';
+  currentActor.value = name;
+  history.pushState(null, '', `/actor/${encodeURIComponent(name)}`);
+};
+
+w.openStudio = (name: string) => {
+  currentView.value = 'studios';
+  currentStudio.value = name;
+  history.pushState(null, '', `/studio/${encodeURIComponent(name)}`);
 };
