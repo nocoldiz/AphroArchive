@@ -1,5 +1,7 @@
+import { useRef } from 'preact/hooks';
 import { Video } from '../types';
-import { filteredVideos, currentVideo, currentView } from '../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode } from '../store';
+import { useVideoSelection } from '../hooks/useVideoSelection';
 
 const openCtx = (e: any) => {
   e.preventDefault();
@@ -11,9 +13,10 @@ const openCtx = (e: any) => {
 
 interface VideoCardProps {
   video: Video;
+  isSelected: boolean;
 }
 
-export const VideoCard = ({ video }: VideoCardProps) => {
+export const VideoCard = ({ video, isSelected }: VideoCardProps) => {
   const play = () => {
     currentVideo.value = video;
     currentView.value = 'player';
@@ -21,7 +24,13 @@ export const VideoCard = ({ video }: VideoCardProps) => {
   };
 
   return (
-    <div className="video-card" id={`v-${video.id}`} onClick={play} onContextMenu={openCtx}>
+    <div 
+      className={`video-card ${isSelected ? 'selected' : ''}`} 
+      id={`v-${video.id}`} 
+      onClick={play} 
+      onContextMenu={openCtx}
+      data-id={video.id}
+    >
       <div className="video-thumb-wrap">
         <img 
           src={`/api/thumbs/${video.id}/0`} 
@@ -40,8 +49,31 @@ export const VideoCard = ({ video }: VideoCardProps) => {
   );
 };
 
+export const VideoSelBar = () => {
+  const count = selectedVideoIds.value.size;
+  if (count === 0) return null;
+
+  return (
+    <div className="video-sel-bar" style={{ display: 'flex' }}>
+      <span id="videoSelCount">{count} video{count !== 1 ? 's' : ''} selected</span>
+      <button onClick={(e) => (window as any).showVideoSelMoveMenu && (window as any).showVideoSelMoveMenu(e)}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+        </svg> Move to
+      </button>
+      <button onClick={() => {
+        selectedVideoIds.value = new Set();
+        videoSelMode.value = false;
+      }}>Deselect all</button>
+    </div>
+  );
+};
+
 export const VideoGrid = () => {
   const list = filteredVideos.value;
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useVideoSelection(gridRef);
 
   if (list.length === 0) {
     return (
@@ -53,8 +85,17 @@ export const VideoGrid = () => {
   }
 
   return (
-    <div className="video-grid" id="video-grid">
-      {list.map(v => <VideoCard key={v.id} video={v} />)}
-    </div>
+    <>
+      <VideoSelBar />
+      <div className="video-grid" id="video-grid" ref={gridRef}>
+        {list.map(v => (
+          <VideoCard 
+            key={v.id} 
+            video={v} 
+            isSelected={selectedVideoIds.value.has(v.id)} 
+          />
+        ))}
+      </div>
+    </>
   );
 };

@@ -606,15 +606,7 @@
             </div>
           </div>
         </div>
-        <div class="video-sel-bar" id="videoSelBar" style="display:none">
-          <span id="videoSelCount"></span>
-          <button onclick="showVideoSelMoveMenu(event)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg> Move to
-          </button>
-          <button onclick="clearVideoSelection()">Deselect all</button>
-        </div>
+
         <div class="video-grid" id="video-grid"></div>
         <div class="empty-state" id="empty-placeholder" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -2526,35 +2518,7 @@
     </div>
   </div>
 
-  <!-- Rename Modal -->
-  <div class="modal-overlay" id="rename-modal">
-    <div class="modal-dialog">
-      <h3>Rename video</h3>
-      <input type="text" id="rename-input" placeholder="New name..." autocomplete="off">
-      <div class="modal-error" id="rename-error"></div>
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeRen()">Cancel</button>
-        <button class="btn-primary" onclick="doRen()">Rename</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Move Modal -->
-  <div class="modal-overlay" id="move-modal">
-    <div class="modal-dialog" style="max-width:800px; width:90vw">
-      <h3>Move to category</h3>
-      <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:12px" id="move-info"></p>
-      <div id="move-list" class="move-list"></div>
-      <div class="move-new-row">
-        <input type="text" id="move-new-input" placeholder="New category name..." autocomplete="off">
-        <button class="btn-primary" onclick="doMoveNew()">+ Create &amp; Move</button>
-      </div>
-      <div class="modal-error" id="move-error"></div>
-      <div class="modal-actions" style="margin-top:10px">
-        <button class="btn-cancel" onclick="closeMov()">Cancel</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Connect Modal -->
   <div class="collection-modal" id="connectModal" onclick="if(event.target===this)closeConnectModal()">
@@ -2657,9 +2621,9 @@
   <script src="/qrcode.min.js"></script>
   <script src="/actor-scraper.js"></script>
   <script src="/modules/utils.js"></script>
-  <script src="/modules/preset-picker.js"></script>
+
   <script src="/modules/thumbnails.js"></script>
-  <script src="/modules/video-selection.js"></script>
+
   <!-- Category Encrypt Modal -->
   <div id="encrypt-cat-modal" class="modal-overlay"
     style="display:none; position:fixed; inset:0; z-index:21000; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px)">
@@ -2721,7 +2685,7 @@
 
   <script src="/modules/render.js"></script>
   <script src="/modules/comments.js"></script>
-  <script src="/modules/rename-move.js"></script>
+
   <script src="/modules/vault.js"></script>
   <script src="/modules/prompts.js"></script>
   <script src="/modules/books.js"></script>
@@ -2738,26 +2702,7 @@
 
   <!-- Vault Page Viewer -->
   <!-- DB Preset Picker (shown on first launch or manually from Database view) -->
-  <div id="preset-overlay"
-    style="display:none;position:fixed;inset:0;z-index:20000;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px)">
-    <div class="preset-dialog">
-      <div class="preset-dialog-hd">
-        <h2 id="preset-picker-title" style="margin:0;font-size:1.2rem">Choose a Database Preset</h2>
-        <p id="preset-picker-subtitle" style="margin:6px 0 0;font-size:0.83rem;color:var(--tx2)">Pick one or more
-          presets to populate your initial actors, categories, studios and websites — or start with an empty database.
-        </p>
-      </div>
-      <div id="preset-picker-list" class="preset-picker-list"></div>
-      <div class="preset-dialog-footer">
-        <span id="preset-status" style="font-size:0.8rem;color:var(--tx3);flex:1"></span>
-        <button class="preset-foot-btn" onclick="presetApplyBlank()">Start Blank</button>
-        <button class="preset-foot-btn" onclick="presetApplyAll()">Use All Presets</button>
-        <button class="preset-foot-btn" onclick="presetApplyReplace()">Replace</button>
-        <button class="preset-foot-btn preset-foot-btn--primary" id="preset-apply-btn"
-          onclick="presetApplySelected()">Apply Selected</button>
-      </div>
-    </div>
-  </div>
+
 
   <div id="vaultPageOverlay"
     style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;flex-direction:column;background:#111">

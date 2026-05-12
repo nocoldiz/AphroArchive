@@ -38,6 +38,38 @@ export const tagModalState = signal<{
   bmUrl: null
 });
 
+export const renameModalState = signal<{
+  visible: boolean;
+  vidId: string | null;
+  bmUrl: string | null;
+  currentName: string;
+}>({
+  visible: false,
+  vidId: null,
+  bmUrl: null,
+  currentName: ''
+});
+
+export const moveModalState = signal<{
+  visible: boolean;
+  vidIds: string[];
+  bmUrl: string | null;
+  currentCategory: string;
+}>({
+  visible: false,
+  vidIds: [],
+  bmUrl: null,
+  currentCategory: ''
+});
+
+export const presetPickerState = signal<{
+  visible: boolean;
+  mergeMode: boolean;
+}>({
+  visible: false,
+  mergeMode: false
+});
+
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentActor = signal<string | null>(null);
@@ -82,6 +114,27 @@ Object.defineProperty(window, 'shuf', { get() { return isShuffle.value; }, set(v
 Object.defineProperty(window, 'vaultMode', { get() { return vaultMode.value; }, set(v) { vaultMode.value = v; } });
 Object.defineProperty(window, 'videoSelMode', { get() { return videoSelMode.value; }, set(v) { videoSelMode.value = v; } });
 
+(window as any).openRen = (id: string, name: string) => {
+  renameModalState.value = { visible: true, vidId: id, bmUrl: null, currentName: name };
+};
+(window as any).openMov = (id: string, name: string, curCatPath: string) => {
+  moveModalState.value = { visible: true, vidIds: [id], bmUrl: null, currentCategory: curCatPath };
+};
+(window as any).openBulkMove = (ids: string[]) => {
+  moveModalState.value = { visible: true, vidIds: ids, bmUrl: null, currentCategory: '' };
+};
+
+(window as any).openPresetPickerManual = () => {
+  presetPickerState.value = { visible: true, mergeMode: true };
+};
+(window as any).checkAndShowPresetPicker = async () => {
+  const res = await fetch('/api/presets');
+  const data = await res.json();
+  if (data.needed) {
+    presetPickerState.value = { visible: true, mergeMode: false };
+  }
+};
+
 // Other legacy globals from state.js initialized on window
 const w = window as any;
 w.favM = false;
@@ -112,7 +165,10 @@ w.pagesMode = false;
 w.categoriesMode = false;
 w.remoteMode = false;
 w.vaultSel = new Set();
-w.videoSel = new Set();
+Object.defineProperty(w, 'videoSel', {
+  get() { return selectedVideoIds.value; },
+  set(v) { selectedVideoIds.value = v; }
+});
 w.shiftKeyPressed = false;
 w.vaultFiles = [];
 w.vaultPl = [];

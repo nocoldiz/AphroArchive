@@ -5,6 +5,7 @@ export interface Video {
   relPath: string;
   size: number;
   duration: number;
+  durationF?: string;
   mtime: number;
   category: string;
   starred: boolean;

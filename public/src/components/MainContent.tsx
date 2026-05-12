@@ -17,6 +17,8 @@ import { DatabaseView } from './DatabaseView';
 import { TagDetailView } from './TagDetailView';
 import { TagModal } from './TagModal';
 import { ContextMenu } from './ContextMenu';
+import { RenameModal } from './RenameModal';
+import { MoveModal } from './MoveModal';
 
 export const MainContent = () => {
   const view = currentView.value;
@@ -45,6 +47,8 @@ export const MainContent = () => {
       {renderView()}
       <ContextMenu />
       <TagModal />
+      <RenameModal />
+      <MoveModal />
     </>
   );
 };
