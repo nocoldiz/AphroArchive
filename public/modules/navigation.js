@@ -23,7 +23,7 @@ async function init() {
   await loadTemplates();
   showSk();
   await fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
-  const [,, vs] = await Promise.all([loadC(), loadTagSidebar(), fetch('/api/vault/status').then(r => r.json())]);
+  const [,, vs] = await Promise.all([loadC(), Promise.resolve(), fetch('/api/vault/status').then(r => r.json())]);
   vaultMode = vs.unlocked;
   _syncSortButtons();
   loadBookmarkVidsOnInit();
@@ -444,4 +444,6 @@ function applyTheme(name) {
 });
 if (localStorage.getItem('pan')) { document.body.classList.add('pan'); $('panBtn').add('on'); }
 
-init();
+window.addEventListener('DOMContentLoaded', () => {
+  init();
+});

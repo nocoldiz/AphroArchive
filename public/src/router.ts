@@ -4,16 +4,16 @@ export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
   const w = window as any;
   
-  if (path === '/' || path === '') { if (w.showHome) w.showHome(); return; }
+  if (path === '/' || path === '') { currentView.value = 'home'; return; }
   if (path === '/favourites') { if (!w.favM) { w.favM = true; const fBtn = document.getElementById('fBtn'); if (fBtn) fBtn.classList.add('on'); } if (w.refresh) w.refresh(); return; }
   if (path === '/duplicates') { if (w.showDups) w.showDups(); return; }
-  if (path === '/vault') { if (w.showVault) w.showVault(); return; }
+  if (path === '/vault') { currentView.value = 'vault'; return; }
   if (path === '/vault/prompts') { if (w.showVaultPrompts) w.showVaultPrompts(); return; }
   if (path === '/recent') { if (w.showRecent) w.showRecent(); return; }
-  if (path === '/collections') { if (w.showCollections) w.showCollections(); return; }
-  if (path === '/scraper') { if (w.showScraper) w.showScraper(); return; }
-  if (path === '/books') { if (w.showBooks) w.showBooks(); return; }
-  if (path === '/audio') { if (w.showAudio) w.showAudio(); return; }
+  if (path === '/collections') { currentView.value = 'collections'; return; }
+  if (path === '/scraper') { currentView.value = 'scraper'; return; }
+  if (path === '/books') { currentView.value = 'books'; return; }
+  if (path === '/audio') { currentView.value = 'audio'; return; }
   
   // Migrated views
   if (path === '/thumbnails') { currentView.value = 'thumbnails'; return; }
@@ -21,8 +21,8 @@ export async function routeToPath(path: string) {
   if (path === '/photos') { currentView.value = 'photos'; return; }
   if (path === '/bookmarks') { currentView.value = 'bookmarks'; return; }
   
-  if (path === '/pages')  { if (w.showPages) w.showPages(); return; }
-  if (path === '/search') { if (w.showSearchSites) w.showSearchSites(); return; }
+  if (path === '/pages')  { currentView.value = 'pages'; return; }
+  if (path === '/search') { currentView.value = 'search'; return; }
   if (path === '/prompts') { if (w.showPrompts) w.showPrompts(); return; }
   if (path === '/database') { if (w.showDatabase) w.showDatabase(); return; }
   if (path === '/categories') { currentView.value = 'categories'; return; }

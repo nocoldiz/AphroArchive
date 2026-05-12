@@ -81,6 +81,15 @@ export const Sidebar = () => {
       <div className="side-section" id="mediaSection">
         <SidebarItem label="Photos" icon={<i className="icon-image" />} onClick={() => setView('photos', 'showPhotos')} isActive={currentView.value === 'photos'} />
         <SidebarItem label="Thumbnails" icon={<i className="icon-grid" />} onClick={() => setView('thumbnails', 'showThumbnails')} isActive={currentView.value === 'thumbnails'} />
+        <SidebarItem label="Pages" icon={<i className="icon-file" />} onClick={() => currentView.value = 'pages'} isActive={currentView.value === 'pages'} />
+        <SidebarItem label="Audio" icon={<i className="icon-music" />} onClick={() => currentView.value = 'audio'} isActive={currentView.value === 'audio'} />
+        <SidebarItem label="Books" icon={<i className="icon-book" />} onClick={() => currentView.value = 'books'} isActive={currentView.value === 'books'} />
+      </div>
+
+      <div className="side-sep"></div>
+      <SectionHeader label="Web" id="sh3-web" />
+      <div className="side-section" id="webSection">
+        <SidebarItem label="Search Sites" icon={<i className="icon-search" />} onClick={() => currentView.value = 'search'} isActive={currentView.value === 'search'} />
       </div>
 
       <div className="side-sep"></div>

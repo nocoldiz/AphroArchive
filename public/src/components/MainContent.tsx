@@ -8,8 +8,14 @@ import { ActorsView } from './ActorsView';
 import { StudiosView } from './StudiosView';
 import { PhotosView } from './PhotosView';
 import { BookmarksView } from './BookmarksView';
+import { PagesView } from './PagesView';
+import { SearchSitesView } from './SearchSitesView';
+import { AudioView } from './AudioView';
+import { BooksView } from './BooksView';
 import { CollectionsView } from './CollectionsView';
 import { DatabaseView } from './DatabaseView';
+import { TagDetailView } from './TagDetailView';
+import { TagModal } from './TagModal';
 import { ContextMenu } from './ContextMenu';
 
 export const MainContent = () => {
@@ -22,10 +28,15 @@ export const MainContent = () => {
     if (view === 'studios') return <StudiosView />;
     if (view === 'photos') return <PhotosView />;
     if (view === 'bookmarks') return <BookmarksView />;
+    if (view === 'tag') return <TagDetailView />;
     if (view === 'collections') return <CollectionsView />;
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;
     if (view === 'instagram') return <InstagramView />;
+    if (view === 'pages') return <PagesView />;
+    if (view === 'search') return <SearchSitesView />;
+    if (view === 'audio') return <AudioView />;
+    if (view === 'books') return <BooksView />;
     return <VideoGrid />;
   };
 
@@ -33,6 +44,7 @@ export const MainContent = () => {
     <>
       {renderView()}
       <ContextMenu />
+      <TagModal />
     </>
   );
 };

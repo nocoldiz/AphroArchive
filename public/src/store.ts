@@ -27,6 +27,17 @@ export const contextMenuState = signal<{
   type: '',
   data: null
 });
+
+export const tagModalState = signal<{
+  visible: boolean;
+  vidId: string | null;
+  bmUrl: string | null;
+}>({
+  visible: false,
+  vidId: null,
+  bmUrl: null
+});
+
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentActor = signal<string | null>(null);
@@ -237,6 +248,67 @@ w.load = async () => {
   videos.value = data;
   if (!w.q && !w.cat) w._allVideos = data;
 };
+
+// Navigation Bridge
+w.showHome = () => {
+  currentView.value = 'home';
+  if (location.pathname !== '/') history.pushState(null, '', '/');
+};
+
+w.goHome = () => {
+  if (w.playlistSkipped) w.playlistSkipped.clear();
+  if (w.mosaicOn && w.stopMosaic) w.stopMosaic();
+  if (w.zapOn) {
+    w.zapOn = false;
+    clearTimeout(w.zapTimer);
+    const zui = document.getElementById('zap-ui');
+    if (zui) zui.style.display = 'none';
+    const vp = document.getElementById('video-player');
+    if (vp) vp.style.display = 'block';
+    const vpz = document.getElementById('video-player-zap');
+    if (vpz) vpz.style.display = 'none';
+    w.activePlayer = 'video-player';
+  }
+  currentView.value = 'home';
+  currentCategory.value = '';
+  currentTag.value = null;
+  searchQuery.value = '';
+  if (location.pathname !== '/') history.pushState(null, '', '/');
+  if (w.refresh) w.refresh();
+};
+
+// Subscriber to handle legacy view visibility
+currentView.subscribe(view => {
+  const legacyViews = [
+    'home-view', 'vault-view', 'scraper-view', 'collections-view',
+    'books-view', 'audio-view', 'photos-view', 'thumbnails-view', 'pages-view',
+    'prompts-view', 'search-sites-view', 'settings-view', 'database-view',
+    'categories-view', 'chapters-view'
+  ];
+  legacyViews.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('on');
+  });
+  
+  const browseView = document.getElementById('browse-view');
+  
+  if (view === 'home') {
+    document.getElementById('home-view')?.classList.add('on');
+    browseView?.classList.add('off');
+  } else if (view === 'vault') {
+    document.getElementById('vault-view')?.classList.add('on');
+    browseView?.classList.add('off');
+  } else if (view === 'scraper') {
+    document.getElementById('scraper-view')?.classList.add('on');
+    browseView?.classList.add('off');
+  } else {
+    // For Preact views, we usually show browse-view
+    browseView?.classList.remove('off');
+    // And show the specific view if it's legacy
+    document.getElementById(view + '-view')?.classList.add('on');
+  }
+});
+
 
 w.loadC = async () => {
   const data = await api.fetchCategories();

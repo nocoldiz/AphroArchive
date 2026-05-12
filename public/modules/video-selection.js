@@ -3,6 +3,10 @@
  * Adapted from vault.js
  */
 
+var shiftKeyPressed = false;
+var videoSel = new Set();
+var videoSelMode = false;
+
 let isVideoDragging = false;
 let vDragStartX, vDragStartY;
 
