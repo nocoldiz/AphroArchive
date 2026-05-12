@@ -13,6 +13,8 @@ export interface Video {
   studio?: string;
   actors?: string[];
   isVault?: boolean;
+  catPath?: string;
+  fav?: boolean;
 }
 
 export interface Category {
@@ -40,6 +42,11 @@ export interface AppPrefs {
   aiCommentMasterPrompt?: string;
   aiReplyMasterPrompt?: string;
   aiCommentsEnabled?: boolean;
+  ollamaUrl?: string;
+  ollamaVisionModel?: string;
+  anthropicApiKey?: string;
+  visionProvider?: string;
+  disableSearchTracking?: boolean;
 }
 export interface ThumbnailGroup {
   id: string;

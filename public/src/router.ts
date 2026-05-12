@@ -6,7 +6,6 @@ export async function routeToPath(path: string) {
   
   if (path === '/' || path === '') { if (w.showHome) w.showHome(); return; }
   if (path === '/favourites') { if (!w.favM) { w.favM = true; const fBtn = document.getElementById('fBtn'); if (fBtn) fBtn.classList.add('on'); } if (w.refresh) w.refresh(); return; }
-  if (path === '/bookmarks') { if (w.showImportFavs) w.showImportFavs(); return; }
   if (path === '/duplicates') { if (w.showDups) w.showDups(); return; }
   if (path === '/vault') { if (w.showVault) w.showVault(); return; }
   if (path === '/vault/prompts') { if (w.showVaultPrompts) w.showVaultPrompts(); return; }
@@ -15,11 +14,12 @@ export async function routeToPath(path: string) {
   if (path === '/scraper') { if (w.showScraper) w.showScraper(); return; }
   if (path === '/books') { if (w.showBooks) w.showBooks(); return; }
   if (path === '/audio') { if (w.showAudio) w.showAudio(); return; }
-  if (path === '/photos') { if (w.showPhotos) w.showPhotos(); return; }
   
   // Migrated views
   if (path === '/thumbnails') { currentView.value = 'thumbnails'; return; }
   if (path === '/settings') { currentView.value = 'settings'; return; }
+  if (path === '/photos') { currentView.value = 'photos'; return; }
+  if (path === '/bookmarks') { currentView.value = 'bookmarks'; return; }
   
   if (path === '/pages')  { if (w.showPages) w.showPages(); return; }
   if (path === '/search') { if (w.showSearchSites) w.showSearchSites(); return; }

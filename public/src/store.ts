@@ -13,10 +13,39 @@ export const appPrefs = signal<Partial<AppPrefs>>({});
 // ─── Navigation & View State ──────────────────────────────────────────
 export const currentView = signal<string>('home');
 export const currentVideo = signal<Video | null>(null);
+
+export const contextMenuState = signal<{
+  visible: boolean;
+  x: number;
+  y: number;
+  type: string;
+  data: any;
+}>({
+  visible: false,
+  x: 0,
+  y: 0,
+  type: '',
+  data: null
+});
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentActor = signal<string | null>(null);
 export const currentStudio = signal<string | null>(null);
+export const bookmarkVidIds = signal<Set<string>>(new Set());
+
+export function rebuildBookmarkVidIds(items: any[]) {
+  const set = new Set<string>();
+  const vids = (window as any).V || []; // Fallback to global V if videos signal is not populated yet
+  for (const v of vids) {
+    const vname = v.name.toLowerCase().replace(/\.[^.]+$/, '');
+    for (const it of items) {
+      if (it.url.toLowerCase().includes(vname)) {
+        set.add(v.id);
+      }
+    }
+  }
+  bookmarkVidIds.value = set;
+}
 
 // Bridge for legacy JS
 export const searchQuery = signal<string>('');
@@ -105,7 +134,12 @@ w.zapLock = false;
 w.zapNextVid = null;
 w.zapNextTime = 0;
 w.activePlayer = 'video-player';
-w.bookmarkVidIds = new Set();
+
+Object.defineProperty(w, 'bookmarkVidIds', {
+  get() { return bookmarkVidIds.value; },
+  set(v) { bookmarkVidIds.value = v; }
+});
+
 w.bmMatchedUrls = new Set();
 w.collectionsMode = false;
 w.curCollection = null;
@@ -306,4 +340,30 @@ w.openStudio = (name: string) => {
   currentView.value = 'studios';
   currentStudio.value = name;
   history.pushState(null, '', `/studio/${encodeURIComponent(name)}`);
+};
+
+w.showImportFavs = () => {
+  currentView.value = 'bookmarks';
+  history.pushState(null, '', '/bookmarks');
+};
+
+w.openVid = (id: string) => {
+  const v = allVideos.value.find(x => x.id === id);
+  if (v) {
+    currentVideo.value = v;
+    currentView.value = 'player';
+    history.pushState(null, '', `/video/${id}`);
+  }
+};
+
+(window as any).showContextMenu = (e: MouseEvent, type: string, data: any) => {
+  e.preventDefault();
+  e.stopPropagation();
+  contextMenuState.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    type,
+    data
+  };
 };
