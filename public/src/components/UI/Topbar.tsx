@@ -84,7 +84,7 @@ export const Topbar = () => {
           </svg>
         </button>
 
-        <button id="igBtn" onClick={() => window.location.href = '/instagram'} title="Instagram mode">
+        <button id="igBtn" onClick={() => currentView.value = 'instagram'} title="Instagram mode">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
             <circle cx="12" cy="12" r="4" />

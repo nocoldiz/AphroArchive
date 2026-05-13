@@ -1113,64 +1113,7 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- Vault ZIP download modal -->
-  <div class="vision-modal" id="vaultZipModal" onclick="if(event.target===this)closeVaultZipModal()">
-    <div class="vision-modal-box" onclick="event.stopPropagation()" style="max-width:360px">
-      <div style="font-size:1rem;font-weight:600;color:var(--tx)">Download as ZIP</div>
-      <div id="vaultZipHint" style="font-size:0.8rem;color:var(--tx3)"></div>
-      <label style="font-size:0.82rem;color:var(--tx2)">Password <span style="opacity:.5">(leave blank for no
-          encryption)</span></label>
-      <input id="vaultZipPassword" type="password" placeholder="enter password\u2026" autocomplete="new-password"
-        style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:7px 10px;border-radius:var(--r);font-size:0.85rem;outline:none;width:100%;box-sizing:border-box"
-        onfocus="this.type='text'" onblur="this.type='password'" onkeydown="if(event.key==='Enter')downloadVaultZip()">
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button onclick="closeVaultZipModal()" class="vision-modal-close">Cancel</button>
-        <button id="vaultZipDownloadBtn" onclick="downloadVaultZip()"
-          style="background:var(--ac);color:#fff;border:none;padding:6px 16px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Download
-          ZIP</button>
-      </div>
-    </div>
-  </div>
 
-
-
-  <!-- Bookmark iframe viewer modal -->
-  <div class="bfiframe-mo" id="bfiframeMo" onclick="closeBfIframe(event)">
-    <div class="bfiframe-box">
-      <div class="bfiframe-hd">
-        <span id="bfiframeTitle" class="bfiframe-title"></span>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <a id="bfiframeLink" href="#" target="_blank" rel="noopener noreferrer" class="bfiframe-open-btn"
-            title="Open in new tab">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:4px">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>New tab
-          </a>
-          <button onclick="closeBfIframe()" class="bfiframe-close" title="Close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="bfiframe-body">
-        <iframe id="bfiframeEl" src="" allowfullscreen></iframe>
-        <div class="bfiframe-blocked" id="bfiframeBlocked">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-            style="opacity:0.3;margin-bottom:10px">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-          </svg>
-          <span>This site blocks embedding.</span>
-          <a id="bfiframeFallback" href="#" target="_blank" rel="noopener noreferrer" style="color:var(--ac)">Open in
-            new tab →</a>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <script src="/qrcode.min.js"></script>
   <script src="/actor-scraper.js"></script>

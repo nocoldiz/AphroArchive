@@ -36,7 +36,7 @@ const BookmarkCard = ({ item, onRemove, onToggleStar, onUpdate }: BookmarkCardPr
   }, [item.img, item.url, onUpdate]);
 
   return (
-    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => window.open(item.url, '_blank')}>
+    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => (window as any).openBfIframe(item.url, item.title || 'Viewing Bookmark')}>
       <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
         {item.img ? (
           <img src={item.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />

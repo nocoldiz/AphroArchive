@@ -588,6 +588,14 @@ export const VaultView = () => {
 
             {selectedIds.size > 0 && (
               <button
+                onClick={() => (window as any).openVaultZipModal(Array.from(selectedIds))}
+                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                Download ZIP
+              </button>
+            )}
+            {selectedIds.size > 0 && (
+              <button
                 onClick={handleDeleteSelected}
                 style={{ background: '#e84040', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               >

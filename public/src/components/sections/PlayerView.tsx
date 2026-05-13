@@ -208,16 +208,17 @@ export const PlayerView = () => {
               </div>
             </div>
 
-            {tags.length > 0 && (
-              <div className="player-tags-row" style={{ marginBottom: '15px' }}>
-                <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Tags:</span>
-                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                  {tags.map(t => (
-                    <span key={t} className="p-tag" style={{ background: 'var(--bg3)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>{t}</span>
-                  ))}
-                </div>
+            <div className="player-tags-row" style={{ marginBottom: '15px' }}>
+              <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Tags:</span>
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                {tags.map(t => (
+                  <span key={t} className="p-tag" style={{ background: 'var(--bg3)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>{t}</span>
+                ))}
+                <button className="p-tag-add-btn" onClick={() => (window as any).openTagModal(vid.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
+                  +
+                </button>
               </div>
-            )}
+            </div>
 
             <AiComments />
           </div>

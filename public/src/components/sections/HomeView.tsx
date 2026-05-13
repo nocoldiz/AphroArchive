@@ -223,7 +223,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => window.location.href = '/reddit'}>
+        <div className="home-card" onClick={() => currentView.value = 'reddit'}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="10" />
@@ -241,7 +241,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => window.location.href = '/instagram'}>
+        <div className="home-card" onClick={() => currentView.value = 'instagram'}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />

@@ -20,6 +20,8 @@ import { TagDetailView } from '../sections/TagDetailView';
 import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
 import { StudioModal } from '../modals/StudioModal';
+import { VaultZipModal } from '../modals/VaultZipModal';
+import { BookmarkIframeModal } from '../modals/BookmarkIframeModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
@@ -122,6 +124,8 @@ export const MainContent = () => {
       <TagModal />
       <ActorModal />
       <StudioModal />
+      <VaultZipModal />
+      <BookmarkIframeModal />
       <RenameModal />
       <MoveModal />
       <VaultPhotoLightbox />

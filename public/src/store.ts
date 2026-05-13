@@ -54,6 +54,24 @@ export const studioModalState = signal<{
   vidId: null
 });
 
+export const vaultZipModalState = signal<{
+  visible: boolean;
+  ids: string[];
+}>({
+  visible: false,
+  ids: []
+});
+
+export const bookmarkIframeModalState = signal<{
+  visible: boolean;
+  url: string;
+  title: string;
+}>({
+  visible: false,
+  url: '',
+  title: ''
+});
+
 export const renameModalState = signal<{
   visible: boolean;
   vidId: string | null;
