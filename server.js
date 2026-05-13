@@ -36,7 +36,7 @@ const books = require('./server/books-server');
 const audio = require('./server/audio-server');
 const photos = require('./server/photos-server');
 const database = require('./server/database-server');
-const presets = require('./server/presets-server');
+const profiles = require('./server/profiles-server');
 const remote = require('./server/remote-server');
 const settings = require('./server/settings-server');
 const prompts = require('./server/prompts-server');
@@ -120,6 +120,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
   if (p === '/api/categories' && req.method === 'GET') return videos.apiCategories(req, res);
   if (p === '/api/categories-overview' && req.method === 'GET') return videos.apiCategoriesOverview(req, res);
+  if (p === '/api/all-categories' && req.method === 'GET') return videos.apiGetAllCategories(req, res);
+  if (p === '/api/enabled-categories' && req.method === 'POST') return videos.apiSetEnabledCategories(req, res);
   if (p === '/api/main-categories' && req.method === 'GET') return videos.apiMainCategories(req, res);
   if (p === '/api/main-categories' && req.method === 'POST') return videos.apiCreateCategory(req, res);
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);
@@ -256,8 +258,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/import-drop' && req.method === 'POST') return vault.apiVaultImportDrop(req, res);
 
   // ── Presets ──────────────────────────────────────────────────────────
-  if (p === '/api/presets' && req.method === 'GET') return presets.apiGetPresets(req, res);
-  if (p === '/api/presets/apply' && req.method === 'POST') return presets.apiApplyPreset(req, res);
+  if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
+  if (p === '/api/presets/apply' && req.method === 'POST') return profiles.apiApplyPreset(req, res);
+  
+  // ── Profiles ─────────────────────────────────────────────────────────
+  if (p === '/api/profiles' && req.method === 'GET') return profiles.apiGetProfiles(req, res);
+  if (p === '/api/profiles/switch' && req.method === 'POST') return profiles.apiSwitchProfile(req, res);
+  if (p === '/api/profiles/create' && req.method === 'POST') return profiles.apiCreateProfile(req, res);
+  if (p === '/api/profiles/rename' && req.method === 'POST') return profiles.apiRenameProfile(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);

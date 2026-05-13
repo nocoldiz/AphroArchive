@@ -320,8 +320,14 @@ async function apiCategories(req, res) {
     }
   }
 
+  const db = require('./db-server');
+  const enabledCats = db.loadEnabledCategories();
+  const enabledSet = new Set(enabledCats);
+
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
+    if (enabledSet.size > 0 && !enabledSet.has(entry.path)) continue;
+
     const parts = key.split('/');
     const isHidden = parts.some(part => hidden.some(t => t.toLowerCase() === part.toLowerCase()));
     if (isHidden) continue;
@@ -351,6 +357,47 @@ async function apiCategories(req, res) {
   });
 
   json(res, cats);
+}
+
+async function apiGetAllCategories(req, res) {
+  const videos = await cachedScan();
+  const catMap = new Map();
+
+  for (const v of videos) {
+    const cp = v.catPath;
+    if (!cp) continue;
+    
+    const parts = cp.split('/');
+    let currentPath = '';
+    
+    for (let i = 0; i < parts.length; i++) {
+      currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
+      if (!catMap.has(currentPath)) {
+        catMap.set(currentPath, {
+          name: currentPath.replace(/\//g, ' / '),
+          path: currentPath
+        });
+      }
+    }
+  }
+
+  const list = Array.from(catMap.values());
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  
+  const db = require('./db-server');
+  const enabled = db.loadEnabledCategories();
+  
+  json(res, { categories: list, enabled });
+}
+
+async function apiSetEnabledCategories(req, res) {
+  const body = await readBody(req);
+  const { paths } = body;
+  if (!Array.isArray(paths)) return json(res, { error: 'Paths array required' }, 400);
+  
+  const db = require('./db-server');
+  db.saveEnabledCategories(paths);
+  json(res, { ok: true });
 }
 
 async function apiMainCategories(req, res) {
@@ -1632,6 +1679,7 @@ function getUnlockedCategoryKey(catPath) {
 module.exports = {
   scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
+  apiGetAllCategories, apiSetEnabledCategories,
   apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
   apiAddHistory, apiGetHistory, apiClearHistory,

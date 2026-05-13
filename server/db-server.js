@@ -19,89 +19,124 @@ const {
 } = require('./config-server');
 
 const Database = require('better-sqlite3');
-const dbPath = path.join(__dirname, '../db/aphroarchive.db');
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-const db = new Database(dbPath);
 
-// Initialize tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS videos (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    studio TEXT,
-    category TEXT,
-    rating INTEGER,
-    note TEXT,
-    date TEXT
-  );
+// ── In-memory write-through caches ──────────────────────────────────
+let _favs       = null;
+let _history    = null;
+let _videoMeta  = null;
+let _thumbs     = null;
+let _actors     = null;
+let _categories = null;
+let _studios    = null;
 
-  CREATE TABLE IF NOT EXISTS video_actors (
-    video_id TEXT,
-    actor TEXT,
-    PRIMARY KEY (video_id, actor),
-    FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
-  );
+let db;
+let currentProfile = 'default';
 
-  CREATE TABLE IF NOT EXISTS video_tags (
-    video_id TEXT,
-    tag TEXT,
-    PRIMARY KEY (video_id, tag),
-    FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
-  );
+function ensureSchema(database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS videos (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      studio TEXT,
+      category TEXT,
+      rating INTEGER,
+      note TEXT,
+      date TEXT
+    );
 
-  CREATE TABLE IF NOT EXISTS favourites (
-    video_id TEXT PRIMARY KEY
-  );
+    CREATE TABLE IF NOT EXISTS video_actors (
+      video_id TEXT,
+      actor TEXT,
+      PRIMARY KEY (video_id, actor),
+      FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+    );
 
-  CREATE TABLE IF NOT EXISTS history (
-    video_id TEXT PRIMARY KEY,
-    timestamp INTEGER
-  );
+    CREATE TABLE IF NOT EXISTS video_tags (
+      video_id TEXT,
+      tag TEXT,
+      PRIMARY KEY (video_id, tag),
+      FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+    );
 
-  CREATE TABLE IF NOT EXISTS collections (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    video_ids TEXT -- JSON array
-  );
+    CREATE TABLE IF NOT EXISTS favourites (
+      video_id TEXT PRIMARY KEY
+    );
 
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT -- JSON value
-  );
+    CREATE TABLE IF NOT EXISTS history (
+      video_id TEXT PRIMARY KEY,
+      timestamp INTEGER
+    );
 
-  CREATE TABLE IF NOT EXISTS categories (
-    name TEXT PRIMARY KEY,
-    display_name TEXT
-  );
+    CREATE TABLE IF NOT EXISTS collections (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      video_ids TEXT -- JSON array
+    );
 
-  CREATE TABLE IF NOT EXISTS category_tags (
-    category_name TEXT,
-    tag TEXT,
-    PRIMARY KEY (category_name, tag),
-    FOREIGN KEY (category_name) REFERENCES categories(name) ON DELETE CASCADE
-  );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT -- JSON value
+    );
 
-  CREATE TABLE IF NOT EXISTS studios (
-    name TEXT PRIMARY KEY,
-    website TEXT,
-    description TEXT
-  );
+    CREATE TABLE IF NOT EXISTS categories (
+      name TEXT PRIMARY KEY,
+      display_name TEXT
+    );
 
-  CREATE TABLE IF NOT EXISTS websites (
-    name TEXT PRIMARY KEY,
-    url TEXT,
-    search_url TEXT,
-    scrape_method TEXT,
-    description TEXT
-  );
+    CREATE TABLE IF NOT EXISTS category_tags (
+      category_name TEXT,
+      tag TEXT,
+      PRIMARY KEY (category_name, tag),
+      FOREIGN KEY (category_name) REFERENCES categories(name) ON DELETE CASCADE
+    );
 
-  CREATE TABLE IF NOT EXISTS website_tags (
-    website_name TEXT,
-    tag TEXT,
-    PRIMARY KEY (website_name, tag),
-    FOREIGN KEY (website_name) REFERENCES websites(name) ON DELETE CASCADE
-  );
-`);
+    CREATE TABLE IF NOT EXISTS studios (
+      name TEXT PRIMARY KEY,
+      website TEXT,
+      description TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS websites (
+      name TEXT PRIMARY KEY,
+      url TEXT,
+      search_url TEXT,
+      scrape_method TEXT,
+      description TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS website_tags (
+      website_name TEXT,
+      tag TEXT,
+      PRIMARY KEY (website_name, tag),
+      FOREIGN KEY (website_name) REFERENCES websites(name) ON DELETE CASCADE
+    );
+  `);
+}
+
+function switchProfile(profileName) {
+  currentProfile = profileName;
+  if (db) {
+    try { db.close(); } catch(e) {}
+  }
+  const dbPath = path.join(__dirname, `../db/aphroarchive_${profileName}.db`);
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  db = new Database(dbPath);
+  ensureSchema(db);
+  
+  // Clear caches
+  _favs       = null;
+  _history    = null;
+  _videoMeta  = null;
+  _thumbs     = null;
+  _actors     = null;
+  _categories = null;
+  _studios    = null;
+  
+  return db;
+}
+
+// Initialize with default profile
+switchProfile('default');
 
 // Migration from JSON to SQLite
 const videoCount = db.prepare('SELECT COUNT(*) as count FROM videos').get().count;
@@ -207,16 +242,7 @@ if (categoryCount === 0) {
   }
 }
 
-// ── In-memory write-through caches ──────────────────────────────────
-// Each cache is null until first access, then kept in sync with disk.
-
-let _favs       = null;
-let _history    = null;
-let _videoMeta  = null;
-let _thumbs     = null;
-let _actors     = null;
-let _categories = null;
-let _studios    = null;
+// Caches moved to top of file
 
 // ── Favourites ───────────────────────────────────────────────────────
 
@@ -599,6 +625,32 @@ function loadCategories() {
   return _categories;
 }
 
+function loadEnabledCategories() {
+  try {
+    const rows = db.prepare('SELECT path FROM enabled_categories').all();
+    return rows.map(r => r.path);
+  } catch (e) {
+    console.error('Failed to load enabled categories:', e);
+    return [];
+  }
+}
+
+function saveEnabledCategories(paths) {
+  try {
+    const insert = db.prepare('INSERT OR IGNORE INTO enabled_categories (path) VALUES (?)');
+    const del = db.prepare('DELETE FROM enabled_categories');
+    
+    const transaction = db.transaction((list) => {
+      del.run();
+      for (const p of list) insert.run(p);
+    });
+    
+    transaction(paths);
+  } catch (e) {
+    console.error('Failed to save enabled categories:', e);
+  }
+}
+
 function saveCategories(cats) {
   _categories = null;
   try {
@@ -696,5 +748,8 @@ module.exports = {
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
   loadActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,
+  loadEnabledCategories, saveEnabledCategories,
   readDbFile, writeDbFile,
+  switchProfile, getCurrentProfile: () => currentProfile,
+  closeDb: () => { if (db) { db.close(); db = null; } }
 };

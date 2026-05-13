@@ -150,6 +150,26 @@ export const categoryMasterPassword = signal<string | null>(null);
 export const videoSelMode = signal<boolean>(false);
 export const selectedVideoIds = signal<Set<string>>(new Set());
 export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true');
+export const profiles = signal<string[]>(['default']);
+export const activeProfile = signal<string>('default');
+export const profileModalState = signal<{ visible: boolean }>({ visible: false });
+
+export async function loadProfiles() {
+  const res = await fetch('/api/profiles');
+  const data = await res.json();
+  profiles.value = data.profiles;
+  activeProfile.value = data.current;
+}
+
+export async function switchProfile(name: string) {
+  await fetch('/api/profiles/switch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile: name })
+  });
+  activeProfile.value = name;
+  window.location.reload();
+}
 
 if (typeof document !== 'undefined') {
   isMuted.subscribe(muted => {

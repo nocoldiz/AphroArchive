@@ -1,8 +1,14 @@
 import { Search } from './Search';
-import { currentView, isMuted } from '../../store';
+import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState } from '../../store';
+import { useEffect } from 'preact/hooks';
 
 export const Topbar = () => {
   const view = currentView.value;
+  
+  useEffect(() => {
+    loadProfiles();
+  }, []);
+
   if (view === 'instagram' || view === 'reddit') return null;
 
   const showHome = () => {
@@ -50,6 +56,18 @@ export const Topbar = () => {
       </div>
 
       <div className="tb-acts">
+        <button 
+          onClick={() => profileModalState.value = { visible: true }} 
+          title="Switch Profile"
+          style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '6px 12px', fontSize: '0.85rem', marginRight: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          {activeProfile.value}
+        </button>
+
         <button id="importBtn" onClick={openImport} title="Import files" className="hsm" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />

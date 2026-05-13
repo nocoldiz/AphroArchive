@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
+import { presetPickerState, activeProfile } from '../../store';
 
 interface DbEntry {
   name: string;
@@ -15,9 +16,13 @@ export const DatabaseView = () => {
   const [editName, setEditName] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
 
+  const [folders, setFolders] = useState<{name: string, path: string}[]>([]);
+  const [enabledFolders, setEnabledFolders] = useState<Set<string>>(new Set());
+
   const tabs = [
     { id: 'actors', name: 'Actors' },
     { id: 'categories', name: 'Categories' },
+    { id: 'folders', name: 'Folders' },
     { id: 'studios', name: 'Studios' },
     { id: 'websites', name: 'Websites' },
     { id: 'duplicates', name: 'Duplicates' }
@@ -29,8 +34,21 @@ export const DatabaseView = () => {
 
   const loadTab = async (tab: string) => {
     if (tab === 'duplicates') {
-      // Duplicates might need a special loader, but let's just show empty or fetch if endpoint exists
       setEntries([]);
+      return;
+    }
+    if (tab === 'folders') {
+      setLoading(true);
+      try {
+        const r = await fetch('/api/all-categories');
+        const data = await r.json();
+        setFolders(data.categories);
+        setEnabledFolders(new Set(data.enabled));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
     setLoading(true);
@@ -89,6 +107,45 @@ export const DatabaseView = () => {
     setFormData({ ...formData, [key]: value });
   };
 
+  const handleReset = async () => {
+    const profile = activeProfile.value;
+    if (!confirm(`Reset profile "${profile}" to its initial preset data? This will overwrite categories, studios, and websites!`)) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch('/api/presets/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selection: [profile], merge: false }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      
+      const w = window as any;
+      if (w.toast) w.toast('Profile reset complete');
+      loadTab(activeTab);
+    } catch (e: any) {
+      alert('Reset failed: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveFolders = async () => {
+    try {
+      const res = await fetch('/api/enabled-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: Array.from(enabledFolders) }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      
+      const w = window as any;
+      if (w.toast) w.toast('Folders visibility saved');
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+  };
+
   return (
     <div className="database-view" style={{ padding: '24px' }}>
       <h2 style={{ marginBottom: '24px', color: 'var(--ac)' }}>Database Management</h2>
@@ -115,8 +172,10 @@ export const DatabaseView = () => {
       </div>
 
       {/* Action Bar */}
-      {activeTab !== 'duplicates' && (
-        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+      {activeTab !== 'duplicates' && activeTab !== 'folders' && (
+        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: false }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset as Profile</button>
+          <button className="modal-btn" onClick={handleReset} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Reset to Preset</button>
           <button className="modal-btn modal-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
         </div>
       )}
@@ -124,6 +183,33 @@ export const DatabaseView = () => {
       {/* Grid */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading…</div>
+      ) : activeTab === 'folders' ? (
+        <div>
+          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="modal-btn modal-btn--primary" onClick={handleSaveFolders}>Save Visibility</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
+            {folders.map(f => (
+              <label key={f.path} style={{ background: 'var(--bg2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={enabledFolders.size === 0 || enabledFolders.has(f.path)} 
+                  onChange={(e) => {
+                    const next = new Set(enabledFolders);
+                    if (enabledFolders.size === 0) {
+                      folders.forEach(fold => { if (fold.path !== f.path) next.add(fold.path); });
+                    } else {
+                      if (e.target.checked) next.add(f.path);
+                      else next.delete(f.path);
+                    }
+                    setEnabledFolders(next);
+                  }}
+                />
+                <span style={{ fontSize: '0.9rem' }}>{f.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
       ) : entries.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>No entries found.</div>
       ) : (

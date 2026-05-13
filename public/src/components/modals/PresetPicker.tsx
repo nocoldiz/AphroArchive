@@ -24,7 +24,7 @@ export const PresetPicker = () => {
       fetch('/api/presets')
         .then(r => r.json())
         .then(data => {
-          setPresets(data.presets || []);
+          setPresets(data.profiles || []);
         })
         .catch(e => console.error('Failed to load presets', e));
     }
@@ -35,21 +35,34 @@ export const PresetPicker = () => {
   const handleApply = async (selection: string[] | 'all' | 'blank', merge: boolean = state.mergeMode) => {
     setStatus('Applying…');
     try {
-      const res = await fetch('/api/presets/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selection, merge }),
-      });
-      if (!res.ok) throw new Error('Server error');
+      if (!state.mergeMode && Array.isArray(selection)) {
+        // Create a profile for each selected preset
+        for (const p of selection) {
+          await fetch('/api/profiles/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: p, preset: p }),
+          });
+        }
+        // Switch to the first selected profile
+        if (selection.length > 0) {
+          await fetch('/api/profiles/switch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile: selection[0] }),
+          });
+        }
+      } else {
+        const res = await fetch('/api/presets/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selection, merge }),
+        });
+        if (!res.ok) throw new Error('Server error');
+      }
 
       presetPickerState.value = { ...state, visible: false };
-
-      // Refresh app data
-      await loadVideos();
-      await loadCategories();
-
-      const w = window as any;
-      if (w.toast) w.toast('Database updated');
+      window.location.reload();
     } catch (e: any) {
       setStatus('Error: ' + e.message);
     }

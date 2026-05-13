@@ -115,7 +115,12 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
       data-id={video.id}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      style={{ animationDelay: `${Math.min((index ?? 0) * 35, 420)}ms` }}
+      style={{ 
+        animationDelay: `${Math.min((index ?? 0) * 35, 420)}ms`,
+        border: isSelected ? '2px solid var(--ac)' : '1px solid var(--brd)',
+        backgroundColor: isSelected ? 'var(--bg3)' : 'var(--bg2)',
+        boxShadow: isSelected ? '0 0 10px rgba(0, 120, 215, 0.3)' : undefined
+      }}
       draggable={true}
       onDragStart={(e) => {
         if (e.dataTransfer) {
@@ -245,17 +250,40 @@ export const VideoSelBar = () => {
   if (count === 0) return null;
 
   return (
-    <div className="video-sel-bar" style={{ display: 'flex' }}>
-      <span id="videoSelCount">{count} video{count !== 1 ? 's' : ''} selected</span>
-      <button onClick={(e) => (window as any).showVideoSelMoveMenu && (window as any).showVideoSelMoveMenu(e)}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg> Move to
+    <div className="video-sel-bar" style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      gap: '15px',
+      background: 'rgba(0, 0, 0, 0.8)',
+      backdropFilter: 'blur(10px)',
+      padding: '10px 20px',
+      borderRadius: '30px',
+      position: 'fixed',
+      bottom: '20px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      zIndex: 1000,
+      color: 'white',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+      border: '1px solid rgba(255,255,255,0.1)'
+    }}>
+      <span id="videoSelCount" style={{ fontWeight: 'bold' }}>{count} video{count !== 1 ? 's' : ''} selected</span>
+      <button 
+        onClick={(e) => (window as any).showVideoSelMoveMenu && (window as any).showVideoSelMoveMenu(e)}
+        style={{ background: 'var(--ac)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Move to
       </button>
-      <button onClick={() => {
-        selectedVideoIds.value = new Set();
-        videoSelMode.value = false;
-      }}>Deselect all</button>
+      <button 
+        onClick={() => {
+          selectedVideoIds.value = new Set();
+          videoSelMode.value = false;
+        }}
+        style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer' }}
+      >
+        Deselect all
+      </button>
     </div>
   );
 };

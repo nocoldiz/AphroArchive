@@ -8,7 +8,7 @@ const path = require('path');
 const { DB_DIR, ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, WEBSITES_JSON } = require('./config-server');
 const { json, readBody } = require('./helpers-server');
 
-const PRESETS_DIR = path.join(DB_DIR, 'presets');
+const PROFILES_DIR = path.join(DB_DIR, 'profiles');
 
 // DB is considered initialised if categories.json exists
 function isDbInitialized() {
@@ -16,12 +16,12 @@ function isDbInitialized() {
   return db.loadCategories().length > 0;
 }
 
-function listPresets() {
-  if (!fs.existsSync(PRESETS_DIR)) return [];
-  return fs.readdirSync(PRESETS_DIR, { withFileTypes: true })
+function listProfileTemplates() {
+  if (!fs.existsSync(PROFILES_DIR)) return [];
+  return fs.readdirSync(PROFILES_DIR, { withFileTypes: true })
     .filter(d => d.isDirectory())
     .map(d => {
-      const dir = path.join(PRESETS_DIR, d.name);
+      const dir = path.join(PROFILES_DIR, d.name);
       let name = d.name, description = '';
       try {
         // meta.json may have unquoted keys — use a lenient parse
@@ -53,7 +53,7 @@ function listPresets() {
 }
 
 function loadPresetData(id) {
-  const dir = path.join(PRESETS_DIR, id);
+  const dir = path.join(PROFILES_DIR, id);
   const result = { actors: {}, categories: {}, studios: {}, websites: [] };
   const tryLoad = (file) => { try { return JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')); } catch { return null; } };
   const a = tryLoad('actors.json');     if (a && !Array.isArray(a)) Object.assign(result.actors, a);
@@ -137,7 +137,7 @@ function writeDb(merged, mergeWithExisting = false) {
 
 // GET /api/presets
 function apiGetPresets(req, res) {
-  json(res, { needed: !isDbInitialized(), presets: listPresets() });
+  json(res, { needed: !isDbInitialized(), profiles: listProfileTemplates() });
 }
 
 // POST /api/presets/apply  { selection: 'blank' | 'all' | ['id',...], merge?: boolean }
@@ -149,7 +149,7 @@ async function apiApplyPreset(req, res) {
   if (selection === 'blank') {
     merged = { actors: {}, categories: {}, studios: {}, websites: [] };
   } else if (selection === 'all') {
-    merged = mergePresets(listPresets().map(p => p.id));
+    merged = mergePresets(listProfileTemplates().map(p => p.id));
   } else if (Array.isArray(selection) && selection.length > 0) {
     merged = mergePresets(selection);
   } else {
@@ -167,4 +167,78 @@ async function apiApplyPreset(req, res) {
   json(res, { ok: true });
 }
 
-module.exports = { apiGetPresets, apiApplyPreset, isDbInitialized };
+// GET /api/profiles
+function apiGetProfiles(req, res) {
+  const dbDir = path.join(__dirname, '../db');
+  if (!fs.existsSync(dbDir)) return json(res, { profiles: ['default'], current: 'default' });
+  
+  const files = fs.readdirSync(dbDir);
+  const profiles = files
+    .filter(f => f.startsWith('aphroarchive_') && f.endsWith('.db'))
+    .map(f => f.replace('aphroarchive_', '').replace('.db', ''));
+    
+  if (profiles.length === 0) profiles.push('default');
+    
+  const db = require('./db-server');
+  json(res, { profiles, current: db.getCurrentProfile() });
+}
+
+// POST /api/profiles/switch
+async function apiSwitchProfile(req, res) {
+  const body = await readBody(req);
+  const { profile } = body;
+  if (!profile) return json(res, { error: 'Profile name required' }, 400);
+  
+  const db = require('./db-server');
+  db.switchProfile(profile);
+  json(res, { ok: true, current: profile });
+}
+
+// POST /api/profiles/create
+async function apiCreateProfile(req, res) {
+  const body = await readBody(req);
+  const { name, preset } = body;
+  if (!name) return json(res, { error: 'Profile name required' }, 400);
+  
+  const db = require('./db-server');
+  db.switchProfile(name);
+  
+  if (preset) {
+    const data = loadPresetData(preset);
+    db.saveCategories(data.categories);
+    db.saveStudios(data.studios);
+    db.saveWebsites(data.websites);
+  }
+  
+  json(res, { ok: true, current: name });
+}
+
+async function apiRenameProfile(req, res) {
+  const body = await readBody(req);
+  const { oldName, newName } = body;
+  if (!oldName || !newName) return json(res, { error: 'Old and new names required' }, 400);
+  
+  const db = require('./db-server');
+  const current = db.getCurrentProfile();
+  
+  const oldPath = path.join(__dirname, `../db/aphroarchive_${oldName}.db`);
+  const newPath = path.join(__dirname, `../db/aphroarchive_${newName}.db`);
+  
+  const fs = require('fs');
+  if (!fs.existsSync(oldPath)) return json(res, { error: 'Profile not found' }, 404);
+  if (fs.existsSync(newPath)) return json(res, { error: 'New name already exists' }, 400);
+  
+  if (current === oldName) {
+    db.closeDb();
+  }
+  
+  fs.renameSync(oldPath, newPath);
+  
+  if (current === oldName) {
+    db.switchProfile(newName);
+  }
+  
+  json(res, { ok: true, current: current === oldName ? newName : current });
+}
+
+module.exports = { apiGetPresets, apiApplyPreset, isDbInitialized, apiGetProfiles, apiSwitchProfile, apiCreateProfile, apiRenameProfile };
