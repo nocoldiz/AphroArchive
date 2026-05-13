@@ -95,6 +95,7 @@ export const isRecentMode = signal<boolean>(false);
 export const recentVideos = signal<Video[]>([]);
 export const favFilter = signal<boolean>(false);
 export const searchQuery = signal<string>('');
+export const visionModalText = signal<string | null>(null);
 export const galleryFilter = signal<string>('');
 export const isLoadingVideos = signal<boolean>(false);
 export const sortMode = signal<string>('date');
@@ -560,3 +561,31 @@ w.openVid = (id: string) => {
   if (btn) btn.classList.toggle('on', on);
   localStorage.setItem('pan', on ? '1' : '');
 };
+
+export async function deleteVideo(id: string, name: string) {
+  if (!confirm(`Delete "${name}"?\nThis cannot be undone.`)) return;
+  const r = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+  if (!r.ok) {
+    const w = window as any;
+    if (w.toast) w.toast('Delete failed');
+    return;
+  }
+  videos.value = videos.value.filter(v => v.id !== id);
+  const w = window as any;
+  if (w.toast) w.toast('Deleted');
+}
+
+export async function describeVideoThumb(videoId: string) {
+  visionModalText.value = 'Analyzing thumbnail…';
+  try {
+    const r = await fetch('/api/vision/describe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'thumb', id: videoId, thumbIdx: 0 })
+    }).then(r => r.json());
+    
+    visionModalText.value = r ? (r.description || r.error || 'No description returned') : 'Request failed';
+  } catch (e) {
+    visionModalText.value = 'Request failed';
+  }
+}

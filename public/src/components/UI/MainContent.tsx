@@ -8,6 +8,7 @@ import { ActorsView } from '../sections/ActorsView';
 import { StudiosView } from '../sections/StudiosView';
 import { PhotosView } from '../sections/PhotosView';
 import { BookmarksView } from '../sections/BookmarksView';
+import { VisionModal } from '../modals/VisionModal';
 import { PagesView } from '../sections/PagesView';
 import { SearchSitesView } from '../sections/SearchSitesView';
 import { AudioView } from '../sections/AudioView';
@@ -62,6 +63,7 @@ export const MainContent = () => {
       <RenameModal />
       <MoveModal />
       <VaultPhotoLightbox />
+      <VisionModal />
     </>
   );
 };

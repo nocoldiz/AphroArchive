@@ -78,3 +78,28 @@ export function extractActorNames(title: string, knownActors: string[] = []): st
 
   return [...found].filter(n => n && n.length > 1 && !stop.has(n.toLowerCase()));
 }
+
+export function fmtBytes(b: number): string {
+  if (!b) return '0 B';
+  const k = 1024, s = ['B','KB','MB','GB','TB'];
+  const i = Math.floor(Math.log(b) / Math.log(k));
+  return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
+}
+
+export function formatDuration(s: number | undefined | null): string {
+  if (s === undefined || s === null) return '';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  if (h > 0) return h + ':' + m.toString().padStart(2, '0') + ':' + sec.toString().padStart(2, '0');
+  return m + ':' + sec.toString().padStart(2, '0');
+}
+
+export function hsh(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h;
+}
