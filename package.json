@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@preact/signals": "^2.9.0",
+    "better-sqlite3": "^12.10.0",
     "node-llama-cpp": "^3.18.1",
     "preact": "^10.29.1"
   },

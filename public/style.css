@@ -766,6 +766,67 @@ input {
   background: var(--acg)
 }
 
+.player-rating span {
+  transition: transform 0.1s;
+}
+
+.player-rating span:hover {
+  transform: scale(1.2);
+}
+
+.p-actor-tag {
+  background: var(--bg2);
+  border: 1px solid var(--brd);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  color: var(--tx);
+  cursor: pointer;
+  transition: all var(--tr);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.p-actor-tag:hover {
+  border-color: var(--ac);
+  background: var(--acg);
+  transform: translateY(-1px);
+}
+
+.p-tag {
+  background: var(--bg2);
+  border: 1px solid var(--brd);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  color: var(--tx2);
+  transition: all var(--tr);
+}
+
+.p-tag:hover {
+  border-color: var(--ac);
+  color: var(--ac);
+}
+
+.p-tag-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 1px solid var(--brd);
+  color: var(--tx3);
+  cursor: pointer;
+  transition: all var(--tr);
+}
+
+.p-tag-add-btn:hover {
+  border-color: var(--ac);
+  color: var(--ac);
+  background: var(--acg);
+}
+
 .pv-side {
   position: sticky;
   top: 70px;

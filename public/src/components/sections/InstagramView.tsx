@@ -46,6 +46,7 @@ export const InstagramView = () => {
   const [shuffledOrder, setShuffledOrder] = useState<IgItem[]>([]);
   const [autoplayEnabled, setAutoplayEnabled] = useState(true);
   const [savedOnly, setSavedOnly] = useState(false);
+  const [profileKey, setProfileKey] = useState<string | null>(null);
   const [feedItems, setFeedItems] = useState<IgItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<IgItem[]>([]);
 
@@ -316,6 +317,7 @@ export const InstagramView = () => {
                 onLike={() => toggleLike(item.id, item._vault)}
                 onSave={() => toggleSave(item.id)}
                 onOpen={() => openModal(item.id, item._vault)}
+                onOpenProfile={(key: string) => { setProfileKey(key); setCurView('profile'); }}
                 vaultUser={vaultUser}
                 timeAgo={timeAgo}
                 strColor={strColor}
@@ -335,6 +337,83 @@ export const InstagramView = () => {
                 <ExploreTile key={item.id} item={item} onOpen={() => openModal(item.id, item._vault)} />
               ))}
             </div>
+          </div>
+        )}
+
+        {curView === 'profile' && profileKey && (
+          <div className="ig-profile show" style={{ padding: '24px 24px 24px 32px', flex: 1, minWidth: 0 }}>
+            <button className="ig-profile-back" onClick={() => setCurView('feed')} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#a8a8a8', cursor: 'pointer', fontSize: '14px', marginBottom: '16px', padding: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              Back
+            </button>
+            {(() => {
+              const isVaultProfile = profileKey.startsWith('vault:');
+              const id = profileKey.slice(profileKey.indexOf(':') + 1);
+              let displayName = '';
+              let items: IgItem[] = [];
+              if (isVaultProfile) {
+                displayName = id === '__root__' ? 'Vault' : (vaultFolderMap[id] || 'Vault');
+                items = vaultFiles.filter(f => (f.folder || '__root__') === id).map(f => ({ ...f, _vault: true, id: f.id }));
+              } else {
+                displayName = id;
+                items = allVideos.value.filter(v => (v.category || 'Uncategorized') === id).map(v => ({ ...v, _vault: false, id: v.id }));
+              }
+              const color = strColor(displayName);
+              const postCount = items.length;
+              const likedCount = items.filter(i => likedIds.has(i.id)).length;
+
+              const getThumbSrc = (item: IgItem) => {
+                const isVault = item._vault;
+                const ext = (item.ext || '').toLowerCase();
+                const isImgFile = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp'].includes(ext);
+                if (isVault && isImgFile) return '/api/vault/stream/' + item.id;
+                if (!isVault) return '/api/thumbs/' + item.id + '/0';
+                return '';
+              };
+
+              return (
+                <>
+                  <div className="ig-profile-header" style={{ display: 'flex', alignItems: 'center', gap: '28px', paddingBottom: '24px', borderBottom: '1px solid #262626', marginBottom: '20px' }}>
+                    <div className="ig-profile-avatar" style={{ background: color, width: '86px', height: '86px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '32px', color: '#fff', flexShrink: 0 }}>{initial(displayName)}</div>
+                    <div className="ig-profile-meta" style={{ flex: 1 }}>
+                      <div className="ig-profile-name" style={{ fontSize: '20px', fontWeight: '300', marginBottom: '12px' }}>{displayName}</div>
+                      <div className="ig-profile-stats" style={{ display: 'flex', gap: '28px', marginBottom: '10px' }}>
+                        <div className="ig-profile-stat" style={{ fontSize: '14px' }}><strong style={{ display: 'block', fontSize: '16px', fontWeight: '700' }}>{postCount}</strong> posts</div>
+                        <div className="ig-profile-stat" style={{ fontSize: '14px' }}><strong style={{ display: 'block', fontSize: '16px', fontWeight: '700' }}>{likedCount}</strong> liked</div>
+                        {isVaultProfile && <div className="ig-profile-stat" style={{ fontSize: '14px' }}><strong style={{ display: 'block', fontSize: '16px', fontWeight: '700' }}>🔒</strong> vault</div>}
+                      </div>
+                      <div className="ig-profile-bio" style={{ fontSize: '13px', color: '#a8a8a8' }}>
+                        {isVaultProfile ? 'Vault folder' : `Category · ${postCount} video${postCount !== 1 ? 's' : ''}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ig-profile-tabs" style={{ display: 'flex', borderTop: '1px solid #262626', marginBottom: '16px' }}>
+                    <div className="ig-profile-tab active" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '12px', borderTop: '1px solid #fff', fontSize: '12px', fontWeight: '600', color: '#fff', cursor: 'pointer', letterSpacing: '.8px', textTransform: 'uppercase', marginTop: '-1px' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                      Posts
+                    </div>
+                  </div>
+                  <div className="ig-profile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '3px' }}>
+                    {items.map(item => (
+                      <div key={item.id} className="ig-profile-tile" onClick={() => openModal(item.id, item._vault)} style={{ aspectRatio: '1', position: 'relative', background: '#1a1a1a', overflow: 'hidden', cursor: 'pointer' }}>
+                        {getThumbSrc(item) ? (
+                          <img src={getThumbSrc(item)} loading="lazy" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333' }}>
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polygon points="5,3 19,12 5,21"/></svg>
+                          </div>
+                        )}
+                        <div className="ig-profile-tile-overlay" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', opacity: 0, transition: 'opacity 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.opacity = '1'} onMouseLeave={(e) => e.currentTarget.style.opacity = '0'}>
+                          <div className="ig-profile-tile-stat" style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#fff', fontWeight: '700' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill={likedIds.has(item.id) ? '#ed4956' : 'white'} stroke={likedIds.has(item.id) ? '#ed4956' : 'white'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -363,7 +442,7 @@ export const InstagramView = () => {
 };
 
 // Sub-components...
-const PostCard = ({ item, liked, saved, onLike, onSave, onOpen, vaultUser, timeAgo, strColor, initial }: any) => {
+const PostCard = ({ item, liked, saved, onLike, onSave, onOpen, onOpenProfile, vaultUser, timeAgo, strColor, initial }: any) => {
   const isVault = item._vault;
   const name = item.name || item.originalName || 'Untitled';
   const category = isVault ? vaultUser(item) : (item.category || 'Uncategorized');
@@ -382,9 +461,9 @@ const PostCard = ({ item, liked, saved, onLike, onSave, onOpen, vaultUser, timeA
   return (
     <div className="ig-post">
       <div className="ig-post-header">
-        <div className="ig-post-avatar" style={{ background: color, cursor: 'pointer' }}>{initial(category)}</div>
+        <div className="ig-post-avatar" style={{ background: color, cursor: 'pointer' }} onClick={() => onOpenProfile(isVault ? `vault:${item.folder || '__root__'}` : `cat:${category}`)}>{initial(category)}</div>
         <div className="ig-post-info">
-          <div className="ig-post-username" style={{ cursor: 'pointer' }}>{category}</div>
+          <div className="ig-post-username" style={{ cursor: 'pointer' }} onClick={() => onOpenProfile(isVault ? `vault:${item.folder || '__root__'}` : `cat:${category}`)}>{category}</div>
           <div className="ig-post-meta">{timeAgo(mtime)}</div>
         </div>
         <button className="ig-post-menu" title="More">⋮</button>
