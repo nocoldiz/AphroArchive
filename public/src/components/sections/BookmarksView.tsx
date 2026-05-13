@@ -96,6 +96,8 @@ export const BookmarksView = () => {
   const [matchedCount, setMatchedCount] = useState(0);
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [websites, setWebsites] = useState<any[]>([]);
+  const [selectedWebsite, setSelectedWebsite] = useState<string>('');
 
   const dlPollerRef = useRef<any>(null);
 
@@ -118,6 +120,13 @@ export const BookmarksView = () => {
       });
   }, []);
 
+  useEffect(() => {
+    fetch('/api/websites')
+      .then(r => r.json())
+      .then(setWebsites)
+      .catch(() => {});
+  }, []);
+
   const updateMatches = (items: BookmarkItem[]) => {
     rebuildBookmarkVidIds(items);
     // Count matches
@@ -137,11 +146,26 @@ export const BookmarksView = () => {
 
   useEffect(() => {
     const term = search.trim().toLowerCase();
-    const filtered = term
-      ? items.filter(item => item.title.toLowerCase().includes(term) || item.url.toLowerCase().includes(term))
-      : items;
+    let filtered = items;
+    
+    if (selectedWebsite) {
+      filtered = filtered.filter(item => {
+        try {
+          const itemUrl = new URL(item.url);
+          const webUrl = new URL(selectedWebsite);
+          return itemUrl.hostname === webUrl.hostname || itemUrl.hostname.endsWith('.' + webUrl.hostname);
+        } catch {
+          return item.url.includes(selectedWebsite);
+        }
+      });
+    }
+
+    if (term) {
+      filtered = filtered.filter(item => item.title.toLowerCase().includes(term) || item.url.toLowerCase().includes(term));
+    }
+    
     setVisibleItems(filtered);
-  }, [search, items]);
+  }, [search, items, selectedWebsite]);
 
   // Download poller
   useEffect(() => {
@@ -174,8 +198,40 @@ export const BookmarksView = () => {
       const r = await fetch(`/api/browser-favs?browser=${browser}`);
       const d = await r.json();
       if (d.items) {
-        setItems(d.items);
-        updateMatches(d.items);
+        // Filter bookmarks to only include those matching profile websites!
+        const filtered = d.items.filter((item: any) => {
+          return websites.some(w => {
+            try {
+              const itemUrl = new URL(item.url);
+              const webUrl = new URL(w.url);
+              return itemUrl.hostname === webUrl.hostname || itemUrl.hostname.endsWith('.' + webUrl.hostname);
+            } catch {
+              return item.url.includes(w.url);
+            }
+          });
+        });
+        
+        // Merge with existing items (avoid duplicates)
+        const existingUrls = new Set(items.map(it => it.url));
+        const newItems = [...items];
+        for (const item of filtered) {
+          if (!existingUrls.has(item.url)) {
+            newItems.push(item);
+          }
+        }
+        
+        setItems(newItems);
+        updateMatches(newItems);
+        
+        // Save to cache
+        await fetch('/api/bookmarks/cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: newItems })
+        });
+        
+        const w = window as any;
+        if (w.toast) w.toast(`Imported ${filtered.length} bookmarks`);
       }
     } catch { }
     setLoading(false);
@@ -291,6 +347,19 @@ export const BookmarksView = () => {
           currentFilter={search}
           onFilterChange={setSearch}
         >
+          <span className="sg-sep"></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title="Filter by Website">
+            <select 
+              value={selectedWebsite} 
+              onChange={(e: any) => setSelectedWebsite(e.target.value)}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '3px 6px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+            >
+              <option value="">All Websites</option>
+              {websites.map(w => (
+                <option key={w.name} value={w.url}>{w.name}</option>
+              ))}
+            </select>
+          </div>
           <span className="sg-sep"></span>
           <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
             <button className={`ss-tab ${viewMode === 'grid' ? 'on' : ''}`} onClick={() => setViewMode('grid')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'grid' ? 'var(--ac)' : 'transparent', color: viewMode === 'grid' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Grid</button>

@@ -1,4 +1,5 @@
 import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted } from '../../store';
+import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
@@ -190,6 +191,23 @@ export const PlayerView = () => {
               style={{ display: 'none', width: '100%', maxHeight: '80vh', background: '#000' }}
             />
           </div>
+          
+          {zapOn.value && (
+            <div className="mos-ui" style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'rgba(0,0,0,0.8)', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', color: '#fff' }}>
+              <div className="mos-c" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Interval:</span>
+                <button onClick={() => setZapIv(-2)} style={{ padding: '2px 8px', cursor: 'pointer', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)' }}>-</button>
+                <span>{zapIv.value}s</span>
+                <button onClick={() => setZapIv(2)} style={{ padding: '2px 8px', cursor: 'pointer', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)' }}>+</button>
+              </div>
+              <button onClick={toggleZapLock} style={{ padding: '5px 10px', cursor: 'pointer', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)' }}>
+                {zapLock.value ? 'Unlock (Resume Zapping)' : 'Lock to Current'}
+              </button>
+              <button onClick={stopZapping} style={{ padding: '5px 10px', cursor: 'pointer', background: 'var(--bg3)', border: '1px solid var(--brd)', color: '#ff4a4a' }}>
+                Exit Zapping
+              </button>
+            </div>
+          )}
 
           <div className="player-info">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>

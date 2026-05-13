@@ -1,4 +1,5 @@
 import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile } from '../../store';
+import { useState, useEffect } from 'preact/hooks';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;

@@ -51,6 +51,7 @@ export interface AppPrefs {
   anthropicApiKey?: string;
   visionProvider?: string;
   disableSearchTracking?: boolean;
+  vaultSelfDestruct?: boolean;
 }
 export interface ThumbnailGroup {
   id: string;

@@ -746,21 +746,7 @@
               <video id="video-player" controls autoplay></video>
               <div id="video-subtitle-overlay" class="video-subtitle-overlay"></div>
             </div>
-            <div class="mos-ui" id="zap-ui"
-              style="display:none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 8px; align-items: center; gap: 15px;">
-              <div class="mos-c" style="display:flex; align-items:center; gap:8px;">
-                <span>Interval:</span>
-                <button onclick="setZapIv(-2)">-</button>
-                <span id="zap-interval">8s</span>
-                <button onclick="setZapIv(2)">+</button>
-              </div>
-              <button id="zap-lock-btn" onclick="toggleZapLock()" style="padding: 5px 10px; cursor: pointer;">Lock to
-                Current</button>
-              <button class="mos-exit" onclick="stopZapping()"
-                style="padding: 5px 10px; cursor: pointer; color: #ff4a4a;">Exit Zapping</button>
-            </div>
-            <video id="video-player-zap" controls
-              style="display:none; width: 100%; max-height: 80vh; background: #000;"></video>
+
             <div class="video-nav">
               <button onclick="playPrev()">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -10,6 +10,43 @@ const { json, formatBytes } = require('./helpers-server');
 
 const IMAGE_EXT = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.tiff','.tif']);
 
+function readPngMetadata(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const header = Buffer.alloc(8);
+    fs.readSync(fd, header, 0, 8, 0);
+    if (!header.equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
+      fs.closeSync(fd);
+      return null; // Not a PNG
+    }
+
+    const buf = Buffer.alloc(8192); // Read 8KB
+    const bytesRead = fs.readSync(fd, buf, 0, 8192, 8);
+    fs.closeSync(fd);
+
+    let offset = 0;
+    while (offset < bytesRead - 8) {
+      const len = buf.readUInt32BE(offset);
+      const type = buf.toString('ascii', offset + 4, offset + 8);
+      if (type === 'tEXt' || type === 'iTXt') {
+        const data = buf.slice(offset + 8, Math.min(bytesRead, offset + 8 + len));
+        const nullIdx = data.indexOf(0);
+        if (nullIdx !== -1) {
+          const keyword = data.toString('ascii', 0, nullIdx);
+          if (keyword === 'parameters') {
+            const text = data.toString('utf-8', nullIdx + 1);
+            return text; // This is the prompt and metadata!
+          }
+        }
+      }
+      offset += 12 + len; // 4 (len) + 4 (type) + len + 4 (crc)
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+  return null;
+}
+
 function photoToId(rootType, rel) { 
   return rootType + ':' + Buffer.from(rel).toString('base64url'); 
 }
@@ -35,14 +72,28 @@ function scanPhotos(dir, base, rootType) {
     } else if (e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase())) {
       const rel  = path.relative(base, fp);
       const stat = fs.statSync(fp);
+      const ext  = path.extname(e.name).toLowerCase();
+      
+      let isAi = false;
+      let aiPrompt = '';
+      if (ext === '.png') {
+        const meta = readPngMetadata(fp);
+        if (meta) {
+          isAi = true;
+          aiPrompt = meta;
+        }
+      }
+
       out.push({
         id:       photoToId(rootType, rel),
         filename: e.name,
         rel,
-        ext:      path.extname(e.name).toLowerCase(),
+        ext,
         size:     stat.size,
         sizeF:    formatBytes(stat.size),
         date:     stat.mtimeMs,
+        isAi,
+        aiPrompt,
       });
     }
   }

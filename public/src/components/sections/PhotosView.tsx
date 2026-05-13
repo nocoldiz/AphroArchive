@@ -8,6 +8,8 @@ interface PhotoFile {
   size: number;
   sizeF: string;
   date: number;
+  isAi?: boolean;
+  aiPrompt?: string;
 }
 
 export const PhotosView = () => {
@@ -19,6 +21,7 @@ export const PhotosView = () => {
   const [slideSecs, setSlideSecs] = useState(3);
   const [description, setDescription] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [aiFilter, setAiFilter] = useState<'all' | 'ai' | 'normal'>('all');
 
   const slideTimerRef = useRef<any>(null);
 
@@ -46,6 +49,10 @@ export const PhotosView = () => {
       const q = search.toLowerCase();
       files = files.filter(f => f.filename.toLowerCase().includes(q));
     }
+    
+    if (aiFilter === 'ai') files = files.filter(f => f.isAi);
+    else if (aiFilter === 'normal') files = files.filter(f => !f.isAi);
+    
     return files;
   };
 
@@ -173,6 +180,16 @@ export const PhotosView = () => {
         >
           <span className="sg-sep"></span>
           <button className="sort-btn" onClick={startMosaic}>Mosaic</button>
+          <span className="sg-sep"></span>
+          <select 
+            value={aiFilter} 
+            onChange={(e: any) => setAiFilter(e.target.value)} 
+            style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '5px', cursor: 'pointer' }}
+          >
+            <option value="all">All Photos</option>
+            <option value="ai">AI Only</option>
+            <option value="normal">No AI</option>
+          </select>
         </SectionControls>
       </div>
 
@@ -230,8 +247,15 @@ export const PhotosView = () => {
             </div>
 
             {description && (
-              <div id="photosLbDesc" style={{ background: 'rgba(255,255,255,0.1)', padding: '10px', borderRadius: '5px', fontSize: '0.9rem' }}>
+              <div id="photosLbDesc" style={{ background: 'rgba(255,255,255,0.1)', padding: '10px', borderRadius: '5px', fontSize: '0.9rem', marginBottom: '10px' }}>
                 {description}
+              </div>
+            )}
+
+            {currentPhoto.isAi && currentPhoto.aiPrompt && (
+              <div style={{ background: 'rgba(255,255,255,0.1)', padding: '10px', borderRadius: '5px', fontSize: '0.85rem', marginTop: '10px', textAlign: 'left', maxHeight: '150px', overflowY: 'auto' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'var(--ac)' }}>AI Parameters:</div>
+                <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'monospace', color: 'var(--tx2)' }}>{currentPhoto.aiPrompt}</pre>
               </div>
             )}
           </div>
