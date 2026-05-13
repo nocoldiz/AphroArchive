@@ -38,6 +38,22 @@ export const tagModalState = signal<{
   bmUrl: null
 });
 
+export const actorModalState = signal<{
+  visible: boolean;
+  vidId: string | null;
+}>({
+  visible: false,
+  vidId: null
+});
+
+export const studioModalState = signal<{
+  visible: boolean;
+  vidId: string | null;
+}>({
+  visible: false,
+  vidId: null
+});
+
 export const renameModalState = signal<{
   visible: boolean;
   vidId: string | null;

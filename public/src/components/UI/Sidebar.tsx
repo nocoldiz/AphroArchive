@@ -293,7 +293,7 @@ export const Sidebar = () => {
               label={c.name}
               icon={lockIcon}
               badge={c.count + bmCount}
-              onClick={() => selectCategory(c.name)}
+              onClick={() => selectCategory(c.path)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 if ((window as any).showContextMenu) {

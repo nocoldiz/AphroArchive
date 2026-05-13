@@ -2,6 +2,7 @@ import { currentView, currentVideo } from '../../store';
 import { VideoGrid } from './VideoGrid';
 import { SettingsView } from '../sections/SettingsView';
 import { ThumbnailsView } from '../sections/ThumbnailsView';
+import { RedditView } from '../sections/RedditView';
 import { InstagramView } from '../sections/InstagramView';
 import { CategoriesView } from '../sections/CategoriesView';
 import { ActorsView } from '../sections/ActorsView';
@@ -17,6 +18,8 @@ import { CollectionsView } from '../sections/CollectionsView';
 import { DatabaseView } from '../sections/DatabaseView';
 import { TagDetailView } from '../sections/TagDetailView';
 import { TagModal } from '../modals/TagModal';
+import { ActorModal } from '../modals/ActorModal';
+import { StudioModal } from '../modals/StudioModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
@@ -94,6 +97,7 @@ export const MainContent = () => {
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;
     if (view === 'instagram') return <InstagramView />;
+    if (view === 'reddit') return <RedditView />;
     if (view === 'pages') return <PagesView />;
     if (view === 'search') return <SearchSitesView />;
     if (view === 'audio') return <AudioView />;
@@ -116,6 +120,8 @@ export const MainContent = () => {
       {renderView()}
       <ContextMenu />
       <TagModal />
+      <ActorModal />
+      <StudioModal />
       <RenameModal />
       <MoveModal />
       <VaultPhotoLightbox />

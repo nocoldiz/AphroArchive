@@ -1,4 +1,5 @@
 import { Search } from './Search';
+import { currentView } from '../../store';
 
 export const Topbar = () => {
   const showHome = () => {
@@ -91,7 +92,7 @@ export const Topbar = () => {
           </svg>
         </button>
 
-        <button id="rdBtn" onClick={() => window.location.href = '/reddit'} title="Reddit mode">
+        <button id="rdBtn" onClick={() => currentView.value = 'reddit'} title="Reddit mode">
           <svg width="15" height="15" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="12" fill="#ff4500" />
             <ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff" />

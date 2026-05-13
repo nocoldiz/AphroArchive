@@ -181,26 +181,32 @@ export const PlayerView = () => {
               <PlayerAction label="Pin" icon="pin" onClick={() => (window as any).togglePin()} />
             </div>
 
-            {studio && (
-              <div className="player-studio-row" style={{ marginBottom: '15px' }}>
-                <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Studio:</span>
+            <div className="player-studio-row" style={{ marginBottom: '15px' }}>
+              <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Studio:</span>
+              {studio ? (
                 <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => (window as any).openStudio(studio)}>{studio}</span>
-              </div>
-            )}
+              ) : (
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>None</span>
+              )}
+              <button className="p-tag-add-btn" onClick={() => (window as any).openStudioModal(vid.id)} style={{ marginLeft: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '4px', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.8rem' }}>
+                ✎
+              </button>
+            </div>
 
-            {actors.length > 0 && (
-              <div className="player-actors-row" style={{ marginBottom: '15px' }}>
-                <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Actors:</span>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  {actors.map(a => (
-                    <button key={a} className="p-actor-tag" onClick={() => (window as any).openActor(a)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <img className="p-actor-ph" src={`/api/actor-photos/${encodeURIComponent(a)}/img`} alt="" onError={(e: any) => e.target.style.display = 'none'} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
-                      {a}
-                    </button>
-                  ))}
-                </div>
+            <div className="player-actors-row" style={{ marginBottom: '15px' }}>
+              <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Actors:</span>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {actors.map(a => (
+                  <button key={a} className="p-actor-tag" onClick={() => (window as any).openActor(a)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <img className="p-actor-ph" src={`/api/actor-photos/${encodeURIComponent(a)}/img`} alt="" onError={(e: any) => e.target.style.display = 'none'} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                    {a}
+                  </button>
+                ))}
+                <button className="p-tag-add-btn" onClick={() => (window as any).openActorModal(vid.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
+                  +
+                </button>
               </div>
-            )}
+            </div>
 
             {tags.length > 0 && (
               <div className="player-tags-row" style={{ marginBottom: '15px' }}>
