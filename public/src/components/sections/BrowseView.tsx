@@ -1,5 +1,6 @@
 import { VideoGrid } from '../UI/VideoGrid';
 import { galleryFilter } from '../../store';
+import { SearchExtras } from '../UI/SearchExtras';
 
 export const BrowseView = () => {
   return (
@@ -58,20 +59,7 @@ export const BrowseView = () => {
       </div>
 
       <VideoGrid />
-
-      {/* Extra search result sections (photos / audio / books) */}
-      <div id="search-extra-photos" style={{ display: 'none' }}>
-        <h3 class="search-extra-heading">Photos</h3>
-        <div id="search-extra-photos-grid" class="ph-grid"></div>
-      </div>
-      <div id="search-extra-audio" style={{ display: 'none' }}>
-        <h3 class="search-extra-heading">Audio</h3>
-        <div id="search-extra-audio-grid" class="au-grid"></div>
-      </div>
-      <div id="search-extra-books" style={{ display: 'none' }}>
-        <h3 class="search-extra-heading">Books</h3>
-        <div id="search-extra-books-grid" class="bk-grid"></div>
-      </div>
+      <SearchExtras />
     </div>
   );
 };

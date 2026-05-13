@@ -9,11 +9,12 @@ interface SidebarItemProps {
   onDragOver?: (e: any) => void;
   onDragLeave?: (e: any) => void;
   onDrop?: (e: any) => void;
+  onContextMenu?: (e: any) => void;
   isActive?: boolean;
   indent?: boolean;
 }
 
-const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, isActive, indent }: SidebarItemProps) => (
+const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, onContextMenu, isActive, indent }: SidebarItemProps) => (
   <div
     className={`sidebar-item ${isActive ? 'on' : ''}`}
     id={id}
@@ -21,6 +22,7 @@ const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave,
     onDragOver={onDragOver}
     onDragLeave={onDragLeave}
     onDrop={onDrop}
+    onContextMenu={onContextMenu}
     style={indent ? { paddingLeft: '32px', fontSize: '0.85rem' } : {}}
   >
     <span>{icon}{label}</span>
@@ -265,6 +267,12 @@ export const Sidebar = () => {
               icon={lockIcon}
               badge={c.count}
               onClick={() => selectCategory(c.name)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                if ((window as any).showContextMenu) {
+                  (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
+                }
+              }}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';

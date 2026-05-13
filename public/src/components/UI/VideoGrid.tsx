@@ -1,6 +1,6 @@
 import { useRef, useState } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 const openCtx = (e: any) => {
@@ -14,9 +14,10 @@ const openCtx = (e: any) => {
 interface VideoCardProps {
   video: Video;
   isSelected: boolean;
+  index: number;
 }
 
-export const VideoCard = ({ video, isSelected }: VideoCardProps) => {
+export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
   const [showVideo, setShowVideo] = useState(false);
   const timerRef = useRef<any>(null);
 
@@ -39,13 +40,14 @@ export const VideoCard = ({ video, isSelected }: VideoCardProps) => {
 
   return (
     <div
-      className={`video-card ${isSelected ? 'selected' : ''}`}
+      className={`video-card fade-in ${isSelected ? 'selected' : ''}`}
       id={`v-${video.id}`}
       onClick={play}
       onContextMenu={openCtx}
       data-id={video.id}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      style={{ animationDelay: `${Math.min(index * 35, 420)}ms` }}
       draggable={true}
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', video.id);
@@ -115,6 +117,16 @@ export const VideoGrid = () => {
 
   useVideoSelection(gridRef);
 
+  if (isLoadingVideos.value) {
+    return (
+      <div className="video-grid" id="video-grid">
+        {Array(12).fill(0).map((_, i) => (
+          <div key={i} className="skeleton skeleton-card"></div>
+        ))}
+      </div>
+    );
+  }
+
   if (list.length === 0) {
     return (
       <div className="empty-state">
@@ -128,11 +140,12 @@ export const VideoGrid = () => {
     <>
       <VideoSelBar />
       <div className="video-grid" id="video-grid" ref={gridRef}>
-        {list.map(v => (
+        {list.map((v, i) => (
           <VideoCard
             key={v.id}
             video={v}
             isSelected={selectedVideoIds.value.has(v.id)}
+            index={i}
           />
         ))}
       </div>

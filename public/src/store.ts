@@ -93,6 +93,7 @@ export function rebuildBookmarkVidIds(items: any[]) {
 // Bridge for legacy JS
 export const searchQuery = signal<string>('');
 export const galleryFilter = signal<string>('');
+export const isLoadingVideos = signal<boolean>(false);
 export const sortMode = signal<string>('date');
 export const isShuffle = signal<boolean>(false);
 export const vaultMode = signal<boolean>(false);
@@ -270,10 +271,12 @@ export const filteredVideos = computed(() => {
 
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
 export async function loadVideos() {
+  isLoadingVideos.value = true;
   const res = await fetch('/api/videos');
   const data = await res.json();
   allVideos.value = data;
   videos.value = data;
+  isLoadingVideos.value = false;
 }
 
 export async function loadCategories() {
