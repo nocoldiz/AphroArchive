@@ -97,6 +97,15 @@ export const favFilter = signal<boolean>(false);
 export const searchQuery = signal<string>('');
 export const visionModalText = signal<string | null>(null);
 export const galleryFilter = signal<string>('');
+
+export const cardSize = signal<number>(parseInt(localStorage.getItem('cardSize') || '270', 10));
+
+if (typeof document !== 'undefined') {
+  cardSize.subscribe(w => {
+    document.documentElement.style.setProperty('--card-min', w + 'px');
+    localStorage.setItem('cardSize', w.toString());
+  });
+}
 export const isLoadingVideos = signal<boolean>(false);
 export const sortMode = signal<string>('date');
 export const isShuffle = signal<boolean>(false);

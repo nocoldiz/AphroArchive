@@ -780,7 +780,7 @@ export const VaultView = () => {
         )}
 
         {showMosaic && <VaultMosaic pool={files} onClose={() => setShowMosaic(false)} />}
-        {showSettings && <VaultSettingsModal onClose={() => setShowSettings(false)} />}
+        {showSettings && <VaultSettingsModal files={files} onClose={() => setShowSettings(false)} />}
         {showScrape && <VaultScrapeModal files={files} onClose={() => setShowScrape(false)} />}
         {activePhotoId && (
           <VaultPhotoViewer

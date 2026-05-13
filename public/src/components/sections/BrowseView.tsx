@@ -1,5 +1,5 @@
 import { VideoGrid } from '../UI/VideoGrid';
-import { galleryFilter, sortMode, isShuffle, favFilter, recentVideos, currentView } from '../../store';
+import { galleryFilter, sortMode, isShuffle, favFilter, recentVideos, currentView, cardSize } from '../../store';
 import { SearchExtras } from '../UI/SearchExtras';
 
 export const BrowseView = () => {
@@ -43,7 +43,7 @@ export const BrowseView = () => {
               <rect x="14" y="14" width="7" height="7" />
             </svg>
             <input type="range" id="card-size-slider" class="card-size-slider" min="140" max="500" step="10"
-              defaultValue="270" onInput={(e: any) => (window as any).setCardSize && (window as any).setCardSize(e.target.value)}
+              value={cardSize.value} onInput={(e: any) => cardSize.value = parseInt(e.target.value, 10)}
               style={{ width: '72px', cursor: 'pointer', accentColor: 'var(--ac)', verticalAlign: 'middle' }} />
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <rect x="3" y="3" width="7" height="7" />
