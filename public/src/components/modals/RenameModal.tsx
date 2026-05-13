@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { renameModalState, videos, allVideos } from '../../store';
-import { renameVideo } from '../api';
+import { renameVideo } from '../../api';
 
 export const RenameModal = () => {
   const state = renameModalState.value;

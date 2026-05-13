@@ -16,6 +16,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
+    "baseUrl": ".",
+    "paths": {
+      "react/jsx-runtime": ["./node_modules/preact/jsx-runtime"]
+    },
     "types": ["vite/client", "node"]
   },
   "include": ["public/src"]

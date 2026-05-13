@@ -1,6 +1,6 @@
 import { appPrefs, updatePrefs } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { PERSONALITIES, Personality } from '../personalities';
+import { PERSONALITIES, Personality } from '../../personalities';
 
 export const SettingsView = () => {
   const prefs = appPrefs.value;

@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { vaultMode, isVaultUnlocked, currentVideo } from '../../store';
+import { VaultMosaic } from './VaultMosaic';
+import { VaultSettingsModal } from './VaultSettingsModal';
+import { VaultScrapeModal } from './VaultScrapeModal';
 
 interface VaultFile {
   id: string;
@@ -40,13 +43,18 @@ export const VaultView = () => {
   // Grid State
   const [files, setFiles] = useState<VaultFile[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any>({});
   const [curFolder, setCurFolder] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [catFilter, setCatFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('mtime');
   const [sortDir, setSortDir] = useState('desc');
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
   const [aiIds, setAiIds] = useState<Set<string>>(new Set());
+  const [showMosaic, setShowMosaic] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showScrape, setShowScrape] = useState(false);
 
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -92,9 +100,10 @@ export const VaultView = () => {
 
   const loadVaultFiles = async () => {
     try {
-      const [items, favs] = await Promise.all([
+      const [items, favs, cats] = await Promise.all([
         fetch('/api/vault/files').then(r => r.json()),
         fetch('/api/vault/favs').then(r => r.json()).catch(() => []),
+        fetch('/api/db/categories').then(r => r.json()).catch(() => ({})),
       ]);
 
       if (items.error) return;
@@ -105,6 +114,7 @@ export const VaultView = () => {
       setFolders(fols);
       setFiles(fils);
       setFavIds(new Set(Array.isArray(favs) ? favs : []));
+      setCategories(cats);
 
       const ai = new Set<string>();
       items.filter((f: any) => f.aiTagged).forEach((f: any) => ai.add(f.id));
@@ -281,6 +291,106 @@ export const VaultView = () => {
     if (w.toast) w.toast(`Deleted ${ids.length} items`);
   };
 
+  const createNewVaultTextFile = async () => {
+    let name = prompt('Enter text file name:', 'notes.txt');
+    if (!name) return;
+    
+    const r = await fetch('/api/vault/create-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        name: name, 
+        folder: curFolder, 
+        content: '' 
+      })
+    });
+    
+    const w = window as any;
+    if (!r.ok) {
+      if (w.toast) w.toast('Failed to create text file');
+      return;
+    }
+    
+    loadVaultFiles();
+    if (w.toast) w.toast('Empty text file created securely');
+  };
+
+  const importFromVaultDropDir = async () => {
+    const r = await fetch('/api/vault/import-drop', { method: 'POST' });
+    const w = window as any;
+    if (!r.ok) {
+      if (w.toast) w.toast('Import failed');
+      return;
+    }
+    if (w.toast) w.toast('Importing files from process folder…');
+    setTimeout(loadVaultFiles, 2000);
+  };
+
+  const deleteVaultDuplicates = async () => {
+    const byName: { [key: string]: VaultFile[] } = {};
+    for (const f of files) {
+      const key = (f.originalName || '').toLowerCase();
+      if (!byName[key]) byName[key] = [];
+      byName[key].push(f);
+    }
+    const dupes: VaultFile[] = [];
+    for (const group of Object.values(byName)) {
+      if (group.length < 2) continue;
+      group.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+      dupes.push(...group.slice(1)); // keep newest, delete rest
+    }
+    const w = window as any;
+    if (!dupes.length) {
+      if (w.toast) w.toast('No duplicates found');
+      return;
+    }
+    if (!confirm(`Delete ${dupes.length} duplicate file${dupes.length > 1 ? 's' : ''}? (Keeps newest copy of each)`)) return;
+    for (const f of dupes) {
+      await fetch('/api/vault/files/' + f.id, { method: 'DELETE' });
+    }
+    const dupeIds = new Set(dupes.map(f => f.id));
+    setFiles(prev => prev.filter(f => !dupeIds.has(f.id)));
+    if (w.toast) w.toast(`Deleted ${dupes.length} duplicate${dupes.length > 1 ? 's' : ''}`);
+  };
+
+  const shuffleVault = () => {
+    setFiles(prev => {
+      const next = [...prev];
+      for (let i = next.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [next[i], next[j]] = [next[j], next[i]];
+      }
+      return next;
+    });
+    setSortField('shuffle');
+  };
+
+  const describeFile = async (id: string, type: string) => {
+    const source = type === 'video' ? 'vault-video' : 'vault';
+    const w = window as any;
+    if (w.showVisionModal) {
+      w.showVisionModal(source === 'vault-video' ? 'Extracting frame…' : 'Analyzing image…');
+    }
+    const r = await fetch('/api/vision/describe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source, id })
+    }).then(r => r.json()).catch(() => null);
+    
+    if (w.showVisionModal) {
+      w.showVisionModal(r ? (r.description || r.error || 'No description returned') : 'Request failed');
+    }
+  };
+
+  const downloadFile = (id: string, name: string) => {
+    const a = document.createElement('a');
+    a.href = `/api/vault/stream/${id}`;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const filteredFiles = useMemo(() => {
     let result = [...files];
     const q = searchQuery.toLowerCase();
@@ -309,20 +419,50 @@ export const VaultView = () => {
         : result.filter(f => (f.folder || null) === curFolder);
     }
 
+    if (catFilter && categories[catFilter]) {
+      const cat = categories[catFilter];
+      const terms = [cat.displayName, ...(cat.tags || [])].filter(Boolean).map(t => t.toLowerCase());
+      result = result.filter(f => {
+        const name = (f.name || f.originalName || '').toLowerCase();
+        return terms.some(t => name.includes(t));
+      });
+    }
+
     // Sort
-    result.sort((a, b) => {
-      if (sortField === 'name') {
-        const va = (a.originalName || a.name || '').toLowerCase();
-        const vb = (b.originalName || b.name || '').toLowerCase();
-        return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      const va = sortField === 'size' ? (a.size || 0) : (a.mtime || 0);
-      const vb = sortField === 'size' ? (b.size || 0) : (b.mtime || 0);
-      return sortDir === 'asc' ? va - vb : vb - va;
-    });
+    if (sortField !== 'shuffle') {
+      result.sort((a, b) => {
+        if (sortField === 'name') {
+          const va = (a.originalName || a.name || '').toLowerCase();
+          const vb = (b.originalName || b.name || '').toLowerCase();
+          return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        }
+        const va = sortField === 'size' ? (a.size || 0) : (a.mtime || 0);
+        const vb = sortField === 'size' ? (b.size || 0) : (b.mtime || 0);
+        return sortDir === 'asc' ? va - vb : vb - va;
+      });
+    }
 
     return result;
-  }, [files, curFolder, typeFilter, searchQuery, sortField, sortDir, favIds, aiIds]);
+  }, [files, curFolder, typeFilter, searchQuery, sortField, sortDir, favIds, aiIds, catFilter, categories]);
+
+  const categoryMap = useMemo(() => {
+    if (!categories || Object.keys(categories).length === 0) return {};
+    const map: { [key: string]: { displayName: string, count: number } } = {};
+    for (const f of files) {
+      const name = (f.name || f.originalName || '').toLowerCase();
+      if (!name) continue;
+      for (const [key, cat] of Object.entries(categories) as [string, any][]) {
+        const terms = [cat.displayName, ...(cat.tags || [])]
+          .filter(Boolean)
+          .map(t => t.toLowerCase());
+        if (terms.some(t => name.includes(t))) {
+          if (!map[key]) map[key] = { displayName: cat.displayName, count: 0 };
+          map[key].count++;
+        }
+      }
+    }
+    return map;
+  }, [files, categories]);
 
   const handleToggleFav = async (id: string) => {
     const res = await fetch('/api/vault/favs/' + id, { method: 'POST' }).then(r => r.json()).catch(() => null);
@@ -382,7 +522,7 @@ export const VaultView = () => {
             />
 
             <button
-              onClick={() => (window as any).createNewVaultTextFile && (window as any).createNewVaultTextFile()}
+              onClick={createNewVaultTextFile}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="New Text File"
             >
@@ -397,7 +537,7 @@ export const VaultView = () => {
             </button>
 
             <button
-              onClick={() => (window as any).startVaultDynamicMosaic && (window as any).startVaultDynamicMosaic()}
+              onClick={() => setShowMosaic(true)}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="Dynamic Mosaic"
             >
@@ -405,7 +545,7 @@ export const VaultView = () => {
             </button>
 
             <button
-              onClick={() => (window as any).shuffleVault && (window as any).shuffleVault()}
+              onClick={shuffleVault}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="Shuffle Vault"
             >
@@ -413,7 +553,7 @@ export const VaultView = () => {
             </button>
 
             <button
-              onClick={() => (window as any).deleteVaultDuplicates && (window as any).deleteVaultDuplicates()}
+              onClick={deleteVaultDuplicates}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="Remove duplicate files"
             >
@@ -421,7 +561,7 @@ export const VaultView = () => {
             </button>
 
             <button
-              onClick={() => (window as any).openVaultScrapeModal && (window as any).openVaultScrapeModal()}
+              onClick={() => setShowScrape(true)}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="Auto-scrape each file online"
             >
@@ -429,7 +569,7 @@ export const VaultView = () => {
             </button>
 
             <button
-              onClick={() => (window as any).importFromVaultDropDir && (window as any).importFromVaultDropDir()}
+              onClick={importFromVaultDropDir}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="Import files from the process folder"
             >
@@ -437,7 +577,7 @@ export const VaultView = () => {
             </button>
 
             <button
-              onClick={() => (window as any).openVaultSettings && (window as any).openVaultSettings()}
+              onClick={() => setShowSettings(true)}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="Vault Settings"
             >
@@ -468,7 +608,7 @@ export const VaultView = () => {
             {FILTER_TILES.map(t => (
               <div
                 key={t.key}
-                onClick={() => { setTypeFilter(typeFilter === t.key ? null : t.key); setRenderLimit(100); }}
+                onClick={() => { setTypeFilter(typeFilter === t.key ? null : t.key); setCatFilter(null); setRenderLimit(100); }}
                 style={{
                   padding: '16px',
                   background: typeFilter === t.key ? 'var(--ac)' : 'var(--bg2)',
@@ -481,6 +621,33 @@ export const VaultView = () => {
               >
                 <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>{t.icon}</div>
                 <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{t.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Category Filter Tiles */}
+        {!curFolder && !searchQuery && !typeFilter && (
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', overflowX: 'auto', paddingBottom: '8px' }}>
+            {Object.entries(categoryMap).filter(([, v]) => v.count > 0).sort((a, b) => b[1].count - a[1].count).map(([key, v]) => (
+              <div
+                key={key}
+                onClick={() => { setCatFilter(catFilter === key ? null : key); setRenderLimit(100); }}
+                style={{
+                  padding: '12px 16px',
+                  background: catFilter === key ? 'var(--ac)' : 'var(--bg2)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  minWidth: '100px',
+                  textAlign: 'center',
+                  border: '1px solid var(--brd)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span style={{ fontSize: '1.2rem' }}>🏷️</span>
+                <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{v.displayName} <span style={{ opacity: 0.5 }}>({v.count})</span></div>
               </div>
             ))}
           </div>
@@ -569,7 +736,21 @@ export const VaultView = () => {
                         ))}
                       </select>
                       <button
-                        onClick={() => handleDeleteFile(f.id)}
+                        onClick={(e) => { e.stopPropagation(); downloadFile(f.id, f.name || f.originalName); }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
+                        title="Download"
+                      >
+                        📥
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); describeFile(f.id, VAULT_VIDEO_EXTS.has(f.ext.toLowerCase()) ? 'video' : 'photo'); }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
+                        title="Describe with AI"
+                      >
+                        👁️
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteFile(f.id); }}
                         style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
                         title="Delete"
                       >
@@ -595,6 +776,10 @@ export const VaultView = () => {
             No files found.
           </div>
         )}
+
+        {showMosaic && <VaultMosaic pool={files} onClose={() => setShowMosaic(false)} />}
+        {showSettings && <VaultSettingsModal onClose={() => setShowSettings(false)} />}
+        {showScrape && <VaultScrapeModal files={files} onClose={() => setShowScrape(false)} />}
       </div>
     );
   }

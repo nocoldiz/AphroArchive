@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { selectedVideoIds, videoSelMode } from '../../store';
+import { selectedVideoIds, videoSelMode } from '../store';
 
 export function useVideoSelection(gridRef: { current: HTMLDivElement | null }) {
   const [isDragging, setIsDragging] = useState(false);

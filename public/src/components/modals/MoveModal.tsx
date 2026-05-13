@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { moveModalState, loadVideos } from '../../store';
-import { moveVideo } from '../api';
+import { moveVideo } from '../../api';
 import { Category } from '../../types';
 
 export const MoveModal = () => {

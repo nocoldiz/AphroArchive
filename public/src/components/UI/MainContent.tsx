@@ -24,12 +24,16 @@ import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
 import { PromptsView } from '../sections/PromptsView';
 import { HomeView } from '../sections/HomeView';
+import { ChaptersView } from '../sections/ChaptersView';
+import { ActorScraperView } from '../sections/ActorScraperView';
 
 export const MainContent = () => {
   const view = currentView.value;
 
   const renderView = () => {
     if (view === 'home') return <HomeView />;
+    if (view === 'chapters') return <ChaptersView />;
+    if (view === 'scraper') return <ActorScraperView />;
     if (view === 'settings') return <SettingsView />;
     if (view === 'categories') return <CategoriesView />;
     if (view === 'actors') return <ActorsView />;
