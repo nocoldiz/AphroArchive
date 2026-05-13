@@ -46,6 +46,11 @@ export const VideoCard = ({ video, isSelected }: VideoCardProps) => {
       data-id={video.id}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      draggable={true}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', video.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
     >
       <div className="video-thumb-wrap" style={{ position: 'relative' }}>
         <img

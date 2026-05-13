@@ -47,38 +47,9 @@ function renCats() {
   el.innerHTML = h;
 }
 
-// ─── Drag helpers ───
-function catDragOver(e, el) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  el.classList.add('drop-over');
-}
-function catDragLeave(el) { el.classList.remove('drop-over'); }
-function catDrop(e, catPath) {
-  e.preventDefault();
-  e.currentTarget.classList.remove('drop-over');
-  const id = e.dataTransfer.getData('text/plain');
-  if (!id) return;
-  const vid = V.find(v => v.id === id);
-  if (!vid) return;
-  if ((vid.catPath || '') === catPath) return;
-  dropMoveVideo(id, catPath);
-}
-function dragVideoStart(e, id) {
-  e.dataTransfer.setData('text/plain', id);
-  e.dataTransfer.effectAllowed = 'move';
-}
 
-let galleryFilterTO;
-function onGalleryFilter(val) {
-  clearTimeout(galleryFilterTO);
-  galleryFilterTO = setTimeout(() => {
-    galleryFilter = val.trim().toLowerCase();
-    resetRenderLimit();
-    if (curTag) openTag(curTag);
-    else render();
-  }, 200);
-}
+
+
 
 function resetRenderLimit() {
   _renderLimit = 60;

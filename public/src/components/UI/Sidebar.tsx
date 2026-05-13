@@ -6,15 +6,21 @@ interface SidebarItemProps {
   icon?: any;
   badge?: number;
   onClick: () => void;
+  onDragOver?: (e: any) => void;
+  onDragLeave?: (e: any) => void;
+  onDrop?: (e: any) => void;
   isActive?: boolean;
   indent?: boolean;
 }
 
-const SidebarItem = ({ id, label, icon, badge, onClick, isActive, indent }: SidebarItemProps) => (
+const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, isActive, indent }: SidebarItemProps) => (
   <div
     className={`sidebar-item ${isActive ? 'on' : ''}`}
     id={id}
     onClick={onClick}
+    onDragOver={onDragOver}
+    onDragLeave={onDragLeave}
+    onDrop={onDrop}
     style={indent ? { paddingLeft: '32px', fontSize: '0.85rem' } : {}}
   >
     <span>{icon}{label}</span>
@@ -259,6 +265,35 @@ export const Sidebar = () => {
               icon={lockIcon}
               badge={c.count}
               onClick={() => selectCategory(c.name)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                e.currentTarget.classList.add('drop-over');
+              }}
+              onDragLeave={(e) => {
+                e.currentTarget.classList.remove('drop-over');
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove('drop-over');
+                const id = e.dataTransfer.getData('text/plain');
+                if (!id) return;
+                fetch(`/api/videos/${id}/move`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ category: c.path })
+                })
+                .then(r => r.json())
+                .then(data => {
+                  if (data.ok) {
+                    // Refresh videos
+                    if ((window as any).loadVideos) (window as any).loadVideos();
+                  } else {
+                    alert(data.error || 'Move failed');
+                  }
+                })
+                .catch(err => console.error('Move failed', err));
+              }}
               isActive={currentCategory.value === c.name}
               indent
             />

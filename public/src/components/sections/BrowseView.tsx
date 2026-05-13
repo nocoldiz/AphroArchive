@@ -1,4 +1,5 @@
 import { VideoGrid } from '../UI/VideoGrid';
+import { galleryFilter } from '../../store';
 
 export const BrowseView = () => {
   return (
@@ -47,7 +48,7 @@ export const BrowseView = () => {
           <span class="sg-sep"></span>
           <div class="gallery-filter-wrap" style={{ display: 'flex', alignItems: 'center' }}>
             <input type="text" id="gallery-filter" placeholder="Filter current view…"
-              onInput={(e: any) => (window as any).onGalleryFilter && (window as any).onGalleryFilter(e.target.value)}
+              onInput={(e: any) => galleryFilter.value = e.target.value}
               autocomplete="off" spellcheck={false}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', width: '120px', transition: 'all 0.2s', outline: 'none' }}
               onFocus={(e: any) => { e.target.style.width = '180px'; e.target.style.borderColor = 'var(--ac)'; }}

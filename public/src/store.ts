@@ -92,6 +92,7 @@ export function rebuildBookmarkVidIds(items: any[]) {
 
 // Bridge for legacy JS
 export const searchQuery = signal<string>('');
+export const galleryFilter = signal<string>('');
 export const sortMode = signal<string>('date');
 export const isShuffle = signal<boolean>(false);
 export const vaultMode = signal<boolean>(false);
@@ -109,6 +110,7 @@ Object.defineProperty(window, 'cats', { get() { return categories.value; }, set(
 Object.defineProperty(window, 'sort', { get() { return sortMode.value; }, set(v) { sortMode.value = v; } });
 Object.defineProperty(window, 'cat', { get() { return currentCategory.value; }, set(v) { currentCategory.value = v; } });
 Object.defineProperty(window, 'q', { get() { return searchQuery.value; }, set(v) { searchQuery.value = v; } });
+Object.defineProperty(window, 'galleryFilter', { get() { return galleryFilter.value; }, set(v) { galleryFilter.value = v; } });
 Object.defineProperty(window, 'curV', { get() { return currentVideo.value; }, set(v) { currentVideo.value = v; } });
 Object.defineProperty(window, 'shuf', { get() { return isShuffle.value; }, set(v) { isShuffle.value = v; } });
 Object.defineProperty(window, 'vaultMode', { get() { return vaultMode.value; }, set(v) { vaultMode.value = v; } });
@@ -252,6 +254,15 @@ export const filteredVideos = computed(() => {
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
     list = list.filter(v => v.name.toLowerCase().includes(q));
+  }
+
+  if (galleryFilter.value) {
+    const gf = galleryFilter.value.toLowerCase();
+    list = list.filter(v => 
+      v.name.toLowerCase().includes(gf) || 
+      (v.category && v.category.toLowerCase().includes(gf)) ||
+      (v.tags && v.tags.some(t => t.toLowerCase().includes(gf)))
+    );
   }
   
   return list;
