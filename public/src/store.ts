@@ -297,7 +297,7 @@ export const filteredVideos = computed(() => {
   let list = isRecentMode.value ? [...recentVideos.value] : [...videos.value]; // Create a copy to avoid mutating original array
   
   if (currentCategory.value) {
-    list = list.filter(v => v.category === currentCategory.value);
+    list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
   }
 
   if (currentView.value === 'favourites' || favFilter.value) {

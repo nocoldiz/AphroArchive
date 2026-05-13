@@ -286,48 +286,57 @@ async function apiVideos(req, res, params) {
 async function apiCategories(req, res) {
   const videos = await cachedScan();
   const hidden = loadHidden();
-  const cats = [];
+  const catMap = new Map();
 
-  async function walk(dir, rel = '') {
-    if (!fs.existsSync(dir)) return;
-    try {
-      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-      for (const ent of entries) {
-        if (!ent.isDirectory()) continue;
-        const subRel = rel ? path.join(rel, ent.name) : ent.name;
-        const subRelFwd = subRel.replace(/\\/g, '/');
-        const full = path.join(VIDEOS_DIR, subRel);
-        
-        if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
-
-        // Recursive count
-        const count = videos.filter(v => {
-          const vp = v.catPath.toLowerCase();
-          const cl = subRelFwd.toLowerCase();
-          return vp === cl || vp.startsWith(cl + '/') || vp.startsWith(cl + '\\');
-        }).length;
-
-        // Check for encryption status
-        const isConfigured = fs.existsSync(path.join(full, '.cat-enc-config.json'));
-        const folderVideos = videos.filter(v => getCatKey(v.catPath) === subRelFwd.toLowerCase());
-        const hasUnencrypted = folderVideos.some(v => !v.encrypted);
-        const isPartial = isConfigured && hasUnencrypted;
-
-        cats.push({ 
-          name: subRel.replace(/[\\/]/g, ' / '), 
-          path: subRelFwd, 
-          count, 
-          encrypted: isConfigured,
-          partial: isPartial,
-          unlocked: isUnlocked(subRelFwd)
+  for (const v of videos) {
+    const cp = v.catPath;
+    if (!cp) continue;
+    
+    const parts = cp.split('/');
+    let currentPath = '';
+    
+    for (let i = 0; i < parts.length; i++) {
+      currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
+      const subRelFwd = currentPath;
+      
+      if (!catMap.has(subRelFwd)) {
+        catMap.set(subRelFwd, {
+          name: subRelFwd.replace(/\//g, ' / '),
+          path: subRelFwd,
+          count: 0,
+          hasUnencrypted: false
         });
-        await walk(full, subRel);
       }
-    } catch (e) {}
+      
+      const entry = catMap.get(subRelFwd);
+      entry.count++;
+      
+      if (i === parts.length - 1) {
+        if (!v.encrypted) {
+          entry.hasUnencrypted = true;
+        }
+      }
+    }
   }
 
-  await walk(VIDEOS_DIR);
+  const cats = [];
+  for (const [key, entry] of catMap.entries()) {
+    const parts = key.split('/');
+    const isHidden = parts.some(part => hidden.some(t => t.toLowerCase() === part.toLowerCase()));
+    if (isHidden) continue;
+
+    const full = path.join(VIDEOS_DIR, entry.path);
+    const isConfigured = fs.existsSync(path.join(full, '.cat-enc-config.json'));
+    
+    cats.push({
+      name: entry.name,
+      path: entry.path,
+      count: entry.count,
+      encrypted: isConfigured,
+      partial: isConfigured && entry.hasUnencrypted,
+      unlocked: isUnlocked(entry.path)
+    });
+  }
 
   // Uncategorized count
   const defined = loadCategories();
@@ -784,6 +793,13 @@ async function apiCategoriesOverview(req, res) {
       tagMap.get(lo).ids.push(v.id);
     }
   }
+  const unencryptedCats = new Set();
+  for (const v of videos) {
+    if (!v.encrypted && v.catPath) {
+      unencryptedCats.add(getCatKey(v.catPath));
+    }
+  }
+
   const result = [...filteredCats, ...tagMap.values()].map(e => {
     const thumbId = e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null;
     let encrypted = false;
@@ -793,7 +809,7 @@ async function apiCategoriesOverview(req, res) {
       encrypted = fs.existsSync(path.join(full, '.cat-enc-config.json'));
       if (encrypted) {
         // Check if any videos in this specific folder are NOT encrypted
-        const hasUnencrypted = videos.some(v => getCatKey(v.catPath) === getCatKey(e.path) && !v.encrypted);
+        const hasUnencrypted = unencryptedCats.has(getCatKey(e.path));
         partial = hasUnencrypted;
       }
     }

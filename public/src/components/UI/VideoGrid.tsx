@@ -73,7 +73,7 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
       }}
       ref={cardRef}
     >
-      <div className="video-thumb-wrap" style={{ position: 'relative' }}>
+      <div className="card-thumb">
         <img
           src={`/api/thumbs/${video.id}/0`}
           loading="lazy"
@@ -99,12 +99,17 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
             }}
           />
         )}
-        {video.duration > 0 && <div className="video-duration" style={{ zIndex: 2 }}>{(video.duration / 60).toFixed(1)}m</div>}
-        {video.rating && <div className="video-rating" style={{ zIndex: 2 }}>{'★'.repeat(video.rating)}</div>}
+        {video.duration > 0 && <div className="duration-badge" style={{ zIndex: 2 }}>{(video.duration / 60).toFixed(1)}m</div>}
+        {video.rating && <div className="rating-badge" style={{ zIndex: 2 }}>{'★'.repeat(video.rating)}</div>}
       </div>
-      <div className="video-info">
-        <div className="video-name" title={video.name}>{video.name}</div>
-        <div className="video-meta">{(video.size / 1024 / 1024).toFixed(1)}MB · {video.category}</div>
+      <div className="card-body">
+        <div className="card-title" title={video.name}>{video.name}</div>
+        <div className="card-meta">
+          <span className="card-category">{video.category}</span>
+          <div className="card-actions" style={{ fontSize: '0.75rem', color: 'var(--tx3)' }}>
+            {(video.size / 1024 / 1024).toFixed(1)}MB
+          </div>
+        </div>
       </div>
     </div>
   );

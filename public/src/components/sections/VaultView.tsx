@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { vaultMode, isVaultUnlocked, currentVideo } from '../../store';
+import { vaultMode, isVaultUnlocked, currentVideo, currentView } from '../../store';
 import { VaultMosaic } from './VaultMosaic';
 import { VaultSettingsModal } from './VaultSettingsModal';
 import { VaultScrapeModal } from './VaultScrapeModal';
@@ -256,9 +256,7 @@ export const VaultView = () => {
         mtime: f.mtime || Date.now(),
         starred: false
       };
-      // Toggle DOM classes to show player
-      document.getElementById('vault-view')?.classList.remove('on');
-      document.getElementById('player-view')?.classList.add('on');
+      currentView.value = 'player';
     } else if (VAULT_PHOTO_EXTS.has(extLower)) {
       setActivePhotoId(f.id);
     } else if (VAULT_BOOK_EXTS.has(extLower)) {
@@ -700,11 +698,8 @@ export const VaultView = () => {
             const isFav = favIds.has(f.id);
             const isSelected = selectedIds.has(f.id);
             return (
-              <div key={f.id} className="video-card" style={{ background: 'var(--bg2)', borderRadius: '8px', overflow: 'hidden', border: isSelected ? '1px solid var(--ac)' : '1px solid var(--brd)', position: 'relative' }}>
-                <div
-                  style={{ height: '120px', background: 'var(--bg3)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                  onClick={() => handleFileClick(f)}
-                >
+              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} style={{ border: isSelected ? '1px solid var(--ac)' : '1px solid var(--brd)' }}>
+                <div className="card-thumb" style={{ cursor: 'pointer' }} onClick={() => handleFileClick(f)}>
                   {isImg ? (
                     <img src={`/api/vault/stream/${f.id}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
                   ) : (
@@ -725,15 +720,15 @@ export const VaultView = () => {
                   >
                     {isFav ? '❤️' : '🤍'}
                   </div>
-                  {f.sizeF && <span style={{ position: 'absolute', bottom: '4px', right: '4px', fontSize: '0.7rem', background: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: '2px' }}>{f.sizeF}</span>}
+                  {f.sizeF && <span className="size-badge">{f.sizeF}</span>}
                 </div>
-                <div style={{ padding: '8px' }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.originalName || f.name}>
+                <div className="card-body">
+                  <div className="card-title" title={f.originalName || f.name}>
                     {f.name || f.originalName}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--tx3)' }}>Vault</div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                  <div className="card-meta">
+                    <span className="card-category">Vault</span>
+                    <div className="card-actions">
                       <select
                         onChange={(e: any) => handleMoveFile(f.id, e.target.value || null)}
                         style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', fontSize: '0.75rem', cursor: 'pointer' }}

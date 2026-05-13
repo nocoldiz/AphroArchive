@@ -3,7 +3,6 @@ import { App } from './App';
 import { Sidebar } from './components/UI/Sidebar';
 import { Topbar } from './components/UI/Topbar';
 import { MainContent } from './components/UI/MainContent';
-import { PlayerView } from './components/sections/PlayerView';
 import { setupRouter } from './router';
 
 // 1. Mount the Sidebar
@@ -18,9 +17,7 @@ if (topbarEl) render(<Topbar />, topbarEl);
 const mainEl = document.getElementById('main-root');
 if (mainEl) render(<MainContent />, mainEl);
 
-// 4. Mount the Player View
-const playerEl = document.getElementById('player-view');
-if (playerEl) render(<PlayerView />, playerEl);
+
 
 // 5. Mount the Preact Root
 const root = document.createElement('div');

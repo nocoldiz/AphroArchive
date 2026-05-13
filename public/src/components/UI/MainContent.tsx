@@ -28,6 +28,7 @@ import { MoveModal } from '../modals/MoveModal';
 import { VaultPhotoLightbox } from '../modals/VaultPhotoLightbox';
 import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
+import { PlayerView } from '../sections/PlayerView';
 import { PromptsView } from '../sections/PromptsView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
@@ -106,6 +107,7 @@ export const MainContent = () => {
     if (view === 'books') return <BooksView />;
     if (view === 'vault') return <VaultView />;
     if (view === 'prompts') return <PromptsView />;
+    if (view === 'player') return <PlayerView />;
     if (view === 'connect') {
       return (
         <>

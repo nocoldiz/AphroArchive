@@ -77,7 +77,7 @@ export const CategoriesView = () => {
             const onclick = () => {
               if (item.type === 'cat') {
                 currentCategory.value = item.path;
-                currentView.value = 'home';
+                currentView.value = 'browse';
               } else {
                 currentTag.value = item.name;
                 currentView.value = 'tag';

@@ -81,10 +81,12 @@ export const CollectionsView = () => {
                 const w = window as any;
                 if (w.openVid) w.openVid(v.id);
               }}>
-                <div className="card-thumb" style={{ background: '#333' }}>
+                <div className="card-thumb">
                   <img src={`/api/thumbs/${v.id}/0`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
-                <div className="card-title" style={{ padding: '10px', fontSize: '0.9rem' }}>{v.name}</div>
+                <div className="card-body">
+                  <div className="card-title" title={v.name}>{v.name}</div>
+                </div>
               </div>
             ))}
           </div>

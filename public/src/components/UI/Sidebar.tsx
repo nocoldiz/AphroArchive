@@ -84,7 +84,7 @@ export const Sidebar = () => {
   };
 
   const selectCategory = (catName: string) => {
-    currentView.value = 'home';
+    currentView.value = 'browse';
     currentCategory.value = catName;
     // Compatibility
     (window as any).cat = catName;

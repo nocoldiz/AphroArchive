@@ -82,12 +82,14 @@ export function renderRight() {
   // In a full migration, this would be a Preact component!
   const cardHtml = (v: any) => `
     <div class="video-card" onclick="openVid('${v.id}')">
-      <div class="thumb-wrap">
-        <img src="/api/thumbs/${v.id}/0" loading="lazy" />
+      <div class="card-thumb">
+        <img src="/api/thumbs/${v.id}/0" loading="lazy" style="width: 100%; height: 100%; object-fit: cover;" />
       </div>
-      <div class="card-info">
-        <div class="card-title">${v.name}</div>
-        <div class="card-meta">${v.category}</div>
+      <div class="card-body">
+        <div class="card-title" title="${v.name}">${v.name}</div>
+        <div class="card-meta">
+          <span class="card-category">${v.category}</span>
+        </div>
       </div>
     </div>
   `;
