@@ -94,7 +94,7 @@ export const StudiosView = () => {
 
   if (activeStudioName) {
     return (
-      <div class="studio-detail-view on" style={{ padding: '20px' }}>
+      <div id="studio-detail-view" class="studio-detail-view on" style={{ padding: '20px' }}>
         <div class="view-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
           <button class="btn" onClick={() => currentStudio.value = null} style={{ marginRight: '15px' }}>
             ← Back
@@ -108,7 +108,7 @@ export const StudiosView = () => {
           <div class="empty-state">No videos found for this studio</div>
         ) : (
           <div class="video-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
-            {studioVideos.map(v => <VideoCard key={v.id} video={v} />)}
+            {studioVideos.map(v => <VideoCard key={v.id} video={v} isSelected={false} />)}
           </div>
         )}
       </div>
@@ -116,7 +116,7 @@ export const StudiosView = () => {
   }
 
   return (
-    <div class="studios-view on" style={{ padding: '20px' }}>
+    <div id="studios-view" class="studios-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Studios</h1>
         <div class="search-bar" style={{ position: 'relative' }}>

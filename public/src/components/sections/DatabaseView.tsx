@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 
 interface DbEntry {
@@ -116,7 +117,7 @@ export const DatabaseView = () => {
       {/* Action Bar */}
       {activeTab !== 'duplicates' && (
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button class="modal-btn modal-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
+          <button className="modal-btn modal-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
         </div>
       )}
 
@@ -252,8 +253,8 @@ export const DatabaseView = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-              <button class="modal-btn" onClick={() => setModalOpen(false)}>Cancel</button>
-              <button class="modal-btn modal-btn--primary" onClick={handleSave}>Save</button>
+              <button className="modal-btn" onClick={() => setModalOpen(false)}>Cancel</button>
+              <button className="modal-btn modal-btn--primary" onClick={handleSave}>Save</button>
             </div>
           </div>
         </div>

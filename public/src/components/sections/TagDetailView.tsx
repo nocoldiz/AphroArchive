@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { currentTag } from '../../store';
+import { VideoCard } from '../UI/VideoGrid';
 
 export const TagDetailView = () => {
   const tag = currentTag.value;
@@ -28,25 +29,22 @@ export const TagDetailView = () => {
   if (!tag) return null;
 
   return (
-    <div className="tag-detail-view" style={{ padding: '24px' }}>
-      <h2 style={{ marginBottom: '24px', color: 'var(--ac)' }}>Tag: {tag}</h2>
+    <div className="tag-detail-view on" style={{ padding: '20px' }}>
+      <div className="view-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+        <button className="btn" onClick={() => currentTag.value = null} style={{ marginRight: '15px' }}>
+          ← Back
+        </button>
+        <h1 style={{ margin: 0 }}>Tag: {tag}</h1>
+      </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading…</div>
       ) : videos.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>No videos found for this tag.</div>
       ) : (
-        <div className="video-grid">
+        <div className="video-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
           {videos.map(v => (
-            <div key={v.id} className="video-card" onClick={() => {
-              const w = window as any;
-              if (w.openVid) w.openVid(v.id);
-            }}>
-              <div className="card-thumb" style={{ background: '#333' }}>
-                <img src={`/api/thumbs/${v.id}/0`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-              <div className="card-title" style={{ padding: '10px', fontSize: '0.9rem' }}>{v.name}</div>
-            </div>
+            <VideoCard key={v.id} video={v} isSelected={false} />
           ))}
         </div>
       )}

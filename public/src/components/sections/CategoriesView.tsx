@@ -40,7 +40,7 @@ export const CategoriesView = () => {
   const w = window as any;
 
   return (
-    <div class="categories-view on" style={{ padding: '20px' }}>
+    <div id="categories-view" class="categories-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>Categories & Tags</h1>
         <div class="sort-buttons" style={{ display: 'flex', gap: '10px' }}>

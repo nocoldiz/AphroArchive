@@ -19,6 +19,7 @@ import { TagModal } from '../modals/TagModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
+import { VaultPhotoLightbox } from '../modals/VaultPhotoLightbox';
 import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
 import { PromptsView } from '../sections/PromptsView';
@@ -56,6 +57,7 @@ export const MainContent = () => {
       <TagModal />
       <RenameModal />
       <MoveModal />
+      <VaultPhotoLightbox />
     </>
   );
 };

@@ -109,7 +109,7 @@ export const ActorsView = () => {
 
   if (activeActorName) {
     return (
-      <div class="actor-detail-view on" style={{ padding: '20px' }}>
+      <div id="actor-detail-view" class="actor-detail-view on" style={{ padding: '20px' }}>
         <div class="view-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
           <button class="btn" onClick={() => currentActor.value = null} style={{ marginRight: '15px' }}>
             ← Back
@@ -123,7 +123,7 @@ export const ActorsView = () => {
           <div class="empty-state">No videos found for this actor</div>
         ) : (
           <div class="video-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
-            {actorVideos.map(v => <VideoCard key={v.id} video={v} />)}
+            {actorVideos.map(v => <VideoCard key={v.id} video={v} isSelected={false} />)}
           </div>
         )}
       </div>
@@ -131,7 +131,7 @@ export const ActorsView = () => {
   }
 
   return (
-    <div class="actors-view on" style={{ padding: '20px' }}>
+    <div id="actors-view" class="actors-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Actors</h1>
         <div class="search-bar" style={{ position: 'relative' }}>

@@ -1,7 +1,7 @@
 import { useRef } from 'preact/hooks';
 import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode } from '../../store';
-import { useVideoSelection } from '../hooks/useVideoSelection';
+import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 const openCtx = (e: any) => {
   e.preventDefault();

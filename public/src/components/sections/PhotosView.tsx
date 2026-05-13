@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
 
 interface PhotoFile {
@@ -150,40 +151,40 @@ export const PhotosView = () => {
   const currentPhoto = lightboxIdx !== null ? files[lightboxIdx] : null;
 
   return (
-    <div class="photos-view on" style={{ padding: '20px' }}>
-      <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+    <div className="photos-view on" style={{ padding: '20px' }}>
+      <div className="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Photos</h1>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <input 
             type="text" 
-            class="input-box" 
+            className="input-box" 
             placeholder="Search photos..." 
             value={search} 
             onInput={(e: any) => setSearch(e.target.value)}
             style={{ width: '200px' }}
           />
-          <div class="sort-buttons" style={{ display: 'flex', gap: '5px' }}>
-            <button class={`ph-sort-btn ${sort === 'date' ? 'on' : ''}`} onClick={() => setSort('date')}>Date</button>
-            <button class={`ph-sort-btn ${sort === 'name' ? 'on' : ''}`} onClick={() => setSort('name')}>Name</button>
-            <button class={`ph-sort-btn ${sort === 'size' ? 'on' : ''}`} onClick={() => setSort('size')}>Size</button>
+          <div className="sort-buttons" style={{ display: 'flex', gap: '5px' }}>
+            <button className={`ph-sort-btn ${sort === 'date' ? 'on' : ''}`} onClick={() => setSort('date')}>Date</button>
+            <button className={`ph-sort-btn ${sort === 'name' ? 'on' : ''}`} onClick={() => setSort('name')}>Name</button>
+            <button className={`ph-sort-btn ${sort === 'size' ? 'on' : ''}`} onClick={() => setSort('size')}>Size</button>
           </div>
-          <button class="btn" onClick={startMosaic}>Mosaic</button>
+          <button className="btn" onClick={startMosaic}>Mosaic</button>
         </div>
       </div>
 
       {loading ? (
-        <div class="cv-loading">Loading photos…</div>
+        <div className="cv-loading">Loading photos…</div>
       ) : files.length === 0 ? (
-        <div class="empty-state">No photos found</div>
+        <div className="empty-state">No photos found</div>
       ) : (
-        <div class="ph-grid" id="photosGrid">
+        <div className="ph-grid" id="photosGrid">
           {files.map((f, i) => (
-            <div key={f.id} class="ph-card" onClick={() => openLightbox(i)}>
-              <img class="ph-thumb" src={`/api/photos/${f.id}/img`} alt={f.filename} loading="lazy" />
-              <div class="ph-overlay">
-                <span class="ph-name">{f.filename}</span>
+            <div key={f.id} className="ph-card" onClick={() => openLightbox(i)}>
+              <img className="ph-thumb" src={`/api/photos/${f.id}/img`} alt={f.filename} loading="lazy" />
+              <div className="ph-overlay">
+                <span className="ph-name">{f.filename}</span>
                 <button 
-                  class="ph-del" 
+                  className="ph-del" 
                   title="Delete" 
                   onClick={(e) => { e.stopPropagation(); deletePhoto(f.id); }}
                 >
@@ -197,22 +198,22 @@ export const PhotosView = () => {
 
       {/* Lightbox Modal */}
       {lightboxIdx !== null && currentPhoto && (
-        <div id="photosLightbox" class="ph-lightbox on">
-          <button class="ph-lb-close" onClick={closeLightbox}>×</button>
+        <div id="photosLightbox" className="ph-lightbox on">
+          <button className="ph-lb-close" onClick={closeLightbox}>×</button>
           
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '80%', position: 'relative' }}>
-            <button class="ph-lb-nav ph-lb-prev" onClick={prevPhoto}>‹</button>
+            <button className="ph-lb-nav ph-lb-prev" onClick={prevPhoto}>‹</button>
             <img id="photosLbImg" src={`/api/photos/${currentPhoto.id}/img`} alt="" />
-            <button class="ph-lb-nav ph-lb-next" onClick={nextPhoto}>›</button>
+            <button className="ph-lb-nav ph-lb-next" onClick={nextPhoto}>›</button>
           </div>
 
-          <div class="ph-lb-caption" style={{ color: 'white', marginTop: '20px', textAlign: 'center', width: '80%' }}>
+          <div className="ph-lb-caption" style={{ color: 'white', marginTop: '20px', textAlign: 'center', width: '80%' }}>
             <div id="photosLbCaption" style={{ fontSize: '1rem', marginBottom: '10px' }}>
               {currentPhoto.filename}  ·  {currentPhoto.sizeF}
             </div>
             
-            <div class="ph-lb-actions" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '15px' }}>
-              <button id="photosLbSlideBtn" class="ph-lb-action-btn" onClick={() => setSlideshowOn(!slideshowOn)}>
+            <div className="ph-lb-actions" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '15px' }}>
+              <button id="photosLbSlideBtn" className="ph-lb-action-btn" onClick={() => setSlideshowOn(!slideshowOn)}>
                 {slideshowOn ? (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                 ) : (
@@ -220,8 +221,8 @@ export const PhotosView = () => {
                 )}
                 <span>{slideshowOn ? 'Pause' : 'Play'}</span>
               </button>
-              <button class="ph-lb-action-btn" onClick={() => downloadPhoto(currentPhoto)}>Download</button>
-              <button class="ph-lb-action-btn" onClick={() => describePhoto(currentPhoto.id)}>Describe</button>
+              <button className="ph-lb-action-btn" onClick={() => downloadPhoto(currentPhoto)}>Download</button>
+              <button className="ph-lb-action-btn" onClick={() => describePhoto(currentPhoto.id)}>Describe</button>
             </div>
 
             {description && (

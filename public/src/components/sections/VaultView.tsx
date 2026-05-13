@@ -238,7 +238,11 @@ export const VaultView = () => {
         fav: favIds.has(f.id),
         isVault: true,
         size: f.size || 0,
-        duration: 0
+        duration: 0,
+        path: '',
+        relPath: '',
+        mtime: f.mtime || Date.now(),
+        starred: false
       };
       // Toggle DOM classes to show player
       document.getElementById('vault-view')?.classList.remove('on');
@@ -341,7 +345,7 @@ export const VaultView = () => {
 
   if (status.unlocked) {
     return (
-      <div className="vault-view on" style={{ padding: '24px' }}>
+      <div id="vault-view" className="vault-view on" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {curFolder && (
@@ -596,7 +600,7 @@ export const VaultView = () => {
   }
 
   return (
-    <div className="vault-view on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
+    <div id="vault-view" className="vault-view on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
       <div style={{ background: 'var(--bg2)', padding: '32px', borderRadius: '12px', width: '400px', border: '1px solid var(--brd)' }}>
         <h2 style={{ marginTop: 0 }}>{status.configured ? 'Vault Locked' : 'Create Vault'}</h2>
         <p style={{ color: 'var(--tx2)', fontSize: '0.9rem', marginBottom: '24px' }}>

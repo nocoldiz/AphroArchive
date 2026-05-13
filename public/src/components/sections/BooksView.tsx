@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 
 interface Book {
