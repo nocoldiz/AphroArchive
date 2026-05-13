@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
-import { currentVideo, currentView, allVideos, appPrefs } from '../../store';
+import { currentVideo, currentView, allVideos, appPrefs, tagModalState, actorModalState, showAddToCollectionModal } from '../../store';
 import '../../../reddit.css';
 
 export const RedditView = () => {
@@ -169,6 +169,33 @@ export const RedditView = () => {
 
   return (
     <div className="reddit-view" style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#1a1a1b', color: '#d7dadc' }}>
+      <style>{`
+        .rd-post-media:hover .thumb-actions {
+          opacity: 1 !important;
+          transform: translateY(0) !important;
+        }
+        .thumb-actions button {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: white;
+          border-radius: 50%;
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background 0.2s, transform 0.2s, color 0.2s;
+        }
+        .thumb-actions button:hover {
+          background: rgba(0, 0, 0, 0.8);
+          transform: scale(1.1);
+        }
+        .thumb-actions button.fav-active {
+          color: #ffb700;
+        }
+      `}</style>
       <header className="rd-header" style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', background: '#1a1a1b', borderBottom: '1px solid #343536', position: 'sticky', top: 0, zIndex: 100 }}>
         <div className="rd-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: '#fff', fontWeight: 'bold' }}>
           <svg width="32" height="32" viewBox="0 0 32 32">
@@ -271,13 +298,45 @@ export const RedditView = () => {
                         </div>
                         <div className="rd-post-title" style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '10px' }}>{v.name || v.title || v.filename}</div>
                         
-                        <div className="rd-post-media" style={{ maxHeight: '400px', overflow: 'hidden', background: '#000', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div className="rd-post-media" style={{ position: 'relative', maxHeight: '400px', overflow: 'hidden', background: '#000', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {v._photo ? (
                             <img src={`/api/photos/${v.id}/img`} style={{ maxWidth: '100%', maxHeight: '400px' }} alt="" />
                           ) : v._book ? (
                             <div style={{ padding: '20px', color: '#818384' }}>📚 {v.title}</div>
                           ) : (
-                            <img src={`/api/thumbs/${v.id}/0`} style={{ maxWidth: '100%', maxHeight: '400px' }} alt="" />
+                            <>
+                              <img src={`/api/thumbs/${v.id}/0`} style={{ maxWidth: '100%', maxHeight: '400px' }} alt="" />
+                              <div className="thumb-actions" style={{ 
+                                position: 'absolute', 
+                                top: '5px', 
+                                right: '5px', 
+                                display: 'flex', 
+                                gap: '5px', 
+                                zIndex: 3,
+                                opacity: 0,
+                                transform: 'translateY(-5px)',
+                                transition: 'opacity 0.2s ease, transform 0.2s ease'
+                              }}>
+                                <button onClick={(e) => { e.stopPropagation(); handleSave(v.id); }} title="Favourite" className={v.fav ? 'fav-active' : ''}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill={v.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); (window as any).openRen(v.id, v.name || v.title); }} title="Rename">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); (window as any).openMov(v.id, v.name || v.title, v.catPath || ''); }} title="Move to Category">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); currentVideo.value = v; showAddToCollectionModal.value = true; }} title="Add to Playlist">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); tagModalState.value = { visible: true, vidId: v.id, bmUrl: null }; }} title="Tags">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); actorModalState.value = { visible: true, vidId: v.id }; }} title="Actors">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                </button>
+                              </div>
+                            </>
                           )}
                         </div>
                         

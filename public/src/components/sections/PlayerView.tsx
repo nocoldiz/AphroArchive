@@ -136,7 +136,7 @@ export const PlayerView = () => {
             <video
               ref={videoRef}
               id="video-player"
-              src={video.isVault ? `/api/vault/stream/${video.id}` : `/stream?id=${video.id}`}
+              src={video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`}
               controls
               autoPlay
             >

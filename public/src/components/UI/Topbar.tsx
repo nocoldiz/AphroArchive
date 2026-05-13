@@ -2,6 +2,9 @@ import { Search } from './Search';
 import { currentView } from '../../store';
 
 export const Topbar = () => {
+  const view = currentView.value;
+  if (view === 'instagram' || view === 'reddit') return null;
+
   const showHome = () => {
     if ((window as any).showHome) (window as any).showHome();
   };

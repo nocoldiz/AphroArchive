@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
-import { contextMenuState } from '../../store';
+import { contextMenuState, categoryMasterPassword } from '../../store';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -129,11 +129,19 @@ export const ContextMenu = () => {
   };
 
   const handleEncrypt = () => {
+    if (categoryMasterPassword.value) {
+      setPw1(categoryMasterPassword.value);
+      setPw2(categoryMasterPassword.value);
+    }
     setShowEncryptModal(true);
   };
 
   const handleUnlock = () => {
-    setShowUnlockModal(true);
+    if (categoryMasterPassword.value) {
+      execUnlock(false, categoryMasterPassword.value);
+    } else {
+      setShowUnlockModal(true);
+    }
   };
 
   const execEncrypt = async () => {
@@ -187,8 +195,9 @@ export const ContextMenu = () => {
     }
   };
 
-  const execUnlock = async (isPermanent: boolean) => {
-    if (!pw1) { toast('Password required'); return; }
+  const execUnlock = async (isPermanent: boolean, overridePw?: string) => {
+    const passwordToUse = overridePw || pw1;
+    if (!passwordToUse) { toast('Password required'); return; }
 
     setShowUnlockModal(false);
     const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
@@ -204,10 +213,13 @@ export const ContextMenu = () => {
     const r = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: data.path, password: pw1 })
+      body: JSON.stringify({ path: data.path, password: passwordToUse })
     });
 
     if (r.ok) {
+      if (!categoryMasterPassword.value) {
+        categoryMasterPassword.value = passwordToUse;
+      }
       if (isPermanent) {
         const reader = r.body!.getReader();
         const decoder = new TextDecoder();

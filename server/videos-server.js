@@ -37,6 +37,7 @@ function getCatKey(p) {
 let _scanCache = null;
 let _watchDebounce = null;
 const unlockedCategories = new Map(); // catPath -> key (Buffer)
+let masterPassword = null; // Session master password
 
 function invalidateScanCache() {
   _scanCache = null;
@@ -1246,6 +1247,10 @@ async function apiEncryptAllCategories(req, res) {
   const body = await readBody(req);
   const { password } = body;
   if (!password) return json(res, { error: 'password required' }, 400);
+  
+  if (masterPassword && password !== masterPassword) {
+    return json(res, { error: 'Does not match master password' }, 401);
+  }
 
   const allCategoryDirs = [];
   function walk(dir) {
@@ -1306,6 +1311,10 @@ async function apiEncryptCategory(req, res) {
   const password = (rawPw || '').trim();
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
+  
+  if (masterPassword && password !== masterPassword) {
+    return json(res, { error: 'Does not match master password' }, 401);
+  }
   
   const dir = path.join(VIDEOS_DIR, catPath);
   if (!fs.existsSync(dir)) return json(res, { error: 'Category not found' }, 404);
@@ -1413,6 +1422,10 @@ async function apiUnlockCategory(req, res) {
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
   
+  if (masterPassword && password !== masterPassword) {
+    return json(res, { error: 'Does not match master password' }, 401);
+  }
+  
   const dir = path.join(VIDEOS_DIR, catPath);
   const configPath = path.join(dir, '.cat-enc-config.json');
   if (!fs.existsSync(configPath)) return json(res, { error: 'Category not encrypted' }, 404);
@@ -1422,6 +1435,10 @@ async function apiUnlockCategory(req, res) {
     const { encKey, verifyHash } = await deriveKeys(password, config.salt);
     
     if (verifyHash !== config.verifyHash) return json(res, { error: 'Wrong password' }, 401);
+    
+    if (!masterPassword) {
+      masterPassword = password;
+    }
     
     unlockedCategories.set(getCatKey(catPath), encKey);
 
@@ -1465,6 +1482,10 @@ async function apiDecryptCategory(req, res) {
   const password = (rawPw || '').trim();
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
+  
+  if (masterPassword && password !== masterPassword) {
+    return json(res, { error: 'Does not match master password' }, 401);
+  }
   
   const dir = path.join(VIDEOS_DIR, catPath);
   const configPath = path.join(dir, '.cat-enc-config.json');

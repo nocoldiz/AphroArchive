@@ -53,6 +53,9 @@ const SectionHeader = ({ label, id, style, onClick, action }: { label: string, i
 };
 
 export const Sidebar = () => {
+  const view = currentView.value;
+  if (view === 'reddit') return null;
+
   const [bookmarkItems, setBookmarkItems] = useState<any[]>([]);
   const [tags, setTags] = useState<{ name: string, count: number }[]>([]);
   const [tagsOpen, setTagsOpen] = useState(true);

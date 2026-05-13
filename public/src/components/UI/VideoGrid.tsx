@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 const openCtx = (e: any) => {
@@ -19,6 +19,7 @@ interface VideoCardProps {
 
 export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
   const [showVideo, setShowVideo] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -44,14 +45,58 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
   };
 
   const handleMouseEnter = () => {
+    setIsHovered(true);
     timerRef.current = setTimeout(() => {
       setShowVideo(true);
     }, 250);
   };
 
   const handleMouseLeave = () => {
+    setIsHovered(false);
     clearTimeout(timerRef.current);
     setShowVideo(false);
+  };
+
+  const toggleFav = async (e: any) => {
+    e.stopPropagation();
+    const r = await fetch(`/api/favourites/${video.id}`, { method: 'POST' });
+    const d = await r.json();
+    
+    const currentVideos = [...videos.value];
+    const idx = currentVideos.findIndex(v => v.id === video.id);
+    if (idx !== -1) {
+      currentVideos[idx] = { ...currentVideos[idx], fav: d.fav };
+      videos.value = currentVideos;
+    }
+    
+    const w = window as any;
+    if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
+  };
+
+  const handleRename = (e: any) => {
+    e.stopPropagation();
+    (window as any).openRen(video.id, video.name);
+  };
+
+  const handleMove = (e: any) => {
+    e.stopPropagation();
+    (window as any).openMov(video.id, video.name, video.catPath || '');
+  };
+
+  const handlePlaylist = (e: any) => {
+    e.stopPropagation();
+    currentVideo.value = video;
+    showAddToCollectionModal.value = true;
+  };
+
+  const handleTag = (e: any) => {
+    e.stopPropagation();
+    tagModalState.value = { visible: true, vidId: video.id, bmUrl: null };
+  };
+
+  const handleActor = (e: any) => {
+    e.stopPropagation();
+    actorModalState.value = { visible: true, vidId: video.id };
   };
 
   return (
@@ -73,6 +118,29 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
       }}
       ref={cardRef}
     >
+      <style>{`
+        .thumb-actions button {
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: white;
+          border-radius: 50%;
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background 0.2s, transform 0.2s, color 0.2s;
+        }
+        .thumb-actions button:hover {
+          background: rgba(0, 0, 0, 0.8);
+          transform: scale(1.1);
+        }
+        .thumb-actions button.fav-active {
+          color: #ffb700;
+        }
+      `}</style>
       <div className="card-thumb">
         <img
           src={`/api/thumbs/${video.id}/0`}
@@ -99,6 +167,38 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
             }}
           />
         )}
+        
+        <div className="thumb-actions" style={{ 
+          position: 'absolute', 
+          top: '5px', 
+          right: '5px', 
+          display: 'flex', 
+          gap: '5px', 
+          zIndex: 3,
+          opacity: isHovered ? 1 : 0,
+          transform: isHovered ? 'translateY(0)' : 'translateY(-5px)',
+          transition: 'opacity 0.2s ease, transform 0.2s ease'
+        }}>
+          <button onClick={toggleFav} title="Favourite" className={video.fav ? 'fav-active' : ''}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </button>
+          <button onClick={handleRename} title="Rename">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button onClick={handleMove} title="Move to Category">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          <button onClick={handlePlaylist} title="Add to Playlist">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+          <button onClick={handleTag} title="Tags">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          </button>
+          <button onClick={handleActor} title="Actors">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </button>
+        </div>
+
         {video.duration > 0 && <div className="duration-badge" style={{ zIndex: 2 }}>{(video.duration / 60).toFixed(1)}m</div>}
         {video.rating && <div className="rating-badge" style={{ zIndex: 2 }}>{'★'.repeat(video.rating)}</div>}
       </div>

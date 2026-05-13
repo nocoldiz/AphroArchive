@@ -10,7 +10,7 @@ export const SettingsView = () => {
   const [ollamaUrl, setOllamaUrl] = useState(prefs.ollamaUrl || '');
   const [ollamaModel, setOllamaModel] = useState(prefs.ollamaVisionModel || '');
   const [anthropicKey, setAnthropicKey] = useState(prefs.anthropicApiKey || '');
-  const [hiddenCats, setHiddenCats] = useState('');
+  const [hiddenCats, setHiddenCats] = useState<string[]>([]);
 
   const [connectUrls, setConnectUrls] = useState<any[]>([]);
   const [connectIdx, setConnectIdx] = useState(0);
@@ -108,7 +108,7 @@ export const SettingsView = () => {
     // Load hidden categories
     fetch('/api/settings/lists')
       .then(r => r.json())
-      .then(data => setHiddenCats(data.hidden || ''))
+      .then(data => setHiddenCats(data.hidden ? data.hidden.split('\n').filter((l: string) => l.trim()) : []))
       .catch(() => { });
 
     // Load network info if enabled
@@ -165,7 +165,7 @@ export const SettingsView = () => {
     const r = await fetch('/api/settings/hidden', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: hiddenCats })
+      body: JSON.stringify({ content: hiddenCats.join('\n') })
     });
     if (r.ok) alert('Hidden categories saved!');
     else alert('Save failed');
@@ -286,15 +286,57 @@ export const SettingsView = () => {
 
       {/* Hidden Categories Section */}
       <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
-        <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Hidden Categories</h3>
-        <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '8px' }}>Enter folder names to hide, one per line.</p>
-        <textarea
-          value={hiddenCats}
-          onInput={(e: any) => setHiddenCats(e.target.value)}
-          rows={5}
-          style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px', fontFamily: 'monospace', marginBottom: '16px' }}
-        />
-        <button class="modal-btn modal-btn--primary" onClick={handleSaveHidden} style={{ width: '100%' }}>Save Hidden Categories</button>
+        <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Hidden Categories / Tags</h3>
+        <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '8px' }}>Type a category or tag and press Enter to hide it.</p>
+        
+        <div className="tag-input-container" style={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: '8px', 
+          background: 'var(--bg3)', 
+          border: '1px solid var(--brd)', 
+          borderRadius: '6px', 
+          padding: '10px',
+          marginBottom: '16px',
+          minHeight: '45px',
+          alignItems: 'center'
+        }}>
+          {hiddenCats.map((cat, idx) => (
+            <div key={idx} className="chip" style={{ 
+              background: 'var(--bg2)', 
+              border: '1px solid var(--brd)', 
+              borderRadius: '4px', 
+              padding: '4px 8px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '5px',
+              fontSize: '0.9rem'
+            }}>
+              <span>{cat}</span>
+              <button 
+                onClick={() => setHiddenCats(hiddenCats.filter((_, i) => i !== idx))}
+                style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+              >×</button>
+            </div>
+          ))}
+          <input
+            type="text"
+            placeholder="Type and press Enter..."
+            style={{ flex: 1, background: 'none', border: 'none', color: 'var(--tx)', outline: 'none', minWidth: '150px', padding: '4px' }}
+            onKeyDown={(e: any) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = e.target.value.trim();
+                if (val && !hiddenCats.includes(val)) {
+                  setHiddenCats([...hiddenCats, val]);
+                  e.target.value = '';
+                }
+              }
+            }}
+          />
+        </div>
+        
+        <button class="modal-btn modal-btn--primary" onClick={handleSaveHidden} style={{ width: '100%' }}>Save Hidden Terms</button>
       </div>
 
       {/* Thumbnails Section */}

@@ -146,6 +146,7 @@ export const sortMode = signal<string>('date');
 export const isShuffle = signal<boolean>(false);
 export const vaultMode = signal<boolean>(false);
 export const isVaultUnlocked = signal<boolean>(false);
+export const categoryMasterPassword = signal<string | null>(null);
 export const videoSelMode = signal<boolean>(false);
 export const selectedVideoIds = signal<Set<string>>(new Set());
 
@@ -423,6 +424,12 @@ w.showPrompts = () => { currentView.value = 'prompts'; };
 // Subscriber to handle legacy view visibility
 currentView.subscribe(view => {
   isRecentMode.value = (view === 'recent');
+  
+  const topbarEl = document.getElementById('topbar-root');
+  const sidebarEl = document.getElementById('side');
+  if (topbarEl) topbarEl.style.display = (view === 'instagram' || view === 'reddit') ? 'none' : '';
+  if (sidebarEl) sidebarEl.style.display = (view === 'reddit') ? 'none' : '';
+  
   if (view === 'recent') {
     fetch('/api/history')
       .then(r => r.json())
