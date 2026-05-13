@@ -333,6 +333,17 @@ function saveRatings(r) { fs.writeFileSync(RATINGS_FILE, JSON.stringify(r)); }
 // ── Video meta ───────────────────────────────────────────────────────
 
 function loadVideoMeta() {
+  if (currentProfile === 'Vault') {
+    const meta = loadVaultMeta();
+    const result = {};
+    for (const [id, item] of Object.entries(meta)) {
+      if (item.videoMeta) {
+        result[id] = item.videoMeta;
+      }
+    }
+    return result;
+  }
+
   if (!_videoMeta) {
     _videoMeta = {};
     try {
@@ -610,6 +621,15 @@ function _parseCategories(raw) {
 }
 
 function loadCategories() {
+  if (currentProfile === 'Vault') {
+    const meta = loadVaultMeta();
+    const cats = new Set();
+    for (const item of Object.values(meta)) {
+      if (item.category) cats.add(item.category);
+    }
+    return Array.from(cats).map(name => ({ name, displayName: name, terms: [name] }));
+  }
+
   if (!_categories) {
     try {
       const rows = db.prepare('SELECT * FROM categories').all();

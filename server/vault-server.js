@@ -352,7 +352,7 @@ async function _encryptHtmlPageToVault(filePath, filename) {
 }
 
 // Encrypts a local file, updates vault metadata, and shreds the original
-async function _encryptLocalFileToVault(filePath, filename) {
+async function _encryptLocalFileToVault(filePath, filename, category = null, videoMeta = null) {
   if (!vaultKey) return false;
 
   // Check if file is still being written to (by attempting to open it)
@@ -404,13 +404,15 @@ async function _encryptLocalFileToVault(filePath, filename) {
     size,
     sizeF: _fmtBytes(size),
     mtime: Date.now(),
-    folder: null
+    folder: null,
+    category,
+    videoMeta
   };
   saveVaultMeta(meta);
 
   // Securely delete the original unencrypted file
   _shredFile(filePath);
-  return true;
+  return id;
 }
 
 // Sweeps the drop directory
@@ -998,6 +1000,14 @@ function decryptToBuffer(id) {
   } catch { return null; }
 }
 
+function isUnlocked() {
+  return !!vaultKey;
+}
+
+function getVaultKey() {
+  return vaultKey;
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
@@ -1007,5 +1017,5 @@ module.exports = {
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
-  deriveKeys, NO_CACHE_HEADERS
+  deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault
 };

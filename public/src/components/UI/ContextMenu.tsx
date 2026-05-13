@@ -1,17 +1,13 @@
-import { h } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
-import { contextMenuState, categoryMasterPassword } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile } from '../../store';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
   const { visible, x, y, type, data } = state;
 
-  const [showEncryptModal, setShowEncryptModal] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
 
-  const [pw1, setPw1] = useState('');
-  const [pw2, setPw2] = useState('');
+  const [targetProfile, setTargetProfile] = useState('default');
   const [progressTitle, setProgressTitle] = useState('');
   const [progressDesc, setProgressDesc] = useState('');
   const [progressCur, setProgressCur] = useState(0);
@@ -129,28 +125,26 @@ export const ContextMenu = () => {
   };
 
   const handleEncrypt = () => {
-    if (categoryMasterPassword.value) {
-      setPw1(categoryMasterPassword.value);
-      setPw2(categoryMasterPassword.value);
+    if (!isVaultUnlocked.value) {
+      toast('Unlock Vault profile first');
+      return;
     }
-    setShowEncryptModal(true);
+    if (!confirm(`Encrypt category "${data.name}" and move to Vault?`)) return;
+    execEncrypt();
   };
 
   const handleUnlock = () => {
-    if (categoryMasterPassword.value) {
-      execUnlock(false, categoryMasterPassword.value);
-    } else {
-      setShowUnlockModal(true);
+    if (!isVaultUnlocked.value) {
+      toast('Unlock Vault profile first');
+      return;
     }
+    setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
+    setShowUnlockModal(true);
   };
 
   const execEncrypt = async () => {
-    if (!pw1) { toast('Password required'); return; }
-    if (pw1 !== pw2) { toast('Passwords do not match'); return; }
-
-    setShowEncryptModal(false);
-    setProgressTitle(data.partial ? 'Finishing Encryption' : 'Encrypting Category');
-    setProgressDesc(`Processing files in ${data.path}...`);
+    setProgressTitle('Encrypting Category');
+    setProgressDesc(`Moving files in ${data.path} to Vault...`);
     setProgressCur(0);
     setProgressTotal(0);
     setShowProgressModal(true);
@@ -158,7 +152,7 @@ export const ContextMenu = () => {
     const r = await fetch('/api/categories/encrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: data.path, password: pw1 })
+      body: JSON.stringify({ path: data.path })
     });
 
     if (r.ok) {
@@ -195,63 +189,49 @@ export const ContextMenu = () => {
     }
   };
 
-  const execUnlock = async (isPermanent: boolean, overridePw?: string) => {
-    const passwordToUse = overridePw || pw1;
-    if (!passwordToUse) { toast('Password required'); return; }
-
+  const execUnlock = async () => {
     setShowUnlockModal(false);
-    const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
+    setProgressTitle('Restoring Category');
+    setProgressDesc(`Decrypting files to profile "${targetProfile}"...`);
+    setProgressCur(0);
+    setProgressTotal(0);
+    setShowProgressModal(true);
 
-    if (isPermanent) {
-      setProgressTitle('Decrypting Category');
-      setProgressDesc(`Permanently restoring files in ${data.path}...`);
-      setProgressCur(0);
-      setProgressTotal(0);
-      setShowProgressModal(true);
-    }
-
-    const r = await fetch(endpoint, {
+    const r = await fetch('/api/categories/decrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: data.path, password: passwordToUse })
+      body: JSON.stringify({ path: data.path, targetProfile })
     });
 
     if (r.ok) {
-      if (!categoryMasterPassword.value) {
-        categoryMasterPassword.value = passwordToUse;
-      }
-      if (isPermanent) {
-        const reader = r.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop()!;
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const msg = JSON.parse(line);
-              if (msg.total) {
-                setProgressCur(msg.cur);
-                setProgressTotal(msg.total);
-              }
-              if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
-            } catch (e) { }
-          }
+      const reader = r.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop()!;
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.total) {
+              setProgressCur(msg.cur);
+              setProgressTotal(msg.total);
+            }
+            if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
+          } catch (e) { }
         }
-        setProgressTitle('Complete');
-        setProgressDesc('Category decryption finished successfully.');
-      } else {
-        toast('Category unlocked temporarily');
       }
+      setProgressTitle('Complete');
+      setProgressDesc('Category restored successfully.');
       refresh();
     } else {
       const err = await r.json();
       toast('Action failed: ' + (err.error || 'Unknown error'));
-      if (isPermanent) setShowProgressModal(false);
+      setShowProgressModal(false);
     }
   };
 
@@ -289,7 +269,7 @@ export const ContextMenu = () => {
             <ContextItem label="Compress Videos" icon="download" onClick={handleCompress} />
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
             {data.encrypted ? (
-              <ContextItem label="Unlock" icon="lock" onClick={handleUnlock} />
+              <ContextItem label="Restore to Profile" icon="lock" onClick={handleUnlock} />
             ) : data.partial ? (
               <ContextItem label="Finish Encryption" icon="lock" onClick={handleEncrypt} color="#e84040" />
             ) : (
@@ -305,38 +285,27 @@ export const ContextMenu = () => {
         )}
       </div>
 
-      {showEncryptModal && (
-        <div className="modal on" style={{ display: 'flex' }}>
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2>{data.partial ? "Finish Encryption" : "Encrypt Category"}</h2>
-            </div>
-            <div className="modal-body">
-              <p>{data.partial ? "Encrypt the remaining files in this category." : "Encrypt all files in this category."}</p>
-              <input type="password" value={pw1} onInput={(e: any) => setPw1(e.target.value)} placeholder="Password" class="premium-input" style={{ width: '100%', marginBottom: '10px' }} />
-              <input type="password" value={pw2} onInput={(e: any) => setPw2(e.target.value)} placeholder="Confirm Password" class="premium-input" style={{ width: '100%' }} />
-            </div>
-            <div className="modal-footer">
-              <button class="modal-btn modal-btn--primary" onClick={execEncrypt}>Encrypt</button>
-              <button class="modal-btn" onClick={() => setShowEncryptModal(false)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showUnlockModal && (
         <div className="modal on" style={{ display: 'flex' }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h2>Unlock Category</h2>
+              <h2>Restore Category</h2>
             </div>
             <div className="modal-body">
-              <p>Enter the password to access this category.</p>
-              <input type="password" value={pw1} onInput={(e: any) => setPw1(e.target.value)} placeholder="Password" class="premium-input" style={{ width: '100%' }} />
+              <p>Choose the target profile to restore this category to:</p>
+              <select 
+                value={targetProfile} 
+                onChange={(e: any) => setTargetProfile(e.target.value)}
+                class="premium-input"
+                style={{ width: '100%', padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
+              >
+                {profiles.value.filter(p => p !== 'Vault').map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
             </div>
             <div className="modal-footer">
-              <button class="modal-btn modal-btn--primary" onClick={() => execUnlock(false)}>Unlock Temporarily</button>
-              <button class="modal-btn" onClick={() => execUnlock(true)} style={{ fontSize: '12px', opacity: 0.7 }}>Decrypt Permanently</button>
+              <button class="modal-btn modal-btn--primary" onClick={execUnlock}>Restore</button>
               <button class="modal-btn" onClick={() => setShowUnlockModal(false)}>Cancel</button>
             </div>
           </div>

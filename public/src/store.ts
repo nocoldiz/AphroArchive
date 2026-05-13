@@ -153,6 +153,7 @@ export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true
 export const profiles = signal<string[]>(['default']);
 export const activeProfile = signal<string>('default');
 export const profileModalState = signal<{ visible: boolean }>({ visible: false });
+export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
 
 export async function loadProfiles() {
   const res = await fetch('/api/profiles');
@@ -162,11 +163,20 @@ export async function loadProfiles() {
 }
 
 export async function switchProfile(name: string) {
-  await fetch('/api/profiles/switch', {
+  const res = await fetch('/api/profiles/switch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ profile: name })
   });
+  
+  if (res.status === 401) {
+    const data = await res.json();
+    if (data.locked) {
+      vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: name };
+      return;
+    }
+  }
+  
   activeProfile.value = name;
   window.location.reload();
 }

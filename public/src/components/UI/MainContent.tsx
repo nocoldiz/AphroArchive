@@ -34,6 +34,7 @@ import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
 import { ActorScraperView } from '../sections/ActorScraperView';
 import { ConnectModal } from '../modals/ConnectModal';
+import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { useEffect } from 'preact/hooks';
 
 export const MainContent = () => {
@@ -133,6 +134,7 @@ export const MainContent = () => {
       <MoveModal />
       <VaultPhotoLightbox />
       <VisionModal />
+      <VaultUnlockModal />
     </>
   );
 };

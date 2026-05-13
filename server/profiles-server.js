@@ -170,7 +170,7 @@ async function apiApplyPreset(req, res) {
 // GET /api/profiles
 function apiGetProfiles(req, res) {
   const dbDir = path.join(__dirname, '../db');
-  if (!fs.existsSync(dbDir)) return json(res, { profiles: ['default'], current: 'default' });
+  if (!fs.existsSync(dbDir)) return json(res, { profiles: ['default', 'Vault'], current: 'default' });
   
   const files = fs.readdirSync(dbDir);
   const profiles = files
@@ -178,6 +178,9 @@ function apiGetProfiles(req, res) {
     .map(f => f.replace('aphroarchive_', '').replace('.db', ''));
     
   if (profiles.length === 0) profiles.push('default');
+  
+  // Add Vault to the list of profiles
+  if (!profiles.includes('Vault')) profiles.push('Vault');
     
   const db = require('./db-server');
   json(res, { profiles, current: db.getCurrentProfile() });
@@ -190,6 +193,12 @@ async function apiSwitchProfile(req, res) {
   if (!profile) return json(res, { error: 'Profile name required' }, 400);
   
   const db = require('./db-server');
+  const { isUnlocked } = require('./vault-server');
+  
+  if (profile === 'Vault' && !isUnlocked()) {
+    return json(res, { error: 'Vault is locked', locked: true }, 401);
+  }
+  
   db.switchProfile(profile);
   json(res, { ok: true, current: profile });
 }

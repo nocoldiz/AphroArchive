@@ -130,6 +130,27 @@ function isVideoHidden(v, hiddenTerms) {
 }
 
 async function allVideos() {
+  const db = require('./db-server');
+  if (db.getCurrentProfile() === 'Vault') {
+    const { loadVaultMeta } = require('./db-server');
+    const meta = loadVaultMeta();
+    const list = [];
+    for (const [id, item] of Object.entries(meta)) {
+      if (item.type !== 'folder') {
+        list.push({
+          id,
+          name: item.originalName || item.name,
+          rel: id + '.enc',
+          catPath: item.category || '',
+          encrypted: true,
+          mtime: item.mtime || Date.now(),
+          size: item.size || 0
+        });
+      }
+    }
+    return list;
+  }
+
   const all    = await cachedScan();
   const hidden = loadHidden();
   return all.filter(v => {
@@ -151,6 +172,13 @@ function isUnlocked(catPath) {
 }
 
 function getUnlockKey(catPath) {
+  const db = require('./db-server');
+  const { isUnlocked, getVaultKey } = require('./vault-server');
+  
+  if (db.getCurrentProfile() === 'Vault' && isUnlocked()) {
+    return getVaultKey();
+  }
+
   let p = getCatKey(catPath);
   while (true) {
     if (unlockedCategories.has(p)) return unlockedCategories.get(p);
@@ -1354,39 +1382,26 @@ async function apiEncryptAllCategories(req, res) {
 }
 
 async function apiEncryptCategory(req, res) {
-  const { deriveKeys } = require('./vault-server');
+  const { isUnlocked, encryptLocalFileToVault, getVaultKey } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
+  
   const body = await readBody(req);
-  const { path: catPath, password: rawPw } = body;
-  const password = (rawPw || '').trim();
+  const { path: catPath } = body;
   
-  if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
+  if (!catPath) return json(res, { error: 'path required' }, 400);
   
-  if (masterPassword && password !== masterPassword) {
-    return json(res, { error: 'Does not match master password' }, 401);
+  if (!loadVaultConfig()) {
+    return json(res, { error: 'Master vault password is not set' }, 400);
+  }
+  
+  if (!isUnlocked()) {
+    return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
   }
   
   const dir = path.join(VIDEOS_DIR, catPath);
   if (!fs.existsSync(dir)) return json(res, { error: 'Category not found' }, 404);
   
-  const configPath = path.join(dir, '.cat-enc-config.json');
-  let salt, encKey, verifyHash;
-
   try {
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      const derived = await deriveKeys(password, config.salt);
-      if (derived.verifyHash !== config.verifyHash) return json(res, { error: 'Wrong password for this category' }, 401);
-      salt = config.salt;
-      encKey = derived.encKey;
-      verifyHash = derived.verifyHash;
-    } else {
-      salt = crypto.randomBytes(32).toString('hex');
-      const derived = await deriveKeys(password, salt);
-      encKey = derived.encKey;
-      verifyHash = derived.verifyHash;
-      fs.writeFileSync(configPath, JSON.stringify({ salt, verifyHash }));
-    }
-    
     const ck = getCatKey(catPath);
     const videos = (await cachedScan()).filter(v => {
       const vk = getCatKey(v.catPath);
@@ -1399,42 +1414,44 @@ async function apiEncryptCategory(req, res) {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' });
     const sendProgress = (obj) => res.write(JSON.stringify(obj) + '\n');
 
+    const meta = loadVideoMeta();
+    const vaultKey = getVaultKey();
+
     for (const v of videos) {
       if (v.encrypted) continue;
       
-      const vDir = path.join(VIDEOS_DIR, v.catPath);
-      const vConf = path.join(vDir, '.cat-enc-config.json');
-      if (!fs.existsSync(vConf)) {
-        fs.writeFileSync(vConf, JSON.stringify({ salt, verifyHash }));
-      }
-
       const full = path.join(VIDEOS_DIR, v.rel);
       if (!fs.existsSync(full)) continue;
 
-      await encryptFileInPlace(full, encKey);
+      const videoMeta = meta[v.id] || null;
       
+      // Encrypt to vault and get new ID
+      const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
+      
+      if (!vaultId) {
+        console.error(`[ENC] Failed to encrypt ${v.name}`);
+        continue;
+      }
+
       encryptedCount++;
       console.log(`[ENC] ${v.name} (${encryptedCount}/${total}, ${total - encryptedCount} left)`);
-      
-      // Move thumbnail folder to new ID
-      const newRel = v.rel + '.enc';
-      const newId = toId(newRel);
       const oldThumb = path.join(THUMBS_DIR, v.id);
-      const newThumb = path.join(THUMBS_DIR, newId);
+      const newThumb = path.join(THUMBS_DIR, vaultId);
       
       if (fs.existsSync(oldThumb)) {
         if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
         fs.renameSync(oldThumb, newThumb);
-        // Also encrypt the jpg files in thumbnails
+        // Also encrypt the jpg files in thumbnails using the vault key!
         const tFiles = fs.readdirSync(newThumb);
         for (const tf of tFiles) {
-          if (tf.endsWith('.jpg')) await encryptFileInPlace(path.join(newThumb, tf), encKey);
+          if (tf.endsWith('.jpg')) {
+             await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
+          }
         }
       }
       sendProgress({ cur: encryptedCount, total, file: v.name });
     }
     
-    unlockedCategories.set(getCatKey(catPath), encKey);
     invalidateScanCache();
     sendProgress({ ok: true, count: encryptedCount });
     res.end();
@@ -1525,115 +1542,88 @@ async function apiUnlockCategory(req, res) {
 }
 
 async function apiDecryptCategory(req, res) {
-  const { deriveKeys } = require('./vault-server');
+  const { isUnlocked, getVaultKey } = require('./vault-server');
+  const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
+  
   const body = await readBody(req);
-  const { path: catPath, password: rawPw } = body;
-  const password = (rawPw || '').trim();
+  const { path: catPath, targetProfile } = body;
   
-  if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
+  if (!catPath || !targetProfile) return json(res, { error: 'path and targetProfile required' }, 400);
   
-  if (masterPassword && password !== masterPassword) {
-    return json(res, { error: 'Does not match master password' }, 401);
+  if (!isUnlocked()) {
+    return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
   }
   
-  const dir = path.join(VIDEOS_DIR, catPath);
-  const configPath = path.join(dir, '.cat-enc-config.json');
-  if (!fs.existsSync(configPath)) return json(res, { error: 'Category not encrypted' }, 404);
-  
   try {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    const { encKey, verifyHash } = await deriveKeys(password, config.salt);
-    if (verifyHash !== config.verifyHash) return json(res, { error: 'Wrong password' }, 401);
+    const meta = loadVaultMeta();
+    const itemsToDecrypt = [];
     
-    toastServer(`Decrypting ${catPath}...`);
-
-    const ck = getCatKey(catPath);
-    const videos = (await cachedScan()).filter(v => {
-      const vk = getCatKey(v.catPath);
-      return vk === ck || vk.startsWith(ck + '/');
-    });
-
-    const keyCache = new Map();
-    keyCache.set(config.salt, encKey);
-    const verifiedCats = new Set();
-    verifiedCats.add(ck);
-
+    for (const [id, item] of Object.entries(meta)) {
+      if (item.category === catPath && item.type !== 'folder') {
+        itemsToDecrypt.push({ id, ...item });
+      }
+    }
+    
+    if (itemsToDecrypt.length === 0) {
+      return json(res, { error: 'No files found in this category in the vault' }, 404);
+    }
+    
     res.writeHead(200, { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' });
     const sendProgress = (obj) => res.write(JSON.stringify(obj) + '\n');
     
-    const total = videos.filter(v => v.encrypted).length;
+    const total = itemsToDecrypt.length;
     let doneCount = 0;
+    const vaultKey = getVaultKey();
+    const originalProfile = getCurrentProfile();
 
-    for (const v of videos) {
-      if (!v.encrypted) continue;
-      const full = path.join(VIDEOS_DIR, v.rel);
-      if (!fs.existsSync(full)) continue;
-
-      const vk = getCatKey(v.catPath);
-      let vKey = null;
-
-      if (verifiedCats.has(vk)) {
-        const vDir = path.join(VIDEOS_DIR, v.catPath);
-        const vConfPath = path.join(vDir, '.cat-enc-config.json');
-        try {
-          const vConf = JSON.parse(fs.readFileSync(vConfPath, 'utf-8'));
-          vKey = keyCache.get(vConf.salt);
-        } catch {}
-      } else {
-        const vDir = path.join(VIDEOS_DIR, v.catPath);
-        const vConfPath = path.join(vDir, '.cat-enc-config.json');
-        if (fs.existsSync(vConfPath)) {
-          try {
-            const vConf = JSON.parse(fs.readFileSync(vConfPath, 'utf-8'));
-            if (keyCache.has(vConf.salt)) {
-              vKey = keyCache.get(vConf.salt);
-              verifiedCats.add(vk);
-            } else {
-              const { encKey: sKey, verifyHash: sHash } = await deriveKeys(password, vConf.salt);
-              if (sHash === vConf.verifyHash) {
-                vKey = sKey;
-                keyCache.set(vConf.salt, sKey);
-                verifiedCats.add(vk);
-              }
-            }
-          } catch {}
-        }
-      }
-
-      if (!vKey) continue;
-
-      await decryptFileInPlace(full, vKey);
+    for (const item of itemsToDecrypt) {
+      const encPath = path.join(VAULT_DIR, item.id + '.enc');
+      if (!fs.existsSync(encPath)) continue;
+      
+      const targetDir = path.join(VIDEOS_DIR, item.category);
+      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+      
+      const targetFilePath = path.join(targetDir, item.originalName || item.name + (item.ext || '.mp4'));
+      
+      // Decrypt file
+      await decryptFile(encPath, targetFilePath, vaultKey);
       
       doneCount++;
-      console.log(`[DEC] ${v.name} (${doneCount}/${total}, ${total - doneCount} left)`);
-
-      const newRel = v.rel.replace(/\.enc$/, '');
+      console.log(`[DEC] ${item.originalName || item.name} (${doneCount}/${total}, ${total - doneCount} left)`);
+      
+      // Restore metadata to target profile
+      const newRel = path.relative(VIDEOS_DIR, targetFilePath).replace(/\\/g, '/');
       const newId = toId(newRel);
-      const oldThumb = path.join(THUMBS_DIR, v.id);
+      
+      if (item.videoMeta) {
+        switchProfile(targetProfile);
+        setVideoMetaFields(newId, item.videoMeta);
+        switchProfile(originalProfile); // Switch back
+      }
+      
+      // Handle thumbnails
+      const oldThumb = path.join(THUMBS_DIR, item.id);
       const newThumb = path.join(THUMBS_DIR, newId);
       
       if (fs.existsSync(oldThumb)) {
         if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
         fs.renameSync(oldThumb, newThumb);
+        // Decrypt thumbnails
         const tFiles = fs.readdirSync(newThumb);
         for (const tf of tFiles) {
-          if (tf.endsWith('.enc')) await decryptFileInPlace(path.join(newThumb, tf), vKey);
+          if (tf.endsWith('.jpg')) {
+             await decryptThumbnailInPlace(path.join(newThumb, tf), vaultKey);
+          }
         }
       }
-      sendProgress({ cur: doneCount, total, file: v.name });
+      
+      // Remove from vault meta
+      delete meta[item.id];
+      
+      sendProgress({ cur: doneCount, total, file: item.originalName || item.name });
     }
     
-    for (const vc of verifiedCats) {
-      const vDir = path.join(VIDEOS_DIR, vc);
-      const vConfPath = path.join(vDir, '.cat-enc-config.json');
-      if (fs.existsSync(vConfPath)) {
-        const remaining = fs.readdirSync(vDir).some(f => f.endsWith('.enc'));
-        if (!remaining) {
-          fs.unlinkSync(vConfPath);
-          unlockedCategories.delete(vc);
-        }
-      }
-    }
+    saveVaultMeta(meta);
     invalidateScanCache();
     sendProgress({ ok: true });
     res.end();
@@ -1644,6 +1634,55 @@ async function apiDecryptCategory(req, res) {
       res.end();
     }
   }
+}
+
+async function decryptFile(encPath, outPath, key) {
+  const stat = fs.statSync(encPath);
+  const size = stat.size;
+  const ivLen = 12, tagLen = 16;
+  
+  const fd = fs.openSync(encPath, 'r');
+  const iv = Buffer.alloc(ivLen);
+  fs.readSync(fd, iv, 0, ivLen, 0);
+  const tag = Buffer.alloc(tagLen);
+  fs.readSync(fd, tag, 0, tagLen, size - tagLen);
+  fs.closeSync(fd);
+  
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  
+  const out = fs.createWriteStream(outPath);
+  const src = fs.createReadStream(encPath, { start: ivLen, end: size - tagLen - 1 });
+  await pipe(src, decipher, out);
+  
+  fs.unlinkSync(encPath);
+}
+
+async function decryptThumbnailInPlace(filePath, key) {
+  const stat = fs.statSync(filePath);
+  const size = stat.size;
+  const ivLen = 12, tagLen = 16;
+  
+  if (size < ivLen + tagLen) return; // Invalid file
+  
+  const fd = fs.openSync(filePath, 'r');
+  const iv = Buffer.alloc(ivLen);
+  fs.readSync(fd, iv, 0, ivLen, 0);
+  const tag = Buffer.alloc(tagLen);
+  fs.readSync(fd, tag, 0, tagLen, size - tagLen);
+  fs.closeSync(fd);
+  
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  
+  const tmpPath = filePath + '.tmp';
+  const out = fs.createWriteStream(tmpPath);
+  const src = fs.createReadStream(filePath, { start: ivLen, end: size - tagLen - 1 });
+  await pipe(src, decipher, out);
+  
+  fs.unlinkSync(filePath);
+  fs.renameSync(tmpPath, filePath);
+}
 }
 
 async function decryptFileInPlace(filePath, key) {
