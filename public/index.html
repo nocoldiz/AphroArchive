@@ -16,933 +16,35 @@
 <body>
 
   <!-- Topbar -->
-  <div class="topbar">
-    <div class="logo" onclick="showHome()">
-      <svg viewBox="0 0 28 28" fill="none">
-        <rect width="28" height="28" rx="6" fill="#e84040" />
-        <polygon points="11,7 11,21 22,14" fill="#fff" />
-      </svg>
-      AphroArchive
-    </div>
-    <div class="search-w">
-      <svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.35-4.35" />
-      </svg>
-      <input type="text" id="search-input" placeholder="Search videos..." autocomplete="off" spellcheck="false">
-      <div class="search-ghost" id="search-ghost"></div>
-    </div>
-    <div class="tb-acts">
-      <button id="importBtn" onclick="openImport()" title="Import files" class="hsm"
-        style="display:flex;align-items:center;gap:5px">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="17 8 12 3 7 8" />
-          <line x1="12" y1="3" x2="12" y2="15" />
-        </svg>Import
-      </button>
-      <button id="dualBtn" onclick="toggleDual()" title="Dual mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="3" width="9" height="18" rx="1" />
-          <rect x="13" y="3" width="9" height="18" rx="1" />
-        </svg>
-      </button>
-      <button id="mosBtn" onclick="toggleMosaic()" title="Mosaic mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="3" width="7" height="7" rx="1" />
-          <rect x="3" y="14" width="7" height="7" rx="1" />
-          <rect x="14" y="14" width="7" height="7" rx="1" />
-        </svg>
-      </button>
-      <button id="zapBtn" onclick="toggleZapping()" title="Zapping mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-        </svg>
-      </button>
-      <button id="panBtn" onclick="togglePan()" title="Panoramic mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <line x1="9" y1="3" x2="9" y2="21" />
-        </svg>
-      </button>
-      <button id="igBtn" onclick="window.location.href='/instagram'" title="Instagram mode">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
-          <circle cx="12" cy="12" r="4"/>
-          <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
-        </svg>
-      </button>
-      <button id="rdBtn" onclick="window.location.href='/reddit'" title="Reddit mode">
-        <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#ff4500"/><ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff"/><circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500"/><circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500"/><path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" stroke-width="1" stroke-linecap="round" fill="none"/></svg>
-      </button>
-      <input type="file" id="globalFileIn" multiple
-        accept="video/*,audio/*,.pdf,.txt,.doc,.docx,.md,.epub,.mp3,.flac,.wav,.ogg,.aac,.m4a,.wma,.opus,.aiff"
-        style="display:none" onchange="handleGlobalFiles(this.files)">
-    </div>
-  </div>
+  <div id="topbar-root"></div>
 
-  <!-- Drop overlay -->
-  <div id="dropOverlay" style="display:none">
-    <div class="drop-overlay-inner">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17 8 12 3 7 8" />
-        <line x1="12" y1="3" x2="12" y2="15" />
-      </svg>
-      <p>Drop files to import</p>
-      <span>Videos · Audio · Books</span>
-    </div>
-  </div>
+
 
   <!-- Layout -->
   <div class="wrap">
-    <aside class="side" id="side">
-      <div class="side-scroll">
-
-        <!-- Library -->
-        <h3 class="sidebar-heading" id="sh3-library" onclick="toggleSection('library')">Library<svg
-            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="m6 9 6 6 6-6" />
-          </svg></h3>
-        <div class="side-section" id="librarySection">
-          <div class="sidebar-item" id="fBtn" onclick="toggleFav()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <polygon
-                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>Favourites</span>
-          </div>
-          <div class="sidebar-item" id="recent-sidebar" onclick="showRecent()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>Recently Watched</span>
-          </div>
-          <div class="sidebar-item" id="collections-sidebar" onclick="showCollections()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <rect x="2" y="7" width="20" height="14" rx="2" />
-                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-              </svg>Playlist</span>
-          </div>
-          <div class="sidebar-item" id="vault-sidebar" onclick="showVault()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <rect x="3" y="11" width="18" height="11" rx="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>Vault</span>
-          </div>
-        </div>
-
-        <!-- Browse -->
-        <div class="side-sep"></div>
-        <h3 class="sidebar-heading" id="sh3-browse" onclick="toggleSection('browse')">Browse<svg
-            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="m6 9 6 6 6-6" />
-          </svg></h3>
-        <div class="side-section" id="browseSection">
-          <div class="sidebar-item" id="categories-view-sidebar" onclick="showCategoriesView()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>Categories</span>
-          </div>
-          <div class="sidebar-item" id="actor-sidebar" onclick="showActors()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-              </svg>Actors</span>
-          </div>
-          <div class="sidebar-item" id="studio-sidebar" onclick="showStudios()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <rect x="2" y="7" width="20" height="15" rx="2" />
-                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-                <line x1="12" y1="12" x2="12" y2="16" />
-                <line x1="10" y1="14" x2="14" y2="14" />
-              </svg>Studios</span>
-          </div>
-          <div class="sidebar-item" id="chapters-sidebar" onclick="showChaptersView()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-              </svg>Chapters</span>
-          </div>
-        </div>
-
-        <!-- Media -->
-        <div class="side-sep"></div>
-        <h3 class="sidebar-heading" id="sh3-media" onclick="toggleSection('media')">Media<svg
-            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="m6 9 6 6 6-6" />
-          </svg></h3>
-        <div class="side-section" id="mediaSection">
-          <div class="sidebar-item" id="videos-media-sidebar" onclick="goHome()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-              </svg>Videos</span>
-          </div>
-          <div class="sidebar-item" id="photos-sidebar" onclick="showPhotos()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>Photos</span>
-          </div>
-          <div class="sidebar-item" id="audio-sidebar" onclick="showAudio()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <path d="M9 18V5l12-2v13" />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="16" r="3" />
-              </svg>Audio</span>
-          </div>
-          <div class="sidebar-item" id="pages-sidebar" onclick="showPages()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="9" y1="13" x2="15" y2="13"/>
-                <line x1="9" y1="17" x2="13" y2="17"/>
-              </svg>Pages</span>
-          </div>
-          <div class="sidebar-item" id="books-sidebar" onclick="showBooks()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-              </svg>Books</span>
-          </div>
-          <div class="sidebar-item" id="prompts-sidebar" onclick="showPrompts()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>Prompts</span>
-          </div>
-        </div>
-
-        <!-- Web -->
-        <div class="side-sep"></div>
-        <h3 class="sidebar-heading" id="sh3-web" onclick="toggleSection('web')">Web<svg class="sidebar-heading-chevron"
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="m6 9 6 6 6-6" />
-          </svg></h3>
-        <div class="side-section" id="webSection">
-          <div class="sidebar-item" id="import-favs-sidebar" onclick="showImportFavs()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-              </svg>Bookmarks</span>
-          </div>
-          <div class="sidebar-item" id="search-sites-sidebar" onclick="showSearchSites()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-                <path d="M11 8v6M8 11h6" />
-              </svg>Search</span>
-          </div>
-        </div>
-
-        <!-- Manage -->
-        <div class="side-sep"></div>
-        <h3 class="sidebar-heading" id="sh3-manage" onclick="toggleSection('manage')">Manage<svg
-            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="m6 9 6 6 6-6" />
-          </svg></h3>
-        <div class="side-section" id="manageSection">
-          <div class="sidebar-item" id="database-sidebar" onclick="showDatabase()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <ellipse cx="12" cy="5" rx="9" ry="3" />
-                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-              </svg>Database</span>
-          </div>
-          <div class="sidebar-item" id="connect-sidebar" onclick="showConnect()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
-                <path d="M1.42 9a16 16 0 0 1 21.16 0" />
-                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-                <circle cx="12" cy="20" r="1" fill="currentColor" />
-              </svg>Connect</span>
-          </div>
-          <div class="sidebar-item" id="settings-sidebar" onclick="showSettings()">
-            <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="vertical-align:-2px;margin-right:5px">
-                <circle cx="12" cy="12" r="3" />
-                <path
-                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>Settings</span>
-          </div>
-        </div>
-
-        <!-- Categories & Tags -->
-        <div class="side-sep"></div>
-        <h3 class="sidebar-heading" id="sh3-cats" onclick="toggleSection('cats')">Categories<svg
-            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="m6 9 6 6 6-6" />
-          </svg><button class="sidebar-heading-add" title="New folder"
-            onclick="event.stopPropagation();createCategory()"><svg width="12" height="12" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg></button></h3>
-        <div class="side-section" id="catsSection">
-          <div id="cList"></div>
-        </div>
-
-        <div class="side-sep" id="tags-sep" style="display:none"></div>
-        <h3 class="sidebar-heading" id="sh3-tags" style="display:none" onclick="toggleSection('tags')">Tags<svg
-            class="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="m6 9 6 6 6-6" />
-          </svg></h3>
-        <div class="side-section" id="tagsSection">
-          <div id="tagList"></div>
-        </div>
-
-      </div>
-    </aside>
+    <aside class="side" id="side"></aside>
 
     <div class="main-content">
+      <div id="main-root"></div>
       <!-- Home View -->
-      <div class="home-view" id="home-view">
-        <div class="home-header">
-          <h2>Welcome to AphroArchive</h2>
-          <p>Your local media library — pick a section to get started</p>
-        </div>
-        <div class="home-grid">
-          <div class="home-card" onclick="selCat('')">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="2" width="9" height="9" rx="2" /><rect x="13" y="2" width="9" height="9" rx="2" />
-                <rect x="2" y="13" width="9" height="9" rx="2" /><rect x="13" y="13" width="9" height="9" rx="2" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">All Videos</div><div class="home-card-desc">Browse your entire library</div></div>
-          </div>
-          <div class="home-card" onclick="showRecent()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Recently Watched</div><div class="home-card-desc">Pick up where you left off</div></div>
-          </div>
-          <div class="home-card" onclick="showCollections()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Playlist</div><div class="home-card-desc">Saved video groups</div></div>
-          </div>
-          <div class="home-card" onclick="showActors()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">All Actors</div><div class="home-card-desc">Browse the actor database</div></div>
-          </div>
-          <div class="home-card" onclick="showStudios()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="7" width="20" height="15" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-                <line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">All Studios</div><div class="home-card-desc">Browse the studio database</div></div>
-          </div>
-          <div class="home-card" onclick="showImportFavs()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Bookmarks</div><div class="home-card-desc">Imported browser bookmarks</div></div>
-          </div>
-          <div class="home-card" onclick="showBooks()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Books</div><div class="home-card-desc">E-book reader</div></div>
-          </div>
-          <div class="home-card" onclick="showAudio()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Audio</div><div class="home-card-desc">Music player</div></div>
-          </div>
-          <div class="home-card" onclick="showVault()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Vault</div><div class="home-card-desc">Encrypted file storage</div></div>
-          </div>
-          <div class="home-card" onclick="showDups()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Duplicates</div><div class="home-card-desc">Detect and remove duplicates</div></div>
-          </div>
-          <div class="home-card" onclick="showSearchSites()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Search</div><div class="home-card-desc">Search the web for content</div></div>
-          </div>
-          <div class="home-card" onclick="showScraper()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Actor Scraper</div><div class="home-card-desc">Fetch actor metadata</div></div>
-          </div>
-          <div class="home-card" onclick="showDatabase()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Database</div><div class="home-card-desc">Edit actors, studios & categories</div></div>
-          </div>
-          <div class="home-card" onclick="showConnect()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" />
-                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><circle cx="12" cy="20" r="1" fill="currentColor" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Connect</div><div class="home-card-desc">Remote access via QR code</div></div>
-          </div>
-          <div class="home-card" onclick="showSettings()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Settings</div><div class="home-card-desc">Preferences &amp; themes</div></div>
-          </div>
-          <div class="home-card" onclick="window.location.href='/reddit'">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="4" />
-                <path d="M15.5 8.5 Q18 6 20 8" /><path d="M4 8 Q6 6 8.5 8.5" />
-                <circle cx="9.5" cy="13" r="1" fill="currentColor" stroke="none" />
-                <circle cx="14.5" cy="13" r="1" fill="currentColor" stroke="none" />
-                <path d="M9.5 16 Q12 17.5 14.5 16" stroke-linecap="round" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Reddit Mode</div><div class="home-card-desc">Browse as a Reddit-style feed</div></div>
-          </div>
-          <div class="home-card" onclick="window.location.href='/instagram'">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><circle cx="12" cy="12" r="4" />
-                <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Instagram Mode</div><div class="home-card-desc">Scroll a social-style feed</div></div>
-          </div>
-          <div class="home-card" onclick="showPrompts()">
-            <div class="home-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                <path d="M8 10h8M8 14h5" />
-              </svg></div>
-            <div class="home-card-body"><div class="home-card-name">Prompts</div><div class="home-card-desc">Browse & generate AI prompts</div></div>
-          </div>
-         
-        </div>
-      </div>
-
-      <!-- Browse View -->
-      <div class="browse-view" id="browse-view">
-        <div class="section-header">
-          <h2 id="section-title">All Videos</h2><span id="result-count"></span>
-          <div class="section-controls">
-            <button class="sort-btn on" data-s="date" onclick="setSort('date',this)">Recent</button>
-            <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
-            <button class="sort-btn" data-s="size" onclick="setSort('size',this)">Size</button>
-            <button class="sort-btn" data-s="duration" onclick="setSort('duration',this)">Length</button>
-            <button class="sort-btn" id="favFilterBtn" onclick="toggleStarredFilter()">Starred Only</button>
-            <button class="sort-btn" id="shBtn" onclick="toggleShuf()"><svg width="11" height="11" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px">
-                <path d="M16 3h5v5" />
-                <path d="M4 20 21 3" />
-                <path d="M21 16v5h-5" />
-                <path d="M15 15l5.1 5.1" />
-                <path d="M4 4l5 5" />
-              </svg>Shuffle</button>
-            <span class="sg-sep"></span>
-            <button class="sort-btn src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
-            <button class="sort-btn src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
-            <button class="sort-btn src-btn" data-src="remote" onclick="setSrcFilter('remote')">Remote</button>
-            <span class="sg-sep" id="clearRecentSep" style="display:none"></span>
-            <button class="sort-btn" id="clearRecentBtn" style="display:none" onclick="clearRecent()">Clear
-              History</button>
-            <span class="sg-sep"></span>
-            <div style="display:flex;align-items:center;gap:5px" class="card-size-control" title="Card size">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-              <input type="range" id="card-size-slider" class="card-size-slider" min="140" max="500" step="10" value="270"
-                oninput="setCardSize(this.value)"
-                style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            </div>
-            <span class="sg-sep"></span>
-            <div class="gallery-filter-wrap" style="display:flex;align-items:center">
-              <input type="text" id="gallery-filter" placeholder="Filter current view…" oninput="onGalleryFilter(this.value)" autocomplete="off" spellcheck="false" 
-                style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:4px 10px;border-radius:999px;font-size:0.75rem;width:120px;transition:all 0.2s;outline:none" 
-                onfocus="this.style.width='180px';this.style.borderColor='var(--ac)'" onblur="if(!this.value)this.style.width='120px';this.style.borderColor='var(--brd)'">
-            </div>
-          </div>
-        </div>
-        <div class="video-sel-bar" id="videoSelBar" style="display:none">
-          <span id="videoSelCount"></span>
-          <button onclick="showVideoSelMoveMenu(event)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg> Move to
-          </button>
-          <button onclick="clearVideoSelection()">Deselect all</button>
-        </div>
-        <div class="video-grid" id="video-grid"></div>
-        <div class="empty-state" id="empty-placeholder" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path
-              d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-          </svg>
-          <h3 id="empty-title">No videos found</h3>
-          <p id="empty-desc">Add video files to your videos folder</p>
-        </div>
-        <!-- Extra search result sections (photos / audio / books) -->
-        <div id="search-extra-photos" style="display:none">
-          <h3 class="search-extra-heading">Photos</h3>
-          <div id="search-extra-photos-grid" class="ph-grid"></div>
-        </div>
-        <div id="search-extra-audio" style="display:none">
-          <h3 class="search-extra-heading">Audio</h3>
-          <div id="search-extra-audio-grid" class="au-grid"></div>
-        </div>
-        <div id="search-extra-books" style="display:none">
-          <h3 class="search-extra-heading">Books</h3>
-          <div id="search-extra-books-grid" class="bk-grid"></div>
-        </div>
-      </div>
-
-      <!-- Vault View -->
-      <div class="vault-view" id="vault-view">
-        <div class="vault-auth" id="vaultAuth">
-          <div class="vault-auth-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          </div>
-          <h2 class="vault-auth-title" id="vaultAuthTitle">Vault</h2>
-          <p class="vault-auth-desc" id="vaultAuthDesc"></p>
-          <input type="password" class="vault-pw-input" id="vaultPw" placeholder="Password…" autocomplete="new-password"
-            onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
-          <input type="password" class="vault-pw-input" id="vaultPwConfirm" placeholder="Confirm password…"
-            autocomplete="new-password" style="display:none"
-            onkeydown="if(event.key==='Enter')document.getElementById('vaultAuthBtn').click()">
-          <div class="vault-auth-err" id="vaultErr"></div>
-          <div id="vaultCooldownBar" style="display:none;font-size:12px;color:rgba(255,255,255,.45);margin-bottom:8px;text-align:center"></div>
-          <button class="btn-primary vault-auth-btn" id="vaultAuthBtn">Unlock</button>
-        </div>
-        <div id="vaultFiles" style="display:none">
-          <div class="section-header">
-            <h2>
-                Vault</h2>
-            <div style="display:flex;gap:8px;align-items:center">
-              <label class="vault-add-label" for="vaultFileIn">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg> Add Files
-              </label>
-              <button class="vault-lock-btn" onclick="createNewVaultTextFile()" title="New Text File">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg> New File
-              </button>
-              <input type="file" id="vaultFileIn" multiple style="display:none"
-                onchange="handleGlobalFiles(this.files)">
-
-              <button class="vault-lock-btn" onclick="newVaultFolder()">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                  <line x1="12" y1="11" x2="12" y2="17" />
-                  <line x1="9" y1="14" x2="15" y2="14" />
-                </svg> New Folder
-              </button>
-
-              <button class="vault-lock-btn" onclick="startVaultDynamicMosaic()" title="Dynamic Mosaic">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="14" width="7" height="7"></rect>
-                  <rect x="3" y="14" width="7" height="7"></rect>
-                </svg> Mosaic
-              </button>
-
-              <button class="vault-lock-btn" onclick="shuffleVault()" title="Shuffle Vault">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="16 3 21 3 21 8" />
-                  <line x1="4" y1="20" x2="21" y2="3" />
-                  <polyline points="21 16 21 21 16 21" />
-                  <line x1="15" y1="15" x2="21" y2="21" />
-                  <line x1="4" y1="4" x2="9" y2="9" />
-                </svg> Shuffle
-              </button>
-
-              <button class="vault-lock-btn" id="vaultSelBtn" onclick="toggleVaultSelMode()">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="7" height="7" rx="1" />
-                  <rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" />
-                  <rect x="14" y="14" width="7" height="7" rx="1" />
-                </svg> Select
-              </button>
-
-              <button class="vault-lock-btn" onclick="deleteVaultDuplicates()" title="Remove duplicate files">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  <line x1="17" y1="14" x2="17" y2="18" />
-                  <line x1="15" y1="16" x2="19" y2="16" />
-                </svg> Dedup
-              </button>
-
-              <button class="vault-lock-btn" onclick="openVaultScrapeModal()" title="Auto-scrape each file online">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  <path d="M11 8v6M8 11h6" stroke-width="2"/>
-                </svg> Scrape
-              </button>
-
-              <button class="vault-lock-btn" onclick="importFromVaultDropDir()" title="Import files from the process folder">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg> Import
-              </button>
-
-              <button class="vault-lock-btn" onclick="lockVault()">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg> Lock
-              </button>
-
-              <button class="vault-lock-btn" onclick="openVaultSettings()" title="Vault Settings">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                </svg> Settings
-              </button>
-            </div>
-          </div>
-
-          <div class="vault-breadcrumb" id="vaultBreadcrumb" style="display:none"></div>
-          <div class="vault-search-bar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input type="text" id="vaultSearchInput" placeholder="Search vault…" autocomplete="off"
-              oninput="searchVault(this.value)">
-            <button class="vault-search-clear" id="vaultSearchClear"
-              onclick="searchVault('');this.previousElementSibling.value=''" style="display:none"><svg width="12"
-                height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg></button>
-          </div>
-            <div id="vault-auto-folders-row" class="vault-folders-row" style="display:none"></div>
-            <div id="vault-folders-row" class="vault-folders-row"></div>
-
-          <div class="section-controls" id="vault-controls">
-            <button class="sort-btn vault-sort-btn on" data-vs="mtime" data-label="Recent" onclick="handleVaultSort('mtime')">Recent ↓</button>
-            <button class="sort-btn vault-sort-btn" data-vs="name" data-label="Name" onclick="handleVaultSort('name')">Name</button>
-            <button class="sort-btn vault-sort-btn" data-vs="size" data-label="Size" onclick="handleVaultSort('size')">Size</button>
-            <button class="sort-btn" id="vaultShufBtn" onclick="toggleVaultShuf()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:3px;vertical-align:-1px"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l5.1 5.1"/><path d="M4 4l5 5"/></svg>Shuffle</button>
-            <span class="sg-sep"></span>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            <input type="range" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            <span class="sg-sep"></span>
-            <button id="vault-toggle-thumbs" class="sort-btn p-btn" title="Cycle Thumbnail Modes" onclick="toggleVaultThumbs()">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:3px">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>Thumbs
-            </button>
-          </div>
-          <div class="vault-progress" id="vaultProgress" style="display:none"></div>
-          <div class="vault-sel-bar" id="vaultSelBar" style="display:none">
-            <span id="vaultSelCount"></span>
-
-            <button onclick="downloadVaultSelected()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>Download</button>
-            <button onclick="openVaultZipModal()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
-                <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>
-              </svg>ZIP</button>
-            <button onclick="showVaultSelMoveMenu(event)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>Move to</button>
-            <button onclick="deleteVaultSelected()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6l-1 14H6L5 6" />
-              </svg>Delete</button>
-            <button onclick="clearVaultSelection()">Deselect all</button>
-          </div>
-          <div class="video-grid" id="vaultGrid"></div>
-          <div class="empty-state" id="vaultEmpty" style="display:none"><svg viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            <h3>Vault is empty</h3>
-            <p>Add video files using the button above</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Vault Photo Lightbox -->
-      <div class="vault-photo-overlay" id="vaultPhotoOverlay" onclick="if(event.target===this)closeVaultPhoto()">
-        <button class="vault-photo-close" onclick="closeVaultPhoto()"><svg width="20" height="20" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg></button>
-        <button class="vault-photo-nav vault-photo-prev" id="vaultPhotoPrev" onclick="prevVaultPhoto(true)"><svg
-            width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="15 18 9 12 15 6" />
-          </svg></button>
 
 
-        <img id="vaultPhotoImg"   loading="lazy"
-  decoding="async"
-  fetchpriority="low" src="" alt="">
-        <button class="vault-photo-nav vault-photo-next" id="vaultPhotoNext" onclick="nextVaultPhoto(true)"><svg
-            width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="9 18 15 12 9 6" />
-          </svg></button>
-        <div class="vault-photo-bar">
-          <div class="vault-photo-name" id="vaultPhotoName"></div>
-          <div class="vault-slideshow-controls">
-          <button class="vault-photo-nav vault-photo-fav" id="vaultPhotoFav" onclick="toggleVaultPhotoFav()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          </button>
-          <button class="vault-photo-nav vault-photo-del" id="vaultPhotoDel" onclick="deleteVaultFileFromPlayer(true)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-          </button>
-            <button class="vault-ss-btn" id="vaultSsBtn" onclick="toggleVaultSlideshow()" title="Slideshow">
-              <svg class="ss-icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5,3 19,12 5,21" />
-              </svg>
-              <svg class="ss-icon-pause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
-                style="display:none">
-                <rect x="6" y="4" width="4" height="16" />
-                <rect x="14" y="4" width="4" height="16" />
-              </svg>
-            </button>
-            <input class="vault-ss-interval" id="vaultSsInterval" type="number" min="1" max="60" value="4"
-              title="Seconds per photo" onclick="event.stopPropagation()" onchange="setVaultSsInterval(this.value)">
-            <span class="vault-ss-unit">s</span>
-            <button class="vault-ss-btn" id="vaultMetaBtn" onclick="showVaultPhotoMeta()" title="View metadata">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            </button>
-            <button class="vault-ss-btn" onclick="downloadCurrentVaultPhoto()" title="Download">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-            <button class="vault-ss-btn" onclick="describeCurrentVaultPhoto()" title="Describe with AI">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
-        </div>
-        <div id="vaultPhotoDescPanel" style="display:none;padding:8px 14px;background:rgba(0,0,0,.75);font-size:0.8rem;color:#eee;max-width:640px;border-radius:6px;margin:4px auto 0;line-height:1.5;text-align:center;cursor:pointer" onclick="this.style.display='none'"></div>
-        <div class="vault-ss-progress" id="vaultSsProgress">
-          <div class="vault-ss-progress-bar" id="vaultSsProgressBar"></div>
-        </div>
-        <div class="vault-zoom-badge" id="vaultZoomBadge"></div>
-        <!-- Metadata panel -->
-        <div class="vault-meta-panel" id="vaultMetaPanel">
-          <div class="vault-meta-hdr">
-            <span class="vault-meta-title">Image Metadata</span>
-            <button class="vault-meta-close" onclick="closeVaultPhotoMeta()">&#x2715;</button>
-          </div>
-          <div class="vault-meta-body" id="vaultMetaBody"></div>
-        </div>
-      </div>
-
-      <!-- Tag Detail View -->
-      <div class="tag-detail-view" id="tag-detail-view">
-        <button class="back-btn" onclick="closeTag()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m15 18-6-6 6-6" />
-          </svg>Tags
-        </button>
-        <div class="section-header">
-          <h2 id="tag-name"></h2>
-          <div class="section-controls">
-            <button class="sort-btn on" data-s="date" onclick="setSort('date',this)">Recent</button>
-            <button class="sort-btn" data-s="name" onclick="setSort('name',this)">Name</button>
-            <button class="sort-btn" data-s="size" onclick="setSort('size',this)">Size</button>
-            <button class="sort-btn" data-s="duration" onclick="setSort('duration',this)">Length</button>
-            <button class="sort-btn" id="favFilterBtnTag" onclick="toggleStarredFilter()">Starred Only</button>
-            <button class="sort-btn" id="shBtnTag" onclick="toggleShuf()"><svg width="11" height="11"
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                style="margin-right:3px;vertical-align:-1px">
-                <path d="M16 3h5v5" />
-                <path d="M4 20 21 3" />
-                <path d="M21 16v5h-5" />
-                <path d="M15 15l5.1 5.1" />
-                <path d="M4 4l5 5" />
-              </svg>Shuffle</button>
-            <span class="sg-sep"></span>
-            <button class="sort-btn src-btn on" data-src="both" onclick="setSrcFilter('both')">Both</button>
-            <button class="sort-btn src-btn" data-src="local" onclick="setSrcFilter('local')">Local</button>
-            <button class="sort-btn src-btn" data-src="remote" onclick="setSrcFilter('remote')">Remote</button>
-            <span class="sg-sep"></span>
-            <div class="gallery-filter-wrap" style="display:flex;align-items:center">
-              <input type="text" id="gallery-filter-tag" placeholder="Filter current view…" oninput="onGalleryFilter(this.value)" autocomplete="off" spellcheck="false" 
-                style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:4px 10px;border-radius:999px;font-size:0.75rem;width:120px;transition:all 0.2s;outline:none" 
-                onfocus="this.style.width='180px';this.style.borderColor='var(--ac)'" onblur="if(!this.value)this.style.width='120px';this.style.borderColor='var(--brd)'">
-            </div>
-          </div>
-        </div>
-        <div class="video-grid" id="tag-grid"></div>
-      </div>
-
-      <!-- Categories View -->
-      <div class="categories-view" id="categories-view">
-        <div class="section-header">
-          <h2>
-             Categories &amp; Tags</h2>
-        </div>
-        <div class="cv-toolbar">
-          <span class="au-toolbar-label">Sort:</span>
-          <button class="cv-sort-btn on" data-s="name" onclick="setCvSort('name')">Name</button>
-          <div class="vault-sort-bar">
-            <button class="vault-sort-btn on" data-sort="date-desc" onclick="setVaultSort('date-desc')">Date ↓</button>
-            <button class="vault-sort-btn" data-sort="date-asc" onclick="setVaultSort('date-asc')">Date ↑</button>
-
-            <button class="vault-sort-btn" data-sort="name" onclick="setVaultSort('name')">Name</button>
-            <button class="vault-sort-btn" data-sort="size-desc" onclick="setVaultSort('size-desc')">Size ↓</button>
-            <button class="vault-sort-btn" data-sort="size-asc" onclick="setVaultSort('size-asc')">Size ↑</button>
-
-          </div>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path
-              d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
-            </path>
-            <line x1="1" y1="1" x2="23" y2="23"></line>
-          </svg>
-          </button>
-          <button class="cv-sort-btn" data-s="count-desc" onclick="setCvSort('count-desc')">Most Videos</button>
-          <button class="cv-sort-btn" data-s="count-asc" onclick="setCvSort('count-asc')">Fewest Videos</button>
-        </div>
-        <div class="cv-grid" id="cvGrid"></div>
-        <div class="empty-state" id="cvEmpty" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
-          <h3>No categories yet</h3>
-          <p>Add videos to subfolders or tag them to create categories</p>
-        </div>
-      </div>
-
-      <!-- Studios List View -->
-      <div class="studios-view" id="studios-view">
-        <div class="section-header">
-          <h2>Studios</h2>
-        </div>
-        <div class="actor-search-bar">
-          <input type="text" id="studio-search-input" placeholder="Filter studios…" autocomplete="off"
-            spellcheck="false" oninput="filterStudios(this.value)">
-        </div>
-        <div id="studioGrid"></div>
-      </div>
-
-      <!-- Studio Detail View -->
-      <div class="studio-detail-view" id="studio-detail-view">
-        <button class="back-btn" onclick="backStudios()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m15 18-6-6 6-6" />
-          </svg>Studios
-        </button>
-        <div class="section-header">
-          <h2 id="studio-detail-name"></h2>
-          <div class="section-controls">
-            <button class="sort-btn" id="favFilterBtnStudio" onclick="toggleStarredFilter()">Starred Only</button>
-          </div>
-        </div>
-        <div class="video-grid" id="studio-detail-grid"></div>
-      </div>
-
-      <!-- Actors List View -->
-      <div class="actors-view" id="actors-view">
-        <div class="section-header">
-          <h2>Actors</h2>
-        </div>
-        <div class="actor-search-bar">
-          <input type="text" id="actor-search-input" placeholder="Filter actors…" autocomplete="off" spellcheck="false"
-            oninput="filterActors(this.value)">
-        </div>
-        <div id="actorGrid"></div>
-      </div>
-
-      <!-- Actor Detail View -->
-      <div class="actor-detail-view" id="actor-detail-view">
-        <button class="back-btn" onclick="backActors()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m15 18-6-6 6-6" />
-          </svg>Actors
-        </button>
-        <div class="section-header">
-          <h2 id="actor-detail-name"></h2>
-          <div class="section-controls">
-            <button class="sort-btn" id="favFilterBtnActor" onclick="toggleStarredFilter()">Starred Only</button>
-          </div>
-        </div>
-        <div class="video-grid" id="actor-detail-grid"></div>
-      </div>
 
 
-      <!-- Books View -->
-      <div class="books-view" id="books-view">
-        <div class="section-header">
-          <h2>Books</h2>
-        </div>
-        <div class="prompts-search-bar">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" placeholder="Filter books…" autocomplete="off" spellcheck="false" oninput="setBooksQuery(this.value)">
-        </div>
-        <div class="section-header">
-          <div class="section-controls">
-            <button class="sort-btn on" data-s="date" onclick="setBookSort('date')">Date</button>
-            <button class="sort-btn" data-s="name" onclick="setBookSort('name')">Name</button>
-            <button class="sort-btn" data-s="size" onclick="setBookSort('size')">Size</button>
-            <span class="sg-sep"></span>
-            <div style="display:flex;align-items:center;gap:5px" class="card-size-control" title="Card size">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-              <input type="range" class="card-size-slider" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            </div>
-          </div>
-        </div>
 
-        <div id="booksGrid" class="bk-grid"></div>
-        <div class="empty-state" id="booksEmpty" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-          </svg>
-          <h3>No books yet</h3>
-          <p>Add book files to the <code>books/</code> folder</p>
-        </div>
-      </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
 
       <!-- Chapters View -->
       <div class="chapters-view" id="chapters-view">
@@ -950,86 +52,30 @@
           <h2>Video Chapters</h2>
         </div>
         <div class="actor-search-bar">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="chapters-search-input" placeholder="Filter chapters or videos…" autocomplete="off" spellcheck="false" oninput="filterChapters(this.value)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="flex-shrink:0;color:var(--tx2)">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input type="text" id="chapters-search-input" placeholder="Filter chapters or videos…" autocomplete="off"
+            spellcheck="false" oninput="filterChapters(this.value)">
         </div>
         <div id="chaptersGrid" style="display:flex; flex-direction:column; gap:20px; padding:20px"></div>
         <div class="empty-state" id="chaptersEmpty" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" />
+            <line x1="3" y1="12" x2="3.01" y2="12" />
+            <line x1="3" y1="18" x2="3.01" y2="18" />
           </svg>
           <h3>No chapters found</h3>
           <p>Add chapters to your videos to see them listed here.</p>
         </div>
       </div>
 
-      <!-- Audio View -->
-      <div class="audio-view" id="audio-view">
-        <div class="section-header">
-          <h2>Audio</h2>
-          <div class="section-controls">
-            <button class="sort-btn on" data-s="date" onclick="setAudioSort('date')">Date</button>
-            <button class="sort-btn" data-s="name" onclick="setAudioSort('name')">Name</button>
-            <button class="sort-btn" data-s="size" onclick="setAudioSort('size')">Size</button>
-            <span class="sg-sep"></span>
-            <div style="display:flex;align-items:center;gap:5px" class="card-size-control" title="Card size">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-              <input type="range" class="card-size-slider" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            </div>
-            <span class="sg-sep"></span>
-            <button class="sort-btn on" data-v="card" onclick="setAudioView('card')" title="Card view">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-            </button>
-            <button class="sort-btn" data-v="list" onclick="setAudioView('list')" title="List view">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="8" y1="6" x2="21" y2="6" />
-                <line x1="8" y1="12" x2="21" y2="12" />
-                <line x1="8" y1="18" x2="21" y2="18" />
-                <line x1="3" y1="6" x2="3.01" y2="6" />
-                <line x1="3" y1="12" x2="3.01" y2="12" />
-                <line x1="3" y1="18" x2="3.01" y2="18" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="prompts-search-bar">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" placeholder="Filter audio…" autocomplete="off" spellcheck="false" oninput="setAudioQuery(this.value)">
-        </div>
-        <div id="audioGrid" class="au-grid"></div>
-        <div class="empty-state" id="audioEmpty" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M9 18V5l12-2v13" />
-            <circle cx="6" cy="18" r="3" />
-            <circle cx="18" cy="16" r="3" />
-          </svg>
-          <h3>No audio files yet</h3>
-          <p>Add audio files to the <code>audio/</code> folder</p>
-        </div>
-        <!-- Mini Player -->
-        <div class="au-player" id="audioPlayer" style="display:none">
-          <div class="au-player-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2">
-              <path d="M9 18V5l12-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
-            </svg></div>
-          <span class="au-player-title" id="audioPlayerTitle"></span>
-          <audio id="audioEl" controls></audio>
-          <button class="au-player-close" onclick="closeAudioPlayer()" title="Close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-      </div>
+
 
       <!-- Photos View -->
       <div class="photos-view" id="photos-view">
@@ -1041,19 +87,41 @@
             <button class="sort-btn" data-s="size" onclick="setPhotosSort('size')">Size</button>
             <span class="sg-sep"></span>
             <div style="display:flex;align-items:center;gap:5px" class="card-size-control" title="Card size">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-              <input type="range" class="card-size-slider" min="140" max="500" step="10" value="270" oninput="setCardSize(this.value)" style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
+              <input type="range" class="card-size-slider" min="140" max="500" step="10" value="270"
+                oninput="setCardSize(this.value)"
+                style="width:72px;cursor:pointer;accent-color:var(--ac);vertical-align:middle">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+              </svg>
             </div>
             <span class="sg-sep"></span>
             <button class="sort-btn" onclick="startPhotoMosaic()" title="Photo Mosaic">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
             </button>
           </div>
         </div>
         <div class="prompts-search-bar">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" placeholder="Filter photos…" autocomplete="off" spellcheck="false" oninput="setPhotosQuery(this.value)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="flex-shrink:0;color:var(--tx2)">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input type="text" placeholder="Filter photos…" autocomplete="off" spellcheck="false"
+            oninput="setPhotosQuery(this.value)">
         </div>
         <div id="photosGrid" class="ph-grid"></div>
         <div class="empty-state" id="photosEmpty" style="display:none">
@@ -1067,29 +135,7 @@
         </div>
       </div>
 
-      <!-- Pages View -->
-      <div class="pages-view" id="pages-view">
-        <div class="section-header">
-          <h2>Pages</h2>
-          <label class="btn-primary" style="cursor:pointer" title="Upload HTML files">
-            + Add
-            <input type="file" accept=".html,.htm,.xhtml,.mhtml" multiple style="display:none" onchange="pagesUpload(this)">
-          </label>
-        </div>
-        <div class="prompts-search-bar">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" placeholder="Filter pages…" autocomplete="off" spellcheck="false" oninput="setPagesQuery(this.value)">
-        </div>
-        <div id="pagesGrid" class="pages-grid"></div>
-        <div class="empty-state" id="pagesEmpty" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-          </svg>
-          <h3>No pages yet</h3>
-          <p>Upload HTML files or drop them in the <code>pages/</code> folder</p>
-        </div>
-      </div>
+
 
       <!-- Photos Lightbox -->
       <div class="ph-lightbox" id="photosLightbox" onclick="closePhotoLightbox()">
@@ -1107,15 +153,27 @@
         <div class="ph-lb-caption" id="photosLbCaption"></div>
         <div class="ph-lb-actions">
           <button class="ph-lb-action-btn" onclick="event.stopPropagation();downloadPhotoLightbox()" title="Download">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
           </button>
-          <button class="ph-lb-action-btn" onclick="event.stopPropagation();describePhotoLightbox()" title="Describe with AI">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <button class="ph-lb-action-btn" onclick="event.stopPropagation();describePhotoLightbox()"
+            title="Describe with AI">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
           </button>
-          <button id="photosLbSlideBtn" class="ph-lb-action-btn" onclick="event.stopPropagation();togglePhotoSlideshow()" title="Start slideshow">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <button id="photosLbSlideBtn" class="ph-lb-action-btn"
+            onclick="event.stopPropagation();togglePhotoSlideshow()" title="Start slideshow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
           </button>
-          <select onclick="event.stopPropagation()" onchange="setPhotoSlideSecs(this.value)" title="Slideshow interval" style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx2);font-size:0.75rem;border-radius:4px;padding:2px 4px;cursor:pointer">
+          <select onclick="event.stopPropagation()" onchange="setPhotoSlideSecs(this.value)" title="Slideshow interval"
+            style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx2);font-size:0.75rem;border-radius:4px;padding:2px 4px;cursor:pointer">
             <option value="2">2s</option>
             <option value="3" selected>3s</option>
             <option value="5">5s</option>
@@ -1123,7 +181,9 @@
             <option value="20">20s</option>
           </select>
         </div>
-        <div id="photosLbDesc" style="display:none;padding:8px 14px;background:rgba(0,0,0,.8);font-size:0.8rem;color:#eee;max-width:640px;border-radius:6px;margin-top:6px;line-height:1.5;text-align:center;cursor:pointer" onclick="event.stopPropagation();this.style.display='none'"></div>
+        <div id="photosLbDesc"
+          style="display:none;padding:8px 14px;background:rgba(0,0,0,.8);font-size:0.8rem;color:#eee;max-width:640px;border-radius:6px;margin-top:6px;line-height:1.5;text-align:center;cursor:pointer"
+          onclick="event.stopPropagation();this.style.display='none'"></div>
         <button class="ph-lb-close" onclick="closePhotoLightbox()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18" />
@@ -1132,159 +192,22 @@
         </button>
       </div>
 
-      <!-- Prompts View -->
-      <div class="prompts-view" id="prompts-view">
-        <div class="section-header">
-          <h2>AI Prompts</h2>
-          <div class="section-controls">
-            <button id="vault-prompts-back-btn" class="sort-btn" style="display:none" onclick="closeVaultPrompts()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;vertical-align:-1px"><polyline points="15 18 9 12 15 6"/></svg>Back to Vault
-            </button>
-            <button class="sort-btn" onclick="copyAllPrompts()" title="Copy all prompts to clipboard">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="11" height="11" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              Copy all
-            </button>
-            <button class="sort-btn" onclick="openAddPrompt()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                style="margin-right:4px;vertical-align:-1px">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>New Prompt
-            </button>
-            <button class="sort-btn" onclick="openMassImport()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                style="margin-right:4px;vertical-align:-1px">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>Mass Import
-            </button>
-            <button class="sort-btn" id="valorize-btn" onclick="openValorizeModal()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                style="margin-right:4px;vertical-align:-1px">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                <path d="m15 5 3 3" />
-              </svg>Valorize Template
-            </button>
-            <button id="deleteAllPromptsBtn" onclick="confirmDeleteAllPrompts()" class="sort-btn">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-              Delete All
-            </button>
-          </div>
-        </div>
-        <div class="prompts-search-bar">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--tx2)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="prompts-search" placeholder="Filter prompts…" autocomplete="off" spellcheck="false" oninput="onPromptsSearch(this.value)">
-          <span id="prompts-search-count" style="font-size:0.78rem;color:var(--tx2);white-space:nowrap"></span>
-        </div>
-        <div id="prompts-table-wrap">
-          <table id="prompts-table">
-            <thead>
-              <tr>
-                <th style="width:140px">Name</th>
-                <th>Prompt</th>
-                <th style="width:100px">Date</th>
-              </tr>
-            </thead>
-            <tbody id="prompts-tbody"></tbody>
-          </table>
-          <div class="empty-state" id="prompts-empty" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            <h3>No prompts yet</h3>
-            <p>Click <strong>New Prompt</strong> to add your first AI prompt.</p>
-          </div>
-        </div>
-      </div>
 
-      <!-- Search Sites View -->
-      <div class="search-sites-view" id="search-sites-view">
-        <div class="section-header">
-          <h2>Search</h2>
-        </div>
-        <div class="ss-tabs">
-          <button class="ss-tab" id="ss-tab-cards" onclick="ssSwitchTab('cards')">Cards</button>
-          <button class="ss-tab on" id="ss-tab-sites" onclick="ssSwitchTab('sites')">Sites</button>
-          <button class="ss-tab" id="ss-tab-history" onclick="ssSwitchTab('history')">Latest Search</button>
-        </div>
-        <div class="search-sites-bar">
-          <input type="text" id="search-sites-input" placeholder="Search keyword…" autocomplete="off" spellcheck="false"
-            oninput="ssOnInput()" onkeydown="if(event.key==='Enter')ssEnter()">
-          <button class="ss-search-btn" id="ss-search-btn" onclick="ssDoSearch()" style="display:none">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </button>
-        </div>
 
-        <!-- Cards tab -->
-        <div id="ss-cards-pane" style="display:none">
-          <div id="ss-site-pills" class="ss-site-pills"></div>
-          <div id="ss-cards-grid" class="ss-cards-grid"></div>
-          <div id="ss-cards-empty" class="empty-state" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <h3>No results</h3>
-            <p>Try a different keyword or site.</p>
-          </div>
-          <div id="ss-cards-no-scrapers" class="empty-state" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <h3>No starred scrapable sites</h3>
-            <p>Star a site with a scrapeMethod in the Sites tab to enable card search.</p>
-          </div>
-        </div>
 
-        <!-- Sites tab -->
-        <div id="ss-sites-pane">
-          <div id="search-sites-list" class="search-sites-list"></div>
-          <div id="search-sites-empty" class="empty-state" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <h3>No searchable sites</h3>
-            <p>Add a searchURL to sites in Settings to enable search.</p>
-          </div>
-        </div>
-
-        <!-- Latest Search tab -->
-        <div id="ss-history-pane" style="display:none"></div>
-      </div>
-
-      <!-- Books Reader -->
-      <div class="booksReader" id="booksReader">
-        <div class="bk-reader-bar">
-          <button class="back-btn" onclick="closeBookReader()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m15 18-6-6 6-6" />
-            </svg>Library
-          </button>
-          <span id="booksReaderTitle"></span>
-        </div>
-        <div class="bk-reader-content" id="booksReaderBody"></div>
-      </div>
 
       <!-- Bookmarks View -->
       <div class="import-favs-view" id="import-favs-view">
         <div class="section-header">
           <h2>Bookmarks</h2>
         </div>
-        <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:18px">Import bookmarks from Chrome or Firefox
-          filtered by your <span style="color:var(--ac);cursor:pointer"
-            onclick="showDatabase();dbSwitchTab('websites')">websites list</span>.</p>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+          <p style="font-size:0.82rem;color:var(--tx2);margin:0">Import bookmarks from Chrome or Firefox filtered by your <span style="color:var(--ac);cursor:pointer" onclick="showDatabase();dbSwitchTab('websites')">websites list</span>.</p>
+          <button class="sort-btn" id="bfGenAllBtn" onclick="bfGenerateAllThumbs()" style="margin-left:auto">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:-1px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Generate All Thumbnails
+          </button>
+        </div>
+        <div id="bfGenProgress" class="vault-progress" style="display:none;margin-bottom:15px"></div>
 
         <div class="bf-import-grid">
           <!-- Chrome -->
@@ -1573,8 +496,10 @@
               </select>
             </div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-              <input type="checkbox" id="disableSearchTrackingToggle" onchange="saveDisableSearchTracking(this.checked)" style="cursor:pointer">
-              <label for="disableSearchTrackingToggle" style="font-size:0.82rem;color:var(--tx2);cursor:pointer">Disable search tracking (Latest Search tab)</label>
+              <input type="checkbox" id="disableSearchTrackingToggle" onchange="saveDisableSearchTracking(this.checked)"
+                style="cursor:pointer">
+              <label for="disableSearchTrackingToggle" style="font-size:0.82rem;color:var(--tx2);cursor:pointer">Disable
+                search tracking (Latest Search tab)</label>
             </div>
           </div>
         </div>
@@ -1583,17 +508,22 @@
             <div class="settings-panel-header">
               <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   style="vertical-align:-2px;margin-right:5px;color:var(--ac)">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
                 </svg>Thumbnails</span>
             </div>
-            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Pre-generate thumbnails for every video in your library. Thumbnails also generate automatically as you browse.</p>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Pre-generate thumbnails for every video in
+              your library. Thumbnails also generate automatically as you browse.</p>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
               <button class="btn-primary" id="genThumbsBtn" onclick="startGenThumbs()">Generate All</button>
               <span id="genThumbsStatus" style="font-size:0.8rem;color:var(--tx2)"></span>
             </div>
             <div id="genThumbsProgress" style="display:none;margin-top:10px">
-              <div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--brd)">
-                <div id="genThumbsBar" style="height:100%;background:var(--ac);width:0%;transition:width 0.4s ease"></div>
+              <div
+                style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--brd)">
+                <div id="genThumbsBar" style="height:100%;background:var(--ac);width:0%;transition:width 0.4s ease">
+                </div>
               </div>
             </div>
           </div>
@@ -1608,15 +538,19 @@
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                 </svg>Duplicate Finder</span>
             </div>
-            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Scan your library for duplicate videos based on name, size, and visual thumbnail similarity. Visual scan requires thumbnails to be generated.</p>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Scan your library for duplicate videos based
+              on name, size, and visual thumbnail similarity. Visual scan requires thumbnails to be generated.</p>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
               <button class="btn-primary" id="dupScanBtn" onclick="startDuplicateScan()">Deep Visual Scan</button>
-              <button class="btn-primary" id="dupStopBtn" onclick="stopDuplicateScan()" style="display:none;background:#e84040;border:none">Stop</button>
-              <button class="btn-primary" onclick="showDups()" style="background:var(--bg3);color:var(--tx);border-color:var(--brd)">Quick Size Scan</button>
+              <button class="btn-primary" id="dupStopBtn" onclick="stopDuplicateScan()"
+                style="display:none;background:#e84040;border:none">Stop</button>
+              <button class="btn-primary" onclick="showDups()"
+                style="background:var(--bg3);color:var(--tx);border-color:var(--brd)">Quick Size Scan</button>
               <span id="dupScanStatus" style="font-size:0.8rem;color:var(--tx2)"></span>
             </div>
             <div id="dupScanProgress" style="display:none;margin-top:10px">
-              <div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--brd)">
+              <div
+                style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--brd)">
                 <div id="dupScanBar" style="height:100%;background:var(--ac);width:0%;transition:width 0.4s ease"></div>
               </div>
             </div>
@@ -1627,28 +561,60 @@
             <div class="settings-panel-header">
               <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   style="vertical-align:-2px;margin-right:5px;color:var(--ac)">
-                  <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
                 </svg>AI Comments (node-llama-cpp)</span>
             </div>
-            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 8px">Generates realistic comments for videos using a local LLM. Requires <code>./models/llama-3.2-1b-instruct.gguf</code></p>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 8px">Generates realistic comments for videos using a
+              local LLM. Requires <code>./models/llama-3.2-1b-instruct.gguf</code></p>
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.82rem;color:var(--tx2)">
-              <input type="checkbox" id="aiCommentsToggle" onchange="saveAiCommentsPref(this.checked)" style="width:15px;height:15px;cursor:pointer">
+              <input type="checkbox" id="aiCommentsToggle" onchange="saveAiCommentsPref(this.checked)"
+                style="width:15px;height:15px;cursor:pointer">
               Enable AI comments
             </label>
-            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
-              <button onclick="clearAllAiComments()" style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx2);padding:5px 12px;border-radius:var(--r);font-size:0.78rem;cursor:pointer;transition:all var(--tr)" onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ac)'" onmouseout="this.style.borderColor='var(--brd)';this.style.color='var(--tx2)'">
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)">
+              <label style="display:block;font-size:0.82rem;color:var(--tx2);margin-bottom:6px">Preset Personality:</label>
+              <select id="aiCommentPresetSelect" onchange="applyAiCommentPreset(this.value)"
+                style="width:100%;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 8px;border-radius:var(--r);font-size:0.82rem;outline:none;margin-bottom:12px">
+                <option value="">-- Custom --</option>
+                <option value="casual">Casual — Realistic, everyday comments</option>
+                <option value="hype">Hype — Excited, emojis and praise</option>
+                <option value="sarcastic">Sarcastic — Witty and cynical</option>
+                <option value="intellectual">Intellectual — Deep analysis</option>
+                <option value="toxic">Troll — Classic internet hater</option>
+              </select>
+              
+              <label style="display:block;font-size:0.82rem;color:var(--tx2);margin-bottom:6px">Main Comments Master Prompt:</label>
+              <textarea id="aiCommentMasterPrompt" placeholder="Master prompt for comments..."
+                style="width:100%;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:8px;border-radius:var(--r);font-size:0.8rem;min-height:80px;font-family:monospace;resize:vertical;outline:none;margin-bottom:12px"></textarea>
+              
+              <label style="display:block;font-size:0.82rem;color:var(--tx2);margin-bottom:6px">AI Reply Master Prompt:</label>
+              <textarea id="aiReplyMasterPrompt" placeholder="Master prompt for replies..."
+                style="width:100%;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:8px;border-radius:var(--r);font-size:0.8rem;min-height:60px;font-family:monospace;resize:vertical;outline:none;margin-bottom:12px"></textarea>
+              
+              <button class="btn-primary" onclick="saveAiCommentPrompts()" style="width:100%;margin-bottom:10px">Save Prompts</button>
+              
+              <button onclick="clearAllAiComments()"
+                style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx2);padding:5px 12px;border-radius:var(--r);font-size:0.78rem;cursor:pointer;transition:all var(--tr);width:100%"
+                onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ac)'"
+                onmouseout="this.style.borderColor='var(--brd)';this.style.color='var(--tx2)'">
                 Clear all generated comments
               </button>
-              <span id="clear-comments-hint" style="font-size:0.75rem;color:var(--tx3);margin-left:8px"></span>
+              <span id="clear-comments-hint" style="font-size:0.75rem;color:var(--tx3);display:block;margin-top:5px;text-align:center"></span>
             </div>
           </div>
         </div>
         <div class="settings-hidden-panel" style="margin-top:16px">
           <div class="settings-panel">
             <div class="settings-panel-header">
-              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px;color:var(--ac)"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>AI Vision</span>
+              <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  style="vertical-align:-2px;margin-right:5px;color:var(--ac)">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>AI Vision</span>
             </div>
-            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Describe photos, thumbnails and videos using a local Ollama model or Claude (Anthropic).</p>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Describe photos, thumbnails and videos using a
+              local Ollama model or Claude (Anthropic).</p>
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
               <label style="font-size:0.82rem;color:var(--tx2);white-space:nowrap">Provider:</label>
               <select id="visionProviderSelect" onchange="saveVisionProvider(this.value)"
@@ -1682,18 +648,21 @@
             </div>
           </div>
         </div>
-<div class="settings-hidden-panel" style="margin-top:16px" id="settings-vault-panel">
+        <div class="settings-hidden-panel" style="margin-top:16px" id="settings-vault-panel">
           <div class="settings-panel">
             <div class="settings-panel-header">
               <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   style="vertical-align:-2px;margin-right:5px;color:#e84040">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>Vault — Danger Zone</span>
             </div>
-            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Permanently destroy the vault and all encrypted files. Files are cryptographically overwritten. This cannot be undone.</p>
-            <div id="settingsVaultDelConfirmBox" style="display:none;background:#e8404011;border:1px solid #e8404044;border-radius:8px;padding:12px;margin-bottom:10px">
-              <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px">Type <strong style="color:#e84040;font-family:monospace">DELETE</strong> to confirm:</div>
+            <p style="font-size:0.78rem;color:var(--tx2);margin:0 0 10px">Permanently destroy the vault and all
+              encrypted files. Files are cryptographically overwritten. This cannot be undone.</p>
+            <div id="settingsVaultDelConfirmBox"
+              style="display:none;background:#e8404011;border:1px solid #e8404044;border-radius:8px;padding:12px;margin-bottom:10px">
+              <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px">Type <strong
+                  style="color:#e84040;font-family:monospace">DELETE</strong> to confirm:</div>
               <input type="text" id="settingsVaultDelInput" placeholder="DELETE" autocomplete="off" spellcheck="false"
                 style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:var(--tx);padding:7px 10px;border-radius:5px;font-size:13px;margin-bottom:10px"
                 oninput="document.getElementById('settingsVaultDelBtn').disabled=this.value!=='DELETE'">
@@ -1702,13 +671,15 @@
                   style="flex:1;background:#e84040;border:none;color:#fff;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700">
                   Permanently Delete Vault
                 </button>
-                <button onclick="document.getElementById('settingsVaultDelConfirmBox').style.display='none';document.getElementById('settingsVaultDelInput').value='';document.getElementById('settingsVaultDelBtn').disabled=true"
+                <button
+                  onclick="document.getElementById('settingsVaultDelConfirmBox').style.display='none';document.getElementById('settingsVaultDelInput').value='';document.getElementById('settingsVaultDelBtn').disabled=true"
                   style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--tx2);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px">
                   Cancel
                 </button>
               </div>
             </div>
-            <button onclick="document.getElementById('settingsVaultDelConfirmBox').style.display='block';document.getElementById('settingsVaultDelInput').focus()"
+            <button
+              onclick="document.getElementById('settingsVaultDelConfirmBox').style.display='block';document.getElementById('settingsVaultDelInput').focus()"
               style="background:#e8404016;border:1px solid #e84040;color:#e84040;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;width:100%">
               Delete Vault…
             </button>
@@ -1726,7 +697,8 @@
           <h2>
             </svg>Database</h2>
           <div style="display:flex;gap:8px;align-items:center">
-            <button class="back-btn" onclick="openPresetPickerManual()" title="Re-apply or change DB presets" style="font-size:0.8rem">Presets</button>
+            <button class="back-btn" onclick="openPresetPickerManual()" title="Re-apply or change DB presets"
+              style="font-size:0.8rem">Presets</button>
             <button class="btn-primary" id="dbAddBtn" onclick="dbShowAdd()">+ Add</button>
           </div>
         </div>
@@ -1741,20 +713,9 @@
         <div id="duplicates-content" style="display:none"></div>
       </div>
 
-      <!-- DB Add/Edit Modal -->
-      <div class="modal-overlay" id="dbMo" style="display:none" onclick="if(event.target===this)closeDbModal()">
-        <div class="modal-dialog" style="width:480px;max-width:95vw">
-          <div class="md-hd"><span id="dbMoTitle">Add Entry</span><button onclick="closeDbModal()"><svg width="16"
-                height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg></button></div>
-          <div id="dbMoBody" style="display:flex;flex-direction:column;gap:10px;padding:0 0 4px"></div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-            <button class="btn-primary" onclick="dbSaveModal()">Save</button>
-            <button class="back-btn" onclick="closeDbModal()">Cancel</button>
-          </div>
-        </div>
-      </div>
+
+
+
 
       <!-- Actor Scraper View -->
       <div class="scraper-view" id="scraper-view">
@@ -1772,8 +733,8 @@
         <div id="scraper-grid"></div>
       </div>
 
-      <!-- Player View -->
-      <div class="player-view" id="player-view">
+      <!-- Player View (Legacy - Hidden to avoid duplication with Preact) -->
+      <div class="player-view" id="player-view" style="display: none !important;">
         <button class="back-btn" onclick="goBack()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="m15 18-6-6 6-6" />
@@ -1889,10 +850,11 @@
                   </svg>
                   <span>Chapter</span>
                 </button>
-                <button onclick="curV && (curV.isVault ? describeVaultCard(curV.id,'vault-video') : describeVideoThumb(curV.id))">
+                <button
+                  onclick="curV && (curV.isVault ? describeVaultCard(curV.id,'vault-video') : describeVideoThumb(curV.id))">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
                   </svg>
                   <span>Describe</span>
                 </button>
@@ -1932,13 +894,17 @@
                 </button>
               </div>
             </div>
-            <div id="ai-comments-section" style="display:none;margin-bottom:20px;border-bottom:1px solid var(--brd);padding-bottom:16px">
+            <div id="ai-comments-section"
+              style="display:none;margin-bottom:20px;border-bottom:1px solid var(--brd);padding-bottom:16px">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-                <span style="font-size:13px;color:var(--tx2);text-transform:uppercase;letter-spacing:1px">Comments</span>
-                <span style="background:rgba(var(--ac-rgb,100,100,255),0.15);color:var(--ac);font-size:10px;padding:2px 7px;border-radius:10px">AI</span>
+                <span
+                  style="font-size:13px;color:var(--tx2);text-transform:uppercase;letter-spacing:1px">Comments</span>
+                <span
+                  style="background:rgba(var(--ac-rgb,100,100,255),0.15);color:var(--ac);font-size:10px;padding:2px 7px;border-radius:10px">AI</span>
               </div>
               <div id="ai-comments-list"></div>
-              <div id="ai-comment-input-row" style="display:none;margin-top:10px;border-top:1px solid var(--brd);padding-top:10px">
+              <div id="ai-comment-input-row"
+                style="display:none;margin-top:10px;border-top:1px solid var(--brd);padding-top:10px">
                 <div style="display:flex;gap:8px;align-items:center">
                   <input type="text" id="ai-comment-text" placeholder="Write a comment…"
                     style="flex:1;background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:6px 10px;border-radius:6px;font-size:13px;outline:none"
@@ -1966,13 +932,20 @@
                 <span>Subtitle Generator</span>
               </div>
               <div class="sub-gen-body" style="padding:15px;display:flex;flex-direction:column;gap:10px">
-                <p style="font-size:11px;color:var(--tx2);line-height:1.4">Uses browser speech recognition. <strong>Keep speakers on</strong> so the browser can hear the audio.</p>
+                <p style="font-size:11px;color:var(--tx2);line-height:1.4">Uses browser speech recognition. <strong>Keep
+                    speakers on</strong> so the browser can hear the audio.</p>
                 <div style="display:flex;gap:5px">
-                  <button class="btn-primary" id="sub-gen-btn" onclick="startSubtitleGen()" style="flex:1;font-size:12px;padding:6px">Generate (EN)</button>
-                  <button class="btn-primary" id="sub-save-btn" onclick="saveGeneratedSubtitles()" style="flex:1;font-size:12px;padding:6px;display:none;background:var(--bg3);color:var(--tx);border-color:var(--brd)">Save VTT</button>
+                  <button class="btn-primary" id="sub-gen-btn" onclick="startSubtitleGen()"
+                    style="flex:1;font-size:12px;padding:6px">Generate (EN)</button>
+                  <button class="btn-primary" id="sub-save-btn" onclick="saveGeneratedSubtitles()"
+                    style="flex:1;font-size:12px;padding:6px;display:none;background:var(--bg3);color:var(--tx);border-color:var(--brd)">Save
+                    VTT</button>
                 </div>
-                <div id="sub-gen-status" style="font-size:11px;color:var(--ac);font-weight:700;display:none">● Listening...</div>
-                <div id="sub-transcript-preview" style="background:var(--bg);border:1px solid var(--brd);border-radius:6px;padding:8px;font-size:12px;height:140px;overflow-y:auto;font-family:var(--m);color:var(--tx2);line-height:1.4">Transcript will appear here...</div>
+                <div id="sub-gen-status" style="font-size:11px;color:var(--ac);font-weight:700;display:none">●
+                  Listening...</div>
+                <div id="sub-transcript-preview"
+                  style="background:var(--bg);border:1px solid var(--brd);border-radius:6px;padding:8px;font-size:12px;height:140px;overflow-y:auto;font-family:var(--m);color:var(--tx2);line-height:1.4">
+                  Transcript will appear here...</div>
               </div>
             </div>
             <div class="playlist-panel">
@@ -2015,6 +988,13 @@
           </button>
         </div>
       </div>
+      <!-- Thumbnails View -->
+      <div class="thumbnails-view" id="thumbnails-view">
+        <div class="section-header">
+          <h2>All Generated Thumbnails</h2>
+        </div>
+        <div class="video-grid" id="thumbnails-grid"></div>
+      </div>
     </div>
 
     <!-- Dual Mode Right Pane -->
@@ -2043,69 +1023,9 @@
     </div>
   </div>
 
-  <!-- Prompt Modal -->
-  <div class="prompt-modal" id="prompt-modal" onclick="if(event.target===this)closePromptModal()">
-    <div class="prompt-modal-box">
-      <h3 id="prompt-modal-title">New Prompt</h3>
-      <textarea id="prompt-text-input" placeholder="Enter your AI prompt here…" rows="6"></textarea>
-      <div class="prompt-sites-label">Send to:</div>
-      <div class="prompt-sites-grid" id="prompt-sites-grid"></div>
-      <div class="prompt-modal-actions">
-        <button class="collection-cancel" onclick="closePromptModal()">Cancel</button>
-        <button class="btn-primary" onclick="savePrompt()">Save</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Mass Import Prompts Modal -->
-  <div class="prompt-modal" id="mass-import-modal" onclick="if(event.target===this)closeMassImport()">
-    <div class="prompt-modal-box prompt-modal-box--wide">
-      <h3>Mass Import Prompts</h3>
-      <p class="mass-import-hint">Paste prompts below — one per line. Each line becomes a separate prompt.</p>
-      <textarea id="mass-import-textarea" placeholder="Prompt one&#10;Prompt two&#10;Prompt three&#10;…" rows="10"
-        oninput="onMassImportInput(this)"></textarea>
-      <div class="mass-import-count" id="mass-import-count"></div>
-      <div class="prompt-sites-label">Send to: <button class="pt-selall-btn"
-          onclick="massImportSelectAll()">All</button><button class="pt-selall-btn"
-          onclick="massImportSelectNone()">None</button></div>
-      <div class="prompt-sites-grid" id="mass-import-sites-grid"></div>
-      <div class="prompt-modal-actions">
-        <button class="collection-cancel" onclick="closeMassImport()">Cancel</button>
-        <button class="btn-primary" id="mass-import-save-btn" onclick="saveMassImport()">Import</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Valorize Template Modal -->
-  <div class="prompt-modal" id="valorize-modal" onclick="if(event.target===this)closeValorizeModal()">
-    <div class="prompt-modal-box prompt-modal-box--wide">
-      <h3>Valorize Template</h3>
-      <div id="valorize-modal-content"></div>
-      <div class="prompt-modal-actions">
-        <button class="collection-cancel" onclick="closeValorizeModal()">Cancel</button>
-        <button class="collection-cancel" id="valorize-clear-btn" onclick="clearValorize()"
-          style="display:none">Clear</button>
-        <button class="btn-primary" id="valorize-apply-btn" onclick="applyValorize()">Apply</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Add to Collection Modal -->
-  <div class="collection-modal" id="collection-modal" onclick="if(event.target===this)closeCvModal()">
-    <div class="collection-modal-box">
-      <h3>Add to Playlist</h3>
-      <div id="collection-modal-list"></div>
-      <div class="collection-modal-new" id="collection-modal-new">
-        <input type="text" id="collection-modal-name-input" placeholder="Playlist name…" autocomplete="off"
-          onkeydown="if(event.key==='Enter')submitCvNew()">
-      </div>
-      <div class="collection-modal-actions">
-        <button class="collection-cancel" onclick="closeCvModal()">Cancel</button>
-        <button class="btn-primary" id="collection-modal-create-btn" style="display:none" onclick="submitCvNew()">Create
-          &amp; Add</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Mosaic View -->
   <div id="mosaic-view">
@@ -2122,6 +1042,16 @@
         <input type="number" class="mos-cnt-in" id="mosaic-count" min="1" max="16" value="6"
           onchange="setMosaicCount(this.value)">
       </div>
+      <button class="mos-exit" onclick="cycleMosaicLayout()" style="margin-left:12px; margin-right:0" title="Shuffle Layout">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px">
+          <polyline points="16 3 21 3 21 8" />
+          <line x1="4" y1="20" x2="21" y2="3" />
+          <polyline points="21 16 21 21 16 21" />
+          <line x1="15" y1="15" x2="21" y2="21" />
+          <line x1="4" y1="4" x2="9" y2="9" />
+        </svg>
+      </button>
+
       <button class="mos-exit" onclick="stopMosaic()">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           style="margin-right:5px;vertical-align:-2px">
@@ -2139,7 +1069,8 @@
       <div id="actor-modal-actors" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:24px"></div>
       <input type="text" id="actor-modal-input" placeholder="Type actor name…" autocomplete="off"
         oninput="onActorModalInput(this.value)" onkeydown="onActorModalKeydown(event)">
-      <div class="p-tag-picker-list" id="actor-modal-list" style="max-height:220px;overflow-y:auto;margin-top:8px"></div>
+      <div class="p-tag-picker-list" id="actor-modal-list" style="max-height:220px;overflow-y:auto;margin-top:8px">
+      </div>
       <div class="modal-actions" style="margin-top:12px">
         <button class="btn-cancel" onclick="closeActorModal()">Done</button>
       </div>
@@ -2152,7 +1083,8 @@
       <h3>Select Studio</h3>
       <input type="text" id="studio-modal-input" placeholder="Type studio name…" autocomplete="off"
         oninput="onStudioModalInput(this.value)" onkeydown="onStudioModalKeydown(event)">
-      <div class="p-tag-picker-list" id="studio-modal-list" style="max-height:220px;overflow-y:auto;margin-top:8px"></div>
+      <div class="p-tag-picker-list" id="studio-modal-list" style="max-height:220px;overflow-y:auto;margin-top:8px">
+      </div>
       <div class="modal-actions" style="margin-top:12px">
         <button class="btn-cancel" onclick="closeStudioModal()">Cancel</button>
         <button class="btn-primary" onclick="submitStudio()">Set Studio</button>
@@ -2174,398 +1106,77 @@
     </div>
   </div>
 
-  <!-- Rename Modal -->
-  <div class="modal-overlay" id="rename-modal">
-    <div class="modal-dialog">
-      <h3>Rename video</h3>
-      <input type="text" id="rename-input" placeholder="New name..." autocomplete="off">
-      <div class="modal-error" id="rename-error"></div>
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeRen()">Cancel</button>
-        <button class="btn-primary" onclick="doRen()">Rename</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Move Modal -->
-  <div class="modal-overlay" id="move-modal">
-    <div class="modal-dialog" style="max-width:800px; width:90vw">
-      <h3>Move to category</h3>
-      <p style="font-size:0.82rem;color:var(--tx2);margin-bottom:12px" id="move-info"></p>
-      <div id="move-list" class="move-list"></div>
-      <div class="move-new-row">
-        <input type="text" id="move-new-input" placeholder="New category name..." autocomplete="off">
-        <button class="btn-primary" onclick="doMoveNew()">+ Create &amp; Move</button>
-      </div>
-      <div class="modal-error" id="move-error"></div>
-      <div class="modal-actions" style="margin-top:10px">
-        <button class="btn-cancel" onclick="closeMov()">Cancel</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Connect Modal -->
-  <div class="collection-modal" id="connectModal" onclick="if(event.target===this)closeConnectModal()">
-    <div class="collection-modal-box" style="text-align:center;width:360px;max-width:95vw">
-      <h3 style="margin-bottom:12px">Connect from another device</h3>
-      <!-- Network access toggle (main device only) -->
-      <div id="connectNetworkRow" class="rm-row" onclick="toggleNetworkAccess()" style="margin-bottom:12px">
-        <div class="rm-toggle" id="connectNetTog"></div>
-        <div>
-          <div class="rm-label" id="connectNetLabel">Network access — disabled</div>
-          <div class="rm-desc" id="connectNetDesc">Server only accepts connections from this machine</div>
-        </div>
-      </div>
-      <!-- Body shown only when network is enabled -->
-      <div id="connectModalBody">
-        <p id="connectUrl" style="font-size:0.8rem;color:var(--tx2);margin-bottom:16px;word-break:break-all"></p>
-        <canvas id="connectQR" style="display:block;margin:0 auto;border-radius:8px"></canvas>
-        <div id="connectRemoteRow" class="rm-row" onclick="toggleRemoteMode()" style="margin-top:12px">
-          <div class="rm-toggle"></div>
-          <div>
-            <div class="rm-label">Remote Mode — off</div>
-            <div class="rm-desc">Videos you pick play on the main device</div>
-          </div>
-        </div>
-      </div>
-      <div class="collection-modal-actions" style="justify-content:center;margin-top:12px">
-        <button class="btn-cancel" onclick="closeConnectModal()">Close</button>
-      </div>
-    </div>
-  </div>
+
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- Vault ZIP download modal -->
-  <div class="vision-modal" id="vaultZipModal" onclick="if(event.target===this)closeVaultZipModal()">
-    <div class="vision-modal-box" onclick="event.stopPropagation()" style="max-width:360px">
-      <div style="font-size:1rem;font-weight:600;color:var(--tx)">Download as ZIP</div>
-      <div id="vaultZipHint" style="font-size:0.8rem;color:var(--tx3)"></div>
-      <label style="font-size:0.82rem;color:var(--tx2)">Password <span style="opacity:.5">(leave blank for no encryption)</span></label>
-      <input id="vaultZipPassword" type="password" placeholder="enter password\u2026" autocomplete="new-password"
-        style="background:var(--bg3);border:1px solid var(--brd);color:var(--tx);padding:7px 10px;border-radius:var(--r);font-size:0.85rem;outline:none;width:100%;box-sizing:border-box"
-        onfocus="this.type='text'" onblur="this.type='password'"
-        onkeydown="if(event.key==='Enter')downloadVaultZip()">
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button onclick="closeVaultZipModal()" class="vision-modal-close">Cancel</button>
-        <button id="vaultZipDownloadBtn" onclick="downloadVaultZip()"
-          style="background:var(--ac);color:#fff;border:none;padding:6px 16px;border-radius:var(--r);font-size:0.82rem;cursor:pointer">Download ZIP</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Vision description modal -->
-  <div class="vision-modal" id="visionModal" onclick="closeVisionModal()">
-    <div class="vision-modal-box" onclick="event.stopPropagation()">
-      <div class="vision-modal-body" id="visionModalBody"></div>
-      <button class="vision-modal-close" onclick="closeVisionModal()">Close</button>
-    </div>
-  </div>
-
-  <!-- Bookmark iframe viewer modal -->
-  <div class="bfiframe-mo" id="bfiframeMo" onclick="closeBfIframe(event)">
-    <div class="bfiframe-box">
-      <div class="bfiframe-hd">
-        <span id="bfiframeTitle" class="bfiframe-title"></span>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <a id="bfiframeLink" href="#" target="_blank" rel="noopener noreferrer" class="bfiframe-open-btn"
-            title="Open in new tab">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              style="vertical-align:-2px;margin-right:4px">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>New tab
-          </a>
-          <button onclick="closeBfIframe()" class="bfiframe-close" title="Close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="bfiframe-body">
-        <iframe id="bfiframeEl" src="" allowfullscreen></iframe>
-        <div class="bfiframe-blocked" id="bfiframeBlocked">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-            style="opacity:0.3;margin-bottom:10px">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-          </svg>
-          <span>This site blocks embedding.</span>
-          <a id="bfiframeFallback" href="#" target="_blank" rel="noopener noreferrer" style="color:var(--ac)">Open in
-            new tab →</a>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <script src="/qrcode.min.js"></script>
   <script src="/actor-scraper.js"></script>
-  <script src="/modules/state.js"></script>
-  <script src="/modules/utils.js"></script>
-  <script src="/modules/preset-picker.js"></script>
-  <script src="/modules/thumbnails.js"></script>
-  <script src="/modules/video-selection.js"></script>
-  <!-- Category Encrypt Modal -->
-  <div id="encrypt-cat-modal" class="modal-overlay" style="display:none; position:fixed; inset:0; z-index:21000; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px)">
-    <div class="modal-content" style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; width:380px; max-width:90%; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,0.4)">
-      <div style="padding:24px; text-align:center">
-        <div style="width:48px; height:48px; background:rgba(232,64,64,0.1); color:var(--accent); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        </div>
-        <h3 id="encrypt-cat-title" style="margin:0; font-size:1.2rem; color:var(--tx)">Encrypt Category</h3>
-        <p id="encrypt-cat-desc" style="margin:8px 0 0; font-size:0.85rem; color:var(--tx2)">Secure this category with a password.</p>
-      </div>
-      <div style="padding:0 24px 24px; display:flex; flex-direction:column; gap:12px">
-        <input type="password" id="encrypt-cat-pw1" class="premium-input" style="width:100%" placeholder="New password...">
-        <input type="password" id="encrypt-cat-pw2" class="premium-input" style="width:100%" placeholder="Confirm password..." onkeydown="if(event.key==='Enter')execEncryptCat()">
-      </div>
-      <div style="padding:16px 24px; background:rgba(0,0,0,0.2); display:flex; flex-direction:column; gap:10px">
-        <button class="modal-btn modal-btn--primary" onclick="execEncryptCat()">Encrypt Category</button>
-        <button class="modal-btn modal-btn--flat" onclick="closeEncryptCatModal()">Cancel</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Category Unlock Modal -->
-  <div id="unlock-cat-modal" class="modal-overlay" style="display:none; position:fixed; inset:0; z-index:21000; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px)">
-    <div class="modal-content" style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; width:380px; max-width:90%; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,0.4)">
-      <div style="padding:24px; text-align:center">
-        <div style="width:48px; height:48px; background:rgba(232,64,64,0.1); color:var(--accent); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </div>
-        <h3 id="unlock-cat-title" style="margin:0; font-size:1.2rem; color:var(--tx)">Unlock Category</h3>
-        <p id="unlock-cat-desc" style="margin:8px 0 0; font-size:0.85rem; color:var(--tx2)">Enter the password to access this category.</p>
-      </div>
-      <div style="padding:0 24px 24px">
-        <input type="password" id="unlock-cat-pw" class="premium-input" style="width:100%" placeholder="Enter password..." onkeydown="if(event.key==='Enter')execUnlockCat('T')">
-      </div>
-      <div style="padding:16px 24px; background:rgba(0,0,0,0.2); display:flex; flex-direction:column; gap:10px">
-        <button class="modal-btn modal-btn--primary" onclick="execUnlockCat('T')">Unlock Temporarily</button>
-        <button class="modal-btn" onclick="execUnlockCat('P')" style="font-size:12px; opacity:0.7">Decrypt Permanently</button>
-        <button class="modal-btn modal-btn--flat" onclick="closeUnlockCatModal()">Cancel</button>
-      </div>
-    </div>
-  </div>
 
-  <script src="/modules/context-menu.js"></script>
-  <script src="/modules/render.js"></script>
-  <script src="/modules/comments.js"></script>
-  <script src="/modules/player.js"></script>
-  <script src="/modules/playlist.js"></script>
-  <script src="/modules/rename-move.js"></script>
-  <script src="/modules/vault.js"></script>
-  <script src="/modules/actors.js"></script>
-  <script src="/modules/studios.js"></script>
-  <script src="/modules/tags.js"></script>
-  <script src="/modules/bookmarks.js"></script>
-  <script src="/modules/duplicates.js"></script>
-  <script src="/modules/collections.js"></script>
-  <script src="/modules/settings.js"></script>
-  <script src="/modules/database.js"></script>
-  <script src="/modules/prompts.js"></script>
-  <script src="/modules/dual.js"></script>
-  <script src="/modules/mosaic.js"></script>
-  <script src="/modules/zap.js"></script>
-  <script src="/modules/books.js"></script>
-  <script src="/modules/audio.js"></script>
-  <script src="/modules/photos.js"></script>
-  <script src="/modules/websites.js"></script>
-  <script src="/modules/pages.js"></script>
-  <script src="/modules/categories-view.js"></script>
-  <script src="/modules/import.js"></script>
-  <script src="/modules/search-sites.js"></script>
-  <script src="/modules/data.js"></script>
-  <script src="/modules/gen-thumbs.js"></script>
-  <script src="/modules/navigation.js"></script>
-  <div id="vaultDragBox" style="position:fixed; border:1px solid var(--accent); background:rgba(232,64,64,0.15); pointer-events:none; z-index:9999; display:none; border-radius:4px;"></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <div id="vaultDragBox"
+    style="position:fixed; border:1px solid var(--accent); background:rgba(232,64,64,0.15); pointer-events:none; z-index:9999; display:none; border-radius:4px;">
+  </div>
 
   <!-- Vault Page Viewer -->
   <!-- DB Preset Picker (shown on first launch or manually from Database view) -->
-  <div id="preset-overlay" style="display:none;position:fixed;inset:0;z-index:20000;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px)">
-    <div class="preset-dialog">
-      <div class="preset-dialog-hd">
-        <h2 id="preset-picker-title" style="margin:0;font-size:1.2rem">Choose a Database Preset</h2>
-        <p id="preset-picker-subtitle" style="margin:6px 0 0;font-size:0.83rem;color:var(--tx2)">Pick one or more presets to populate your initial actors, categories, studios and websites — or start with an empty database.</p>
-      </div>
-      <div id="preset-picker-list" class="preset-picker-list"></div>
-      <div class="preset-dialog-footer">
-        <span id="preset-status" style="font-size:0.8rem;color:var(--tx3);flex:1"></span>
-        <button class="preset-foot-btn" onclick="presetApplyBlank()">Start Blank</button>
-        <button class="preset-foot-btn" onclick="presetApplyAll()">Use All Presets</button>
-        <button class="preset-foot-btn" onclick="presetApplyReplace()">Replace</button>
-        <button class="preset-foot-btn preset-foot-btn--primary" id="preset-apply-btn" onclick="presetApplySelected()">Apply Selected</button>
-      </div>
-    </div>
-  </div>
 
-  <div id="vaultPageOverlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;flex-direction:column;background:#111">
-    <div id="vaultPageResizeHandle" style="position:absolute;top:0;left:0;width:5px;height:100%;cursor:ew-resize;z-index:1;background:transparent"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--bg2);flex-shrink:0;border-bottom:1px solid var(--border)">
-      <span id="vaultPageTitle" style="font-size:13px;color:var(--tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%"></span>
+
+  <div id="vaultPageOverlay"
+    style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;flex-direction:column;background:#111">
+    <div id="vaultPageResizeHandle"
+      style="position:absolute;top:0;left:0;width:5px;height:100%;cursor:ew-resize;z-index:1;background:transparent">
+    </div>
+    <div
+      style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--bg2);flex-shrink:0;border-bottom:1px solid var(--border)">
+      <span id="vaultPageTitle"
+        style="font-size:13px;color:var(--tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%"></span>
       <div style="display:flex;gap:8px;flex-shrink:0">
-        <button onclick="_pageViewerReload()" title="Reload" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#8635; Reload</button>
-        <button onclick="_pageViewerDelete()" title="Delete this page" style="background:transparent;border:none;color:#e84040;cursor:pointer;padding:4px 8px;font-size:12px">&#128465; Delete</button>
-        <button onclick="closeVaultPage()" title="Close (Esc)" style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#10005; Close</button>
+        <button onclick="_pageViewerReload()" title="Reload"
+          style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#8635;
+          Reload</button>
+        <button onclick="_pageViewerDelete()" title="Delete this page"
+          style="background:transparent;border:none;color:#e84040;cursor:pointer;padding:4px 8px;font-size:12px">&#128465;
+          Delete</button>
+        <button onclick="closeVaultPage()" title="Close (Esc)"
+          style="background:transparent;border:none;color:var(--tx2);cursor:pointer;padding:4px 8px;font-size:12px">&#10005;
+          Close</button>
       </div>
     </div>
     <iframe id="vaultPageFrame" sandbox="allow-scripts" style="flex:1;width:100%;border:none;background:#fff"></iframe>
   </div>
 
-  <!-- Vault Auto-Scrape Modal -->
-  <div id="vaultScrapeOverlay" class="vault-scrape-overlay" style="display:none">
-    <div class="vault-scrape-panel">
-      <div class="vault-scrape-hdr">
-        <span class="vault-scrape-title">Auto-scrape Vault</span>
-        <button class="vault-scrape-close" onclick="closeVaultScrapeModal()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="vault-scrape-ctrl">
-        <span class="vault-scrape-desc">Reads ComfyUI workflow metadata from each PNG to extract its prompt name.</span>
-        <button id="vaultScrapeStartBtn" class="vault-scrape-run" onclick="startVaultScrape()">Start</button>
-        <button id="vaultScrapeStopBtn" class="vault-scrape-run vault-scrape-stop" onclick="stopVaultScrape()" style="display:none">Stop</button>
-      </div>
-      <div id="vaultScrapeProgress" class="vault-scrape-prog" style="display:none">
-        <div class="vault-scrape-prog-bar"><div id="vaultScrapeProgFill" class="vault-scrape-prog-fill"></div></div>
-        <div id="vaultScrapeProgText" class="vault-scrape-prog-text"></div>
-      </div>
-      <div id="vaultScrapeResults" class="vault-scrape-results"></div>
-    </div>
-  </div>
 
-  <!-- Vault Settings Panel — fixed overlay, lives at body level so display:none on parent never hides it -->
-  <div id="vaultSettingsPanel" style="display:none;background:rgba(0,0,0,.72);position:fixed;inset:0;z-index:9000;align-items:center;justify-content:center">
-    <div style="background:var(--bg2,#1e1e1e);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:28px;width:390px;max-width:92vw;max-height:90vh;overflow-y:auto">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <h3 style="font-size:15px;font-weight:600">Vault Settings</h3>
-        <button onclick="closeVaultSettings()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:20px;line-height:1">&times;</button>
-      </div>
 
-      <!-- AI Titles -->
-      <div style="margin-bottom:20px">
-        <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:rgba(255,255,255,.7)">AI Titles</div>
-        <p style="font-size:12px;color:rgba(255,255,255,.45);margin-bottom:10px">Generate a short subject title for every image, GIF and video using the configured AI Vision provider.</p>
-        <div id="vaultAiTitleProgress" style="display:none;font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px;padding:6px 10px;background:rgba(255,255,255,.05);border-radius:6px;justify-content:space-between;align-items:center">
-          <span id="vaultAiTitleProgressText">Starting…</span>
-          <button onclick="vaultAiTitleStop()" style="background:none;border:none;color:rgba(255,255,255,.4);cursor:pointer;font-size:12px;padding:0;margin-left:8px">Stop</button>
-        </div>
-        <button id="vaultAiTitleBtn" onclick="startVaultAiTitles()"
-          style="background:rgba(99,102,241,.2);border:1px solid rgba(99,102,241,.4);color:rgba(255,255,255,.8);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;width:100%">
-          Generate AI Titles for All Media…
-        </button>
-      </div>
 
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
 
-      <!-- Change Password -->
-      <div style="margin-bottom:20px">
-        <div style="font-size:13px;font-weight:500;margin-bottom:10px;color:rgba(255,255,255,.7)">Change Password</div>
-        <input type="password" id="vaultOldPw" class="vault-pw-input" placeholder="Current password" style="margin-bottom:8px">
-        <input type="password" id="vaultNewPw" class="vault-pw-input" placeholder="New password (min 6 chars)" style="margin-bottom:8px">
-        <input type="password" id="vaultNewPw2" class="vault-pw-input" placeholder="Confirm new password" style="margin-bottom:8px">
-        <div id="vaultChPwErr" style="color:#e84040;font-size:12px;min-height:16px;margin-bottom:8px"></div>
-        <button class="btn-primary vault-auth-btn" id="vaultChPwBtn" onclick="doVaultChangePassword()" style="width:100%">Change Password</button>
-      </div>
 
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
-
-      <!-- Self-Destruct -->
-      <div style="margin-bottom:20px">
-        <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:rgba(255,255,255,.7)">Self-Destruct</div>
-        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-          <input type="checkbox" id="vaultSelfDestructToggle" onchange="saveVaultSelfDestruct(this.checked)"
-            style="width:15px;height:15px;cursor:pointer;flex-shrink:0;margin-top:2px">
-          <span style="font-size:12px;color:rgba(255,255,255,.55);line-height:1.5">
-            Wipe vault after 4 failed unlock attempts. <strong style="color:rgba(255,255,255,.4)">Disabled by default.</strong>
-            All encrypted files are permanently destroyed — this cannot be undone.
-          </span>
-        </label>
-      </div>
-
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:0 0 20px">
-
-      <!-- Delete Vault — inline confirmation, no native confirm() dialogs -->
-      <div>
-        <div style="font-size:13px;font-weight:500;margin-bottom:6px;color:#e84040">Danger Zone</div>
-        <p style="font-size:12px;color:rgba(255,255,255,.45);margin-bottom:12px">
-          Permanently destroy the vault and <strong style="color:rgba(255,255,255,.65)">all encrypted files</strong>.
-          Files are cryptographically overwritten before deletion. This cannot be undone.
-        </p>
-        <div id="vaultDelConfirmBox" style="display:none;background:#e8404011;border:1px solid #e8404044;border-radius:8px;padding:12px;margin-bottom:10px">
-          <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px">Type <strong style="color:#e84040;font-family:monospace">DELETE</strong> to confirm:</div>
-          <input type="text" id="vaultDelInput" placeholder="DELETE" autocomplete="off" spellcheck="false"
-            style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#fff;padding:7px 10px;border-radius:5px;font-size:13px;margin-bottom:10px"
-            oninput="document.getElementById('vaultDelBtn').disabled=this.value!=='DELETE'">
-          <div style="display:flex;gap:8px">
-            <button onclick="doVaultDeleteVault()" id="vaultDelBtn" disabled
-              style="flex:1;background:#e84040;border:none;color:#fff;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700"
-              class="vault-del-confirm-btn">
-              Permanently Delete Vault
-            </button>
-            <button onclick="document.getElementById('vaultDelConfirmBox').style.display='none';document.getElementById('vaultDelInput').value='';document.getElementById('vaultDelBtn').disabled=true"
-              style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.6);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px">
-              Cancel
-            </button>
-          </div>
-        </div>
-        <button onclick="document.getElementById('vaultDelConfirmBox').style.display='block';document.getElementById('vaultDelInput').focus()"
-          id="vaultDelShowBtn"
-          style="background:#e8404016;border:1px solid #e84040;color:#e84040;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;width:100%">
-          Delete Vault…
-        </button>
-      </div>
-    </div>
-  </div>
-<script>
-// ── Card size slider ──────────────────────────────────────────────────────────
-function setCardSize(w) {
-  document.documentElement.style.setProperty('--card-min', w + 'px');
-  localStorage.setItem('cardSize', w);
-  document.querySelectorAll('.card-size-slider').forEach(sl => { sl.value = w; });
-}
-(function() {
-  const s = localStorage.getItem('cardSize');
-  if (s) {
-    document.documentElement.style.setProperty('--card-min', s + 'px');
-    document.querySelectorAll('.card-size-slider').forEach(sl => { sl.value = s; });
-  }
-})();
-
-</script>
-  <!-- Bulk Action Progress Modal -->
-  <div id="bulk-prog-modal" class="modal-overlay" style="display:none; position:fixed; inset:0; z-index:22000; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px)">
-    <div class="modal-content" style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; width:420px; max-width:92%; overflow:hidden; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); position:relative">
-      <button onclick="closeBulkProgModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; color:var(--tx2); cursor:pointer; padding:8px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='none'">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-      <div style="padding:32px 24px; text-align:center">
-        <div id="bulk-prog-icon" style="width:56px; height:56px; background:rgba(99,102,241,0.1); color:var(--ac); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px">
-           <svg class="spin" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-        </div>
-        <h3 id="bulk-prog-title" style="margin:0; font-size:1.25rem; font-weight:600; color:var(--tx)">Processing...</h3>
-        <p id="bulk-prog-desc" style="margin:10px 0 20px; font-size:0.9rem; color:var(--tx2); line-height:1.5">Please wait while we complete the bulk action.</p>
-        
-        <div style="background:rgba(255,255,255,0.05); border-radius:8px; height:8px; overflow:hidden; margin-bottom:12px">
-          <div id="bulk-prog-fill" style="width:0%; height:100%; background:var(--ac); transition:width 0.3s ease"></div>
-        </div>
-        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--tx3); font-family:monospace">
-          <span id="bulk-prog-count">0 / 0</span>
-          <span id="bulk-prog-percent">0%</span>
-        </div>
-      </div>
-      <div id="bulk-prog-footer" style="padding:16px 24px; background:rgba(0,0,0,0.2); text-align:center; display:none">
-        <button class="modal-btn modal-btn--primary" onclick="closeBulkProgModal()">Done</button>
-      </div>
-    </div>
-  </div>
 
   <div id="videoDragBox"
     style="position:fixed;border:1px solid var(--ac);background:var(--acg);pointer-events:none;display:none;z-index:9999">
   </div>
   <div id="context-menu" class="ctx-menu"></div>
+  <script type="module" src="/src/main.tsx"></script>
+  <!-- Dummy audio to keep browser tab audio indicator active -->
+  <audio id="dummy-audio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAABAAAA" style="display:none"></audio>
 </body>
 
 </html>

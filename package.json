@@ -1,10 +1,13 @@
 {
-  "name": "AphroArchive",
+  "name": "aphro-archive",
   "version": "1.0.0",
   "description": "Zero-dependency local video organizer",
   "main": "server.js",
   "bin": "server.js",
   "scripts": {
+    "dev": "vite",
+    "dev:watch": "node --watch server.js",
+    "build": "vite build",
     "start": "node server.js",
     "build:win": "pkg . --targets node20-win-x64 --output dist/AphroArchive.exe --compress GZip",
     "build:linux": "pkg . --targets node20-linux-x64 --output dist/AphroArchive --compress GZip",
@@ -21,7 +24,18 @@
     ],
     "outputPath": "dist"
   },
+  "dependencies": {
+    "@preact/signals": "^2.9.0",
+    "better-sqlite3": "^12.10.0",
+    "node-llama-cpp": "^3.18.1",
+    "preact": "^10.29.1"
+  },
   "devDependencies": {
-    "@yao-pkg/pkg": "^5.12.0"
+    "@preact/preset-vite": "^2.10.5",
+    "@types/node": "^20.17.10",
+    "@types/react": "^19.2.14",
+    "@yao-pkg/pkg": "^5.12.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10"
   }
 }

@@ -18,9 +18,9 @@ const {
   BM_DIR,
 } = require('./config-server');
 
-// ── In-memory write-through caches ──────────────────────────────────
-// Each cache is null until first access, then kept in sync with disk.
+const Database = require('better-sqlite3');
 
+// ── In-memory write-through caches ──────────────────────────────────
 let _favs       = null;
 let _history    = null;
 let _videoMeta  = null;
@@ -29,32 +29,301 @@ let _actors     = null;
 let _categories = null;
 let _studios    = null;
 
+let db;
+let currentProfile = 'default';
+
+function ensureSchema(database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS videos (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      studio TEXT,
+      category TEXT,
+      rating INTEGER,
+      note TEXT,
+      date TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS video_actors (
+      video_id TEXT,
+      actor TEXT,
+      PRIMARY KEY (video_id, actor),
+      FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS video_tags (
+      video_id TEXT,
+      tag TEXT,
+      PRIMARY KEY (video_id, tag),
+      FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS favourites (
+      video_id TEXT PRIMARY KEY
+    );
+
+    CREATE TABLE IF NOT EXISTS history (
+      video_id TEXT PRIMARY KEY,
+      timestamp INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS collections (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      video_ids TEXT -- JSON array
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT -- JSON value
+    );
+
+    CREATE TABLE IF NOT EXISTS categories (
+      name TEXT PRIMARY KEY,
+      display_name TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS category_tags (
+      category_name TEXT,
+      tag TEXT,
+      PRIMARY KEY (category_name, tag),
+      FOREIGN KEY (category_name) REFERENCES categories(name) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS studios (
+      name TEXT PRIMARY KEY,
+      website TEXT,
+      description TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS websites (
+      name TEXT PRIMARY KEY,
+      url TEXT,
+      search_url TEXT,
+      scrape_method TEXT,
+      description TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS website_tags (
+      website_name TEXT,
+      tag TEXT,
+      PRIMARY KEY (website_name, tag),
+      FOREIGN KEY (website_name) REFERENCES websites(name) ON DELETE CASCADE
+    );
+  `);
+}
+
+function switchProfile(profileName) {
+  currentProfile = profileName;
+  if (db) {
+    try { db.close(); } catch(e) {}
+  }
+  const dbPath = path.join(__dirname, `../db/aphroarchive_${profileName}.db`);
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  db = new Database(dbPath);
+  ensureSchema(db);
+  
+  // Clear caches
+  _favs       = null;
+  _history    = null;
+  _videoMeta  = null;
+  _thumbs     = null;
+  _actors     = null;
+  _categories = null;
+  _studios    = null;
+  
+  return db;
+}
+
+// Initialize with default profile
+switchProfile('default');
+
+// Migration from JSON to SQLite
+const videoCount = db.prepare('SELECT COUNT(*) as count FROM videos').get().count;
+if (videoCount === 0) {
+  console.log('Migrating data from JSON to SQLite...');
+  try {
+    db.transaction(() => {
+      // Migrate Video Meta
+      if (fs.existsSync(VIDEO_META_FILE)) {
+        const meta = JSON.parse(fs.readFileSync(VIDEO_META_FILE, 'utf-8'));
+        const insertVideo = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
+        const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
+
+        for (const [id, data] of Object.entries(meta)) {
+          insertVideo.run(id, data.title || '', data.studio || '', data.category || '', data.rating || null, data.note || '', data.date || '');
+          if (Array.isArray(data.actors)) {
+            for (const actor of data.actors) {
+              insertActor.run(id, actor);
+            }
+          }
+          if (Array.isArray(data.tags)) {
+            for (const tag of data.tags) {
+              insertTag.run(id, tag);
+            }
+          }
+        }
+      }
+
+      // Migrate Favourites
+      if (fs.existsSync(FAVOURITES_FILE)) {
+        const favs = JSON.parse(fs.readFileSync(FAVOURITES_FILE, 'utf-8'));
+        const insertFav = db.prepare('INSERT INTO favourites (video_id) VALUES (?)');
+        if (Array.isArray(favs)) {
+          for (const id of favs) {
+            try { insertFav.run(id); } catch {} // Ignore duplicates
+          }
+        }
+      }
+
+      // Migrate Collections
+      if (fs.existsSync(COLLECTIONS_FILE)) {
+        const colls = JSON.parse(fs.readFileSync(COLLECTIONS_FILE, 'utf-8'));
+        const insertColl = db.prepare('INSERT INTO collections (id, name, video_ids) VALUES (?, ?, ?)');
+        if (Array.isArray(colls)) {
+          for (const c of colls) {
+            try { insertColl.run(c.id, c.name, JSON.stringify(c.video_ids || [])); } catch {}
+          }
+        }
+      }
+    })();
+    console.log('Migration to SQLite complete!');
+  } catch (e) {
+    console.error('Failed to migrate data to SQLite:', e);
+  }
+}
+
+// Migration for categories, studios, and websites
+const categoryCount = db.prepare('SELECT COUNT(*) as count FROM categories').get().count;
+if (categoryCount === 0) {
+  console.log('Migrating categories, studios, and websites from JSON to SQLite...');
+  try {
+    db.transaction(() => {
+      // Migrate Categories
+      if (fs.existsSync(CATEGORIES_JSON)) {
+        const cats = JSON.parse(fs.readFileSync(CATEGORIES_JSON, 'utf-8'));
+        const insertCat = db.prepare('INSERT INTO categories (name, display_name) VALUES (?, ?)');
+        const insertCatTag = db.prepare('INSERT INTO category_tags (category_name, tag) VALUES (?, ?)');
+        for (const [name, data] of Object.entries(cats)) {
+          insertCat.run(name, data.displayName || name);
+          if (Array.isArray(data.tags)) {
+            for (const tag of data.tags) insertCatTag.run(name, tag);
+          }
+        }
+      }
+
+      // Migrate Studios
+      if (fs.existsSync(STUDIOS_JSON)) {
+        const studios = JSON.parse(fs.readFileSync(STUDIOS_JSON, 'utf-8'));
+        const insertStudio = db.prepare('INSERT INTO studios (name, website, description) VALUES (?, ?, ?)');
+        for (const [name, data] of Object.entries(studios)) {
+          insertStudio.run(name, data.website || null, data.short_description || null);
+        }
+      }
+
+      // Migrate Websites
+      if (fs.existsSync(WEBSITES_JSON)) {
+        const sites = JSON.parse(fs.readFileSync(WEBSITES_JSON, 'utf-8'));
+        const insertSite = db.prepare('INSERT INTO websites (name, url, search_url, scrape_method, description) VALUES (?, ?, ?, ?, ?)');
+        const insertSiteTag = db.prepare('INSERT INTO website_tags (website_name, tag) VALUES (?, ?)');
+        for (const site of sites) {
+          const name = site.name || site.url;
+          insertSite.run(name, site.url || '', site.searchURL || '', site.scrapeMethod || '', site.description || '');
+          if (Array.isArray(site.tags)) {
+            for (const tag of site.tags) insertSiteTag.run(name, tag);
+          }
+        }
+      }
+    })();
+    console.log('Migration of categories, studios, and websites complete!');
+  } catch (e) {
+    console.error('Failed to migrate categories, studios, and websites:', e);
+  }
+}
+
+// Caches moved to top of file
+
 // ── Favourites ───────────────────────────────────────────────────────
 
 function loadFavs() {
-  if (!_favs) { try { _favs = JSON.parse(fs.readFileSync(FAVOURITES_FILE, 'utf-8')); } catch { _favs = []; } }
+  if (!_favs) {
+    try {
+      const rows = db.prepare('SELECT video_id FROM favourites').all();
+      _favs = rows.map(r => r.video_id);
+    } catch (e) {
+      console.error('Failed to load favourites from SQLite:', e);
+      _favs = [];
+    }
+  }
   return _favs;
 }
+
 function saveFavs(f) {
   _favs = f;
-  fs.writeFileSync(FAVOURITES_FILE, JSON.stringify(f));
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM favourites').run();
+      const insert = db.prepare('INSERT INTO favourites (video_id) VALUES (?)');
+      for (const id of f) {
+        insert.run(id);
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save favourites to SQLite:', e);
+  }
 }
 
 // ── History ──────────────────────────────────────────────────────────
 
 function loadHistory() {
-  if (!_history) { try { _history = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8')); } catch { _history = []; } }
+  if (!_history) {
+    try {
+      const rows = db.prepare('SELECT video_id FROM history ORDER BY timestamp DESC').all();
+      _history = rows.map(r => r.video_id);
+    } catch (e) {
+      console.error('Failed to load history from SQLite:', e);
+      _history = [];
+    }
+  }
   return _history;
 }
+
 function saveHistory(h) {
   _history = h;
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(h));
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM history').run();
+      const insert = db.prepare('INSERT INTO history (video_id, timestamp) VALUES (?, ?)');
+      let ts = Date.now();
+      for (const id of h) {
+        insert.run(id, ts--); // Use decreasing timestamps to maintain order
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save history to SQLite:', e);
+  }
 }
 
 // ── Prefs ────────────────────────────────────────────────────────────
 
-function loadPrefs()  { try { return JSON.parse(fs.readFileSync(PREFS_FILE, 'utf-8')); } catch { return {}; } }
-function savePrefs(p) { fs.writeFileSync(PREFS_FILE, JSON.stringify(p)); }
+function loadPrefs() {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('prefs');
+    return row ? JSON.parse(row.value) : {};
+  } catch (e) {
+    console.error('Failed to load prefs from SQLite:', e);
+    return {};
+  }
+}
+
+function savePrefs(p) {
+  try {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('prefs', JSON.stringify(p));
+  } catch (e) {
+    console.error('Failed to save prefs to SQLite:', e);
+  }
+}
 
 // ── Ratings (legacy, now merged into video meta) ─────────────────────
 
@@ -64,19 +333,88 @@ function saveRatings(r) { fs.writeFileSync(RATINGS_FILE, JSON.stringify(r)); }
 // ── Video meta ───────────────────────────────────────────────────────
 
 function loadVideoMeta() {
-  if (!_videoMeta) { try { _videoMeta = JSON.parse(fs.readFileSync(VIDEO_META_FILE, 'utf-8')); } catch { _videoMeta = {}; } }
+  if (!_videoMeta) {
+    _videoMeta = {};
+    try {
+      const rows = db.prepare('SELECT * FROM videos').all();
+      const getActors = db.prepare('SELECT actor FROM video_actors WHERE video_id = ?');
+      const getTags = db.prepare('SELECT tag FROM video_tags WHERE video_id = ?');
+      
+      for (const row of rows) {
+        const actors = getActors.all(row.id).map(r => r.actor);
+        const tags = getTags.all(row.id).map(r => r.tag);
+        _videoMeta[row.id] = {
+          title: row.title || '',
+          studio: row.studio || '',
+          category: row.category || '',
+          rating: row.rating,
+          note: row.note || '',
+          date: row.date || '',
+          actors,
+          tags
+        };
+      }
+    } catch (e) {
+      console.error('Failed to load video meta from SQLite:', e);
+    }
+  }
   return _videoMeta;
 }
+
 function saveVideoMeta(m) {
   _videoMeta = m;
-  fs.writeFileSync(VIDEO_META_FILE, JSON.stringify(m, null, 2));
+  // This is a legacy fallback. In SQLite we should use setVideoMetaFields.
+  // But if we must save the whole object, we can do it in a transaction.
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM video_actors').run();
+      db.prepare('DELETE FROM video_tags').run();
+      db.prepare('DELETE FROM videos').run();
+      
+      const insertVideo = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
+      const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
+
+      for (const [id, data] of Object.entries(m)) {
+        insertVideo.run(id, data.title || '', data.studio || '', data.category || '', data.rating || null, data.note || '', data.date || '');
+        if (Array.isArray(data.actors)) {
+          for (const actor of data.actors) insertActor.run(id, actor);
+        }
+        if (Array.isArray(data.tags)) {
+          for (const tag of data.tags) insertTag.run(id, tag);
+        }
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save video meta to SQLite:', e);
+  }
 }
 
 function setVideoMetaFields(id, fields) {
   const meta = loadVideoMeta();
   if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
   Object.assign(meta[id], fields);
-  saveVideoMeta(meta);
+  
+  try {
+    db.transaction(() => {
+      const stmt = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, studio=excluded.studio, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date');
+      const current = meta[id];
+      stmt.run(id, current.title || '', current.studio || '', current.category || '', current.rating || null, current.note || '', current.date || '');
+      
+      if (fields.actors) {
+        db.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
+        const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
+        for (const actor of fields.actors) insertActor.run(id, actor);
+      }
+      if (fields.tags) {
+        db.prepare('DELETE FROM video_tags WHERE video_id = ?').run(id);
+        const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
+        for (const tag of fields.tags) insertTag.run(id, tag);
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to set video meta fields in SQLite:', e);
+  }
 }
 
 // ── Thumbnails cache ─────────────────────────────────────────────────
@@ -99,22 +437,96 @@ function saveVaultMeta(m)  { fs.writeFileSync(VAULT_META_FILE, JSON.stringify(m)
 
 // ── Collections ──────────────────────────────────────────────────────
 
-function loadCollections()  { try { return JSON.parse(fs.readFileSync(COLLECTIONS_FILE, 'utf-8')); } catch { return []; } }
-function saveCollections(c) { fs.writeFileSync(COLLECTIONS_FILE, JSON.stringify(c, null, 2)); }
+function loadCollections() {
+  try {
+    const rows = db.prepare('SELECT * FROM collections').all();
+    return rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      video_ids: JSON.parse(row.video_ids || '[]')
+    }));
+  } catch (e) {
+    console.error('Failed to load collections from SQLite:', e);
+    return [];
+  }
+}
+
+function saveCollections(c) {
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM collections').run();
+      const insert = db.prepare('INSERT INTO collections (id, name, video_ids) VALUES (?, ?, ?)');
+      for (const coll of c) {
+        insert.run(coll.id, coll.name, JSON.stringify(coll.video_ids || []));
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save collections to SQLite:', e);
+  }
+}
 
 // ── Hidden terms ─────────────────────────────────────────────────────
 
 function loadHidden() {
   try {
-    return fs.readFileSync(HIDDEN_FILE, 'utf-8')
-      .split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  } catch { return []; }
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('hidden_terms');
+    if (row) return JSON.parse(row.value);
+    
+    // Fallback to file and migrate
+    if (fs.existsSync(HIDDEN_FILE)) {
+      const lines = fs.readFileSync(HIDDEN_FILE, 'utf-8')
+        .split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      saveHidden(lines);
+      return lines;
+    }
+    return [];
+  } catch (e) {
+    console.error('Failed to load hidden terms from SQLite:', e);
+    return [];
+  }
 }
 
 // ── Websites ─────────────────────────────────────────────────────────
 
-function loadWebsites() { try { return JSON.parse(fs.readFileSync(WEBSITES_JSON, 'utf-8')); } catch { return []; } }
-function saveWebsites(s) { fs.writeFileSync(WEBSITES_JSON, JSON.stringify(s, null, 2)); }
+function loadWebsites() {
+  try {
+    const rows = db.prepare('SELECT * FROM websites').all();
+    return rows.map(row => {
+      const tags = db.prepare('SELECT tag FROM website_tags WHERE website_name = ?').all(row.name).map(r => r.tag);
+      return {
+        name: row.name,
+        url: row.url,
+        searchURL: row.search_url,
+        scrapeMethod: row.scrape_method,
+        tags,
+        description: row.description
+      };
+    });
+  } catch (e) {
+    console.error('Failed to load websites from SQLite:', e);
+    return [];
+  }
+}
+
+function saveWebsites(s) {
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM website_tags').run();
+      db.prepare('DELETE FROM websites').run();
+      const insertSite = db.prepare('INSERT INTO websites (name, url, search_url, scrape_method, description) VALUES (?, ?, ?, ?, ?)');
+      const insertTag = db.prepare('INSERT INTO website_tags (website_name, tag) VALUES (?, ?)');
+      for (const site of s) {
+        const name = site.name || site.url;
+        insertSite.run(name, site.url || '', site.searchURL || '', site.scrapeMethod || '', site.description || '');
+        if (Array.isArray(site.tags)) {
+          for (const tag of site.tags) insertTag.run(name, tag);
+        }
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save websites to SQLite:', e);
+  }
+}
 
 // ── Starred sites (cache) ─────────────────────────────────────────────
 
@@ -198,8 +610,65 @@ function _parseCategories(raw) {
 }
 
 function loadCategories() {
-  if (!_categories) { try { _categories = _parseCategories(JSON.parse(fs.readFileSync(CATEGORIES_JSON, 'utf-8'))); } catch { _categories = []; } }
+  if (!_categories) {
+    try {
+      const rows = db.prepare('SELECT * FROM categories').all();
+      _categories = rows.map(row => {
+        const tags = db.prepare('SELECT tag FROM category_tags WHERE category_name = ?').all(row.name).map(r => r.tag);
+        return { name: row.name, displayName: row.display_name, terms: [row.name, ...tags] };
+      });
+    } catch (e) {
+      console.error('Failed to load categories from SQLite:', e);
+      _categories = [];
+    }
+  }
   return _categories;
+}
+
+function loadEnabledCategories() {
+  try {
+    const rows = db.prepare('SELECT path FROM enabled_categories').all();
+    return rows.map(r => r.path);
+  } catch (e) {
+    console.error('Failed to load enabled categories:', e);
+    return [];
+  }
+}
+
+function saveEnabledCategories(paths) {
+  try {
+    const insert = db.prepare('INSERT OR IGNORE INTO enabled_categories (path) VALUES (?)');
+    const del = db.prepare('DELETE FROM enabled_categories');
+    
+    const transaction = db.transaction((list) => {
+      del.run();
+      for (const p of list) insert.run(p);
+    });
+    
+    transaction(paths);
+  } catch (e) {
+    console.error('Failed to save enabled categories:', e);
+  }
+}
+
+function saveCategories(cats) {
+  _categories = null;
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM category_tags').run();
+      db.prepare('DELETE FROM categories').run();
+      const insertCat = db.prepare('INSERT INTO categories (name, display_name) VALUES (?, ?)');
+      const insertCatTag = db.prepare('INSERT INTO category_tags (category_name, tag) VALUES (?, ?)');
+      for (const [name, data] of Object.entries(cats)) {
+        insertCat.run(name, data.displayName || name);
+        if (Array.isArray(data.tags)) {
+          for (const tag of data.tags) insertCatTag.run(name, tag);
+        }
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save categories to SQLite:', e);
+  }
 }
 
 function _parseStudios(raw) {
@@ -210,8 +679,36 @@ function _parseStudios(raw) {
 }
 
 function loadStudios() {
-  if (!_studios) { try { _studios = _parseStudios(JSON.parse(fs.readFileSync(STUDIOS_JSON, 'utf-8'))); } catch { _studios = []; } }
+  if (!_studios) {
+    try {
+      const rows = db.prepare('SELECT * FROM studios').all();
+      _studios = rows.map(row => ({
+        name: row.name,
+        terms: [row.name],
+        website: row.website,
+        description: row.description
+      }));
+    } catch (e) {
+      console.error('Failed to load studios from SQLite:', e);
+      _studios = [];
+    }
+  }
   return _studios;
+}
+
+function saveStudios(studios) {
+  _studios = null;
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM studios').run();
+      const insertStudio = db.prepare('INSERT INTO studios (name, website, description) VALUES (?, ?, ?)');
+      for (const [name, data] of Object.entries(studios)) {
+        insertStudio.run(name, data.website || null, data.short_description || data.description || null);
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save studios to SQLite:', e);
+  }
 }
 
 // Called by database.js after writing actors/categories/studios to disk
@@ -227,7 +724,11 @@ function readDbFile(file)       { try { return JSON.parse(fs.readFileSync(file, 
 function writeDbFile(file, obj) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(obj, null, 2)); }
 
 function saveHidden(lines) {
-  fs.writeFileSync(HIDDEN_FILE, lines.join('\n') + (lines.length ? '\n' : ''));
+  try {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('hidden_terms', JSON.stringify(lines));
+  } catch (e) {
+    console.error('Failed to save hidden terms to SQLite:', e);
+  }
 }
 
 module.exports = {
@@ -246,6 +747,9 @@ module.exports = {
   loadBookmarksCache, saveBookmarksCache,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
-  loadActors, loadCategories, loadStudios, invalidateDbTypeCache,
+  loadActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,
+  loadEnabledCategories, saveEnabledCategories,
   readDbFile, writeDbFile,
+  switchProfile, getCurrentProfile: () => currentProfile,
+  closeDb: () => { if (db) { db.close(); db = null; } }
 };

@@ -7,53 +7,54 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const http = require('http');
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
-const url  = require('url');
+const url = require('url');
 const { exec } = require('child_process');
 
 const cfg = require('./server/config-server');
 const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, CACHE_DIR,
-        WEBSITES_JSON, CATEGORIES_JSON, BM_DIR, BM_CACHE_FILE,
-        BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
+  WEBSITES_JSON, CATEGORIES_JSON, BM_DIR, BM_CACHE_FILE,
+  BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
 const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites } = require('./server/db-server');
-const { initVideoMeta }        = require('./server/videos-server');
+const { initVideoMeta } = require('./server/videos-server');
 const { getLocalIPs, getLocalIP } = require('./server/config-server');
 
 // ── Modules ──────────────────────────────────────────────────────────
 
-const videos      = require('./server/videos-server');
-const actors      = require('./server/actors-server');
-const vault       = require('./server/vault-server');
-const thumbnails  = require('./server/thumbnails-server');
-const genThumbs   = require('./server/gen-thumbs-server');
+const videos = require('./server/videos-server');
+const actors = require('./server/actors-server');
+const vault = require('./server/vault-server');
+const thumbnails = require('./server/thumbnails-server');
+const genThumbs = require('./server/gen-thumbs-server');
 const collections = require('./server/collections-server');
-const downloads   = require('./server/downloads-server');
-const bookmarks   = require('./server/bookmarks-server');
-const books       = require('./server/books-server');
-const audio       = require('./server/audio-server');
-const photos      = require('./server/photos-server');
-const database    = require('./server/database-server');
-const presets     = require('./server/presets-server');
-const remote      = require('./server/remote-server');
-const settings    = require('./server/settings-server');
-const prompts     = require('./server/prompts-server');
-const comments    = require('./server/comments-server');
-const vision      = require('./server/vision-server');
-const vaultZip    = require('./server/vault-zip-server');
-const pages       = require('./server/pages-server');
-const duplicates  = require('./server/duplicates-server');
+const downloads = require('./server/downloads-server');
+const bookmarks = require('./server/bookmarks-server');
+const books = require('./server/books-server');
+const audio = require('./server/audio-server');
+const photos = require('./server/photos-server');
+const database = require('./server/database-server');
+const profiles = require('./server/profiles-server');
+const remote = require('./server/remote-server');
+const settings = require('./server/settings-server');
+const prompts = require('./server/prompts-server');
+const comments = require('./server/comments-server');
+const vision = require('./server/vision-server');
+const vaultZip = require('./server/vault-zip-server');
+const pages = require('./server/pages-server');
+const duplicates = require('./server/duplicates-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
-fs.mkdirSync(CACHE_DIR,   { recursive: true });
-fs.mkdirSync(VIDEOS_DIR,  { recursive: true });
-fs.mkdirSync(AUDIO_DIR,   { recursive: true });
-fs.mkdirSync(BOOKS_DIR,   { recursive: true });
-fs.mkdirSync(PHOTOS_DIR,  { recursive: true });
-fs.mkdirSync(PAGES_DIR,   { recursive: true });
+fs.mkdirSync(CACHE_DIR, { recursive: true });
+fs.mkdirSync(VIDEOS_DIR, { recursive: true });
+fs.mkdirSync(AUDIO_DIR, { recursive: true });
+fs.mkdirSync(BOOKS_DIR, { recursive: true });
+fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+fs.mkdirSync(PAGES_DIR, { recursive: true });
+fs.mkdirSync(cfg.BM_THUMBS_DIR, { recursive: true });
 fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
 fs.mkdirSync(path.join(process.cwd(), 'models'), { recursive: true });
 
@@ -98,7 +99,7 @@ function isLocalhost(req) {
 
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
-  const p      = parsed.pathname;
+  const p = parsed.pathname;
   const params = new URLSearchParams(parsed.search || '');
 
   // Block remote connections unless network access is explicitly enabled
@@ -119,6 +120,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
   if (p === '/api/categories' && req.method === 'GET') return videos.apiCategories(req, res);
   if (p === '/api/categories-overview' && req.method === 'GET') return videos.apiCategoriesOverview(req, res);
+  if (p === '/api/all-categories' && req.method === 'GET') return videos.apiGetAllCategories(req, res);
+  if (p === '/api/enabled-categories' && req.method === 'POST') return videos.apiSetEnabledCategories(req, res);
   if (p === '/api/main-categories' && req.method === 'GET') return videos.apiMainCategories(req, res);
   if (p === '/api/main-categories' && req.method === 'POST') return videos.apiCreateCategory(req, res);
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);
@@ -140,6 +143,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/categories/unlock' && req.method === 'POST') return videos.apiUnlockCategory(req, res);
   if (p === '/api/categories/decrypt' && req.method === 'POST') return videos.apiDecryptCategory(req, res);
   if (p === '/api/categories/encrypt-all' && req.method === 'POST') return videos.apiEncryptAllCategories(req, res);
+  if (p === '/api/categories/compress' && req.method === 'POST') return videos.apiCompressCategory(req, res);
 
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetail(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
@@ -177,10 +181,11 @@ const server = http.createServer(async (req, res) => {
   // ── Thumbnails ───────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/generate$/)) && req.method === 'POST') return thumbnails.apiThumbGen(req, res, m[1]);
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return thumbnails.apiThumbImg(req, res, m[1], parseInt(m[2], 10));
+  if (p === '/api/thumbnails' && req.method === 'GET') return thumbnails.apiThumbnailsList(req, res);
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/chapter\/([^/]+)$/)) && req.method === 'GET') return thumbnails.apiChapterThumbImg(req, res, m[1], m[2]);
-  if (p === '/api/gen-thumbs/start'  && req.method === 'POST') return genThumbs.apiGenThumbsStart(req, res);
-  if (p === '/api/gen-thumbs/stop'   && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
-  if (p === '/api/gen-thumbs/status' && req.method === 'GET')  return genThumbs.apiGenThumbsStatus(req, res);
+  if (p === '/api/gen-thumbs/start' && req.method === 'POST') return genThumbs.apiGenThumbsStart(req, res);
+  if (p === '/api/gen-thumbs/stop' && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
+  if (p === '/api/gen-thumbs/status' && req.method === 'GET') return genThumbs.apiGenThumbsStatus(req, res);
 
   // ── Collections ──────────────────────────────────────────────────────
   if (p === '/api/collections' && req.method === 'GET') return collections.apiCollections(req, res);
@@ -217,6 +222,10 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'PUT') return bookmarks.apiWebsiteUpdate(req, res, parseInt(m[1]));
   if (p === '/api/scrape' && req.method === 'GET') return bookmarks.apiScrape(req, res);
   if (p === '/api/og-thumb' && req.method === 'GET') return bookmarks.apiOgThumb(req, res);
+  if (p === '/api/bookmarks/generate-thumb' && req.method === 'POST') return bookmarks.apiGenerateBookmarkThumb(req, res);
+  if (p === '/api/bookmarks/generate-all' && req.method === 'POST') return bookmarks.apiGenerateAllBookmarkThumbs(req, res);
+  if (p === '/api/bookmarks/generation-status' && req.method === 'GET') return bookmarks.apiBookmarkGenerationStatus(req, res);
+  if ((m = p.match(/^\/api\/bookmarks\/thumbs\/(.+)$/)) && req.method === 'GET') return bookmarks.apiBookmarkThumbImg(req, res, m[1]);
   if (p === '/api/bookmarks/cache' && req.method === 'GET') return bookmarks.apiGetBookmarksCache(req, res);
   if (p === '/api/bookmarks/cache' && req.method === 'POST') return bookmarks.apiSaveBookmarksCache(req, res);
   if (p === '/api/browser-favs' && req.method === 'GET') return bookmarks.apiBrowserFavs(req, res);
@@ -249,8 +258,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/import-drop' && req.method === 'POST') return vault.apiVaultImportDrop(req, res);
 
   // ── Presets ──────────────────────────────────────────────────────────
-  if (p === '/api/presets' && req.method === 'GET') return presets.apiGetPresets(req, res);
-  if (p === '/api/presets/apply' && req.method === 'POST') return presets.apiApplyPreset(req, res);
+  if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
+  if (p === '/api/presets/apply' && req.method === 'POST') return profiles.apiApplyPreset(req, res);
+  
+  // ── Profiles ─────────────────────────────────────────────────────────
+  if (p === '/api/profiles' && req.method === 'GET') return profiles.apiGetProfiles(req, res);
+  if (p === '/api/profiles/switch' && req.method === 'POST') return profiles.apiSwitchProfile(req, res);
+  if (p === '/api/profiles/create' && req.method === 'POST') return profiles.apiCreateProfile(req, res);
+  if (p === '/api/profiles/rename' && req.method === 'POST') return profiles.apiRenameProfile(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
@@ -289,14 +304,14 @@ const server = http.createServer(async (req, res) => {
 
   // ── Prompts ──────────────────────────────────────────────────────────
   if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);
-  if (p === '/api/prompts' && req.method === 'GET')    return prompts.apiGetPrompts(req, res);
-  if (p === '/api/prompts' && req.method === 'POST')   return prompts.apiAddPrompt(req, res);
+  if (p === '/api/prompts' && req.method === 'GET') return prompts.apiGetPrompts(req, res);
+  if (p === '/api/prompts' && req.method === 'POST') return prompts.apiAddPrompt(req, res);
   if (p === '/api/prompts/all' && req.method === 'DELETE') return prompts.apiDeleteAllPrompts(req, res);
-  if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'PATCH')  return prompts.apiUpdatePrompt(req, res, m[1]);
+  if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'PATCH') return prompts.apiUpdatePrompt(req, res, m[1]);
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'DELETE') return prompts.apiDeletePrompt(req, res, m[1]);
-  if (p === '/api/comfyui/status'    && req.method === 'GET')  return prompts.apiComfyStatus(req, res);
-  if (p === '/api/comfyui/workflows' && req.method === 'GET')  return prompts.apiComfyWorkflows(req, res);
-  if (p === '/api/comfyui/send'      && req.method === 'POST') return prompts.apiComfySend(req, res);
+  if (p === '/api/comfyui/status' && req.method === 'GET') return prompts.apiComfyStatus(req, res);
+  if (p === '/api/comfyui/workflows' && req.method === 'GET') return prompts.apiComfyWorkflows(req, res);
+  if (p === '/api/comfyui/send' && req.method === 'POST') return prompts.apiComfySend(req, res);
 
   // ── Remote control ───────────────────────────────────────────────────
   if (p === '/api/remote/events' && req.method === 'GET') return remote.apiRemoteEvents(req, res);
@@ -311,15 +326,19 @@ const server = http.createServer(async (req, res) => {
   // ── AI Comments ──────────────────────────────────────────────────────
   if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);
   if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
-  if (p === '/api/comments/reply'    && req.method === 'POST') return comments.apiReplyToComment(req, res);
-  { const m = p.match(/^\/api\/comments\/([^/]+)\/add$/);
-    if (m && req.method === 'POST') return comments.apiAddComment(req, res, decodeURIComponent(m[1])); }
-  { const m = p.match(/^\/api\/comments\/([^/]+)$/);
-    if (m && req.method === 'GET') return comments.apiGetComments(req, res, decodeURIComponent(m[1])); }
+  if (p === '/api/comments/reply' && req.method === 'POST') return comments.apiReplyToComment(req, res);
+  {
+    const m = p.match(/^\/api\/comments\/([^/]+)\/add$/);
+    if (m && req.method === 'POST') return comments.apiAddComment(req, res, decodeURIComponent(m[1]));
+  }
+  {
+    const m = p.match(/^\/api\/comments\/([^/]+)$/);
+    if (m && req.method === 'GET') return comments.apiGetComments(req, res, decodeURIComponent(m[1]));
+  }
 
   // ── Local IP ─────────────────────────────────────────────────────────
   if (p === '/api/local-ip' && req.method === 'GET') {
-    const ips  = getLocalIPs();
+    const ips = getLocalIPs();
     const best = ips[0] || null;
     return json(res, {
       ip: best ? best.ip : null,
@@ -330,10 +349,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── Static / SPA ─────────────────────────────────────────────────────
-  const filePath  = p === '/' ? 'index.html' : p.replace(/^\//, '');
+  const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
   if (p === '/instagram') return serveStatic(req, res, 'instagram.html');
   if (p === '/reddit' || p.startsWith('/reddit/') || p === '/r' || p.startsWith('/r/')) return serveStatic(req, res, 'reddit.html');
-  const spaRoutes = /^\/(bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });
@@ -351,7 +370,7 @@ server.listen(PORT, async () => {
   if (IS_PKG) {
     const openCmd = process.platform === 'win32' ? `start http://localhost:${PORT}`
       : process.platform === 'darwin' ? `open http://localhost:${PORT}`
-      : `xdg-open http://localhost:${PORT}`;
+        : `xdg-open http://localhost:${PORT}`;
     exec(openCmd);
   }
 });

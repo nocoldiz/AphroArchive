@@ -3,7 +3,7 @@
 //  comments-server.js — AI comment generation + persistence
 // ═══════════════════════════════════════════════════════════════════
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { json, readBody } = require('./helpers-server');
 const { loadPrefs } = require('./db-server');
@@ -12,11 +12,11 @@ const { CACHE_DIR } = require('./config-server');
 const MODELS_DIR = path.join(process.cwd(), 'models');
 const MODEL_FILE = path.join(MODELS_DIR, 'llama-3.2-1b-instruct.gguf');
 
-let getLlama         = null;
+let getLlama = null;
 let LlamaChatSession = null;
-let llama      = null;
-let model      = null;
-let ctx        = null;
+let llama = null;
+let model = null;
+let ctx = null;
 let modelReady = false;
 
 // ── Model lifecycle ────────────────────────────────────────────────────────────
@@ -25,14 +25,17 @@ async function initCommentsModel() {
   if (!prefs.aiCommentsEnabled) return;
   if (!fs.existsSync(MODEL_FILE)) { console.warn('[comments] Model not found:', MODEL_FILE); return; }
   try {
+    const nodeLlama = await import('node-llama-cpp');
+    getLlama = nodeLlama.getLlama;
+    LlamaChatSession = nodeLlama.LlamaChatSession;
   } catch (e) {
     console.warn('[comments] node-llama-cpp not installed:', e.message); return;
   }
   try {
     fs.mkdirSync(MODELS_DIR, { recursive: true });
-    llama      = await getLlama();
-    model      = await llama.loadModel({ modelPath: MODEL_FILE });
-    ctx        = await model.createContext();
+    llama = await getLlama();
+    model = await llama.loadModel({ modelPath: MODEL_FILE });
+    ctx = await model.createContext();
     modelReady = true;
     console.log('[comments] Model loaded OK');
   } catch (e) {
@@ -44,12 +47,12 @@ const isModelReady = () => modelReady;
 async function reinitIfNeeded() { if (!modelReady) await initCommentsModel(); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const _ADJS  = ['Curious','Sneaky','Bold','Gentle','Witty','Calm','Fuzzy','Quick','Silent','Clever','Crispy','Spicy','Lucky','Sassy','Zesty'];
-const _NOUNS = ['Otter','Falcon','Panda','Wolf','Raven','Tiger','Fox','Lynx','Elk','Bear','Gecko','Hippo','Lemur','Mink','Newt'];
+const _ADJS = ['Curious', 'Sneaky', 'Bold', 'Gentle', 'Witty', 'Calm', 'Fuzzy', 'Quick', 'Silent', 'Clever', 'Crispy', 'Spicy', 'Lucky', 'Sassy', 'Zesty'];
+const _NOUNS = ['Otter', 'Falcon', 'Panda', 'Wolf', 'Raven', 'Tiger', 'Fox', 'Lynx', 'Elk', 'Bear', 'Gecko', 'Hippo', 'Lemur', 'Mink', 'Newt'];
 function _rndUser() {
-  return _ADJS[Math.random()*_ADJS.length|0] + _NOUNS[Math.random()*_NOUNS.length|0] + (1000 + Math.floor(Math.random()*8999));
+  return _ADJS[Math.random() * _ADJS.length | 0] + _NOUNS[Math.random() * _NOUNS.length | 0] + (1000 + Math.floor(Math.random() * 8999));
 }
-function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 // Deterministic hash — MUST match _hashId() in reddit.html and _hash() in comments.js
 function _hashId(id) {
@@ -84,14 +87,14 @@ function _buildComments(texts, videoId) {
       author: _rndUser(),
       isAI: true,
       parentId,
-      ts: Date.now() - Math.floor(rng() * 86400000 * 14)
+      ts: Date.now() - Math.floor(rng() * 86300000 * 14)
     });
   }
   return out;
 }
 
 function _cacheFile(videoId) {
-  const safe = videoId.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0, 200);
+  const safe = videoId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 200);
   return path.join(CACHE_DIR, 'comments_' + safe + '.json');
 }
 
@@ -108,7 +111,7 @@ function loadCommentFile(videoId) {
         author: _rndUser(),
         isAI: true,
         parentId: null,
-        ts: Date.now() - Math.floor(Math.random() * 86400000 * 7)
+        ts: Date.now() - Math.floor(Math.random() * 86300000 * 7)
       }));
       saveCommentFile(videoId, migrated);
       return migrated;
@@ -127,9 +130,11 @@ async function _generateCommentTexts(videoName, count) {
   const sequence = ctx.getSequence();
   try {
     const session = new LlamaChatSession({ contextSequence: sequence });
-    const prompt =
-      'Generate exactly ' + count + ' realistic, casual internet comments that real users would post under a video titled "' +
-      videoName.replace(/"/g,'\\"').replace(/\n/g,' ') + '".\n\n' +
+    const prefs = loadPrefs();
+    const prompt = (prefs.aiCommentMasterPrompt && prefs.aiCommentMasterPrompt.trim())
+      ? prefs.aiCommentMasterPrompt.replace(/\{count\}/g, count.toString()).replace(/\{videoName\}/g, videoName.replace(/"/g, '\\"').replace(/\n/g, ' '))
+      : 'Generate exactly ' + count + ' realistic, casual internet comments that real users would post under a video titled "' +
+      videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') + '".\n\n' +
       'Vary them: mix of very short reactions, detailed praise, funny one-liners, and relatable observations. Make them feel like real different people.\n\n' +
       'Return ONLY a valid JSON array of exactly ' + count + ' strings: ["comment 1", "comment 2", ...]\n' +
       'No explanation, no markdown — just the raw JSON array.';
@@ -147,12 +152,14 @@ async function _generateReplyText(videoName, userComment) {
   const sequence = ctx.getSequence();
   try {
     const session = new LlamaChatSession({ contextSequence: sequence });
-    const prompt =
-      'A user commented "' + userComment.replace(/"/g,'\\"') + '" on a video titled "' +
-      videoName.replace(/"/g,'\\"').replace(/\n/g,' ') + '". ' +
+    const prefs = loadPrefs();
+    const prompt = (prefs.aiReplyMasterPrompt && prefs.aiReplyMasterPrompt.trim())
+      ? prefs.aiReplyMasterPrompt.replace(/\{userComment\}/g, userComment.replace(/"/g, '\\"')).replace(/\{videoName\}/g, videoName.replace(/"/g, '\\"').replace(/\n/g, ' '))
+      : 'A user commented "' + userComment.replace(/"/g, '\\"') + '" on a video titled "' +
+      videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') + '". ' +
       'Write a short, casual 1-2 sentence reply. Return ONLY the reply text.';
     const raw = await session.prompt(prompt);
-    return raw.trim().replace(/^["']|["']$/g,'');
+    return raw.trim().replace(/^["']|["']$/g, '');
   } finally {
     sequence.dispose();
   }
@@ -161,7 +168,7 @@ async function _generateReplyText(videoName, userComment) {
 // ── API: GET /api/comments/:id?name=... ───────────────────────────────────────
 async function apiGetComments(req, res, videoId) {
   try {
-    const urlObj   = new URL('http://x' + req.url);
+    const urlObj = new URL('http://x' + req.url);
     const videoName = urlObj.searchParams.get('name') || videoId;
 
     let comments = loadCommentFile(videoId);
@@ -251,8 +258,8 @@ async function apiGenerateComments(req, res) {
   const mockReq = { url: '/api/comments/' + encodeURIComponent(videoId) + '?name=' + encodeURIComponent(videoName) };
   const comments = [];
   const mockRes = {
-    writeHead: () => {}, end: (body) => {
-      try { const d = JSON.parse(body); comments.push(...(Array.isArray(d) ? d : [])); } catch {}
+    writeHead: () => { }, end: (body) => {
+      try { const d = JSON.parse(body); comments.push(...(Array.isArray(d) ? d : [])); } catch { }
     }
   };
   await apiGetComments(mockReq, mockRes, videoId);

@@ -59,6 +59,8 @@ async function apiSavePrefs(req, res) {
   if ('ollamaUrl' in body) prefs.ollamaUrl = String(body.ollamaUrl || '').trim();
   if ('ollamaVisionModel' in body) prefs.ollamaVisionModel = String(body.ollamaVisionModel || '').trim();
   if ('networkEnabled' in body)   prefs.networkEnabled   = !!body.networkEnabled;
+  if ('aiCommentMasterPrompt' in body) prefs.aiCommentMasterPrompt = String(body.aiCommentMasterPrompt || '').trim();
+  if ('aiReplyMasterPrompt' in body)   prefs.aiReplyMasterPrompt   = String(body.aiReplyMasterPrompt || '').trim();
   savePrefs(prefs);
   json(res, { ok: true });
 }

@@ -3,11 +3,11 @@
 //  thumbnails.js — ffmpeg thumbnail generation and serving
 // ═══════════════════════════════════════════════════════════════════
 
-const fs                = require('fs');
-const path              = require('path');
-const { execFile }      = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const { execFile } = require('child_process');
 const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config-server');
-const { json, safePath }               = require('./helpers-server');
+const { json, safePath } = require('./helpers-server');
 const { loadThumbsCache, saveThumbsCache } = require('./db-server');
 const crypto = require('crypto');
 
@@ -15,7 +15,7 @@ const crypto = require('crypto');
 
 function ffprobeDuration(fp) {
   return new Promise(resolve => {
-    execFile(FFPROBE_BIN, ['-v','quiet','-print_format','json','-show_format', fp],
+    execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', fp],
       { timeout: 15000 },
       (err, out) => {
         if (err) return resolve(null);
@@ -49,7 +49,7 @@ async function apiThumbGen(req, res, id) {
   const fp = safePath(id);
   if (!fp) return json(res, { error: 'Not found' }, 404);
   const cache = loadThumbsCache();
-  const stat  = fs.statSync(fp);
+  const stat = fs.statSync(fp);
   if (cache[id] && cache[id].mtime === stat.mtimeMs && cache[id].count > 0)
     return json(res, { count: cache[id].count, duration: cache[id].duration || null });
   if (genLock.has(id)) return json(res, { count: 0, busy: true });
@@ -57,7 +57,7 @@ async function apiThumbGen(req, res, id) {
   try {
     const { count, duration } = await genThumbs(id, fp);
     const c = loadThumbsCache();
-    c[id]   = { mtime: stat.mtimeMs, count, duration };
+    c[id] = { mtime: stat.mtimeMs, count, duration };
     saveThumbsCache(c);
     json(res, { count, duration });
   } catch { json(res, { count: 0 }); } finally { genLock.delete(id); }
@@ -99,9 +99,9 @@ async function apiThumbImg(req, res, id, idx) {
 
 function decryptBuffer(raw, key) {
   const ivLen = 12, tagLen = 16;
-  const iv  = raw.slice(0, ivLen);
+  const iv = raw.slice(0, ivLen);
   const tag = raw.slice(raw.length - tagLen);
-  const ct  = raw.slice(ivLen, raw.length - tagLen);
+  const ct = raw.slice(ivLen, raw.length - tagLen);
   const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
   dec.setAuthTag(tag);
   return Buffer.concat([dec.update(ct), dec.final()]);
@@ -130,4 +130,27 @@ async function apiChapterThumbImg(req, res, id, chapterId) {
   fs.createReadStream(fp).pipe(res);
 }
 
-module.exports = { apiThumbGen, apiThumbImg, genChapterThumb, apiChapterThumbImg };
+async function apiThumbnailsList(req, res) {
+  try {
+    if (!fs.existsSync(THUMBS_DIR)) return json(res, []);
+    const dirs = fs.readdirSync(THUMBS_DIR).filter(d => !d.startsWith('.'));
+    const results = [];
+    for (const id of dirs) {
+      const dirPath = path.join(THUMBS_DIR, id);
+      if (!fs.statSync(dirPath).isDirectory()) continue;
+      const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jpg') && !isNaN(parseInt(f)));
+      if (files.length > 0) {
+        results.push({
+          id,
+          count: files.length,
+          thumbs: files.sort((a, b) => parseInt(a) - parseInt(b)).map(f => `/api/thumbs/${id}/${path.parse(f).name}`)
+        });
+      }
+    }
+    json(res, results);
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+module.exports = { apiThumbGen, apiThumbImg, genChapterThumb, apiChapterThumbImg, apiThumbnailsList };

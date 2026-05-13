@@ -21,3 +21,9 @@ process
 models/llama-3.2-1b-instruct.gguf.gguf
 yt-dlp.exe
 models
+*.db
+*.db-shm
+*.db-wal
+db/*.db
+db/*.db-shm
+db/*.db-wal

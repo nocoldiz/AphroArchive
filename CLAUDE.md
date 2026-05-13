@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-AphroArchive is a **zero-dependency local video organizer** — a Node.js HTTP server with a vanilla JS single-page frontend. No frameworks, no build step, no transpilation. It runs on Node.js and optionally packages to a standalone `.exe` via `@yao-pkg/pkg`.
+AphroArchive is a **local video organizer** — a Node.js HTTP server. The frontend is in transition from a vanilla JS single-page app to a Preact with TSX application. It runs on Node.js and optionally packages to a standalone `.exe` via `@yao-pkg/pkg`.
 
 ## Running the App
 
@@ -54,15 +54,19 @@ Module responsibilities:
 
 ### Frontend (`public/`)
 
-Pure vanilla JS, no bundler. `index.html` loads `style.css`, `themes.css`, then all module scripts as `<script src="...">` in order. State is global variables across files — not ES modules.
+The frontend is currently in a hybrid state, migrating from pure vanilla JS to Preact with TSX.
 
-- `public/modules/state.js` — All global state variables (`V`, `cats`, `sort`, `cat`, `q`, view mode flags, etc.).
-- `public/app.js` — `init()` bootstrap, data fetch functions (`load()`, `loadC()`), core render loop.
-- `public/modules/render.js` — Card rendering and grid updates.
-- `public/modules/` — Feature modules: `player.js`, `search-sites.js`, `vault.js`, `collections.js`, `bookmarks.js`, `actors.js`, `studios.js`, `tags.js`, `thumbnails.js`, `mosaic.js`, `zap.js`, `playlist.js`, `navigation.js`, `import.js`, `rename-move.js`, `settings.js`, `database.js`, `duplicates.js`, `data.js`, `utils.js`, `audio.js`, `books.js`.
-- `public/templates/` — HTML snippet files loaded via fetch and injected into the DOM.
+**Legacy System**:
+Pure vanilla JS, no bundler. `index.html` loads module scripts. State is global variables across files.
+- `public/modules/state.js` — All global state variables.
+- `public/app.js` — Bootstrap and core render loop.
+- `public/templates/` — HTML snippet files loaded via fetch.
 
-The SPA has no client-side router — view state is managed by toggling mode flags and re-rendering. Routes like `/bookmarks`, `/vault`, etc. are served as `index.html` by the server.
+**Preact System (`public/src/`)**:
+Uses Preact and TSX. Components are located in `public/src/components/`.
+- `src/main.tsx` mounts components to specific DOM elements.
+- `src/store.ts` handles shared state using Preact signals.
+- `src/components/MainContent.tsx` acts as a view switcher for new views like `SettingsView`, `ThumbnailsView`, and `InstagramView`.
 
 ### External Tool Dependencies
 

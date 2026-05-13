@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const {
   VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
-  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR,
+  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN
 } = require('./config-server');
 const { pipeline } = require('stream');
 const { promisify } = require('util');
@@ -37,6 +37,7 @@ function getCatKey(p) {
 let _scanCache = null;
 let _watchDebounce = null;
 const unlockedCategories = new Map(); // catPath -> key (Buffer)
+let masterPassword = null; // Session master password
 
 function invalidateScanCache() {
   _scanCache = null;
@@ -286,48 +287,63 @@ async function apiVideos(req, res, params) {
 async function apiCategories(req, res) {
   const videos = await cachedScan();
   const hidden = loadHidden();
-  const cats = [];
+  const catMap = new Map();
 
-  async function walk(dir, rel = '') {
-    if (!fs.existsSync(dir)) return;
-    try {
-      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-      for (const ent of entries) {
-        if (!ent.isDirectory()) continue;
-        const subRel = rel ? path.join(rel, ent.name) : ent.name;
-        const subRelFwd = subRel.replace(/\\/g, '/');
-        const full = path.join(VIDEOS_DIR, subRel);
-        
-        if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
-
-        // Recursive count
-        const count = videos.filter(v => {
-          const vp = v.catPath.toLowerCase();
-          const cl = subRelFwd.toLowerCase();
-          return vp === cl || vp.startsWith(cl + '/') || vp.startsWith(cl + '\\');
-        }).length;
-
-        // Check for encryption status
-        const isConfigured = fs.existsSync(path.join(full, '.cat-enc-config.json'));
-        const folderVideos = videos.filter(v => getCatKey(v.catPath) === subRelFwd.toLowerCase());
-        const hasUnencrypted = folderVideos.some(v => !v.encrypted);
-        const isPartial = isConfigured && hasUnencrypted;
-
-        cats.push({ 
-          name: subRel.replace(/[\\/]/g, ' / '), 
-          path: subRelFwd, 
-          count, 
-          encrypted: isConfigured,
-          partial: isPartial,
-          unlocked: isUnlocked(subRelFwd)
+  for (const v of videos) {
+    const cp = v.catPath;
+    if (!cp) continue;
+    
+    const parts = cp.split('/');
+    let currentPath = '';
+    
+    for (let i = 0; i < parts.length; i++) {
+      currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
+      const subRelFwd = currentPath;
+      
+      if (!catMap.has(subRelFwd)) {
+        catMap.set(subRelFwd, {
+          name: subRelFwd.replace(/\//g, ' / '),
+          path: subRelFwd,
+          count: 0,
+          hasUnencrypted: false
         });
-        await walk(full, subRel);
       }
-    } catch (e) {}
+      
+      const entry = catMap.get(subRelFwd);
+      entry.count++;
+      
+      if (i === parts.length - 1) {
+        if (!v.encrypted) {
+          entry.hasUnencrypted = true;
+        }
+      }
+    }
   }
 
-  await walk(VIDEOS_DIR);
+  const db = require('./db-server');
+  const enabledCats = db.loadEnabledCategories();
+  const enabledSet = new Set(enabledCats);
+
+  const cats = [];
+  for (const [key, entry] of catMap.entries()) {
+    if (enabledSet.size > 0 && !enabledSet.has(entry.path)) continue;
+
+    const parts = key.split('/');
+    const isHidden = parts.some(part => hidden.some(t => t.toLowerCase() === part.toLowerCase()));
+    if (isHidden) continue;
+
+    const full = path.join(VIDEOS_DIR, entry.path);
+    const isConfigured = fs.existsSync(path.join(full, '.cat-enc-config.json'));
+    
+    cats.push({
+      name: entry.name,
+      path: entry.path,
+      count: entry.count,
+      encrypted: isConfigured,
+      partial: isConfigured && entry.hasUnencrypted,
+      unlocked: isUnlocked(entry.path)
+    });
+  }
 
   // Uncategorized count
   const defined = loadCategories();
@@ -341,6 +357,47 @@ async function apiCategories(req, res) {
   });
 
   json(res, cats);
+}
+
+async function apiGetAllCategories(req, res) {
+  const videos = await cachedScan();
+  const catMap = new Map();
+
+  for (const v of videos) {
+    const cp = v.catPath;
+    if (!cp) continue;
+    
+    const parts = cp.split('/');
+    let currentPath = '';
+    
+    for (let i = 0; i < parts.length; i++) {
+      currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
+      if (!catMap.has(currentPath)) {
+        catMap.set(currentPath, {
+          name: currentPath.replace(/\//g, ' / '),
+          path: currentPath
+        });
+      }
+    }
+  }
+
+  const list = Array.from(catMap.values());
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  
+  const db = require('./db-server');
+  const enabled = db.loadEnabledCategories();
+  
+  json(res, { categories: list, enabled });
+}
+
+async function apiSetEnabledCategories(req, res) {
+  const body = await readBody(req);
+  const { paths } = body;
+  if (!Array.isArray(paths)) return json(res, { error: 'Paths array required' }, 400);
+  
+  const db = require('./db-server');
+  db.saveEnabledCategories(paths);
+  json(res, { ok: true });
 }
 
 async function apiMainCategories(req, res) {
@@ -784,6 +841,13 @@ async function apiCategoriesOverview(req, res) {
       tagMap.get(lo).ids.push(v.id);
     }
   }
+  const unencryptedCats = new Set();
+  for (const v of videos) {
+    if (!v.encrypted && v.catPath) {
+      unencryptedCats.add(getCatKey(v.catPath));
+    }
+  }
+
   const result = [...filteredCats, ...tagMap.values()].map(e => {
     const thumbId = e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null;
     let encrypted = false;
@@ -793,7 +857,7 @@ async function apiCategoriesOverview(req, res) {
       encrypted = fs.existsSync(path.join(full, '.cat-enc-config.json'));
       if (encrypted) {
         // Check if any videos in this specific folder are NOT encrypted
-        const hasUnencrypted = videos.some(v => getCatKey(v.catPath) === getCatKey(e.path) && !v.encrypted);
+        const hasUnencrypted = unencryptedCats.has(getCatKey(e.path));
         partial = hasUnencrypted;
       }
     }
@@ -1230,6 +1294,10 @@ async function apiEncryptAllCategories(req, res) {
   const body = await readBody(req);
   const { password } = body;
   if (!password) return json(res, { error: 'password required' }, 400);
+  
+  if (masterPassword && password !== masterPassword) {
+    return json(res, { error: 'Does not match master password' }, 401);
+  }
 
   const allCategoryDirs = [];
   function walk(dir) {
@@ -1290,6 +1358,10 @@ async function apiEncryptCategory(req, res) {
   const password = (rawPw || '').trim();
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
+  
+  if (masterPassword && password !== masterPassword) {
+    return json(res, { error: 'Does not match master password' }, 401);
+  }
   
   const dir = path.join(VIDEOS_DIR, catPath);
   if (!fs.existsSync(dir)) return json(res, { error: 'Category not found' }, 404);
@@ -1397,6 +1469,10 @@ async function apiUnlockCategory(req, res) {
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
   
+  if (masterPassword && password !== masterPassword) {
+    return json(res, { error: 'Does not match master password' }, 401);
+  }
+  
   const dir = path.join(VIDEOS_DIR, catPath);
   const configPath = path.join(dir, '.cat-enc-config.json');
   if (!fs.existsSync(configPath)) return json(res, { error: 'Category not encrypted' }, 404);
@@ -1406,6 +1482,10 @@ async function apiUnlockCategory(req, res) {
     const { encKey, verifyHash } = await deriveKeys(password, config.salt);
     
     if (verifyHash !== config.verifyHash) return json(res, { error: 'Wrong password' }, 401);
+    
+    if (!masterPassword) {
+      masterPassword = password;
+    }
     
     unlockedCategories.set(getCatKey(catPath), encKey);
 
@@ -1449,6 +1529,10 @@ async function apiDecryptCategory(req, res) {
   const password = (rawPw || '').trim();
   
   if (!catPath || !password) return json(res, { error: 'path and password required' }, 400);
+  
+  if (masterPassword && password !== masterPassword) {
+    return json(res, { error: 'Does not match master password' }, 401);
+  }
   
   const dir = path.join(VIDEOS_DIR, catPath);
   const configPath = path.join(dir, '.cat-enc-config.json');
@@ -1595,6 +1679,7 @@ function getUnlockedCategoryKey(catPath) {
 module.exports = {
   scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
+  apiGetAllCategories, apiSetEnabledCategories,
   apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
   apiAddHistory, apiGetHistory, apiClearHistory,

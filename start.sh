@@ -1,8 +1,13 @@
 #!/bin/sh
 # Detect OS and open browser
 case "$(uname -s)" in
-  Darwin) open "http://localhost:3000" ;;
-  Linux)  xdg-open "http://localhost:3000" 2>/dev/null || \
-          sensible-browser "http://localhost:3000" 2>/dev/null & ;;
+  Darwin) open "http://localhost:5173" ;;
+  Linux)  xdg-open "http://localhost:5173" 2>/dev/null || \
+          sensible-browser "http://localhost:5173" 2>/dev/null & ;;
 esac
-node server.js
+
+# Start Vite in background
+npm run dev &
+
+# Start Node server with watch mode
+node --watch server.js

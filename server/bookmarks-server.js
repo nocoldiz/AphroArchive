@@ -10,9 +10,10 @@ const http  = require('http');
 const https = require('https');
 const os    = require('os');
 const url   = require('url');
-const { BM_CACHE_FILE, OG_THUMB_CACHE_FILE, BM_DIR } = require('./config-server');
-const { json, readBody }   = require('./helpers-server');
+const { BM_CACHE_FILE, OG_THUMB_CACHE_FILE, BM_DIR, BM_THUMBS_DIR, EDGE_BIN } = require('./config-server');
+const { json, readBody, serveStatic }   = require('./helpers-server');
 const { loadWebsites, saveWebsites, loadBookmarksCache, saveBookmarksCache, loadOgThumbCache, saveOgThumbCache } = require('./db-server');
+const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
 
 // ── OG thumbnail cache ───────────────────────────────────────────────
@@ -57,6 +58,15 @@ async function apiOgThumb(req, res) {
   const qs        = new URL('http://x' + req.url).searchParams;
   const targetUrl = qs.get('url');
   if (!targetUrl) return json(res, { error: 'No URL' }, 400);
+
+  // Check if we have a generated thumb first
+  const thumbId = Buffer.from(targetUrl).toString('base64url');
+  const fpPng = path.join(BM_THUMBS_DIR, thumbId + '.png');
+  const fpJpg = path.join(BM_THUMBS_DIR, thumbId + '.jpg');
+  if (fs.existsSync(fpPng) || fs.existsSync(fpJpg)) {
+    return json(res, { img: '/api/bookmarks/thumbs/' + thumbId });
+  }
+
   const now    = Date.now();
   const cached = _ogCache.get(targetUrl);
   if (cached && now - cached.ts < OG_TTL) return json(res, { img: cached.img });
@@ -64,6 +74,128 @@ async function apiOgThumb(req, res) {
   _ogCache.set(targetUrl, { img, ts: now });
   saveOgThumbCache(_ogCache);
   json(res, { img });
+}
+
+// ── Bookmark Thumbnail Generation (Edge headless) ────────────────────
+
+let _bmJob = null; // { running, stop, total, done, failed, current }
+const _bmClients = new Set();
+
+function broadcastBm(ev) {
+  const line = 'data: ' + JSON.stringify(ev) + '\n\n';
+  for (const res of _bmClients) {
+    try { res.write(line); } catch { _bmClients.delete(res); }
+  }
+}
+
+async function takeScreenshot(url, outPath) {
+  if (!fs.existsSync(EDGE_BIN)) throw new Error('Edge browser not found at ' + EDGE_BIN);
+  return new Promise((resolve, reject) => {
+    // Edge headless screenshot command
+    const args = [
+      '--headless',
+      '--disable-gpu',
+      '--hide-scrollbars',
+      '--window-size=1280,720',
+      '--screenshot=' + outPath,
+      url
+    ];
+    execFile(EDGE_BIN, args, { timeout: 30000 }, (err) => {
+      if (err) return reject(err);
+      if (fs.existsSync(outPath)) {
+        // Optionally resize/convert to jpg if Edge saves as png
+        resolve();
+      } else {
+        reject(new Error('Screenshot failed - file not created'));
+      }
+    });
+  });
+}
+
+function apiBookmarkThumbImg(req, res, id) {
+  const fpPng = path.join(BM_THUMBS_DIR, id + '.png');
+  const fpJpg = path.join(BM_THUMBS_DIR, id + '.jpg');
+  const fp = fs.existsSync(fpPng) ? fpPng : (fs.existsSync(fpJpg) ? fpJpg : null);
+
+  if (!fp) {
+    res.writeHead(404);
+    return res.end('Not found');
+  }
+
+  const ext = path.extname(fp).toLowerCase();
+  const ct  = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' }[ext] || 'image/png';
+  res.writeHead(200, { 'Content-Type': ct, 'Cache-Control': 'public, max-age=86400' });
+  fs.createReadStream(fp).pipe(res);
+}
+
+async function apiGenerateBookmarkThumb(req, res) {
+  const body = await readBody(req);
+  const url = body.url;
+  if (!url) return json(res, { error: 'url required' }, 400);
+
+  const id = Buffer.from(url).toString('base64url');
+  const outPath = path.join(BM_THUMBS_DIR, id + '.png'); // Edge uses png
+
+  try {
+    await takeScreenshot(url, outPath);
+    json(res, { ok: true, img: '/api/bookmarks/thumbs/' + id });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+async function apiGenerateAllBookmarkThumbs(req, res) {
+  if (_bmJob && _bmJob.running) return json(res, { error: 'Already running' });
+
+  const bookmarks = loadBookmarksCache().items || [];
+  if (!bookmarks.length) return json(res, { error: 'No bookmarks to process' });
+
+  _bmJob = { running: true, stop: false, total: bookmarks.length, done: 0, failed: 0, current: '' };
+  broadcastBm({ type: 'start', total: bookmarks.length });
+
+  (async () => {
+    for (const item of bookmarks) {
+      if (_bmJob.stop) break;
+      _bmJob.current = item.title || item.url;
+      broadcastBm({ type: 'progress', done: _bmJob.done, total: _bmJob.total, current: _bmJob.current });
+
+      const id = Buffer.from(item.url).toString('base64url');
+      const outPath = path.join(BM_THUMBS_DIR, id + '.png');
+
+      if (!fs.existsSync(outPath)) {
+        try {
+          await takeScreenshot(item.url, outPath);
+        } catch (e) {
+          console.error('BM Thumb Gen Failed:', item.url, e.message);
+          _bmJob.failed++;
+        }
+      }
+      _bmJob.done++;
+    }
+    _bmJob.running = false;
+    broadcastBm({ type: 'done', done: _bmJob.done, failed: _bmJob.failed, total: _bmJob.total });
+  })();
+
+  json(res, { ok: true });
+}
+
+function apiBookmarkGenerationStatus(req, res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('\n');
+  _bmClients.add(res);
+
+  if (_bmJob) {
+    res.write('data: ' + JSON.stringify(_bmJob) + '\n\n');
+  } else {
+    res.write('data: ' + JSON.stringify({ running: false }) + '\n\n');
+  }
+
+  req.on('close', () => _bmClients.delete(res));
 }
 
 // ── Bookmarks cache ───────────────────────────────────────────────────
@@ -317,4 +449,8 @@ module.exports = {
   apiWebsiteAdd, apiWebsiteDelete, apiWebsiteUpdate,
   apiScrape,
   apiBrowserFavs, apiBrowserFavsFile,
+  apiBookmarkThumbImg,
+  apiGenerateBookmarkThumb,
+  apiGenerateAllBookmarkThumbs,
+  apiBookmarkGenerationStatus,
 };

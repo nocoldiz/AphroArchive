@@ -1,0 +1,34 @@
+[
+  {
+    "name": "YouTube",
+    "url": "https://www.youtube.com",
+    "searchURL": "https://www.youtube.com/results?search_query={q}",
+    "scrapeMethod": "youtube",
+    "description": "Video sharing platform",
+    "tags": ["video", "education"]
+  },
+  {
+    "name": "Udemy",
+    "url": "https://www.udemy.com",
+    "searchURL": "https://www.udemy.com/courses/search/?q={q}",
+    "scrapeMethod": "udemy",
+    "description": "Online courses platform",
+    "tags": ["courses", "learning"]
+  },
+  {
+    "name": "Coursera",
+    "url": "https://www.coursera.org",
+    "searchURL": "https://www.coursera.org/search?query={q}",
+    "scrapeMethod": "coursera",
+    "description": "Online courses from universities",
+    "tags": ["courses", "university"]
+  },
+  {
+    "name": "Khan Academy",
+    "url": "https://www.khanacademy.org",
+    "searchURL": "https://www.khanacademy.org/search?page_search_query={q}",
+    "scrapeMethod": "khan",
+    "description": "Free online education",
+    "tags": ["education", "free"]
+  }
+]

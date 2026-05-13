@@ -3,94 +3,98 @@
 //  config.js — Directory paths, MIME types, and environment config
 // ═══════════════════════════════════════════════════════════════════
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
-const os   = require('os');
+const os = require('os');
 
 const ROOT_DIR = path.join(__dirname, '..');          // project root (parent of server/)
-const IS_PKG   = typeof process.pkg !== 'undefined';
+const IS_PKG = typeof process.pkg !== 'undefined';
 const DATA_DIR = IS_PKG ? path.dirname(process.execPath) : ROOT_DIR;
 
 function resolveBin(name) {
   const winName = process.platform === 'win32' ? name + '.exe' : name;
-  const local   = path.join(DATA_DIR, winName);
+  const local = path.join(DATA_DIR, winName);
   return fs.existsSync(local) ? local : name;
 }
 
-const BM_DIR      = path.join(DATA_DIR, 'cache');
-const FFMPEG_BIN  = resolveBin('ffmpeg');
+const BM_DIR = path.join(DATA_DIR, 'cache');
+const FFMPEG_BIN = resolveBin('ffmpeg');
 const FFPROBE_BIN = resolveBin('ffprobe');
-const YT_DLP_BIN  = (() => {
+const YT_DLP_BIN = (() => {
   const winName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
   const inBmDir = path.join(BM_DIR, winName);
   return fs.existsSync(inBmDir) ? inBmDir : resolveBin('yt-dlp');
 })();
 
-const VIDEOS_DIR       = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || path.join(DATA_DIR, 'videos'));
-const AUDIO_DIR        = path.join(DATA_DIR, 'audio');
-const PORT             = parseInt(process.argv[3] || process.env.PORT || '3000', 10);
-const PUBLIC_DIR       = path.join(ROOT_DIR, 'public');           // bundled read-only assets
-const CACHE_DIR        = path.join(DATA_DIR, 'cache');
-const THUMBS_DIR       = path.join(CACHE_DIR, '.AphroArchive-thumbs');
+const VIDEOS_DIR = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || path.join(DATA_DIR, 'videos'));
+const AUDIO_DIR = path.join(DATA_DIR, 'audio');
+const PORT = parseInt(process.argv[3] || process.env.PORT || '3000', 10);
+const PUBLIC_DIR = path.join(ROOT_DIR, 'public');           // bundled read-only assets
+const CACHE_DIR = path.join(DATA_DIR, 'cache');
+const THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-thumbs');
 const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');
-const VAULT_DIR        = path.join(VIDEOS_DIR, 'hidden');
-const PROCESS_DIR        = path.join(DATA_DIR, 'process');
-const IGNORED_DIR      = path.join(VIDEOS_DIR, 'Z');
-const DB_DIR           = path.join(ROOT_DIR, 'db');
-const BOOKS_DIR        = path.join(DATA_DIR, 'books');
-const PHOTOS_DIR       = path.join(DATA_DIR, 'photos');
-const PAGES_DIR        = path.join(DATA_DIR, 'pages');
+const VAULT_DIR = path.join(VIDEOS_DIR, 'hidden');
+const PROCESS_DIR = path.join(DATA_DIR, 'process');
+const IGNORED_DIR = path.join(VIDEOS_DIR, 'Z');
+const DB_DIR = path.join(ROOT_DIR, 'db');
+const BOOKS_DIR = path.join(DATA_DIR, 'books');
+const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
+const PAGES_DIR = path.join(DATA_DIR, 'pages');
+const BM_THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-bm-thumbs');
 
-const FAVOURITES_FILE        = path.join(CACHE_DIR, '.AphroArchive-favourites.json');
-const HISTORY_FILE           = path.join(CACHE_DIR, '.AphroArchive-history.json');
-const THUMBS_CACHE_FILE      = path.join(CACHE_DIR, '.AphroArchive-thumbcache.json');
-const VAULT_CONFIG_FILE      = path.join(CACHE_DIR, '.vault-config.json');
-const VAULT_META_FILE        = path.join(CACHE_DIR, '.vault-meta.json');
+const EDGE_BIN = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+
+const FAVOURITES_FILE = path.join(CACHE_DIR, '.AphroArchive-favourites.json');
+const HISTORY_FILE = path.join(CACHE_DIR, '.AphroArchive-history.json');
+const THUMBS_CACHE_FILE = path.join(CACHE_DIR, '.AphroArchive-thumbcache.json');
+const VAULT_CONFIG_FILE = path.join(CACHE_DIR, '.vault-config.json');
+const VAULT_META_FILE = path.join(CACHE_DIR, '.vault-meta.json');
 const BROWSER_WHITELIST_FILE = path.join(CACHE_DIR, 'whitelist.txt');
-const COLLECTIONS_FILE       = path.join(CACHE_DIR, '.AphroArchive-collections.json');
-const RATINGS_FILE           = path.join(CACHE_DIR, '.AphroArchive-ratings.json');
-const HIDDEN_FILE            = path.join(CACHE_DIR, 'hidden.txt');
-const PREFS_FILE             = path.join(CACHE_DIR, '.AphroArchive-prefs.json');
-const VIDEO_META_FILE        = path.join(VIDEOS_DIR, '.meta.json');
-const BOOKS_META_FILE        = path.join(BOOKS_DIR,  '.meta.json');
-const AUDIO_META_FILE        = path.join(AUDIO_DIR,  '.meta.json');
-const ACTORS_JSON            = path.join(DB_DIR, 'actors.json');
-const CATEGORIES_JSON        = path.join(DB_DIR, 'categories.json');
-const STUDIOS_JSON           = path.join(DB_DIR, 'studios.json');
-const WEBSITES_JSON          = path.join(DB_DIR, 'websites.json');
-const BM_CACHE_FILE          = path.join(CACHE_DIR, 'bookmarks_cache.json');
-const OG_THUMB_CACHE_FILE    = path.join(BM_DIR, 'og_thumb_cache.json');
-const STARRED_SITES_FILE     = path.join(CACHE_DIR, '.AphroArchive-starred-sites.json');
-const PROMPTS_FILE           = path.join(CACHE_DIR, '.AphroArchive-prompts.json');
-const COMFYUI_WORKFLOWS_DIR  = path.join(CACHE_DIR, 'comfyui-workflows');
+const COLLECTIONS_FILE = path.join(CACHE_DIR, '.AphroArchive-collections.json');
+const RATINGS_FILE = path.join(CACHE_DIR, '.AphroArchive-ratings.json');
+const HIDDEN_FILE = path.join(CACHE_DIR, 'hidden.txt');
+const PREFS_FILE = path.join(CACHE_DIR, '.AphroArchive-prefs.json');
+const VIDEO_META_FILE = path.join(VIDEOS_DIR, '.meta.json');
+const BOOKS_META_FILE = path.join(BOOKS_DIR, '.meta.json');
+const AUDIO_META_FILE = path.join(AUDIO_DIR, '.meta.json');
+const ACTORS_JSON = path.join(DB_DIR, 'actors.json');
+const CATEGORIES_JSON = path.join(DB_DIR, 'categories.json');
+const STUDIOS_JSON = path.join(DB_DIR, 'studios.json');
+const WEBSITES_JSON = path.join(DB_DIR, 'websites.json');
+const BM_CACHE_FILE = path.join(CACHE_DIR, 'bookmarks_cache.json');
+const OG_THUMB_CACHE_FILE = path.join(BM_DIR, 'og_thumb_cache.json');
+const STARRED_SITES_FILE = path.join(CACHE_DIR, '.AphroArchive-starred-sites.json');
+const PROMPTS_FILE = path.join(CACHE_DIR, '.AphroArchive-prompts.json');
+const COMFYUI_WORKFLOWS_DIR = path.join(CACHE_DIR, 'comfyui-workflows');
 
-const VIDEO_EXT = new Set(['.mp4','.mkv','.avi','.mov','.wmv','.flv',
-  '.webm','.m4v','.mpg','.mpeg','.3gp','.ogv','.ts']);
+const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv',
+  '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
 
-const AUDIO_EXT = new Set(['.mp3','.flac','.wav','.ogg','.aac','.m4a','.wma','.opus','.aiff']);
+const AUDIO_EXT = new Set(['.mp3', '.flac', '.wav', '.ogg', '.aac', '.m4a', '.wma', '.opus', '.aiff']);
 
-const BOOK_EXT  = new Set(['.pdf','.txt','.doc','.docx','.md','.epub']);
+const BOOK_EXT = new Set(['.pdf', '.txt', '.doc', '.docx', '.md', '.epub']);
 
-const IMAGE_EXT = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);
+const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp', '.heic']);
 
 const MIME = {
-  '.mp4':'video/mp4','.mkv':'video/x-matroska','.avi':'video/x-msvideo',
-  '.mov':'video/quicktime','.wmv':'video/x-ms-wmv','.flv':'video/x-flv',
-  '.webm':'video/webm','.m4v':'video/x-m4v','.mpg':'video/mpeg',
-  '.mpeg':'video/mpeg','.3gp':'video/3gpp','.ogv':'video/ogg','.ts':'video/mp2t',
-  '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png',
-  '.gif':'image/gif','.webp':'image/webp','.avif':'image/avif',
-  '.bmp':'image/bmp','.heic':'image/heic',
-  '.mp3':'audio/mpeg','.flac':'audio/flac','.wav':'audio/wav',
-  '.ogg':'audio/ogg','.aac':'audio/aac','.m4a':'audio/mp4',
-  '.wma':'audio/x-ms-wma','.opus':'audio/opus','.aiff':'audio/aiff',
+  '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo',
+  '.mov': 'video/quicktime', '.wmv': 'video/x-ms-wmv', '.flv': 'video/x-flv',
+  '.webm': 'video/webm', '.m4v': 'video/x-m4v', '.mpg': 'video/mpeg',
+  '.mpeg': 'video/mpeg', '.3gp': 'video/3gpp', '.ogv': 'video/ogg', '.ts': 'video/mp2t',
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+  '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif',
+  '.bmp': 'image/bmp', '.heic': 'image/heic',
+  '.mp3': 'audio/mpeg', '.flac': 'audio/flac', '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg', '.aac': 'audio/aac', '.m4a': 'audio/mp4',
+  '.wma': 'audio/x-ms-wma', '.opus': 'audio/opus', '.aiff': 'audio/aiff',
 };
 
 const STATIC_MIME = {
-  '.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8',
-  '.js':'application/javascript; charset=utf-8','.json':'application/json',
-  '.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml',
-  '.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff',
+  '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8', '.ts': 'application/javascript; charset=utf-8',
+  '.tsx': 'application/javascript; charset=utf-8', '.json': 'application/json',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff',
 };
 
 function getLocalIPs() {
@@ -122,7 +126,7 @@ module.exports = {
   FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN,
   VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
   THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, PROCESS_DIR, IGNORED_DIR,
-  DB_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR,
+  DB_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, BM_THUMBS_DIR, EDGE_BIN,
   FAVOURITES_FILE, HISTORY_FILE, THUMBS_CACHE_FILE,
   VAULT_CONFIG_FILE, VAULT_META_FILE, BROWSER_WHITELIST_FILE,
   COLLECTIONS_FILE, RATINGS_FILE, HIDDEN_FILE, PREFS_FILE,
