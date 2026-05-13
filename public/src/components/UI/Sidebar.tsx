@@ -4,12 +4,13 @@ interface SidebarItemProps {
   id?: string;
   label: string;
   icon?: any;
+  badge?: number;
   onClick: () => void;
   isActive?: boolean;
   indent?: boolean;
 }
 
-const SidebarItem = ({ id, label, icon, onClick, isActive, indent }: SidebarItemProps) => (
+const SidebarItem = ({ id, label, icon, badge, onClick, isActive, indent }: SidebarItemProps) => (
   <div
     className={`sidebar-item ${isActive ? 'on' : ''}`}
     id={id}
@@ -17,6 +18,7 @@ const SidebarItem = ({ id, label, icon, onClick, isActive, indent }: SidebarItem
     style={indent ? { paddingLeft: '32px', fontSize: '0.85rem' } : {}}
   >
     <span>{icon}{label}</span>
+    {badge !== undefined && <span className="count-badge">{badge}</span>}
   </div>
 );
 
@@ -243,15 +245,25 @@ export const Sidebar = () => {
         }
       />
       <div className="side-section" id="catsSection">
-        {categories.value.slice(0, 15).map(c => (
-          <SidebarItem
-            key={c.name}
-            label={c.name}
-            onClick={() => selectCategory(c.name)}
-            isActive={currentCategory.value === c.name}
-            indent
-          />
-        ))}
+        {categories.value.slice(0, 15).map(c => {
+          let lockIcon = null;
+          if (c.partial) {
+            lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="3" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>;
+          } else if (c.encrypted) {
+            lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px', opacity: 0.7, verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+          }
+          return (
+            <SidebarItem
+              key={c.name}
+              label={c.name}
+              icon={lockIcon}
+              badge={c.count}
+              onClick={() => selectCategory(c.name)}
+              isActive={currentCategory.value === c.name}
+              indent
+            />
+          );
+        })}
         {categories.value.length > 15 && (
           <SidebarItem label="More Categories..." onClick={() => setView('categories', 'showCategoriesView')} />
         )}

@@ -1,10 +1,4 @@
-// ─── Filter state persistence ───
-let chaptersMode = false;
-function _restoreFilterState() {
-  const s = localStorage.getItem('aa_sort');
-  if (s && ['date','name','size','duration'].includes(s)) sort = s;
-  if (localStorage.getItem('aa_shuf') === '1') shuf = true;
-}
+
 
 function _syncSortButtons() {
   if (shuf) {
@@ -19,24 +13,12 @@ function _syncSortButtons() {
 // ─── Init ───
 async function init() {
   await checkAndShowPresetPicker();
-  _restoreFilterState();
   await loadTemplates();
   showSk();
-  await fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
   const [,, vs] = await Promise.all([loadC(), Promise.resolve(), fetch('/api/vault/status').then(r => r.json())]);
   vaultMode = vs.unlocked;
   _syncSortButtons();
   loadBookmarkVidsOnInit();
-  
-  // Enable browser tab audio control on first interaction
-  const startDummyAudio = () => {
-    const dummy = document.getElementById('dummy-audio');
-    if (dummy) dummy.play().catch(() => {});
-    document.removeEventListener('click', startDummyAudio);
-    document.removeEventListener('keydown', startDummyAudio);
-  };
-  document.addEventListener('click', startDummyAudio);
-  document.addEventListener('keydown', startDummyAudio);
 }
 
 async function loadBookmarkVidsOnInit() {
@@ -327,121 +309,14 @@ function showScraper() {
   ActorScraper.load();
 }
 
-// ─── Panoramic Mode ───
-function togglePan() {
-  const on = document.body.classList.toggle('pan');
-  $('panBtn').toggle('on', on);
-  localStorage.setItem('pan', on ? '1' : '');
-}
 
-// ─── Search Autocomplete ───
-(async () => {
-  try {
-    const r = await fetch('/api/settings/lists');
-    if (r.ok) {
-      const d = await r.json();
-      const parse = s => (s || '').split('\n').map(l => l.trim()).filter(Boolean);
-      const hiddenTerms = parse(d.hidden);
-      const isHiddenTerm = name => hiddenTerms.some(t => new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(name));
-      acTerms = [...parse(d.actors), ...parse(d.studios), ...parse(d.categories)].filter(t => !isHiddenTerm(t));
-      _bfKnownTerms = []; // invalidate bookmark sort cache
-    }
-  } catch {}
-})();
 
-function acSuggest(val) {
-  if (!val) return '';
-  const words = val.split(/\s+/);
-  const last = words[words.length - 1];
-  if (!last) return '';
-  const lo = last.toLowerCase();
-  const match = acTerms.find(t => t.toLowerCase().startsWith(lo) && t.toLowerCase() !== lo);
-  if (!match) return '';
-  return match.slice(last.length);
-}
 
-function acUpdateGhost(val) {
-  const ghost = $('search-ghost').el;
-  const hint = acSuggest(val);
-  if (!hint || !val) { ghost.innerHTML = ''; return; }
-  ghost.innerHTML = '<span class="ghost-typed">' + val + '</span><span class="ghost-hint">' + hint + '</span>';
-}
 
-function setupSearchInputListeners() {
-  const sIEl = $('search-input').el;
-  if (!sIEl) {
-    // If not found yet (e.g. Preact hasn't mounted it), try again in a bit
-    setTimeout(setupSearchInputListeners, 50);
-    return;
-  }
-  
-  if (sIEl._listenersAttached) return;
-  sIEl._listenersAttached = true;
 
-  let sTO;
-  sIEl.addEventListener('input', e => {
-    acUpdateGhost(e.target.value);
-    clearTimeout(sTO);
-    sTO = setTimeout(() => {
-      q = e.target.value.trim();
-      if (q) {
-        // Close any active detail views (actors, studios, etc.)
-        closeAllViews();
-        
-        // Reset Category and Tag to "All Videos"
-        cat = '';
-        curTag = null;
-        $('section-title').text('All Videos'); 
-        
-        $('browse-view').remove('off');
-        if (location.pathname !== '/') history.pushState(null, '', '/');
-      }
-      refresh();
-    }, 300);
-  });
 
-  sIEl.addEventListener('blur', () => { $('search-ghost').html(''); });
-  sIEl.addEventListener('keydown', e => {
-    if (e.key === 'Tab') {
-      const hint = acSuggest(sIEl.value);
-      if (hint) {
-        e.preventDefault();
-        sIEl.value += hint;
-        acUpdateGhost(sIEl.value);
-        clearTimeout(sTO);
-        sTO = setTimeout(() => { q = sIEl.value.trim(); refresh(); }, 300);
-      }
-    } else if (e.key === 'Escape') {
-      $('search-ghost').html('');
-    }
-  });
-}
 
-setupSearchInputListeners();
 
-// ─── Themes ───
-function applyTheme(name) {
-  if (name) document.documentElement.setAttribute('data-theme', name);
-  else document.documentElement.removeAttribute('data-theme');
-  localStorage.setItem('theme', name);
-  document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.theme === name);
-  });
-}
-
-(function loadTheme() {
-  const saved = localStorage.getItem('theme') || '';
-  if (saved) document.documentElement.setAttribute('data-theme', saved);
-})();
-
-// ─── Startup ───
-['library', 'browse', 'media', 'web', 'manage', 'cats', 'tags'].forEach(name => {
-  if (localStorage.getItem('sc_' + name)) {
-    $(name + 'Section').add('closed');
-    $('sh3-' + name).add('closed');
-  }
-});
-if (localStorage.getItem('pan')) { document.body.classList.add('pan'); $('panBtn').add('on'); }
 
 window.addEventListener('DOMContentLoaded', () => {
   init();

@@ -498,3 +498,20 @@ w.openVid = (id: string) => {
     data
   };
 };
+
+(window as any).applyTheme = (name: string) => {
+  if (name) document.documentElement.setAttribute('data-theme', name);
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('theme', name);
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    const b = btn as HTMLElement;
+    b.classList.toggle('active', b.dataset.theme === name);
+  });
+};
+
+(window as any).togglePan = () => {
+  const on = document.body.classList.toggle('pan');
+  const btn = document.getElementById('panBtn');
+  if (btn) btn.classList.toggle('on', on);
+  localStorage.setItem('pan', on ? '1' : '');
+};

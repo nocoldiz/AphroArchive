@@ -22,6 +22,8 @@ export interface Category {
   name: string;
   path: string;
   count: number;
+  encrypted?: boolean;
+  partial?: boolean;
 }
 
 export interface Actor {
