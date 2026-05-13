@@ -715,20 +715,7 @@
 
 
 
-      <!-- DB Add/Edit Modal -->
-      <div class="modal-overlay" id="dbMo" style="display:none" onclick="if(event.target===this)closeDbModal()">
-        <div class="modal-dialog" style="width:480px;max-width:95vw">
-          <div class="md-hd"><span id="dbMoTitle">Add Entry</span><button onclick="closeDbModal()"><svg width="16"
-                height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg></button></div>
-          <div id="dbMoBody" style="display:flex;flex-direction:column;gap:10px;padding:0 0 4px"></div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-            <button class="btn-primary" onclick="dbSaveModal()">Save</button>
-            <button class="back-btn" onclick="closeDbModal()">Cancel</button>
-          </div>
-        </div>
-      </div>
+
 
       <!-- Actor Scraper View -->
       <div class="scraper-view" id="scraper-view">
@@ -1036,69 +1023,9 @@
     </div>
   </div>
 
-  <!-- Prompt Modal -->
-  <div class="prompt-modal" id="prompt-modal" onclick="if(event.target===this)closePromptModal()">
-    <div class="prompt-modal-box">
-      <h3 id="prompt-modal-title">New Prompt</h3>
-      <textarea id="prompt-text-input" placeholder="Enter your AI prompt here…" rows="6"></textarea>
-      <div class="prompt-sites-label">Send to:</div>
-      <div class="prompt-sites-grid" id="prompt-sites-grid"></div>
-      <div class="prompt-modal-actions">
-        <button class="collection-cancel" onclick="closePromptModal()">Cancel</button>
-        <button class="btn-primary" onclick="savePrompt()">Save</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Mass Import Prompts Modal -->
-  <div class="prompt-modal" id="mass-import-modal" onclick="if(event.target===this)closeMassImport()">
-    <div class="prompt-modal-box prompt-modal-box--wide">
-      <h3>Mass Import Prompts</h3>
-      <p class="mass-import-hint">Paste prompts below — one per line. Each line becomes a separate prompt.</p>
-      <textarea id="mass-import-textarea" placeholder="Prompt one&#10;Prompt two&#10;Prompt three&#10;…" rows="10"
-        oninput="onMassImportInput(this)"></textarea>
-      <div class="mass-import-count" id="mass-import-count"></div>
-      <div class="prompt-sites-label">Send to: <button class="pt-selall-btn"
-          onclick="massImportSelectAll()">All</button><button class="pt-selall-btn"
-          onclick="massImportSelectNone()">None</button></div>
-      <div class="prompt-sites-grid" id="mass-import-sites-grid"></div>
-      <div class="prompt-modal-actions">
-        <button class="collection-cancel" onclick="closeMassImport()">Cancel</button>
-        <button class="btn-primary" id="mass-import-save-btn" onclick="saveMassImport()">Import</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Valorize Template Modal -->
-  <div class="prompt-modal" id="valorize-modal" onclick="if(event.target===this)closeValorizeModal()">
-    <div class="prompt-modal-box prompt-modal-box--wide">
-      <h3>Valorize Template</h3>
-      <div id="valorize-modal-content"></div>
-      <div class="prompt-modal-actions">
-        <button class="collection-cancel" onclick="closeValorizeModal()">Cancel</button>
-        <button class="collection-cancel" id="valorize-clear-btn" onclick="clearValorize()"
-          style="display:none">Clear</button>
-        <button class="btn-primary" id="valorize-apply-btn" onclick="applyValorize()">Apply</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Add to Collection Modal -->
-  <div class="collection-modal" id="collection-modal" onclick="if(event.target===this)closeCvModal()">
-    <div class="collection-modal-box">
-      <h3>Add to Playlist</h3>
-      <div id="collection-modal-list"></div>
-      <div class="collection-modal-new" id="collection-modal-new">
-        <input type="text" id="collection-modal-name-input" placeholder="Playlist name…" autocomplete="off"
-          onkeydown="if(event.key==='Enter')submitCvNew()">
-      </div>
-      <div class="collection-modal-actions">
-        <button class="collection-cancel" onclick="closeCvModal()">Cancel</button>
-        <button class="btn-primary" id="collection-modal-create-btn" style="display:none" onclick="submitCvNew()">Create
-          &amp; Add</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Mosaic View -->
   <div id="mosaic-view">
@@ -1205,13 +1132,7 @@
     </div>
   </div>
 
-  <!-- Vision description modal -->
-  <div class="vision-modal" id="visionModal" onclick="closeVisionModal()">
-    <div class="vision-modal-box" onclick="event.stopPropagation()">
-      <div class="vision-modal-body" id="visionModalBody"></div>
-      <button class="vision-modal-close" onclick="closeVisionModal()">Close</button>
-    </div>
-  </div>
+
 
   <!-- Bookmark iframe viewer modal -->
   <div class="bfiframe-mo" id="bfiframeMo" onclick="closeBfIframe(event)">

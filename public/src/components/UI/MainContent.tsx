@@ -28,13 +28,14 @@ import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
 import { ActorScraperView } from '../sections/ActorScraperView';
 import { ConnectModal } from '../modals/ConnectModal';
+import { useEffect } from 'preact/hooks';
 
 export const MainContent = () => {
   const view = currentView.value;
 
   useEffect(() => {
     let ev: EventSource | null = null;
-    
+
     const setupRemote = () => {
       const isRemote = localStorage.getItem('remoteMode') === 'true';
       if (isRemote && !ev) {
@@ -71,7 +72,7 @@ export const MainContent = () => {
 
     setupRemote();
     window.addEventListener('storage', setupRemote);
-    
+
     return () => {
       if (ev) ev.close();
       window.removeEventListener('storage', setupRemote);

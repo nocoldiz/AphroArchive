@@ -1,6 +1,7 @@
-import { currentVideo, currentView, allVideos } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal } from '../../store';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
+import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 
 export const PlayerView = () => {
   const video = currentVideo.value;
@@ -122,6 +123,7 @@ export const PlayerView = () => {
 
   return (
     <>
+      {showAddToCollectionModal.value && <AddToCollectionModal onClose={() => showAddToCollectionModal.value = false} />}
       <button className="back-btn" onClick={goBack}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="m15 18-6-6 6-6" />
@@ -175,7 +177,7 @@ export const PlayerView = () => {
               <PlayerAction label="Fav" icon="star" onClick={() => toggleFav()} />
               <PlayerAction label="Rename" icon="edit" onClick={() => (window as any).openRenP()} />
               <PlayerAction label="Move" icon="folder" onClick={() => (window as any).openMovP()} />
-              <PlayerAction label="Playlist" icon="list" onClick={() => (window as any).openAddToCollection()} />
+              <PlayerAction label="Playlist" icon="list" onClick={() => showAddToCollectionModal.value = true} />
               <PlayerAction label="Pin" icon="pin" onClick={() => (window as any).togglePin()} />
             </div>
 

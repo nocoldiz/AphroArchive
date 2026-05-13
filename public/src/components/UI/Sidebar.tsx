@@ -31,9 +31,11 @@ const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave,
   </div>
 );
 
-const SectionHeader = ({ label, id, style, action }: { label: string, id: string, style?: any, action?: any }) => {
+const SectionHeader = ({ label, id, style, onClick }: { label: string, id: string, style?: any, onClick?: () => void }) => {
   const handleClick = () => {
-    if ((window as any).toggleSection) {
+    if (onClick) {
+      onClick();
+    } else if ((window as any).toggleSection) {
       const section = id.replace('sh3-', '');
       (window as any).toggleSection(section);
     }
@@ -52,6 +54,8 @@ const SectionHeader = ({ label, id, style, action }: { label: string, id: string
 
 export const Sidebar = () => {
   const [bookmarkItems, setBookmarkItems] = useState<any[]>([]);
+  const [tags, setTags] = useState<{ name: string, count: number }[]>([]);
+  const [tagsOpen, setTagsOpen] = useState(true);
 
   useEffect(() => {
     fetch('/api/bookmarks/cache')
@@ -59,6 +63,11 @@ export const Sidebar = () => {
       .then(d => {
         if (d.items) setBookmarkItems(d.items);
       })
+      .catch(() => {});
+
+    fetch('/api/tags')
+      .then(r => r.json())
+      .then(setTags)
       .catch(() => {});
   }, []);
 
@@ -325,14 +334,27 @@ export const Sidebar = () => {
             />
           );
         })}
-        {categories.value.length > 15 && (
-          <SidebarItem label="More Categories..." onClick={() => setView('categories', 'showCategoriesView')} />
-        )}
       </div>
 
-      <div className="side-sep" id="tags-sep" style={{ display: 'none' }}></div>
-      <SectionHeader label="Tags" id="sh3-tags" style={{ display: 'none' }} />
-      <div className="side-section" id="tagList"></div>
+      <div className="side-sep" id="tags-sep"></div>
+      <SectionHeader label="Tags" id="sh3-tags" onClick={() => setTagsOpen(!tagsOpen)} />
+      <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
+        {tags.map(t => (
+          <SidebarItem
+            key={t.name}
+            id={`tag-${t.name}`}
+            label={t.name}
+            badge={t.count.toString()}
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>}
+            onClick={() => {
+              currentView.value = 'tag';
+              currentTag.value = t.name;
+            }}
+            isActive={currentTag.value === t.name}
+            indent
+          />
+        ))}
+      </div>
     </div>
   );
 };
