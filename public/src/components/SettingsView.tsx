@@ -16,7 +16,84 @@ export const SettingsView = () => {
   const [connectIdx, setConnectIdx] = useState(0);
   const [netEnabled, setNetEnabled] = useState(!!prefs.networkEnabled);
   
+  const [genRunning, setGenRunning] = useState(false);
+  const [genProgress, setGenProgress] = useState(0);
+  const [genStatus, setGenStatus] = useState('');
+  const sseRef = useRef<EventSource | null>(null);
+  
   const qrRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    // Subscribe to gen-thumbs status on mount to catch running processes
+    subscribeGenThumbs();
+    return () => {
+      if (sseRef.current) sseRef.current.close();
+    };
+  }, []);
+
+  const subscribeGenThumbs = () => {
+    if (sseRef.current) sseRef.current.close();
+    const sse = new EventSource('/api/gen-thumbs/status');
+    sseRef.current = sse;
+    
+    sse.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'start' || msg.type === 'progress') {
+          setGenRunning(true);
+          const pct = msg.total > 0 ? Math.round(msg.done / msg.total * 100) : 0;
+          setGenProgress(pct);
+          setGenStatus(msg.total > 0 
+            ? `${msg.done} / ${msg.total} (${pct}%)${msg.current ? ' — ' + msg.current : ''}`
+            : 'Scanning…');
+        } else if (msg.type === 'done') {
+          setGenRunning(false);
+          setGenProgress(100);
+          const label = msg.failed
+            ? `Done — ${msg.done - msg.failed} generated, ${msg.failed} failed`
+            : `Done — ${msg.done} generated, ${msg.skipped || 0} already existed`;
+          setGenStatus(label);
+          if ((window as any).toast) (window as any).toast(label);
+          setTimeout(() => {
+            setGenStatus('');
+            setGenProgress(0);
+          }, 5000);
+        } else if (msg.type === 'idle') {
+          setGenRunning(false);
+          setGenProgress(0);
+          setGenStatus('');
+        }
+      } catch (err) {
+        console.error('Failed to parse SSE data', err);
+      }
+    };
+    
+    sse.onerror = () => {
+      sse.close();
+      sseRef.current = null;
+      setGenRunning(false);
+    };
+  };
+
+  const toggleGenThumbs = async () => {
+    if (genRunning) {
+      fetch('/api/gen-thumbs/stop', { method: 'POST' }).catch(() => {});
+      setGenRunning(false);
+    } else {
+      try {
+        const r = await fetch('/api/gen-thumbs/start', { method: 'POST' });
+        const d = await r.json();
+        if (!d.ok) {
+          if ((window as any).toast) (window as any).toast(d.error || 'Already running');
+          return;
+        }
+        setGenRunning(true);
+        setGenStatus('Starting…');
+      } catch {
+        if ((window as any).toast) (window as any).toast('Failed to start');
+      }
+    }
+  };
 
   useEffect(() => {
     setCommentPrompt(prefs.aiCommentMasterPrompt || '');
@@ -218,6 +295,30 @@ export const SettingsView = () => {
           style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px', fontFamily: 'monospace', marginBottom: '16px' }}
         />
         <button class="modal-btn modal-btn--primary" onClick={handleSaveHidden} style={{ width: '100%' }}>Save Hidden Categories</button>
+      </div>
+
+      {/* Thumbnails Section */}
+      <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
+        <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Thumbnails</h3>
+        <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Pre-generate thumbnails for all videos in batch.</p>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+          <button 
+            className={`modal-btn ${genRunning ? '' : 'modal-btn--primary'}`} 
+            onClick={toggleGenThumbs}
+            style={{ minWidth: '120px' }}
+          >
+            {genRunning ? 'Stop' : 'Generate All'}
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--tx)', marginBottom: '4px' }}>{genStatus}</div>
+            {genRunning && (
+              <div style={{ width: '100%', height: '4px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{ width: `${genProgress}%`, height: '100%', background: 'var(--ac)', transition: 'width 0.3s' }} />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Network & Remote Section */}

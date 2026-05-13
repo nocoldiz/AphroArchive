@@ -27,7 +27,6 @@ async function init() {
   vaultMode = vs.unlocked;
   _syncSortButtons();
   loadBookmarkVidsOnInit();
-  showThumbnails(true);
   
   // Enable browser tab audio control on first interaction
   const startDummyAudio = () => {
