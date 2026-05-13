@@ -599,6 +599,26 @@ function loadCategories() {
   return _categories;
 }
 
+function saveCategories(cats) {
+  _categories = null;
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM category_tags').run();
+      db.prepare('DELETE FROM categories').run();
+      const insertCat = db.prepare('INSERT INTO categories (name, display_name) VALUES (?, ?)');
+      const insertCatTag = db.prepare('INSERT INTO category_tags (category_name, tag) VALUES (?, ?)');
+      for (const [name, data] of Object.entries(cats)) {
+        insertCat.run(name, data.displayName || name);
+        if (Array.isArray(data.tags)) {
+          for (const tag of data.tags) insertCatTag.run(name, tag);
+        }
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save categories to SQLite:', e);
+  }
+}
+
 function _parseStudios(raw) {
   return Object.keys(raw).map(name => {
     const entry = raw[name];
@@ -622,6 +642,21 @@ function loadStudios() {
     }
   }
   return _studios;
+}
+
+function saveStudios(studios) {
+  _studios = null;
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM studios').run();
+      const insertStudio = db.prepare('INSERT INTO studios (name, website, description) VALUES (?, ?, ?)');
+      for (const [name, data] of Object.entries(studios)) {
+        insertStudio.run(name, data.website || null, data.short_description || data.description || null);
+      }
+    })();
+  } catch (e) {
+    console.error('Failed to save studios to SQLite:', e);
+  }
 }
 
 // Called by database.js after writing actors/categories/studios to disk
@@ -660,6 +695,6 @@ module.exports = {
   loadBookmarksCache, saveBookmarksCache,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
-  loadActors, loadCategories, loadStudios, invalidateDbTypeCache,
+  loadActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,
   readDbFile, writeDbFile,
 };

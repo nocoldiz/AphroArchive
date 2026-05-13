@@ -15,8 +15,39 @@ export const PlayerView = () => {
   const [chapters, setChapters] = useState<any[]>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
   const [subtitles, setSubtitles] = useState<any[]>([]);
+  const [nextUp, setNextUp] = useState<any[]>([]);
 
   if (!video) return null;
+
+  useEffect(() => {
+    if (video) {
+      const list = allVideos.value
+        .filter(v => v.category === video.category && v.id !== video.id)
+        .slice(0, 10);
+      setNextUp(list);
+    }
+  }, [video]);
+
+  const handleDragStart = (e: any, index: number) => {
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: any) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: any, index: number) => {
+    e.preventDefault();
+    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    const newList = [...nextUp];
+    const [removed] = newList.splice(fromIndex, 1);
+    newList.splice(index, 0, removed);
+    setNextUp(newList);
+  };
+
+  const removeVideo = (id: string) => {
+    setNextUp(nextUp.filter(v => v.id !== id));
+  };
 
   useEffect(() => {
     if (!video || video.isVault) return;
@@ -161,11 +192,11 @@ export const PlayerView = () => {
           </div>
 
           <div className="player-info">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h1 id="player-title" style={{ margin: 0 }}>{video.name}</h1>
-              <div className="player-rating" style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '1.2rem' }}>
+              <div className="player-rating" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '1.4rem' }}>
                 {[1, 2, 3, 4, 5].map(i => (
-                  <span key={i} style={{ color: i <= (hoveredRating ?? rating ?? 0) ? 'var(--accent)' : 'var(--border)', cursor: 'pointer' }}
+                  <span key={i} style={{ color: i <= (hoveredRating ?? rating ?? 0) ? 'var(--ac)' : 'var(--brd)', cursor: 'pointer' }}
                     onMouseEnter={() => setHoveredRating(i)}
                     onMouseLeave={() => setHoveredRating(null)}
                     onClick={() => updateRating(i === rating ? null : i)}>
@@ -175,54 +206,89 @@ export const PlayerView = () => {
               </div>
             </div>
 
-            <div className="player-meta" style={{ display: 'flex', gap: '15px', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '15px' }}>
+            <div className="player-meta" style={{ display: 'flex', gap: '15px', color: 'var(--tx3)', fontSize: '0.9rem', marginBottom: '20px' }}>
               <span>{video.category}</span>
               <span>{(video.size / 1024 / 1024).toFixed(1)} MB</span>
               <span>{(video.duration / 60).toFixed(1)}m</span>
             </div>
 
-            <div className="player-info-actions" style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <PlayerAction label="Fav" icon="star" onClick={() => toggleFav()} />
-              <PlayerAction label="Rename" icon="edit" onClick={() => (window as any).openRenP()} />
-              <PlayerAction label="Move" icon="folder" onClick={() => (window as any).openMovP()} />
-              <PlayerAction label="Playlist" icon="list" onClick={() => showAddToCollectionModal.value = true} />
-              <PlayerAction label="Pin" icon="pin" onClick={() => (window as any).togglePin()} />
+            <div className="player-info-actions" style={{ display: 'flex', gap: '10px', marginBottom: '25px', flexWrap: 'wrap' }}>
+              <button onClick={() => toggleFav()} className={video.fav ? 'st' : ''} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <span>Fav</span>
+              </button>
+              
+              <button onClick={() => (window as any).openRenP()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                <span>Rename</span>
+              </button>
+
+              <button onClick={() => (window as any).openMovP()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                <span>Move</span>
+              </button>
+
+              <button onClick={() => showAddToCollectionModal.value = true} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+                <span>Playlist</span>
+              </button>
+
+              <button id="pinBtn" onClick={() => (window as any).togglePin()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2v20M5 5h14M19 17H5M9 5v12M15 5v12" />
+                </svg>
+                <span>Pin</span>
+              </button>
             </div>
 
-            <div className="player-studio-row" style={{ marginBottom: '15px' }}>
-              <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Studio:</span>
+            <div className="player-studio-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Studio</span>
               {studio ? (
-                <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => (window as any).openStudio(studio)}>{studio}</span>
+                <span style={{ color: 'var(--ac)', cursor: 'pointer', fontWeight: 500 }} onClick={() => (window as any).openStudio(studio)}>{studio}</span>
               ) : (
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>None</span>
+                <span style={{ color: 'var(--tx3)', fontSize: '0.85rem' }}>None</span>
               )}
-              <button className="p-tag-add-btn" onClick={() => (window as any).openStudioModal(video.id)} style={{ marginLeft: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '4px', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.8rem' }}>
+              <button className="p-tag-add-btn" onClick={() => (window as any).openStudioModal(video.id)} style={{ marginLeft: '10px', width: '22px', height: '22px', fontSize: '0.75rem' }}>
                 ✎
               </button>
             </div>
 
-            <div className="player-actors-row" style={{ marginBottom: '15px' }}>
-              <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Actors:</span>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="player-actors-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Actors</span>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {actors.map(a => (
-                  <button key={a} className="p-actor-tag" onClick={() => (window as any).openActor(a)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <button key={a} className="p-actor-tag" onClick={() => (window as any).openActor(a)}>
                     <img className="p-actor-ph" src={`/api/actor-photos/${encodeURIComponent(a)}/img`} alt="" onError={(e: any) => e.target.style.display = 'none'} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
                     {a}
                   </button>
                 ))}
-                <button className="p-tag-add-btn" onClick={() => (window as any).openActorModal(video.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
+                <button className="p-tag-add-btn" onClick={() => (window as any).openActorModal(video.id)} style={{ width: '24px', height: '24px' }}>
                   +
                 </button>
               </div>
             </div>
 
-            <div className="player-tags-row" style={{ marginBottom: '15px' }}>
-              <span style={{ color: 'var(--text-muted)', marginRight: '10px' }}>Tags:</span>
-              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+            <div className="player-tags-row" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tags</span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {tags.map(t => (
-                  <span key={t} className="p-tag" style={{ background: 'var(--bg3)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>{t}</span>
+                  <span key={t} className="p-tag">{t}</span>
                 ))}
-                <button className="p-tag-add-btn" onClick={() => (window as any).openTagModal(video.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
+                <button className="p-tag-add-btn" onClick={() => (window as any).openTagModal(video.id)} style={{ width: '24px', height: '24px' }}>
                   +
                 </button>
               </div>
@@ -257,22 +323,38 @@ export const PlayerView = () => {
             <div className="playlist-header">
               <span>Next Up</span>
               <span className="playlist-count">
-                {allVideos.value.filter(v => v.category === video.category && v.id !== video.id).length}
+                {nextUp.length}
               </span>
             </div>
             <div className="playlist-list">
-              {allVideos.value
-                .filter(v => v.category === video.category && v.id !== video.id)
-                .slice(0, 10)
-                .map(v => (
-                  <div key={v.id} className="playlist-item" onClick={() => currentVideo.value = v}>
+              {nextUp.map((v, index) => (
+                <div 
+                  key={v.id} 
+                  className="playlist-item" 
+                  draggable={true}
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, index)}
+                  style={{ cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                >
+                  <div onClick={() => currentVideo.value = v} style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
                     <img src={`/api/thumbs/${v.id}/0`} className="pl-thumb" />
                     <div className="pl-info">
                       <div className="pl-name">{v.name}</div>
                       <div className="pl-meta">{(v.duration / 60).toFixed(1)}m</div>
                     </div>
                   </div>
-                ))}
+                  <button 
+                    className="pl-remove-btn" 
+                    onClick={(e) => { e.stopPropagation(); removeVideo(v.id); }}
+                    style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>

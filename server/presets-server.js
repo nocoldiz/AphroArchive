@@ -12,7 +12,8 @@ const PRESETS_DIR = path.join(DB_DIR, 'presets');
 
 // DB is considered initialised if categories.json exists
 function isDbInitialized() {
-  return fs.existsSync(CATEGORIES_JSON);
+  const db = require('./db-server');
+  return db.loadCategories().length > 0;
 }
 
 function listPresets() {
@@ -91,23 +92,47 @@ function readExistingDb() {
 }
 
 function writeDb(merged, mergeWithExisting = false) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
+  const db = require('./db-server');
   let data = merged;
   if (mergeWithExisting) {
-    const existing = readExistingDb();
-    const seenUrls = new Set(existing.websites.map(w => w.url).filter(Boolean));
-    const extraSites = merged.websites.filter(w => w.url && !seenUrls.has(w.url));
+    const existingCats = db.loadCategories();
+    const existingStudios = db.loadStudios();
+    const existingWebsites = db.loadWebsites();
+    
+    const cats = { ...merged.categories };
+    for (const c of existingCats) {
+      if (!cats[c.name]) cats[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) };
+    }
+    
+    const studios = { ...merged.studios };
+    for (const s of existingStudios) {
+      if (!studios[s.name]) studios[s.name] = { website: s.website, short_description: s.description };
+    }
+    
+    const seenUrls = new Set(existingWebsites.map(w => w.url).filter(Boolean));
+    const websites = [...existingWebsites];
+    for (const site of merged.websites) {
+      if (site.url && !seenUrls.has(site.url)) {
+        seenUrls.add(site.url);
+        websites.push(site);
+      }
+    }
+    
     data = {
-      actors:     Object.assign({}, merged.actors,     existing.actors),
-      categories: Object.assign({}, merged.categories, existing.categories),
-      studios:    Object.assign({}, merged.studios,    existing.studios),
-      websites:   [...existing.websites, ...extraSites],
+      categories: cats,
+      studios: studios,
+      websites: websites,
+      actors: merged.actors
     };
   }
-  fs.writeFileSync(ACTORS_JSON,     JSON.stringify(data.actors,     null, 2));
-  fs.writeFileSync(CATEGORIES_JSON, JSON.stringify(data.categories, null, 2));
-  fs.writeFileSync(STUDIOS_JSON,    JSON.stringify(data.studios,    null, 2));
-  fs.writeFileSync(WEBSITES_JSON,   JSON.stringify(data.websites,   null, 2));
+  
+  db.saveCategories(data.categories);
+  db.saveStudios(data.studios);
+  db.saveWebsites(data.websites);
+  
+  // Actors still written to file for now
+  fs.mkdirSync(path.dirname(ACTORS_JSON), { recursive: true });
+  fs.writeFileSync(ACTORS_JSON, JSON.stringify(data.actors, null, 2));
 }
 
 // GET /api/presets

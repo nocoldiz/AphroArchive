@@ -1,0 +1,18 @@
+{
+  "Programming": {
+    "displayName": "Programming",
+    "tags": ["code", "development"]
+  },
+  "Science": {
+    "displayName": "Science",
+    "tags": ["science", "physics", "biology"]
+  },
+  "History": {
+    "displayName": "History",
+    "tags": ["history", "past"]
+  },
+  "Philosophy": {
+    "displayName": "Philosophy",
+    "tags": ["philosophy", "thinking"]
+  }
+}

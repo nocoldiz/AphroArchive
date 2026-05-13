@@ -149,12 +149,13 @@ export const isVaultUnlocked = signal<boolean>(false);
 export const categoryMasterPassword = signal<string | null>(null);
 export const videoSelMode = signal<boolean>(false);
 export const selectedVideoIds = signal<Set<string>>(new Set());
-export const isMuted = signal<boolean>(false);
+export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true');
 
 if (typeof document !== 'undefined') {
   isMuted.subscribe(muted => {
     const mediaElements = document.querySelectorAll('video, audio');
     mediaElements.forEach((el: any) => el.muted = muted);
+    localStorage.setItem('isMuted', muted ? 'true' : 'false');
   });
 }
 

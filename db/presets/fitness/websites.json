@@ -1,0 +1,18 @@
+[
+  {
+    "name": "YouTube",
+    "url": "https://www.youtube.com",
+    "searchURL": "https://www.youtube.com/results?search_query={q}",
+    "scrapeMethod": "youtube",
+    "description": "Video sharing platform",
+    "tags": ["video", "fitness"]
+  },
+  {
+    "name": "Vimeo",
+    "url": "https://vimeo.com",
+    "searchURL": "https://vimeo.com/search?q={q}",
+    "scrapeMethod": "vimeo",
+    "description": "High quality video platform",
+    "tags": ["video", "hd"]
+  }
+]
