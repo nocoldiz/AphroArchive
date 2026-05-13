@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { rebuildBookmarkVidIds } from '../store';
+import { rebuildBookmarkVidIds } from '../../store';
 
 interface BookmarkItem {
   url: string;
@@ -114,7 +114,7 @@ export const BookmarksView = () => {
   const clearAll = async () => {
     if (!items.length) return;
     if (!confirm(`Clear all ${items.length} imported bookmarks?`)) return;
-    
+
     await fetch('/api/bookmarks/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -192,11 +192,11 @@ export const BookmarksView = () => {
       </div>
 
       <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
-        <input 
-          type="text" 
-          class="input-box" 
-          placeholder="Search bookmarks..." 
-          value={search} 
+        <input
+          type="text"
+          class="input-box"
+          placeholder="Search bookmarks..."
+          value={search}
           onInput={(e: any) => setSearch(e.target.value)}
           style={{ width: '300px' }}
         />

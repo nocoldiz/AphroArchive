@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { presetPickerState, loadVideos, loadCategories } from '../store';
+import { presetPickerState, loadVideos, loadCategories } from '../../store';
 
 interface Preset {
   id: string;
@@ -41,13 +41,13 @@ export const PresetPicker = () => {
         body: JSON.stringify({ selection, merge }),
       });
       if (!res.ok) throw new Error('Server error');
-      
+
       presetPickerState.value = { ...state, visible: false };
-      
+
       // Refresh app data
       await loadVideos();
       await loadCategories();
-      
+
       const w = window as any;
       if (w.toast) w.toast('Database updated');
     } catch (e: any) {
@@ -70,18 +70,18 @@ export const PresetPicker = () => {
         <div className="preset-dialog-hd">
           <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{state.mergeMode ? 'Change Database Preset' : 'Choose a Database Preset'}</h2>
           <p style={{ margin: '6px 0 0', fontSize: '0.83rem', color: 'var(--tx2)' }}>
-            {state.mergeMode 
-              ? 'Pick presets to apply. Your custom entries will be preserved and merged.' 
+            {state.mergeMode
+              ? 'Pick presets to apply. Your custom entries will be preserved and merged.'
               : 'Pick one or more presets to populate your initial database, or start blank.'}
           </p>
         </div>
-        
+
         <div className="preset-picker-list" style={{ margin: '16px 0', maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {presets.map(p => (
             <label key={p.id} className="preset-card" style={{ display: 'flex', gap: '8px', padding: '12px', background: 'var(--bg3)', borderRadius: '6px', cursor: 'pointer', border: selected.has(p.id) ? '1px solid var(--ac)' : '1px solid var(--brd)' }}>
-              <input 
-                type="checkbox" 
-                checked={selected.has(p.id)} 
+              <input
+                type="checkbox"
+                checked={selected.has(p.id)}
                 onChange={() => toggleSelect(p.id)}
                 style={{ alignSelf: 'flex-start', marginTop: '4px' }}
               />
@@ -104,8 +104,8 @@ export const PresetPicker = () => {
           <span style={{ fontSize: '0.8rem', color: 'var(--tx3)', flex: 1 }}>{status}</span>
           <button onClick={() => handleApply('blank', false)} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Start Blank</button>
           <button onClick={() => handleApply('all')} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Use All</button>
-          <button 
-            onClick={() => handleApply(Array.from(selected))} 
+          <button
+            onClick={() => handleApply(Array.from(selected))}
             disabled={selected.size === 0}
             style={{ background: selected.size === 0 ? 'var(--bg3)' : 'var(--ac)', border: 'none', color: selected.size === 0 ? 'var(--tx3)' : '#fff', padding: '6px 12px', borderRadius: '4px', cursor: selected.size === 0 ? 'default' : 'pointer' }}
           >

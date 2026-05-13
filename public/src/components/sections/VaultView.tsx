@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { vaultMode, isVaultUnlocked, currentVideo } from '../store';
+import { vaultMode, isVaultUnlocked, currentVideo } from '../../store';
 
 interface VaultFile {
   id: string;
@@ -14,20 +14,20 @@ interface VaultFile {
   aiTagged?: boolean;
 }
 
-const VAULT_VIDEO_EXTS = new Set(['.mp4','.webm','.mkv','.mov','.avi','.m4v','.mpg','.mpeg','.wmv','.ts']);
-const VAULT_PHOTO_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.heif']);
-const VAULT_AUDIO_EXTS = new Set(['.mp3','.flac','.wav','.ogg','.aac','.m4a','.opus','.wma']);
-const VAULT_BOOK_EXTS  = new Set(['.pdf','.epub','.txt','.md','.mobi','.azw','.azw3','.cbz','.cbr']);
-const VAULT_PAGE_EXTS  = new Set(['.html','.htm']);
+const VAULT_VIDEO_EXTS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.mpg', '.mpeg', '.wmv', '.ts']);
+const VAULT_PHOTO_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp', '.heic', '.heif']);
+const VAULT_AUDIO_EXTS = new Set(['.mp3', '.flac', '.wav', '.ogg', '.aac', '.m4a', '.opus', '.wma']);
+const VAULT_BOOK_EXTS = new Set(['.pdf', '.epub', '.txt', '.md', '.mobi', '.azw', '.azw3', '.cbz', '.cbr']);
+const VAULT_PAGE_EXTS = new Set(['.html', '.htm']);
 
 const FILTER_TILES = [
-  { key: 'fav',   label: 'Favourites', icon: '❤️' },
+  { key: 'fav', label: 'Favourites', icon: '❤️' },
   { key: 'video', label: 'Videos', icon: '🎥' },
   { key: 'photo', label: 'Photos', icon: '🖼️' },
-  { key: 'ai',    label: 'AI Images', icon: '🤖' },
-  { key: 'audio', label: 'Audio',  icon: '🎵' },
-  { key: 'book',  label: 'Books',  icon: '📚' },
-  { key: 'page',  label: 'Pages',  icon: '📄' },
+  { key: 'ai', label: 'AI Images', icon: '🤖' },
+  { key: 'audio', label: 'Audio', icon: '🎵' },
+  { key: 'book', label: 'Books', icon: '📚' },
+  { key: 'page', label: 'Pages', icon: '📄' },
 ];
 
 export const VaultView = () => {
@@ -47,10 +47,10 @@ export const VaultView = () => {
   const [sortDir, setSortDir] = useState('desc');
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
   const [aiIds, setAiIds] = useState<Set<string>>(new Set());
-  
+
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  
+
   // Infinite Scroll State
   const [renderLimit, setRenderLimit] = useState(100);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -182,10 +182,10 @@ export const VaultView = () => {
   };
 
   const handleMoveFile = async (fileId: string, folderId: string | null) => {
-    const res = await fetch('/api/vault/files/' + fileId, { 
-      method: 'PATCH', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ folder: folderId }) 
+    const res = await fetch('/api/vault/files/' + fileId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: folderId })
     });
     if (!res.ok) {
       alert('Move failed');
@@ -199,10 +199,10 @@ export const VaultView = () => {
   const handleNewFolder = async () => {
     const name = prompt('Folder name:');
     if (!name || !name.trim()) return;
-    const res = await fetch('/api/vault/folders', { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ name: name.trim() }) 
+    const res = await fetch('/api/vault/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() })
     });
     const d = await res.json();
     if (!res.ok) {
@@ -231,11 +231,11 @@ export const VaultView = () => {
   const handleFileClick = (f: VaultFile) => {
     const extLower = (f.ext || '').toLowerCase();
     if (VAULT_VIDEO_EXTS.has(extLower)) {
-      currentVideo.value = { 
-        id: f.id, 
-        name: f.name || f.originalName, 
-        category: 'Vault', 
-        fav: favIds.has(f.id), 
+      currentVideo.value = {
+        id: f.id,
+        name: f.name || f.originalName,
+        category: 'Vault',
+        fav: favIds.has(f.id),
         isVault: true,
         size: f.size || 0,
         duration: 0
@@ -266,11 +266,11 @@ export const VaultView = () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) return;
     if (!confirm(`Delete ${ids.length} selected items?`)) return;
-    
+
     for (const id of ids) {
       await fetch(`/api/vault/files/${id}`, { method: 'DELETE' });
     }
-    
+
     setFiles(files.filter(f => !selectedIds.has(f.id)));
     setSelectedIds(new Set());
     const w = window as any;
@@ -288,10 +288,10 @@ export const VaultView = () => {
         result = result.filter(f => aiIds.has(f.id));
       } else {
         const extSet = typeFilter === 'video' ? VAULT_VIDEO_EXTS
-                     : typeFilter === 'photo' ? VAULT_PHOTO_EXTS
-                     : typeFilter === 'audio' ? VAULT_AUDIO_EXTS
-                     : typeFilter === 'page'  ? VAULT_PAGE_EXTS
-                     : VAULT_BOOK_EXTS;
+          : typeFilter === 'photo' ? VAULT_PHOTO_EXTS
+            : typeFilter === 'audio' ? VAULT_AUDIO_EXTS
+              : typeFilter === 'page' ? VAULT_PAGE_EXTS
+                : VAULT_BOOK_EXTS;
         result = result.filter(f => {
           const inExt = extSet.has((f.ext || '').toLowerCase());
           if (typeFilter === 'photo') return inExt && !aiIds.has(f.id);
@@ -354,30 +354,103 @@ export const VaultView = () => {
               <span style={{ color: 'var(--tx2)', fontSize: '0.9rem' }}>({selectedIds.size} selected)</span>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input 
-              type="text" 
-              value={searchQuery} 
-              onInput={(e: any) => { setSearchQuery(e.target.value); setRenderLimit(100); }} 
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onInput={(e: any) => { setSearchQuery(e.target.value); setRenderLimit(100); }}
               placeholder="Search vault..."
               style={{ padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px' }}
             />
-            <button 
-              onClick={handleNewFolder} 
+            
+            <label
+              htmlFor="vaultFileIn"
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              + Add Files
+            </label>
+            <input
+              type="file"
+              id="vaultFileIn"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e: any) => (window as any).handleGlobalFiles && (window as any).handleGlobalFiles(e.target.files)}
+            />
+
+            <button
+              onClick={() => (window as any).createNewVaultTextFile && (window as any).createNewVaultTextFile()}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="New Text File"
+            >
+              New File
+            </button>
+
+            <button
+              onClick={handleNewFolder}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
             >
               + New Folder
             </button>
+
+            <button
+              onClick={() => (window as any).startVaultDynamicMosaic && (window as any).startVaultDynamicMosaic()}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="Dynamic Mosaic"
+            >
+              Mosaic
+            </button>
+
+            <button
+              onClick={() => (window as any).shuffleVault && (window as any).shuffleVault()}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="Shuffle Vault"
+            >
+              Shuffle
+            </button>
+
+            <button
+              onClick={() => (window as any).deleteVaultDuplicates && (window as any).deleteVaultDuplicates()}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="Remove duplicate files"
+            >
+              Dedup
+            </button>
+
+            <button
+              onClick={() => (window as any).openVaultScrapeModal && (window as any).openVaultScrapeModal()}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="Auto-scrape each file online"
+            >
+              Scrape
+            </button>
+
+            <button
+              onClick={() => (window as any).importFromVaultDropDir && (window as any).importFromVaultDropDir()}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="Import files from the process folder"
+            >
+              Import
+            </button>
+
+            <button
+              onClick={() => (window as any).openVaultSettings && (window as any).openVaultSettings()}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="Vault Settings"
+            >
+              Settings
+            </button>
+
             {selectedIds.size > 0 && (
-              <button 
-                onClick={handleDeleteSelected} 
+              <button
+                onClick={handleDeleteSelected}
                 style={{ background: '#e84040', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               >
                 Delete Selected
               </button>
             )}
-            <button 
-              onClick={async () => { await fetch('/api/vault/lock', { method: 'POST' }); fetchStatus(); }} 
+
+            <button
+              onClick={async () => { await fetch('/api/vault/lock', { method: 'POST' }); fetchStatus(); }}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
             >
               Lock Vault
@@ -389,13 +462,13 @@ export const VaultView = () => {
         {!curFolder && !searchQuery && (
           <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', overflowX: 'auto', paddingBottom: '8px' }}>
             {FILTER_TILES.map(t => (
-              <div 
-                key={t.key} 
+              <div
+                key={t.key}
                 onClick={() => { setTypeFilter(typeFilter === t.key ? null : t.key); setRenderLimit(100); }}
-                style={{ 
-                  padding: '16px', 
-                  background: typeFilter === t.key ? 'var(--ac)' : 'var(--bg2)', 
-                  borderRadius: '8px', 
+                style={{
+                  padding: '16px',
+                  background: typeFilter === t.key ? 'var(--ac)' : 'var(--bg2)',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   minWidth: '100px',
                   textAlign: 'center',
@@ -413,12 +486,12 @@ export const VaultView = () => {
         {!curFolder && !searchQuery && !typeFilter && (
           <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
             {folders.map(f => (
-              <div 
-                key={f.id} 
-                style={{ 
-                  padding: '12px 16px', 
-                  background: 'var(--bg2)', 
-                  borderRadius: '6px', 
+              <div
+                key={f.id}
+                style={{
+                  padding: '12px 16px',
+                  background: 'var(--bg2)',
+                  borderRadius: '6px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
@@ -427,8 +500,8 @@ export const VaultView = () => {
               >
                 <span onClick={() => { setCurFolder(f.id); setRenderLimit(100); }} style={{ cursor: 'pointer' }}>📁</span>
                 <span onClick={() => { setCurFolder(f.id); setRenderLimit(100); }} style={{ fontWeight: '500', cursor: 'pointer' }}>{f.name}</span>
-                <button 
-                  onClick={() => handleDeleteFolder(f.id, f.name)} 
+                <button
+                  onClick={() => handleDeleteFolder(f.id, f.name)}
                   style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.8rem', marginLeft: 'auto' }}
                   title="Delete Folder"
                 >
@@ -447,7 +520,7 @@ export const VaultView = () => {
             const isSelected = selectedIds.has(f.id);
             return (
               <div key={f.id} className="video-card" style={{ background: 'var(--bg2)', borderRadius: '8px', overflow: 'hidden', border: isSelected ? '1px solid var(--ac)' : '1px solid var(--brd)', position: 'relative' }}>
-                <div 
+                <div
                   style={{ height: '120px', background: 'var(--bg3)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                   onClick={() => handleFileClick(f)}
                 >
@@ -456,17 +529,17 @@ export const VaultView = () => {
                   ) : (
                     <span style={{ fontSize: '1.2rem', color: 'var(--tx2)' }}>{f.ext.replace('.', '').toUpperCase()}</span>
                   )}
-                  
+
                   {/* Selection Checkbox */}
-                  <div 
-                    style={{ position: 'absolute', top: '4px', left: '4px', cursor: 'pointer', background: 'rgba(0,0,0,0.5)', borderRadius: '4px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+                  <div
+                    style={{ position: 'absolute', top: '4px', left: '4px', cursor: 'pointer', background: 'rgba(0,0,0,0.5)', borderRadius: '4px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     onClick={(e) => { e.stopPropagation(); handleToggleSelect(f.id); }}
                   >
-                    <input type="checkbox" checked={isSelected} onChange={() => {}} style={{ cursor: 'pointer' }} />
+                    <input type="checkbox" checked={isSelected} onChange={() => { }} style={{ cursor: 'pointer' }} />
                   </div>
 
-                  <div 
-                    style={{ position: 'absolute', top: '4px', right: '4px', cursor: 'pointer' }} 
+                  <div
+                    style={{ position: 'absolute', top: '4px', right: '4px', cursor: 'pointer' }}
                     onClick={(e) => { e.stopPropagation(); handleToggleFav(f.id); }}
                   >
                     {isFav ? '❤️' : '🤍'}
@@ -480,7 +553,7 @@ export const VaultView = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--tx3)' }}>Vault</div>
                     <div style={{ display: 'flex', gap: '4px' }}>
-                      <select 
+                      <select
                         onChange={(e: any) => handleMoveFile(f.id, e.target.value || null)}
                         style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', fontSize: '0.75rem', cursor: 'pointer' }}
                         value={f.folder || ''}
@@ -491,8 +564,8 @@ export const VaultView = () => {
                           <option key={fol.id} value={fol.id}>{fol.name}</option>
                         ))}
                       </select>
-                      <button 
-                        onClick={() => handleDeleteFile(f.id)} 
+                      <button
+                        onClick={() => handleDeleteFile(f.id)}
                         style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
                         title="Delete"
                       >
@@ -504,7 +577,7 @@ export const VaultView = () => {
               </div>
             );
           })}
-          
+
           {/* Infinite Scroll Sentinel */}
           {filteredFiles.length > renderLimit && (
             <div ref={sentinelRef} style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '20px', color: 'var(--tx2)' }}>
@@ -527,26 +600,26 @@ export const VaultView = () => {
       <div style={{ background: 'var(--bg2)', padding: '32px', borderRadius: '12px', width: '400px', border: '1px solid var(--brd)' }}>
         <h2 style={{ marginTop: 0 }}>{status.configured ? 'Vault Locked' : 'Create Vault'}</h2>
         <p style={{ color: 'var(--tx2)', fontSize: '0.9rem', marginBottom: '24px' }}>
-          {status.configured 
-            ? 'Enter your password to access encrypted files.' 
+          {status.configured
+            ? 'Enter your password to access encrypted files.'
             : 'Set a master password. It cannot be changed or recovered.'}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input 
-            type="password" 
-            value={password} 
-            onInput={(e: any) => setPassword(e.target.value)} 
+          <input
+            type="password"
+            value={password}
+            onInput={(e: any) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (status.configured ? handleUnlock() : handleSetup())}
             placeholder="Password"
             style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
           />
-          
+
           {!status.configured && (
-            <input 
-              type="password" 
-              value={confirmPassword} 
-              onInput={(e: any) => setConfirmPassword(e.target.value)} 
+            <input
+              type="password"
+              value={confirmPassword}
+              onInput={(e: any) => setConfirmPassword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
               placeholder="Confirm Password"
               style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
@@ -555,8 +628,8 @@ export const VaultView = () => {
 
           {error && <div style={{ color: '#e84040', fontSize: '0.8rem' }}>{error}</div>}
 
-          <button 
-            onClick={status.configured ? handleUnlock : handleSetup} 
+          <button
+            onClick={status.configured ? handleUnlock : handleSetup}
             disabled={loading}
             style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginTop: '12px' }}
           >

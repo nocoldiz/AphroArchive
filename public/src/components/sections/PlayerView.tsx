@@ -1,6 +1,6 @@
-import { currentVideo, currentView, allVideos } from '../store';
+import { currentVideo, currentView, allVideos } from '../../store';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { AiComments } from './AiComments';
+import { AiComments } from '../UI/AiComments';
 
 export const PlayerView = () => {
   const video = currentVideo.value;
@@ -33,7 +33,7 @@ export const PlayerView = () => {
     fetch(`/api/subtitles/${video.id}`)
       .then(r => r.json())
       .then(tracks => setSubtitles(tracks))
-      .catch(() => {});
+      .catch(() => { });
   }, [video]);
 
   const toggleFav = async () => {
@@ -49,7 +49,7 @@ export const PlayerView = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement).isContentEditable) return;
-      
+
       const vid = videoRef.current;
       if (!vid) return;
 
@@ -131,15 +131,15 @@ export const PlayerView = () => {
       <div className="pv-layout">
         <div className="pv-main">
           <div className="video-player-wrap">
-            <video 
+            <video
               ref={videoRef}
-              id="video-player" 
-              src={video.isVault ? `/api/vault/stream/${video.id}` : `/stream?id=${video.id}`} 
-              controls 
-              autoPlay 
+              id="video-player"
+              src={video.isVault ? `/api/vault/stream/${video.id}` : `/stream?id=${video.id}`}
+              controls
+              autoPlay
             >
               {subtitles.map((t, i) => (
-                <track 
+                <track
                   key={t.filename}
                   kind="subtitles"
                   label={t.label}
@@ -156,15 +156,15 @@ export const PlayerView = () => {
               <div className="player-rating" style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '1.2rem' }}>
                 {[1, 2, 3, 4, 5].map(i => (
                   <span key={i} style={{ color: i <= (hoveredRating ?? rating ?? 0) ? 'var(--accent)' : 'var(--border)', cursor: 'pointer' }}
-                        onMouseEnter={() => setHoveredRating(i)}
-                        onMouseLeave={() => setHoveredRating(null)}
-                        onClick={() => updateRating(i === rating ? null : i)}>
+                    onMouseEnter={() => setHoveredRating(i)}
+                    onMouseLeave={() => setHoveredRating(null)}
+                    onClick={() => updateRating(i === rating ? null : i)}>
                     ★
                   </span>
                 ))}
               </div>
             </div>
-            
+
             <div className="player-meta" style={{ display: 'flex', gap: '15px', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '15px' }}>
               <span>{video.category}</span>
               <span>{(video.size / 1024 / 1024).toFixed(1)} MB</span>
@@ -192,7 +192,7 @@ export const PlayerView = () => {
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   {actors.map(a => (
                     <button key={a} className="p-actor-tag" onClick={() => (window as any).openActor(a)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <img className="p-actor-ph" src={`/api/actor-photos/${encodeURIComponent(a)}/img`} alt="" onError={(e: any) => e.target.style.display='none'} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                      <img className="p-actor-ph" src={`/api/actor-photos/${encodeURIComponent(a)}/img`} alt="" onError={(e: any) => e.target.style.display = 'none'} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
                       {a}
                     </button>
                   ))}
@@ -225,7 +225,7 @@ export const PlayerView = () => {
               <div className="playlist-list">
                 {chapters.map(c => (
                   <div key={c.id} className="playlist-item" onClick={() => jumpToChapter(c.time)}>
-                    <img src={`/api/thumbs/${video.id}/chapter/${c.id}`} className="pl-thumb" onError={(e: any) => e.target.src=`/api/thumbs/${video.id}/0`} />
+                    <img src={`/api/thumbs/${video.id}/chapter/${c.id}`} className="pl-thumb" onError={(e: any) => e.target.src = `/api/thumbs/${video.id}/0`} />
                     <div className="pl-info">
                       <div className="pl-name">{c.title}</div>
                       <div className="pl-meta">{formatDuration(c.time)}</div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { thumbnails, loadThumbnails, allVideos, loadVideos } from '../store';
+import { thumbnails, loadThumbnails, allVideos, loadVideos } from '../../store';
 
 interface FlatThumb {
   videoId: string;
@@ -29,7 +29,7 @@ export const ThumbnailsView = () => {
   }
 
   // Flatten the list: each video has multiple thumbs
-  const baseThumbs: FlatThumb[] = list.flatMap(group => 
+  const baseThumbs: FlatThumb[] = list.flatMap(group =>
     group.thumbs.map((url: string, i: number) => ({ videoId: group.id, url, index: i }))
   );
 
@@ -89,9 +89,9 @@ export const ThumbnailsView = () => {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--tx3)' }}>
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
-        <input 
-          type="text" 
-          placeholder="Filter thumbnails..." 
+        <input
+          type="text"
+          placeholder="Filter thumbnails..."
           value={query}
           onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
           style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--tx)', flex: 1, fontSize: '0.85rem' }}
@@ -116,11 +116,11 @@ export const ThumbnailsView = () => {
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
-          <img 
-            id="photosLbImg" 
-            src={allThumbs[lightboxIdx].url} 
-            alt="Lightbox" 
-            onClick={(e) => e.stopPropagation()} 
+          <img
+            id="photosLbImg"
+            src={allThumbs[lightboxIdx].url}
+            alt="Lightbox"
+            onClick={(e) => e.stopPropagation()}
           />
           <button className="ph-lb-nav ph-lb-next" onClick={(e) => { e.stopPropagation(); next(); }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

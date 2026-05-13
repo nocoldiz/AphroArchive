@@ -1,4 +1,4 @@
-import { appPrefs, updatePrefs } from '../store';
+import { appPrefs, updatePrefs } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { PERSONALITIES, Personality } from '../personalities';
 
@@ -11,16 +11,16 @@ export const SettingsView = () => {
   const [ollamaModel, setOllamaModel] = useState(prefs.ollamaVisionModel || '');
   const [anthropicKey, setAnthropicKey] = useState(prefs.anthropicApiKey || '');
   const [hiddenCats, setHiddenCats] = useState('');
-  
+
   const [connectUrls, setConnectUrls] = useState<any[]>([]);
   const [connectIdx, setConnectIdx] = useState(0);
   const [netEnabled, setNetEnabled] = useState(!!prefs.networkEnabled);
-  
+
   const [genRunning, setGenRunning] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
   const [genStatus, setGenStatus] = useState('');
   const sseRef = useRef<EventSource | null>(null);
-  
+
   const qrRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export const SettingsView = () => {
     if (sseRef.current) sseRef.current.close();
     const sse = new EventSource('/api/gen-thumbs/status');
     sseRef.current = sse;
-    
+
     sse.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
@@ -43,7 +43,7 @@ export const SettingsView = () => {
           setGenRunning(true);
           const pct = msg.total > 0 ? Math.round(msg.done / msg.total * 100) : 0;
           setGenProgress(pct);
-          setGenStatus(msg.total > 0 
+          setGenStatus(msg.total > 0
             ? `${msg.done} / ${msg.total} (${pct}%)${msg.current ? ' — ' + msg.current : ''}`
             : 'Scanning…');
         } else if (msg.type === 'done') {
@@ -67,7 +67,7 @@ export const SettingsView = () => {
         console.error('Failed to parse SSE data', err);
       }
     };
-    
+
     sse.onerror = () => {
       sse.close();
       sseRef.current = null;
@@ -77,7 +77,7 @@ export const SettingsView = () => {
 
   const toggleGenThumbs = async () => {
     if (genRunning) {
-      fetch('/api/gen-thumbs/stop', { method: 'POST' }).catch(() => {});
+      fetch('/api/gen-thumbs/stop', { method: 'POST' }).catch(() => { });
       setGenRunning(false);
     } else {
       try {
@@ -109,8 +109,8 @@ export const SettingsView = () => {
     fetch('/api/settings/lists')
       .then(r => r.json())
       .then(data => setHiddenCats(data.hidden || ''))
-      .catch(() => {});
-      
+      .catch(() => { });
+
     // Load network info if enabled
     if (prefs.networkEnabled) {
       fetch('/api/local-ip')
@@ -120,7 +120,7 @@ export const SettingsView = () => {
             setConnectUrls(data.all && data.all.length ? data.all : [{ url: data.url, name: 'Network', ip: data.ip }]);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [prefs.networkEnabled]);
 
@@ -185,7 +185,7 @@ export const SettingsView = () => {
         <i className="icon-settings" style={{ color: 'var(--ac)' }} />
         Settings
       </h2>
-      
+
       {/* AI Comments Section */}
       <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -194,8 +194,8 @@ export const SettingsView = () => {
             AI Comments
           </h3>
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               checked={!!prefs.aiCommentsEnabled}
               onChange={(e) => updatePrefs({ aiCommentsEnabled: (e.currentTarget as HTMLInputElement).checked })}
               style={{ width: '18px', height: '18px' }}
@@ -207,7 +207,7 @@ export const SettingsView = () => {
         {/* Personality Preset */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Preset Personality</label>
-          <select 
+          <select
             onChange={(e: any) => {
               const p = PERSONALITIES.find(x => x.id === e.target.value);
               if (p) applyPersonality(p);
@@ -224,17 +224,17 @@ export const SettingsView = () => {
         {/* Prompts */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Comment Master Prompt</label>
-          <textarea 
+          <textarea
             value={commentPrompt}
             onInput={(e: any) => setCommentPrompt(e.target.value)}
             rows={4}
             style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px', fontFamily: 'monospace' }}
           />
         </div>
-        
+
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Reply Master Prompt</label>
-          <textarea 
+          <textarea
             value={replyPrompt}
             onInput={(e: any) => setReplyPrompt(e.target.value)}
             rows={3}
@@ -248,10 +248,10 @@ export const SettingsView = () => {
       {/* Vision Provider Section */}
       <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
         <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Vision Provider</h3>
-        
+
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Provider</label>
-          <select 
+          <select
             value={prefs.visionProvider || 'ollama'}
             onChange={(e: any) => updatePrefs({ visionProvider: e.target.value })}
             style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }}
@@ -288,7 +288,7 @@ export const SettingsView = () => {
       <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
         <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Hidden Categories</h3>
         <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '8px' }}>Enter folder names to hide, one per line.</p>
-        <textarea 
+        <textarea
           value={hiddenCats}
           onInput={(e: any) => setHiddenCats(e.target.value)}
           rows={5}
@@ -301,10 +301,10 @@ export const SettingsView = () => {
       <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
         <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Thumbnails</h3>
         <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Pre-generate thumbnails for all videos in batch.</p>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-          <button 
-            className={`modal-btn ${genRunning ? '' : 'modal-btn--primary'}`} 
+          <button
+            className={`modal-btn ${genRunning ? '' : 'modal-btn--primary'}`}
             onClick={toggleGenThumbs}
             style={{ minWidth: '120px' }}
           >
@@ -325,7 +325,7 @@ export const SettingsView = () => {
       {isMainDevice && (
         <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)' }}>
           <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Network Access</h3>
-          
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
               <div style={{ fontWeight: 'bold' }}>{netEnabled ? 'Enabled' : 'Disabled'}</div>
@@ -342,13 +342,13 @@ export const SettingsView = () => {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
               <div style={{ display: 'flex', gap: '5px' }}>
                 {connectUrls.map((e, i) => (
-                  <button 
+                  <button
                     key={i}
                     onClick={() => setConnectIdx(i)}
-                    style={{ 
-                      padding: '4px 10px', 
-                      borderRadius: '999px', 
-                      fontSize: '0.75rem', 
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '999px',
+                      fontSize: '0.75rem',
                       border: '1px solid var(--brd)',
                       background: i === connectIdx ? 'var(--ac)' : 'var(--bg3)',
                       color: i === connectIdx ? '#fff' : 'var(--tx2)'

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
-import { VideoCard } from './VideoGrid';
-import { Video } from '../types';
-import { currentStudio } from '../store';
+import { VideoCard } from '../UI/VideoGrid';
+import { Video } from '../../types';
+import { currentStudio } from '../../store';
 
 interface Studio {
   name: string;
@@ -71,15 +71,15 @@ export const StudiosView = () => {
     const c = getColor(s.name);
 
     return (
-      <div 
-        key={s.name} 
-        class={`actor-card fade-in ${s.count === 0 ? 'actor-card-unmatched' : ''}`} 
+      <div
+        key={s.name}
+        class={`actor-card fade-in ${s.count === 0 ? 'actor-card-unmatched' : ''}`}
         onClick={() => currentStudio.value = s.name}
         style={{ cursor: 'pointer' }}
       >
         <div class="actor-avatar" style={{ background: `${c}22`, color: c }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+            <rect x="2" y="7" width="20" height="15" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
           </svg>
         </div>
         <div class="actor-name">{s.name}</div>
@@ -120,11 +120,11 @@ export const StudiosView = () => {
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Studios</h1>
         <div class="search-bar" style={{ position: 'relative' }}>
-          <input 
-            type="text" 
-            class="input-box" 
-            placeholder="Search studios..." 
-            value={search} 
+          <input
+            type="text"
+            class="input-box"
+            placeholder="Search studios..."
+            value={search}
             onInput={(e: any) => setSearch(e.target.value)}
             style={{ width: '200px' }}
           />

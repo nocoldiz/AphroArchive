@@ -1,18 +1,18 @@
 import { render } from 'preact';
 import { App } from './App';
-import { Sidebar } from './components/Sidebar';
-import { Search } from './components/Search';
-import { MainContent } from './components/MainContent';
-import { PlayerView } from './components/PlayerView';
+import { Sidebar } from './components/UI/Sidebar';
+import { Topbar } from './components/UI/Topbar';
+import { MainContent } from './components/UI/MainContent';
+import { PlayerView } from './components/sections/PlayerView';
 import { setupRouter } from './router';
 
 // 1. Mount the Sidebar
 const sidebarEl = document.getElementById('side');
 if (sidebarEl) render(<Sidebar />, sidebarEl);
 
-// 2. Mount the Search Bar
-const searchEl = document.querySelector('.search-w');
-if (searchEl) render(<Search />, searchEl);
+// 2. Mount the Topbar
+const topbarEl = document.getElementById('topbar-root');
+if (topbarEl) render(<Topbar />, topbarEl);
 
 // 3. Mount the Main Content (Switcher)
 const mainEl = document.getElementById('video-grid');

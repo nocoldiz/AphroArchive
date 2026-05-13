@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { renameModalState, videos, allVideos } from '../store';
+import { renameModalState, videos, allVideos } from '../../store';
 import { renameVideo } from '../api';
 
 export const RenameModal = () => {
@@ -25,7 +25,7 @@ export const RenameModal = () => {
     try {
       if (state.vidId) {
         const res = await renameVideo(state.vidId, trimmedName);
-        
+
         // Optimistic update
         const list = [...videos.value];
         const idx = list.findIndex(v => v.id === state.vidId);
@@ -33,7 +33,7 @@ export const RenameModal = () => {
           list[idx] = { ...list[idx], id: res.newId, name: trimmedName };
           videos.value = list;
         }
-        
+
         const allList = [...allVideos.value];
         const idx2 = allList.findIndex(v => v.id === state.vidId);
         if (idx2 >= 0) {
@@ -54,10 +54,10 @@ export const RenameModal = () => {
     <div className="modal-overlay on" onClick={(e: any) => e.target === e.currentTarget && handleClose()} style={{ zIndex: 20000 }}>
       <div className="modal-content" style={{ background: 'var(--bg2)', padding: '20px', borderRadius: '8px', width: '400px' }}>
         <h3 style={{ marginTop: 0 }}>Rename</h3>
-        <input 
-          type="text" 
-          value={name} 
-          onInput={(e: any) => setName(e.target.value)} 
+        <input
+          type="text"
+          value={name}
+          onInput={(e: any) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSave()}
           placeholder="New name..."
           style={{ width: '100%', padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px' }}

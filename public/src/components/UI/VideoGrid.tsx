@@ -1,6 +1,6 @@
 import { useRef } from 'preact/hooks';
-import { Video } from '../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode } from '../store';
+import { Video } from '../../types';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode } from '../../store';
 import { useVideoSelection } from '../hooks/useVideoSelection';
 
 const openCtx = (e: any) => {
@@ -24,19 +24,19 @@ export const VideoCard = ({ video, isSelected }: VideoCardProps) => {
   };
 
   return (
-    <div 
-      className={`video-card ${isSelected ? 'selected' : ''}`} 
-      id={`v-${video.id}`} 
-      onClick={play} 
+    <div
+      className={`video-card ${isSelected ? 'selected' : ''}`}
+      id={`v-${video.id}`}
+      onClick={play}
       onContextMenu={openCtx}
       data-id={video.id}
     >
       <div className="video-thumb-wrap">
-        <img 
-          src={`/api/thumbs/${video.id}/0`} 
-          loading="lazy" 
-          className="video-thumb" 
-          id={`img-${video.id}`} 
+        <img
+          src={`/api/thumbs/${video.id}/0`}
+          loading="lazy"
+          className="video-thumb"
+          id={`img-${video.id}`}
         />
         {video.duration > 0 && <div className="video-duration">{(video.duration / 60).toFixed(1)}m</div>}
         {video.rating && <div className="video-rating">{'★'.repeat(video.rating)}</div>}
@@ -89,10 +89,10 @@ export const VideoGrid = () => {
       <VideoSelBar />
       <div className="video-grid" id="video-grid" ref={gridRef}>
         {list.map(v => (
-          <VideoCard 
-            key={v.id} 
-            video={v} 
-            isSelected={selectedVideoIds.value.has(v.id)} 
+          <VideoCard
+            key={v.id}
+            video={v}
+            isSelected={selectedVideoIds.value.has(v.id)}
           />
         ))}
       </div>

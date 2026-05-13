@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentTag } from '../store';
+import { currentTag } from '../../store';
 
 export const TagDetailView = () => {
   const tag = currentTag.value;
@@ -30,7 +30,7 @@ export const TagDetailView = () => {
   return (
     <div className="tag-detail-view" style={{ padding: '24px' }}>
       <h2 style={{ marginBottom: '24px', color: 'var(--ac)' }}>Tag: {tag}</h2>
-      
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading…</div>
       ) : videos.length === 0 ? (

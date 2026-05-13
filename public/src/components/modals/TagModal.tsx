@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { tagModalState } from '../store';
+import { tagModalState } from '../../store';
 
 export const TagModal = () => {
   const state = tagModalState.value;
@@ -41,10 +41,10 @@ export const TagModal = () => {
   const handleAddTag = async (tag: string) => {
     tag = tag.trim();
     if (!tag || tags.some(t => t.toLowerCase() === tag.toLowerCase())) return;
-    
+
     const newTags = [...tags, tag];
     setTags(newTags);
-    
+
     if (state.vidId) {
       await fetch(`/api/videos/${state.vidId}/meta`, {
         method: 'PATCH',
@@ -52,14 +52,14 @@ export const TagModal = () => {
         body: JSON.stringify({ tags: newTags }),
       });
     }
-    
+
     setQuery('');
   };
 
   const handleRemoveTag = async (tag: string) => {
     const newTags = tags.filter(t => t.toLowerCase() !== tag.toLowerCase());
     setTags(newTags);
-    
+
     if (state.vidId) {
       await fetch(`/api/videos/${state.vidId}/meta`, {
         method: 'PATCH',
@@ -83,7 +83,7 @@ export const TagModal = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h3 style={{ margin: 0 }}>Manage Tags</h3>
           <button onClick={handleClose} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </div>
 
@@ -93,7 +93,7 @@ export const TagModal = () => {
             <span key={t} className="p-tag" style={{ background: 'var(--bg3)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
               {t}
               <button onClick={() => handleRemoveTag(t)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>
             </span>
           ))}
@@ -101,10 +101,10 @@ export const TagModal = () => {
 
         {/* Input */}
         <div style={{ marginBottom: '15px' }}>
-          <input 
+          <input
             ref={inputRef}
-            type="text" 
-            value={query} 
+            type="text"
+            value={query}
             onInput={(e: any) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && query.trim()) {
@@ -121,9 +121,9 @@ export const TagModal = () => {
         {/* Suggestions */}
         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', maxHeight: '150px', overflowY: 'auto' }}>
           {filteredSuggestions.map(s => (
-            <span 
-              key={s} 
-              className="p-tag-picker-item" 
+            <span
+              key={s}
+              className="p-tag-picker-item"
               onClick={() => handleAddTag(s)}
               style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
             >
@@ -131,8 +131,8 @@ export const TagModal = () => {
             </span>
           ))}
           {query && !suggestions.some(s => s.toLowerCase() === query.toLowerCase()) && (
-            <span 
-              className="p-tag-picker-item" 
+            <span
+              className="p-tag-picker-item"
               onClick={() => handleAddTag(query)}
               style={{ background: 'var(--ac)', color: '#fff', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
             >

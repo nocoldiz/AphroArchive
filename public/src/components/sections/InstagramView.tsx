@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { allVideos, appPrefs, currentVideo } from '../store';
-import { Video } from '../types';
-import { AiComments } from './AiComments';
+import { allVideos, appPrefs, currentVideo } from '../../store';
+import { Video } from '../../types';
+import { AiComments } from '../UI/AiComments';
 import './InstagramView.css';
 
 interface VaultFile {
@@ -45,7 +45,7 @@ export const InstagramView = () => {
   const feedObserver = useRef<IntersectionObserver | null>(null);
   const PAGE_SIZE = 10;
 
-  const COLORS = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#14b8a6','#a855f7'];
+  const COLORS = ['#e84040', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#a855f7'];
 
   const strColor = (s: string) => {
     let h = 0;
@@ -69,9 +69,9 @@ export const InstagramView = () => {
 
   const formatBytes = (b?: number) => {
     if (!b) return '';
-    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
-    if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
-    return (b/1073741824).toFixed(2) + ' GB';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+    return (b / 1073741824).toFixed(2) + ' GB';
   };
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export const InstagramView = () => {
 
     if (savedShuf === '1') {
       setIsShuffled(true);
-    } else if (savedSort && ['date','duration','name','size'].includes(savedSort)) {
+    } else if (savedSort && ['date', 'duration', 'name', 'size'].includes(savedSort)) {
       setCurSort(savedSort);
       setIsShuffled(false);
     } else {
@@ -116,7 +116,7 @@ export const InstagramView = () => {
           return next;
         });
       }
-    } catch {}
+    } catch { }
   };
 
   const checkVaultStatus = async () => {
@@ -125,7 +125,7 @@ export const InstagramView = () => {
       setVaultUnlocked(!!s.unlocked);
       setVaultConfigured(!!s.configured);
       if (s.unlocked) await loadVaultFiles();
-    } catch {}
+    } catch { }
   };
 
   const loadVaultFiles = async () => {
@@ -138,7 +138,7 @@ export const InstagramView = () => {
         setVaultFolderMap(map);
         setVaultFiles(items.filter((f: any) => f.type !== 'folder'));
       }
-    } catch {}
+    } catch { }
   };
 
   const vaultUser = (item: IgItem) => {
@@ -149,10 +149,10 @@ export const InstagramView = () => {
   const getRawItems = (): IgItem[] => {
     let items: IgItem[];
     if (vaultOnly) {
-      items = vaultFiles.map(f => ({...f, _vault: true, id: f.id}));
+      items = vaultFiles.map(f => ({ ...f, _vault: true, id: f.id }));
     } else {
-      const vids = allVideos.value.map(v => ({...v, _vault: false, id: v.id}));
-      const vlt = vaultFiles.map(f => ({...f, _vault: true, id: f.id}));
+      const vids = allVideos.value.map(v => ({ ...v, _vault: false, id: v.id }));
+      const vlt = vaultFiles.map(f => ({ ...f, _vault: true, id: f.id }));
       items = [...vids, ...vlt];
     }
     if (savedOnly) items = items.filter(i => savedIds.has(i.id));
@@ -167,11 +167,11 @@ export const InstagramView = () => {
       setShuffledOrder(shuf);
       return shuf;
     }
-    
-    if (curSort === 'date')     return [...items].sort((a,b) => (b.mtime||0)-(a.mtime||0));
-    if (curSort === 'duration') return [...items].sort((a,b) => (b.duration||0)-(a.duration||0));
-    if (curSort === 'name')     return [...items].sort((a,b) => (a.name||a.originalName||'').localeCompare(b.name||b.originalName||''));
-    if (curSort === 'size')     return [...items].sort((a,b) => (b.size||0)-(a.size||0));
+
+    if (curSort === 'date') return [...items].sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+    if (curSort === 'duration') return [...items].sort((a, b) => (b.duration || 0) - (a.duration || 0));
+    if (curSort === 'name') return [...items].sort((a, b) => (a.name || a.originalName || '').localeCompare(b.name || b.originalName || ''));
+    if (curSort === 'size') return [...items].sort((a, b) => (b.size || 0) - (a.size || 0));
     return items;
   };
 
@@ -221,11 +221,11 @@ export const InstagramView = () => {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-    
+
     try {
       const endpoint = isVault ? `/api/vault/favs/${id}` : `/api/favourites/${id}`;
       await fetch(endpoint, { method: 'POST' });
-    } catch {}
+    } catch { }
   };
 
   const toggleSave = (id: string) => {
@@ -271,26 +271,26 @@ export const InstagramView = () => {
       <nav className="ig-nav">
         <div className="ig-nav-logo">
           <svg viewBox="0 0 28 28" fill="none" width="28" height="28">
-            <rect width="28" height="28" rx="6" fill="#e84040"/>
-            <polygon points="11,7 11,21 22,14" fill="#fff"/>
+            <rect width="28" height="28" rx="6" fill="#e84040" />
+            <polygon points="11,7 11,21 22,14" fill="#fff" />
           </svg>
           <span className="ig-nav-logo-text">AphroArchive</span>
         </div>
         <div className={`ig-nav-item ${curView === 'feed' ? 'active' : ''}`} onClick={() => setCurView('feed')}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
           <span>Feed</span>
         </div>
         <div className={`ig-nav-item ${curView === 'explore' ? 'active' : ''}`} onClick={() => setCurView('explore')}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           <span>Explore</span>
         </div>
         <div className={`ig-nav-item ${vaultOnly ? 'vault-on' : ''}`} onClick={() => setVaultOnly(!vaultOnly)}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
           <span>Vault Only</span>
         </div>
         <div className="ig-nav-spacer"></div>
         <div className="ig-nav-item" onClick={() => window.location.href = '/'}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
           <span>Back to Archive</span>
         </div>
       </nav>
@@ -301,10 +301,10 @@ export const InstagramView = () => {
           <div className="ig-feed">
             {/* Feed items */}
             {visibleItems.map(item => (
-              <PostCard 
-                key={item.id} 
-                item={item} 
-                liked={likedIds.has(item.id)} 
+              <PostCard
+                key={item.id}
+                item={item}
+                liked={likedIds.has(item.id)}
                 saved={savedIds.has(item.id)}
                 onLike={() => toggleLike(item.id, item._vault)}
                 onSave={() => toggleSave(item.id)}
@@ -315,7 +315,7 @@ export const InstagramView = () => {
                 initial={initial}
               />
             ))}
-            
+
             {feedLoading && <div className="ig-loading"><div className="ig-spinner"></div></div>}
             {feedDone && <div className="ig-end-msg">You're all caught up</div>}
           </div>
@@ -334,9 +334,9 @@ export const InstagramView = () => {
 
       {/* Modal */}
       {curModal && (
-        <IgModal 
-          id={curModal.id} 
-          isVault={curModal.isVault} 
+        <IgModal
+          id={curModal.id}
+          isVault={curModal.isVault}
           onClose={closeModal}
           vaultFiles={vaultFiles}
           allVideos={allVideos.value}
@@ -363,7 +363,7 @@ const PostCard = ({ item, liked, saved, onLike, onSave, onOpen, vaultUser, timeA
   const color = strColor(category);
   const mtime = item.mtime || 0;
   const ext = (item.ext || '').toLowerCase();
-  const isImgFile = ['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes(ext);
+  const isImgFile = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp'].includes(ext);
 
   let thumbSrc = '';
   if (isVault && isImgFile) {
@@ -385,26 +385,26 @@ const PostCard = ({ item, liked, saved, onLike, onSave, onOpen, vaultUser, timeA
       <div className="ig-post-media" onClick={onOpen}>
         {thumbSrc ? <img src={thumbSrc} alt="" loading="lazy" /> : (
           <div className="ig-placeholder">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.5"><polygon points="5,3 19,12 5,21"/></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="1.5"><polygon points="5,3 19,12 5,21" /></svg>
             <span style={{ fontSize: '12px', color: '#444' }}>{name}</span>
           </div>
         )}
         <div className="ig-play-overlay">
-          <div className="ig-play-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+          <div className="ig-play-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg></div>
         </div>
         {isVault && <span className="ig-vault-tag">VAULT</span>}
         {item.durationF && <span className="ig-duration-badge">{item.durationF}</span>}
       </div>
       <div className="ig-post-actions">
         <button className={`ig-act-btn ${liked ? 'liked' : ''}`} onClick={onLike}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
         </button>
         <button className="ig-act-btn" onClick={onOpen}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
         </button>
         <div className="ig-spacer"></div>
         <button className={`ig-act-btn ${saved ? 'saved' : ''}`} onClick={onSave}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
         </button>
       </div>
       <div className="ig-post-likes">{liked ? '❤ Liked' : ''}</div>
@@ -420,18 +420,18 @@ const PostCard = ({ item, liked, saved, onLike, onSave, onOpen, vaultUser, timeA
 const ExploreTile = ({ item, onOpen }: any) => {
   const isVault = item._vault;
   const ext = (item.ext || '').toLowerCase();
-  const isImg = isVault && ['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes(ext);
+  const isImg = isVault && ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp'].includes(ext);
   const thumbSrc = isVault && isImg ? '/api/vault/stream/' + item.id : (!isVault ? '/api/thumbs/' + item.id + '/0' : '');
 
   return (
     <div className="ig-explore-item" onClick={onOpen}>
       {thumbSrc ? <img src={thumbSrc} alt="" loading="lazy" /> : (
         <div className="ig-explore-placeholder">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="1.5"><polygon points="5,3 19,12 5,21"/></svg>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="1.5"><polygon points="5,3 19,12 5,21" /></svg>
         </div>
       )}
       <div className="ig-explore-overlay">
-        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></span>
+        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg></span>
       </div>
       {isVault && <div className="ig-explore-vault"></div>}
     </div>
@@ -446,7 +446,7 @@ const IgModal = ({ id, isVault, onClose, vaultFiles, allVideos, vaultUser, timeA
   const category = isVault ? vaultUser(item) : (item.category || 'Uncategorized');
   const color = strColor(category);
   const ext = (item.ext || '').toLowerCase();
-  const isImgVault = isVault && ['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp'].includes(ext);
+  const isImgVault = isVault && ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp'].includes(ext);
   const streamUrl = isVault ? '/api/vault/stream/' + id : '/api/stream/' + id;
 
   return (
@@ -479,17 +479,17 @@ const IgModal = ({ id, isVault, onClose, vaultFiles, allVideos, vaultUser, timeA
                 {item.tags.map((t: string) => `#${t}`).join(' ')}
               </div>
             )}
-            
+
             {/* AI Comments Component */}
             <AiComments />
           </div>
           <div className="ig-modal-actions">
             <button className={`ig-act-btn ${liked ? 'liked' : ''}`} onClick={onLike}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
             </button>
             <div style={{ flex: 1 }}></div>
             <button className={`ig-act-btn ${saved ? 'saved' : ''}`} onClick={onSave}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
             </button>
           </div>
         </div>

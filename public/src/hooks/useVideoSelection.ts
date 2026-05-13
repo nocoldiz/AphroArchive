@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { selectedVideoIds, videoSelMode } from '../store';
+import { selectedVideoIds, videoSelMode } from '../../store';
 
 export function useVideoSelection(gridRef: { current: HTMLDivElement | null }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -19,7 +19,7 @@ export function useVideoSelection(gridRef: { current: HTMLDivElement | null }) {
       if (!card) return;
       const id = (card as HTMLElement).dataset.id;
       if (!id || selectedVideoIds.value.has(id)) return;
-      
+
       const newSelection = new Set(selectedVideoIds.value);
       newSelection.add(id);
       selectedVideoIds.value = newSelection;
@@ -81,9 +81,9 @@ export function useVideoSelection(gridRef: { current: HTMLDivElement | null }) {
 
       document.querySelectorAll('.video-card').forEach(card => {
         const cardRect = card.getBoundingClientRect();
-        const match = !(boxRect.right < cardRect.left || boxRect.left > cardRect.right || 
-                       boxRect.bottom < cardRect.top || boxRect.top > cardRect.bottom);
-        
+        const match = !(boxRect.right < cardRect.left || boxRect.left > cardRect.right ||
+          boxRect.bottom < cardRect.top || boxRect.top > cardRect.bottom);
+
         const id = (card as HTMLElement).dataset.id;
         if (id && match) {
           newSelection.add(id);

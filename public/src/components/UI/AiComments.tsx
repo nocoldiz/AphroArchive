@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentVideo } from '../store';
+import { currentVideo } from '../../store';
 
 interface Comment {
   id: string;
@@ -101,19 +101,19 @@ export const AiComments = () => {
           <span style={{ fontSize: '13px', color: 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '1px' }}>Comments</span>
           <span style={{ background: 'rgba(var(--ac-rgb,100,100,255),0.15)', color: 'var(--ac)', fontSize: '10px', padding: '2px 7px', borderRadius: '10px' }}>AI</span>
         </div>
-        
+
         <div style={{ display: 'flex', gap: '4px' }}>
           {(['best', 'top', 'new', 'old'] as const).map(s => (
-            <button 
+            <button
               key={s}
               onClick={() => setSort(s)}
-              style={{ 
-                fontSize: '11px', 
-                fontWeight: '700', 
-                background: 'none', 
-                border: 'none', 
-                cursor: 'pointer', 
-                padding: '4px 8px', 
+              style={{
+                fontSize: '11px',
+                fontWeight: '700',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px 8px',
                 borderRadius: '3px',
                 color: sort === s ? 'var(--ac)' : 'var(--tx3)'
               }}
@@ -129,11 +129,11 @@ export const AiComments = () => {
       ) : (
         <div className="comments-list">
           {roots.map(c => (
-            <CommentNode 
-              key={c.id} 
-              comment={c} 
-              allComments={comments} 
-              onReply={submitComment} 
+            <CommentNode
+              key={c.id}
+              comment={c}
+              allComments={comments}
+              onReply={submitComment}
               getScore={getScore}
               handleVote={handleVote}
               votes={votes}
@@ -148,9 +148,9 @@ export const AiComments = () => {
   );
 };
 
-const CommentNode = ({ comment, allComments, onReply, getScore, handleVote, votes, sortList }: { 
-  comment: Comment, 
-  allComments: Comment[], 
+const CommentNode = ({ comment, allComments, onReply, getScore, handleVote, votes, sortList }: {
+  comment: Comment,
+  allComments: Comment[],
   onReply: (t: string, p: string) => void,
   getScore: (c: Comment) => number,
   handleVote: (cid: string, dir: number) => void,
@@ -159,11 +159,11 @@ const CommentNode = ({ comment, allComments, onReply, getScore, handleVote, vote
 }) => {
   const [showReply, setShowReply] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  
+
   const replies = sortList(allComments.filter(c => c.parentId === comment.id));
   const vote = votes[comment.id] || 0;
   const score = getScore(comment);
-  
+
   const upCol = vote > 0 ? '#ff4500' : 'var(--tx3)';
   const dnCol = vote < 0 ? '#7193ff' : 'var(--tx3)';
   const scCol = vote > 0 ? '#ff4500' : vote < 0 ? '#7193ff' : 'var(--tx3)';
@@ -180,7 +180,7 @@ const CommentNode = ({ comment, allComments, onReply, getScore, handleVote, vote
             <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{new Date(comment.ts).toLocaleDateString()}</span>
             <span style={{ fontSize: '11px', fontWeight: 'bold', color: scCol }}>▲ {score}</span>
             {replies.length > 0 && (
-              <button 
+              <button
                 onClick={() => setCollapsed(!collapsed)}
                 style={{ background: 'none', border: 'none', color: 'var(--tx3)', fontSize: '11px', cursor: 'pointer', padding: '0 2px' }}
               >
@@ -188,7 +188,7 @@ const CommentNode = ({ comment, allComments, onReply, getScore, handleVote, vote
               </button>
             )}
           </div>
-          
+
           {collapsed ? (
             <div style={{ fontSize: '12px', color: 'var(--tx3)', paddingBottom: '4px' }}>{replies.length} replies hidden</div>
           ) : (
@@ -197,7 +197,7 @@ const CommentNode = ({ comment, allComments, onReply, getScore, handleVote, vote
               <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginTop: '4px' }}>
                 <button onClick={() => handleVote(comment.id, 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: upCol, padding: '2px 4px', fontSize: '12px' }}>▲</button>
                 <button onClick={() => handleVote(comment.id, -1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: dnCol, padding: '2px 4px', fontSize: '12px' }}>▼</button>
-                <button 
+                <button
                   onClick={() => setShowReply(!showReply)}
                   style={{ background: 'none', border: 'none', color: 'var(--tx3)', fontSize: '11px', cursor: 'pointer', padding: '2px 8px' }}
                 >
@@ -210,11 +210,11 @@ const CommentNode = ({ comment, allComments, onReply, getScore, handleVote, vote
                 </div>
               )}
               {replies.map(r => (
-                <CommentNode 
-                  key={r.id} 
-                  comment={r} 
-                  allComments={allComments} 
-                  onReply={onReply} 
+                <CommentNode
+                  key={r.id}
+                  comment={r}
+                  allComments={allComments}
+                  onReply={onReply}
                   getScore={getScore}
                   handleVote={handleVote}
                   votes={votes}
@@ -240,24 +240,24 @@ const CommentInput = ({ onSave, small }: { onSave: (text: string) => void, small
 
   return (
     <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-      <input 
-        type="text" 
+      <input
+        type="text"
         value={text}
         onInput={(e: any) => setText(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && handleSave()}
         placeholder="Write a comment..."
-        style={{ 
-          flex: 1, 
-          background: 'var(--bg3)', 
-          border: '1px solid var(--brd)', 
-          color: 'var(--tx)', 
-          padding: small ? '4px 8px' : '8px 12px', 
-          borderRadius: '6px', 
+        style={{
+          flex: 1,
+          background: 'var(--bg3)',
+          border: '1px solid var(--brd)',
+          color: 'var(--tx)',
+          padding: small ? '4px 8px' : '8px 12px',
+          borderRadius: '6px',
           fontSize: '13px',
           outline: 'none'
         }}
       />
-      <button 
+      <button
         onClick={handleSave}
         style={{ background: 'var(--ac)', color: '#fff', border: 'none', padding: '0 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
       >

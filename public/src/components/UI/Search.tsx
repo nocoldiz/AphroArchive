@@ -1,4 +1,4 @@
-import { searchQuery } from '../store';
+import { searchQuery } from '../../store';
 
 export const Search = () => {
   const onInput = (e: any) => {
@@ -16,14 +16,14 @@ export const Search = () => {
         <circle cx="11" cy="11" r="8" />
         <path d="m21 21-4.35-4.35" />
       </svg>
-      <input 
-        type="text" 
-        id="search-input" 
-        placeholder="Search videos..." 
+      <input
+        type="text"
+        id="search-input"
+        placeholder="Search videos..."
         value={searchQuery.value}
         onInput={onInput}
-        autoComplete="off" 
-        spellcheck={false} 
+        autoComplete="off"
+        spellcheck={false}
       />
       <div className="search-ghost" id="search-ghost"></div>
     </>

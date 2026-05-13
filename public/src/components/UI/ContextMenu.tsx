@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
-import { contextMenuState } from '../store';
+import { contextMenuState } from '../../store';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -9,7 +9,7 @@ export const ContextMenu = () => {
   const [showEncryptModal, setShowEncryptModal] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
-  
+
   const [pw1, setPw1] = useState('');
   const [pw2, setPw2] = useState('');
   const [progressTitle, setProgressTitle] = useState('');
@@ -50,13 +50,13 @@ export const ContextMenu = () => {
   const handleRename = async () => {
     const newName = prompt('Rename category to:', data.name);
     if (!newName || newName === data.name) return;
-    
+
     const r = await fetch('/api/categories/rename', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ oldPath: data.path, newName })
     });
-    
+
     if (r.ok) {
       toast('Category renamed');
       refresh();
@@ -68,13 +68,13 @@ export const ContextMenu = () => {
 
   const handleDelete = async () => {
     if (!confirm(`Delete category "${data.name}"?\nAll videos inside will be moved to the main videos folder.`)) return;
-    
+
     const r = await fetch('/api/categories/delete', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path })
     });
-    
+
     if (r.ok) {
       toast('Category deleted, videos moved to main folder');
       refresh();
@@ -86,7 +86,7 @@ export const ContextMenu = () => {
   const handleHide = async () => {
     const parts = data.path.split('/');
     const folderName = parts[parts.length - 1];
-    
+
     if (!confirm(`Hide category "${data.name}"?\nThis will add "${folderName}" to your hidden categories list.`)) return;
 
     const r = await fetch('/api/categories/hide', {
@@ -94,7 +94,7 @@ export const ContextMenu = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: folderName })
     });
-    
+
     if (r.ok) {
       toast(`Category "${data.name}" hidden`);
       refresh();
@@ -114,13 +114,13 @@ export const ContextMenu = () => {
 
   const handleCompress = async () => {
     if (!confirm(`Start high-compression for all videos in "${data.name}"?\nThis runs in the background and may take a while.`)) return;
-    
+
     const r = await fetch('/api/categories/compress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path })
     });
-    
+
     if (r.ok) {
       toast('Compression started in background');
     } else {
@@ -152,16 +152,16 @@ export const ContextMenu = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path, password: pw1 })
     });
-    
+
     if (r.ok) {
       const reader = r.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      
-      while(true) {
-        const {done, value} = await reader.read();
+
+      while (true) {
+        const { done, value } = await reader.read();
         if (done) break;
-        buffer += decoder.decode(value, {stream: true});
+        buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop()!;
         for (const line of lines) {
@@ -173,10 +173,10 @@ export const ContextMenu = () => {
               setProgressTotal(msg.total);
             }
             if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
-          } catch(e) {}
+          } catch (e) { }
         }
       }
-      
+
       setProgressTitle('Complete');
       setProgressDesc('Category encryption finished successfully.');
       refresh();
@@ -189,7 +189,7 @@ export const ContextMenu = () => {
 
   const execUnlock = async (isPermanent: boolean) => {
     if (!pw1) { toast('Password required'); return; }
-    
+
     setShowUnlockModal(false);
     const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
 
@@ -206,16 +206,16 @@ export const ContextMenu = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path, password: pw1 })
     });
-    
+
     if (r.ok) {
       if (isPermanent) {
         const reader = r.body!.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        while(true) {
-          const {done, value} = await reader.read();
+        while (true) {
+          const { done, value } = await reader.read();
           if (done) break;
-          buffer += decoder.decode(value, {stream: true});
+          buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop()!;
           for (const line of lines) {
@@ -227,7 +227,7 @@ export const ContextMenu = () => {
                 setProgressTotal(msg.total);
               }
               if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
-            } catch(e) {}
+            } catch (e) { }
           }
         }
         setProgressTitle('Complete');
@@ -247,7 +247,7 @@ export const ContextMenu = () => {
   const menuHeight = 160; // Estimate
   let posX = x;
   let posY = y;
-  
+
   if (posX + menuWidth > window.innerWidth) posX -= menuWidth;
   if (posY + menuHeight > window.innerHeight) posY -= menuHeight;
   if (posX < 0) posX = 10;
@@ -255,9 +255,9 @@ export const ContextMenu = () => {
 
   return (
     <>
-      <div id="context-menu" style={{ 
-        display: 'block', 
-        left: `${posX}px`, 
+      <div id="context-menu" style={{
+        display: 'block',
+        left: `${posX}px`,
         top: `${posY}px`,
         position: 'absolute',
         background: 'var(--bg2)',
@@ -340,11 +340,11 @@ export const ContextMenu = () => {
             <div className="modal-body">
               <p>{progressDesc}</p>
               <div style={{ background: 'var(--bg3)', height: '10px', borderRadius: '5px', overflow: 'hidden', marginBottom: '10px' }}>
-                <div style={{ background: 'var(--accent)', height: '100%', width: `${progressTotal ? (progressCur/progressTotal)*100 : 0}%` }} />
+                <div style={{ background: 'var(--accent)', height: '100%', width: `${progressTotal ? (progressCur / progressTotal) * 100 : 0}%` }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 <span>{progressCur} / {progressTotal}</span>
-                <span>{progressTotal ? Math.floor((progressCur/progressTotal)*100) : 0}%</span>
+                <span>{progressTotal ? Math.floor((progressCur / progressTotal) * 100) : 0}%</span>
               </div>
             </div>
             <div className="modal-footer">
@@ -360,11 +360,11 @@ export const ContextMenu = () => {
 };
 
 const ContextItem = ({ label, icon, onClick, color }: { label: string, icon: string, onClick: () => void, color?: string }) => (
-  <div className="ctx-item" onClick={onClick} style={{ 
-    display: 'flex', 
-    alignItems: 'center', 
-    gap: '10px', 
-    padding: '8px 15px', 
+  <div className="ctx-item" onClick={onClick} style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '8px 15px',
     cursor: 'pointer',
     fontSize: '0.9rem',
     color: color || 'var(--text)'

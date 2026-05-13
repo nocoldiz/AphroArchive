@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
-import { VideoCard } from './VideoGrid';
-import { Video } from '../types';
-import { currentActor } from '../store';
+import { VideoCard } from '../UI/VideoGrid';
+import { Video } from '../../types';
+import { currentActor } from '../../store';
 
 interface Actor {
   name: string;
@@ -78,17 +78,17 @@ export const ActorsView = () => {
     }
 
     return (
-      <div 
-        key={a.name} 
-        class={`actor-card fade-in ${a.count === 0 ? 'actor-card-unmatched' : ''}`} 
+      <div
+        key={a.name}
+        class={`actor-card fade-in ${a.count === 0 ? 'actor-card-unmatched' : ''}`}
         onClick={() => currentActor.value = a.name}
         style={{ cursor: 'pointer' }}
       >
         <div class="actor-avatar" style={{ background: `${c}22`, color: c }}>
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
           </svg>
-          <img class="actor-photo" src={`/api/actor-photos/${encodeURIComponent(a.name)}/img`} alt="" onError={(e: any) => e.target.style.display='none'} />
+          <img class="actor-photo" src={`/api/actor-photos/${encodeURIComponent(a.name)}/img`} alt="" onError={(e: any) => e.target.style.display = 'none'} />
         </div>
         <div class="actor-name">{a.name}</div>
         <div class="actor-count">{a.count > 0 ? `${a.count} video${a.count !== 1 ? 's' : ''}` : 'No videos'}</div>
@@ -135,11 +135,11 @@ export const ActorsView = () => {
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Actors</h1>
         <div class="search-bar" style={{ position: 'relative' }}>
-          <input 
-            type="text" 
-            class="input-box" 
-            placeholder="Search actors..." 
-            value={search} 
+          <input
+            type="text"
+            class="input-box"
+            placeholder="Search actors..."
+            value={search}
             onInput={(e: any) => setSearch(e.target.value)}
             style={{ width: '200px' }}
           />

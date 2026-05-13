@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { vaultMode } from '../store';
+import { vaultMode } from '../../store';
 
 export const DropOverlay = () => {
   const [visible, setVisible] = useState(false);
@@ -73,7 +73,7 @@ export const DropOverlay = () => {
           if (w.toast) w.toast('Error adding ' + file.name);
         }
       }
-      
+
       if (added > 0) {
         if (w.toast) w.toast('Added ' + added + ' file(s) to Vault');
         if (typeof w.loadVaultFiles === 'function') w.loadVaultFiles();
@@ -108,13 +108,13 @@ export const DropOverlay = () => {
     const parts = [];
     if (counts.video) parts.push(counts.video + ' video' + (counts.video > 1 ? 's' : ''));
     if (counts.audio) parts.push(counts.audio + ' audio');
-    if (counts.book)  parts.push(counts.book  + ' book'  + (counts.book  > 1 ? 's' : ''));
+    if (counts.book) parts.push(counts.book + ' book' + (counts.book > 1 ? 's' : ''));
     if (counts.photo) parts.push(counts.photo + ' photo' + (counts.photo > 1 ? 's' : ''));
     if (w.toast) w.toast('Imported: ' + parts.join(', '));
 
     if (counts.video && w.refresh) w.refresh(true);
     if (counts.audio && w.audioMode && w.loadAudio) w.loadAudio();
-    if (counts.book  && w.booksMode && w.loadBooks) w.loadBooks();
+    if (counts.book && w.booksMode && w.loadBooks) w.loadBooks();
     if (counts.photo && w.photosMode && w.loadPhotos) w.loadPhotos();
   };
 
