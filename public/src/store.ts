@@ -91,6 +91,8 @@ export function rebuildBookmarkVidIds(items: any[]) {
 }
 
 // Bridge for legacy JS
+export const isRecentMode = signal<boolean>(false);
+export const recentVideos = signal<Video[]>([]);
 export const searchQuery = signal<string>('');
 export const galleryFilter = signal<string>('');
 export const isLoadingVideos = signal<boolean>(false);
@@ -246,7 +248,7 @@ w._dualTagVids = [];
 // ─── Computed State ──────────────────────────────────────────────────
 // Example: Automatically filter videos based on search and category
 export const filteredVideos = computed(() => {
-  let list = [...videos.value]; // Create a copy to avoid mutating original array
+  let list = isRecentMode.value ? [...recentVideos.value] : [...videos.value]; // Create a copy to avoid mutating original array
   
   if (currentCategory.value) {
     list = list.filter(v => v.category === currentCategory.value);
@@ -370,6 +372,15 @@ w.showPrompts = () => { currentView.value = 'prompts'; };
 
 // Subscriber to handle legacy view visibility
 currentView.subscribe(view => {
+  isRecentMode.value = (view === 'recent');
+  if (view === 'recent') {
+    fetch('/api/history')
+      .then(r => r.json())
+      .then(data => {
+        recentVideos.value = data;
+      })
+      .catch(() => {});
+  }
   const legacyViews = [
     'home-view', 'vault-view', 'scraper-view', 'collections-view',
     'books-view', 'audio-view', 'photos-view', 'thumbnails-view', 'pages-view',

@@ -1,3 +1,5 @@
+import { currentView } from '../../store';
+
 export const HomeView = () => {
   const callLegacy = (fnName: string, ...args: any[]) => {
     if ((window as any)[fnName]) {
@@ -5,8 +7,9 @@ export const HomeView = () => {
     }
   };
 
-  const nav = (url: string) => {
-    window.location.href = url;
+  const nav = (view: string, path: string) => {
+    currentView.value = view;
+    history.pushState(null, '', path);
   };
 
   return (
@@ -31,7 +34,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showRecent')}>
+        <div className="home-card" onClick={() => nav('recent', '/recent')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="10" />
@@ -44,7 +47,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showCollections')}>
+        <div className="home-card" onClick={() => nav('collections', '/collections')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <rect x="2" y="7" width="20" height="14" rx="2" />
@@ -57,7 +60,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showActors')}>
+        <div className="home-card" onClick={() => nav('actors', '/actors')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="8" r="4" />
@@ -70,7 +73,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showStudios')}>
+        <div className="home-card" onClick={() => nav('studios', '/studios')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <rect x="2" y="7" width="20" height="15" rx="2" />
@@ -85,7 +88,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showImportFavs')}>
+        <div className="home-card" onClick={() => nav('bookmarks', '/bookmarks')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
@@ -97,7 +100,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showBooks')}>
+        <div className="home-card" onClick={() => nav('books', '/books')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -110,7 +113,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showAudio')}>
+        <div className="home-card" onClick={() => nav('audio', '/audio')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M9 18V5l12-2v13" />
@@ -124,7 +127,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showVault')}>
+        <div className="home-card" onClick={() => nav('vault', '/vault')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -150,7 +153,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showSearchSites')}>
+        <div className="home-card" onClick={() => nav('search', '/search')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="11" cy="11" r="8" />
@@ -164,7 +167,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showScraper')}>
+        <div className="home-card" onClick={() => nav('scraper', '/scraper')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="11" cy="11" r="7" />
@@ -178,7 +181,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showDatabase')}>
+        <div className="home-card" onClick={() => nav('database', '/database')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <ellipse cx="12" cy="5" rx="9" ry="3" />
@@ -207,7 +210,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showSettings')}>
+        <div className="home-card" onClick={() => nav('settings', '/settings')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="3" />
@@ -220,7 +223,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => nav('/reddit')}>
+        <div className="home-card" onClick={() => window.location.href = '/reddit'}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="10" />
@@ -238,7 +241,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => nav('/instagram')}>
+        <div className="home-card" onClick={() => window.location.href = '/instagram'}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
@@ -252,7 +255,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showPrompts')}>
+        <div className="home-card" onClick={() => nav('prompts', '/prompts')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -267,4 +270,4 @@ export const HomeView = () => {
       </div>
     </div>
   );
-};
+};;

@@ -16,6 +16,7 @@ export interface Video {
   isVault?: boolean;
   catPath?: string;
   fav?: boolean;
+  chapters?: any[];
 }
 
 export interface Category {

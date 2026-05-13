@@ -1,5 +1,5 @@
 import { VideoGrid } from '../UI/VideoGrid';
-import { galleryFilter } from '../../store';
+import { galleryFilter, sortMode, isShuffle } from '../../store';
 import { SearchExtras } from '../UI/SearchExtras';
 
 export const BrowseView = () => {
@@ -8,12 +8,12 @@ export const BrowseView = () => {
       <div className="section-header">
         <h2 id="section-title">All Videos</h2><span id="result-count"></span>
         <div className="section-controls">
-          <button class="sort-btn on" data-s="date" onClick={(e: any) => (window as any).setSort && (window as any).setSort('date', e.target)}>Recent</button>
-          <button class="sort-btn" data-s="name" onClick={(e: any) => (window as any).setSort && (window as any).setSort('name', e.target)}>Name</button>
-          <button class="sort-btn" data-s="size" onClick={(e: any) => (window as any).setSort && (window as any).setSort('size', e.target)}>Size</button>
-          <button class="sort-btn" data-s="duration" onClick={(e: any) => (window as any).setSort && (window as any).setSort('duration', e.target)}>Length</button>
-          <button class="sort-btn" id="favFilterBtn" onClick={() => (window as any).toggleStarredFilter && (window as any).toggleStarredFilter()}>Starred Only</button>
-          <button class="sort-btn" id="shBtn" onClick={() => (window as any).toggleShuf && (window as any).toggleShuf()}>
+          <button class={`sort-btn ${sortMode.value === 'date' && !isShuffle.value ? 'on' : ''}`} onClick={() => { sortMode.value = 'date'; isShuffle.value = false; }}>Recent</button>
+          <button class={`sort-btn ${sortMode.value === 'name' && !isShuffle.value ? 'on' : ''}`} onClick={() => { sortMode.value = 'name'; isShuffle.value = false; }}>Name</button>
+          <button class={`sort-btn ${sortMode.value === 'size' && !isShuffle.value ? 'on' : ''}`} onClick={() => { sortMode.value = 'size'; isShuffle.value = false; }}>Size</button>
+          <button class={`sort-btn ${sortMode.value === 'duration' && !isShuffle.value ? 'on' : ''}`} onClick={() => { sortMode.value = 'duration'; isShuffle.value = false; }}>Length</button>
+          <button class="sort-btn" id="favFilterBtn" onClick={() => (window as any).toast && (window as any).toast('Starred filter not implemented in TSX yet')}>Starred Only</button>
+          <button class={`sort-btn ${isShuffle.value ? 'on' : ''}`} id="shBtn" onClick={() => isShuffle.value = !isShuffle.value}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '3px', verticalAlign: '-1px' }}>
               <path d="M16 3h5v5" />
               <path d="M4 20 21 3" />
@@ -23,11 +23,11 @@ export const BrowseView = () => {
             </svg>Shuffle
           </button>
           <span class="sg-sep"></span>
-          <button class="sort-btn src-btn on" data-src="both" onClick={() => (window as any).setSrcFilter && (window as any).setSrcFilter('both')}>Both</button>
-          <button class="sort-btn src-btn" data-src="local" onClick={() => (window as any).setSrcFilter && (window as any).setSrcFilter('local')}>Local</button>
-          <button class="sort-btn src-btn" data-src="remote" onClick={() => (window as any).setSrcFilter && (window as any).setSrcFilter('remote')}>Remote</button>
+          <button class="sort-btn src-btn on" data-src="both">Both</button>
+          <button class="sort-btn src-btn" data-src="local">Local</button>
+          <button class="sort-btn src-btn" data-src="remote">Remote</button>
           <span class="sg-sep" id="clearRecentSep" style={{ display: 'none' }}></span>
-          <button class="sort-btn" id="clearRecentBtn" style={{ display: 'none' }} onClick={() => (window as any).clearRecent && (window as any).clearRecent()}>Clear History</button>
+          <button class="sort-btn" id="clearRecentBtn" style={{ display: 'none' }} onClick={() => (window as any).toast && (window as any).toast('Clear History not implemented in TSX yet')}>Clear History</button>
           <span class="sg-sep"></span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} class="card-size-control" title="Card size">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

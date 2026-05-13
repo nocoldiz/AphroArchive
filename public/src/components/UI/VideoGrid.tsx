@@ -14,7 +14,7 @@ const openCtx = (e: any) => {
 interface VideoCardProps {
   video: Video;
   isSelected: boolean;
-  index: number;
+  index?: number;
 }
 
 export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
@@ -63,11 +63,13 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
       data-id={video.id}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      style={{ animationDelay: `${Math.min(index * 35, 420)}ms` }}
+      style={{ animationDelay: `${Math.min((index ?? 0) * 35, 420)}ms` }}
       draggable={true}
       onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', video.id);
-        e.dataTransfer.effectAllowed = 'move';
+        if (e.dataTransfer) {
+          e.dataTransfer.setData('text/plain', video.id);
+          e.dataTransfer.effectAllowed = 'move';
+        }
       }}
       ref={cardRef}
     >
