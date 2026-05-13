@@ -5,7 +5,11 @@
     "searchURL": "https://www.youtube.com/results?search_query={q}",
     "scrapeMethod": "youtube",
     "description": "Video sharing platform",
-    "tags": ["video", "ytp"]
+    "tags": [
+      "video",
+      "ytp"
+    ],
+    "embed": ""
   },
   {
     "name": "Archive.org",
@@ -13,7 +17,11 @@
     "searchURL": "https://archive.org/search.php?query={q}",
     "scrapeMethod": "archive",
     "description": "Internet Archive",
-    "tags": ["archive", "backup"]
+    "tags": [
+      "archive",
+      "backup"
+    ],
+    "embed": ""
   },
   {
     "name": "Vimeo",
@@ -21,7 +29,11 @@
     "searchURL": "https://vimeo.com/search?q={q}",
     "scrapeMethod": "vimeo",
     "description": "High quality video platform",
-    "tags": ["video", "hd"]
+    "tags": [
+      "video",
+      "hd"
+    ],
+    "embed": ""
   },
   {
     "name": "Niconico",
@@ -29,6 +41,11 @@
     "searchURL": "https://www.nicovideo.jp/search/{q}",
     "scrapeMethod": "niconico",
     "description": "Japanese video sharing service",
-    "tags": ["video", "japan", "otoMAD"]
+    "tags": [
+      "video",
+      "japan",
+      "otoMAD"
+    ],
+    "embed": ""
   }
 ]

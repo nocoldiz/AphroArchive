@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { rebuildBookmarkVidIds } from '../../store';
+import { rebuildBookmarkVidIds, currentVideo, currentView } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
 interface BookmarkItem {
@@ -37,7 +37,18 @@ const BookmarkCard = ({ item, onRemove, onToggleStar, onUpdate }: BookmarkCardPr
   }, [item.img, item.url, onUpdate]);
 
   return (
-    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => (window as any).openBfIframe(item.url, item.title || 'Viewing Bookmark')}>
+    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => {
+      currentVideo.value = {
+        id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+        name: item.title,
+        path: item.url,
+        relPath: item.url,
+        category: 'Bookmarks',
+        isBookmark: true,
+        img: item.img
+      } as any;
+      currentView.value = 'player';
+    }}>
       <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
         {item.img ? (
           <img src={item.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
