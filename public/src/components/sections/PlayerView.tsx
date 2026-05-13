@@ -188,7 +188,7 @@ export const PlayerView = () => {
               ) : (
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>None</span>
               )}
-              <button className="p-tag-add-btn" onClick={() => (window as any).openStudioModal(vid.id)} style={{ marginLeft: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '4px', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.8rem' }}>
+              <button className="p-tag-add-btn" onClick={() => (window as any).openStudioModal(video.id)} style={{ marginLeft: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '4px', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.8rem' }}>
                 ✎
               </button>
             </div>
@@ -202,7 +202,7 @@ export const PlayerView = () => {
                     {a}
                   </button>
                 ))}
-                <button className="p-tag-add-btn" onClick={() => (window as any).openActorModal(vid.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
+                <button className="p-tag-add-btn" onClick={() => (window as any).openActorModal(video.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
                   +
                 </button>
               </div>
@@ -214,7 +214,7 @@ export const PlayerView = () => {
                 {tags.map(t => (
                   <span key={t} className="p-tag" style={{ background: 'var(--bg3)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>{t}</span>
                 ))}
-                <button className="p-tag-add-btn" onClick={() => (window as any).openTagModal(vid.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
+                <button className="p-tag-add-btn" onClick={() => (window as any).openTagModal(video.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg3)', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
                   +
                 </button>
               </div>

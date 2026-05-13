@@ -34,7 +34,7 @@ export const ChaptersView = () => {
     const ql = q.toLowerCase().trim();
     list = list.filter(v =>
       v.name.toLowerCase().includes(ql) ||
-      v.chapters.some((c: any) => c.title.toLowerCase().includes(ql))
+      v.chapters?.some((c: any) => c.title.toLowerCase().includes(ql))
     );
   }
 
@@ -74,9 +74,9 @@ export const ChaptersView = () => {
       ) : (
         <div id="chaptersGrid" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {list.map(v => {
-            const chapters = q
-              ? v.chapters.filter((c: any) => c.title.toLowerCase().includes(q.toLowerCase()) || v.name.toLowerCase().includes(q.toLowerCase()))
-              : v.chapters;
+            const chapters = (q
+              ? v.chapters?.filter((c: any) => c.title.toLowerCase().includes(q.toLowerCase()) || v.name.toLowerCase().includes(q.toLowerCase()))
+              : v.chapters) || [];
 
             if (!chapters.length) return null;
 
@@ -88,7 +88,7 @@ export const ChaptersView = () => {
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--tx)' }}>{v.name}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>{v.category} • {v.chapters.length} chapters</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>{v.category} • {v.chapters?.length || 0} chapters</div>
                   </div>
                   <button className="cta-btn" style={{ marginLeft: 'auto' }} onClick={() => openVid(v.id)}>Open Video</button>
                 </div>

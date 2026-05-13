@@ -947,6 +947,7 @@ input {
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   line-height: 1.35
 }
@@ -2216,7 +2217,8 @@ input {
   text-align: center;
   font-size: 0.85rem;
   padding: 0 4px;
-  -moz-appearance: textfield
+  -moz-appearance: textfield;
+  appearance: textfield
 }
 
 .vault-ss-interval::-webkit-outer-spin-button,
@@ -3411,6 +3413,7 @@ input {
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-align: left
@@ -4143,6 +4146,7 @@ input {
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden
 }
@@ -5691,6 +5695,7 @@ input {
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden
 }
@@ -6172,6 +6177,7 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   color: var(--tx)
 }

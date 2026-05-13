@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { allVideos, appPrefs, currentVideo } from '../../store';
+import { allVideos, appPrefs, currentVideo, currentView } from '../../store';
 import { Video } from '../../types';
 import { AiComments } from '../UI/AiComments';
 import './InstagramView.css';
