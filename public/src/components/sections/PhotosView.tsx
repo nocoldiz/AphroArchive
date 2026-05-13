@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { SectionControls } from '../UI/SectionControls';
 
 interface PhotoFile {
   id: string;
@@ -154,22 +155,25 @@ export const PhotosView = () => {
     <div className="photos-view on" style={{ padding: '20px' }}>
       <div className="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Photos</h1>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <input 
-            type="text" 
-            className="input-box" 
-            placeholder="Search photos..." 
-            value={search} 
-            onInput={(e: any) => setSearch(e.target.value)}
-            style={{ width: '200px' }}
-          />
-          <div className="sort-buttons" style={{ display: 'flex', gap: '5px' }}>
-            <button className={`ph-sort-btn ${sort === 'date' ? 'on' : ''}`} onClick={() => setSort('date')}>Date</button>
-            <button className={`ph-sort-btn ${sort === 'name' ? 'on' : ''}`} onClick={() => setSort('name')}>Name</button>
-            <button className={`ph-sort-btn ${sort === 'size' ? 'on' : ''}`} onClick={() => setSort('size')}>Size</button>
-          </div>
-          <button className="btn" onClick={startMosaic}>Mosaic</button>
-        </div>
+        <SectionControls 
+          showStarred={false}
+          showShuffle={false}
+          showSource={false}
+          showCardSize={false}
+          showFilter={true}
+          currentSort={sort}
+          onSortChange={(val: any) => setSort(val)}
+          currentFilter={search}
+          onFilterChange={setSearch}
+          sortOptions={[
+            { value: 'date', label: 'Date' },
+            { value: 'name', label: 'Name' },
+            { value: 'size', label: 'Size' }
+          ]}
+        >
+          <span className="sg-sep"></span>
+          <button className="sort-btn" onClick={startMosaic}>Mosaic</button>
+        </SectionControls>
       </div>
 
       {loading ? (

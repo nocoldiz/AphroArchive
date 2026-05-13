@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { thumbnails, loadThumbnails, allVideos, loadVideos } from '../../store';
+import { SectionControls } from '../UI/SectionControls';
 
 interface FlatThumb {
   videoId: string;
@@ -78,23 +79,21 @@ export const ThumbnailsView = () => {
           <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'inline' }}>Thumbnails</h2>
           <span style={{ color: 'var(--tx3)', marginLeft: '10px' }}>{allThumbs.length} images</span>
         </div>
-        <div className="section-controls" style={{ display: 'flex', gap: '5px' }}>
-          <button className={`sort-btn ${sortMode === 'date' ? 'on' : ''}`} onClick={() => setSortMode('date')}>Date</button>
-          <button className={`sort-btn ${sortMode === 'name' ? 'on' : ''}`} onClick={() => setSortMode('name')}>Name</button>
-          <button className={`sort-btn ${sortMode === 'size' ? 'on' : ''}`} onClick={() => setSortMode('size')}>Size</button>
-        </div>
-      </div>
-
-      <div className="prompts-search-bar" style={{ marginBottom: '20px' }}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--tx3)' }}>
-          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Filter thumbnails..."
-          value={query}
-          onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
-          style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--tx)', flex: 1, fontSize: '0.85rem' }}
+        <SectionControls 
+          showStarred={false}
+          showShuffle={false}
+          showSource={false}
+          showCardSize={false}
+          showFilter={true}
+          currentSort={sortMode}
+          onSortChange={setSortMode}
+          currentFilter={query}
+          onFilterChange={setQuery}
+          sortOptions={[
+            { value: 'date', label: 'Date' },
+            { value: 'name', label: 'Name' },
+            { value: 'size', label: 'Size' }
+          ]}
         />
       </div>
 

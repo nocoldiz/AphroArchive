@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { rebuildBookmarkVidIds } from '../../store';
+import { SectionControls } from '../UI/SectionControls';
 
 interface BookmarkItem {
   url: string;
@@ -280,23 +281,26 @@ export const BookmarksView = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
-        <input
-          type="text"
-          class="input-box"
-          placeholder="Search bookmarks..."
-          value={search}
-          onInput={(e: any) => setSearch(e.target.value)}
-          style={{ width: '300px' }}
-        />
-        <div class="sort-buttons" style={{ display: 'flex', gap: '5px' }}>
-          <button class={`btn ${viewMode === 'list' ? 'on' : ''}`} onClick={() => setViewMode('list')}>List</button>
-          <button class={`btn ${viewMode === 'grid' ? 'on' : ''}`} onClick={() => setViewMode('grid')}>Grid</button>
-        </div>
-        <button class="btn" onClick={copyAllVisible}>Copy URLs</button>
-        <button class="btn" onClick={openAllVisible}>Open All</button>
-        <button class="btn" onClick={downloadSelected}>Download Selected</button>
-      </div>
+        <SectionControls 
+          showSort={false}
+          showStarred={false}
+          showShuffle={false}
+          showSource={false}
+          showCardSize={false}
+          showFilter={true}
+          currentFilter={search}
+          onFilterChange={setSearch}
+        >
+          <span className="sg-sep"></span>
+          <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
+            <button className={`ss-tab ${viewMode === 'grid' ? 'on' : ''}`} onClick={() => setViewMode('grid')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'grid' ? 'var(--ac)' : 'transparent', color: viewMode === 'grid' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Grid</button>
+            <button className={`ss-tab ${viewMode === 'list' ? 'on' : ''}`} onClick={() => setViewMode('list')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'list' ? 'var(--ac)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>List</button>
+          </div>
+          <span className="sg-sep"></span>
+          <button className="sort-btn" onClick={copyAllVisible}>Copy URLs</button>
+          <button className="sort-btn" onClick={openAllVisible}>Open All</button>
+          <button className="sort-btn" onClick={downloadSelected}>Download Selected</button>
+        </SectionControls>
 
       <div class="bf-stats" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
         <span>{visibleItems.length} bookmarks</span>

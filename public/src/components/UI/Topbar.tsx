@@ -1,5 +1,5 @@
 import { Search } from './Search';
-import { currentView } from '../../store';
+import { currentView, isMuted } from '../../store';
 
 export const Topbar = () => {
   const view = currentView.value;
@@ -103,6 +103,22 @@ export const Topbar = () => {
             <circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500" />
             <path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" strokeWidth="1" strokeLinecap="round" fill="none" />
           </svg>
+        </button>
+
+        <button id="muteBtn" onClick={() => isMuted.value = !isMuted.value} title={isMuted.value ? "Unmute" : "Mute"} class={isMuted.value ? "on" : ""}>
+          {isMuted.value ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M11 5L6 9H2v6h4l5 4V5z" />
+              <line x1="23" y1="9" x2="17" y2="15" />
+              <line x1="17" y1="9" x2="23" y2="15" />
+            </svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M11 5L6 9H2v6h4l5 4V5z" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.08" />
+            </svg>
+          )}
         </button>
 
         <input 

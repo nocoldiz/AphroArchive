@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { SectionControls } from '../UI/SectionControls';
 
 interface AudioFile {
   id: string;
@@ -113,36 +114,36 @@ export const AudioView = () => {
     <div className="audio-view on">
       <div className="section-header">
         <h2>Audio Files</h2>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
-            <button className={`ss-tab ${sort === 'date' ? 'on' : ''}`} onClick={() => setSort('date')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: sort === 'date' ? 'var(--ac)' : 'transparent', color: sort === 'date' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Date</button>
-            <button className={`ss-tab ${sort === 'name' ? 'on' : ''}`} onClick={() => setSort('name')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: sort === 'name' ? 'var(--ac)' : 'transparent', color: sort === 'name' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Name</button>
-            <button className={`ss-tab ${sort === 'size' ? 'on' : ''}`} onClick={() => setSort('size')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: sort === 'size' ? 'var(--ac)' : 'transparent', color: sort === 'size' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Size</button>
-          </div>
-
+        <SectionControls 
+          showStarred={false}
+          showShuffle={false}
+          showSource={false}
+          showCardSize={false}
+          showFilter={true}
+          currentSort={sort}
+          onSortChange={(val: any) => setSort(val)}
+          currentFilter={query}
+          onFilterChange={setQuery}
+          sortOptions={[
+            { value: 'date', label: 'Date' },
+            { value: 'name', label: 'Name' },
+            { value: 'size', label: 'Size' }
+          ]}
+        >
+          <span className="sg-sep"></span>
           <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
             <button className={`ss-tab ${view === 'card' ? 'on' : ''}`} onClick={() => handleSetView('card')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: view === 'card' ? 'var(--ac)' : 'transparent', color: view === 'card' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Grid</button>
             <button className={`ss-tab ${view === 'list' ? 'on' : ''}`} onClick={() => handleSetView('list')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: view === 'list' ? 'var(--ac)' : 'transparent', color: view === 'list' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>List</button>
           </div>
-          
-          <label className="vault-add-label" style={{ cursor: 'pointer' }}>
+          <span className="sg-sep"></span>
+          <label className="vault-add-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '999px', background: 'var(--bg3)', border: '1px solid var(--brd)', fontSize: '0.75rem' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg> Add
             <input type="file" multiple style={{ display: 'none' }} onChange={handleUpload} />
           </label>
-
-          <div className="gallery-filter-wrap" style={{ display: 'flex', alignItems: 'center' }}>
-            <input 
-              type="text" 
-              placeholder="Filter…" 
-              value={query}
-              onInput={(e: any) => setQuery(e.target.value)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', width: '120px' }}
-            />
-          </div>
-        </div>
+        </SectionControls>
       </div>
 
       <div id="audioGrid" className={view === 'list' ? 'au-list' : 'au-grid'} style={{ display: view === 'list' ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: view === 'card' ? 'repeat(auto-fill, minmax(200px, 1fr))' : 'none', gap: '12px', padding: '16px 0' }}>

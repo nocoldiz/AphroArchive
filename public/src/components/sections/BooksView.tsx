@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
+import { SectionControls } from '../UI/SectionControls';
 
 interface Book {
   id: string;
@@ -184,44 +185,46 @@ export const BooksView = () => {
     <div className="books-view on">
       <div className="section-header">
         <h2>Books & Documents</h2>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
-            <button className={`ss-tab ${sort === 'date' ? 'on' : ''}`} onClick={() => setSort('date')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: sort === 'date' ? 'var(--ac)' : 'transparent', color: sort === 'date' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Date</button>
-            <button className={`ss-tab ${sort === 'name' ? 'on' : ''}`} onClick={() => setSort('name')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: sort === 'name' ? 'var(--ac)' : 'transparent', color: sort === 'name' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Name</button>
-            <button className={`ss-tab ${sort === 'size' ? 'on' : ''}`} onClick={() => setSort('size')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: sort === 'size' ? 'var(--ac)' : 'transparent', color: sort === 'size' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Size</button>
-          </div>
-
-          <label className="vault-add-label" style={{ cursor: 'pointer' }}>
+        <SectionControls 
+          showStarred={false}
+          showShuffle={false}
+          showSource={false}
+          showCardSize={false}
+          showFilter={true}
+          currentSort={sort}
+          onSortChange={(val: any) => setSort(val)}
+          currentFilter={query}
+          onFilterChange={setQuery}
+          sortOptions={[
+            { value: 'date', label: 'Date' },
+            { value: 'name', label: 'Name' },
+            { value: 'size', label: 'Size' }
+          ]}
+        >
+          <span className="sg-sep"></span>
+          <label className="vault-add-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '999px', background: 'var(--bg3)', border: '1px solid var(--brd)', fontSize: '0.75rem' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg> Upload
             <input type="file" multiple style={{ display: 'none' }} onChange={handleUpload} />
           </label>
-
+          <span className="sg-sep"></span>
           <div style={{ display: 'flex', gap: '4px' }}>
             <input 
               type="text" 
               placeholder="Import URL…" 
               value={urlInput}
               onInput={(e: any) => setUrlInput(e.target.value)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', width: '150px' }}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', width: '120px', transition: 'all 0.2s', outline: 'none' }}
+              onFocus={(e: any) => { e.target.style.width = '180px'; e.target.style.borderColor = 'var(--ac)'; }}
+              onBlur={(e: any) => { if (!e.target.value) e.target.style.width = '120px'; e.target.style.borderColor = 'var(--brd)'; }}
             />
-            <button className="btn-primary" onClick={importBook} disabled={importing} style={{ padding: '4px 10px', fontSize: '0.75rem' }}>
+            <button className="sort-btn" onClick={importBook} disabled={importing}>
               {importing ? '...' : 'Import'}
             </button>
           </div>
-
-          <div className="gallery-filter-wrap" style={{ display: 'flex', alignItems: 'center' }}>
-            <input 
-              type="text" 
-              placeholder="Filter…" 
-              value={query}
-              onInput={(e: any) => setQuery(e.target.value)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', width: '120px' }}
-            />
-          </div>
-        </div>
+        </SectionControls>
       </div>
 
       <div id="booksGrid" className="books-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', padding: '16px 0' }}>

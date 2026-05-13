@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import { SectionControls } from '../UI/SectionControls';
 
 interface PageItem {
   id: string;
@@ -85,25 +86,25 @@ export const PagesView = () => {
     <div className="pages-view on">
       <div className="section-header">
         <h2>Saved Pages</h2>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <label className="vault-add-label" style={{ cursor: 'pointer' }}>
+        <SectionControls 
+          showSort={false}
+          showStarred={false}
+          showShuffle={false}
+          showSource={false}
+          showCardSize={false}
+          showFilter={true}
+          currentFilter={query}
+          onFilterChange={setQuery}
+        >
+          <span className="sg-sep"></span>
+          <label className="vault-add-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '999px', background: 'var(--bg3)', border: '1px solid var(--brd)', fontSize: '0.75rem' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg> Add Pages
             <input type="file" multiple accept=".html,.htm,.xhtml,.mhtml" style={{ display: 'none' }} onChange={handleUpload} />
           </label>
-          
-          <div className="gallery-filter-wrap" style={{ display: 'flex', alignItems: 'center' }}>
-            <input 
-              type="text" 
-              placeholder="Filter pages…" 
-              value={query}
-              onInput={(e: any) => setQuery(e.target.value)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', width: '120px' }}
-            />
-          </div>
-        </div>
+        </SectionControls>
       </div>
 
       <div id="pagesGrid" className="pages-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', padding: '16px 0' }}>
