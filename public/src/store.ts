@@ -93,6 +93,7 @@ export function rebuildBookmarkVidIds(items: any[]) {
 // Bridge for legacy JS
 export const isRecentMode = signal<boolean>(false);
 export const recentVideos = signal<Video[]>([]);
+export const favFilter = signal<boolean>(false);
 export const searchQuery = signal<string>('');
 export const galleryFilter = signal<string>('');
 export const isLoadingVideos = signal<boolean>(false);
@@ -252,6 +253,10 @@ export const filteredVideos = computed(() => {
   
   if (currentCategory.value) {
     list = list.filter(v => v.category === currentCategory.value);
+  }
+
+  if (currentView.value === 'favourites' || favFilter.value) {
+    list = list.filter(v => v.starred || v.fav);
   }
   
   if (searchQuery.value) {

@@ -1,5 +1,5 @@
 import { VideoGrid } from '../UI/VideoGrid';
-import { galleryFilter, sortMode, isShuffle } from '../../store';
+import { galleryFilter, sortMode, isShuffle, favFilter, recentVideos, currentView } from '../../store';
 import { SearchExtras } from '../UI/SearchExtras';
 
 export const BrowseView = () => {
@@ -12,7 +12,7 @@ export const BrowseView = () => {
           <button class={`sort-btn ${sortMode.value === 'name' && !isShuffle.value ? 'on' : ''}`} onClick={() => { sortMode.value = 'name'; isShuffle.value = false; }}>Name</button>
           <button class={`sort-btn ${sortMode.value === 'size' && !isShuffle.value ? 'on' : ''}`} onClick={() => { sortMode.value = 'size'; isShuffle.value = false; }}>Size</button>
           <button class={`sort-btn ${sortMode.value === 'duration' && !isShuffle.value ? 'on' : ''}`} onClick={() => { sortMode.value = 'duration'; isShuffle.value = false; }}>Length</button>
-          <button class="sort-btn" id="favFilterBtn" onClick={() => (window as any).toast && (window as any).toast('Starred filter not implemented in TSX yet')}>Starred Only</button>
+          <button class={`sort-btn ${favFilter.value ? 'on' : ''}`} id="favFilterBtn" onClick={() => favFilter.value = !favFilter.value}>Starred Only</button>
           <button class={`sort-btn ${isShuffle.value ? 'on' : ''}`} id="shBtn" onClick={() => isShuffle.value = !isShuffle.value}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '3px', verticalAlign: '-1px' }}>
               <path d="M16 3h5v5" />
@@ -26,8 +26,14 @@ export const BrowseView = () => {
           <button class="sort-btn src-btn on" data-src="both">Both</button>
           <button class="sort-btn src-btn" data-src="local">Local</button>
           <button class="sort-btn src-btn" data-src="remote">Remote</button>
-          <span class="sg-sep" id="clearRecentSep" style={{ display: 'none' }}></span>
-          <button class="sort-btn" id="clearRecentBtn" style={{ display: 'none' }} onClick={() => (window as any).toast && (window as any).toast('Clear History not implemented in TSX yet')}>Clear History</button>
+          <span class="sg-sep" id="clearRecentSep" style={{ display: currentView.value === 'recent' ? 'inline' : 'none' }}></span>
+          <button class="sort-btn" id="clearRecentBtn" style={{ display: currentView.value === 'recent' ? 'inline-block' : 'none' }} onClick={async () => {
+            if (confirm('Clear watch history?')) {
+              await fetch('/api/history', { method: 'DELETE' });
+              recentVideos.value = [];
+              if ((window as any).toast) (window as any).toast('History cleared');
+            }
+          }}>Clear History</button>
           <span class="sg-sep"></span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} class="card-size-control" title="Card size">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

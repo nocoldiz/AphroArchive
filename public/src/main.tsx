@@ -15,7 +15,7 @@ const topbarEl = document.getElementById('topbar-root');
 if (topbarEl) render(<Topbar />, topbarEl);
 
 // 3. Mount the Main Content (Switcher)
-const mainEl = document.getElementById('video-grid');
+const mainEl = document.getElementById('main-root');
 if (mainEl) render(<MainContent />, mainEl);
 
 // 4. Mount the Player View

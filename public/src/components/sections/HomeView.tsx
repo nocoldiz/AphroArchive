@@ -1,4 +1,4 @@
-import { currentView } from '../../store';
+import { currentView, currentCategory } from '../../store';
 
 export const HomeView = () => {
   const callLegacy = (fnName: string, ...args: any[]) => {
@@ -19,7 +19,7 @@ export const HomeView = () => {
         <p>Your local media library — pick a section to get started</p>
       </div>
       <div className="home-grid">
-        <div className="home-card" onClick={() => callLegacy('selCat', '')}>
+        <div className="home-card" onClick={() => { currentCategory.value = ''; currentView.value = 'home'; }}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <rect x="2" y="2" width="9" height="9" rx="2" />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import { currentCategory, currentTag, currentView } from '../../store';
 
 interface CategoryOverviewItem {
   type: 'cat' | 'tag';
@@ -75,9 +76,11 @@ export const CategoriesView = () => {
             const thumbSrc = item.thumbId ? `/api/thumbs/${item.thumbId}/0` : '';
             const onclick = () => {
               if (item.type === 'cat') {
-                if (w.selCat) w.selCat(item.path);
+                currentCategory.value = item.path;
+                currentView.value = 'home';
               } else {
-                if (w.openTag) w.openTag(item.name);
+                currentTag.value = item.name;
+                currentView.value = 'tag';
               }
             };
             const onContextMenu = (e: MouseEvent) => {

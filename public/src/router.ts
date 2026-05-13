@@ -1,4 +1,4 @@
-import { currentView, currentActor, currentStudio } from './store';
+import { currentView, currentActor, currentStudio, currentCategory, currentTag } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
@@ -30,8 +30,8 @@ export async function routeToPath(path: string) {
   if (path === '/studios') { currentView.value = 'studios'; currentStudio.value = null; return; }
   
   if ((m = path.match(/^\/video\/([^/]+)$/))) { if (w.openVid) w.openVid(decodeURIComponent(m[1])); return; }
-  if ((m = path.match(/^\/tag\/(.+)$/))) { if (w.openTag) w.openTag(decodeURIComponent(m[1])); return; }
-  if ((m = path.match(/^\/cat\/(.+)$/))) { if (w.selCat) w.selCat(decodeURIComponent(m[1])); return; }
+  if ((m = path.match(/^\/tag\/(.+)$/))) { currentTag.value = decodeURIComponent(m[1]); currentView.value = 'tag'; return; }
+  if ((m = path.match(/^\/cat\/(.+)$/))) { currentCategory.value = decodeURIComponent(m[1]); currentView.value = 'home'; return; }
   if ((m = path.match(/^\/actor\/(.+)$/))) { currentView.value = 'actors'; currentActor.value = decodeURIComponent(m[1]); return; }
   if ((m = path.match(/^\/studio\/(.+)$/))) { currentView.value = 'studios'; currentStudio.value = decodeURIComponent(m[1]); return; }
   if ((m = path.match(/^\/collection\/(.+)$/))) { if (w.showCollections) w.showCollections(); if (w.openCollectionDetail) w.openCollectionDetail(decodeURIComponent(m[1])); return; }
