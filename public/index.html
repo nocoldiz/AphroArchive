@@ -1181,35 +1181,7 @@
 
 
 
-  <!-- Connect Modal -->
-  <div class="collection-modal" id="connectModal" onclick="if(event.target===this)closeConnectModal()">
-    <div class="collection-modal-box" style="text-align:center;width:360px;max-width:95vw">
-      <h3 style="margin-bottom:12px">Connect from another device</h3>
-      <!-- Network access toggle (main device only) -->
-      <div id="connectNetworkRow" class="rm-row" onclick="toggleNetworkAccess()" style="margin-bottom:12px">
-        <div class="rm-toggle" id="connectNetTog"></div>
-        <div>
-          <div class="rm-label" id="connectNetLabel">Network access — disabled</div>
-          <div class="rm-desc" id="connectNetDesc">Server only accepts connections from this machine</div>
-        </div>
-      </div>
-      <!-- Body shown only when network is enabled -->
-      <div id="connectModalBody">
-        <p id="connectUrl" style="font-size:0.8rem;color:var(--tx2);margin-bottom:16px;word-break:break-all"></p>
-        <canvas id="connectQR" style="display:block;margin:0 auto;border-radius:8px"></canvas>
-        <div id="connectRemoteRow" class="rm-row" onclick="toggleRemoteMode()" style="margin-top:12px">
-          <div class="rm-toggle"></div>
-          <div>
-            <div class="rm-label">Remote Mode — off</div>
-            <div class="rm-desc">Videos you pick play on the main device</div>
-          </div>
-        </div>
-      </div>
-      <div class="collection-modal-actions" style="justify-content:center;margin-top:12px">
-        <button class="btn-cancel" onclick="closeConnectModal()">Close</button>
-      </div>
-    </div>
-  </div>
+
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>

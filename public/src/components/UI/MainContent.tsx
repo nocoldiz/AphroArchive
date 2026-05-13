@@ -1,4 +1,4 @@
-import { currentView } from '../../store';
+import { currentView, currentVideo } from '../../store';
 import { VideoGrid } from './VideoGrid';
 import { SettingsView } from '../sections/SettingsView';
 import { ThumbnailsView } from '../sections/ThumbnailsView';
@@ -27,9 +27,56 @@ import { PromptsView } from '../sections/PromptsView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
 import { ActorScraperView } from '../sections/ActorScraperView';
+import { ConnectModal } from '../modals/ConnectModal';
 
 export const MainContent = () => {
   const view = currentView.value;
+
+  useEffect(() => {
+    let ev: EventSource | null = null;
+    
+    const setupRemote = () => {
+      const isRemote = localStorage.getItem('remoteMode') === 'true';
+      if (isRemote && !ev) {
+        ev = new EventSource('/api/remote/events');
+        ev.onmessage = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.action === 'play' && data.id) {
+              currentVideo.value = {
+                id: data.id,
+                name: data.name || 'Remote Video',
+                category: data.category || 'Remote',
+                fav: !!data.fav,
+                isVault: !!data.isVault,
+                size: data.size || 0,
+                duration: data.duration || 0,
+                path: data.path || '',
+                relPath: data.relPath || '',
+                mtime: data.mtime || Date.now(),
+                starred: !!data.starred
+              };
+            }
+          } catch (err) {
+            console.error('Failed to parse remote command', err);
+          }
+        };
+        console.log('Remote Mode: Listening for events');
+      } else if (!isRemote && ev) {
+        ev.close();
+        ev = null;
+        console.log('Remote Mode: Stopped listening');
+      }
+    };
+
+    setupRemote();
+    window.addEventListener('storage', setupRemote);
+    
+    return () => {
+      if (ev) ev.close();
+      window.removeEventListener('storage', setupRemote);
+    };
+  }, []);
 
   const renderView = () => {
     if (view === 'home') return <HomeView />;
@@ -52,6 +99,14 @@ export const MainContent = () => {
     if (view === 'books') return <BooksView />;
     if (view === 'vault') return <VaultView />;
     if (view === 'prompts') return <PromptsView />;
+    if (view === 'connect') {
+      return (
+        <>
+          <BrowseView />
+          <ConnectModal onClose={() => { currentView.value = 'home'; }} />
+        </>
+      );
+    }
     return <BrowseView />;
   };
 
