@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'preact/hooks';
 import { currentView, currentCategory, categories } from '../../store';
 
 interface SidebarItemProps {
@@ -50,6 +51,22 @@ const SectionHeader = ({ label, id, style, action }: { label: string, id: string
 };
 
 export const Sidebar = () => {
+  const [bookmarkItems, setBookmarkItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/bookmarks/cache')
+      .then(r => r.json())
+      .then(d => {
+        if (d.items) setBookmarkItems(d.items);
+      })
+      .catch(() => {});
+  }, []);
+
+  const bmCountFor = (key: string, items: any[]) => {
+    const kn = key.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return items.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
+  };
+
   const setView = (view: string, legacyFn?: string) => {
     currentView.value = view;
     if (legacyFn && (window as any)[legacyFn]) {
@@ -260,12 +277,13 @@ export const Sidebar = () => {
           } else if (c.encrypted) {
             lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px', opacity: 0.7, verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
           }
+          const bmCount = bmCountFor(c.path || '', bookmarkItems);
           return (
             <SidebarItem
               key={c.name}
               label={c.name}
               icon={lockIcon}
-              badge={c.count}
+              badge={c.count + bmCount}
               onClick={() => selectCategory(c.name)}
               onContextMenu={(e) => {
                 e.preventDefault();

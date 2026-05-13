@@ -14,7 +14,7 @@ function _syncSortButtons() {
 async function init() {
   await checkAndShowPresetPicker();
   await loadTemplates();
-  showSk();
+  if (window.showSk) window.showSk();
   const [,, vs] = await Promise.all([loadC(), Promise.resolve(), fetch('/api/vault/status').then(r => r.json())]);
   vaultMode = vs.unlocked;
   _syncSortButtons();
@@ -29,7 +29,7 @@ async function loadBookmarkVidsOnInit() {
     if (!d.items || !d.items.length) return;
     if (!_bfItems.length) _bfItems = d.items;
     rebuildBookmarkVidIds(d.items);
-    renCats();
+    if (window.renCats) window.renCats();
     // Patch bookmark cards in-place without rebuilding video cards.
     // A full render/openTag call would destroy all existing card DOM nodes,
     // forcing the browser to re-decode every thumbnail texture simultaneously —
@@ -38,17 +38,17 @@ async function loadBookmarkVidsOnInit() {
                   && !dbMode && !categoriesMode && !collectionsMode
                   && !booksMode && !audioMode && !photosMode && !promptsMode
                   && !settingsMode && !scraperMode && !recentMode;
-    if (inBrowse) {
+    if (inBrowse && window.getBmList && window.bmCard && window.attachBmThumbs) {
       const gridId = curTag ? 'tag-grid' : 'video-grid';
       const g = document.getElementById(gridId);
       if (g) {
         g.querySelectorAll('.bookmark-card').forEach(el => el.remove());
-        const bms = getBmList();
+        const bms = window.getBmList();
         if (bms.length) {
           const tmp = document.createElement('div');
-          tmp.innerHTML = bms.map(bmCard).join('');
+          tmp.innerHTML = bms.map(window.bmCard).join('');
           while (tmp.firstChild) g.appendChild(tmp.firstChild);
-          attachBmThumbs();
+          window.attachBmThumbs();
         }
       }
     }
@@ -246,7 +246,7 @@ function toggleStarredFilter() {
   else if (actorMode && curActor) openActor(curActor);
   else if (collectionsMode && curCollection) openCollectionDetail(curCollection);
   else {
-    load().then(() => render());
+    load().then(() => { if (window.render) window.render(); });
   }
 }
 
@@ -259,7 +259,7 @@ async function setSort(s, el) {
   document.querySelectorAll('.sort-btn[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   document.querySelectorAll('#shBtn, #shBtnTag').forEach(b => b.classList.remove('on'));
   if (curTag) { await openTag(curTag); return; }
-  await load(); render();
+  await load(); if (window.render) window.render();
 }
 
 async function toggleShuf() {
@@ -269,7 +269,7 @@ async function toggleShuf() {
   if (shuf) document.querySelectorAll('.sort-btn[data-s]').forEach(b => b.classList.remove('on'));
   else document.querySelector('.sort-btn[data-s="' + sort + '"]')?.classList.add('on');
   if (curTag) { await openTag(curTag); return; }
-  await load(); render();
+  await load(); if (window.render) window.render();
 }
 
 // ─── Recently Watched ───
@@ -288,13 +288,13 @@ async function showRecent() {
   $('section-title').text('Recently Watched');
   $('clearRecentBtn').show(true);
   $('clearRecentSep').show(true);
-  render();
+  if (window.render) window.render();
 }
 
 async function clearRecent() {
   await fetch('/api/history', { method: 'DELETE' });
   recentVids = [];
-  render();
+  if (window.render) window.render();
   toast('History cleared');
 }
 

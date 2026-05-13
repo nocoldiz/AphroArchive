@@ -1,4 +1,4 @@
-import { useRef, useState } from 'preact/hooks';
+import { useRef, useState, useEffect } from 'preact/hooks';
 import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
@@ -20,6 +20,22 @@ interface VideoCardProps {
 export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
   const [showVideo, setShowVideo] = useState(false);
   const timerRef = useRef<any>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!cardRef.current) return;
+    const observer = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          fetch(`/api/thumbs/${video.id}/generate`, { method: 'POST' })
+            .catch(() => {});
+          observer.unobserve(cardRef.current!);
+        }
+      }
+    }, { rootMargin: '300px' });
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [video.id]);
 
   const play = () => {
     currentVideo.value = video;
@@ -53,6 +69,7 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
         e.dataTransfer.setData('text/plain', video.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
+      ref={cardRef}
     >
       <div className="video-thumb-wrap" style={{ position: 'relative' }}>
         <img

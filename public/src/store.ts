@@ -246,7 +246,7 @@ w._dualTagVids = [];
 // ─── Computed State ──────────────────────────────────────────────────
 // Example: Automatically filter videos based on search and category
 export const filteredVideos = computed(() => {
-  let list = videos.value;
+  let list = [...videos.value]; // Create a copy to avoid mutating original array
   
   if (currentCategory.value) {
     list = list.filter(v => v.category === currentCategory.value);
@@ -264,6 +264,21 @@ export const filteredVideos = computed(() => {
       (v.category && v.category.toLowerCase().includes(gf)) ||
       (v.tags && v.tags.some(t => t.toLowerCase().includes(gf)))
     );
+  }
+
+  // Apply sorting or shuffle
+  if (isShuffle.value) {
+    list.sort(() => Math.random() - 0.5);
+  } else {
+    if (sortMode.value === 'name') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortMode.value === 'size') {
+      list.sort((a, b) => b.size - a.size);
+    } else if (sortMode.value === 'duration') {
+      list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+    } else {
+      list.sort((a, b) => b.mtime - a.mtime);
+    }
   }
   
   return list;

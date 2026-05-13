@@ -5,7 +5,76 @@ interface BookmarkItem {
   url: string;
   title: string;
   img?: string;
+  fav?: boolean;
 }
+
+interface BookmarkCardProps {
+  item: BookmarkItem;
+  onRemove: (url: string) => void;
+  onToggleStar: (url: string) => void;
+  onUpdate: (url: string, updates: Partial<BookmarkItem>) => void;
+}
+
+const BookmarkCard = ({ item, onRemove, onToggleStar, onUpdate }: BookmarkCardProps) => {
+  const hostname = new URL(item.url).hostname;
+
+  useEffect(() => {
+    if (!item.img) {
+      fetch('/api/bookmarks/generate-thumb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: item.url })
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.img) {
+          onUpdate(item.url, { img: res.img });
+        }
+      })
+      .catch(() => {});
+    }
+  }, [item.img, item.url, onUpdate]);
+
+  return (
+    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => window.open(item.url, '_blank')}>
+      <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
+        {item.img ? (
+          <img src={item.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>No Thumb</div>
+        )}
+        <input type="checkbox" class="bf-chk" value={item.url} onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '10px', left: '10px' }} />
+        
+        {/* Star Button */}
+        <button 
+          class={`bm-star-btn ${item.fav ? 'st' : ''}`} 
+          onClick={(e) => { e.stopPropagation(); onToggleStar(item.url); }}
+          style={{ position: 'absolute', top: '10px', right: '40px', background: 'rgba(0,0,0,0.5)', border: 'none', color: item.fav ? 'var(--accent)' : 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill={item.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </button>
+
+        {/* Remove Button */}
+        <button 
+          class="bf-card-rm" 
+          onClick={(e) => { e.stopPropagation(); onRemove(item.url); }} 
+          style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          ×
+        </button>
+      </div>
+      <div style={{ padding: '10px' }}>
+        <div class="bf-card-title" style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</div>
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(item.url)}`} width="12" height="12" />
+          {hostname}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface DownloadJob {
   id: string;
@@ -137,6 +206,26 @@ export const BookmarksView = () => {
     });
   };
 
+  const toggleStar = async (url: string) => {
+    const newItems = items.map(it => it.url === url ? { ...it, fav: !it.fav } : it);
+    setItems(newItems);
+    await fetch('/api/bookmarks/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: newItems })
+    });
+  };
+
+  const updateItem = async (url: string, updates: Partial<BookmarkItem>) => {
+    const newItems = items.map(it => it.url === url ? { ...it, ...updates } : it);
+    setItems(newItems);
+    await fetch('/api/bookmarks/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: newItems })
+    });
+  };
+
   const downloadSelected = async () => {
     const checkboxes = document.querySelectorAll('.bf-chk:checked') as NodeListOf<HTMLInputElement>;
     const urls = Array.from(checkboxes).map(el => el.value);
@@ -225,29 +314,15 @@ export const BookmarksView = () => {
         <div class="empty-state">No bookmarks found</div>
       ) : viewMode === 'grid' ? (
         <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-          {visibleItems.map((item) => {
-            const hostname = new URL(item.url).hostname;
-            return (
-              <div key={item.url} class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer' }} onClick={() => window.open(item.url, '_blank')}>
-                <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
-                  {item.img ? (
-                    <img src={item.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>No Thumb</div>
-                  )}
-                  <input type="checkbox" class="bf-chk" value={item.url} onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '10px', left: '10px' }} />
-                  <button class="bf-card-rm" onClick={(e) => { e.stopPropagation(); removeItem(item.url); }} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer' }}>×</button>
-                </div>
-                <div style={{ padding: '10px' }}>
-                  <div class="bf-card-title" style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(item.url)}`} width="12" height="12" />
-                    {hostname}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {visibleItems.map((item) => (
+            <BookmarkCard 
+              key={item.url} 
+              item={item} 
+              onRemove={removeItem} 
+              onToggleStar={toggleStar}
+              onUpdate={updateItem}
+            />
+          ))}
         </div>
       ) : (
         <div class="bf-list">
