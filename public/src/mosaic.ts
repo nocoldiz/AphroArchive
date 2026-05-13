@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals';
-import { allVideos, categories, currentCategory, bookmarkVidIds } from './store';
+import { allVideos, categories, currentCategory, bookmarkVidIds, currentView } from './store';
 
 // ─── Mosaic State ───
 export const mosaicOn = signal(false);
@@ -42,8 +42,12 @@ export function startMosaic() {
   const V = allVideos.value;
   if (!V.length) { toast('No videos to show'); return; }
   _mosaicPhotoMode = false;
+  
+  const w = window as any;
+  if (w.zapOn && w.stopZapping) w.stopZapping();
+  
+  currentView.value = 'mosaic';
   mosaicOn.value = true;
-  $('browse-view').add('off');
   
   const curV = (window as any).curV;
   if (curV) {
@@ -75,6 +79,7 @@ export function startMosaic() {
 export function startMosaicWithPhotos(photos: any[]) {
   _mosaicPhotoMode = true;
   _mosaicPhotos = photos;
+  currentView.value = 'mosaic';
   mosaicOn.value = true;
   
   const curV = (window as any).curV;
@@ -115,7 +120,7 @@ export function stopMosaic() {
   const cntLbl = document.getElementById('mosaic-count-label');
   if (cntLbl) cntLbl.textContent = 'Players';
   
-  if (!wasPhotoMode) $('browse-view').remove('off');
+  currentView.value = 'home';
 }
 
 function mosPick(n: number) {

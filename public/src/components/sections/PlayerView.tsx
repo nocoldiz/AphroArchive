@@ -1,4 +1,4 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted } from '../../store';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
@@ -139,6 +139,8 @@ export const PlayerView = () => {
               src={video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`}
               controls
               autoPlay
+              muted={isMuted.value}
+              style={{ width: '100%', maxHeight: '80vh', background: '#000' }}
             >
               {subtitles.map((t, i) => (
                 <track
@@ -150,6 +152,12 @@ export const PlayerView = () => {
                 />
               ))}
             </video>
+            <video
+              id="video-player-zap"
+              controls
+              muted={isMuted.value}
+              style={{ display: 'none', width: '100%', maxHeight: '80vh', background: '#000' }}
+            />
           </div>
 
           <div className="player-info">

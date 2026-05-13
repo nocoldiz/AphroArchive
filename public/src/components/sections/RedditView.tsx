@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
-import { currentVideo, currentView, allVideos, appPrefs, tagModalState, actorModalState, showAddToCollectionModal } from '../../store';
+import { currentVideo, currentView, allVideos, appPrefs, tagModalState, actorModalState, showAddToCollectionModal, isMuted } from '../../store';
 import '../../../reddit.css';
 
 export const RedditView = () => {
@@ -242,7 +242,7 @@ export const RedditView = () => {
                   {detailVideo._photo ? (
                     <img src={`/api/photos/${detailVideo.id}/img`} style={{ width: '100%', borderRadius: '4px' }} alt="" />
                   ) : (
-                    <video src={detailVideo._vault ? `/api/vault/stream/${detailVideo.id}` : `/api/stream/${detailVideo.id}`} controls autoPlay style={{ width: '100%', borderRadius: '4px' }} />
+                    <video src={detailVideo._vault ? `/api/vault/stream/${detailVideo.id}` : `/api/stream/${detailVideo.id}`} controls autoPlay style={{ width: '100%', borderRadius: '4px' }} muted={isMuted.value} />
                   )}
                 </div>
                 

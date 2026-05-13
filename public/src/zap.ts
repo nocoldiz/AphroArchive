@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals';
-import { allVideos, currentCategory, bookmarkVidIds } from './store';
+import { allVideos, currentCategory, bookmarkVidIds, currentView, currentVideo } from './store';
 
 // ─── Zapping Mode State ───
 export const zapOn = signal(false);
@@ -37,6 +37,15 @@ export function toggleZapping() {
     const w = window as any;
     if (w.mosaicOn && w.stopMosaic) w.stopMosaic();
     
+    const firstVid = getRandomVidForZapping();
+    if (!firstVid) {
+      toast('No videos found for zapping');
+      return;
+    }
+    
+    currentVideo.value = firstVid;
+    currentView.value = 'player';
+    
     zapOn.value = true;
     zapLock.value = false;
     
@@ -44,10 +53,8 @@ export function toggleZapping() {
     if (zapUi) zapUi.style.display = 'flex';
     
     $('zap-lock-btn').text('Lock to Current');
-    $('browse-view').add('off');
-    $('player-view').add('on');
     
-    startZapping();
+    setTimeout(startZapping, 300); // Wait for PlayerView to mount
   }
 }
 
@@ -62,8 +69,7 @@ export function stopZapping() {
   $('video-player-zap').show(false);
   activePlayer = 'video-player';
   
-  const w = window as any;
-  if (w.goHome) w.goHome();
+  currentView.value = 'home';
 }
 
 export function setZapIv(delta: number) {
@@ -146,7 +152,10 @@ export async function doZapSwitch() {
 
   // Update current video in store!
   const v = allVideos.value.find(x => x.id === zapNextVid.id);
-  if (v) (window as any).curV = v; // Bridge for now
+  if (v) {
+    (window as any).curV = v; // Bridge for now
+    currentVideo.value = v; // Update Preact state!
+  }
   
   $('player-title').text(zapNextVid.name);
   const pCat = document.getElementById('player-category');

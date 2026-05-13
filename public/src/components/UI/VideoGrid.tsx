@@ -11,6 +11,13 @@ const openCtx = (e: any) => {
   }
 };
 
+const formatDuration = (seconds: number) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
 interface VideoCardProps {
   video: Video;
   isSelected: boolean;
@@ -199,7 +206,25 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
           </button>
         </div>
 
-        {video.duration > 0 && <div className="duration-badge" style={{ zIndex: 2 }}>{(video.duration / 60).toFixed(1)}m</div>}
+        {video.duration > 0 && <div className="duration-badge" style={{ zIndex: 2 }}>{formatDuration(video.duration)}</div>}
+        {video.size > 0 && (
+          <div 
+            className="size-badge" 
+            style={{ 
+              position: 'absolute', 
+              bottom: '5px', 
+              left: '5px', 
+              background: 'rgba(0,0,0,0.6)', 
+              color: 'white', 
+              padding: '2px 5px', 
+              borderRadius: '3px', 
+              fontSize: '0.75rem',
+              zIndex: 2 
+            }}
+          >
+            {(video.size / 1024 / 1024).toFixed(1)} MB
+          </div>
+        )}
         {video.rating && <div className="rating-badge" style={{ zIndex: 2 }}>{'★'.repeat(video.rating)}</div>}
       </div>
       <div className="card-body">

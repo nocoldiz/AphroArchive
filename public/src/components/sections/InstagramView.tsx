@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { allVideos, appPrefs, currentVideo, currentView } from '../../store';
+
+const formatDuration = (seconds: number) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+import { allVideos, appPrefs, currentVideo, currentView, isMuted } from '../../store';
 import { Video } from '../../types';
 import { AiComments } from '../UI/AiComments';
 import './InstagramView.css';
@@ -393,7 +400,7 @@ const PostCard = ({ item, liked, saved, onLike, onSave, onOpen, vaultUser, timeA
           <div className="ig-play-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21" /></svg></div>
         </div>
         {isVault && <span className="ig-vault-tag">VAULT</span>}
-        {item.durationF && <span className="ig-duration-badge">{item.durationF}</span>}
+        {item.duration > 0 && <span className="ig-duration-badge">{formatDuration(item.duration)}</span>}
       </div>
       <div className="ig-post-actions">
         <button className={`ig-act-btn ${liked ? 'liked' : ''}`} onClick={onLike}>
@@ -457,7 +464,7 @@ const IgModal = ({ id, isVault, onClose, vaultFiles, allVideos, vaultUser, timeA
           {isImgVault ? (
             <img src={streamUrl} alt={name} />
           ) : (
-            <video src={streamUrl} controls autoPlay style={{ maxWidth: 'min(860px,65vw)', maxHeight: '90vh' }} />
+            <video src={streamUrl} controls autoPlay style={{ maxWidth: 'min(860px,65vw)', maxHeight: '90vh' }} muted={isMuted.value} />
           )}
         </div>
         <div className="ig-modal-side">
@@ -472,7 +479,7 @@ const IgModal = ({ id, isVault, onClose, vaultFiles, allVideos, vaultUser, timeA
           </div>
           <div className="ig-modal-body">
             <div className="ig-modal-title"><strong>{category}</strong>{name}</div>
-            {item.durationF && <div className="ig-modal-detail">Duration: {item.durationF}</div>}
+            {item.duration > 0 && <div className="ig-modal-detail">Duration: {formatDuration(item.duration)}</div>}
             {item.size && <div className="ig-modal-detail">Size: {formatBytes(item.size)}</div>}
             {item.tags && item.tags.length > 0 && (
               <div className="ig-modal-detail" style={{ color: '#a8a8a8', marginTop: '8px' }}>

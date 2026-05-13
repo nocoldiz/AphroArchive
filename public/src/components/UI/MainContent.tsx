@@ -108,6 +108,7 @@ export const MainContent = () => {
     if (view === 'vault') return <VaultView />;
     if (view === 'prompts') return <PromptsView />;
     if (view === 'player') return <PlayerView />;
+    if (view === 'mosaic') return null;
     if (view === 'connect') {
       return (
         <>

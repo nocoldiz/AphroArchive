@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
+import { isMuted } from '../../store';
 
 interface AudioFile {
   id: string;
@@ -195,7 +196,7 @@ export const AudioView = () => {
           <span className="au-player-title" style={{ flex: 1, minWidth: 0, fontWeight: '500', color: 'var(--tx)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {currentPlayingFile.title}
           </span>
-          <audio ref={audioRef} src={`/api/audio/${curAudio}/stream`} controls autoPlay style={{ height: '30px' }}></audio>
+          <audio ref={audioRef} src={`/api/audio/${curAudio}/stream`} controls autoPlay style={{ height: '30px' }} muted={isMuted.value}></audio>
           <button 
             className="au-player-close" 
             onClick={() => setCurAudio(null)} 
