@@ -45,6 +45,7 @@ const vision = require('./server/vision-server');
 const vaultZip = require('./server/vault-zip-server');
 const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
+const { startBackgroundWorker } = require('./server/background-worker-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -362,6 +363,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, async () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
   await initVideoMeta();
+  startBackgroundWorker();
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);

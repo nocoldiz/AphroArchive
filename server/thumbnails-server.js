@@ -153,4 +153,4 @@ async function apiThumbnailsList(req, res) {
   }
 }
 
-module.exports = { apiThumbGen, apiThumbImg, genChapterThumb, apiChapterThumbImg, apiThumbnailsList };
+module.exports = { apiThumbGen, apiThumbImg, genChapterThumb, apiChapterThumbImg, apiThumbnailsList, genThumbs };

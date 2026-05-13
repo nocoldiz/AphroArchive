@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 const openCtx = (e: any) => {
@@ -316,7 +316,7 @@ export const VideoGrid = () => {
   return (
     <>
       <VideoSelBar />
-      <div className="video-grid" id="video-grid" ref={gridRef}>
+      <div className="video-grid" id="video-grid" ref={gridRef} data-thumb-mode={thumbBlurMode.value}>
         {list.map((v, i) => (
           <VideoCard
             key={v.id}

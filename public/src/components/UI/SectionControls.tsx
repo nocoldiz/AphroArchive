@@ -1,4 +1,4 @@
-import { sortMode, isShuffle, favFilter, galleryFilter, cardSize } from '../../store';
+import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode } from '../../store';
 
 interface SectionControlsProps {
   showSort?: boolean;
@@ -139,6 +139,24 @@ export const SectionControls = ({
           </div>
         </>
       )}
+      
+      <>
+        <span className="sg-sep"></span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title="Thumbnail Blur Mode">
+          <select 
+            value={thumbBlurMode.value} 
+            onChange={(e: any) => {
+              thumbBlurMode.value = e.target.value;
+              localStorage.setItem('thumbBlurMode', e.target.value);
+            }}
+            style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '3px 6px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+          >
+            <option value="show">Show Thumbs</option>
+            <option value="hover">Blur (Hover)</option>
+            <option value="hide">Blur (Grid)</option>
+          </select>
+        </div>
+      </>
       
       {showFilter && (
         <>

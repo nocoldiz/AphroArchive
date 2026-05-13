@@ -2848,31 +2848,39 @@ input {
 
 /* --- 2. Toggle Modes (Controlled by JS data-thumb-mode) --- */
 
-/* HIDE MODE: Blur everything by default */
-#vaultGrid[data-thumb-mode="hide"] .vault-ct img,
-#vaultGrid[data-thumb-mode="hide"] .vault-folder-icon svg {
+/* HIDE MODE: Blur all and unblur when mouse is in grid */
+.video-grid[data-thumb-mode="hide"] .card-thumb img,
+.video-grid[data-thumb-mode="hide"] .card-thumb video {
   filter: blur(25px) grayscale(1);
   opacity: 0.15;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.video-grid[data-thumb-mode="hide"]:hover .card-thumb img,
+.video-grid[data-thumb-mode="hide"]:hover .card-thumb video {
+  filter: blur(0) grayscale(0);
+  opacity: 1;
 }
 
 /* HOVER REVEAL MODE: Blur by default, reveal on card hover */
-#vaultGrid[data-thumb-mode="hover"] .vault-ct img,
-#vaultGrid[data-thumb-mode="hover"] .vault-folder-icon svg {
+.video-grid[data-thumb-mode="hover"] .card-thumb img,
+.video-grid[data-thumb-mode="hover"] .card-thumb video {
   filter: blur(25px) grayscale(1);
   opacity: 0.15;
+  transition: filter 0.2s ease, opacity 0.2s ease;
 }
 
-#vaultGrid[data-thumb-mode="hover"] .video-card:hover .vault-ct img,
-#vaultGrid[data-thumb-mode="hover"] .vault-folder-tile:hover .vault-folder-icon svg {
+.video-grid[data-thumb-mode="hover"] .video-card:hover .card-thumb img,
+.video-grid[data-thumb-mode="hover"] .video-card:hover .card-thumb video {
   filter: blur(0) grayscale(0);
   opacity: 1;
 }
 
 /* SHOW MODE: Clear images */
-#vaultGrid[data-thumb-mode="show"] .vault-ct img,
-#vaultGrid[data-thumb-mode="show"] .vault-folder-icon svg {
-  filter: none;
-  opacity: 1;
+.video-grid[data-thumb-mode="show"] .card-thumb img,
+.video-grid[data-thumb-mode="show"] .card-thumb video {
+  filter: none !important;
+  opacity: 1 !important;
 }
 
 /* --- 3. Global Auto-Hide (Privacy Mode Override) --- */

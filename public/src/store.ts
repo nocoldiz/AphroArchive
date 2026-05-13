@@ -154,6 +154,7 @@ export const profiles = signal<string[]>(['default']);
 export const activeProfile = signal<string>('default');
 export const profileModalState = signal<{ visible: boolean }>({ visible: false });
 export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
+export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
 export async function loadProfiles() {
   const res = await fetch('/api/profiles');
