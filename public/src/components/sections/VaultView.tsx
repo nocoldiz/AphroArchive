@@ -3,6 +3,7 @@ import { vaultMode, isVaultUnlocked, currentVideo } from '../../store';
 import { VaultMosaic } from './VaultMosaic';
 import { VaultSettingsModal } from './VaultSettingsModal';
 import { VaultScrapeModal } from './VaultScrapeModal';
+import { VaultPhotoViewer } from './VaultPhotoViewer';
 
 interface VaultFile {
   id: string;
@@ -55,6 +56,7 @@ export const VaultView = () => {
   const [showMosaic, setShowMosaic] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showScrape, setShowScrape] = useState(false);
+  const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
 
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -258,7 +260,7 @@ export const VaultView = () => {
       document.getElementById('vault-view')?.classList.remove('on');
       document.getElementById('player-view')?.classList.add('on');
     } else if (VAULT_PHOTO_EXTS.has(extLower)) {
-      alert('Photo viewer not implemented yet');
+      setActivePhotoId(f.id);
     } else if (VAULT_BOOK_EXTS.has(extLower)) {
       const w = window as any;
       if (w.openBook) {
@@ -780,6 +782,14 @@ export const VaultView = () => {
         {showMosaic && <VaultMosaic pool={files} onClose={() => setShowMosaic(false)} />}
         {showSettings && <VaultSettingsModal onClose={() => setShowSettings(false)} />}
         {showScrape && <VaultScrapeModal files={files} onClose={() => setShowScrape(false)} />}
+        {activePhotoId && (
+          <VaultPhotoViewer
+            files={files.filter(f => VAULT_PHOTO_EXTS.has((f.ext || '').toLowerCase()))}
+            initialFileId={activePhotoId}
+            onClose={() => setActivePhotoId(null)}
+            onDelete={(id) => setFiles(prev => prev.filter(f => f.id !== id))}
+          />
+        )}
       </div>
     );
   }

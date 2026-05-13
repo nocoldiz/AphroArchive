@@ -1,4 +1,4 @@
-import { useRef } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
@@ -17,10 +17,24 @@ interface VideoCardProps {
 }
 
 export const VideoCard = ({ video, isSelected }: VideoCardProps) => {
+  const [showVideo, setShowVideo] = useState(false);
+  const timerRef = useRef<any>(null);
+
   const play = () => {
     currentVideo.value = video;
     currentView.value = 'player';
     if ((window as any).playVideo) (window as any).playVideo(video.id);
+  };
+
+  const handleMouseEnter = () => {
+    timerRef.current = setTimeout(() => {
+      setShowVideo(true);
+    }, 250);
+  };
+
+  const handleMouseLeave = () => {
+    clearTimeout(timerRef.current);
+    setShowVideo(false);
   };
 
   return (
@@ -30,16 +44,37 @@ export const VideoCard = ({ video, isSelected }: VideoCardProps) => {
       onClick={play}
       onContextMenu={openCtx}
       data-id={video.id}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
-      <div className="video-thumb-wrap">
+      <div className="video-thumb-wrap" style={{ position: 'relative' }}>
         <img
           src={`/api/thumbs/${video.id}/0`}
           loading="lazy"
           className="video-thumb"
           id={`img-${video.id}`}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        {video.duration > 0 && <div className="video-duration">{(video.duration / 60).toFixed(1)}m</div>}
-        {video.rating && <div className="video-rating">{'★'.repeat(video.rating)}</div>}
+        {showVideo && (
+          <video
+            src={`/api/stream/${video.id}`}
+            autoPlay
+            muted
+            playsInline
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+            onLoadedMetadata={(e: any) => {
+              const v = e.target;
+              v.currentTime = v.duration > 0 ? v.duration / 2 : 0;
+            }}
+            onPlay={(e: any) => {
+              setTimeout(() => {
+                try { e.target.pause(); } catch {}
+              }, 10000);
+            }}
+          />
+        )}
+        {video.duration > 0 && <div className="video-duration" style={{ zIndex: 2 }}>{(video.duration / 60).toFixed(1)}m</div>}
+        {video.rating && <div className="video-rating" style={{ zIndex: 2 }}>{'★'.repeat(video.rating)}</div>}
       </div>
       <div className="video-info">
         <div className="video-name" title={video.name}>{video.name}</div>
