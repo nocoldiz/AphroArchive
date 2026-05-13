@@ -18,6 +18,7 @@ export const PresetPicker = () => {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
+  const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'orange');
 
   useEffect(() => {
     if (state.visible) {
@@ -111,6 +112,34 @@ export const PresetPicker = () => {
             </label>
           ))}
           {presets.length === 0 && <p style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No presets found.</p>}
+        </div>
+
+        <div className="theme-selection" style={{ margin: '16px 0', borderTop: '1px solid var(--brd)', paddingTop: '12px' }}>
+          <label style={{ fontSize: '0.85rem', color: 'var(--tx2)', display: 'block', marginBottom: '8px' }}>Select Theme:</label>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {['orange', 'blue', 'deepblue', 'light', 'xp', 'artdeco', 'ascii'].map(t => (
+              <button
+                key={t}
+                onClick={() => {
+                  (window as any).applyTheme(t);
+                  setCurrentTheme(t);
+                }}
+                style={{ 
+                  background: 'var(--bg3)', 
+                  border: '1px solid var(--brd)', 
+                  color: 'var(--tx)', 
+                  padding: '4px 8px', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  borderColor: currentTheme === t ? 'var(--ac)' : 'var(--brd)',
+                  fontWeight: currentTheme === t ? 'bold' : 'normal'
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="preset-dialog-footer" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

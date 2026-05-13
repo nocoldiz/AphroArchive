@@ -817,10 +817,11 @@ async function apiCategoriesOverview(req, res) {
   const catMap = new Map();
   for (const v of videos) {
     if (v.catPath === '') continue;
-    if (!catMap.has(v.catPath)) catMap.set(v.catPath, { type: 'cat', name: v.category, path: v.catPath, count: 0, ids: [] });
+    if (!catMap.has(v.catPath)) catMap.set(v.catPath, { type: 'cat', name: v.category, path: v.catPath, count: 0, ids: [], duration: 0 });
     const e = catMap.get(v.catPath);
     e.count++;
     e.ids.push(v.id);
+    e.duration += (v.duration || 0);
   }
   const filteredCats = [...catMap.values()].filter(c => {
     const lo = c.path.toLowerCase();
@@ -836,9 +837,10 @@ async function apiCategoriesOverview(req, res) {
     for (const tag of (meta[v.id]?.tags || [])) {
       const lo = tag.toLowerCase();
       if (folderNames.has(lo)) continue;
-      if (!tagMap.has(lo)) tagMap.set(lo, { type: 'tag', name: tag, count: 0, ids: [] });
+      if (!tagMap.has(lo)) tagMap.set(lo, { type: 'tag', name: tag, count: 0, ids: [], duration: 0 });
       tagMap.get(lo).count++;
       tagMap.get(lo).ids.push(v.id);
+      tagMap.get(lo).duration += (v.duration || 0);
     }
   }
   const unencryptedCats = new Set();
@@ -862,7 +864,7 @@ async function apiCategoriesOverview(req, res) {
       }
     }
     const unlocked = isUnlocked(e.path || '');
-    return { type: e.type, name: e.name, path: e.path || null, count: e.count, thumbId, encrypted, partial, unlocked };
+    return { type: e.type, name: e.name, path: e.path || null, count: e.count, thumbId, encrypted, partial, unlocked, duration: e.duration };
   });
   json(res, result);
 }

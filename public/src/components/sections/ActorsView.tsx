@@ -18,6 +18,7 @@ export const ActorsView = () => {
   const [actorVideos, setActorVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingVideos, setLoadingVideos] = useState(false);
+  const [sort, setSort] = useState<'name' | 'count-desc' | 'duration-desc'>('name');
 
   const activeActorName = currentActor.value;
 
@@ -57,8 +58,17 @@ export const ActorsView = () => {
     ? actors.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
     : actors;
 
-  const activeActors = filteredActors.filter(a => a.count > 0);
-  const otherActors = filteredActors.filter(a => a.count === 0);
+  const sortedActors = [...filteredActors];
+  if (sort === 'name') {
+    sortedActors.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sort === 'count-desc') {
+    sortedActors.sort((a, b) => b.count - a.count);
+  } else if (sort === 'duration-desc') {
+    sortedActors.sort((a, b) => ((b as any).duration || 0) - ((a as any).duration || 0));
+  }
+
+  const activeActors = sortedActors.filter(a => a.count > 0);
+  const otherActors = sortedActors.filter(a => a.count === 0);
 
   const colors = ['#e84040', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
   const getColor = (name: string) => {
@@ -134,7 +144,20 @@ export const ActorsView = () => {
     <div id="actors-view" class="actors-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Actors</h1>
-        <div class="search-bar" style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div class="sort-buttons" style={{ display: 'flex', gap: '5px' }}>
+            {['name', 'count-desc', 'duration-desc'].map(s => (
+              <button
+                key={s}
+                class={`btn ${sort === s ? 'on' : ''}`}
+                onClick={() => setSort(s as any)}
+                style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+              >
+                {s === 'name' ? 'Name' : s === 'count-desc' ? 'Count' : 'Duration'}
+              </button>
+            ))}
+          </div>
+          <div class="search-bar" style={{ position: 'relative' }}>
           <input
             type="text"
             class="input-box"
@@ -143,6 +166,7 @@ export const ActorsView = () => {
             onInput={(e: any) => setSearch(e.target.value)}
             style={{ width: '200px' }}
           />
+        </div>
         </div>
       </div>
 

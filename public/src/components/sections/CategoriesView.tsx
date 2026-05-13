@@ -13,7 +13,7 @@ interface CategoryOverviewItem {
 
 export const CategoriesView = () => {
   const [data, setData] = useState<CategoryOverviewItem[]>([]);
-  const [sort, setSort] = useState<'name' | 'count-desc' | 'count-asc'>('name');
+  const [sort, setSort] = useState<'name' | 'count-desc' | 'count-asc' | 'duration-desc'>('name');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,6 +36,8 @@ export const CategoriesView = () => {
     sortedData.sort((a, b) => b.count - a.count);
   } else if (sort === 'count-asc') {
     sortedData.sort((a, b) => a.count - b.count);
+  } else if (sort === 'duration-desc') {
+    sortedData.sort((a, b) => ((b as any).duration || 0) - ((a as any).duration || 0));
   }
 
   const w = window as any;
@@ -62,6 +64,12 @@ export const CategoriesView = () => {
             onClick={() => setSort('count-asc')}
           >
             Count (Low)
+          </button>
+          <button 
+            class={`btn cv-sort-btn ${sort === 'duration-desc' ? 'on' : ''}`} 
+            onClick={() => setSort('duration-desc')}
+          >
+            Duration
           </button>
         </div>
       </div>

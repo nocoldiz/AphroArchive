@@ -71,17 +71,21 @@ async function apiActors(req, res) {
   const videos = await allVideos();
   const meta   = loadVideoMeta();
   const result = actors
-    .map(e => ({
-      name: e.name,
-      count: videos.filter(v => {
+    .map(e => {
+      const matchingVideos = videos.filter(v => {
         const ma = meta[v.id]?.actors || [];
         return ma.some(a => a.toLowerCase() === e.name.toLowerCase()) || actorMatchesAny(v.name, e.terms);
-      }).length,
-      nationality: e.nationality,
-      age: e.age,
-      deceased: e.deceased,
-      imdb_page: e.imdb_page,
-    }))
+      });
+      return {
+        name: e.name,
+        count: matchingVideos.length,
+        duration: matchingVideos.reduce((sum, v) => sum + (v.duration || 0), 0),
+        nationality: e.nationality,
+        age: e.age,
+        deceased: e.deceased,
+        imdb_page: e.imdb_page,
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
   json(res, result);
 }
