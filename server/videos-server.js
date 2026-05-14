@@ -1464,6 +1464,64 @@ async function apiEncryptCategory(req, res) {
   }
 }
 
+async function apiEncryptVideo(req, res, id) {
+  const { isUnlocked, encryptLocalFileToVault, getVaultKey } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
+  
+  if (!loadVaultConfig()) {
+    return json(res, { error: 'Master vault password is not set' }, 400);
+  }
+  
+  if (!isUnlocked()) {
+    return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
+  }
+  
+  const vids = await allVideos();
+  const v = vids.find(x => x.id === id);
+  if (!v) return json(res, { error: 'Not found' }, 404);
+  
+  if (v.encrypted) return json(res, { error: 'Already encrypted' }, 400);
+  
+  const full = path.join(VIDEOS_DIR, v.rel);
+  if (!fs.existsSync(full)) return json(res, { error: 'File not found on disk' }, 404);
+
+  const meta = loadVideoMeta();
+  const videoMeta = meta[v.id] || null;
+  const vaultKey = getVaultKey();
+
+  try {
+    const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
+    
+    if (!vaultId) {
+      return json(res, { error: 'Encryption failed' }, 500);
+    }
+
+    const oldThumb = path.join(THUMBS_DIR, v.id);
+    const newThumb = path.join(THUMBS_DIR, vaultId);
+    
+    if (fs.existsSync(oldThumb)) {
+      if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
+      fs.renameSync(oldThumb, newThumb);
+      const tFiles = fs.readdirSync(newThumb);
+      for (const tf of tFiles) {
+        if (tf.endsWith('.jpg')) {
+           await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
+        }
+      }
+    }
+
+    if (meta[v.id]) {
+      delete meta[v.id];
+      saveVideoMeta(meta);
+    }
+
+    invalidateScanCache();
+    json(res, { ok: true, vaultId });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
 async function encryptFileInPlace(filePath, key) {
   const outPath = filePath + '.enc';
   const iv = crypto.randomBytes(12);
@@ -1683,7 +1741,6 @@ async function decryptThumbnailInPlace(filePath, key) {
   fs.unlinkSync(filePath);
   fs.renameSync(tmpPath, filePath);
 }
-}
 
 async function decryptFileInPlace(filePath, key) {
   const outPath = filePath.replace(/\.enc$/, '');
@@ -1733,5 +1790,5 @@ module.exports = {
   apiImport,
   apiAddChapter, apiDeleteChapter,
   apiRenameCategory, apiDeleteCategory, apiHideCategory,
-  apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey
+  apiEncryptVideo, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey
 };

@@ -1,6 +1,7 @@
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
+import { PhotoLightbox } from '../modals/PhotoLightbox';
 
 interface PhotoFile {
   id: string;
@@ -218,49 +219,25 @@ export const PhotosView = () => {
       )}
 
       {/* Lightbox Modal */}
-      {lightboxIdx !== null && currentPhoto && (
-        <div id="photosLightbox" className="ph-lightbox on">
-          <button className="ph-lb-close" onClick={closeLightbox}>×</button>
-          
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '80%', position: 'relative' }}>
-            <button className="ph-lb-nav ph-lb-prev" onClick={prevPhoto}>‹</button>
-            <img id="photosLbImg" src={`/api/photos/${currentPhoto.id}/img`} alt="" />
-            <button className="ph-lb-nav ph-lb-next" onClick={nextPhoto}>›</button>
-          </div>
-
-          <div className="ph-lb-caption" style={{ color: 'white', marginTop: '20px', textAlign: 'center', width: '80%' }}>
-            <div id="photosLbCaption" style={{ fontSize: '1rem', marginBottom: '10px' }}>
-              {currentPhoto.filename}  ·  {currentPhoto.sizeF}
-            </div>
-            
-            <div className="ph-lb-actions" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '15px' }}>
-              <button id="photosLbSlideBtn" className="ph-lb-action-btn" onClick={() => setSlideshowOn(!slideshowOn)}>
-                {slideshowOn ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                )}
-                <span>{slideshowOn ? 'Pause' : 'Play'}</span>
-              </button>
-              <button className="ph-lb-action-btn" onClick={() => downloadPhoto(currentPhoto)}>Download</button>
-              <button className="ph-lb-action-btn" onClick={() => describePhoto(currentPhoto.id)}>Describe</button>
-            </div>
-
-            {description && (
-              <div id="photosLbDesc" style={{ background: 'rgba(255,255,255,0.1)', padding: '10px', borderRadius: '5px', fontSize: '0.9rem', marginBottom: '10px' }}>
-                {description}
-              </div>
-            )}
-
-            {currentPhoto.isAi && currentPhoto.aiPrompt && (
-              <div style={{ background: 'rgba(255,255,255,0.1)', padding: '10px', borderRadius: '5px', fontSize: '0.85rem', marginTop: '10px', textAlign: 'left', maxHeight: '150px', overflowY: 'auto' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '5px', color: 'var(--ac)' }}>AI Parameters:</div>
-                <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'monospace', color: 'var(--tx2)' }}>{currentPhoto.aiPrompt}</pre>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <PhotoLightbox
+        isOpen={lightboxIdx !== null && currentPhoto !== null}
+        onClose={closeLightbox}
+        imgUrl={currentPhoto ? `/api/photos/${currentPhoto.id}/img` : ''}
+        title={currentPhoto ? currentPhoto.filename : ''}
+        sizeF={currentPhoto ? currentPhoto.sizeF : ''}
+        onPrev={prevPhoto}
+        onNext={nextPhoto}
+        onDelete={currentPhoto ? () => deletePhoto(currentPhoto.id) : undefined}
+        onDownload={currentPhoto ? () => downloadPhoto(currentPhoto) : undefined}
+        onDescribe={currentPhoto ? () => describePhoto(currentPhoto.id) : undefined}
+        slideshowOn={slideshowOn}
+        onToggleSlideshow={() => setSlideshowOn(!slideshowOn)}
+        slideSecs={slideSecs}
+        onSlideSecsChange={setSlideSecs}
+        description={description}
+        isAi={currentPhoto ? currentPhoto.isAi : false}
+        aiPrompt={currentPhoto ? currentPhoto.aiPrompt : ''}
+      />
     </div>
   );
 };

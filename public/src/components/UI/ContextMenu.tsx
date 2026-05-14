@@ -125,6 +125,37 @@ export const ContextMenu = () => {
     }
   };
 
+  const handleDownloadZip = async () => {
+    const password = prompt('Enter password for ZIP (leave blank for no encryption):');
+    if (password === null) return;
+
+    toast('Generating ZIP...');
+    try {
+      const res = await fetch('/api/category/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: data.path, password }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast('Download failed: ' + (err.error || 'Unknown error'));
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `category-${data.name.replace(/[^a-zA-Z0-9_-]/g, '_')}-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast('Download complete');
+    } catch (e: any) {
+      toast('Download failed: ' + e.message);
+    }
+  };
+
   const handleEncrypt = () => {
     if (!isVaultUnlocked.value) {
       toast('Unlock Vault profile first');
@@ -268,6 +299,7 @@ export const ContextMenu = () => {
             <ContextItem label="Hide" icon="eye-off" onClick={handleHide} />
             <ContextItem label="Open folder" icon="folder" onClick={handleOpenFolder} />
             <ContextItem label="Compress Videos" icon="download" onClick={handleCompress} />
+            <ContextItem label="Download ZIP" icon="download" onClick={handleDownloadZip} />
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
             {data.encrypted ? (
               <ContextItem label="Restore to Profile" icon="lock" onClick={handleUnlock} />

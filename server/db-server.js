@@ -5,6 +5,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const {
   FAVOURITES_FILE, HISTORY_FILE, PREFS_FILE, RATINGS_FILE,
   VIDEO_META_FILE, THUMBS_CACHE_FILE,
@@ -441,10 +442,62 @@ function saveThumbsCache(c) {
 
 // ── Vault ────────────────────────────────────────────────────────────
 
+let _vaultKey = null;
+
+function setVaultKey(key) { _vaultKey = key; }
+
+function _encryptString(text, key) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  let enc = cipher.update(text, 'utf8', 'base64');
+  enc += cipher.final('base64');
+  const tag = cipher.getAuthTag().toString('base64');
+  return JSON.stringify({
+    iv: iv.toString('base64'),
+    tag: tag,
+    ciphertext: enc
+  });
+}
+
+function _decryptString(jsonStr, key) {
+  const obj = JSON.parse(jsonStr);
+  const iv = Buffer.from(obj.iv, 'base64');
+  const tag = Buffer.from(obj.tag, 'base64');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  let dec = decipher.update(obj.ciphertext, 'base64', 'utf8');
+  dec += decipher.final('utf8');
+  return dec;
+}
+
 function loadVaultConfig() { try { return JSON.parse(fs.readFileSync(VAULT_CONFIG_FILE, 'utf-8')); } catch { return null; } }
 function saveVaultConfig(c) { fs.writeFileSync(VAULT_CONFIG_FILE, JSON.stringify(c)); }
-function loadVaultMeta()   { try { return JSON.parse(fs.readFileSync(VAULT_META_FILE,   'utf-8')); } catch { return {}; } }
-function saveVaultMeta(m)  { fs.writeFileSync(VAULT_META_FILE, JSON.stringify(m)); }
+
+function loadVaultMeta() {
+  try {
+    const raw = fs.readFileSync(VAULT_META_FILE, 'utf-8');
+    try {
+      return JSON.parse(raw); // Legacy cleartext
+    } catch {
+      // Failed to parse, likely encrypted
+      if (!_vaultKey) throw new Error('Vault is locked or key missing');
+      const decrypted = _decryptString(raw, _vaultKey);
+      return JSON.parse(decrypted);
+    }
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveVaultMeta(m) {
+  const jsonStr = JSON.stringify(m);
+  if (!_vaultKey) {
+    fs.writeFileSync(VAULT_META_FILE, jsonStr);
+    return;
+  }
+  const encrypted = _encryptString(jsonStr, _vaultKey);
+  fs.writeFileSync(VAULT_META_FILE, encrypted);
+}
 
 // ── Collections ──────────────────────────────────────────────────────
 
@@ -758,7 +811,7 @@ module.exports = {
   loadRatings, saveRatings,
   loadVideoMeta, saveVideoMeta, setVideoMetaFields,
   loadThumbsCache, saveThumbsCache,
-  loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta,
+  loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, setVaultKey,
   loadCollections, saveCollections,
   loadHidden, saveHidden,
   loadWebsites, saveWebsites,

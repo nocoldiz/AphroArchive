@@ -8,7 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, PROCESS_DIR } = require('./config-server');
 const { json, readBody, formatBytes: _fmtBytes } = require('./helpers-server');
-const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs } = require('./db-server');
+const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs, setVaultKey } = require('./db-server');
 const VAULT_DROP_DIR = typeof PROCESS_DIR !== 'undefined' ? PROCESS_DIR : path.join(path.dirname(VAULT_DIR), 'hidden');
 
 // Static salt used by default — any installation with the same password derives the same key.
@@ -522,6 +522,7 @@ async function apiVaultSetup(req, res) {
     const { encKey, verifyHash } = await deriveKeys(pw, salt);
     saveVaultConfig({ salt, verifyHash, useRandomSalt: !!body.useRandomSalt });
     vaultKey = encKey;
+    setVaultKey(encKey);
     failedAttempts = 0; cooldownUntil = 0;
     resetVaultTimer();
     if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
@@ -563,6 +564,7 @@ async function apiVaultUnlock(req, res) {
     // Correct password — reset counters
     failedAttempts = 0; cooldownUntil = 0;
     vaultKey = encKey;
+    setVaultKey(encKey);
     resetVaultTimer();
     json(res, { ok: true });
     processHiddenFolder();
@@ -572,6 +574,7 @@ async function apiVaultUnlock(req, res) {
 function apiVaultLock(req, res) {
   clearVaultTimer();
   vaultKey = null;
+  setVaultKey(null);
   json(res, { ok: true });
 }
 

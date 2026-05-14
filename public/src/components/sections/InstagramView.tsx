@@ -48,6 +48,9 @@ export const InstagramView = () => {
   const [savedOnly, setSavedOnly] = useState(false);
   const [profileKey, setProfileKey] = useState<string | null>(null);
   const [activeStoryCategory, setActiveStoryCategory] = useState<string | null>(null);
+  const [vaultPassword, setVaultPassword] = useState('');
+  const [vaultConfirmPassword, setVaultConfirmPassword] = useState('');
+  const [vaultError, setVaultError] = useState('');
   const [feedItems, setFeedItems] = useState<IgItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<IgItem[]>([]);
 
@@ -148,6 +151,29 @@ export const InstagramView = () => {
         setVaultFiles(items.filter((f: any) => f.type !== 'folder'));
       }
     } catch { }
+  };
+
+  const handleUnlock = async () => {
+    if (!vaultPassword) return;
+    const r = await fetch('/api/vault/unlock', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: vaultPassword}) });
+    const d = await r.json();
+    if (!r.ok) { setVaultError(d.error || 'Wrong password'); return; }
+    setVaultUnlocked(true);
+    setVaultError('');
+    await loadVaultFiles();
+  };
+
+  const handleSetupVault = async () => {
+    if (!vaultPassword) return;
+    if (vaultPassword.length < 6) { setVaultError('Password must be at least 6 characters'); return; }
+    if (vaultPassword !== vaultConfirmPassword) { setVaultError('Passwords do not match'); return; }
+    const r = await fetch('/api/vault/setup', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: vaultPassword }) });
+    const d = await r.json();
+    if (!r.ok) { setVaultError(d.error || 'Setup failed'); return; }
+    setVaultUnlocked(true);
+    setVaultConfigured(true);
+    setVaultError('');
+    await loadVaultFiles();
   };
 
   const vaultUser = (item: IgItem) => {
@@ -336,23 +362,58 @@ export const InstagramView = () => {
                 })}
               </div>
 
-              {/* Feed items */}
-              {visibleItems.map(item => (
-                <PostCard
-                  key={item.id}
-                  item={item}
-                  liked={likedIds.has(item.id)}
-                  saved={savedIds.has(item.id)}
-                  onLike={() => toggleLike(item.id, item._vault)}
-                  onSave={() => toggleSave(item.id)}
-                  onOpen={() => openModal(item.id, item._vault)}
-                  onOpenProfile={(key: string) => { setProfileKey(key); setCurView('profile'); }}
-                  vaultUser={vaultUser}
-                  timeAgo={timeAgo}
-                  strColor={strColor}
-                  initial={initial}
-                />
-              ))}
+              {/* Feed items or Vault Prompt */}
+              {vaultOnly && !vaultUnlocked ? (
+                <div className="ig-vault-prompt" style={{ padding: '40px 20px', textAlign: 'center', border: '1px solid #262626', borderRadius: '8px', margin: '20px 0' }}>
+                  <h3 style={{ marginBottom: '12px', fontSize: '18px' }}>🔒 {!vaultConfigured ? 'Set Up Vault' : 'Vault Locked'}</h3>
+                  <p style={{ color: '#a8a8a8', fontSize: '14px', marginBottom: '20px' }}>{!vaultConfigured ? 'Create a password to secure your encrypted content.' : 'Enter your vault password to view encrypted content.'}</p>
+                  <input 
+                    className="ig-vault-input" 
+                    type="password" 
+                    value={vaultPassword}
+                    onInput={(e: any) => setVaultPassword(e.target.value)}
+                    placeholder={!vaultConfigured ? 'New password (min 6 chars)' : 'Vault password'} 
+                    style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '10px 14px', borderRadius: '6px', fontSize: '14px', width: '240px' }}
+                    onKeyDown={(e: any) => { if (e.key === 'Enter') !vaultConfigured ? handleSetupVault() : handleUnlock(); }}
+                  />
+                  {!vaultConfigured && (
+                    <input 
+                      className="ig-vault-input" 
+                      type="password" 
+                      value={vaultConfirmPassword}
+                      onInput={(e: any) => setVaultConfirmPassword(e.target.value)}
+                      placeholder="Confirm password" 
+                      style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '10px 14px', borderRadius: '6px', fontSize: '14px', width: '240px', marginTop: '8px' }}
+                      onKeyDown={(e: any) => { if (e.key === 'Enter') handleSetupVault(); }}
+                    />
+                  )}
+                  <button 
+                    className="ig-unlock-btn" 
+                    onClick={!vaultConfigured ? handleSetupVault : handleUnlock}
+                    style={{ background: '#0095f6', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'block', margin: '12px auto 0' }}
+                  >
+                    {!vaultConfigured ? 'Create Vault' : 'Unlock'}
+                  </button>
+                  <div className="ig-vault-err" style={{ color: '#ed4956', fontSize: '13px', marginTop: '8px', minHeight: '18px' }}>{vaultError}</div>
+                </div>
+              ) : (
+                visibleItems.map(item => (
+                  <PostCard
+                    key={item.id}
+                    item={item}
+                    liked={likedIds.has(item.id)}
+                    saved={savedIds.has(item.id)}
+                    onLike={() => toggleLike(item.id, item._vault)}
+                    onSave={() => toggleSave(item.id)}
+                    onOpen={() => openModal(item.id, item._vault)}
+                    onOpenProfile={(key: string) => { setProfileKey(key); setCurView('profile'); }}
+                    vaultUser={vaultUser}
+                    timeAgo={timeAgo}
+                    strColor={strColor}
+                    initial={initial}
+                  />
+                ))
+              )}
 
               {feedLoading && <div className="ig-loading"><div className="ig-spinner"></div></div>}
               {feedDone && <div className="ig-end-msg">You're all caught up</div>}
@@ -425,7 +486,7 @@ export const InstagramView = () => {
               </div>
             </div>
           </>
-        )
+        )}
 
         {curView === 'explore' && (
           <div className="ig-explore show">

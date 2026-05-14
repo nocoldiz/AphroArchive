@@ -148,6 +148,7 @@ const server = http.createServer(async (req, res) => {
 
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetail(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
+  if ((m = p.match(/^\/api\/videos\/([^/]+)\/encrypt$/)) && req.method === 'POST') return videos.apiEncryptVideo(req, res, m[1]);
   if ((m = p.match(/^\/api\/stream\/([^/]+)$/)) && req.method === 'GET') return videos.apiStream(req, res, m[1]);
   if ((m = p.match(/^\/api\/favourites\/([^/]+)$/)) && req.method === 'POST') return videos.apiToggleFav(req, res, m[1]);
   if ((m = p.match(/^\/api\/history\/([^/]+)$/)) && req.method === 'POST') return videos.apiAddHistory(req, res, m[1]);
@@ -246,6 +247,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/ai-tag$/)) && req.method === 'POST') return vault.apiVaultAiTag(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/rename$/)) && req.method === 'PUT') return vault.apiVaultRename(req, res, m[1]);
   if (p === '/api/vault/download-zip' && req.method === 'POST') return vaultZip.apiVaultDownloadZip(req, res);
+  if (p === '/api/category/download-zip' && req.method === 'POST') return vaultZip.apiCategoryDownloadZip(req, res);
   if (p === '/api/vault/folders' && req.method === 'POST') return vault.apiVaultCreateFolder(req, res);
   if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDeleteFolder(req, res, m[1]);
   if (p === '/api/vault/favs' && req.method === 'GET') return vault.apiVaultFavsGet(req, res);

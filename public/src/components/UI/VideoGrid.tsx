@@ -106,6 +106,20 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
     actorModalState.value = { visible: true, vidId: video.id };
   };
 
+  const handleEncrypt = async (e: any) => {
+    e.stopPropagation();
+    if (!confirm(`Encrypt video "${video.name}" and move to Vault?`)) return;
+
+    const r = await fetch(`/api/videos/${video.id}/encrypt`, { method: 'POST' });
+    if (r.ok) {
+      if ((window as any).toast) (window as any).toast('Video encrypted and moved to Vault');
+      videos.value = videos.value.filter(v => v.id !== video.id);
+    } else {
+      const err = await r.json();
+      if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
+    }
+  };
+
   return (
     <div
       className={`video-card fade-in ${isSelected ? 'selected' : ''}`}
@@ -208,6 +222,9 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
           </button>
           <button onClick={handleActor} title="Actors">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </button>
+          <button onClick={handleEncrypt} title="Encrypt to Vault">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
           </button>
         </div>
 

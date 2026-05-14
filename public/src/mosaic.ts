@@ -165,8 +165,8 @@ function preloadMosTile(tile: any, v: any) {
   pre.dataset.dur = v.duration || 0;
   pre.dataset.ready = '0';
   
-  pre.poster = '/api/thumbs/' + v.id + '/0';
-  pre.src = '/api/stream/' + v.id;
+  pre.poster = v.isVault ? '' : '/api/thumbs/' + v.id + '/0';
+  pre.src = v.isVault ? '/api/vault/stream/' + v.id : '/api/stream/' + v.id;
   
   pre.addEventListener('loadedmetadata', () => {
     mosSeekRandom(pre);
@@ -206,7 +206,7 @@ export function buildMosaicTiles() {
       wrap.className = 'mos-tile';
       const img = document.createElement('img');
       img.className = 'mos-v mos-v-active';
-      img.src = '/api/photos/' + f.id + '/img';
+      img.src = f.isVault ? '/api/vault/stream/' + f.id : '/api/photos/' + f.id + '/img';
       wrap.appendChild(img);
       grid.appendChild(wrap);
       const tile = { wrap, img, photoId: f.id, isPhoto: true };
@@ -238,8 +238,8 @@ export function buildMosaicTiles() {
     const tile = { wrap, a, b, active: 'a', vidId: v.id, isPhoto: false };
     mosTilesState.push(tile);
 
-    a.poster = '/api/thumbs/' + v.id + '/0';
-    a.src = '/api/stream/' + v.id;
+    a.poster = v.isVault ? '' : '/api/thumbs/' + v.id + '/0';
+    a.src = v.isVault ? '/api/vault/stream/' + v.id : '/api/stream/' + v.id;
     a.addEventListener('loadedmetadata', () => { mosSeekRandom(a); a.play().catch(() => {}); }, { once: true });
     a.play().catch(() => {});
 

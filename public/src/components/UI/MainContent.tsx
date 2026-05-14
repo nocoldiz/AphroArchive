@@ -25,7 +25,6 @@ import { BookmarkIframeModal } from '../modals/BookmarkIframeModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
-import { VaultPhotoLightbox } from '../modals/VaultPhotoLightbox';
 import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
 import { PlayerView } from '../sections/PlayerView';
@@ -132,7 +131,6 @@ export const MainContent = () => {
       <BookmarkIframeModal />
       <RenameModal />
       <MoveModal />
-      <VaultPhotoLightbox />
       <VisionModal />
       <VaultUnlockModal />
     </>
