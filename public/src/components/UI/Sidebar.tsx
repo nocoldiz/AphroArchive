@@ -71,6 +71,7 @@ export const Sidebar = () => {
   const [bookmarkItems, setBookmarkItems] = useState<any[]>([]);
   const [tags, setTags] = useState<{ name: string, count: number }[]>([]);
   const [tagsOpen, setTagsOpen] = useState(true);
+  const [catsOpen, setCatsOpen] = useState(true);
 
   useEffect(() => {
     fetch('/api/bookmarks/cache')
@@ -86,10 +87,7 @@ export const Sidebar = () => {
       .catch(() => {});
   }, []);
 
-  const bmCountFor = (key: string, items: any[]) => {
-    const kn = key.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    return items.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
-  };
+
 
   const setView = (view: string, legacyFn?: string) => {
     currentView.value = view;
@@ -102,6 +100,7 @@ export const Sidebar = () => {
   const selectCategory = (catName: string) => {
     currentView.value = 'browse';
     currentCategory.value = catName;
+    currentTag.value = '';
     isSidebarOpen.value = false;
     // Compatibility
     (window as any).cat = catName;
@@ -295,6 +294,11 @@ export const Sidebar = () => {
       <SectionHeader
         label="Categories"
         id="sh3-cats"
+        onClick={() => {
+          const newState = !catsOpen;
+          setCatsOpen(newState);
+          if (newState) setTagsOpen(false);
+        }}
         action={
           <button className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -304,7 +308,7 @@ export const Sidebar = () => {
           </button>
         }
       />
-      <div className="side-section" id="catsSection">
+      <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
         {categories.value.slice(0, 15).map(c => {
           let lockIcon = null;
           if (c.partial) {
@@ -312,13 +316,12 @@ export const Sidebar = () => {
           } else if (c.encrypted) {
             lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px', opacity: 0.7, verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
           }
-          const bmCount = bmCountFor(c.path || '', bookmarkItems);
           return (
             <SidebarItem
               key={c.name}
               label={c.name}
               icon={lockIcon}
-              badge={c.count + bmCount}
+              badge={c.count}
               onClick={() => selectCategory(c.path)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -363,7 +366,15 @@ export const Sidebar = () => {
       </div>
 
       <div className="side-sep" id="tags-sep"></div>
-      <SectionHeader label="Tags" id="sh3-tags" onClick={() => setTagsOpen(!tagsOpen)} />
+      <SectionHeader 
+        label="Tags" 
+        id="sh3-tags" 
+        onClick={() => {
+          const newState = !tagsOpen;
+          setTagsOpen(newState);
+          if (newState) setCatsOpen(false);
+        }} 
+      />
       <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
         {tags.filter(t => !(appPrefs.value.hiddenTags || []).includes(t.name)).map(t => (
           <SidebarItem
@@ -373,6 +384,7 @@ export const Sidebar = () => {
             badge={t.count}
             icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>}
             onClick={() => {
+              currentCategory.value = '';
               currentView.value = 'tag';
               currentTag.value = t.name;
             }}

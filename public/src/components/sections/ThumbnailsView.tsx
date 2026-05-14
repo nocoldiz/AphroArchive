@@ -18,12 +18,27 @@ export const ThumbnailsView = () => {
 
   const slideTimerRef = useRef<any>(null);
 
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    loadThumbnails();
-    if (allVideos.value.length === 0) loadVideos();
+    async function init() {
+      setLoading(true);
+      await loadThumbnails();
+      if (allVideos.value.length === 0) await loadVideos();
+      setLoading(false);
+    }
+    init();
   }, []);
 
   const list = thumbnails.value;
+
+  if (loading) {
+    return (
+      <div className="empty-state" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <h3 style={{ color: 'var(--tx2)' }}>Loading thumbnails...</h3>
+      </div>
+    );
+  }
 
   if (list.length === 0) {
     return (
@@ -36,11 +51,14 @@ export const ThumbnailsView = () => {
 
   // Flatten the list: each video has multiple thumbs
   const baseThumbs: FlatThumb[] = list.flatMap(group =>
-    group.thumbs.map((url: string, i: number) => ({ videoId: group.id, url, index: i }))
+    (group.thumbs || []).map((url: string, i: number) => ({ videoId: group.id, url, index: i }))
   );
 
+  // Optimize lookups by creating a map
+  const videoMap = new Map(allVideos.value.map(v => [v.id, v]));
+
   let allThumbs = baseThumbs.map(t => {
-    const video = allVideos.value.find(v => v.id === t.videoId);
+    const video = videoMap.get(t.videoId);
     return {
       ...t,
       title: video?.name || t.videoId,

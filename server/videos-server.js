@@ -360,6 +360,17 @@ async function apiCategories(req, res) {
   const hidden = loadHidden();
   const catMap = new Map();
 
+  const { BM_CACHE_FILE } = require('./config-server');
+  let bookmarks = [];
+  try {
+    if (fs.existsSync(BM_CACHE_FILE)) {
+      const bmData = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
+      bookmarks = bmData.items || [];
+    }
+  } catch (e) {
+    console.error('Failed to load bookmarks cache:', e);
+  }
+
   for (const v of videos) {
     const cp = v.catPath;
     if (!cp) continue;
@@ -381,14 +392,18 @@ async function apiCategories(req, res) {
       }
       
       const entry = catMap.get(subRelFwd);
-      
-      if (i === parts.length - 1) {
-        entry.count++;
-        if (!v.encrypted) {
-          entry.hasUnencrypted = true;
-        }
+      entry.count++;
+      if (!v.encrypted) {
+        entry.hasUnencrypted = true;
       }
     }
+  }
+
+  // Add bookmarks (remote videos) count
+  for (const [key, entry] of catMap.entries()) {
+    const kn = entry.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const bmCount = bookmarks.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
+    entry.count += bmCount;
   }
 
   const db = require('./db-server');
@@ -903,11 +918,38 @@ async function apiCategoriesOverview(req, res) {
   const catMap = new Map();
   for (const v of videos) {
     if (v.catPath === '') continue;
-    if (!catMap.has(v.catPath)) catMap.set(v.catPath, { type: 'cat', name: v.category, path: v.catPath, count: 0, ids: [], duration: 0 });
-    const e = catMap.get(v.catPath);
-    e.count++;
-    e.ids.push(v.id);
-    e.duration += (v.duration || 0);
+    
+    const parts = v.catPath.split('/');
+    let currentPath = '';
+    
+    for (let i = 0; i < parts.length; i++) {
+      currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
+      if (!catMap.has(currentPath)) {
+        catMap.set(currentPath, { type: 'cat', name: currentPath.replace(/\//g, ' / '), path: currentPath, count: 0, ids: [], duration: 0 });
+      }
+      const e = catMap.get(currentPath);
+      e.count++;
+      e.ids.push(v.id);
+      e.duration += (v.duration || 0);
+    }
+  }
+
+  const { BM_CACHE_FILE } = require('./config-server');
+  let bookmarks = [];
+  try {
+    if (fs.existsSync(BM_CACHE_FILE)) {
+      const bmData = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
+      bookmarks = bmData.items || [];
+    }
+  } catch (e) {
+    // Ignore
+  }
+
+  // Add bookmarks (remote videos) count
+  for (const [key, e] of catMap.entries()) {
+    const kn = e.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const bmCount = bookmarks.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
+    e.count += bmCount;
   }
   const filteredCats = [...catMap.values()].filter(c => {
     const lo = c.path.toLowerCase();

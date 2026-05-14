@@ -370,7 +370,7 @@ export const PlayerView = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
                   {relatedVideos.map(v => (
                     <div key={v.id} onClickCapture={() => { skipNextUpUpdate.value = true; }}>
-                      <VideoCard video={v} isSelected={false} />
+                      <VideoCard video={v} isSelected={false} isRelated={true} />
                     </div>
                   ))}
                 </div>

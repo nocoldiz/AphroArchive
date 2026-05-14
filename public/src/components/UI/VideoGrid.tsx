@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 
@@ -16,9 +16,10 @@ interface VideoCardProps {
   video: Video;
   isSelected: boolean;
   index?: number;
+  isRelated?: boolean;
 }
 
-export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
+export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProps) => {
   const [showVideo, setShowVideo] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const timerRef = useRef<any>(null);
@@ -34,6 +35,18 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
       type: 'video',
       data: video
     };
+  };
+
+  const enqueueNext = (e: any) => {
+    e.stopPropagation();
+    playerNextUp.value = [video, ...playerNextUp.value];
+    if ((window as any).toast) (window as any).toast('Added to queue as next');
+  };
+
+  const enqueueEnd = (e: any) => {
+    e.stopPropagation();
+    playerNextUp.value = [...playerNextUp.value, video];
+    if ((window as any).toast) (window as any).toast('Added to end of queue');
   };
 
   useEffect(() => {
@@ -212,9 +225,20 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
           transform: isHovered ? 'translateY(0)' : 'translateY(-5px)',
           transition: 'opacity 0.2s ease, transform 0.2s ease'
         }}>
-          <button onClick={toggleFav} title="Favourite" className={video.fav ? 'fav-active' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          </button>
+          {isRelated ? (
+            <>
+              <button onClick={enqueueNext} title="Add as next">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button onClick={enqueueEnd} title="Add to end">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5v14M5 19h14"/></svg>
+              </button>
+            </>
+          ) : (
+            <button onClick={toggleFav} title="Favourite" className={video.fav ? 'fav-active' : ''}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </button>
+          )}
           <button onClick={openCtx} title="Menu">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
           </button>
