@@ -55,13 +55,48 @@ try {
 }
 
 async function cachedScan() {
-  if (!_scanCache) _scanCache = await scan(VIDEOS_DIR);
+  if (!_scanCache) {
+    let all = await scan(VIDEOS_DIR);
+    
+    try {
+      const prefs = loadPrefs();
+      if (prefs.sourceFolders) {
+        for (const folder of prefs.sourceFolders) {
+          if (fs.existsSync(folder)) {
+            const extFiles = await scan(folder, folder, true); // true = isExternal
+            all.push(...extFiles);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to scan external folders:', e);
+    }
+    
+    // Auto-categorize external files based on title matching
+    try {
+      const cats = loadCategories();
+      all = all.map(v => {
+        if (path.isAbsolute(v.rel) && v.category === 'Uncategorized') {
+          for (const cat of cats) {
+            if (wordMatchAny(v.name, cat.terms)) {
+              return { ...v, category: cat.displayName, catPath: cat.name };
+            }
+          }
+        }
+        return v;
+      });
+    } catch (e) {
+      console.error('Failed to auto-categorize external files:', e);
+    }
+    
+    _scanCache = all;
+  }
   return _scanCache;
 }
 
 // ── Video scanning ───────────────────────────────────────────────────
 
-async function scan(dir, base = dir) {
+async function scan(dir, base = dir, isExternal = false) {
   const out = [];
   if (!fs.existsSync(dir)) return out;
   const isDirEncrypted = fs.existsSync(path.join(dir, '.cat-enc-config.json'));
@@ -77,7 +112,7 @@ async function scan(dir, base = dir) {
         const fp = path.join(dir, ent.name);
         if (ent.isDirectory()) {
           if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR)) return;
-          const sub = await scan(fp, base);
+          const sub = await scan(fp, base, isExternal);
           out.push(...sub);
           return;
         }
@@ -103,14 +138,15 @@ async function scan(dir, base = dir) {
         const rel = path.relative(base, fp);
         const cat = path.dirname(rel);
         const st  = await fs.promises.stat(fp);
-        const catPath = cat === '.' ? '' : cat.replace(/\\/g, '/');
+        const catPath = isExternal ? '' : (cat === '.' ? '' : cat.replace(/\\/g, '/'));
         out.push({
-          id: toId(rel),
+          id: toId(isExternal ? fp : rel),
           name: path.basename(originalName, realExt),
           filename: ent.name,
           ext: realExt,
           encrypted,
-          rel, category: cat === '.' ? 'Uncategorized' : cat.replace(/[\\/]/g, ' / '),
+          rel: isExternal ? fp : rel, 
+          category: isExternal ? 'Uncategorized' : (cat === '.' ? 'Uncategorized' : cat.replace(/[\\/]/g, ' / ')),
           catPath,
           size: st.size, sizeF: formatBytes(st.size),
           modified: st.mtime.toISOString(), mtime: st.mtimeMs,
@@ -153,7 +189,14 @@ async function allVideos() {
 
   const all    = await cachedScan();
   const hidden = loadHidden();
-  return all.filter(v => {
+  const meta   = loadVideoMeta();
+  
+  return all.map(v => {
+    if (meta[v.id] && meta[v.id].category) {
+      return { ...v, category: meta[v.id].category, catPath: meta[v.id].category };
+    }
+    return v;
+  }).filter(v => {
     if (hidden.length && isVideoHidden(v, hidden)) return false;
     if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
@@ -657,6 +700,21 @@ async function apiMove(req, res, id) {
   const targetCategory = (body.category ?? '').trim();
   const fp             = safePath(id);
   if (!fp) return json(res, { error: 'Not found' }, 404);
+
+  const isExternal = !fp.startsWith(path.resolve(VIDEOS_DIR));
+
+  if (isExternal) {
+    try {
+      const meta = loadVideoMeta();
+      if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
+      meta[id].category = targetCategory;
+      saveVideoMeta(meta);
+      invalidateScanCache();
+      return json(res, { ok: true, newId: id });
+    } catch (e) {
+      return json(res, { error: e.message }, 500);
+    }
+  }
 
   const targetDir      = targetCategory ? path.join(VIDEOS_DIR, targetCategory) : VIDEOS_DIR;
   const resolvedTarget = path.resolve(targetDir);

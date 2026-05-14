@@ -61,8 +61,57 @@ async function apiSavePrefs(req, res) {
   if ('networkEnabled' in body)   prefs.networkEnabled   = !!body.networkEnabled;
   if ('aiCommentMasterPrompt' in body) prefs.aiCommentMasterPrompt = String(body.aiCommentMasterPrompt || '').trim();
   if ('aiReplyMasterPrompt' in body)   prefs.aiReplyMasterPrompt   = String(body.aiReplyMasterPrompt || '').trim();
+  if ('sourceFolders' in body) {
+    if (Array.isArray(body.sourceFolders)) {
+      prefs.sourceFolders = body.sourceFolders.map(p => String(p).trim()).filter(Boolean);
+      try {
+        const { invalidateScanCache } = require('./videos-server');
+        invalidateScanCache();
+      } catch (e) {}
+    }
+  }
   savePrefs(prefs);
   json(res, { ok: true });
 }
 
-module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs };
+function apiBrowseFolders(req, res, params) {
+  const os = require('os');
+  let currentPath = params.get('path');
+  
+  if (!currentPath) {
+    currentPath = os.homedir();
+  }
+  
+  try {
+    const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+    const dirs = [];
+    for (const ent of entries) {
+      if (ent.isDirectory() && !ent.name.startsWith('.')) {
+        dirs.push(ent.name);
+      }
+    }
+      
+    const drives = [];
+    if (process.platform === 'win32') {
+      for (let i = 65; i <= 90; i++) {
+        const drive = String.fromCharCode(i) + ':\\';
+        try {
+          if (fs.existsSync(drive)) drives.push(drive);
+        } catch (e) {}
+      }
+    } else {
+      drives.push('/');
+    }
+      
+    json(res, {
+      currentPath: path.resolve(currentPath),
+      parent: path.resolve(currentPath) === path.resolve(path.dirname(currentPath)) ? null : path.dirname(path.resolve(currentPath)),
+      dirs: dirs.sort(),
+      drives: drives
+    });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders };

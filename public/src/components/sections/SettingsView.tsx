@@ -48,6 +48,37 @@ export const SettingsView = () => {
   const abortAiRef = useRef(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Folder Browser State
+  const [showBrowser, setShowBrowser] = useState(false);
+  const [currentBrowsePath, setCurrentBrowsePath] = useState('');
+  const [browseDirs, setBrowseDirs] = useState<string[]>([]);
+  const [browseDrives, setBrowseDrives] = useState<string[]>([]);
+  const [browseParent, setBrowseParent] = useState<string | null>(null);
+
+  const fetchFolders = async (path?: string) => {
+    try {
+      const url = path ? `/api/browse-folders?path=${encodeURIComponent(path)}` : '/api/browse-folders';
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.error) {
+        if (window.toast) window.toast(data.error);
+        return;
+      }
+      setCurrentBrowsePath(data.currentPath);
+      setBrowseDirs(data.dirs);
+      setBrowseDrives(data.drives);
+      setBrowseParent(data.parent);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (showBrowser && !currentBrowsePath) {
+      fetchFolders();
+    }
+  }, [showBrowser]);
   const sseRef = useRef<EventSource | null>(null);
 
   const qrRef = useRef<HTMLCanvasElement>(null);
@@ -318,7 +349,7 @@ export const SettingsView = () => {
   };
 
   return (
-    <div className="settings-view" style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', color: 'var(--tx)' }}>
+    <div className="settings-view on" style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', color: 'var(--tx)' }}>
       <h2 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <i className="icon-settings" style={{ color: 'var(--ac)' }} />
         Settings
@@ -419,6 +450,171 @@ export const SettingsView = () => {
             </div>
             <button class="modal-btn modal-btn--primary" onClick={handleSaveAnthropic} style={{ width: '100%' }}>Save API Key</button>
           </>
+        )}
+      </div>
+
+      {/* Source Folders Section */}
+      <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
+        <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <i className="icon-folder" />
+          Source Folders
+        </h3>
+        <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
+          Add external folders to scan for media (Videos, Photos, Audio). Files will not be moved.
+        </p>
+
+        {/* List of current folders */}
+        <div style={{ marginBottom: '16px' }}>
+          {prefs.sourceFolders && prefs.sourceFolders.length > 0 ? (
+            prefs.sourceFolders.map((folder: string, idx: number) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all' }}>{folder}</span>
+                <button 
+                  className="modal-btn modal-btn--danger" 
+                  style={{ padding: '4px 8px', fontSize: '12px' }}
+                  onClick={() => {
+                    const updated = prefs.sourceFolders!.filter((_: any, i: number) => i !== idx);
+                    updatePrefs({ sourceFolders: updated });
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))
+          ) : (
+            <p style={{ fontSize: '13px', color: 'var(--tx3)', textAlign: 'center' }}>No source folders added yet.</p>
+          )}
+        </div>
+
+        {/* Add new folder */}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <input 
+            type="text" 
+            id="new-source-folder"
+            placeholder="C:\\Users\\...\\Pictures" 
+            style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }} 
+          />
+          <button 
+            className="modal-btn modal-btn--secondary"
+            onClick={() => {
+              setShowBrowser(true);
+            }}
+          >
+            Browse
+          </button>
+          <button 
+            className="modal-btn modal-btn--primary"
+            onClick={() => {
+              const input = document.getElementById('new-source-folder') as HTMLInputElement;
+              const val = input.value.trim();
+              if (val) {
+                const current = prefs.sourceFolders || [];
+                if (!current.includes(val)) {
+                  updatePrefs({ sourceFolders: [...current, val] });
+                  input.value = '';
+                } else {
+                  if (window.toast) window.toast('Folder already added');
+                }
+              }
+            }}
+          >
+            Add
+          </button>
+        </div>
+
+        {/* Folder Browser Modal */}
+        {showBrowser && (
+          <div style={{ 
+            position: 'fixed', 
+            top: 0, left: 0, right: 0, bottom: 0, 
+            background: 'rgba(0,0,0,0.7)', 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            zIndex: 1000 
+          }}>
+            <div style={{ 
+              background: 'var(--bg2)', 
+              padding: '24px', 
+              borderRadius: '12px', 
+              border: '1px solid var(--brd)', 
+              width: '80%', 
+              maxWidth: '600px',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <h3 style={{ margin: 0, marginBottom: '16px', color: 'var(--ac)' }}>Browse Folders</h3>
+              
+              {/* Current Path */}
+              <div style={{ background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '10px', fontSize: '14px', wordBreak: 'break-all' }}>
+                {currentBrowsePath}
+              </div>
+              
+              {/* Drives */}
+              {browseDrives.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  {browseDrives.map(drive => (
+                    <button 
+                      key={drive}
+                      className="modal-btn modal-btn--secondary"
+                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                      onClick={() => fetchFolders(drive)}
+                    >
+                      {drive}
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {/* List of folders */}
+              <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg3)', borderRadius: '6px', padding: '10px', marginBottom: '16px' }}>
+                {browseParent && (
+                  <div 
+                    style={{ padding: '8px', cursor: 'pointer', color: 'var(--ac)', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    onClick={() => fetchFolders(browseParent)}
+                  >
+                    <i className="icon-folder" />
+                    .. (Go Up)
+                  </div>
+                )}
+                {browseDirs.map(dir => {
+                  const sep = currentBrowsePath.includes('\\') ? '\\' : '/';
+                  const nextPath = currentBrowsePath + (currentBrowsePath.endsWith('\\') || currentBrowsePath.endsWith('/') ? '' : sep) + dir;
+                  return (
+                    <div 
+                      key={dir}
+                      style={{ padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--brd)' }}
+                      onClick={() => fetchFolders(nextPath)}
+                    >
+                      <i className="icon-folder" />
+                      {dir}
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <button 
+                  className="modal-btn modal-btn--secondary"
+                  onClick={() => setShowBrowser(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="modal-btn modal-btn--primary"
+                  onClick={() => {
+                    const input = document.getElementById('new-source-folder') as HTMLInputElement;
+                    if (input) input.value = currentBrowsePath;
+                    setShowBrowser(false);
+                  }}
+                >
+                  Select Current Folder
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

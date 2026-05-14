@@ -12,11 +12,57 @@ const { loadAudioMeta, saveAudioMeta } = require('./db-server');
 function audioToId(n)   { return Buffer.from(n).toString('base64url'); }
 function audioFromId(id) { return Buffer.from(id, 'base64url').toString(); }
 
+function scanAudio(dir, base) {
+  const out = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const ent of entries) {
+      const fp = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        out.push(...scanAudio(fp, base));
+      } else if (ent.isFile()) {
+        const ext = path.extname(ent.name).toLowerCase();
+        if (AUDIO_EXT.has(ext)) {
+          const stat = fs.statSync(fp);
+          out.push({
+            id: audioToId(fp),
+            filename: ent.name,
+            title: path.basename(ent.name, ext),
+            ext,
+            size: stat.size,
+            sizeF: formatBytes(stat.size),
+            date: stat.mtimeMs,
+            isExternal: true
+          });
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore
+  }
+  return out;
+}
+
 function apiAudioList(req, res) {
   const meta  = loadAudioMeta();
   const files = Object.entries(meta)
-    .map(([filename, m]) => ({ id: audioToId(filename), filename, ...m }))
-    .sort((a, b) => b.date - a.date);
+    .map(([filename, m]) => ({ id: audioToId(filename), filename, ...m }));
+    
+  try {
+    const { loadPrefs } = require('./db-server');
+    const prefs = loadPrefs();
+    if (prefs.sourceFolders) {
+      for (const folder of prefs.sourceFolders) {
+        if (fs.existsSync(folder)) {
+          files.push(...scanAudio(folder, folder));
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to scan external audio folders:', e);
+  }
+    
+  files.sort((a, b) => b.date - a.date);
   json(res, files);
 }
 
@@ -44,8 +90,29 @@ async function apiAudioUpload(req, res) {
 
 function apiAudioStream(req, res, id) {
   const filename = audioFromId(id);
-  const fp       = path.join(AUDIO_DIR, path.basename(filename));
-  if (!fp.startsWith(path.resolve(AUDIO_DIR) + path.sep)) { res.writeHead(403); res.end(); return; }
+  let fp;
+  
+  if (path.isAbsolute(filename)) {
+    fp = filename;
+    let allowed = false;
+    try {
+      const { loadPrefs } = require('./db-server');
+      const prefs = loadPrefs();
+      if (prefs.sourceFolders) {
+        for (const folder of prefs.sourceFolders) {
+          if (fp.startsWith(path.resolve(folder))) {
+            allowed = true;
+            break;
+          }
+        }
+      }
+    } catch (e) {}
+    if (!allowed) { res.writeHead(403); res.end(); return; }
+  } else {
+    fp = path.join(AUDIO_DIR, path.basename(filename));
+    if (!fp.startsWith(path.resolve(AUDIO_DIR) + path.sep)) { res.writeHead(403); res.end(); return; }
+  }
+
   if (!fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
   const stat  = fs.statSync(fp);
   const size  = stat.size;

@@ -53,6 +53,7 @@ export interface AppPrefs {
   disableSearchTracking?: boolean;
   vaultSelfDestruct?: boolean;
   hiddenTags?: string[];
+  sourceFolders?: string[];
 }
 export interface ThumbnailGroup {
   id: string;

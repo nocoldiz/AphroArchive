@@ -326,6 +326,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/settings\/(hidden|whitelist)$/)) && req.method === 'PUT') return settings.apiSettingsSave(req, res, m[1]);
   if (p === '/api/settings/prefs' && req.method === 'GET') return settings.apiGetPrefs(req, res);
   if (p === '/api/settings/prefs' && req.method === 'PUT') return settings.apiSavePrefs(req, res);
+  if (p === '/api/browse-folders' && req.method === 'GET') return settings.apiBrowseFolders(req, res, params);
 
   // ── AI Comments ──────────────────────────────────────────────────────
   if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);

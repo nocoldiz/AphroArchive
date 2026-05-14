@@ -32,10 +32,33 @@ function fromId(id) { return Buffer.from(id, 'base64url').toString('utf-8'); }
 
 function safePath(id) {
   const rel  = fromId(id);
-  const full = path.resolve(VIDEOS_DIR, rel);
-  if (!full.startsWith(path.resolve(VIDEOS_DIR))) return null;
-  if (!fs.existsSync(full)) return null;
-  return full;
+  let full;
+  if (path.isAbsolute(rel)) {
+    full = path.resolve(rel);
+  } else {
+    full = path.resolve(VIDEOS_DIR, rel);
+  }
+
+  if (full.startsWith(path.resolve(VIDEOS_DIR))) {
+    if (fs.existsSync(full)) return full;
+    return null;
+  }
+
+  try {
+    const { loadPrefs } = require('./db-server');
+    const prefs = loadPrefs();
+    if (prefs.sourceFolders) {
+      for (const folder of prefs.sourceFolders) {
+        if (full.startsWith(path.resolve(folder))) {
+          if (fs.existsSync(full)) return full;
+        }
+      }
+    }
+  } catch (e) {
+    // Handle potential errors
+  }
+
+  return null;
 }
 
 // ── String matching ──────────────────────────────────────────────────

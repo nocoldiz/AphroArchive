@@ -70,7 +70,7 @@ function scanPhotos(dir, base, rootType) {
       }
       out.push(...scanPhotos(fp, base, rootType));
     } else if (e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase())) {
-      const rel  = path.relative(base, fp);
+      const rel  = rootType === 's' ? fp : path.relative(base, fp);
       const stat = fs.statSync(fp);
       const ext  = path.extname(e.name).toLowerCase();
       
@@ -104,12 +104,47 @@ function apiPhotosList(req, res) {
   fs.mkdirSync(PHOTOS_DIR, { recursive: true });
   const photosP = scanPhotos(PHOTOS_DIR, PHOTOS_DIR, 'p');
   const photosV = scanPhotos(VIDEOS_DIR, VIDEOS_DIR, 'v');
-  const photos  = [...photosP, ...photosV].sort((a, b) => b.date - a.date);
+  
+  let photosS = [];
+  try {
+    const { loadPrefs } = require('./db-server');
+    const prefs = loadPrefs();
+    if (prefs.sourceFolders) {
+      for (const folder of prefs.sourceFolders) {
+        if (fs.existsSync(folder)) {
+          photosS.push(...scanPhotos(folder, folder, 's'));
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to scan external photo folders:', e);
+  }
+  
+  const photos  = [...photosP, ...photosV, ...photosS].sort((a, b) => b.date - a.date);
   json(res, photos);
 }
 
 function _getFp(id) {
   const { rootType, rel } = photoFromId(id);
+  
+  if (rootType === 's') {
+    const fp = path.resolve(rel);
+    try {
+      const { loadPrefs } = require('./db-server');
+      const prefs = loadPrefs();
+      if (prefs.sourceFolders) {
+        for (const folder of prefs.sourceFolders) {
+          if (fp.startsWith(path.resolve(folder))) {
+            if (fs.existsSync(fp)) return fp;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return null;
+  }
+  
   const root = rootType === 'v' ? VIDEOS_DIR : PHOTOS_DIR;
   const fp   = path.resolve(path.join(root, rel));
   if (!fp.startsWith(path.resolve(root) + path.sep) && fp !== path.resolve(root)) return null;
