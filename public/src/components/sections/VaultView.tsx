@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { vaultMode, isVaultUnlocked, currentVideo, currentView } from '../../store';
+import { PhotoLightbox } from '../modals/PhotoLightbox';
 
 interface VaultFile {
   id: string;
@@ -811,7 +812,7 @@ export const VaultView = () => {
             onNext={() => setLightboxIdx(prev => (prev !== null && prev < photoFiles.length - 1 ? prev + 1 : 0))}
             onDelete={() => handleDeleteFile(photoFiles[lightboxIdx].id)}
             onFav={() => handleToggleFav(photoFiles[lightboxIdx].id)}
-            isFav={(id) => favIds.has(id)}
+            isFav={favIds.has(photoFiles[lightboxIdx].id)}
             onDownload={() => downloadFile(photoFiles[lightboxIdx].id, photoFiles[lightboxIdx].name || photoFiles[lightboxIdx].originalName)}
             onDescribe={() => describeFile(photoFiles[lightboxIdx].id, 'photo')}
           />

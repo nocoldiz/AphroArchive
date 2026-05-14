@@ -1,7 +1,8 @@
 import { useEffect } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, loadPrefs, currentView, presetPickerState, sortMode, isShuffle } from './store';
+import { videos, loadVideos, loadCategories, loadPrefs, currentView, presetPickerState, sortMode, isShuffle, showConnectModal } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
+import { ConnectModal } from './components/modals/ConnectModal';
 import { DropOverlay } from './components/UI/DropOverlay';
 
 export function App() {
@@ -88,6 +89,7 @@ export function App() {
 
       <PresetPicker />
       <ProfileModal />
+      {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}
       <DropOverlay />
     </>
   );

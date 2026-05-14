@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'preact/hooks';
 import { VideoCard } from '../UI/VideoGrid';
 import { Video } from '../../types';
-import { currentActor } from '../../store';
+import { currentActor, cardSize } from '../../store';
+import { SectionControls } from '../UI/SectionControls';
 
 interface Actor {
   name: string;
@@ -90,29 +91,26 @@ export const ActorsView = () => {
     return (
       <div
         key={a.name}
-        class={`actor-card fade-in ${a.count === 0 ? 'actor-card-unmatched' : ''}`}
+        class={`cv-card fade-in ${a.count === 0 ? 'cv-card-unmatched' : ''}`}
         onClick={() => currentActor.value = a.name}
         style={{ cursor: 'pointer' }}
       >
-        <div class="actor-avatar" style={{ background: `${c}22`, color: c }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <div class="cv-thumb" style={{ background: `${c}22`, color: c, position: 'relative', overflow: 'hidden' }}>
+          <img src={`/api/actor-photos/${encodeURIComponent(a.name)}/img`} alt="" loading="lazy" onError={(e: any) => e.target.style.display = 'none'} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', opacity: 0.3 }}>
             <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
           </svg>
-          <img class="actor-photo" src={`/api/actor-photos/${encodeURIComponent(a.name)}/img`} alt="" onError={(e: any) => e.target.style.display = 'none'} />
         </div>
-        <div class="actor-name">{a.name}</div>
-        <div class="actor-count">{a.count > 0 ? `${a.count} video${a.count !== 1 ? 's' : ''}` : 'No videos'}</div>
-        {metaParts.length > 0 || a.imdb_page ? (
-          <div class="actor-meta">
-            {metaParts.join(' · ')}
-            {a.imdb_page && (
-              <>
-                {metaParts.length > 0 && ' · '}
-                <a class="actor-link" href={a.imdb_page} target="_blank" rel="noopener" onClick={e => e.stopPropagation()}>IMDb</a>
-              </>
-            )}
+        
+        <div class="cv-overlay">
+          <span class="cv-type">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>
+          </span>
+          <div class="cv-info">
+            <span class="cv-name">{a.name}</span>
+            <span class="cv-count">{a.count}</span>
           </div>
-        ) : null}
+        </div>
       </div>
     );
   };
@@ -132,7 +130,7 @@ export const ActorsView = () => {
         ) : actorVideos.length === 0 ? (
           <div class="empty-state">No videos found for this actor</div>
         ) : (
-          <div class="video-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
+          <div class="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
             {actorVideos.map(v => <VideoCard key={v.id} video={v} isSelected={false} />)}
           </div>
         )}
@@ -144,30 +142,21 @@ export const ActorsView = () => {
     <div id="actors-view" class="actors-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Actors</h1>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <div class="sort-buttons" style={{ display: 'flex', gap: '5px' }}>
-            {['name', 'count-desc', 'duration-desc'].map(s => (
-              <button
-                key={s}
-                class={`btn ${sort === s ? 'on' : ''}`}
-                onClick={() => setSort(s as any)}
-                style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-              >
-                {s === 'name' ? 'Name' : s === 'count-desc' ? 'Count' : 'Duration'}
-              </button>
-            ))}
-          </div>
-          <div class="search-bar" style={{ position: 'relative' }}>
-          <input
-            type="text"
-            class="input-box"
-            placeholder="Search actors..."
-            value={search}
-            onInput={(e: any) => setSearch(e.target.value)}
-            style={{ width: '200px' }}
-          />
-        </div>
-        </div>
+        <SectionControls
+          showStarred={false}
+          showShuffle={false}
+          showSource={false}
+          showFilter={true}
+          sortOptions={[
+            { value: 'name', label: 'Name' },
+            { value: 'count-desc', label: 'Count' },
+            { value: 'duration-desc', label: 'Duration' }
+          ]}
+          currentSort={sort}
+          onSortChange={(val) => setSort(val as any)}
+          currentFilter={search}
+          onFilterChange={setSearch}
+        />
       </div>
 
       {loading ? (
@@ -177,7 +166,7 @@ export const ActorsView = () => {
       ) : (
         <>
           {activeActors.length > 0 && (
-            <div class="actor-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+            <div class="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px', marginBottom: '40px' }}>
               {activeActors.map(renderActorCard)}
             </div>
           )}
@@ -187,7 +176,7 @@ export const ActorsView = () => {
               <div class="actor-section-sep" style={{ margin: '20px 0', borderBottom: '1px solid var(--border)', paddingBottom: '5px' }}>
                 <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Other Actors</span>
               </div>
-              <div class="actor-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px' }}>
+              <div class="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
                 {otherActors.map(renderActorCard)}
               </div>
             </>

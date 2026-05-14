@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -154,6 +154,18 @@ export const ContextMenu = () => {
     } catch (e: any) {
       toast('Download failed: ' + e.message);
     }
+  };
+
+  const handleHideTag = async () => {
+    const tagName = data.name;
+    if (!confirm(`Hide tag "${tagName}"? It can be unhidden in Settings.`)) return;
+
+    const currentHidden = appPrefs.value.hiddenTags || [];
+    const updates = { hiddenTags: [...currentHidden, tagName] };
+    
+    await updatePrefs(updates);
+    toast(`Tag "${tagName}" hidden`);
+    contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
 
   const handleEncrypt = () => {
@@ -315,6 +327,9 @@ export const ContextMenu = () => {
             <ContextItem label="Lock all unencrypted" icon="lock" onClick={() => toast('Not implemented in TSX yet')} />
             <ContextItem label="Unlock all encrypted" icon="lock" onClick={() => toast('Not implemented in TSX yet')} />
           </>
+        )}
+        {type === 'tag' && (
+          <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
         )}
       </div>
 

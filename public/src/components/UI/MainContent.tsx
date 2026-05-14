@@ -86,7 +86,7 @@ export const MainContent = () => {
   }, []);
 
   const renderView = () => {
-    if (view === 'home') return <HomeView />;
+    if (view === 'hub') return <HomeView />;
     if (view === 'chapters') return <ChaptersView />;
     if (view === 'scraper') return <ActorScraperView />;
     if (view === 'settings') return <SettingsView />;

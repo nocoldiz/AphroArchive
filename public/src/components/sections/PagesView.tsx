@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
+import { cardSize } from '../../store';
 
 interface PageItem {
   id: string;
@@ -91,7 +92,6 @@ export const PagesView = () => {
           showStarred={false}
           showShuffle={false}
           showSource={false}
-          showCardSize={false}
           showFilter={true}
           currentFilter={query}
           onFilterChange={setQuery}
@@ -107,7 +107,7 @@ export const PagesView = () => {
         </SectionControls>
       </div>
 
-      <div id="pagesGrid" className="pages-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', padding: '16px 0' }}>
+      <div id="pagesGrid" className="pages-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '16px', padding: '16px 0' }}>
         {loading && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem', padding: '8px 0' }}>Loading…</div>}
         {!loading && filteredPages.length === 0 && (
           <div id="pagesEmpty" style={{ color: 'var(--tx2)', fontSize: '0.85rem', padding: '8px 0' }}>

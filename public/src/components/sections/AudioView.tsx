@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
-import { isMuted } from '../../store';
+import { isMuted, cardSize } from '../../store';
 
 interface AudioFile {
   id: string;
@@ -119,7 +119,6 @@ export const AudioView = () => {
           showStarred={false}
           showShuffle={false}
           showSource={false}
-          showCardSize={false}
           showFilter={true}
           currentSort={sort}
           onSortChange={(val: any) => setSort(val)}
@@ -147,7 +146,7 @@ export const AudioView = () => {
         </SectionControls>
       </div>
 
-      <div id="audioGrid" className={view === 'list' ? 'au-list' : 'au-grid'} style={{ display: view === 'list' ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: view === 'card' ? 'repeat(auto-fill, minmax(200px, 1fr))' : 'none', gap: '12px', padding: '16px 0' }}>
+      <div id="audioGrid" className={view === 'list' ? 'au-list' : 'au-grid'} style={{ display: view === 'list' ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: view === 'card' ? `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))` : 'none', gap: '12px', padding: '16px 0' }}>
         {loading && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>Loading…</div>}
         {!loading && filteredFiles.length === 0 && (
           <div id="audioEmpty" style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No audio files found.</div>

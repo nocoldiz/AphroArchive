@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentCategory, currentTag, currentView } from '../../store';
+import { currentCategory, currentTag, currentView, cardSize } from '../../store';
+import { SectionControls } from '../UI/SectionControls';
 
 interface CategoryOverviewItem {
   type: 'cat' | 'tag';
@@ -14,6 +15,7 @@ interface CategoryOverviewItem {
 export const CategoriesView = () => {
   const [data, setData] = useState<CategoryOverviewItem[]>([]);
   const [sort, setSort] = useState<'name' | 'count-desc' | 'count-asc' | 'duration-desc'>('name');
+  const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,7 +31,11 @@ export const CategoriesView = () => {
       });
   }, []);
 
-  const sortedData = [...data];
+  const filteredData = filter.trim()
+    ? data.filter(item => item.name.toLowerCase().includes(filter.toLowerCase()))
+    : data;
+
+  const sortedData = [...filteredData];
   if (sort === 'name') {
     sortedData.sort((a, b) => a.name.localeCompare(b.name));
   } else if (sort === 'count-desc') {
@@ -46,32 +52,22 @@ export const CategoriesView = () => {
     <div id="categories-view" class="categories-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>Categories & Tags</h1>
-        <div class="sort-buttons" style={{ display: 'flex', gap: '10px' }}>
-          <button 
-            class={`btn cv-sort-btn ${sort === 'name' ? 'on' : ''}`} 
-            onClick={() => setSort('name')}
-          >
-            Name
-          </button>
-          <button 
-            class={`btn cv-sort-btn ${sort === 'count-desc' ? 'on' : ''}`} 
-            onClick={() => setSort('count-desc')}
-          >
-            Count (High)
-          </button>
-          <button 
-            class={`btn cv-sort-btn ${sort === 'count-asc' ? 'on' : ''}`} 
-            onClick={() => setSort('count-asc')}
-          >
-            Count (Low)
-          </button>
-          <button 
-            class={`btn cv-sort-btn ${sort === 'duration-desc' ? 'on' : ''}`} 
-            onClick={() => setSort('duration-desc')}
-          >
-            Duration
-          </button>
-        </div>
+        <SectionControls
+          showStarred={false}
+          showShuffle={false}
+          showSource={false}
+          showFilter={true}
+          sortOptions={[
+            { value: 'name', label: 'Name' },
+            { value: 'count-desc', label: 'Count (High)' },
+            { value: 'count-asc', label: 'Count (Low)' },
+            { value: 'duration-desc', label: 'Duration' }
+          ]}
+          currentSort={sort}
+          onSortChange={(val) => setSort(val as any)}
+          currentFilter={filter}
+          onFilterChange={setFilter}
+        />
       </div>
 
       {loading ? (
@@ -79,7 +75,7 @@ export const CategoriesView = () => {
       ) : sortedData.length === 0 ? (
         <div id="cvEmpty" class="empty-state">No categories or tags found</div>
       ) : (
-        <div class="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
+        <div class="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
           {sortedData.map(item => {
             const thumbSrc = item.thumbId ? `/api/thumbs/${item.thumbId}/0` : '';
             const onclick = () => {

@@ -422,10 +422,12 @@ export const SettingsView = () => {
         )}
       </div>
 
-      {/* Hidden Categories Section */}
+      {/* Hidden Categories & Tags Section */}
       <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
-        <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Hidden Categories / Tags</h3>
-        <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '8px' }}>Type a category or tag and press Enter to hide it.</p>
+        <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Hidden Categories & Tags</h3>
+        
+        <h4 style={{ margin: '0 0 8px 0', color: 'var(--tx2)', fontSize: '0.9rem' }}>Hidden Categories</h4>
+        <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '8px' }}>Type a category and press Enter to hide it.</p>
         
         <div className="tag-input-container" style={{ 
           display: 'flex', 
@@ -474,8 +476,62 @@ export const SettingsView = () => {
             }}
           />
         </div>
+        <button class="modal-btn modal-btn--primary" onClick={handleSaveHidden} style={{ width: '100%', marginBottom: '20px' }}>Save Hidden Categories</button>
+
+        <h4 style={{ margin: '0 0 8px 0', color: 'var(--tx2)', fontSize: '0.9rem' }}>Hidden Tags</h4>
+        <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '8px' }}>Type a tag and press Enter to hide it.</p>
         
-        <button class="modal-btn modal-btn--primary" onClick={handleSaveHidden} style={{ width: '100%' }}>Save Hidden Terms</button>
+        <div className="tag-input-container" style={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: '8px', 
+          background: 'var(--bg3)', 
+          border: '1px solid var(--brd)', 
+          borderRadius: '6px', 
+          padding: '10px',
+          marginBottom: '16px',
+          minHeight: '45px',
+          alignItems: 'center'
+        }}>
+          {(prefs.hiddenTags || []).map((tag, idx) => (
+            <div key={idx} className="chip" style={{ 
+              background: 'var(--bg2)', 
+              border: '1px solid var(--brd)', 
+              borderRadius: '4px', 
+              padding: '4px 8px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '5px',
+              fontSize: '0.9rem'
+            }}>
+              <span>{tag}</span>
+              <button 
+                onClick={() => {
+                  const current = prefs.hiddenTags || [];
+                  updatePrefs({ hiddenTags: current.filter((_, i) => i !== idx) });
+                }}
+                style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+              >×</button>
+            </div>
+          ))}
+          <input
+            type="text"
+            placeholder="Type and press Enter..."
+            style={{ flex: 1, background: 'none', border: 'none', color: 'var(--tx)', outline: 'none', minWidth: '150px', padding: '4px' }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const target = e.target as HTMLInputElement;
+                const val = target.value.trim();
+                const current = prefs.hiddenTags || [];
+                if (val && !current.includes(val)) {
+                  updatePrefs({ hiddenTags: [...current, val] });
+                  target.value = '';
+                }
+              }
+            }}
+          />
+        </div>
       </div>
 
       {/* Thumbnails Section */}

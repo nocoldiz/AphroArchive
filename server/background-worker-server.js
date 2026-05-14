@@ -53,8 +53,8 @@ async function scanAndProcess() {
     let processedCount = 0;
 
     for (const file of files) {
-      const fp = path.join(VIDEOS_DIR, file);
-      const id = toId(file);
+      const fp = path.join(VIDEOS_DIR, file.rel);
+      const id = file.id;
 
       // 1. Check Thumbnails
       const thumbDir = path.join(THUMBS_DIR, id);

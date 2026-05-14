@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag } from '../../store';
+import { currentView, currentCategory, categories, currentTag, appPrefs, showConnectModal } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -101,6 +101,13 @@ export const Sidebar = () => {
       {/* Library */}
       <SectionHeader label="Library" id="sh3-library" />
       <div className="side-section" id="librarySection">
+        <SidebarItem
+          id="home-sidebar"
+          label="Home"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>}
+          onClick={() => setView('hub')}
+          isActive={currentView.value === 'hub'}
+        />
         <SidebarItem
           id="fBtn"
           label="Favourites"
@@ -255,8 +262,8 @@ export const Sidebar = () => {
           id="connect-sidebar"
           label="Connect"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><circle cx="12" cy="20" r="1" fill="currentColor" /></svg>}
-          onClick={() => setView('connect', 'showConnect')}
-          isActive={currentView.value === 'connect'}
+          onClick={() => showConnectModal.value = true}
+          isActive={false}
         />
         <SidebarItem
           id="settings-sidebar"
@@ -342,7 +349,7 @@ export const Sidebar = () => {
       <div className="side-sep" id="tags-sep"></div>
       <SectionHeader label="Tags" id="sh3-tags" onClick={() => setTagsOpen(!tagsOpen)} />
       <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
-        {tags.map(t => (
+        {tags.filter(t => !(appPrefs.value.hiddenTags || []).includes(t.name)).map(t => (
           <SidebarItem
             key={t.name}
             id={`tag-${t.name}`}
@@ -352,6 +359,12 @@ export const Sidebar = () => {
             onClick={() => {
               currentView.value = 'tag';
               currentTag.value = t.name;
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if ((window as any).showContextMenu) {
+                (window as any).showContextMenu(e, 'tag', { name: t.name });
+              }
             }}
             isActive={currentTag.value === t.name}
             indent

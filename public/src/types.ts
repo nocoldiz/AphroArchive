@@ -52,6 +52,7 @@ export interface AppPrefs {
   visionProvider?: string;
   disableSearchTracking?: boolean;
   vaultSelfDestruct?: boolean;
+  hiddenTags?: string[];
 }
 export interface ThumbnailGroup {
   id: string;

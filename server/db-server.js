@@ -84,6 +84,10 @@ function ensureSchema(database) {
       display_name TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS enabled_categories (
+      path TEXT PRIMARY KEY
+    );
+
     CREATE TABLE IF NOT EXISTS category_tags (
       category_name TEXT,
       tag TEXT,

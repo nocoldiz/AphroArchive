@@ -12,7 +12,7 @@ export const Topbar = () => {
   if (view === 'instagram' || view === 'reddit') return null;
 
   const showHome = () => {
-    if ((window as any).showHome) (window as any).showHome();
+    currentView.value = 'home';
   };
 
   const openImport = () => {
