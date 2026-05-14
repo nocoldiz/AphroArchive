@@ -12,9 +12,9 @@ async function apiCollections(req, res) {
   const videos = await allVideos();
   const result = cols.map(col => ({
     name: col.name,
-    ids: col.ids,
-    count: col.ids.length,
-    thumb: col.ids.map(id => videos.find(v => v.id === id)).find(v => v) || null,
+    ids: col.ids || [],
+    count: (col.ids || []).length,
+    thumb: (col.ids || []).map(id => videos.find(v => v.id === id)).find(v => v) || null,
   }));
   json(res, result);
 }
