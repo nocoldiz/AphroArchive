@@ -408,8 +408,34 @@ export async function loadVideos() {
   isLoadingVideos.value = true;
   const res = await fetch('/api/videos');
   const data = await res.json();
-  allVideos.value = data;
-  videos.value = data;
+  
+  let bookmarksData: any[] = [];
+  try {
+    const bRes = await fetch('/api/bookmarks/cache');
+    const bData = await bRes.json();
+    bookmarksData = bData.items || [];
+  } catch (e) {}
+  
+  const bookmarkVideos = bookmarksData
+    .filter((b: any) => b.scrapedVideoUrl)
+    .map((b: any) => ({
+      id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+      name: b.title,
+      path: b.scrapedVideoUrl,
+      relPath: b.url,
+      category: 'Bookmarks',
+      isBookmark: true,
+      img: b.img,
+      hasVideo: true,
+      size: 0,
+      duration: 0,
+      mtime: Date.now()
+    }));
+    
+  const combined = [...data, ...bookmarkVideos];
+  
+  allVideos.value = combined;
+  videos.value = combined;
   isLoadingVideos.value = false;
   syncUrlToState();
 }

@@ -288,6 +288,70 @@ function apiBookmarkGenerationStatus(req, res) {
 
 // ── Bookmarks cache ───────────────────────────────────────────────────
 
+// ── Bookmarks Scraper Worker ──────────────────────────────────────────
+
+let _scrapeJob = null; // { running, stop, total, done, failed, current }
+
+function scrapeBookmark(url) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(YT_DLP_BIN)) return reject(new Error('yt-dlp not found'));
+    execFile(YT_DLP_BIN, ['-j', url], { timeout: 30000 }, (err, stdout) => {
+      if (err) return reject(err);
+      try {
+        const data = JSON.parse(stdout);
+        resolve({
+          thumbUrl: data.thumbnail,
+          videoUrl: data.url
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+function startScrapingWorker() {
+  if (_scrapeJob && _scrapeJob.running) return;
+  
+  const bookmarks = loadBookmarksCache().items || [];
+  const toProcess = bookmarks.filter(b => !b.scrapedVideoUrl);
+  if (!toProcess.length) return;
+
+  _scrapeJob = { running: true, stop: false, total: toProcess.length, done: 0, failed: 0, current: '' };
+
+  (async () => {
+    for (const item of toProcess) {
+      if (_scrapeJob.stop) break;
+      _scrapeJob.current = item.title || item.url;
+      
+      try {
+        const result = await scrapeBookmark(item.url);
+        if (result.videoUrl) {
+          item.scrapedVideoUrl = result.videoUrl;
+          item.hasVideo = true;
+          if (result.thumbUrl && !item.img) {
+            const id = Buffer.from(item.url).toString('base64url');
+            const outPath = path.join(BM_THUMBS_DIR, id + '.png');
+            await downloadImage(result.thumbUrl, outPath);
+            item.img = '/api/bookmarks/thumbs/' + id;
+          }
+        }
+        _scrapeJob.done++;
+      } catch (e) {
+        console.error('Scrape failed for:', item.url, e.message);
+        _scrapeJob.failed++;
+      }
+      
+      saveBookmarksCache({ items: bookmarks });
+    }
+    _scrapeJob.running = false;
+  })();
+}
+
+function apiScrapeStatus(req, res) {
+  json(res, _scrapeJob || { running: false });
+}
+
 function apiGetBookmarksCache(req, res) {
   json(res, loadBookmarksCache());
 }
@@ -298,6 +362,7 @@ async function apiSaveBookmarksCache(req, res) {
   try {
     saveBookmarksCache({ items });
     json(res, { ok: true, count: items.length });
+    startScrapingWorker();
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
@@ -542,4 +607,5 @@ module.exports = {
   apiGenerateBookmarkThumb,
   apiGenerateAllBookmarkThumbs,
   apiBookmarkGenerationStatus,
+  apiScrapeStatus,
 };

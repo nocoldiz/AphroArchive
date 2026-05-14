@@ -7,6 +7,8 @@ interface BookmarkItem {
   title: string;
   img?: string;
   fav?: boolean;
+  scrapedVideoUrl?: string;
+  hasVideo?: boolean;
 }
 
 interface BookmarkCardProps {
@@ -38,16 +40,21 @@ const BookmarkCard = ({ item, onRemove, onToggleStar, onUpdate }: BookmarkCardPr
 
   return (
     <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => {
-      currentVideo.value = {
-        id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-        name: item.title,
-        path: item.url,
-        relPath: item.url,
-        category: 'Bookmarks',
-        isBookmark: true,
-        img: item.img
-      } as any;
-      currentView.value = 'player';
+      if (item.scrapedVideoUrl) {
+        currentVideo.value = {
+          id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+          name: item.title,
+          path: item.scrapedVideoUrl,
+          relPath: item.url,
+          category: 'Bookmarks',
+          isBookmark: true,
+          img: item.img,
+          scrapedVideoUrl: item.scrapedVideoUrl
+        } as any;
+        currentView.value = 'player';
+      } else {
+        window.open(item.url, '_blank');
+      }
     }}>
       <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
         {item.img ? (
@@ -111,6 +118,31 @@ export const BookmarksView = () => {
   const [selectedWebsite, setSelectedWebsite] = useState<string>('');
 
   const dlPollerRef = useRef<any>(null);
+  const [scrapeJob, setScrapeJob] = useState<{ running: boolean, total: number, done: number, failed: number, current: string } | null>(null);
+  const scrapePollerRef = useRef<any>(null);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const r = await fetch('/api/bookmarks/scrape-status');
+        const d = await r.json();
+        setScrapeJob(d);
+        if (d.running && !scrapePollerRef.current) {
+          scrapePollerRef.current = setInterval(async () => {
+            const r2 = await fetch('/api/bookmarks/scrape-status');
+            const d2 = await r2.json();
+            setScrapeJob(d2);
+            if (!d2.running && scrapePollerRef.current) {
+              clearInterval(scrapePollerRef.current);
+              scrapePollerRef.current = null;
+            }
+          }, 1500);
+        }
+      } catch (e) {}
+    };
+    checkStatus();
+    return () => { if (scrapePollerRef.current) clearInterval(scrapePollerRef.current); };
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -416,6 +448,15 @@ export const BookmarksView = () => {
           </div>
           <span>{pct}% in library</span>
         </div>
+        {scrapeJob && scrapeJob.running && (
+          <div class="scrape-progress" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Scraping: {scrapeJob.done}/{scrapeJob.total}</span>
+            <div style={{ width: '150px', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round((scrapeJob.done / (scrapeJob.total || 1)) * 100)}%`, height: '100%', background: 'var(--accent)' }}></div>
+            </div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={scrapeJob.current}>{scrapeJob.current}</span>
+          </div>
+        )}
       </div>
 
       {loading ? (
