@@ -83,9 +83,6 @@ export const ContextMenu = () => {
   const handleHide = async () => {
     const parts = data.path.split('/');
     const folderName = parts[parts.length - 1];
-
-    if (!confirm(`Hide category "${data.name}"?\nThis will add "${folderName}" to your hidden categories list.`)) return;
-
     const r = await fetch('/api/categories/hide', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -158,11 +155,10 @@ export const ContextMenu = () => {
 
   const handleHideTag = async () => {
     const tagName = data.name;
-    if (!confirm(`Hide tag "${tagName}"? It can be unhidden in Settings.`)) return;
 
     const currentHidden = appPrefs.value.hiddenTags || [];
     const updates = { hiddenTags: [...currentHidden, tagName] };
-    
+
     await updatePrefs(updates);
     toast(`Tag "${tagName}" hidden`);
     contextMenuState.value = { ...contextMenuState.value, visible: false };
@@ -327,14 +323,14 @@ export const ContextMenu = () => {
             <ContextItem label={data.fav ? "Unfavourite" : "Favourite"} icon="star" onClick={async () => {
               const r = await fetch(`/api/favourites/${data.id}`, { method: 'POST' });
               const d = await r.json();
-              
+
               const currentVideos = [...videos.value];
               const idx = currentVideos.findIndex(v => v.id === data.id);
               if (idx !== -1) {
                 currentVideos[idx] = { ...currentVideos[idx], fav: d.fav };
                 videos.value = currentVideos;
               }
-              
+
               const w = window as any;
               if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
             }} />
@@ -382,8 +378,8 @@ export const ContextMenu = () => {
             </div>
             <div className="modal-body">
               <p>Choose the target profile to restore this category to:</p>
-              <select 
-                value={targetProfile} 
+              <select
+                value={targetProfile}
                 onChange={(e: any) => setTargetProfile(e.target.value)}
                 class="premium-input"
                 style={{ width: '100%', padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}

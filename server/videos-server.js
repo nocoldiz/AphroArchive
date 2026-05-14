@@ -381,9 +381,9 @@ async function apiCategories(req, res) {
       }
       
       const entry = catMap.get(subRelFwd);
-      entry.count++;
       
       if (i === parts.length - 1) {
+        entry.count++;
         if (!v.encrypted) {
           entry.hasUnencrypted = true;
         }

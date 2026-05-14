@@ -138,12 +138,12 @@ async function apiThumbnailsList(req, res) {
     for (const id of dirs) {
       const dirPath = path.join(THUMBS_DIR, id);
       if (!fs.statSync(dirPath).isDirectory()) continue;
-      const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jpg') && !isNaN(parseInt(f)));
+      const files = fs.readdirSync(dirPath).filter(f => (f.endsWith('.jpg') || f.endsWith('.jpg.enc')) && !isNaN(parseInt(f)));
       if (files.length > 0) {
         results.push({
           id,
           count: files.length,
-          thumbs: files.sort((a, b) => parseInt(a) - parseInt(b)).map(f => `/api/thumbs/${id}/${path.parse(f).name}`)
+          thumbs: files.sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).map(f => `/api/thumbs/${id}/${parseInt(f, 10)}`)
         });
       }
     }

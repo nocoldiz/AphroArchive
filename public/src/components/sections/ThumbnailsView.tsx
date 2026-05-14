@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'preact/hooks';
-import { thumbnails, loadThumbnails, allVideos, loadVideos } from '../../store';
+import { useEffect, useState, useRef } from 'preact/hooks';
+import { thumbnails, loadThumbnails, allVideos, loadVideos, appPrefs } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
+import { PhotoLightbox } from '../modals/PhotoLightbox';
 
 interface FlatThumb {
   videoId: string;
@@ -12,6 +13,10 @@ export const ThumbnailsView = () => {
   const [lightboxIdx, setLightboxIdx] = useState(-1);
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState('date');
+  const [slideshowOn, setSlideshowOn] = useState(false);
+  const [slideSecs, setSlideSecs] = useState(3);
+
+  const slideTimerRef = useRef<any>(null);
 
   useEffect(() => {
     loadThumbnails();
@@ -60,17 +65,33 @@ export const ThumbnailsView = () => {
   const prev = () => setLightboxIdx((lightboxIdx - 1 + allThumbs.length) % allThumbs.length);
   const next = () => setLightboxIdx((lightboxIdx + 1) % allThumbs.length);
 
-  // Close lightbox on Escape key
+  // Slideshow effect
+  useEffect(() => {
+    if (slideshowOn && lightboxIdx !== -1) {
+      slideTimerRef.current = setTimeout(() => {
+        setLightboxIdx((lightboxIdx + 1) % allThumbs.length);
+      }, slideSecs * 1000);
+    }
+    return () => clearTimeout(slideTimerRef.current);
+  }, [slideshowOn, lightboxIdx, slideSecs, allThumbs.length]);
+
+  // Keyboard listeners for lightbox
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (lightboxIdx === -1) return;
       if (e.key === 'Escape') setLightboxIdx(-1);
       if (e.key === 'ArrowLeft') prev();
       if (e.key === 'ArrowRight') next();
+      if (e.key === ' ') {
+        e.preventDefault();
+        setSlideshowOn(!slideshowOn);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxIdx, allThumbs.length]);
+  }, [lightboxIdx, slideshowOn, allThumbs.length]);
+
+  const currentPhoto = lightboxIdx !== -1 ? allThumbs[lightboxIdx] : null;
 
   return (
     <div className="thumbnails-view" style={{ padding: '20px' }}>
@@ -99,7 +120,7 @@ export const ThumbnailsView = () => {
 
       <div className="ph-grid">
         {allThumbs.map((t, i) => (
-          <div key={`${t.videoId}-${t.index}`} className="ph-card" onClick={() => setLightboxIdx(i)}>
+          <div key={`${t.videoId}-${t.index}`} className="ph-card" style={{ width: `${appPrefs.value.cardSize}px` }} onClick={() => setLightboxIdx(i)}>
             <img className="ph-thumb" src={t.url} alt={`Thumb ${t.index}`} loading="lazy" />
             <div className="ph-overlay">
               <span className="ph-name">{t.title} {t.index + 1}</span>
@@ -108,34 +129,22 @@ export const ThumbnailsView = () => {
         ))}
       </div>
 
-      {lightboxIdx !== -1 && (
-        <div className="ph-lightbox on" onClick={() => setLightboxIdx(-1)} style={{ zIndex: 10000 }}>
-          <button className="ph-lb-nav ph-lb-prev" onClick={(e) => { e.stopPropagation(); prev(); }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <img
-            id="photosLbImg"
-            src={allThumbs[lightboxIdx].url}
-            alt="Lightbox"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button className="ph-lb-nav ph-lb-next" onClick={(e) => { e.stopPropagation(); next(); }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-          <div className="ph-lb-caption">
-            {allThumbs[lightboxIdx].title} · Image {allThumbs[lightboxIdx].index + 1}
-          </div>
-          <button className="ph-lb-close" onClick={() => setLightboxIdx(-1)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-      )}
+      <PhotoLightbox
+        isOpen={lightboxIdx !== -1 && currentPhoto !== null}
+        onClose={() => { setLightboxIdx(-1); setSlideshowOn(false); }}
+        imgUrl={currentPhoto ? currentPhoto.url : ''}
+        title={currentPhoto ? `${currentPhoto.title} · Image ${currentPhoto.index + 1}` : ''}
+        sizeF={''}
+        onPrev={prev}
+        onNext={next}
+        slideshowOn={slideshowOn}
+        onToggleSlideshow={() => setSlideshowOn(!slideshowOn)}
+        slideSecs={slideSecs}
+        onSlideSecsChange={setSlideSecs}
+        description={null}
+        isAi={false}
+        aiPrompt={''}
+      />
     </div>
   );
 };

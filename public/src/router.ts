@@ -26,6 +26,7 @@ export async function routeToPath(path: string) {
   if (path === '/prompts') { if (w.showPrompts) w.showPrompts(); return; }
   if (path === '/database') { currentView.value = 'database'; return; }
   if (path === '/categories') { currentView.value = 'categories'; return; }
+  if (path === '/chapters') { currentView.value = 'chapters'; return; }
   if (path === '/actors') { currentView.value = 'actors'; currentActor.value = null; return; }
   if (path === '/studios') { currentView.value = 'studios'; currentStudio.value = null; return; }
   

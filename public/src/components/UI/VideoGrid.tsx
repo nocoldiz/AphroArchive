@@ -26,6 +26,7 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
 
   const openCtx = (e: any) => {
     e.preventDefault();
+    e.stopPropagation();
     contextMenuState.value = {
       visible: true,
       x: e.pageX,
@@ -204,6 +205,7 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
           top: '5px', 
           right: '5px', 
           display: 'flex', 
+          flexDirection: 'column',
           gap: '5px', 
           zIndex: 3,
           opacity: isHovered ? 1 : 0,
@@ -213,36 +215,30 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
           <button onClick={toggleFav} title="Favourite" className={video.fav ? 'fav-active' : ''}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </button>
+          <button onClick={openCtx} title="Menu">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          </button>
         </div>
 
-        {video.duration > 0 && <div className="duration-badge" style={{ zIndex: 2 }}>{formatDuration(video.duration)}</div>}
-        {video.size > 0 && (
-          <div 
-            className="size-badge" 
-            style={{ 
-              position: 'absolute', 
-              bottom: '5px', 
-              left: '5px', 
-              background: 'rgba(0,0,0,0.6)', 
-              color: 'white', 
-              padding: '2px 5px', 
-              borderRadius: '3px', 
-              fontSize: '0.75rem',
-              zIndex: 2 
-            }}
-          >
-            {(video.size / 1024 / 1024).toFixed(1)} MB
-          </div>
-        )}
+        <div style={{ position: 'absolute', bottom: '5px', left: '5px', right: '5px', display: 'flex', justifyContent: 'space-between', zIndex: 2 }}>
+          {video.size > 0 && (
+            <div style={{ background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 5px', borderRadius: '3px', fontSize: '0.75rem' }}>
+              {(video.size / 1024 / 1024).toFixed(1)} MB
+            </div>
+          )}
+          {video.duration > 0 && (
+            <div style={{ background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 5px', borderRadius: '3px', fontSize: '0.75rem' }}>
+              {formatDuration(video.duration)}
+            </div>
+          )}
+        </div>
+
         {video.rating && <div className="rating-badge" style={{ zIndex: 2 }}>{'★'.repeat(video.rating)}</div>}
       </div>
       <div className="card-body">
         <div className="card-title" title={video.name}>{video.name}</div>
-        <div className="card-meta">
+        <div className="card-meta" style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <span className="card-category">{video.category}</span>
-          <div className="card-actions" style={{ fontSize: '0.75rem', color: 'var(--tx3)' }}>
-            {(video.size / 1024 / 1024).toFixed(1)}MB
-          </div>
         </div>
       </div>
     </div>

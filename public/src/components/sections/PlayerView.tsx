@@ -1,8 +1,9 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos } from '../../store';
 import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
+import { VideoCard } from '../UI/VideoGrid';
 
 export const PlayerView = () => {
   const video = currentVideo.value;
@@ -68,6 +69,21 @@ export const PlayerView = () => {
       .then(tracks => setSubtitles(tracks))
       .catch(() => { });
   }, [video]);
+
+  const relatedVideos = useMemo(() => {
+    if (!video) return [];
+    const nextUpIds = new Set(nextUp.map(v => v.id));
+    
+    return allVideos.value.filter(v => {
+      if (v.id === video.id) return false;
+      if (nextUpIds.has(v.id)) return false;
+      
+      const sameActors = actors.length > 0 && v.actors && v.actors.some(a => actors.includes(a));
+      const sameTags = tags.length > 0 && v.tags && v.tags.some(t => tags.includes(t));
+      
+      return sameActors || sameTags;
+    }).slice(0, 8);
+  }, [video, nextUp, actors, tags, allVideos.value]);
 
   const toggleFav = async () => {
     if (!video) return;
@@ -332,6 +348,16 @@ export const PlayerView = () => {
             </div>
 
             <AiComments />
+            {relatedVideos.length > 0 && (
+              <div style={{ marginTop: '30px' }}>
+                <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Related Videos</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+                  {relatedVideos.map(v => (
+                    <VideoCard key={v.id} video={v} isSelected={false} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -367,26 +393,19 @@ export const PlayerView = () => {
               {nextUp.map((v, index) => (
                 <div 
                   key={v.id} 
-                  className="playlist-item" 
                   draggable={true}
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, index)}
-                  style={{ cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                  style={{ cursor: 'grab', position: 'relative', marginBottom: '10px' }}
                 >
-                  <div onClick={() => currentVideo.value = v} style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                    <img src={`/api/thumbs/${v.id}/0`} className="pl-thumb" />
-                    <div className="pl-info">
-                      <div className="pl-name">{v.name}</div>
-                      <div className="pl-meta">{(v.duration / 60).toFixed(1)}m</div>
-                    </div>
-                  </div>
+                  <VideoCard video={v} isSelected={false} index={index} />
                   <button 
                     className="pl-remove-btn" 
                     onClick={(e) => { e.stopPropagation(); removeVideo(v.id); }}
-                    style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ position: 'absolute', top: '5px', left: '5px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', cursor: 'pointer', padding: '5px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4 }}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M18 6L6 18M6 6l12 12" />
                     </svg>
                   </button>
