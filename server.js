@@ -327,6 +327,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/settings/prefs' && req.method === 'GET') return settings.apiGetPrefs(req, res);
   if (p === '/api/settings/prefs' && req.method === 'PUT') return settings.apiSavePrefs(req, res);
   if (p === '/api/browse-folders' && req.method === 'GET') return settings.apiBrowseFolders(req, res, params);
+  if (p === '/api/browse-folders-native' && req.method === 'GET') return settings.apiBrowseFoldersNative(req, res);
 
   // ── AI Comments ──────────────────────────────────────────────────────
   if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);

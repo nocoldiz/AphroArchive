@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -320,6 +320,47 @@ export const ContextMenu = () => {
             ) : (
               <ContextItem label="Encrypt" icon="lock" onClick={handleEncrypt} />
             )}
+          </>
+        )}
+        {type === 'video' && (
+          <>
+            <ContextItem label={data.fav ? "Unfavourite" : "Favourite"} icon="star" onClick={async () => {
+              const r = await fetch(`/api/favourites/${data.id}`, { method: 'POST' });
+              const d = await r.json();
+              
+              const currentVideos = [...videos.value];
+              const idx = currentVideos.findIndex(v => v.id === data.id);
+              if (idx !== -1) {
+                currentVideos[idx] = { ...currentVideos[idx], fav: d.fav };
+                videos.value = currentVideos;
+              }
+              
+              const w = window as any;
+              if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
+            }} />
+            <ContextItem label="Rename" icon="edit" onClick={() => (window as any).openRen && (window as any).openRen(data.id, data.name)} />
+            <ContextItem label="Move to Category" icon="folder" onClick={() => (window as any).openMov && (window as any).openMov(data.id, data.name, data.catPath || '')} />
+            <ContextItem label="Add to Playlist" icon="list" onClick={() => {
+              currentVideo.value = data;
+              showAddToCollectionModal.value = true;
+            }} />
+            <ContextItem label="Tags" icon="tag" onClick={() => {
+              tagModalState.value = { visible: true, vidId: data.id, bmUrl: null };
+            }} />
+            <ContextItem label="Actors" icon="user" onClick={() => {
+              actorModalState.value = { visible: true, vidId: data.id };
+            }} />
+            <ContextItem label="Encrypt" icon="lock" onClick={async () => {
+              if (!confirm(`Encrypt video "${data.name}" and move to Vault?`)) return;
+              const r = await fetch(`/api/videos/${data.id}/encrypt`, { method: 'POST' });
+              if (r.ok) {
+                if ((window as any).toast) (window as any).toast('Video encrypted and moved to Vault');
+                videos.value = videos.value.filter(v => v.id !== data.id);
+              } else {
+                const err = await r.json();
+                if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
+              }
+            }} />
           </>
         )}
         {type === 'all_videos' && (

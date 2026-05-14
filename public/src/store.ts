@@ -134,6 +134,13 @@ export const visionModalText = signal<string | null>(null);
 export const showAddToCollectionModal = signal<boolean>(false);
 export const showConnectModal = signal<boolean>(false);
 export const galleryFilter = signal<string>('');
+export const sourceFilter = signal<string>('both');
+
+if (typeof window !== 'undefined') {
+  sourceFilter.subscribe(val => {
+    (window as any).srcFilter = val;
+  });
+}
 
 export const cardSize = signal<number>(parseInt(localStorage.getItem('cardSize') || '270', 10));
 
@@ -361,6 +368,12 @@ export const filteredVideos = computed(() => {
     );
   }
 
+  if (sourceFilter.value === 'local') {
+    list = list.filter(v => !v.isExternal);
+  } else if (sourceFilter.value === 'remote') {
+    list = list.filter(v => v.isExternal);
+  }
+
   // Apply sorting or shuffle
   if (isShuffle.value) {
     list.sort(() => Math.random() - 0.5);
@@ -387,6 +400,7 @@ export async function loadVideos() {
   allVideos.value = data;
   videos.value = data;
   isLoadingVideos.value = false;
+  syncUrlToState();
 }
 
 export async function loadCategories() {
@@ -507,6 +521,83 @@ currentView.subscribe(view => {
   }
 });
 
+export function syncUrlToState() {
+  if (typeof window === 'undefined') return;
+  const p = window.location.pathname;
+  if (p === '/' || p === '/hub' || p === '/home') {
+    currentView.value = 'hub';
+    currentVideo.value = null;
+    currentCategory.value = '';
+    currentTag.value = null;
+    return;
+  }
+  
+  let m;
+  if ((m = p.match(/^\/video\/([^/]+)$/))) {
+    const vidId = m[1];
+    const vid = videos.value.find(v => v.id === vidId);
+    if (vid) {
+      currentVideo.value = vid;
+      // We might need to set a view that shows the video player!
+      // If it's a modal, it will open automatically if currentVideo is set!
+    }
+  } else if ((m = p.match(/^\/cat\/([^/]+)$/))) {
+    currentView.value = 'browse';
+    currentCategory.value = decodeURIComponent(m[1]);
+    currentTag.value = null;
+    currentVideo.value = null;
+  } else if ((m = p.match(/^\/tag\/([^/]+)$/))) {
+    currentView.value = 'browse';
+    currentTag.value = decodeURIComponent(m[1]);
+    currentCategory.value = '';
+    currentVideo.value = null;
+  } else {
+    // Other views
+    const view = p.replace(/^\//, '');
+    currentView.value = view;
+    currentVideo.value = null;
+    currentCategory.value = '';
+    currentTag.value = null;
+  }
+}
+
+export function updateUrl() {
+  if (typeof window === 'undefined') return;
+  const view = currentView.value;
+  let path = '/';
+  
+  if (view === 'hub' || view === 'home') {
+    path = '/';
+  } else if (currentVideo.value) {
+    path = `/video/${currentVideo.value.id}`;
+  } else if (currentCategory.value) {
+    path = `/cat/${encodeURIComponent(currentCategory.value)}`;
+  } else if (currentTag.value) {
+    path = `/tag/${encodeURIComponent(currentTag.value)}`;
+  } else if (view === 'browse') {
+    path = '/browse';
+  } else {
+    path = `/${view}`;
+  }
+  
+  if (window.location.pathname !== path) {
+    history.pushState(null, '', path);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  // Subscribe to signals
+  currentView.subscribe(updateUrl);
+  currentCategory.subscribe(updateUrl);
+  currentTag.subscribe(updateUrl);
+  currentVideo.subscribe(updateUrl);
+
+  // Listen for popstate
+  window.addEventListener('popstate', syncUrlToState);
+
+  // Run on load
+  setTimeout(syncUrlToState, 100);
+}
 
 w.loadC = async () => {
   const data = await api.fetchCategories();

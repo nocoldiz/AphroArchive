@@ -114,4 +114,28 @@ function apiBrowseFolders(req, res, params) {
   }
 }
 
-module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders };
+function apiBrowseFoldersNative(req, res) {
+  if (process.platform !== 'win32') {
+    return json(res, { error: 'Native file selector only supported on Windows' }, 400);
+  }
+  
+  const { exec } = require('child_process');
+  const script = `
+    Add-Type -AssemblyName System.Windows.Forms
+    $fb = New-Object System.Windows.Forms.FolderBrowserDialog
+    $fb.Description = "Select Source Folder"
+    if ($fb.ShowDialog() -eq 'OK') {
+      $fb.SelectedPath
+    }
+  `.replace(/\n/g, ' ').trim();
+  
+  exec(`powershell -Command "${script}"`, (error, stdout, stderr) => {
+    if (error) {
+      return json(res, { error: error.message }, 500);
+    }
+    const selectedPath = stdout.trim();
+    json(res, { path: selectedPath || null });
+  });
+}
+
+module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative };

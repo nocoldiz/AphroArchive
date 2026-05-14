@@ -66,21 +66,19 @@ export const Topbar = () => {
         <button 
           onClick={() => profileModalState.value = { visible: true }} 
           title="Switch Profile"
-          style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '6px 12px', fontSize: '0.85rem', marginRight: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
-          {activeProfile.value}
         </button>
 
-        <button id="importBtn" onClick={openImport} title="Import files" className="hsm" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <button id="importBtn" onClick={openImport} title="Import files" className="hsm">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>Import
+          </svg>
         </button>
         
         <button id="dualBtn" onClick={toggleDual} title="Dual mode">

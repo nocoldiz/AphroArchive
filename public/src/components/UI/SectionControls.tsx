@@ -1,4 +1,4 @@
-import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode } from '../../store';
+import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter } from '../../store';
 
 interface SectionControlsProps {
   showSort?: boolean;
@@ -75,6 +75,21 @@ export const SectionControls = ({
 
   return (
     <div className="section-controls">
+      {showFilter && (
+        <>
+          <div className="gallery-filter-wrap" style={{ display: 'flex', alignItems: 'center' }}>
+            <input type="text" placeholder="Filter current view…"
+              value={filter}
+              onInput={(e: any) => setFilter(e.target.value)}
+              autocomplete="off" spellcheck={false}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '999px', fontSize: '0.85rem', width: '200px', transition: 'all 0.2s', outline: 'none' }}
+              onFocus={(e: any) => { e.target.style.width = '280px'; e.target.style.borderColor = 'var(--ac)'; }}
+              onBlur={(e: any) => { if (!e.target.value) e.target.style.width = '200px'; e.target.style.borderColor = 'var(--brd)'; }} />
+          </div>
+          <span className="sg-sep"></span>
+        </>
+      )}
+
       {showSort && sortOptions.map(opt => (
         <button 
           key={opt.value}
@@ -104,9 +119,9 @@ export const SectionControls = ({
       {showSource && (
         <>
           <span className="sg-sep"></span>
-          <button className="sort-btn src-btn on" data-src="both">Both</button>
-          <button className="sort-btn src-btn" data-src="local">Local</button>
-          <button className="sort-btn src-btn" data-src="remote">Remote</button>
+          <button className={`sort-btn src-btn ${sourceFilter.value === 'both' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'both'}>Both</button>
+          <button className={`sort-btn src-btn ${sourceFilter.value === 'local' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'local'}>Local</button>
+          <button className={`sort-btn src-btn ${sourceFilter.value === 'remote' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'remote'}>Remote</button>
         </>
       )}
       
@@ -157,21 +172,6 @@ export const SectionControls = ({
           </select>
         </div>
       </>
-      
-      {showFilter && (
-        <>
-          <span className="sg-sep"></span>
-          <div className="gallery-filter-wrap" style={{ display: 'flex', alignItems: 'center' }}>
-            <input type="text" placeholder="Filter current view…"
-              value={filter}
-              onInput={(e: any) => setFilter(e.target.value)}
-              autocomplete="off" spellcheck={false}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', width: '120px', transition: 'all 0.2s', outline: 'none' }}
-              onFocus={(e: any) => { e.target.style.width = '180px'; e.target.style.borderColor = 'var(--ac)'; }}
-              onBlur={(e: any) => { if (!e.target.value) e.target.style.width = '120px'; e.target.style.borderColor = 'var(--brd)'; }} />
-          </div>
-        </>
-      )}
       {children}
     </div>
   );

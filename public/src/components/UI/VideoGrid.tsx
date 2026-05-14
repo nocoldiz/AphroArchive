@@ -1,15 +1,9 @@
 import { useRef, useState, useEffect } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
-const openCtx = (e: any) => {
-  e.preventDefault();
-  // Call legacy context menu if available
-  if ((window as any).showContextMenu) {
-    (window as any).showContextMenu(e, 'video', { id: e.currentTarget.id.replace('v-', '') });
-  }
-};
+
 
 const formatDuration = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
@@ -29,6 +23,17 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  const openCtx = (e: any) => {
+    e.preventDefault();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'video',
+      data: video
+    };
+  };
 
   useEffect(() => {
     if (!cardRef.current) return;
@@ -207,24 +212,6 @@ export const VideoCard = ({ video, isSelected, index }: VideoCardProps) => {
         }}>
           <button onClick={toggleFav} title="Favourite" className={video.fav ? 'fav-active' : ''}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          </button>
-          <button onClick={handleRename} title="Rename">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button onClick={handleMove} title="Move to Category">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          </button>
-          <button onClick={handlePlaylist} title="Add to Playlist">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          </button>
-          <button onClick={handleTag} title="Tags">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-          </button>
-          <button onClick={handleActor} title="Actors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </button>
-          <button onClick={handleEncrypt} title="Encrypt to Vault">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
           </button>
         </div>
 

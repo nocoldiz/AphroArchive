@@ -68,22 +68,7 @@ function _shredFile(filePath) {
   } catch { }
 }
 
-// Silently shred the entire vault — called on silent wipe
-function _silentWipe() {
-  try {
-    if (fs.existsSync(VAULT_DIR)) {
-      for (const file of fs.readdirSync(VAULT_DIR)) {
-        _shredFile(path.join(VAULT_DIR, file));
-      }
-    }
-    _shredFile(VAULT_CONFIG_FILE);
-    _shredFile(VAULT_META_FILE);
-  } catch { }
-  vaultKey = null;
-  failedAttempts = 0;
-  cooldownUntil = 0;
-  clearVaultTimer();
-}
+
 
 // Stream-decrypt an .enc file directly to an HTTP response (no temp files)
 // File format: [12 IV][encrypted data][16 auth tag]
@@ -547,12 +532,6 @@ async function apiVaultUnlock(req, res) {
     const { encKey, verifyHash } = await deriveKeys(pw, cfg.salt);
     if (verifyHash !== cfg.verifyHash) {
       failedAttempts++;
-
-      if (failedAttempts >= 4 && !!loadPrefs().vaultSelfDestruct) {
-        // Silent wipe — attacker must not know this happened
-        setImmediate(_silentWipe);
-        return json(res, { error: 'Wrong password' }, 401);
-      }
 
       // Exponential backoff: 2nd fail → 5s, 3rd fail → 30s
       if (failedAttempts === 2) cooldownUntil = now + 5_000;

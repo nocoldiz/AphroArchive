@@ -17,6 +17,7 @@ export interface Video {
   catPath?: string;
   fav?: boolean;
   chapters?: any[];
+  isExternal?: boolean;
 }
 
 export interface Category {
