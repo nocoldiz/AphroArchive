@@ -1,6 +1,7 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 import { presetPickerState, activeProfile } from '../../store';
+import { ActorScraperView } from './ActorScraperView';
 
 interface DbEntry {
   name: string;
@@ -13,6 +14,7 @@ export const DatabaseView = () => {
   const [loading, setLoading] = useState(false);
   
   const [modalOpen, setModalOpen] = useState(false);
+  const [scraperModalOpen, setScraperModalOpen] = useState(false);
   const [editName, setEditName] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
 
@@ -176,6 +178,9 @@ export const DatabaseView = () => {
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
           <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: false }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset as Profile</button>
           <button className="modal-btn" onClick={handleReset} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Reset to Preset</button>
+          {activeTab === 'actors' && (
+            <button className="modal-btn" onClick={() => setScraperModalOpen(true)} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Scrape Actor Data</button>
+          )}
           <button className="modal-btn modal-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
         </div>
       )}
@@ -342,6 +347,16 @@ export const DatabaseView = () => {
               <button className="modal-btn" onClick={() => setModalOpen(false)}>Cancel</button>
               <button className="modal-btn modal-btn--primary" onClick={handleSave}>Save</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scraper Modal */}
+      {scraperModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '900px', maxWidth: '95%', maxHeight: '90%', overflowY: 'auto', position: 'relative' }}>
+            <button onClick={() => setScraperModalOpen(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+            <ActorScraperView />
           </div>
         </div>
       )}

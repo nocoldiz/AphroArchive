@@ -11,6 +11,8 @@ export const VaultUnlockModal = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<any>({});
+  // Salt mode: 'static' (default, portable) | 'random' (more secure, not portable)
+  const [saltMode, setSaltMode] = useState<'static' | 'random'>('static');
 
   useEffect(() => {
     if (visible) {
@@ -70,7 +72,7 @@ export const VaultUnlockModal = () => {
       const res = await fetch('/api/vault/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ password, useRandomSalt: saltMode === 'random' })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -89,17 +91,19 @@ export const VaultUnlockModal = () => {
 
   if (!visible) return null;
 
+  const isSetup = !status.configured;
+
   return (
     <div className="modal on" style={{ display: 'flex' }}>
-      <div className="modal-content" style={{ width: '400px' }}>
+      <div className="modal-content" style={{ width: '420px' }}>
         <div className="modal-header">
-          <h2>{status.configured ? 'Vault Locked' : 'Create Vault'}</h2>
+          <h2>{isSetup ? 'Create Vault' : 'Vault Locked'}</h2>
         </div>
         <div className="modal-body">
           <p style={{ color: 'var(--tx2)', fontSize: '0.9rem', marginBottom: '24px' }}>
-            {status.configured
-              ? 'Enter your password to access encrypted files.'
-              : 'Set a master password. It cannot be changed or recovered.'}
+            {isSetup
+              ? 'Set a master password to protect your encrypted files.'
+              : 'Enter your password to access encrypted files.'}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -107,20 +111,63 @@ export const VaultUnlockModal = () => {
               type="password"
               value={password}
               onInput={(e: any) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (status.configured ? handleUnlock() : handleSetup())}
+              onKeyDown={(e) => e.key === 'Enter' && (isSetup ? handleSetup() : handleUnlock())}
               placeholder="Password"
               style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
             />
 
-            {!status.configured && (
-              <input
-                type="password"
-                value={confirmPassword}
-                onInput={(e: any) => setConfirmPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
-                placeholder="Confirm Password"
-                style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
-              />
+            {isSetup && (
+              <>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onInput={(e: any) => setConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
+                  placeholder="Confirm Password"
+                  style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
+                />
+
+                {/* ── Salt mode selector ── */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--brd)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--tx2)', marginBottom: '2px' }}>Encryption Salt</div>
+
+                  {/* Static salt option */}
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="saltMode"
+                      checked={saltMode === 'static'}
+                      onChange={() => setSaltMode('static')}
+                      style={{ marginTop: '2px', accentColor: 'var(--ac)', cursor: 'pointer' }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--tx)', fontWeight: 'bold' }}>Static salt <span style={{ fontWeight: 'normal', color: 'var(--ac)', fontSize: '0.75rem' }}>— Recommended</span></div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '2px' }}>
+                        Uses a fixed salt ("AphroArchive"). Any installation with the same password can open this vault.
+                        Ideal for backups and moving between machines.
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Random salt option */}
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="saltMode"
+                      checked={saltMode === 'random'}
+                      onChange={() => setSaltMode('random')}
+                      style={{ marginTop: '2px', accentColor: 'var(--ac)', cursor: 'pointer' }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--tx)', fontWeight: 'bold' }}>Random salt <span style={{ fontWeight: 'normal', color: '#f59e0b', fontSize: '0.75rem' }}>⚠ Portability limited</span></div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '2px' }}>
+                        Generates a unique random salt — slightly stronger against rainbow tables.
+                        <strong style={{ color: '#f59e0b' }}> The vault cannot be opened on another installation</strong> without migrating the config file (<code>cache/vault.json</code>).
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </>
             )}
 
             {error && <div style={{ color: '#e84040', fontSize: '0.8rem' }}>{error}</div>}
@@ -129,13 +176,13 @@ export const VaultUnlockModal = () => {
         <div className="modal-footer">
           <button
             class="modal-btn modal-btn--primary"
-            onClick={status.configured ? handleUnlock : handleSetup}
+            onClick={isSetup ? handleSetup : handleUnlock}
             disabled={loading}
           >
-            {loading ? 'Processing...' : (status.configured ? 'Unlock' : 'Create Vault')}
+            {loading ? 'Processing...' : (isSetup ? 'Create Vault' : 'Unlock')}
           </button>
-          <button 
-            class="modal-btn" 
+          <button
+            class="modal-btn"
             onClick={() => vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null }}
           >
             Cancel
