@@ -7188,4 +7188,61 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   color: var(--tx2);
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+/* ── Burger Menu & Mobile Sidebar ── */
+.burger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--brd);
+  background: var(--bg2);
+  cursor: pointer;
+  color: var(--tx);
+  transition: all var(--tr);
+  flex-shrink: 0;
+}
+
+.burger-btn:hover {
+  background: var(--bg3);
+  border-color: var(--tx3);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  top: 53px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 999;
+}
+
+@media (max-width: 768px) {
+  .burger-btn {
+    display: flex;
+  }
+
+  .side {
+    position: fixed !important;
+    top: 53px;
+    left: -240px; /* Hide sidebar */
+    width: 240px !important;
+    height: calc(100vh - 53px);
+    z-index: 1000;
+    background: var(--bg2) !important;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 5px 0 15px rgba(0, 0, 0, 0.5);
+  }
+
+  .side.open {
+    left: 0 !important;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
 }

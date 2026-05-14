@@ -11,8 +11,9 @@ export const studios = signal<Studio[]>([]);
 export const appPrefs = signal<Partial<AppPrefs>>({});
 
 // ─── Navigation & View State ──────────────────────────────────────────
-export const currentView = signal<string>('home');
+export const currentView = signal<string>('hub');
 export const currentVideo = signal<Video | null>(null);
+export const isSidebarOpen = signal<boolean>(false);
 
 export const contextMenuState = signal<{
   visible: boolean;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag, appPrefs, showConnectModal } from '../../store';
+import { currentView, currentCategory, categories, currentTag, appPrefs, showConnectModal, isSidebarOpen } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -54,6 +54,18 @@ const SectionHeader = ({ label, id, style, onClick, action }: { label: string, i
 
 export const Sidebar = () => {
   const view = currentView.value;
+  const isOpen = isSidebarOpen.value;
+
+  useEffect(() => {
+    const el = document.getElementById('side');
+    if (el) {
+      if (isOpen) {
+        el.classList.add('open');
+      } else {
+        el.classList.remove('open');
+      }
+    }
+  }, [isOpen]);
   if (view === 'reddit') return null;
 
   const [bookmarkItems, setBookmarkItems] = useState<any[]>([]);
@@ -81,6 +93,7 @@ export const Sidebar = () => {
 
   const setView = (view: string, legacyFn?: string) => {
     currentView.value = view;
+    isSidebarOpen.value = false;
     if (legacyFn && (window as any)[legacyFn]) {
       (window as any)[legacyFn]();
     }
@@ -89,6 +102,7 @@ export const Sidebar = () => {
   const selectCategory = (catName: string) => {
     currentView.value = 'browse';
     currentCategory.value = catName;
+    isSidebarOpen.value = false;
     // Compatibility
     (window as any).cat = catName;
     if ((window as any).showCategory) (window as any).showCategory(catName);
@@ -97,7 +111,9 @@ export const Sidebar = () => {
   const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
   return (
-    <div className="side-scroll">
+    <>
+      {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
+      <div className="side-scroll">
       {/* Library */}
       <SectionHeader label="Library" id="sh3-library" />
       <div className="side-section" id="librarySection">
@@ -371,6 +387,7 @@ export const Sidebar = () => {
           />
         ))}
       </div>
-    </div>
+      </div>
+    </>
   );
 };

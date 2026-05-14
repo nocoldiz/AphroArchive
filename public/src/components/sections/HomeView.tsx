@@ -31,18 +31,17 @@ export const HomeView = () => {
   };
 
   return (
-    <div className="home-view" id="home-view">
+    <div className="home-view on" id="home-view">
       <div className="home-header">
         <h2>Welcome to AphroArchive</h2>
-        <p>Your local media library — pick a section to get started</p>
       </div>
       <div className="home-grid">
-        
+
         {/* Library */}
         <div style={sectionHeaderStyle}>
           <h3 style={sectionTitleStyle}>Library</h3>
         </div>
-        
+
         <div className="home-card" onClick={() => { (window as any).favFilter = true; currentView.value = 'browse'; }}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>

@@ -1,5 +1,5 @@
 import { Search } from './Search';
-import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState } from '../../store';
+import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen } from '../../store';
 import { useEffect } from 'preact/hooks';
 
 export const Topbar = () => {
@@ -12,7 +12,7 @@ export const Topbar = () => {
   if (view === 'instagram' || view === 'reddit') return null;
 
   const showHome = () => {
-    currentView.value = 'home';
+    currentView.value = 'hub';
   };
 
   const openImport = () => {
@@ -43,6 +43,13 @@ export const Topbar = () => {
 
   return (
     <div className="topbar">
+      <button className="burger-btn" onClick={() => isSidebarOpen.value = !isSidebarOpen.value} title="Toggle Sidebar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
       <div className="logo" onClick={showHome} style={{ cursor: 'pointer' }}>
         <svg viewBox="0 0 28 28" fill="none" width="28" height="28">
           <rect width="28" height="28" rx="6" fill="#e84040" />

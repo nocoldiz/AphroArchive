@@ -99,9 +99,9 @@ function isLocalhost(req) {
 // ── HTTP server ───────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
-  const parsed = url.parse(req.url, true);
-  const p = parsed.pathname;
-  const params = new URLSearchParams(parsed.search || '');
+  const urlObj = new URL(req.url, `http://localhost:${PORT}`);
+  const p = urlObj.pathname;
+  const params = urlObj.searchParams;
 
   // Block remote connections unless network access is explicitly enabled
   if (!isLocalhost(req) && !loadPrefs().networkEnabled) {

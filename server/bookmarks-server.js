@@ -371,7 +371,8 @@ function getFirefoxBookmarkPaths() {
 
 function apiBrowserFavs(req, res) {
   try {
-    const qs        = new URLSearchParams((url.parse(req.url).query) || '');
+    const urlObj    = new URL(req.url, 'http://localhost');
+    const qs        = urlObj.searchParams;
     const browser   = qs.get('browser') || 'chrome';
     const whitelist = loadWhitelist();
     if (!whitelist.length) return json(res, { whitelist_empty: true, items: [] });

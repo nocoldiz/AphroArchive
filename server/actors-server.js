@@ -21,9 +21,9 @@ function actorSlug(name) { return name.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
 function httpsGet(reqUrl, headers) {
   return new Promise((resolve, reject) => {
-    const opts   = Object.assign(url.parse(reqUrl), { headers });
+    const urlObj = new URL(reqUrl);
     const client = reqUrl.startsWith('https') ? https : http;
-    client.get(opts, res => {
+    client.get(urlObj, { headers }, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
         return resolve(httpsGet(res.headers.location, headers));
       let data = '';
@@ -35,9 +35,9 @@ function httpsGet(reqUrl, headers) {
 
 function httpsGetStream(reqUrl, headers, dest) {
   return new Promise((resolve, reject) => {
-    const opts   = Object.assign(url.parse(reqUrl), { headers });
+    const urlObj = new URL(reqUrl);
     const client = reqUrl.startsWith('https') ? https : http;
-    client.get(opts, res => {
+    client.get(urlObj, { headers }, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
         return resolve(httpsGetStream(res.headers.location, headers, dest));
       if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
