@@ -183,4 +183,21 @@ function apiPhotoDownload(req, res, id) {
   fs.createReadStream(fp).pipe(res);
 }
 
-module.exports = { apiPhotosList, apiPhotoServe, apiPhotoDelete, apiPhotoDownload };
+function apiPhotosUpload(req, res) {
+  const { PHOTOS_DIR } = require('./config-server');
+  fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+  const rawName = req.headers['x-filename'] || 'photo.jpg';
+  const safeName = path.basename(rawName).replace(/[^a-zA-Z0-9._\-\s]/g, '_');
+  
+  const dest = path.join(PHOTOS_DIR, safeName);
+  const chunks = [];
+  req.on('data', c => chunks.push(c));
+  req.on('end', () => {
+    try {
+      fs.writeFileSync(dest, Buffer.concat(chunks));
+      json(res, { ok: true, file: safeName });
+    } catch (e) { json(res, { error: e.message }, 500); }
+  });
+}
+
+module.exports = { apiPhotosList, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload };

@@ -1,6 +1,7 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
+import { contextMenuState } from '../../store';
 
 interface Book {
   id: string;
@@ -24,6 +25,9 @@ export const BooksView = () => {
   const [saving, setSaving] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [importing, setImporting] = useState(false);
+  const [cbzFiles, setCbzFiles] = useState<string[]>([]);
+  const [cbzView, setCbzView] = useState<'vertical' | 'paged'>('vertical');
+  const [cbzPage, setCbzPage] = useState(0);
 
   const w = window as any;
 
@@ -48,6 +52,18 @@ export const BooksView = () => {
   const openBook = async (id: string, isVault: boolean = false) => {
     setReadingBook({ loading: true });
     try {
+      const bObj = books.find(b => b.id === id);
+      const ext = (bObj?.ext || '').toLowerCase();
+      
+      if (ext === '.cbz') {
+        const filesRes = await fetch(`/api/books/cbz/${id}/files`);
+        const filesData = await filesRes.json();
+        setCbzFiles(filesData.files || []);
+        setCbzPage(0);
+        setReadingBook({ id, title: bObj?.title || bObj?.filename, ext: '.cbz' });
+        return;
+      }
+
       const url = isVault ? `/api/vault/read-book?id=${id}` : `/api/books/read/${id}`;
       const res = await fetch(url);
       
@@ -132,6 +148,23 @@ export const BooksView = () => {
     }
   };
 
+  const openCtx = (e: any, book: Book) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'book',
+      data: {
+        id: book.id,
+        name: book.title || book.filename,
+        onDelete: () => deleteBook(book.id),
+        onOpen: () => openBook(book.id)
+      }
+    };
+  };
+
   const handleUpload = async (e: any) => {
     const fileInput = e.target;
     const files = fileInput.files;
@@ -139,7 +172,20 @@ export const BooksView = () => {
     let done = 0;
     for (const file of files) {
       try {
-        const r = await fetch('/api/books/upload', {
+        let url = '/api/books/upload';
+        const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+        
+        if (['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.heic'].includes(ext)) {
+          url = '/api/photos/upload';
+        } else if (['.mp4', '.webm', '.avi', '.mkv', '.mov'].includes(ext)) {
+          url = '/api/videos/upload';
+        } else if (['.mp3', '.wav', '.m4a', '.ogg'].includes(ext)) {
+          url = '/api/audio/upload';
+        } else if (['.html', '.htm', '.xhtml', '.mhtml'].includes(ext)) {
+          url = '/api/pages/upload';
+        }
+        
+        const r = await fetch(url, {
           method: 'POST',
           headers: { 'x-filename': encodeURIComponent(file.name) },
           body: file
@@ -151,7 +197,7 @@ export const BooksView = () => {
     }
     fileInput.value = '';
     if (done) {
-      if (w.toast) w.toast(`${done} book${done !== 1 ? 's' : ''} added`);
+      if (w.toast) w.toast(`${done} file${done !== 1 ? 's' : ''} added`);
       loadBooks();
     }
   };
@@ -206,24 +252,9 @@ export const BooksView = () => {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
-            </svg> Upload
+            </svg> Import
             <input type="file" multiple style={{ display: 'none' }} onChange={handleUpload} />
           </label>
-          <span className="sg-sep"></span>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            <input 
-              type="text" 
-              placeholder="Import URL…" 
-              value={urlInput}
-              onInput={(e: any) => setUrlInput(e.target.value)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', width: '120px', transition: 'all 0.2s', outline: 'none' }}
-              onFocus={(e: any) => { e.target.style.width = '180px'; e.target.style.borderColor = 'var(--ac)'; }}
-              onBlur={(e: any) => { if (!e.target.value) e.target.style.width = '120px'; e.target.style.borderColor = 'var(--brd)'; }}
-            />
-            <button className="sort-btn" onClick={importBook} disabled={importing}>
-              {importing ? '...' : 'Import'}
-            </button>
-          </div>
         </SectionControls>
       </div>
 
@@ -233,7 +264,7 @@ export const BooksView = () => {
           <div id="booksEmpty" style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No books found.</div>
         )}
         {!loading && filteredBooks.map(b => (
-          <div key={b.id} className="bk-card" onClick={() => openBook(b.id)} style={{ display: 'flex', gap: '12px', padding: '12px', background: 'var(--bg2)', borderRadius: '8px', cursor: 'pointer', position: 'relative' }}>
+          <div key={b.id} className="bk-card" onClick={() => openBook(b.id)} onContextMenu={(e) => openCtx(e, b)} style={{ display: 'flex', gap: '12px', padding: '12px', background: 'var(--bg2)', borderRadius: '8px', cursor: 'pointer', position: 'relative' }}>
             <div className="bk-icon" style={{ color: 'var(--tx2)' }}>
               {b.ext === '.pdf' ? (
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="11" y2="17"/></svg>
@@ -275,7 +306,37 @@ export const BooksView = () => {
             {readingBook.loading ? (
               <div style={{ color: 'var(--tx2)' }}>Loading…</div>
             ) : (
-              readingBook.ext === '.txt' || readingBook.ext === '.md' ? (
+              readingBook.ext === '.cbz' ? (
+                <div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', justifyContent: 'center' }}>
+                    <button onClick={() => setCbzView('vertical')} style={{ background: cbzView === 'vertical' ? 'var(--ac)' : 'var(--bg2)', color: cbzView === 'vertical' ? '#fff' : 'var(--tx)', border: '1px solid var(--brd)', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Vertical</button>
+                    <button onClick={() => setCbzView('paged')} style={{ background: cbzView === 'paged' ? 'var(--ac)' : 'var(--bg2)', color: cbzView === 'paged' ? '#fff' : 'var(--tx)', border: '1px solid var(--brd)', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Paged</button>
+                  </div>
+                  
+                  {cbzView === 'vertical' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+                      {cbzFiles.map(f => (
+                        <img key={f} src={`/api/books/cbz/${readingBook.id}/file/${f}`} alt={f} style={{ maxWidth: '100%', height: 'auto' }} loading="lazy" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                        {cbzPage > 0 && (
+                          <button onClick={() => setCbzPage(cbzPage - 1)} style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', padding: '10px 15px', cursor: 'pointer', borderRadius: '0 4px 4px 0' }}>‹</button>
+                        )}
+                        {cbzFiles.length > 0 && (
+                          <img src={`/api/books/cbz/${readingBook.id}/file/${cbzFiles[cbzPage]}`} alt={cbzFiles[cbzPage]} style={{ maxWidth: '100%', maxHeight: '75vh', height: 'auto' }} />
+                        )}
+                        {cbzPage < cbzFiles.length - 1 && (
+                          <button onClick={() => setCbzPage(cbzPage + 1)} style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', padding: '10px 15px', cursor: 'pointer', borderRadius: '4px 0 0 4px' }}>›</button>
+                        )}
+                      </div>
+                      <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>Page {cbzPage + 1} of {cbzFiles.length}</div>
+                    </div>
+                  )}
+                </div>
+              ) : readingBook.ext === '.txt' || readingBook.ext === '.md' ? (
                 <div>
                   <textarea 
                     value={editContent}

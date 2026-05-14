@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
+import { contextMenuState } from '../../store';
 
 interface PhotoFile {
   id: string;
@@ -107,6 +108,26 @@ export const PhotosView = () => {
     }
   };
 
+    }
+  };
+
+  const openCtx = (e: any, photo: PhotoFile, idx: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'photo',
+      data: {
+        id: photo.id,
+        name: photo.filename,
+        onDelete: () => deletePhoto(photo.id),
+        onOpen: () => openLightbox(idx)
+      }
+    };
+  };
+
   const describePhoto = async (id: string) => {
     setDescription('Analyzing…');
     try {
@@ -201,7 +222,7 @@ export const PhotosView = () => {
       ) : (
         <div className="ph-grid" id="photosGrid">
           {files.map((f, i) => (
-            <div key={f.id} className="ph-card" onClick={() => openLightbox(i)}>
+            <div key={f.id} className="ph-card" onClick={() => openLightbox(i)} onContextMenu={(e) => openCtx(e, f, i)}>
               <img className="ph-thumb" src={`/api/photos/${f.id}/img`} alt={f.filename} loading="lazy" />
               <div className="ph-overlay">
                 <span className="ph-name">{f.filename}</span>

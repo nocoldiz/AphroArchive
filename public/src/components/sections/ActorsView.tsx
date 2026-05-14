@@ -24,6 +24,18 @@ export const ActorsView = () => {
   const activeActorName = currentActor.value;
 
   useEffect(() => {
+    fetch('/api/actors/scrape-missing', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok && d.count > 0) {
+          console.log(`Started scraping for ${d.count} actors`);
+          if ((window as any).toast) (window as any).toast(`Started scraping info for ${d.count} actors`);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!activeActorName) {
       setLoading(true);
       fetch('/api/actors')

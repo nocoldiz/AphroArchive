@@ -1877,8 +1877,27 @@ function getUnlockedCategoryKey(catPath) {
   return getUnlockKey(catPath);
 }
 
+function apiVideosUpload(req, res) {
+  const { VIDEOS_DIR } = require('./config-server');
+  fs.mkdirSync(VIDEOS_DIR, { recursive: true });
+  const rawName = req.headers['x-filename'] || 'video.mp4';
+  const safeName = path.basename(rawName).replace(/[^a-zA-Z0-9._\-\s]/g, '_');
+  
+  const dest = path.join(VIDEOS_DIR, safeName);
+  const chunks = [];
+  req.on('data', c => chunks.push(c));
+  req.on('end', () => {
+    try {
+      fs.writeFileSync(dest, Buffer.concat(chunks));
+      invalidateScanCache();
+      json(res, { ok: true, file: safeName });
+    } catch (e) { json(res, { error: e.message }, 500); }
+  });
+}
+
 module.exports = {
   scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
+  apiVideosUpload,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
   apiGetAllCategories, apiSetEnabledCategories,
   apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,

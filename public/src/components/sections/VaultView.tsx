@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { vaultMode, isVaultUnlocked, currentVideo, currentView } from '../../store';
+import { vaultMode, isVaultUnlocked, currentVideo, currentView, contextMenuState } from '../../store';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
 
 interface VaultFile {
@@ -289,6 +289,26 @@ export const VaultView = () => {
         alert('Book reader not available');
       }
     }
+  };
+
+    }
+  };
+
+  const openCtx = (e: any, file: VaultFile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'file',
+      data: {
+        id: file.id,
+        name: file.name || file.originalName,
+        onDelete: () => handleDeleteFile(file.id),
+        onOpen: () => handleFileClick(file)
+      }
+    };
   };
 
   const handleToggleSelect = (id: string) => {
@@ -717,7 +737,7 @@ export const VaultView = () => {
             const isFav = favIds.has(f.id);
             const isSelected = selectedIds.has(f.id);
             return (
-              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} style={{ border: isSelected ? '1px solid var(--ac)' : '1px solid var(--brd)' }}>
+              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '1px solid var(--ac)' : '1px solid var(--brd)' }}>
                 <div className="card-thumb" style={{ cursor: 'pointer' }} onClick={() => handleFileClick(f)}>
                   {isImg ? (
                     <img src={`/api/vault/stream/${f.id}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />

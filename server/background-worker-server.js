@@ -80,6 +80,28 @@ async function scanAndProcess() {
       }
     }
 
+    // 3. Scrape Actor Info
+    console.log('Background worker: Checking actors for missing info...');
+    const { loadActors } = require('./db-server');
+    const { scrapeAndSaveActorInfo } = require('./actors-server');
+    const actorsList = loadActors();
+    
+    let scrapedAny = false;
+    for (const actor of actorsList) {
+      if (actor.age === null && !actor.nationality && !actor.imdb_page) {
+        console.log(`Background worker: Scraping info for actor ${actor.name}`);
+        const success = await scrapeAndSaveActorInfo(actor.name);
+        if (success) {
+          scrapedAny = true;
+          break; // Only scrape one actor per run to avoid rate limits
+        }
+      }
+    }
+    
+    if (!scrapedAny) {
+      console.log('Background worker: No actors needed scraping or scraping failed.');
+    }
+
     if (processedCount > 0) {
       console.log(`Background worker: Processed ${processedCount} files. Invalidating cache.`);
       invalidateScanCache();

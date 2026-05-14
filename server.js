@@ -179,6 +179,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/actor-photos' && req.method === 'GET') return actors.apiActorPhotos(req, res);
   if ((m = p.match(/^\/api\/actor-photos\/(.+)\/scrape$/)) && req.method === 'POST') return actors.apiActorPhotoScrape(req, res, decodeURIComponent(m[1]));
   if ((m = p.match(/^\/api\/actor-photos\/(.+)\/img$/)) && req.method === 'GET') return actors.apiActorPhotoImg(req, res, decodeURIComponent(m[1]));
+  if (p === '/api/actors/scrape-missing' && req.method === 'POST') return actors.apiActorsScrapeMissing(req, res);
 
   // ── Thumbnails ───────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/generate$/)) && req.method === 'POST') return thumbnails.apiThumbGen(req, res, m[1]);
@@ -290,6 +291,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/books\/read\/([^/]+)$/)) && req.method === 'GET') return books.apiBooksRead(req, res, m[1]);
   if ((m = p.match(/^\/api\/books\/([^/]+)$/)) && req.method === 'PUT') return books.apiBooksWrite(req, res, m[1]);
   if ((m = p.match(/^\/api\/books\/([^/]+)$/)) && req.method === 'DELETE') return books.apiBooksDelete(req, res, m[1]);
+  if ((m = p.match(/^\/api\/books\/cbz\/([^/]+)\/files$/)) && req.method === 'GET') return books.apiBooksCbzFiles(req, res, m[1]);
+  if ((m = p.match(/^\/api\/books\/cbz\/([^/]+)\/file\/(.+)$/)) && req.method === 'GET') return books.apiBooksCbzFile(req, res, m[1], m[2]);
 
   // ── Audio ────────────────────────────────────────────────────────────
   if (p === '/api/audio' && req.method === 'GET') return audio.apiAudioList(req, res);
@@ -298,7 +301,9 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/audio\/([^/]+)$/)) && req.method === 'DELETE') return audio.apiAudioDelete(req, res, m[1]);
 
   // ── Photos ───────────────────────────────────────────────────────────
+  if (p === '/api/videos/upload' && req.method === 'POST') return videos.apiVideosUpload(req, res);
   if (p === '/api/photos' && req.method === 'GET') return photos.apiPhotosList(req, res);
+  if (p === '/api/photos/upload' && req.method === 'POST') return photos.apiPhotosUpload(req, res);
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/img$/)) && req.method === 'GET') return photos.apiPhotoServe(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/download$/)) && req.method === 'GET') return photos.apiPhotoDownload(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)$/)) && req.method === 'DELETE') return photos.apiPhotoDelete(req, res, m[1]);
@@ -362,8 +367,6 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  if (p === '/instagram') return serveStatic(req, res, 'instagram.html');
-  if (p === '/reddit' || p.startsWith('/reddit/') || p === '/r' || p.startsWith('/r/')) return serveStatic(req, res, 'reddit.html');
   const spaRoutes = /^\/(thumbnails|bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);

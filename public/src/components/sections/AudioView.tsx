@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
-import { isMuted, cardSize } from '../../store';
+import { isMuted, cardSize, contextMenuState } from '../../store';
 
 interface AudioFile {
   id: string;
@@ -66,6 +66,23 @@ export const AudioView = () => {
     } catch (e) {
       if (w.toast) w.toast('Delete failed');
     }
+  };
+
+  const openCtx = (e: any, file: AudioFile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'audio',
+      data: {
+        id: file.id,
+        name: file.title,
+        onDelete: () => deleteAudio(file.id),
+        onOpen: () => playAudio(file.id)
+      }
+    };
   };
 
   const handleUpload = async (e: any) => {
@@ -156,6 +173,7 @@ export const AudioView = () => {
             key={f.id} 
             className={`${view === 'card' ? 'au-card' : 'au-row'} ${curAudio === f.id ? 'playing' : ''}`} 
             onClick={() => playAudio(f.id)}
+            onContextMenu={(e) => openCtx(e, f)}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 

@@ -357,6 +357,18 @@ export const ContextMenu = () => {
                 if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
               }
             }} />
+            <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
+              if (!confirm(`Delete video "${data.name}" from disk?\nThis action cannot be undone.`)) return;
+              const r = await fetch(`/api/videos/${data.id}`, { method: 'DELETE' });
+              if (r.ok) {
+                if ((window as any).toast) (window as any).toast('Video deleted');
+                videos.value = videos.value.filter(v => v.id !== data.id);
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+              } else {
+                const err = await r.json();
+                if ((window as any).toast) (window as any).toast('Delete failed: ' + (err.error || 'Unknown error'));
+              }
+            }} />
           </>
         )}
         {type === 'all_videos' && (
@@ -367,6 +379,18 @@ export const ContextMenu = () => {
         )}
         {type === 'tag' && (
           <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
+        )}
+        {(type === 'file' || type === 'book' || type === 'audio' || type === 'photo' || type === 'page') && (
+          <>
+            {data.onOpen && <ContextItem label="Open" icon="folder" onClick={() => {
+              data.onOpen();
+              contextMenuState.value = { ...contextMenuState.value, visible: false };
+            }} />}
+            <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
+              if (data.onDelete) await data.onDelete();
+              contextMenuState.value = { ...contextMenuState.value, visible: false };
+            }} />
+          </>
         )}
       </div>
 
