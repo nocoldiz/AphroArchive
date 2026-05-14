@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals';
-import { allVideos, categories, currentCategory, bookmarkVidIds, currentView } from './store';
+import { allVideos, categories, currentCategory, bookmarkVidIds, currentView, playerNextUp, filteredVideos } from './store';
 
 // ─── Mosaic State ───
 export const mosaicOn = signal(false);
@@ -39,7 +39,13 @@ export function toggleMosaic() {
 }
 
 export function startMosaic() {
-  const V = allVideos.value;
+  let V = allVideos.value;
+  const view = currentView.value;
+  if (view === 'player') {
+    V = playerNextUp.value;
+  } else if (view === 'browse' || view === 'home') {
+    V = filteredVideos.value;
+  }
   if (!V.length) { toast('No videos to show'); return; }
   _mosaicPhotoMode = false;
   
@@ -67,10 +73,7 @@ export function startMosaic() {
   $('mosaic-view').add('on');
   $('mosBtn').add('on');
 
-  // Cache eligible videos for performance
-  const bms = bookmarkVidIds.value;
-  _mosPool = V.filter(v => !bms.has(v.id));
-  if (!_mosPool.length) _mosPool = V;
+  _mosPool = V;
 
   buildMosaicTiles();
   scheduleMosaic();

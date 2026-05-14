@@ -1,4 +1,4 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate } from '../../store';
 import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
@@ -17,16 +17,27 @@ export const PlayerView = () => {
   const [chapters, setChapters] = useState<any[]>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
   const [subtitles, setSubtitles] = useState<any[]>([]);
-  const [nextUp, setNextUp] = useState<any[]>([]);
-
   if (!video) return null;
 
   useEffect(() => {
     if (video) {
-      const list = allVideos.value
-        .filter(v => v.category === video.category && v.id !== video.id)
-        .slice(0, 10);
-      setNextUp(list);
+      if (skipNextUpUpdate.value) {
+        skipNextUpUpdate.value = false;
+        return;
+      }
+      const allVis = filteredVideos.value;
+      const idx = allVis.findIndex(v => v.id === video.id);
+      
+      if (idx !== -1) {
+        const after = allVis.slice(idx + 1);
+        const before = allVis.slice(0, idx);
+        playerNextUp.value = [...after, ...before];
+      } else {
+        const list = allVideos.value
+          .filter(v => v.category === video.category && v.id !== video.id)
+          .slice(0, 10);
+        playerNextUp.value = list;
+      }
     }
   }, [video]);
 
@@ -41,14 +52,14 @@ export const PlayerView = () => {
   const handleDrop = (e: any, index: number) => {
     e.preventDefault();
     const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-    const newList = [...nextUp];
+    const newList = [...playerNextUp.value];
     const [removed] = newList.splice(fromIndex, 1);
     newList.splice(index, 0, removed);
-    setNextUp(newList);
+    playerNextUp.value = newList;
   };
 
   const removeVideo = (id: string) => {
-    setNextUp(nextUp.filter(v => v.id !== id));
+    playerNextUp.value = playerNextUp.value.filter(v => v.id !== id);
   };
 
   useEffect(() => {
@@ -72,7 +83,9 @@ export const PlayerView = () => {
 
   const relatedVideos = useMemo(() => {
     if (!video) return [];
-    const nextUpIds = new Set(nextUp.map(v => v.id));
+    const nextUpIds = new Set(playerNextUp.value.map(v => v.id));
+    
+    const titleWords = video.name.toLowerCase().split(/\s+/).filter(w => w.length > 3);
     
     return allVideos.value.filter(v => {
       if (v.id === video.id) return false;
@@ -81,9 +94,12 @@ export const PlayerView = () => {
       const sameActors = actors.length > 0 && v.actors && v.actors.some(a => actors.includes(a));
       const sameTags = tags.length > 0 && v.tags && v.tags.some(t => tags.includes(t));
       
-      return sameActors || sameTags;
+      const vTitleWords = v.name.toLowerCase().split(/\s+/);
+      const sameTitle = titleWords.some(w => vTitleWords.includes(w));
+      
+      return sameActors || sameTags || sameTitle;
     }).slice(0, 8);
-  }, [video, nextUp, actors, tags, allVideos.value]);
+  }, [video, playerNextUp.value, actors, tags, allVideos.value]);
 
   const toggleFav = async () => {
     if (!video) return;
@@ -353,7 +369,9 @@ export const PlayerView = () => {
                 <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Related Videos</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
                   {relatedVideos.map(v => (
-                    <VideoCard key={v.id} video={v} isSelected={false} />
+                    <div key={v.id} onClickCapture={() => { skipNextUpUpdate.value = true; }}>
+                      <VideoCard video={v} isSelected={false} />
+                    </div>
                   ))}
                 </div>
               </div>
@@ -386,11 +404,11 @@ export const PlayerView = () => {
             <div className="playlist-header">
               <span>Next Up</span>
               <span className="playlist-count">
-                {nextUp.length}
+                {playerNextUp.value.length}
               </span>
             </div>
             <div className="playlist-list">
-              {nextUp.map((v, index) => (
+              {playerNextUp.value.map((v, index) => (
                 <div 
                   key={v.id} 
                   draggable={true}

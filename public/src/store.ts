@@ -13,6 +13,8 @@ export const appPrefs = signal<Partial<AppPrefs>>({});
 // ─── Navigation & View State ──────────────────────────────────────────
 export const currentView = signal<string>('hub');
 export const currentVideo = signal<Video | null>(null);
+export const playerNextUp = signal<Video[]>([]);
+export const skipNextUpUpdate = signal<boolean>(false);
 export const isSidebarOpen = signal<boolean>(false);
 
 export const contextMenuState = signal<{
