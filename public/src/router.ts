@@ -24,13 +24,13 @@ export async function routeToPath(path: string) {
   if (path === '/pages')  { currentView.value = 'pages'; return; }
   if (path === '/search') { currentView.value = 'search'; return; }
   if (path === '/prompts') { if (w.showPrompts) w.showPrompts(); return; }
-  if (path === '/database') { if (w.showDatabase) w.showDatabase(); return; }
+  if (path === '/database') { currentView.value = 'database'; return; }
   if (path === '/categories') { currentView.value = 'categories'; return; }
   if (path === '/actors') { currentView.value = 'actors'; currentActor.value = null; return; }
   if (path === '/studios') { currentView.value = 'studios'; currentStudio.value = null; return; }
   
   if ((m = path.match(/^\/video\/([^/]+)$/))) { if (w.openVid) w.openVid(decodeURIComponent(m[1])); return; }
-  if ((m = path.match(/^\/tag\/(.+)$/))) { currentTag.value = decodeURIComponent(m[1]); currentView.value = 'tag'; return; }
+  if ((m = path.match(/^\/tag\/(.+)$/))) { currentTag.value = decodeURIComponent(m[1]); currentView.value = 'browse'; return; }
   if ((m = path.match(/^\/cat\/(.+)$/))) { currentCategory.value = decodeURIComponent(m[1]); currentView.value = 'browse'; return; }
   if ((m = path.match(/^\/actor\/(.+)$/))) { currentView.value = 'actors'; currentActor.value = decodeURIComponent(m[1]); return; }
   if ((m = path.match(/^\/studio\/(.+)$/))) { currentView.value = 'studios'; currentStudio.value = decodeURIComponent(m[1]); return; }

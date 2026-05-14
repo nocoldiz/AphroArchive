@@ -344,21 +344,30 @@ w._dualTagVids = [];
 // ─── Computed State ──────────────────────────────────────────────────
 // Example: Automatically filter videos based on search and category
 export const filteredVideos = computed(() => {
-  let list = isRecentMode.value ? [...recentVideos.value] : [...videos.value]; // Create a copy to avoid mutating original array
-  
-  if (currentCategory.value) {
-    list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
-  }
-
-  if (currentView.value === 'favourites' || favFilter.value) {
-    list = list.filter(v => v.starred || v.fav);
-  }
+  let list = [...videos.value];
   
   if (searchQuery.value) {
+    list = [...allVideos.value];
     const q = searchQuery.value.toLowerCase();
     list = list.filter(v => v.name.toLowerCase().includes(q));
-  }
+  } else {
+    if (isRecentMode.value) {
+      list = [...recentVideos.value];
+    }
+    
+    if (currentCategory.value) {
+      list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
+    }
 
+    if (currentTag.value) {
+      list = list.filter(v => v.tags && v.tags.includes(currentTag.value!));
+    }
+
+    if (currentView.value === 'favourites' || favFilter.value) {
+      list = list.filter(v => v.starred || v.fav);
+    }
+  }
+  
   if (galleryFilter.value) {
     const gf = galleryFilter.value.toLowerCase();
     list = list.filter(v => 

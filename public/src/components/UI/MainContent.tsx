@@ -95,7 +95,6 @@ export const MainContent = () => {
     if (view === 'studios') return <StudiosView />;
     if (view === 'photos') return <PhotosView />;
     if (view === 'bookmarks') return <BookmarksView />;
-    if (view === 'tag') return <TagDetailView />;
     if (view === 'collections') return <CollectionsView />;
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;
