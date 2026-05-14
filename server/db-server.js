@@ -808,6 +808,32 @@ function saveHidden(lines) {
   }
 }
 
+function saveBookmarksToDb(items) {
+  const cats = loadCategories();
+  const { wordMatchAny } = require('./helpers-server');
+  
+  try {
+    db.transaction(() => {
+      const insertVideo = db.prepare('INSERT OR IGNORE INTO videos (id, title, category) VALUES (?, ?, ?)');
+      for (const item of items) {
+        const id = Buffer.from(item.url).toString('base64url');
+        let category = 'Uncategorized';
+        for (const cat of cats) {
+          if (wordMatchAny(item.title, cat.terms)) {
+            category = cat.displayName;
+            break;
+          }
+        }
+        insertVideo.run(id, item.title, category);
+      }
+    })();
+    return { ok: true, count: items.length };
+  } catch (e) {
+    console.error('Failed to save bookmarks to SQLite:', e);
+    return { error: e.message };
+  }
+}
+
 module.exports = {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -828,5 +854,6 @@ module.exports = {
   loadEnabledCategories, saveEnabledCategories,
   readDbFile, writeDbFile,
   switchProfile, getCurrentProfile: () => currentProfile,
-  closeDb: () => { if (db) { db.close(); db = null; } }
+  closeDb: () => { if (db) { db.close(); db = null; } },
+  saveBookmarksToDb
 };

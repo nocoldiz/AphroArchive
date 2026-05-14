@@ -334,6 +334,31 @@ export const BookmarksView = () => {
     });
   };
 
+  const saveToDb = async () => {
+    if (!items.length) {
+      alert('No bookmarks to save');
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await fetch('/api/bookmarks/save-to-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        const w = window as any;
+        if (w.toast) w.toast(`Saved ${d.count} bookmarks to DB`);
+      } else {
+        alert('Failed to save bookmarks: ' + (d.error || 'Unknown error'));
+      }
+    } catch (e: any) {
+      alert('Error saving bookmarks: ' + e.message);
+    }
+    setLoading(false);
+  };
+
   const total = items.length;
   const pct = total ? Math.round((matchedCount / total) * 100) : 0;
 
@@ -345,6 +370,7 @@ export const BookmarksView = () => {
           <button class="btn" onClick={() => importFavs('chrome')}>Import Chrome</button>
           <button class="btn" onClick={() => importFavs('firefox')}>Import Firefox</button>
           <button class="btn" onClick={clearAll}>Clear All</button>
+          <button class="btn" onClick={saveToDb}>Save to DB</button>
         </div>
       </div>
 

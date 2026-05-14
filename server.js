@@ -209,6 +209,11 @@ const server = http.createServer(async (req, res) => {
 
   // ── Bookmarks / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
+  if (p === '/api/bookmarks/save-to-db' && req.method === 'POST') {
+    const body = await readBody(req);
+    const result = require('./server/db-server').saveBookmarksToDb(body.items || []);
+    return json(res, result);
+  }
   if (p === '/api/websites/starred' && req.method === 'GET') return json(res, loadStarredSites());
   if (p === '/api/websites/star' && req.method === 'POST') {
     const body = await readBody(req);

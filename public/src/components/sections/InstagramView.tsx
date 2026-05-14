@@ -53,6 +53,7 @@ export const InstagramView = () => {
   const [vaultError, setVaultError] = useState('');
   const [feedItems, setFeedItems] = useState<IgItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<IgItem[]>([]);
+  const [hiddenTerms, setHiddenTerms] = useState<string[]>([]);
 
   const feedObserver = useRef<IntersectionObserver | null>(null);
   const PAGE_SIZE = 10;
@@ -96,7 +97,15 @@ export const InstagramView = () => {
   const init = async () => {
     await checkVaultStatus();
     await loadVaultFavs();
+    await loadHiddenTerms();
     restoreIgState();
+  };
+
+  const loadHiddenTerms = async () => {
+    try {
+      const data = await fetch('/api/settings/lists').then(r => r.json());
+      if (data.hidden) setHiddenTerms(data.hidden);
+    } catch { }
   };
 
   const restoreIgState = () => {
@@ -190,6 +199,25 @@ export const InstagramView = () => {
       const vlt = vaultFiles.map(f => ({ ...f, _vault: true, id: f.id }));
       items = [...vids, ...vlt];
     }
+    
+    if (hiddenTerms.length > 0) {
+      items = items.filter(item => {
+        const name = item.name || item.originalName || '';
+        const cat = item.category || '';
+        const tags = item.tags || (item as any).videoMeta?.tags || [];
+        
+        const match = hiddenTerms.some(term => {
+          const termLo = term.toLowerCase();
+          if (name.toLowerCase().includes(termLo)) return true;
+          const catLo = cat.toLowerCase();
+          if (catLo === termLo || catLo.startsWith(termLo + '/') || catLo.startsWith(termLo + '\\')) return true;
+          if (tags.some((t: string) => t.toLowerCase() === termLo)) return true;
+          return false;
+        });
+        return !match;
+      });
+    }
+    
     if (savedOnly) items = items.filter(i => savedIds.has(i.id));
     return items;
   };

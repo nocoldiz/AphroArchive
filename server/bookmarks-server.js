@@ -10,7 +10,7 @@ const http  = require('http');
 const https = require('https');
 const os    = require('os');
 const url   = require('url');
-const { BM_CACHE_FILE, OG_THUMB_CACHE_FILE, BM_DIR, BM_THUMBS_DIR, EDGE_BIN } = require('./config-server');
+const { BM_CACHE_FILE, OG_THUMB_CACHE_FILE, BM_DIR, BM_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
 const { json, readBody, serveStatic }   = require('./helpers-server');
 const { loadWebsites, saveWebsites, loadBookmarksCache, saveBookmarksCache, loadOgThumbCache, saveOgThumbCache } = require('./db-server');
 const { execFile } = require('child_process');
@@ -112,6 +112,94 @@ async function takeScreenshot(url, outPath) {
   });
 }
 
+function getYtDlpThumbnail(targetUrl) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(YT_DLP_BIN)) return reject(new Error('yt-dlp not found'));
+    execFile(YT_DLP_BIN, ['--get-thumbnail', targetUrl], (err, stdout) => {
+      if (err) return reject(err);
+      const url = stdout.trim();
+      if (url && url.startsWith('http')) resolve(url);
+      else reject(new Error('No thumbnail URL returned'));
+    });
+  });
+}
+
+async function downloadImage(imageUrl, outPath) {
+  const res = await fetch(imageUrl);
+  if (!res.ok) throw new Error(`Failed to download image: ${res.statusText}`);
+  const buffer = await res.arrayBuffer();
+  fs.writeFileSync(outPath, Buffer.from(buffer));
+}
+
+async function takeScreenshotWithBannerRemoval(targetUrl, outPath) {
+  const res = await fetch(targetUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+  });
+  if (!res.ok) throw new Error(`Failed to fetch page: ${res.statusText}`);
+  let html = await res.text();
+
+  // Inject <base> tag
+  const baseTag = `<base href="${targetUrl}">`;
+  if (/<head>/i.test(html)) {
+    html = html.replace(/<head>/i, `<head>${baseTag}`);
+  } else {
+    html = baseTag + html; // Fallback if no head tag
+  }
+
+  // Inject CSS to hide banners
+  const styleTag = `
+    <style>
+      .cookie-banner, .cookie-consent, .cc-banner, .cc-window, .consent-banner, 
+      #cookie-banner, #cookie-consent, #consent-popup, 
+      [class*="cookie-banner"], [id*="cookie-banner"], 
+      [class*="consent-banner"], [id*="consent-banner"],
+      [class*="cookie-popup"], [id*="cookie-popup"],
+      [class*="cookie-notice"], [id*="cookie-notice"],
+      #onetrust-banner-sdk, #qc-cmp2-container, #consent-manager, .cmp-container {
+        display: none !important;
+      }
+    </style>
+  `;
+  if (/<\/head>/i.test(html)) {
+    html = html.replace(/<\/head>/i, `${styleTag}</head>`);
+  } else {
+    html += styleTag;
+  }
+
+  const tmpFile = path.join(os.tmpdir(), `aphro_thumb_${Date.now()}.html`);
+  fs.writeFileSync(tmpFile, html);
+
+  try {
+    await takeScreenshot(`file://${tmpFile}`, outPath);
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+}
+
+async function generateSmartThumbnail(targetUrl, outPath) {
+  // 1. Try yt-dlp
+  try {
+    const thumbUrl = await getYtDlpThumbnail(targetUrl);
+    if (thumbUrl) {
+      await downloadImage(thumbUrl, outPath);
+      console.log('[smart-thumb] Used yt-dlp for:', targetUrl);
+      return;
+    }
+  } catch (e) {
+    console.log('[smart-thumb] yt-dlp failed or not found for:', targetUrl, e.message);
+  }
+
+  // 2. Fallback to Edge with cookie banner removal
+  try {
+    await takeScreenshotWithBannerRemoval(targetUrl, outPath);
+    console.log('[smart-thumb] Used Edge with banner removal for:', targetUrl);
+  } catch (e) {
+    console.error('[smart-thumb] Banner removal failed, trying direct screenshot:', e.message);
+    // If even that fails, try the original takeScreenshot as last resort
+    await takeScreenshot(targetUrl, outPath);
+  }
+}
+
 function apiBookmarkThumbImg(req, res, id) {
   const fpPng = path.join(BM_THUMBS_DIR, id + '.png');
   const fpJpg = path.join(BM_THUMBS_DIR, id + '.jpg');
@@ -137,7 +225,7 @@ async function apiGenerateBookmarkThumb(req, res) {
   const outPath = path.join(BM_THUMBS_DIR, id + '.png'); // Edge uses png
 
   try {
-    await takeScreenshot(url, outPath);
+    await generateSmartThumbnail(url, outPath);
     json(res, { ok: true, img: '/api/bookmarks/thumbs/' + id });
   } catch (e) {
     json(res, { error: e.message }, 500);
@@ -164,7 +252,7 @@ async function apiGenerateAllBookmarkThumbs(req, res) {
 
       if (!fs.existsSync(outPath)) {
         try {
-          await takeScreenshot(item.url, outPath);
+          await generateSmartThumbnail(item.url, outPath);
         } catch (e) {
           console.error('BM Thumb Gen Failed:', item.url, e.message);
           _bmJob.failed++;

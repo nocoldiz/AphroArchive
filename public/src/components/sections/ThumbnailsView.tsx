@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'preact/hooks';
+import { useEffect, useState, useRef, useMemo } from 'preact/hooks';
 import { thumbnails, loadThumbnails, allVideos, loadVideos, appPrefs } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
@@ -49,36 +49,37 @@ export const ThumbnailsView = () => {
     );
   }
 
-  // Flatten the list: each video has multiple thumbs
-  const baseThumbs: FlatThumb[] = list.flatMap(group =>
-    (group.thumbs || []).map((url: string, i: number) => ({ videoId: group.id, url, index: i }))
-  );
+  const allThumbs = useMemo(() => {
+    const videoMap = new Map(allVideos.value.map(v => [v.id, v]));
+    const baseThumbs: FlatThumb[] = list.flatMap(group =>
+      (group.thumbs || []).map((url: string, i: number) => ({ videoId: group.id, url, index: i }))
+    );
 
-  // Optimize lookups by creating a map
-  const videoMap = new Map(allVideos.value.map(v => [v.id, v]));
+    let thumbs = baseThumbs.map(t => {
+      const video = videoMap.get(t.videoId);
+      return {
+        ...t,
+        title: video?.name || t.videoId,
+        date: video?.mtime || 0,
+        size: video?.size || 0
+      };
+    });
 
-  let allThumbs = baseThumbs.map(t => {
-    const video = videoMap.get(t.videoId);
-    return {
-      ...t,
-      title: video?.name || t.videoId,
-      date: video?.mtime || 0,
-      size: video?.size || 0
-    };
-  });
+    if (sortMode === 'name') {
+      thumbs.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortMode === 'size') {
+      thumbs.sort((a, b) => b.size - a.size);
+    } else { // date
+      thumbs.sort((a, b) => b.date - a.date);
+    }
 
-  if (sortMode === 'name') {
-    allThumbs.sort((a, b) => a.title.localeCompare(b.title));
-  } else if (sortMode === 'size') {
-    allThumbs.sort((a, b) => b.size - a.size);
-  } else { // date
-    allThumbs.sort((a, b) => b.date - a.date);
-  }
+    if (query) {
+      const q = query.toLowerCase();
+      thumbs = thumbs.filter(t => t.title.toLowerCase().includes(q));
+    }
 
-  if (query) {
-    const q = query.toLowerCase();
-    allThumbs = allThumbs.filter(t => t.title.toLowerCase().includes(q));
-  }
+    return thumbs;
+  }, [list, allVideos.value, sortMode, query]);
 
   const prev = () => setLightboxIdx((lightboxIdx - 1 + allThumbs.length) % allThumbs.length);
   const next = () => setLightboxIdx((lightboxIdx + 1) % allThumbs.length);
@@ -138,8 +139,8 @@ export const ThumbnailsView = () => {
 
       <div className="ph-grid">
         {allThumbs.map((t, i) => (
-          <div key={`${t.videoId}-${t.index}`} className="ph-card" style={{ width: `${appPrefs.value.cardSize}px` }} onClick={() => setLightboxIdx(i)}>
-            <img className="ph-thumb" src={t.url} alt={`Thumb ${t.index}`} loading="lazy" />
+          <div key={`${t.videoId}-${t.index}`} className="ph-card" style={{ width: `${appPrefs.value.cardSize}px`, height: 'auto', aspectRatio: '16/9' }} onClick={() => setLightboxIdx(i)}>
+            <img className="ph-thumb" src={t.url} alt={`Thumb ${t.index}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <div className="ph-overlay">
               <span className="ph-name">{t.title} {t.index + 1}</span>
             </div>

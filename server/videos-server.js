@@ -157,11 +157,13 @@ async function scan(dir, base = dir, isExternal = false) {
   return out;
 }
 
-function isVideoHidden(v, hiddenTerms) {
+function isVideoHidden(v, hiddenTerms, tags = []) {
   return hiddenTerms.some(term => {
     if (wordMatch(v.name, term)) return true;
     const catLo = v.catPath.toLowerCase(), termLo = term.toLowerCase();
-    return catLo === termLo || catLo.startsWith(termLo + '/') || catLo.startsWith(termLo + '\\');
+    if (catLo === termLo || catLo.startsWith(termLo + '/') || catLo.startsWith(termLo + '\\')) return true;
+    if (tags.some(t => t.toLowerCase() === termLo)) return true;
+    return false;
   });
 }
 
@@ -192,12 +194,13 @@ async function allVideos() {
   const meta   = loadVideoMeta();
   
   return all.map(v => {
-    if (meta[v.id] && meta[v.id].category) {
-      return { ...v, category: meta[v.id].category, catPath: meta[v.id].category };
-    }
-    return v;
+    const vMeta = meta[v.id] || {};
+    const category = vMeta.category || v.category;
+    const catPath = vMeta.category || v.catPath;
+    const tags = vMeta.tags || [];
+    return { ...v, category, catPath, tags };
   }).filter(v => {
-    if (hidden.length && isVideoHidden(v, hidden)) return false;
+    if (hidden.length && isVideoHidden(v, hidden, v.tags)) return false;
     if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
   });
