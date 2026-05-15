@@ -1,15 +1,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { isMuted, cardSize, contextMenuState } from '../../store';
-
-interface AudioFile {
-  id: string;
-  title: string;
-  ext: string;
-  size: number;
-  sizeF: string;
-  date: number;
-}
+import { AudioFile } from '../../types';
 
 export const AudioView = () => {
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);

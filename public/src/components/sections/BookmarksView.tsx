@@ -9,6 +9,7 @@ interface BookmarkItem {
   fav?: boolean;
   scrapedVideoUrl?: string;
   hasVideo?: boolean;
+  
 }
 
 interface BookmarkCardProps {

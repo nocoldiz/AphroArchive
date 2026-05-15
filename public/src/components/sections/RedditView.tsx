@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { currentVideo, currentView, allVideos, appPrefs, tagModalState, actorModalState, showAddToCollectionModal, isMuted } from '../../store';
-import '../../../reddit.css';
+import './RedditView.css';
 
 export const RedditView = () => {
   const [vids, setVids] = useState<any[]>([]);

@@ -149,7 +149,7 @@ export const DatabaseView = () => {
   };
 
   return (
-    <div className="database-view" style={{ padding: '24px' }}>
+    <div id="database-view" className="database-view on" style={{ padding: '24px' }}>
       <h2 style={{ marginBottom: '24px', color: 'var(--ac)' }}>Database Management</h2>
       
       {/* Tabs */}

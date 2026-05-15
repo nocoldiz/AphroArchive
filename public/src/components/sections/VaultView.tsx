@@ -291,9 +291,6 @@ export const VaultView = () => {
     }
   };
 
-    }
-  };
-
   const openCtx = (e: any, file: VaultFile) => {
     e.preventDefault();
     e.stopPropagation();

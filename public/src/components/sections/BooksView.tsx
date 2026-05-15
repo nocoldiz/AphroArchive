@@ -2,18 +2,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { contextMenuState } from '../../store';
-
-interface Book {
-  id: string;
-  title: string;
-  filename: string;
-  ext: string;
-  type?: string;
-  size?: number;
-  sizeF?: string;
-  date?: number;
-  chapters?: number;
-}
+import { Book } from '../../types';
 
 export const BooksView = () => {
   const [books, setBooks] = useState<Book[]>([]);
@@ -76,8 +65,8 @@ export const BooksView = () => {
 
       const data = await res.json();
       setReadingBook({ ...data, id, isVault });
-      const ext = (data.ext || '').toLowerCase();
-      if (ext === '.txt' || ext === '.md') {
+      const dataExt = (data.ext || '').toLowerCase();
+      if (dataExt === '.txt' || dataExt === '.md') {
         setEditContent(data.content || '');
       }
     } catch (e) {

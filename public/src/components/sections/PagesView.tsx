@@ -1,13 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { cardSize, contextMenuState } from '../../store';
-
-interface PageItem {
-  id: string;
-  name: string;
-  sizeF: string;
-  mtime: string | number;
-}
+import { PageItem } from '../../types';
 
 export const PagesView = () => {
   const [pagesList, setPagesList] = useState<PageItem[]>([]);

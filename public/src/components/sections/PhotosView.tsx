@@ -3,16 +3,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
 import { contextMenuState } from '../../store';
-
-interface PhotoFile {
-  id: string;
-  filename: string;
-  size: number;
-  sizeF: string;
-  date: number;
-  isAi?: boolean;
-  aiPrompt?: string;
-}
+import { PhotoFile } from '../../types';
 
 export const PhotosView = () => {
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
@@ -105,9 +96,6 @@ export const PhotosView = () => {
       if (lightboxIdx !== null) closeLightbox();
     } else {
       if (w.toast) w.toast('Delete failed');
-    }
-  };
-
     }
   };
 

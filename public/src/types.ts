@@ -61,3 +61,41 @@ export interface ThumbnailGroup {
   count: number;
   thumbs: string[];
 }
+
+export interface Book {
+  id: string;
+  title?: string;
+  filename: string;
+  ext?: string;
+  size?: number;
+  sizeF?: string;
+  date?: number;
+  type?: 'fanfiction' | 'url' | 'local';
+  chapters?: number;
+}
+
+export interface AudioFile {
+  id: string;
+  title: string;
+  ext: string;
+  size: number;
+  sizeF: string;
+  date: number;
+}
+
+export interface PhotoFile {
+  id: string;
+  filename: string;
+  size: number;
+  sizeF: string;
+  date: number;
+  isAi?: boolean;
+  aiPrompt?: string;
+}
+
+export interface PageItem {
+  id: string;
+  name: string;
+  sizeF: string;
+  mtime: string | number;
+}
