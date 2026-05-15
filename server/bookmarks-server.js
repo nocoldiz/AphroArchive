@@ -361,7 +361,34 @@ function apiScrapeStatus(req, res) {
 }
 
 function apiGetBookmarksCache(req, res) {
-  json(res, loadBookmarksCache());
+  const urlObj = new URL(req.url, 'http://localhost');
+  const params = urlObj.searchParams;
+  const page = parseInt(params.get('page')) || 1;
+  const limit = parseInt(params.get('limit')) || 50;
+  const query = params.get('q') || '';
+  
+  const cache = loadBookmarksCache();
+  let items = cache.items || [];
+  
+  if (query) {
+    const term = query.toLowerCase();
+    items = items.filter(item => 
+      (item.title && item.title.toLowerCase().includes(term)) || 
+      (item.url && item.url.toLowerCase().includes(term))
+    );
+  }
+  
+  const start = (page - 1) * limit;
+  const end = start + limit;
+  const paginatedItems = items.slice(start, end);
+  
+  json(res, {
+    items: paginatedItems,
+    total: items.length,
+    page,
+    limit,
+    hasMore: end < items.length
+  });
 }
 
 async function apiSaveBookmarksCache(req, res) {

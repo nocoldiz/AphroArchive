@@ -22,22 +22,7 @@ interface BookmarkCardProps {
 const BookmarkCard = ({ item, onRemove, onToggleStar, onUpdate }: BookmarkCardProps) => {
   const hostname = new URL(item.url).hostname;
 
-  useEffect(() => {
-    if (!item.img) {
-      fetch('/api/bookmarks/generate-thumb', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: item.url })
-      })
-      .then(r => r.json())
-      .then(res => {
-        if (res.img) {
-          onUpdate(item.url, { img: res.img });
-        }
-      })
-      .catch(() => {});
-    }
-  }, [item.img, item.url, onUpdate]);
+
 
   return (
     <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => {
@@ -117,6 +102,10 @@ export const BookmarksView = () => {
   const [loading, setLoading] = useState(true);
   const [websites, setWebsites] = useState<any[]>([]);
   const [selectedWebsite, setSelectedWebsite] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
 
   const dlPollerRef = useRef<any>(null);
   const [scrapeJob, setScrapeJob] = useState<{ running: boolean, total: number, done: number, failed: number, current: string } | null>(null);
@@ -145,24 +134,49 @@ export const BookmarksView = () => {
     return () => { if (scrapePollerRef.current) clearInterval(scrapePollerRef.current); };
   }, []);
 
+  const loadBookmarks = async (pageNum: number, searchTerms: string = '', reset: boolean = false) => {
+    if (pageNum === 1) setLoading(true);
+    else setLoadingMore(true);
+    
+    try {
+      const url = `/api/bookmarks/cache?page=${pageNum}&limit=50&q=${encodeURIComponent(searchTerms)}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      
+      if (d.items) {
+        setItems(prev => {
+          const next = reset ? d.items : [...prev, ...d.items];
+          updateMatches(next);
+          return next;
+        });
+        setVisibleItems(prev => reset ? d.items : [...prev, ...d.items]);
+        setHasMore(d.hasMore);
+        setPage(d.page);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
-    setLoading(true);
-    fetch('/api/bookmarks/cache')
-      .then(r => r.json())
-      .then(d => {
-        if (d.items) {
-          setItems(d.items);
-          setVisibleItems(d.items);
-          updateMatches(d.items);
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setItems([]);
-        setVisibleItems([]);
-        setLoading(false);
-      });
-  }, []);
+    loadBookmarks(1, search, true);
+  }, [search]);
+
+  useEffect(() => {
+    if (!triggerRef.current || !hasMore || loadingMore) return;
+    
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        loadBookmarks(page + 1, search, false);
+      }
+    }, { threshold: 0.1 });
+    
+    observer.observe(triggerRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, page, search]);
 
   useEffect(() => {
     fetch('/api/websites')
@@ -503,6 +517,12 @@ export const BookmarksView = () => {
               <button class="btn" onClick={() => removeItem(item.url)}>Remove</button>
             </div>
           ))}
+        </div>
+      )}
+
+      {hasMore && (
+        <div ref={triggerRef} style={{ height: '20px', margin: '20px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+          {loadingMore ? 'Loading more...' : 'Scroll down to load more'}
         </div>
       )}
 

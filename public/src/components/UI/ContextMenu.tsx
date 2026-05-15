@@ -81,19 +81,34 @@ export const ContextMenu = () => {
   };
 
   const handleHide = async () => {
-    const parts = data.path.split('/');
-    const folderName = parts[parts.length - 1];
-    const r = await fetch('/api/categories/hide', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: folderName })
-    });
+    try {
+      const res = await fetch('/api/all-categories');
+      const d = await res.json();
+      let enabled = d.enabled || [];
+      const allCats = d.categories || [];
+      
+      if (enabled.length === 0) {
+        // If empty, all are enabled. So we populate with all paths.
+        enabled = allCats.map((c: any) => c.path);
+      }
+      
+      // Remove current category path
+      const updated = enabled.filter((p: string) => p !== data.path);
+      
+      const r = await fetch('/api/enabled-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: updated })
+      });
 
-    if (r.ok) {
-      toast(`Category "${data.name}" hidden`);
-      refresh();
-    } else {
-      toast('Hide failed');
+      if (r.ok) {
+        toast(`Category "${data.name}" hidden`);
+        refresh();
+      } else {
+        toast('Hide failed');
+      }
+    } catch (e: any) {
+      toast('Error hiding category: ' + e.message);
     }
   };
 

@@ -193,13 +193,53 @@ async function allVideos() {
   const hidden = loadHidden();
   const meta   = loadVideoMeta();
   
-  return all.map(v => {
+  let list = all.map(v => {
     const vMeta = meta[v.id] || {};
     const category = vMeta.category || v.category;
     const catPath = vMeta.category || v.catPath;
     const tags = vMeta.tags || [];
     return { ...v, category, catPath, tags };
-  }).filter(v => {
+  });
+
+  // Load Bookmarks as remote videos
+  const { BM_CACHE_FILE } = require('./config-server');
+  let bookmarks = [];
+  try {
+    if (fs.existsSync(BM_CACHE_FILE)) {
+      const bmData = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
+      bookmarks = bmData.items || [];
+    }
+  } catch (e) {
+    console.error('Failed to load bookmarks cache in allVideos:', e);
+  }
+
+  const bmVideos = bookmarks.map(item => {
+    const titleWords = item.title.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3);
+    const tags = [...new Set(titleWords)];
+    
+    return {
+      id: item.url,
+      name: item.title,
+      filename: item.title,
+      ext: '.mp4',
+      rel: item.url,
+      path: item.scrapedVideoUrl || item.url,
+      category: item.category || 'Uncategorized',
+      catPath: item.category || '',
+      tags: tags,
+      isBookmark: true,
+      scrapedVideoUrl: item.scrapedVideoUrl,
+      img: item.img,
+      size: 0,
+      sizeF: '0 MB',
+      mtime: Date.now(),
+      modified: new Date().toISOString()
+    };
+  });
+
+  list.push(...bmVideos);
+
+  return list.filter(v => {
     if (hidden.length && isVideoHidden(v, hidden, v.tags)) return false;
     if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
@@ -286,7 +326,7 @@ async function apiVideos(req, res, params) {
     const cached   = thumbsCache[v.id];
     const duration = cached?.duration || null;
     const vMeta    = meta[v.id] || {};
-    return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: vMeta.tags || [], chapters: vMeta.chapters || [] };
+    return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: vMeta.tags || v.tags || [], chapters: vMeta.chapters || [] };
   });
   const q    = params.get('q');
   const cat  = params.get('category');
@@ -299,7 +339,7 @@ async function apiVideos(req, res, params) {
     list = list.filter(v => {
       const vName = v.name.toLowerCase();
       const vCat  = v.category.toLowerCase();
-      const vTags = (meta[v.id]?.tags || []).map(t => t.toLowerCase());
+      const vTags = (meta[v.id]?.tags || v.tags || []).map(t => t.toLowerCase());
       
       const match = tokens.every(token =>
         vName.includes(token) ||

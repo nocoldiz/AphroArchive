@@ -358,7 +358,7 @@ export const PlayerView = () => {
                 if (r.ok) {
                   if ((window as any).toast) (window as any).toast('Video deleted');
                   currentView.value = 'home';
-                  videos.value = videos.value.filter(v => v.id !== video.id);
+                  allVideos.value = allVideos.value.filter((v: any) => v.id !== video.id);
                 } else {
                   const err = await r.json();
                   if ((window as any).toast) (window as any).toast('Delete failed: ' + (err.error || 'Unknown error'));

@@ -18,6 +18,7 @@ export interface Video {
   fav?: boolean;
   chapters?: any[];
   isExternal?: boolean;
+  isBookmark?: boolean;
 }
 
 export interface Category {
