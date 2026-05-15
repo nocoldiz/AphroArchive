@@ -309,7 +309,7 @@ export const Sidebar = () => {
         }
       />
       <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
-        {categories.value.slice(0, 15).map(c => {
+        {categories.value.map(c => {
           let lockIcon = null;
           if (c.partial) {
             lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="3" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>;

@@ -342,7 +342,15 @@ function startScrapingWorker() {
         _scrapeJob.failed++;
       }
       
-      saveBookmarksCache({ items: bookmarks });
+        const currentCache = loadBookmarksCache();
+        const currentItems = currentCache.items || [];
+        const currentItem = currentItems.find(it => it.url === item.url);
+        if (currentItem) {
+          if (item.scrapedVideoUrl) currentItem.scrapedVideoUrl = item.scrapedVideoUrl;
+          if (item.hasVideo) currentItem.hasVideo = item.hasVideo;
+          if (item.img) currentItem.img = item.img;
+          saveBookmarksCache(currentCache);
+        }
     }
     _scrapeJob.running = false;
   })();
@@ -360,10 +368,17 @@ async function apiSaveBookmarksCache(req, res) {
   const body  = await readBody(req);
   const items = Array.isArray(body.items) ? body.items : [];
   try {
+    if (_scrapeJob && _scrapeJob.running) {
+      _scrapeJob.stop = true;
+    }
     saveBookmarksCache({ items });
     json(res, { ok: true, count: items.length });
-    startScrapingWorker();
   } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+function apiStartScraping(req, res) {
+  startScrapingWorker();
+  json(res, { ok: true, message: 'Scraping started' });
 }
 
 // ── Websites ──────────────────────────────────────────────────────────
@@ -608,4 +623,5 @@ module.exports = {
   apiGenerateAllBookmarkThumbs,
   apiBookmarkGenerationStatus,
   apiScrapeStatus,
+  apiStartScraping,
 };

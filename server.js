@@ -234,6 +234,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/bookmarks/generate-all' && req.method === 'POST') return bookmarks.apiGenerateAllBookmarkThumbs(req, res);
   if (p === '/api/bookmarks/generation-status' && req.method === 'GET') return bookmarks.apiBookmarkGenerationStatus(req, res);
   if (p === '/api/bookmarks/scrape-status' && req.method === 'GET') return bookmarks.apiScrapeStatus(req, res);
+  if (p === '/api/bookmarks/start-scraping' && req.method === 'POST') return bookmarks.apiStartScraping(req, res);
   if ((m = p.match(/^\/api\/bookmarks\/thumbs\/(.+)$/)) && req.method === 'GET') return bookmarks.apiBookmarkThumbImg(req, res, m[1]);
   if (p === '/api/bookmarks/cache' && req.method === 'GET') return bookmarks.apiGetBookmarksCache(req, res);
   if (p === '/api/bookmarks/cache' && req.method === 'POST') return bookmarks.apiSaveBookmarksCache(req, res);

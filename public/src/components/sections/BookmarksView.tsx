@@ -392,6 +392,21 @@ export const BookmarksView = () => {
     setLoading(false);
   };
 
+  const startScraping = async () => {
+    try {
+      const r = await fetch('/api/bookmarks/start-scraping', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        const w = window as any;
+        if (w.toast) w.toast('Scraping started');
+      } else {
+        alert('Failed to start scraping: ' + (d.error || 'Unknown error'));
+      }
+    } catch (e: any) {
+      alert('Error starting scraping: ' + e.message);
+    }
+  };
+
   const total = items.length;
   const pct = total ? Math.round((matchedCount / total) * 100) : 0;
 
@@ -404,6 +419,7 @@ export const BookmarksView = () => {
           <button class="btn" onClick={() => importFavs('firefox')}>Import Firefox</button>
           <button class="btn" onClick={clearAll}>Clear All</button>
           <button class="btn" onClick={saveToDb}>Save to DB</button>
+          <button class="btn" onClick={startScraping}>Start Scraping</button>
         </div>
       </div>
 

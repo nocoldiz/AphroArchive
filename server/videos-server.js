@@ -434,6 +434,21 @@ async function apiCategories(req, res) {
     });
   }
 
+  if (enabledSet.size > 0) {
+    for (const p of enabledCats) {
+      if (!cats.some(c => c.path === p)) {
+        cats.push({
+          name: p.replace(/\//g, ' / '),
+          path: p,
+          count: 0,
+          encrypted: false,
+          partial: false,
+          unlocked: isUnlocked(p)
+        });
+      }
+    }
+  }
+
   // Uncategorized count
   const defined = loadCategories();
   const uncatCount = videos.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms))).length;
