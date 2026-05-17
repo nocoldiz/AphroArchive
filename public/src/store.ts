@@ -438,6 +438,30 @@ export async function loadVideos() {
   videos.value = combined;
   isLoadingVideos.value = false;
   syncUrlToState();
+
+  // If the videos folder or configured path folders are missing/empty, show bookmarks
+  let shouldShowBookmarks = false;
+  if (data.length === 0) {
+    shouldShowBookmarks = true;
+  }
+  try {
+    let prefs = appPrefs.value;
+    if (!prefs || Object.keys(prefs).length === 0) {
+      const pRes = await fetch('/api/settings/prefs');
+      prefs = await pRes.json();
+      appPrefs.value = prefs;
+    }
+    if (prefs.videosDirExists === false || (prefs.missingSourceFolders && prefs.missingSourceFolders.length > 0)) {
+      shouldShowBookmarks = true;
+    }
+  } catch (e) {}
+
+  if (shouldShowBookmarks) {
+    const cur = currentView.value;
+    if (cur === 'hub' || cur === 'home' || cur === 'browse' || cur === '') {
+      currentView.value = 'bookmarks';
+    }
+  }
 }
 
 export async function loadCategories() {

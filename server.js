@@ -49,15 +49,28 @@ const { startBackgroundWorker } = require('./server/background-worker-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
-fs.mkdirSync(CACHE_DIR, { recursive: true });
-fs.mkdirSync(VIDEOS_DIR, { recursive: true });
-fs.mkdirSync(AUDIO_DIR, { recursive: true });
-fs.mkdirSync(BOOKS_DIR, { recursive: true });
-fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-fs.mkdirSync(PAGES_DIR, { recursive: true });
-fs.mkdirSync(cfg.BM_THUMBS_DIR, { recursive: true });
-fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
-fs.mkdirSync(path.join(process.cwd(), 'models'), { recursive: true });
+function ensureDirSync(dirPath) {
+  try {
+    const stats = fs.lstatSync(dirPath);
+    if (stats.isSymbolicLink() && !fs.existsSync(dirPath)) {
+      console.warn(`\x1b[33m⚠️  Warning: '${dirPath}' is a broken symlink (target is missing). Unlinking and creating a local directory...\x1b[0m`);
+      fs.unlinkSync(dirPath);
+    }
+  } catch (err) {
+    // If the path doesn't exist, lstatSync will throw, which is expected.
+  }
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+ensureDirSync(CACHE_DIR);
+ensureDirSync(VIDEOS_DIR);
+ensureDirSync(AUDIO_DIR);
+ensureDirSync(BOOKS_DIR);
+ensureDirSync(PHOTOS_DIR);
+ensureDirSync(PAGES_DIR);
+ensureDirSync(cfg.BM_THUMBS_DIR);
+ensureDirSync(path.dirname(BM_CACHE_FILE));
+ensureDirSync(path.join(process.cwd(), 'models'));
 
 (async () => { await comments.initCommentsModel(); })();
 
@@ -261,7 +274,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/favs' && req.method === 'GET') return vault.apiVaultFavsGet(req, res);
   if ((m = p.match(/^\/api\/vault\/favs\/([^/]+)$/)) && req.method === 'POST') return vault.apiVaultFavsToggle(req, res, m[1]);
   if (p === '/api/vault/change-password' && req.method === 'POST') return vault.apiVaultChangePassword(req, res);
-  if (p === '/api/vault' && req.method === 'DELETE') return vault.apiVaultDeleteVault(req, res);
+  if ((p === '/api/vault' && req.method === 'DELETE') || (p === '/api/vault/delete-vault' && req.method === 'POST')) return vault.apiVaultDeleteVault(req, res);
   if (p === '/api/vault/read-book' && req.method === 'GET') return vault.apiVaultReadBook(req, res, params.get('id'));
   if ((m = p.match(/^\/api\/vault\/stream-page\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultStreamPage(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/page-resource\/([^/]+)\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultPageResource(req, res, m[1], m[2]);

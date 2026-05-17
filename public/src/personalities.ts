@@ -11,7 +11,7 @@ export const PERSONALITIES: Personality[] = [
     id: 'casual',
     name: 'Casual',
     description: 'Realistic, everyday internet comments.',
-    prompt: 'Generate exactly {count} realistic, casual internet comments for a video titled "{videoName}". Mix of short reactions and relatable observations. Return ONLY a JSON array of strings.',
+    prompt: 'Generate exactly {count} realistic, casual internet comments for "{videoName}". Mix of short reactions and relatable observations. Return ONLY a JSON array of strings.',
     replyPrompt: 'Reply to "{userComment}" on video "{videoName}" in a casual, friendly way. 1 sentence.'
   },
   {

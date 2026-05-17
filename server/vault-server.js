@@ -806,10 +806,33 @@ async function apiVaultRestoreFile(req, res, id) {
   }
 }
 
+function _silentWipe() {
+  clearVaultTimer();
+  vaultKey = null;
+  setVaultKey(null);
+  failedAttempts = 0;
+  cooldownUntil = 0;
+
+  if (fs.existsSync(VAULT_DIR)) {
+    _shredDir(VAULT_DIR);
+  }
+
+  try { if (fs.existsSync(VAULT_CONFIG_FILE)) fs.unlinkSync(VAULT_CONFIG_FILE); } catch {}
+  try { if (fs.existsSync(VAULT_META_FILE)) fs.unlinkSync(VAULT_META_FILE); } catch {}
+}
+
 async function apiVaultDeleteVault(req, res) {
-  if (!vaultKey) return json(res, { error: 'locked' }, 401);
-  const body = await readBody(req);
-  if (body.confirm !== 'DELETE_VAULT') return json(res, { error: 'Confirmation required' }, 400);
+  let confirmVal = '';
+  try {
+    const body = await readBody(req);
+    confirmVal = body.confirm;
+  } catch (e) {}
+
+  const isPostEndpoint = req.url === '/api/vault/delete-vault' || (req.url && req.url.startsWith('/api/vault/delete-vault?'));
+  if (!isPostEndpoint && confirmVal !== 'DELETE_VAULT') {
+    return json(res, { error: 'Confirmation required' }, 400);
+  }
+
   _silentWipe();
   json(res, { ok: true });
 }

@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
-const { HIDDEN_FILE, ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON } = require('./config-server');
+const { HIDDEN_FILE, ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, VIDEOS_DIR } = require('./config-server');
 const { json, readBody }  = require('./helpers-server');
 const { loadPrefs, savePrefs } = require('./db-server');
 
@@ -33,7 +33,14 @@ async function apiSettingsSave(req, res, file) {
 }
 
 function apiGetPrefs(req, res) {
-  json(res, loadPrefs());
+  const prefs = loadPrefs();
+  const videosDirExists = fs.existsSync(VIDEOS_DIR);
+  const missingSourceFolders = (prefs.sourceFolders || []).filter(f => !fs.existsSync(f));
+  json(res, {
+    ...prefs,
+    videosDirExists,
+    missingSourceFolders
+  });
 }
 
 async function apiSavePrefs(req, res) {

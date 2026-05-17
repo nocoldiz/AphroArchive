@@ -35,6 +35,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState(0);
   const [buffered, setBuffered] = useState<{ start: number; end: number }[]>([]);
+  const [localZap, setLocalZap] = useState(false);
   const controlsTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
@@ -86,6 +87,34 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       vid.playbackRate = playbackSpeed;
     }
   }, [playbackSpeed]);
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid || !localZap) return;
+
+    const interval = setInterval(() => {
+      if (vid.paused) return;
+      
+      const remaining = vid.duration - vid.currentTime;
+      if (remaining < 10) {
+        clearInterval(interval);
+        setLocalZap(false);
+        return;
+      }
+      
+      const minJump = 5;
+      const maxJump = remaining - 5;
+      if (maxJump > minJump) {
+        const jump = minJump + Math.random() * (maxJump - minJump);
+        vid.currentTime = vid.currentTime + jump;
+      } else {
+        clearInterval(interval);
+        setLocalZap(false);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [localZap]);
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -318,6 +347,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
               {playing ? '⏸' : '▶'}
             </button>
             <button onClick={onPrev} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
+            <button onClick={() => setLocalZap(!localZap)} style={{ background: 'none', border: 'none', color: localZap ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '1.2rem' }} title="Local Zap Mode">⚡</button>
             <button onClick={onNext} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
             <span style={{ fontSize: '0.9rem' }}>{formatDuration(currentTime)} / {formatDuration(duration)}</span>
           </div>
