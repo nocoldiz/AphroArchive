@@ -77,7 +77,14 @@ export const CategoriesView = () => {
       ) : (
         <div class="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
           {sortedData.map(item => {
-            const thumbSrc = item.thumbId ? `/api/thumbs/${item.thumbId}/0` : '';
+            let thumbSrc = '';
+            if (item.thumbId) {
+              if (item.thumbId.startsWith('/') || item.thumbId.startsWith('http')) {
+                thumbSrc = item.thumbId;
+              } else {
+                thumbSrc = `/api/thumbs/${item.thumbId}/0`;
+              }
+            }
             const onclick = () => {
               if (item.type === 'cat') {
                 currentCategory.value = item.path;

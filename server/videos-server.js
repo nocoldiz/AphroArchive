@@ -444,9 +444,21 @@ async function apiCategories(req, res) {
 
   // Add bookmarks (remote videos) count
   for (const [key, entry] of catMap.entries()) {
+    if (key === 'Bookmarks') continue;
     const kn = entry.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const bmCount = bookmarks.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
     entry.count += bmCount;
+  }
+
+  // Add virtual category "Bookmarks" if there are any playable bookmarks
+  const playableBookmarks = bookmarks.filter(b => b.scrapedVideoUrl);
+  if (playableBookmarks.length > 0) {
+    catMap.set('Bookmarks', {
+      name: 'Bookmarks',
+      path: 'Bookmarks',
+      count: playableBookmarks.length,
+      hasUnencrypted: false
+    });
   }
 
   const db = require('./db-server');
@@ -455,14 +467,15 @@ async function apiCategories(req, res) {
 
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
-    if (enabledSet.size > 0 && !enabledSet.has(entry.path)) continue;
+    if (key !== 'Bookmarks' && enabledSet.size > 0 && !enabledSet.has(entry.path)) continue;
 
     const parts = key.split('/');
     const isHidden = parts.some(part => hidden.some(t => t.toLowerCase() === part.toLowerCase()));
     if (isHidden) continue;
 
+    const isBookmarks = key === 'Bookmarks';
     const full = path.join(VIDEOS_DIR, entry.path);
-    const isConfigured = fs.existsSync(path.join(full, '.cat-enc-config.json'));
+    const isConfigured = !isBookmarks && fs.existsSync(path.join(full, '.cat-enc-config.json'));
     
     cats.push({
       name: entry.name,
@@ -470,7 +483,7 @@ async function apiCategories(req, res) {
       count: entry.count,
       encrypted: isConfigured,
       partial: isConfigured && entry.hasUnencrypted,
-      unlocked: isUnlocked(entry.path)
+      unlocked: isBookmarks ? true : isUnlocked(entry.path)
     });
   }
 
@@ -1005,10 +1018,28 @@ async function apiCategoriesOverview(req, res) {
 
   // Add bookmarks (remote videos) count
   for (const [key, e] of catMap.entries()) {
+    if (key === 'Bookmarks') continue;
     const kn = e.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const bmCount = bookmarks.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
     e.count += bmCount;
   }
+
+  // Add virtual category "Bookmarks" if there are any playable bookmarks
+  const playableBookmarks = bookmarks.filter(b => b.scrapedVideoUrl);
+  if (playableBookmarks.length > 0) {
+    const randomBm = playableBookmarks[Math.floor(Math.random() * playableBookmarks.length)];
+    const thumbId = randomBm.img || '';
+    catMap.set('Bookmarks', {
+      type: 'cat',
+      name: 'Bookmarks',
+      path: 'Bookmarks',
+      count: playableBookmarks.length,
+      ids: [],
+      thumbId: thumbId,
+      duration: 0
+    });
+  }
+
   const filteredCats = [...catMap.values()].filter(c => {
     const lo = c.path.toLowerCase();
     return !hidden.some(t => { const tl = t.toLowerCase(); return lo === tl || lo.startsWith(tl + '/') || lo.startsWith(tl + '\\'); });
@@ -1037,10 +1068,11 @@ async function apiCategoriesOverview(req, res) {
   }
 
   const result = [...filteredCats, ...tagMap.values()].map(e => {
-    const thumbId = e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null;
+    const isBookmarks = e.name === 'Bookmarks';
+    const thumbId = e.thumbId || (e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null);
     let encrypted = false;
     let partial = false;
-    if (e.type === 'cat') {
+    if (e.type === 'cat' && !isBookmarks) {
       const full = path.join(VIDEOS_DIR, e.path);
       encrypted = fs.existsSync(path.join(full, '.cat-enc-config.json'));
       if (encrypted) {
@@ -1049,7 +1081,7 @@ async function apiCategoriesOverview(req, res) {
         partial = hasUnencrypted;
       }
     }
-    const unlocked = isUnlocked(e.path || '');
+    const unlocked = isBookmarks ? true : isUnlocked(e.path || '');
     return { type: e.type, name: e.name, path: e.path || null, count: e.count, thumbId, encrypted, partial, unlocked, duration: e.duration };
   });
   json(res, result);
