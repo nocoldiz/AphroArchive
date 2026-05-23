@@ -12,7 +12,8 @@ const os    = require('os');
 const url   = require('url');
 const { BM_CACHE_FILE, OG_THUMB_CACHE_FILE, BM_DIR, BM_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
 const { json, readBody, serveStatic }   = require('./helpers-server');
-const { loadWebsites, saveWebsites, loadBookmarksCache, saveBookmarksCache, loadOgThumbCache, saveOgThumbCache } = require('./db-server');
+const { loadWebsites, saveWebsites, loadBookmarksCache, saveBookmarksCache, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories } = require('./db-server');
+const { wordMatchAny } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
 
@@ -292,22 +293,101 @@ function apiBookmarkGenerationStatus(req, res) {
 
 let _scrapeJob = null; // { running, stop, total, done, failed, current }
 
-function scrapeBookmark(url) {
-  return new Promise((resolve, reject) => {
-    if (!fs.existsSync(YT_DLP_BIN)) return reject(new Error('yt-dlp not found'));
-    execFile(YT_DLP_BIN, ['-j', url], { timeout: 30000 }, (err, stdout) => {
-      if (err) return reject(err);
+// Known video embed host patterns — used to filter iframes
+const EMBED_HOSTS = [
+  'youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com',
+  'streamtape.com', 'doodstream.com', 'streamlare.com', 'mixdrop.co',
+  'vidoza.net', 'upstream.to', 'fembed.com', 'uqload.com',
+  'myvi.ru', 'ok.ru', 'rutube.ru',
+  'xvideos.com', 'xhamster.com', 'pornhub.com', 'redtube.com',
+  'tube8.com', 'youporn.com', 'spankbang.com', 'xnxx.com',
+];
+
+function extractEmbedUrl(pageUrl) {
+  return new Promise((resolve) => {
+    try {
+      const parsed = new URL(pageUrl);
+      const lib = parsed.protocol === 'https:' ? https : http;
+      const opts = {
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        path: parsed.pathname + parsed.search,
+        method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'text/html' },
+        timeout: 10000,
+      };
+      const req = lib.request(opts, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return extractEmbedUrl(res.headers.location).then(resolve);
+        }
+        let data = '';
+        res.on('data', chunk => { data += chunk; if (data.length > 300000) req.destroy(); });
+        res.on('end', () => {
+          const iframeRe = /<iframe[^>]+src=["']([^"']+)["']/gi;
+          let match;
+          while ((match = iframeRe.exec(data)) !== null) {
+            const src = match[1];
+            try {
+              const srcHost = new URL(src.startsWith('//') ? 'https:' + src : src).hostname;
+              if (EMBED_HOSTS.some(h => srcHost === h || srcHost.endsWith('.' + h))) {
+                return resolve(src.startsWith('//') ? 'https:' + src : src);
+              }
+            } catch {}
+          }
+          resolve(null);
+        });
+        res.on('error', () => resolve(null));
+      });
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+      req.end();
+    } catch { resolve(null); }
+  });
+}
+
+function scrapeBookmark(pageUrl) {
+  return new Promise((resolve) => {
+    const ytdlpAvailable = fs.existsSync(YT_DLP_BIN);
+    if (!ytdlpAvailable) {
+      // No yt-dlp: fall back to embed extraction only
+      extractEmbedUrl(pageUrl).then(embedUrl => resolve({ thumbUrl: null, videoUrl: null, embedUrl }));
+      return;
+    }
+    execFile(YT_DLP_BIN, ['-j', pageUrl], { timeout: 30000 }, async (err, stdout) => {
+      if (err) {
+        // yt-dlp failed — try embed extraction as fallback
+        const embedUrl = await extractEmbedUrl(pageUrl);
+        return resolve({ thumbUrl: null, videoUrl: null, embedUrl });
+      }
       try {
         const data = JSON.parse(stdout);
-        resolve({
-          thumbUrl: data.thumbnail,
-          videoUrl: data.url
-        });
-      } catch (e) {
-        reject(e);
+        const embedUrl = await extractEmbedUrl(pageUrl);
+        resolve({ thumbUrl: data.thumbnail, videoUrl: data.url, embedUrl });
+      } catch {
+        const embedUrl = await extractEmbedUrl(pageUrl);
+        resolve({ thumbUrl: null, videoUrl: null, embedUrl });
       }
     });
   });
+}
+
+function autoCategorizeBookmarks(items) {
+  const cats = loadCategories();
+  const enabledPaths = loadEnabledCategories();
+  const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
+
+  for (const item of items) {
+    if (item.category) continue; // don't overwrite manual assignments
+    const title = item.title || '';
+    for (const cat of cats) {
+      const isEnabled = enabledSet.size === 0 || enabledSet.has(cat.name.toLowerCase());
+      if (!isEnabled) continue;
+      if (wordMatchAny(title, cat.terms)) {
+        item.category = cat.displayName;
+        break;
+      }
+    }
+  }
 }
 
 function startScrapingWorker() {
@@ -323,35 +403,45 @@ function startScrapingWorker() {
     for (const item of toProcess) {
       if (_scrapeJob.stop) break;
       _scrapeJob.current = item.title || item.url;
-      
+
       try {
         const result = await scrapeBookmark(item.url);
         if (result.videoUrl) {
           item.scrapedVideoUrl = result.videoUrl;
           item.hasVideo = true;
-          if (result.thumbUrl && !item.img) {
-            const id = Buffer.from(item.url).toString('base64url');
-            const outPath = path.join(BM_THUMBS_DIR, id + '.png');
-            await downloadImage(result.thumbUrl, outPath);
-            item.img = '/api/bookmarks/thumbs/' + id;
-          }
+        }
+        if (result.embedUrl) {
+          item.embedUrl = result.embedUrl;
+          item.hasEmbed = true;
+        }
+        if (result.thumbUrl && !item.img) {
+          const id = Buffer.from(item.url).toString('base64url');
+          const outPath = path.join(BM_THUMBS_DIR, id + '.png');
+          try { await downloadImage(result.thumbUrl, outPath); } catch {}
+          item.img = '/api/bookmarks/thumbs/' + id;
         }
         _scrapeJob.done++;
       } catch (e) {
         console.error('Scrape failed for:', item.url, e.message);
         _scrapeJob.failed++;
       }
-      
-        const currentCache = loadBookmarksCache();
-        const currentItems = currentCache.items || [];
-        const currentItem = currentItems.find(it => it.url === item.url);
-        if (currentItem) {
-          if (item.scrapedVideoUrl) currentItem.scrapedVideoUrl = item.scrapedVideoUrl;
-          if (item.hasVideo) currentItem.hasVideo = item.hasVideo;
-          if (item.img) currentItem.img = item.img;
-          saveBookmarksCache(currentCache);
-        }
+
+      const currentCache = loadBookmarksCache();
+      const currentItems = currentCache.items || [];
+      const currentItem = currentItems.find(it => it.url === item.url);
+      if (currentItem) {
+        if (item.scrapedVideoUrl) currentItem.scrapedVideoUrl = item.scrapedVideoUrl;
+        if (item.hasVideo) currentItem.hasVideo = item.hasVideo;
+        if (item.embedUrl) currentItem.embedUrl = item.embedUrl;
+        if (item.hasEmbed) currentItem.hasEmbed = item.hasEmbed;
+        if (item.img) currentItem.img = item.img;
+        saveBookmarksCache(currentCache);
+      }
     }
+    // Auto-categorize all bookmarks once scraping is done
+    const finalCache = loadBookmarksCache();
+    autoCategorizeBookmarks(finalCache.items || []);
+    saveBookmarksCache(finalCache);
     _scrapeJob.running = false;
   })();
 }
@@ -398,6 +488,7 @@ async function apiSaveBookmarksCache(req, res) {
     if (_scrapeJob && _scrapeJob.running) {
       _scrapeJob.stop = true;
     }
+    autoCategorizeBookmarks(items);
     saveBookmarksCache({ items });
     json(res, { ok: true, count: items.length });
   } catch (e) { json(res, { error: e.message }, 500); }

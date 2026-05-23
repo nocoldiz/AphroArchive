@@ -9,7 +9,9 @@ interface BookmarkItem {
   fav?: boolean;
   scrapedVideoUrl?: string;
   hasVideo?: boolean;
-  
+  embedUrl?: string;
+  hasEmbed?: boolean;
+  category?: string;
 }
 
 interface BookmarkCardProps {
@@ -19,34 +21,40 @@ interface BookmarkCardProps {
   onUpdate: (url: string, updates: Partial<BookmarkItem>) => void;
 }
 
-const BookmarkCard = ({ item, onRemove, onToggleStar, onUpdate }: BookmarkCardProps) => {
+const BookmarkCard = ({ item, onRemove, onToggleStar }: BookmarkCardProps) => {
   const hostname = new URL(item.url).hostname;
+  const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
 
-
+  const openPlayer = () => {
+    currentVideo.value = {
+      id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+      name: item.title,
+      path: item.scrapedVideoUrl || '',
+      relPath: item.url,
+      category: item.category || 'Bookmarks',
+      isBookmark: true,
+      img: item.img,
+      embedUrl: item.embedUrl,
+      bookmarkUrl: item.url,
+    } as any;
+    currentView.value = 'player';
+  };
 
   return (
-    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => {
-      if (item.scrapedVideoUrl) {
-        currentVideo.value = {
-          id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-          name: item.title,
-          path: item.scrapedVideoUrl,
-          relPath: item.url,
-          category: 'Bookmarks',
-          isBookmark: true,
-          img: item.img,
-          scrapedVideoUrl: item.scrapedVideoUrl
-        } as any;
-        currentView.value = 'player';
-      } else {
-        window.open(item.url, '_blank');
-      }
-    }}>
+    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={openPlayer}>
       <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
         {item.img ? (
           <img src={item.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>No Thumb</div>
+        )}
+        {/* External-link indicator when no playable source */}
+        {!hasPlayable && (
+          <div style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.6)', borderRadius: '4px', padding: '2px 4px', display: 'flex', alignItems: 'center' }} title="No direct video — opens in browser">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </div>
         )}
         <input type="checkbox" class="bf-chk" value={item.url} onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '10px', left: '10px' }} />
         
@@ -97,6 +105,7 @@ export const BookmarksView = () => {
   const [visibleItems, setVisibleItems] = useState<BookmarkItem[]>([]);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [groupByCategory, setGroupByCategory] = useState(false);
   const [matchedCount, setMatchedCount] = useState(0);
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -353,7 +362,6 @@ export const BookmarksView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls, category: '' })
     });
-    const d = await r.json();
     if (r.ok) {
       // Start poller
       const jobsRes = await fetch('/api/download/jobs');
@@ -466,6 +474,10 @@ export const BookmarksView = () => {
             <button className={`ss-tab ${viewMode === 'list' ? 'on' : ''}`} onClick={() => setViewMode('list')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'list' ? 'var(--ac)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>List</button>
           </div>
           <span className="sg-sep"></span>
+          <button className={`sort-btn ${groupByCategory ? 'on' : ''}`} onClick={() => setGroupByCategory(g => !g)} title="Group by category">
+            Categories
+          </button>
+          <span className="sg-sep"></span>
           <button className="sort-btn" onClick={copyAllVisible}>Copy URLs</button>
           <button className="sort-btn" onClick={openAllVisible}>Open All</button>
           <button className="sort-btn" onClick={downloadSelected}>Download Selected</button>
@@ -494,31 +506,59 @@ export const BookmarksView = () => {
         <div class="cv-loading">Loading bookmarks…</div>
       ) : visibleItems.length === 0 ? (
         <div class="empty-state">No bookmarks found</div>
-      ) : viewMode === 'grid' ? (
-        <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-          {visibleItems.map((item) => (
-            <BookmarkCard 
-              key={item.url} 
-              item={item} 
-              onRemove={removeItem} 
-              onToggleStar={toggleStar}
-              onUpdate={updateItem}
-            />
-          ))}
-        </div>
-      ) : (
-        <div class="bf-list">
-          {visibleItems.map(item => (
-            <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>
-              <input type="checkbox" class="bf-chk" value={item.url} />
-              <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent(item.url)}`} width="16" height="16" />
-              <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: 'var(--text)', textDecoration: 'none' }}>{item.title}</a>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{new URL(item.url).hostname}</span>
-              <button class="btn" onClick={() => removeItem(item.url)}>Remove</button>
-            </div>
-          ))}
-        </div>
-      )}
+      ) : (() => {
+        const renderCard = (item: BookmarkItem) => (
+          <BookmarkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} />
+        );
+        const renderRow = (item: BookmarkItem) => (
+          <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>
+            <input type="checkbox" class="bf-chk" value={item.url} aria-label="Select bookmark" />
+            <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent(item.url)}`} width="16" height="16" alt="" />
+            <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: 'var(--text)', textDecoration: 'none' }}>{item.title}</a>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{new URL(item.url).hostname}</span>
+            <button class="btn" onClick={() => removeItem(item.url)}>Remove</button>
+          </div>
+        );
+
+        if (groupByCategory) {
+          const groups: Record<string, BookmarkItem[]> = {};
+          for (const item of visibleItems) {
+            const key = item.category || 'Uncategorized';
+            (groups[key] = groups[key] || []).push(item);
+          }
+          const sortedKeys = Object.keys(groups).sort((a, b) => {
+            if (a === 'Uncategorized') return 1;
+            if (b === 'Uncategorized') return -1;
+            return a.localeCompare(b);
+          });
+          return (
+            <>
+              {sortedKeys.map(cat => (
+                <div key={cat} style={{ marginBottom: '30px' }}>
+                  <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {cat} <span style={{ fontWeight: 400, opacity: 0.6 }}>({groups[cat].length})</span>
+                  </h3>
+                  {viewMode === 'grid' ? (
+                    <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+                      {groups[cat].map(renderCard)}
+                    </div>
+                  ) : (
+                    <div class="bf-list">{groups[cat].map(renderRow)}</div>
+                  )}
+                </div>
+              ))}
+            </>
+          );
+        }
+
+        return viewMode === 'grid' ? (
+          <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+            {visibleItems.map(renderCard)}
+          </div>
+        ) : (
+          <div class="bf-list">{visibleItems.map(renderRow)}</div>
+        );
+      })()}
 
       {hasMore && (
         <div ref={triggerRef} style={{ height: '20px', margin: '20px 0', textAlign: 'center', color: 'var(--text-muted)' }}>

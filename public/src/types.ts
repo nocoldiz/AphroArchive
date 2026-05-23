@@ -19,6 +19,9 @@ export interface Video {
   chapters?: any[];
   isExternal?: boolean;
   isBookmark?: boolean;
+  embedUrl?: string;
+  bookmarkUrl?: string;
+  img?: string;
 }
 
 export interface Category {

@@ -243,22 +243,38 @@ export const PlayerView = () => {
       <div className="pv-layout">
         <div className="pv-main">
           <div className="video-player-wrap">
-            <AdvancedPlayer
-              src={video.isBookmark ? video.path : (video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`)}
-              videoId={video.id}
-              subtitles={subtitles}
-              chapters={chapters}
-              videoRef={videoRef}
-              isMuted={isMuted.value}
-              onNext={() => {
-                if (playerNextUp.value.length > 0) {
-                  currentVideo.value = playerNextUp.value[0];
-                }
-              }}
-              onPrev={() => {
-                // Prev is not easily supported without keeping history, but we can just leave it
-              }}
-            />
+            {video.isBookmark && !video.path ? (
+              video.embedUrl ? (
+                <iframe
+                  src={video.embedUrl}
+                  style={{ width: '100%', aspectRatio: '16/9', border: 'none', display: 'block' }}
+                  allowFullScreen
+                  allow="autoplay; fullscreen"
+                />
+              ) : (
+                <div className="bm-fallback" style={{ background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9', gap: '16px' }}>
+                  {video.img && <img src={video.img} alt={video.name} style={{ maxWidth: '100%', maxHeight: '70%', objectFit: 'contain' }} />}
+                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: '1rem', padding: '10px 20px' }}>
+                    Open in browser ↗
+                  </a>
+                </div>
+              )
+            ) : (
+              <AdvancedPlayer
+                src={video.isBookmark ? video.path : (video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`)}
+                videoId={video.id}
+                subtitles={subtitles}
+                chapters={chapters}
+                videoRef={videoRef}
+                isMuted={isMuted.value}
+                onNext={() => {
+                  if (playerNextUp.value.length > 0) {
+                    currentVideo.value = playerNextUp.value[0];
+                  }
+                }}
+                onPrev={() => {}}
+              />
+            )}
             <video
               id="video-player-zap"
               controls
