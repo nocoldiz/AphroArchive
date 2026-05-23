@@ -477,27 +477,32 @@ function apiScrapeStatus(req, res) {
 function apiGetBookmarksCache(req, res) {
   const urlObj = new URL(req.url, 'http://localhost');
   const params = urlObj.searchParams;
+  const rawLimit = parseInt(params.get('limit'));
+  const all = rawLimit === 0;
+  const limit = all ? Infinity : (rawLimit || 50);
   const page = parseInt(params.get('page')) || 1;
-  const limit = parseInt(params.get('limit')) || 50;
   const query = params.get('q') || '';
-  
+
   const cache = loadBookmarksCache();
   let items = cache.items || [];
-  
+
   if (query) {
     const term = query.toLowerCase();
-    items = items.filter(item => 
-      (item.title && item.title.toLowerCase().includes(term)) || 
+    items = items.filter(item =>
+      (item.title && item.title.toLowerCase().includes(term)) ||
       (item.url && item.url.toLowerCase().includes(term))
     );
   }
-  
+
+  if (all) {
+    json(res, { items, total: items.length, page: 1, limit: items.length, hasMore: false });
+    return;
+  }
+
   const start = (page - 1) * limit;
   const end = start + limit;
-  const paginatedItems = items.slice(start, end);
-  
   json(res, {
-    items: paginatedItems,
+    items: items.slice(start, end),
     total: items.length,
     page,
     limit,

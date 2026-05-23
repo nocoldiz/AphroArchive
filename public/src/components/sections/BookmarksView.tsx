@@ -123,10 +123,6 @@ export const BookmarksView = () => {
   const [loading, setLoading] = useState(true);
   const [websites, setWebsites] = useState<any[]>([]);
   const [selectedWebsite, setSelectedWebsite] = useState<string>('');
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const triggerRef = useRef<HTMLDivElement | null>(null);
 
   const dlPollerRef = useRef<any>(null);
   const [scrapeJob, setScrapeJob] = useState<{ running: boolean, total: number, done: number, failed: number, current: string } | null>(null);
@@ -155,49 +151,23 @@ export const BookmarksView = () => {
     return () => { if (scrapePollerRef.current) clearInterval(scrapePollerRef.current); };
   }, []);
 
-  const loadBookmarks = async (pageNum: number, searchTerms: string = '', reset: boolean = false) => {
-    if (pageNum === 1) setLoading(true);
-    else setLoadingMore(true);
-    
+  const loadBookmarks = async () => {
+    setLoading(true);
     try {
-      const url = `/api/bookmarks/cache?page=${pageNum}&limit=50&q=${encodeURIComponent(searchTerms)}`;
-      const r = await fetch(url);
+      const r = await fetch('/api/bookmarks/cache?limit=0');
       const d = await r.json();
-      
       if (d.items) {
-        setItems(prev => {
-          const next = reset ? d.items : [...prev, ...d.items];
-          updateMatches(next);
-          return next;
-        });
-        setVisibleItems(prev => reset ? d.items : [...prev, ...d.items]);
-        setHasMore(d.hasMore);
-        setPage(d.page);
+        setItems(d.items);
+        updateMatches(d.items);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   };
 
-  useEffect(() => {
-    loadBookmarks(1, search, true);
-  }, [search]);
-
-  useEffect(() => {
-    if (!triggerRef.current || !hasMore || loadingMore) return;
-    
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        loadBookmarks(page + 1, search, false);
-      }
-    }, { threshold: 0.1 });
-    
-    observer.observe(triggerRef.current);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, page, search]);
+  useEffect(() => { loadBookmarks(); }, []);
 
   useEffect(() => {
     fetch('/api/websites')
@@ -230,7 +200,7 @@ export const BookmarksView = () => {
   useEffect(() => {
     const term = search.trim().toLowerCase();
     let filtered = items;
-    
+
     if (selectedWebsite) {
       filtered = filtered.filter(item => {
         try {
@@ -246,7 +216,7 @@ export const BookmarksView = () => {
     if (term) {
       filtered = filtered.filter(item => item.title.toLowerCase().includes(term) || item.url.toLowerCase().includes(term));
     }
-    
+
     setVisibleItems(filtered);
   }, [search, items, selectedWebsite]);
 
@@ -445,6 +415,20 @@ export const BookmarksView = () => {
     }
   };
 
+  const rescrapeAll = async () => {
+    if (!confirm('Clear all scraped data and rescrape everything from scratch?')) return;
+    try {
+      const r = await fetch('/api/bookmarks/rescrape-all', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        const w = window as any;
+        if (w.toast) w.toast('Rescraping all from start');
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+  };
+
   const total = items.length;
   const pct = total ? Math.round((matchedCount / total) * 100) : 0;
 
@@ -458,6 +442,7 @@ export const BookmarksView = () => {
           <button class="btn" onClick={clearAll}>Clear All</button>
           <button class="btn" onClick={saveToDb}>Save to DB</button>
           <button class="btn" onClick={startScraping}>Start Scraping</button>
+          <button class="btn" onClick={rescrapeAll}>Rescrape All</button>
         </div>
       </div>
 
@@ -576,12 +561,6 @@ export const BookmarksView = () => {
           <div class="bf-list">{visibleItems.map(renderRow)}</div>
         );
       })()}
-
-      {hasMore && (
-        <div ref={triggerRef} style={{ height: '20px', margin: '20px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-          {loadingMore ? 'Loading more...' : 'Scroll down to load more'}
-        </div>
-      )}
 
       {/* Download Queue */}
       {jobs.length > 0 && (

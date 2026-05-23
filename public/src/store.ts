@@ -404,34 +404,59 @@ export const filteredVideos = computed(() => {
 });
 
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
+function matchBookmarkCat(title: string, cats: any[]): { catPath: string; category: string } {
+  const norm = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  for (const cat of cats) {
+    if (cat.path === 'Bookmarks') continue;
+    const key = cat.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (key && norm.includes(key)) return { catPath: cat.path, category: cat.name };
+  }
+  return { catPath: 'Bookmarks', category: 'Bookmarks' };
+}
+
 export async function loadVideos() {
   isLoadingVideos.value = true;
-  const res = await fetch('/api/videos');
+  const [res, bRes, cRes] = await Promise.all([
+    fetch('/api/videos'),
+    fetch('/api/bookmarks/cache?limit=0').catch(() => null),
+    fetch('/api/categories').catch(() => null),
+  ]);
   const data = await res.json();
-  
+
+  const cats = cRes ? await cRes.json().catch(() => []) : [];
+  if (Array.isArray(cats)) categories.value = cats;
+
   let bookmarksData: any[] = [];
   try {
-    const bRes = await fetch('/api/bookmarks/cache');
-    const bData = await bRes.json();
-    bookmarksData = bData.items || [];
+    if (bRes) {
+      const bData = await bRes.json();
+      bookmarksData = bData.items || [];
+    }
   } catch (e) {}
-  
+
   const bookmarkVideos = bookmarksData
-    .filter((b: any) => b.scrapedVideoUrl)
-    .map((b: any) => ({
-      id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-      name: b.title,
-      path: b.scrapedVideoUrl,
-      relPath: b.url,
-      category: 'Bookmarks',
-      isBookmark: true,
-      img: b.img,
-      hasVideo: true,
-      size: 0,
-      duration: 0,
-      mtime: Date.now()
-    }));
-    
+    .filter((b: any) => b.scrapedVideoUrl || b.embedUrl)
+    .map((b: any) => {
+      const { catPath, category } = matchBookmarkCat(b.title, cats);
+      return {
+        id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+        name: b.title,
+        path: b.scrapedVideoUrl || '',
+        relPath: b.url,
+        catPath,
+        category,
+        isBookmark: true,
+        isExternal: true,
+        embedUrl: b.embedUrl,
+        bookmarkUrl: b.url,
+        img: b.img,
+        hasVideo: !!b.scrapedVideoUrl,
+        size: 0,
+        duration: 0,
+        mtime: Date.now()
+      };
+    });
+
   const combined = [...data, ...bookmarkVideos];
   
   allVideos.value = combined;

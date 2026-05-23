@@ -68,7 +68,7 @@ export const Sidebar = () => {
   }, [isOpen]);
   if (view === 'reddit') return null;
 
-  const [bookmarkItems, setBookmarkItems] = useState<any[]>([]);
+  const [bookmarkCount, setBookmarkCount] = useState(0);
   const [tags, setTags] = useState<{ name: string, count: number }[]>([]);
   const [tagsOpen, setTagsOpen] = useState(true);
   const [catsOpen, setCatsOpen] = useState(true);
@@ -76,9 +76,7 @@ export const Sidebar = () => {
   useEffect(() => {
     fetch('/api/bookmarks/cache')
       .then(r => r.json())
-      .then(d => {
-        if (d.items) setBookmarkItems(d.items);
-      })
+      .then(d => setBookmarkCount(d.total || (d.items ? d.items.length : 0)))
       .catch(() => {});
 
     fetch('/api/tags')
@@ -249,7 +247,7 @@ export const Sidebar = () => {
         <SidebarItem
           id="import-favs-sidebar"
           label="Bookmarks"
-          badge={bookmarkItems.length > 0 ? bookmarkItems.length : undefined}
+          badge={bookmarkCount > 0 ? bookmarkCount : undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>}
           onClick={() => setView('bookmarks', 'showImportFavs')}
           isActive={currentView.value === 'bookmarks'}
