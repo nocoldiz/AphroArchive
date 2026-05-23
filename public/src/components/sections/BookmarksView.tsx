@@ -100,12 +100,24 @@ interface DownloadJob {
   error?: string;
 }
 
+interface ActiveCat { name: string; path: string; }
+
+function matchTitleToCategory(title: string, cats: ActiveCat[]): string | null {
+  const normalized = title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  for (const cat of cats) {
+    const catKey = cat.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (catKey && normalized.includes(catKey)) return cat.name;
+  }
+  return null;
+}
+
 export const BookmarksView = () => {
   const [items, setItems] = useState<BookmarkItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<BookmarkItem[]>([]);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [groupByCategory, setGroupByCategory] = useState(false);
+  const [groupByCategory, setGroupByCategory] = useState(true);
+  const [activeCats, setActiveCats] = useState<ActiveCat[]>([]);
   const [matchedCount, setMatchedCount] = useState(0);
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,6 +203,10 @@ export const BookmarksView = () => {
     fetch('/api/websites')
       .then(r => r.json())
       .then(setWebsites)
+      .catch(() => {});
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(data => setActiveCats(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
 
@@ -523,7 +539,8 @@ export const BookmarksView = () => {
         if (groupByCategory) {
           const groups: Record<string, BookmarkItem[]> = {};
           for (const item of visibleItems) {
-            const key = item.category || 'Uncategorized';
+            const matched = activeCats.length > 0 ? matchTitleToCategory(item.title, activeCats) : null;
+            const key = matched || item.category || 'Uncategorized';
             (groups[key] = groups[key] || []).push(item);
           }
           const sortedKeys = Object.keys(groups).sort((a, b) => {

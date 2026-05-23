@@ -390,39 +390,63 @@ function autoCategorizeBookmarks(items) {
   }
 }
 
-function startScrapingWorker() {
+function startScrapingWorker({ reset = false } = {}) {
   if (_scrapeJob && _scrapeJob.running) return;
-  
-  const bookmarks = loadBookmarksCache().items || [];
-  const toProcess = bookmarks.filter(b => !b.scrapedVideoUrl);
-  if (!toProcess.length) return;
+
+  const cache = loadBookmarksCache();
+  const allItems = cache.items || [];
+
+  if (reset) {
+    for (const item of allItems) {
+      delete item.scrapedVideoUrl;
+      delete item.hasVideo;
+      delete item.embedUrl;
+      delete item.hasEmbed;
+    }
+    saveBookmarksCache(cache);
+    console.log('[scrape] reset — cleared scraped data from', allItems.length, 'bookmarks');
+  }
+
+  const toProcess = allItems.filter(b => !b.scrapedVideoUrl);
+  if (!toProcess.length) {
+    console.log('[scrape] nothing to process');
+    return;
+  }
 
   _scrapeJob = { running: true, stop: false, total: toProcess.length, done: 0, failed: 0, current: '' };
+  console.log('[scrape] starting —', toProcess.length, 'bookmarks to process');
 
   (async () => {
     for (const item of toProcess) {
-      if (_scrapeJob.stop) break;
+      if (_scrapeJob.stop) { console.log('[scrape] stopped by user'); break; }
       _scrapeJob.current = item.title || item.url;
+      console.log(`[scrape] (${_scrapeJob.done + 1}/${_scrapeJob.total}) ${item.title || item.url}`);
 
       try {
         const result = await scrapeBookmark(item.url);
         if (result.videoUrl) {
           item.scrapedVideoUrl = result.videoUrl;
           item.hasVideo = true;
+          console.log(`[scrape]   video: ${result.videoUrl}`);
         }
         if (result.embedUrl) {
           item.embedUrl = result.embedUrl;
           item.hasEmbed = true;
+          console.log(`[scrape]   embed: ${result.embedUrl}`);
         }
         if (result.thumbUrl && !item.img) {
           const id = Buffer.from(item.url).toString('base64url');
           const outPath = path.join(BM_THUMBS_DIR, id + '.png');
           try { await downloadImage(result.thumbUrl, outPath); } catch {}
           item.img = '/api/bookmarks/thumbs/' + id;
+          console.log(`[scrape]   thumb: ${result.thumbUrl}`);
+        }
+        if (!result.videoUrl && !result.embedUrl) {
+          console.log('[scrape]   no result');
         }
         _scrapeJob.done++;
       } catch (e) {
-        console.error('Scrape failed for:', item.url, e.message);
+        console.error('[scrape]   error:', item.url, e.message);
         _scrapeJob.failed++;
       }
 
@@ -438,10 +462,10 @@ function startScrapingWorker() {
         saveBookmarksCache(currentCache);
       }
     }
-    // Auto-categorize all bookmarks once scraping is done
     const finalCache = loadBookmarksCache();
     autoCategorizeBookmarks(finalCache.items || []);
     saveBookmarksCache(finalCache);
+    console.log(`[scrape] done — ${_scrapeJob.done} ok, ${_scrapeJob.failed} failed`);
     _scrapeJob.running = false;
   })();
 }
@@ -496,7 +520,18 @@ async function apiSaveBookmarksCache(req, res) {
 
 function apiStartScraping(req, res) {
   startScrapingWorker();
-  json(res, { ok: true, message: 'Scraping started' });
+  json(res, { ok: true });
+}
+
+function apiRescrapeAll(_req, res) {
+  if (_scrapeJob && _scrapeJob.running) {
+    _scrapeJob.stop = true;
+    // give the loop one tick to notice the stop flag before reset
+    setImmediate(() => { startScrapingWorker({ reset: true }); });
+  } else {
+    startScrapingWorker({ reset: true });
+  }
+  json(res, { ok: true });
 }
 
 // ── Websites ──────────────────────────────────────────────────────────
@@ -742,4 +777,5 @@ module.exports = {
   apiBookmarkGenerationStatus,
   apiScrapeStatus,
   apiStartScraping,
+  apiRescrapeAll,
 };
