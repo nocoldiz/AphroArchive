@@ -458,10 +458,25 @@ export async function loadVideos() {
     });
 
   const combined = [...data, ...bookmarkVideos];
-  
+
   allVideos.value = combined;
   videos.value = combined;
   isLoadingVideos.value = false;
+
+  // Recompute category counts from combined list (local + bookmark videos)
+  if (Array.isArray(cats) && cats.length > 0) {
+    const countMap = new Map<string, number>();
+    for (const v of combined) {
+      if (!v.catPath) continue;
+      const parts = (v.catPath as string).split('/');
+      let cur = '';
+      for (const p of parts) {
+        cur = cur ? cur + '/' + p : p;
+        countMap.set(cur, (countMap.get(cur) || 0) + 1);
+      }
+    }
+    categories.value = cats.map((c: any) => ({ ...c, count: countMap.get(c.path) || 0 }));
+  }
   syncUrlToState();
 
   // If the videos folder or configured path folders are missing/empty, show bookmarks

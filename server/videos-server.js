@@ -442,21 +442,31 @@ async function apiCategories(req, res) {
     }
   }
 
-  // Add bookmarks (remote videos) count
-  for (const [key, entry] of catMap.entries()) {
-    if (key === 'Bookmarks') continue;
-    const kn = entry.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    const bmCount = bookmarks.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
-    entry.count += bmCount;
+  // Add playable bookmarks to category counts — first match only (mirrors client matchBookmarkCat)
+  const catEntries = [...catMap.entries()];
+  const playableBookmarks = bookmarks.filter(b => b.scrapedVideoUrl || b.embedUrl);
+  let unmatched = 0;
+  for (const bm of playableBookmarks) {
+    const norm = (bm.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    let matched = false;
+    for (const [key, entry] of catEntries) {
+      if (key === 'Bookmarks') continue;
+      const kn = entry.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      if (kn && norm.includes(kn)) {
+        entry.count++;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) unmatched++;
   }
 
-  // Add virtual category "Bookmarks" if there are any playable bookmarks
-  const playableBookmarks = bookmarks.filter(b => b.scrapedVideoUrl);
-  if (playableBookmarks.length > 0) {
+  // Virtual "Bookmarks" category for unmatched playable bookmarks
+  if (unmatched > 0) {
     catMap.set('Bookmarks', {
       name: 'Bookmarks',
       path: 'Bookmarks',
-      count: playableBookmarks.length,
+      count: unmatched,
       hasUnencrypted: false
     });
   }

@@ -50,7 +50,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
   };
 
   useEffect(() => {
-    if (!cardRef.current) return;
+    if (!cardRef.current || video.isBookmark) return;
     const observer = new IntersectionObserver(entries => {
       for (const e of entries) {
         if (e.isIntersecting) {
@@ -188,7 +188,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       `}</style>
       <div className="card-thumb">
         <img
-          src={`/api/thumbs/${video.id}/0`}
+          src={video.isBookmark ? (video.img || '') : `/api/thumbs/${video.id}/0`}
           loading="lazy"
           className="video-thumb"
           id={`img-${video.id}`}

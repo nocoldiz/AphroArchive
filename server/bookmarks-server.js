@@ -139,32 +139,76 @@ async function takeScreenshotWithBannerRemoval(targetUrl, outPath) {
   if (!res.ok) throw new Error(`Failed to fetch page: ${res.statusText}`);
   let html = await res.text();
 
-  // Inject <base> tag
+  // Inject <base> tag so relative assets resolve
   const baseTag = `<base href="${targetUrl}">`;
   if (/<head>/i.test(html)) {
     html = html.replace(/<head>/i, `<head>${baseTag}`);
   } else {
-    html = baseTag + html; // Fallback if no head tag
+    html = baseTag + html;
   }
 
-  // Inject CSS to hide banners
+  // CSS: nuke every common consent/overlay pattern
   const styleTag = `
     <style>
-      .cookie-banner, .cookie-consent, .cc-banner, .cc-window, .consent-banner, 
-      #cookie-banner, #cookie-consent, #consent-popup, 
-      [class*="cookie-banner"], [id*="cookie-banner"], 
+      .cookie-banner, .cookie-consent, .cc-banner, .cc-window, .consent-banner,
+      #cookie-banner, #cookie-consent, #consent-popup,
+      [class*="cookie-banner"], [id*="cookie-banner"],
       [class*="consent-banner"], [id*="consent-banner"],
       [class*="cookie-popup"], [id*="cookie-popup"],
       [class*="cookie-notice"], [id*="cookie-notice"],
-      #onetrust-banner-sdk, #qc-cmp2-container, #consent-manager, .cmp-container {
+      [class*="gdpr"], [id*="gdpr"],
+      #onetrust-banner-sdk, #qc-cmp2-container, #consent-manager, .cmp-container,
+      .fc-consent-root, .sp-message-container, #usercentrics-root,
+      [class*="consent-wall"], [class*="paywall"], [id*="paywall"] {
         display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
       }
+      /* Restore scrolling that banners often lock */
+      html, body { overflow: auto !important; }
     </style>
   `;
+
+  // JS: try clicking "Accept / Close / Agree" buttons before paint
+  const scriptTag = `
+    <script>
+      (function() {
+        var ACCEPT = ['accept all', 'accept cookies', 'accept', 'agree', 'i agree',
+                      'allow all', 'allow cookies', 'allow', 'ok', 'got it',
+                      'close', 'dismiss', 'continue', 'proceed'];
+        function tryDismiss() {
+          var els = document.querySelectorAll(
+            'button, a[role="button"], [role="button"], input[type="button"], input[type="submit"]'
+          );
+          for (var i = 0; i < els.length; i++) {
+            var t = (els[i].textContent || els[i].value || '').toLowerCase().trim();
+            if (ACCEPT.some(function(k){ return t === k || t.startsWith(k); })) {
+              try { els[i].click(); } catch(e) {}
+            }
+          }
+          /* Also remove elements with consent-related aria labels */
+          var overlays = document.querySelectorAll(
+            '[id*="cookie"],[id*="consent"],[id*="gdpr"],[id*="banner"],' +
+            '[class*="cookie"],[class*="consent"],[class*="gdpr"]'
+          );
+          for (var j = 0; j < overlays.length; j++) {
+            overlays[j].style.cssText = 'display:none!important';
+          }
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', tryDismiss);
+        } else {
+          tryDismiss();
+        }
+      })();
+    </script>
+  `;
+
   if (/<\/head>/i.test(html)) {
-    html = html.replace(/<\/head>/i, `${styleTag}</head>`);
+    html = html.replace(/<\/head>/i, `${styleTag}${scriptTag}</head>`);
   } else {
-    html += styleTag;
+    html += styleTag + scriptTag;
   }
 
   const tmpFile = path.join(os.tmpdir(), `aphro_thumb_${Date.now()}.html`);
@@ -444,6 +488,25 @@ function startScrapingWorker({ reset = false } = {}) {
         if (!result.videoUrl && !result.embedUrl) {
           console.log('[scrape]   no result');
         }
+
+        // Screenshot fallback: if still no preview, take a page screenshot
+        if (!item.img) {
+          const id = Buffer.from(item.url).toString('base64url');
+          const outPath = path.join(BM_THUMBS_DIR, id + '.png');
+          if (!fs.existsSync(outPath)) {
+            try {
+              console.log('[scrape]   no thumb — taking screenshot fallback');
+              await takeScreenshotWithBannerRemoval(item.url, outPath);
+              item.img = '/api/bookmarks/thumbs/' + id;
+              console.log('[scrape]   screenshot saved');
+            } catch (e) {
+              console.log('[scrape]   screenshot fallback failed:', e.message);
+            }
+          } else {
+            item.img = '/api/bookmarks/thumbs/' + id;
+          }
+        }
+
         _scrapeJob.done++;
       } catch (e) {
         console.error('[scrape]   error:', item.url, e.message);
