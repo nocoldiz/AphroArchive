@@ -9,7 +9,7 @@ interface DbEntry {
 }
 
 export const DatabaseView = () => {
-  const [activeTab, setActiveTab] = useState('actors');
+  const [activeTab, setActiveTab] = useState('folders');
   const [entries, setEntries] = useState<[string, any][]>([]);
   const [loading, setLoading] = useState(false);
   
@@ -24,9 +24,9 @@ export const DatabaseView = () => {
   const [newSourceFolder, setNewSourceFolder] = useState('');
 
   const tabs = [
+    { id: 'folders', name: 'Categories' },
     { id: 'actors', name: 'Actors' },
-    { id: 'categories', name: 'Categories' },
-    { id: 'folders', name: 'Folders' },
+    { id: 'categories', name: 'Tags' },
     { id: 'studios', name: 'Studios' },
     { id: 'websites', name: 'Websites' },
     { id: 'duplicates', name: 'Duplicates' }
@@ -151,7 +151,7 @@ export const DatabaseView = () => {
       if (!res.ok) throw new Error('Server error');
 
       const w = window as any;
-      if (w.toast) w.toast('Folders visibility saved');
+      if (w.toast) w.toast('Categories visibility saved');
     } catch (e: any) {
       alert('Error: ' + e.message);
     }
@@ -277,8 +277,8 @@ export const DatabaseView = () => {
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
               {enabledFolders.size === 0
-                ? 'All folders visible (none explicitly enabled)'
-                : `${enabledFolders.size} of ${folders.length} folders enabled`}
+                ? 'All categories visible (none explicitly enabled)'
+                : `${enabledFolders.size} of ${folders.length} categories enabled`}
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" className="modal-btn" onClick={() => setEnabledFolders(new Set())}>Enable All</button>
@@ -287,7 +287,7 @@ export const DatabaseView = () => {
           </div>
           {folders.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
-              No subfolders found in videos directory or source folders.
+              No categories found in videos directory or source folders.
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>

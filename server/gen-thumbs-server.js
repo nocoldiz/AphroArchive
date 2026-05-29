@@ -8,7 +8,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
 const { json } = require('./helpers-server');
-const { loadThumbsCache, saveThumbsCache } = require('./db-server');
+const { loadThumbsCache, saveThumbsCache, loadPrefs } = require('./db-server');
 
 const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
 const THUMB_PCT = [0.1, 0.25, 0.5, 0.75, 0.9];
@@ -16,7 +16,7 @@ const CONCURRENCY = 2;
 
 function toId(rel) { return Buffer.from(rel).toString('base64url'); }
 
-function scanVideos(dir, base) {
+function scanVideos(dir, base, isExternal = false) {
   if (!base) base = dir;
   const out = [];
   let entries;
@@ -25,13 +25,29 @@ function scanVideos(dir, base) {
     const fp = path.join(dir, e.name);
     if (e.isDirectory()) {
       if (e.name === 'hidden' || e.name === 'Z') continue;
-      out.push(...scanVideos(fp, base));
+      out.push(...scanVideos(fp, base, isExternal));
     } else if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase())) {
-      const rel = path.relative(base, fp);
-      out.push({ fp, rel, id: toId(rel) });
+      // External files use their absolute path as ID (matching cachedScan in videos-server)
+      const id = isExternal ? toId(fp) : toId(path.relative(base, fp));
+      out.push({ fp, id });
     }
   }
   return out;
+}
+
+function scanAllVideos() {
+  const all = scanVideos(VIDEOS_DIR);
+  try {
+    const prefs = loadPrefs();
+    if (prefs.sourceFolders) {
+      for (const folder of prefs.sourceFolders) {
+        if (fs.existsSync(folder)) {
+          all.push(...scanVideos(folder, folder, true));
+        }
+      }
+    }
+  } catch (e) {}
+  return all;
 }
 
 function isComplete(id) {
@@ -58,7 +74,7 @@ function broadcast(ev) {
 // ── Batch runner ─────────────────────────────────────────────────────
 
 async function runBatch() {
-  const all = scanVideos(VIDEOS_DIR);
+  const all = scanAllVideos();
   const pending = all.filter(v => !isComplete(v.id));
   const skipped = all.length - pending.length;
 

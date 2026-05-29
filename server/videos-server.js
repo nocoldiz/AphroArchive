@@ -285,7 +285,7 @@ function getUnlockKey(catPath) {
 async function initVideoMeta() {
   try {
     const meta       = loadVideoMeta();
-    const videos     = await scan(VIDEOS_DIR);
+    const videos     = await cachedScan();
     let changed      = false;
     const categories = loadCategories();
     const studios    = loadStudios();
@@ -492,14 +492,8 @@ async function apiCategories(req, res) {
     });
   }
 
-  const db = require('./db-server');
-  const enabledCats = db.loadEnabledCategories();
-  const enabledSet = new Set(enabledCats);
-
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
-    if (key !== 'Bookmarks' && enabledSet.size > 0 && !enabledSet.has(entry.path)) continue;
-
     const parts = key.split('/');
     const isHidden = parts.some(part => hidden.some(t => t.toLowerCase() === part.toLowerCase()));
     if (isHidden) continue;
@@ -507,7 +501,7 @@ async function apiCategories(req, res) {
     const isBookmarks = key === 'Bookmarks';
     const full = path.join(VIDEOS_DIR, entry.path);
     const isConfigured = !isBookmarks && fs.existsSync(path.join(full, '.cat-enc-config.json'));
-    
+
     cats.push({
       name: entry.name,
       path: entry.path,
@@ -516,21 +510,6 @@ async function apiCategories(req, res) {
       partial: isConfigured && entry.hasUnencrypted,
       unlocked: isBookmarks ? true : isUnlocked(entry.path)
     });
-  }
-
-  if (enabledSet.size > 0) {
-    for (const p of enabledCats) {
-      if (!cats.some(c => c.path === p)) {
-        cats.push({
-          name: p.replace(/\//g, ' / '),
-          path: p,
-          count: 0,
-          encrypted: false,
-          partial: false,
-          unlocked: isUnlocked(p)
-        });
-      }
-    }
   }
 
   // Uncategorized count

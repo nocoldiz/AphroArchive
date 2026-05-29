@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag, appPrefs, showConnectModal, isSidebarOpen } from '../../store';
+import { currentView, currentCategory, categories, currentTag, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -106,6 +106,38 @@ export const Sidebar = () => {
   };
 
   const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
+
+  // Derive filtered counts from allVideos + sourceFilter so badges update when filter changes
+  const sf = sourceFilter.value;
+  const vids = allVideos.value;
+  const filteredVids = sf === 'local'
+    ? vids.filter(v => !(v as any).isExternal)
+    : sf === 'remote'
+    ? vids.filter(v => (v as any).isExternal)
+    : vids;
+
+  const catCountMap = new Map<string, number>();
+  for (const v of filteredVids) {
+    const cp = (v as any).catPath as string;
+    if (!cp) continue;
+    const parts = cp.split('/');
+    let cur = '';
+    for (const p of parts) {
+      cur = cur ? cur + '/' + p : p;
+      catCountMap.set(cur, (catCountMap.get(cur) || 0) + 1);
+    }
+  }
+  const displayCategories = categories.value.map(c => ({ ...c, count: catCountMap.get(c.path) || 0 }));
+
+  const tagCountMap = new Map<string, number>();
+  for (const v of filteredVids) {
+    for (const tag of ((v as any).tags || []) as string[]) {
+      tagCountMap.set(tag, (tagCountMap.get(tag) || 0) + 1);
+    }
+  }
+  const displayTags = tags
+    .filter(t => !(appPrefs.value.hiddenTags || []).includes(t.name))
+    .map(t => ({ ...t, count: tagCountMap.get(t.name) || 0 }));
 
   return (
     <>
@@ -308,7 +340,7 @@ export const Sidebar = () => {
         }
       />
       <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
-        {categories.value.map(c => {
+        {displayCategories.map(c => {
           let lockIcon = null;
           if (c.partial) {
             lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="3" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>;
@@ -375,7 +407,7 @@ export const Sidebar = () => {
         }} 
       />
       <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
-        {tags.filter(t => !(appPrefs.value.hiddenTags || []).includes(t.name)).map(t => (
+        {displayTags.map(t => (
           <SidebarItem
             key={t.name}
             id={`tag-${t.name}`}
