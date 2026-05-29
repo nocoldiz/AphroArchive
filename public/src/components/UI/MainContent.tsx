@@ -33,7 +33,6 @@ import { PromptsView } from '../sections/PromptsView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
 import { ActorScraperView } from '../sections/ActorScraperView';
-import { ConnectModal } from '../modals/ConnectModal';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { useEffect } from 'preact/hooks';
 
@@ -109,14 +108,7 @@ export const MainContent = () => {
     if (view === 'prompts') return <PromptsView />;
     if (view === 'player') return <PlayerView />;
     if (view === 'mosaic') return <MosaicView />;
-    if (view === 'connect') {
-      return (
-        <>
-          <BrowseView />
-          <ConnectModal onClose={() => { currentView.value = 'home'; }} />
-        </>
-      );
-    }
+    if (view === 'tag') return <TagDetailView />;
     return <BrowseView />;
   };
 

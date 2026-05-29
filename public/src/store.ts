@@ -555,7 +555,7 @@ w.load = async () => {
 
 // Navigation Bridge
 w.showHome = () => {
-  currentView.value = 'home';
+  currentView.value = 'hub';
   if (location.pathname !== '/') history.pushState(null, '', '/');
 };
 
@@ -573,7 +573,7 @@ w.goHome = () => {
     if (vpz) vpz.style.display = 'none';
     w.activePlayer = 'video-player';
   }
-  currentView.value = 'home';
+  currentView.value = 'hub';
   currentCategory.value = '';
   currentTag.value = null;
   searchQuery.value = '';
@@ -657,9 +657,21 @@ export function syncUrlToState() {
     currentTag.value = null;
     currentVideo.value = null;
   } else if ((m = p.match(/^\/tag\/([^/]+)$/))) {
-    currentView.value = 'browse';
+    currentView.value = 'tag';
     currentTag.value = decodeURIComponent(m[1]);
     currentCategory.value = '';
+    currentVideo.value = null;
+  } else if ((m = p.match(/^\/actor\/([^/]+)$/))) {
+    currentView.value = 'actors';
+    currentActor.value = decodeURIComponent(m[1]);
+    currentCategory.value = '';
+    currentTag.value = null;
+    currentVideo.value = null;
+  } else if ((m = p.match(/^\/studio\/([^/]+)$/))) {
+    currentView.value = 'studios';
+    currentStudio.value = decodeURIComponent(m[1]);
+    currentCategory.value = '';
+    currentTag.value = null;
     currentVideo.value = null;
   } else {
     // Other views

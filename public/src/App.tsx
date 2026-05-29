@@ -4,7 +4,6 @@ import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { ConnectModal } from './components/modals/ConnectModal';
 import { DropOverlay } from './components/UI/DropOverlay';
-import { GlobalDownloadBar } from './components/UI/GlobalDownloadBar';
 
 export function App() {
   useEffect(() => {
@@ -92,7 +91,6 @@ export function App() {
       <ProfileModal />
       {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}
       <DropOverlay />
-      <GlobalDownloadBar />
     </>
   );
 }

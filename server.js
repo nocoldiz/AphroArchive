@@ -202,6 +202,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-thumbs/start' && req.method === 'POST') return genThumbs.apiGenThumbsStart(req, res);
   if (p === '/api/gen-thumbs/stop' && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
   if (p === '/api/gen-thumbs/status' && req.method === 'GET') return genThumbs.apiGenThumbsStatus(req, res);
+  if (p === '/api/gen-thumbs/poll' && req.method === 'GET') return genThumbs.apiGenThumbsStatusPoll(req, res);
 
   // ── Collections ──────────────────────────────────────────────────────
   if (p === '/api/collections' && req.method === 'GET') return collections.apiCollections(req, res);
@@ -247,6 +248,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/bookmarks/generate-all' && req.method === 'POST') return bookmarks.apiGenerateAllBookmarkThumbs(req, res);
   if (p === '/api/bookmarks/generation-status' && req.method === 'GET') return bookmarks.apiBookmarkGenerationStatus(req, res);
   if (p === '/api/bookmarks/scrape-status' && req.method === 'GET') return bookmarks.apiScrapeStatus(req, res);
+  if (p === '/api/bookmarks/stop-scraping' && req.method === 'POST') return bookmarks.apiStopScraping(req, res);
+  if (p === '/api/bookmarks/thumb-status' && req.method === 'GET') return bookmarks.apiBookmarkThumbStatus(req, res);
+  if (p === '/api/bookmarks/stop-generating' && req.method === 'POST') return bookmarks.apiStopBookmarkThumbs(req, res);
   if (p === '/api/bookmarks/start-scraping' && req.method === 'POST') return bookmarks.apiStartScraping(req, res);
   if (p === '/api/bookmarks/rescrape-all' && req.method === 'POST') return bookmarks.apiRescrapeAll(req, res);
   if ((m = p.match(/^\/api\/bookmarks\/thumbs\/(.+)$/)) && req.method === 'GET') return bookmarks.apiBookmarkThumbImg(req, res, m[1]);

@@ -156,4 +156,12 @@ function apiGenThumbsStatus(req, res) {
   req.on('close', () => _clients.delete(res));
 }
 
-module.exports = { apiGenThumbsStart, apiGenThumbsStop, apiGenThumbsStatus };
+function apiGenThumbsStatusPoll(req, res) {
+  if (_job) {
+    json(res, { running: _job.running, done: _job.done, total: _job.total, failed: _job.failed, skipped: _job.skipped || 0, current: _job.current || '' });
+  } else {
+    json(res, { running: false });
+  }
+}
+
+module.exports = { apiGenThumbsStart, apiGenThumbsStop, apiGenThumbsStatus, apiGenThumbsStatusPoll };

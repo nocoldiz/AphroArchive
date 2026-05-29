@@ -537,6 +537,20 @@ function apiScrapeStatus(req, res) {
   json(res, _scrapeJob || { running: false });
 }
 
+function apiStopScraping(req, res) {
+  if (_scrapeJob && _scrapeJob.running) _scrapeJob.stop = true;
+  json(res, { ok: true });
+}
+
+function apiBookmarkThumbStatus(req, res) {
+  json(res, _bmJob || { running: false });
+}
+
+function apiStopBookmarkThumbs(req, res) {
+  if (_bmJob && _bmJob.running) _bmJob.stop = true;
+  json(res, { ok: true });
+}
+
 function apiGetBookmarksCache(req, res) {
   const urlObj = new URL(req.url, 'http://localhost');
   const params = urlObj.searchParams;
@@ -843,7 +857,8 @@ module.exports = {
   apiGenerateBookmarkThumb,
   apiGenerateAllBookmarkThumbs,
   apiBookmarkGenerationStatus,
-  apiScrapeStatus,
+  apiScrapeStatus, apiStopScraping,
+  apiBookmarkThumbStatus, apiStopBookmarkThumbs,
   apiStartScraping,
   apiRescrapeAll,
 };

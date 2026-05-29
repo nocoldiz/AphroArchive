@@ -1,4 +1,5 @@
 import { Search } from './Search';
+import { DownloadManager } from './DownloadManager';
 import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen } from '../../store';
 import { useEffect } from 'preact/hooks';
 
@@ -80,6 +81,8 @@ export const Topbar = () => {
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
         </button>
+
+        <DownloadManager />
         
         <button id="dualBtn" onClick={toggleDual} title="Dual mode">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -146,12 +149,13 @@ export const Topbar = () => {
           )}
         </button>
 
-        <input 
-          type="file" 
-          id="globalFileIn" 
+        <input
+          type="file"
+          id="globalFileIn"
           multiple
+          title="Import files"
           accept="video/*,audio/*,.pdf,.txt,.doc,.docx,.md,.epub,.mp3,.flac,.wav,.ogg,.aac,.m4a,.wma,.opus,.aiff"
-          style={{ display: 'none' }} 
+          style={{ display: 'none' }}
           onChange={(e) => handleGlobalFiles((e.target as HTMLInputElement).files)}
         />
       </div>
