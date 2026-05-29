@@ -753,6 +753,8 @@ w.filterVideosCat = (catFilter: string) => {
   if (!catFilter) return w._applySort(w.favFilter ? w._allVideos.filter((v: any) => v.fav) : w._allVideos);
   return w._applySort(w._allVideos.filter((v: any) => {
     if (w.favFilter && !v.fav) return false;
+    if (w.srcFilter === 'remote' && !v.isBookmark) return false;
+    if (w.srcFilter === 'local' && v.isBookmark) return false;
     if (catFilter === 'uncategorized' || catFilter === '__uncategorized__' || catFilter === '') return !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks');
     const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
     const cl = catFilter.toLowerCase().replace(/\\/g, '/');
@@ -768,6 +770,8 @@ w.filterVideosByTag = (terms: string[]) => {
   };
   return w._applySort(w._allVideos.filter((v: any) => {
     if (w.favFilter && !v.fav) return false;
+    if (w.srcFilter === 'remote' && !v.isBookmark) return false;
+    if (w.srcFilter === 'local' && v.isBookmark) return false;
     const vTagsLo = (v.tags || []).map((t: any) => t.toLowerCase());
     return vTagsLo.some((t: string) => termsLo.includes(t)) || terms.some(t => wordMatch(v.name, t));
   }));

@@ -194,7 +194,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
           id={`img-${video.id}`}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        {showVideo && (
+        {showVideo && !video.isBookmark && (
           <video
             src={`/api/stream/${video.id}`}
             autoPlay

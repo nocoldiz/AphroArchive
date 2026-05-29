@@ -271,7 +271,7 @@ export const PlayerView = () => {
       <div className="pv-layout">
         <div className="pv-main">
           <div className="video-player-wrap">
-            {video.isBookmark && !(video.path && /\.(mp4|webm|ogg|m3u8|mkv|avi|mov)(\?.*)?$/i.test(video.path)) ? (
+          {video.isBookmark ? (
               <div className="bm-fallback" style={{ background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9', gap: '16px' }}>
                 {video.img && (
                   <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '100%', maxHeight: '70%', display: 'flex', justifyContent: 'center' }}>
@@ -292,9 +292,24 @@ export const PlayerView = () => {
                   </button>
                 </div>
               </div>
+            ) : video.isVault ? (
+              <AdvancedPlayer
+                src={`/api/vault/stream/${video.id}`}
+                videoId={video.id}
+                subtitles={subtitles}
+                chapters={chapters}
+                videoRef={videoRef}
+                isMuted={isMuted.value}
+                onNext={() => {
+                  if (playerNextUp.value.length > 0) {
+                    currentVideo.value = playerNextUp.value[0];
+                  }
+                }}
+                onPrev={() => {}}
+              />
             ) : (
               <AdvancedPlayer
-                src={video.isBookmark ? video.path : (video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`)}
+                src={`/api/stream/${video.id}`}
                 videoId={video.id}
                 subtitles={subtitles}
                 chapters={chapters}
