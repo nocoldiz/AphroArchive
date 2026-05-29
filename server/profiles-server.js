@@ -5,7 +5,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { DB_DIR, ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, WEBSITES_JSON } = require('./config-server');
+const { DB_DIR } = require('./config-server');
 const { json, readBody } = require('./helpers-server');
 
 const PROFILES_DIR = path.join(DB_DIR, 'profiles');
@@ -81,14 +81,14 @@ function mergePresets(ids) {
 }
 
 function readExistingDb() {
-  const tryObj  = (f) => { try { const d = JSON.parse(fs.readFileSync(f, 'utf-8')); return (d && typeof d === 'object' && !Array.isArray(d)) ? d : {}; } catch { return {}; } };
-  const tryArr  = (f) => { try { const d = JSON.parse(fs.readFileSync(f, 'utf-8')); return Array.isArray(d) ? d : []; } catch { return []; } };
-  return {
-    actors:     tryObj(ACTORS_JSON),
-    categories: tryObj(CATEGORIES_JSON),
-    studios:    tryObj(STUDIOS_JSON),
-    websites:   tryArr(WEBSITES_JSON),
-  };
+  const db = require('./db-server');
+  const actors = {};
+  db.loadActors().forEach(a => { actors[a.name] = { date_of_birth: a.date_of_birth, nationality: a.nationality, imdb_page: a.imdb_page }; });
+  const categories = {};
+  db.loadCategories().forEach(c => { categories[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
+  const studios = {};
+  db.loadStudios().forEach(s => { studios[s.name] = { website: s.website, short_description: s.description }; });
+  return { actors, categories, studios, websites: db.loadWebsites() };
 }
 
 function writeDb(merged, mergeWithExisting = false) {
@@ -129,10 +129,7 @@ function writeDb(merged, mergeWithExisting = false) {
   db.saveCategories(data.categories);
   db.saveStudios(data.studios);
   db.saveWebsites(data.websites);
-  
-  // Actors still written to file for now
-  fs.mkdirSync(path.dirname(ACTORS_JSON), { recursive: true });
-  fs.writeFileSync(ACTORS_JSON, JSON.stringify(data.actors, null, 2));
+  db.saveActors(data.actors);
 }
 
 // GET /api/presets
@@ -170,7 +167,7 @@ async function apiApplyPreset(req, res) {
 // GET /api/profiles
 function apiGetProfiles(req, res) {
   const dbDir = path.join(__dirname, '../db');
-  if (!fs.existsSync(dbDir)) return json(res, { profiles: ['default'], current: 'default' });
+  if (!fs.existsSync(dbDir)) return json(res, { profiles: ['default', 'Vault'], current: 'default' });
   
   const files = fs.readdirSync(dbDir);
   const profiles = files
@@ -178,6 +175,9 @@ function apiGetProfiles(req, res) {
     .map(f => f.replace('aphroarchive_', '').replace('.db', ''));
     
   if (profiles.length === 0) profiles.push('default');
+  
+  // Add Vault to the list of profiles
+  if (!profiles.includes('Vault')) profiles.push('Vault');
     
   const db = require('./db-server');
   json(res, { profiles, current: db.getCurrentProfile() });
@@ -190,6 +190,12 @@ async function apiSwitchProfile(req, res) {
   if (!profile) return json(res, { error: 'Profile name required' }, 400);
   
   const db = require('./db-server');
+  const { isUnlocked } = require('./vault-server');
+  
+  if (profile === 'Vault' && !isUnlocked()) {
+    return json(res, { error: 'Vault is locked', locked: true }, 401);
+  }
+  
   db.switchProfile(profile);
   json(res, { ok: true, current: profile });
 }

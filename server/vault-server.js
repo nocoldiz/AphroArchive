@@ -8,8 +8,12 @@ const path = require('path');
 const crypto = require('crypto');
 const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, PROCESS_DIR } = require('./config-server');
 const { json, readBody, formatBytes: _fmtBytes } = require('./helpers-server');
-const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs } = require('./db-server');
+const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs, setVaultKey } = require('./db-server');
 const VAULT_DROP_DIR = typeof PROCESS_DIR !== 'undefined' ? PROCESS_DIR : path.join(path.dirname(VAULT_DIR), 'hidden');
+
+// Static salt used by default — any installation with the same password derives the same key.
+// Using a custom random salt improves security against rainbow tables but breaks portability.
+const STATIC_SALT = 'AphroArchive';
 // ── Module state ─────────────────────────────────────────────────────
 
 let vaultKey = null;
@@ -64,22 +68,7 @@ function _shredFile(filePath) {
   } catch { }
 }
 
-// Silently shred the entire vault — called on silent wipe
-function _silentWipe() {
-  try {
-    if (fs.existsSync(VAULT_DIR)) {
-      for (const file of fs.readdirSync(VAULT_DIR)) {
-        _shredFile(path.join(VAULT_DIR, file));
-      }
-    }
-    _shredFile(VAULT_CONFIG_FILE);
-    _shredFile(VAULT_META_FILE);
-  } catch { }
-  vaultKey = null;
-  failedAttempts = 0;
-  cooldownUntil = 0;
-  clearVaultTimer();
-}
+
 
 // Stream-decrypt an .enc file directly to an HTTP response (no temp files)
 // File format: [12 IV][encrypted data][16 auth tag]
@@ -352,7 +341,7 @@ async function _encryptHtmlPageToVault(filePath, filename) {
 }
 
 // Encrypts a local file, updates vault metadata, and shreds the original
-async function _encryptLocalFileToVault(filePath, filename) {
+async function _encryptLocalFileToVault(filePath, filename, category = null, videoMeta = null) {
   if (!vaultKey) return false;
 
   // Check if file is still being written to (by attempting to open it)
@@ -404,13 +393,15 @@ async function _encryptLocalFileToVault(filePath, filename) {
     size,
     sizeF: _fmtBytes(size),
     mtime: Date.now(),
-    folder: null
+    folder: null,
+    category,
+    videoMeta
   };
   saveVaultMeta(meta);
 
   // Securely delete the original unencrypted file
   _shredFile(filePath);
-  return true;
+  return id;
 }
 
 // Sweeps the drop directory
@@ -507,10 +498,16 @@ async function apiVaultSetup(req, res) {
   const pw = (body.password || '').trim();
   if (pw.length < 6) return json(res, { error: 'Password must be at least 6 characters' }, 400);
   try {
-    const salt = crypto.randomBytes(32).toString('hex');
+    // Use static salt by default for portability across installations.
+    // If body.useRandomSalt is true, generate a random salt (slightly more secure,
+    // but the vault cannot be opened on another installation without migrating the salt).
+    const salt = body.useRandomSalt
+      ? crypto.randomBytes(32).toString('hex')
+      : STATIC_SALT;
     const { encKey, verifyHash } = await deriveKeys(pw, salt);
-    saveVaultConfig({ salt, verifyHash });
+    saveVaultConfig({ salt, verifyHash, useRandomSalt: !!body.useRandomSalt });
     vaultKey = encKey;
+    setVaultKey(encKey);
     failedAttempts = 0; cooldownUntil = 0;
     resetVaultTimer();
     if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
@@ -536,12 +533,6 @@ async function apiVaultUnlock(req, res) {
     if (verifyHash !== cfg.verifyHash) {
       failedAttempts++;
 
-      if (failedAttempts >= 4 && !!loadPrefs().vaultSelfDestruct) {
-        // Silent wipe — attacker must not know this happened
-        setImmediate(_silentWipe);
-        return json(res, { error: 'Wrong password' }, 401);
-      }
-
       // Exponential backoff: 2nd fail → 5s, 3rd fail → 30s
       if (failedAttempts === 2) cooldownUntil = now + 5_000;
       else if (failedAttempts === 3) cooldownUntil = now + 30_000;
@@ -552,6 +543,7 @@ async function apiVaultUnlock(req, res) {
     // Correct password — reset counters
     failedAttempts = 0; cooldownUntil = 0;
     vaultKey = encKey;
+    setVaultKey(encKey);
     resetVaultTimer();
     json(res, { ok: true });
     processHiddenFolder();
@@ -561,6 +553,7 @@ async function apiVaultUnlock(req, res) {
 function apiVaultLock(req, res) {
   clearVaultTimer();
   vaultKey = null;
+  setVaultKey(null);
   json(res, { ok: true });
 }
 
@@ -698,8 +691,9 @@ async function apiVaultChangePassword(req, res) {
   const cfg = loadVaultConfig();
   if (!cfg) return json(res, { error: 'Not configured' }, 400);
   const body = await readBody(req);
-  const oldPw = (body.oldPassword || '').trim();
-  const newPw = (body.newPassword || '').trim();
+  // Support both camelCase variants from the frontend
+  const oldPw = (body.oldPassword || body.oldPw || '').trim();
+  const newPw = (body.newPassword || body.newPw || '').trim();
   if (newPw.length < 6) return json(res, { error: 'New password must be at least 6 characters' }, 400);
 
   try {
@@ -707,8 +701,12 @@ async function apiVaultChangePassword(req, res) {
     const { encKey: oldKey, verifyHash: oldHash } = await deriveKeys(oldPw, cfg.salt);
     if (oldHash !== cfg.verifyHash) return json(res, { error: 'Old password is wrong' }, 401);
 
-    // Derive new key
-    const newSalt = crypto.randomBytes(32).toString('hex');
+    // Keep the same salt type as the original setup (static or random).
+    // If useRandomSalt is explicitly set in body, honour it; otherwise preserve the original choice.
+    const keepStatic = body.useRandomSalt === undefined
+      ? !cfg.useRandomSalt
+      : !body.useRandomSalt;
+    const newSalt = keepStatic ? STATIC_SALT : crypto.randomBytes(32).toString('hex');
     const { encKey: newKey, verifyHash: newHash } = await deriveKeys(newPw, newSalt);
 
     // Re-encrypt all .enc files in VAULT_DIR
@@ -728,17 +726,113 @@ async function apiVaultChangePassword(req, res) {
     }
 
     // Save new config
-    saveVaultConfig({ salt: newSalt, verifyHash: newHash });
+    saveVaultConfig({ salt: newSalt, verifyHash: newHash, useRandomSalt: !keepStatic });
     vaultKey = newKey;
     resetVaultTimer();
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
-async function apiVaultDeleteVault(req, res) {
+// Decrypt a vault file and restore it to a normal directory.
+// The .enc file is deleted ONLY after the destination file has been
+// fully and successfully written, so a crash mid-transfer never loses data.
+async function apiVaultRestoreFile(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+
+  const meta = loadVaultMeta();
+  if (!meta[id]) return json(res, { error: 'Not found' }, 404);
+  if (meta[id].type === 'folder') return json(res, { error: 'Cannot restore a folder entry' }, 400);
+
+  const encPath = path.join(VAULT_DIR, id + '.enc');
+  if (!fs.existsSync(encPath)) return json(res, { error: 'Encrypted file not found' }, 404);
+
   const body = await readBody(req);
-  if (body.confirm !== 'DELETE_VAULT') return json(res, { error: 'Confirmation required' }, 400);
+  // destDir defaults to the parent VIDEOS_DIR if not provided
+  const { VIDEOS_DIR } = require('./config-server');
+  const destDir = (body.destDir || VIDEOS_DIR).toString();
+
+  if (!fs.existsSync(destDir)) {
+    try { fs.mkdirSync(destDir, { recursive: true }); } catch (e) {
+      return json(res, { error: 'Cannot create destination directory: ' + e.message }, 500);
+    }
+  }
+
+  const originalName = meta[id].originalName || (id + (meta[id].ext || ''));
+  const destPath = path.join(destDir, originalName);
+
+  // Resolve collisions by appending a counter
+  let finalDest = destPath;
+  if (fs.existsSync(finalDest)) {
+    const ext  = path.extname(originalName);
+    const base = path.basename(originalName, ext);
+    let n = 1;
+    while (fs.existsSync(finalDest)) {
+      finalDest = path.join(destDir, `${base}_${n++}${ext}`);
+    }
+  }
+
+  try {
+    // Read the encrypted file
+    const raw = fs.readFileSync(encPath);
+    const ivLen = 12, tagLen = 16;
+    if (raw.length < ivLen + tagLen) return json(res, { error: 'Encrypted file is too small or corrupted' }, 500);
+
+    const iv  = raw.slice(0, ivLen);
+    const tag = raw.slice(raw.length - tagLen);
+    const ct  = raw.slice(ivLen, raw.length - tagLen);
+
+    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    const plaintext = Buffer.concat([dec.update(ct), dec.final()]);
+
+    // Write decrypted data to destination atomically via a temp file
+    const tmpDest = finalDest + '.restoring';
+    fs.writeFileSync(tmpDest, plaintext);
+    fs.renameSync(tmpDest, finalDest);
+
+    // SUCCESS — now it is safe to remove the encrypted copy
+    _shredFile(encPath);
+
+    // Remove from vault metadata
+    delete meta[id];
+    saveVaultMeta(meta);
+
+    json(res, { ok: true, path: finalDest, name: path.basename(finalDest) });
+  } catch (e) {
+    // Clean up any partial temp file
+    try { fs.unlinkSync(finalDest + '.restoring'); } catch { }
+    json(res, { error: 'Restore failed: ' + e.message }, 500);
+  }
+}
+
+function _silentWipe() {
+  clearVaultTimer();
+  vaultKey = null;
+  setVaultKey(null);
+  failedAttempts = 0;
+  cooldownUntil = 0;
+
+  if (fs.existsSync(VAULT_DIR)) {
+    _shredDir(VAULT_DIR);
+  }
+
+  try { if (fs.existsSync(VAULT_CONFIG_FILE)) fs.unlinkSync(VAULT_CONFIG_FILE); } catch {}
+  try { if (fs.existsSync(VAULT_META_FILE)) fs.unlinkSync(VAULT_META_FILE); } catch {}
+}
+
+async function apiVaultDeleteVault(req, res) {
+  let confirmVal = '';
+  try {
+    const body = await readBody(req);
+    confirmVal = body.confirm;
+  } catch (e) {}
+
+  const isPostEndpoint = req.url === '/api/vault/delete-vault' || (req.url && req.url.startsWith('/api/vault/delete-vault?'));
+  if (!isPostEndpoint && confirmVal !== 'DELETE_VAULT') {
+    return json(res, { error: 'Confirmation required' }, 400);
+  }
+
   _silentWipe();
   json(res, { ok: true });
 }
@@ -998,6 +1092,14 @@ function decryptToBuffer(id) {
   } catch { return null; }
 }
 
+function isUnlocked() {
+  return !!vaultKey;
+}
+
+function getVaultKey() {
+  return vaultKey;
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
@@ -1007,5 +1109,6 @@ module.exports = {
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
-  deriveKeys, NO_CACHE_HEADERS
+  apiVaultRestoreFile,
+  deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault
 };

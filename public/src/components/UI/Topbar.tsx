@@ -1,5 +1,6 @@
 import { Search } from './Search';
-import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState } from '../../store';
+import { DownloadManager } from './DownloadManager';
+import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen } from '../../store';
 import { useEffect } from 'preact/hooks';
 
 export const Topbar = () => {
@@ -12,7 +13,7 @@ export const Topbar = () => {
   if (view === 'instagram' || view === 'reddit') return null;
 
   const showHome = () => {
-    if ((window as any).showHome) (window as any).showHome();
+    currentView.value = 'hub';
   };
 
   const openImport = () => {
@@ -43,6 +44,13 @@ export const Topbar = () => {
 
   return (
     <div className="topbar">
+      <button className="burger-btn" onClick={() => isSidebarOpen.value = !isSidebarOpen.value} title="Toggle Sidebar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
       <div className="logo" onClick={showHome} style={{ cursor: 'pointer' }}>
         <svg viewBox="0 0 28 28" fill="none" width="28" height="28">
           <rect width="28" height="28" rx="6" fill="#e84040" />
@@ -59,22 +67,22 @@ export const Topbar = () => {
         <button 
           onClick={() => profileModalState.value = { visible: true }} 
           title="Switch Profile"
-          style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '6px 12px', fontSize: '0.85rem', marginRight: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
-          {activeProfile.value}
         </button>
 
-        <button id="importBtn" onClick={openImport} title="Import files" className="hsm" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <button id="importBtn" onClick={openImport} title="Import files" className="hsm">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>Import
+          </svg>
         </button>
+
+        <DownloadManager />
         
         <button id="dualBtn" onClick={toggleDual} title="Dual mode">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -83,14 +91,16 @@ export const Topbar = () => {
           </svg>
         </button>
 
-        <button id="mosBtn" onClick={toggleMosaic} title="Mosaic mode">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="7" height="7" rx="1" />
-            <rect x="14" y="3" width="7" height="7" rx="1" />
-            <rect x="3" y="14" width="7" height="7" rx="1" />
-            <rect x="14" y="14" width="7" height="7" rx="1" />
-          </svg>
-        </button>
+        {['browse', 'player', 'home'].includes(view) && (
+          <button id="mosBtn" onClick={toggleMosaic} title="Mosaic mode">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </button>
+        )}
 
         <button id="zapBtn" onClick={toggleZapping} title="Zapping mode">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -139,12 +149,13 @@ export const Topbar = () => {
           )}
         </button>
 
-        <input 
-          type="file" 
-          id="globalFileIn" 
+        <input
+          type="file"
+          id="globalFileIn"
           multiple
+          title="Import files"
           accept="video/*,audio/*,.pdf,.txt,.doc,.docx,.md,.epub,.mp3,.flac,.wav,.ogg,.aac,.m4a,.wma,.opus,.aiff"
-          style={{ display: 'none' }} 
+          style={{ display: 'none' }}
           onChange={(e) => handleGlobalFiles((e.target as HTMLInputElement).files)}
         />
       </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 
 const formatDuration = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
@@ -47,8 +47,13 @@ export const InstagramView = () => {
   const [autoplayEnabled, setAutoplayEnabled] = useState(true);
   const [savedOnly, setSavedOnly] = useState(false);
   const [profileKey, setProfileKey] = useState<string | null>(null);
+  const [activeStoryCategory, setActiveStoryCategory] = useState<string | null>(null);
+  const [vaultPassword, setVaultPassword] = useState('');
+  const [vaultConfirmPassword, setVaultConfirmPassword] = useState('');
+  const [vaultError, setVaultError] = useState('');
   const [feedItems, setFeedItems] = useState<IgItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<IgItem[]>([]);
+  const [hiddenTerms, setHiddenTerms] = useState<string[]>([]);
 
   const feedObserver = useRef<IntersectionObserver | null>(null);
   const PAGE_SIZE = 10;
@@ -92,7 +97,15 @@ export const InstagramView = () => {
   const init = async () => {
     await checkVaultStatus();
     await loadVaultFavs();
+    await loadHiddenTerms();
     restoreIgState();
+  };
+
+  const loadHiddenTerms = async () => {
+    try {
+      const data = await fetch('/api/settings/lists').then(r => r.json());
+      if (data.hidden) setHiddenTerms(data.hidden);
+    } catch { }
   };
 
   const restoreIgState = () => {
@@ -149,6 +162,29 @@ export const InstagramView = () => {
     } catch { }
   };
 
+  const handleUnlock = async () => {
+    if (!vaultPassword) return;
+    const r = await fetch('/api/vault/unlock', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: vaultPassword}) });
+    const d = await r.json();
+    if (!r.ok) { setVaultError(d.error || 'Wrong password'); return; }
+    setVaultUnlocked(true);
+    setVaultError('');
+    await loadVaultFiles();
+  };
+
+  const handleSetupVault = async () => {
+    if (!vaultPassword) return;
+    if (vaultPassword.length < 6) { setVaultError('Password must be at least 6 characters'); return; }
+    if (vaultPassword !== vaultConfirmPassword) { setVaultError('Passwords do not match'); return; }
+    const r = await fetch('/api/vault/setup', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ password: vaultPassword }) });
+    const d = await r.json();
+    if (!r.ok) { setVaultError(d.error || 'Setup failed'); return; }
+    setVaultUnlocked(true);
+    setVaultConfigured(true);
+    setVaultError('');
+    await loadVaultFiles();
+  };
+
   const vaultUser = (item: IgItem) => {
     if (item.folder && vaultFolderMap[item.folder]) return vaultFolderMap[item.folder];
     return 'Vault';
@@ -163,6 +199,25 @@ export const InstagramView = () => {
       const vlt = vaultFiles.map(f => ({ ...f, _vault: true, id: f.id }));
       items = [...vids, ...vlt];
     }
+    
+    if (hiddenTerms.length > 0) {
+      items = items.filter(item => {
+        const name = item.name || item.originalName || '';
+        const cat = item.category || '';
+        const tags = item.tags || (item as any).videoMeta?.tags || [];
+        
+        const match = hiddenTerms.some(term => {
+          const termLo = term.toLowerCase();
+          if (name.toLowerCase().includes(termLo)) return true;
+          const catLo = cat.toLowerCase();
+          if (catLo === termLo || catLo.startsWith(termLo + '/') || catLo.startsWith(termLo + '\\')) return true;
+          if (tags.some((t: string) => t.toLowerCase() === termLo)) return true;
+          return false;
+        });
+        return !match;
+      });
+    }
+    
     if (savedOnly) items = items.filter(i => savedIds.has(i.id));
     return items;
   };
@@ -182,6 +237,16 @@ export const InstagramView = () => {
     if (curSort === 'size') return [...items].sort((a, b) => (b.size || 0) - (a.size || 0));
     return items;
   };
+
+  const categories = useMemo(() => {
+    const cats = [...new Set(allVideos.value.map(v => v.category || 'Uncategorized'))].filter(Boolean).slice(0, 14);
+    return cats;
+  }, [allVideos.value]);
+
+  const suggestions = useMemo(() => {
+    const cats = [...new Set(allVideos.value.map(v => v.category || 'Uncategorized'))].slice(0, 5);
+    return cats;
+  }, [allVideos.value]);
 
   useEffect(() => {
     const items = getFeedItems();
@@ -306,28 +371,149 @@ export const InstagramView = () => {
       {/* Main Content */}
       <div className="ig-content">
         {curView === 'feed' && (
-          <div className="ig-feed">
-            {/* Feed items */}
-            {visibleItems.map(item => (
-              <PostCard
-                key={item.id}
-                item={item}
-                liked={likedIds.has(item.id)}
-                saved={savedIds.has(item.id)}
-                onLike={() => toggleLike(item.id, item._vault)}
-                onSave={() => toggleSave(item.id)}
-                onOpen={() => openModal(item.id, item._vault)}
-                onOpenProfile={(key: string) => { setProfileKey(key); setCurView('profile'); }}
-                vaultUser={vaultUser}
-                timeAgo={timeAgo}
-                strColor={strColor}
-                initial={initial}
-              />
-            ))}
+          <>
+            <div className="ig-feed" style={{ flex: 'none', width: '680px', maxWidth: '100%', padding: '24px 12px', display: 'flex', flexDirection: 'column' }}>
+              {/* Stories */}
+              <div className="ig-stories" style={{ display: 'flex', gap: '14px', overflowX: 'auto', padding: '8px 0 20px', scrollbarWidth: 'none', borderBottom: '1px solid #262626', marginBottom: '16px', flexShrink: 0 }}>
+                {categories.map(cat => {
+                  const color = strColor(cat);
+                  return (
+                    <div className="ig-story" key={cat} onClick={() => setActiveStoryCategory(cat)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', flexShrink: 0, cursor: 'pointer' }}>
+                      <div className="ig-story-ring" style={{ width: '58px', height: '58px', borderRadius: '50%', padding: '2px', background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' }}>
+                        <div className="ig-story-inner" style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px solid #000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '18px', background: color }}>
+                          {initial(cat)}
+                        </div>
+                      </div>
+                      <span className="ig-story-name" style={{ fontSize: '12px', color: '#a8a8a8', maxWidth: '64px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
+                    </div>
+                  );
+                })}
+              </div>
 
-            {feedLoading && <div className="ig-loading"><div className="ig-spinner"></div></div>}
-            {feedDone && <div className="ig-end-msg">You're all caught up</div>}
-          </div>
+              {/* Feed items or Vault Prompt */}
+              {vaultOnly && !vaultUnlocked ? (
+                <div className="ig-vault-prompt" style={{ padding: '40px 20px', textAlign: 'center', border: '1px solid #262626', borderRadius: '8px', margin: '20px 0' }}>
+                  <h3 style={{ marginBottom: '12px', fontSize: '18px' }}>🔒 {!vaultConfigured ? 'Set Up Vault' : 'Vault Locked'}</h3>
+                  <p style={{ color: '#a8a8a8', fontSize: '14px', marginBottom: '20px' }}>{!vaultConfigured ? 'Create a password to secure your encrypted content.' : 'Enter your vault password to view encrypted content.'}</p>
+                  <input 
+                    className="ig-vault-input" 
+                    type="password" 
+                    value={vaultPassword}
+                    onInput={(e: any) => setVaultPassword(e.target.value)}
+                    placeholder={!vaultConfigured ? 'New password (min 6 chars)' : 'Vault password'} 
+                    style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '10px 14px', borderRadius: '6px', fontSize: '14px', width: '240px' }}
+                    onKeyDown={(e: any) => { if (e.key === 'Enter') !vaultConfigured ? handleSetupVault() : handleUnlock(); }}
+                  />
+                  {!vaultConfigured && (
+                    <input 
+                      className="ig-vault-input" 
+                      type="password" 
+                      value={vaultConfirmPassword}
+                      onInput={(e: any) => setVaultConfirmPassword(e.target.value)}
+                      placeholder="Confirm password" 
+                      style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '10px 14px', borderRadius: '6px', fontSize: '14px', width: '240px', marginTop: '8px' }}
+                      onKeyDown={(e: any) => { if (e.key === 'Enter') handleSetupVault(); }}
+                    />
+                  )}
+                  <button 
+                    className="ig-unlock-btn" 
+                    onClick={!vaultConfigured ? handleSetupVault : handleUnlock}
+                    style={{ background: '#0095f6', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'block', margin: '12px auto 0' }}
+                  >
+                    {!vaultConfigured ? 'Create Vault' : 'Unlock'}
+                  </button>
+                  <div className="ig-vault-err" style={{ color: '#ed4956', fontSize: '13px', marginTop: '8px', minHeight: '18px' }}>{vaultError}</div>
+                </div>
+              ) : (
+                visibleItems.map(item => (
+                  <PostCard
+                    key={item.id}
+                    item={item}
+                    liked={likedIds.has(item.id)}
+                    saved={savedIds.has(item.id)}
+                    onLike={() => toggleLike(item.id, item._vault)}
+                    onSave={() => toggleSave(item.id)}
+                    onOpen={() => openModal(item.id, item._vault)}
+                    onOpenProfile={(key: string) => { setProfileKey(key); setCurView('profile'); }}
+                    vaultUser={vaultUser}
+                    timeAgo={timeAgo}
+                    strColor={strColor}
+                    initial={initial}
+                  />
+                ))
+              )}
+
+              {feedLoading && <div className="ig-loading"><div className="ig-spinner"></div></div>}
+              {feedDone && <div className="ig-end-msg">You're all caught up</div>}
+            </div>
+
+            {/* Right Sidebar */}
+            <div className="ig-right" style={{ width: '300px', flexShrink: 0, padding: '24px 20px 24px 0', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}>
+              <div className="ig-account" style={{ display: 'flex', alignItems: 'center', gap: '14px', paddingBottom: '20px' }}>
+                <div className="ig-account-avatar" style={{ width: '56px', height: '56px', borderRadius: '50%', background: vaultOnly ? '#bc1888' : '#e84040', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '22px', flexShrink: 0 }}>
+                  {vaultOnly ? 'V' : 'A'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="ig-account-name" style={{ fontWeight: '600', fontSize: '14px' }}>{vaultOnly ? 'Vault Profile' : 'AphroArchive'}</div>
+                  <div className="ig-account-sub" style={{ fontSize: '12px', color: '#a8a8a8' }}>{vaultOnly ? 'Secure Storage' : 'Local Library'}</div>
+                </div>
+                {vaultConfigured && (
+                  <button 
+                    className="ig-sug-btn" 
+                    onClick={() => setVaultOnly(!vaultOnly)}
+                    style={{ background: 'none', border: 'none', color: '#0095f6', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                  >
+                    Switch
+                  </button>
+                )}
+              </div>
+
+              {/* Controls */}
+              <div className="ig-right-controls" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #262626' }}>
+                <select 
+                  value={curSort} 
+                  onChange={(e: any) => setSort(e.target.value)}
+                  style={{ width: '100%', background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  <option value="date">📅 Date</option>
+                  <option value="duration">⏱ Duration</option>
+                  <option value="name">🔤 Name</option>
+                  <option value="size">📦 Size</option>
+                </select>
+                
+                <button className="ig-tb-btn" style={{ width: '100%', justifyContent: 'flex-start', gap: '8px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={shuffleFeed} title="Shuffle">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+                  Shuffle
+                </button>
+                <button className="ig-tb-btn" style={{ width: '100%', justifyContent: 'flex-start', gap: '8px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => setAutoplayEnabled(!autoplayEnabled)} title="Toggle autoplay">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5,3 19,12 5,21"/></svg>
+                  <span>Autoplay {autoplayEnabled ? 'On' : 'Off'}</span>
+                </button>
+                <button className="ig-tb-btn" style={{ width: '100%', justifyContent: 'flex-start', gap: '8px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => setSavedOnly(!savedOnly)} title="View saved only">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                  <span>{savedOnly ? 'Showing Saved' : 'Saved Only'}</span>
+                </button>
+              </div>
+
+              <div className="ig-sug-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}><span style={{ fontSize: '14px', fontWeight: '600', color: '#a8a8a8' }}>Suggested</span></div>
+              <div className="ig-suggestions">
+                {suggestions.map(cat => {
+                  const color = strColor(cat);
+                  const count = allVideos.value.filter(v => (v.category||'Uncategorized') === cat).length;
+                  return (
+                    <div className="ig-sug-item" key={cat} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div className="ig-sug-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '12px', color: '#fff', flexShrink: 0, background: color, cursor: 'pointer' }} onClick={() => { setProfileKey(`cat:${cat}`); setCurView('profile'); }}><span>{initial(cat)}</span></div>
+                      <div className="ig-sug-info" style={{ flex: 1, minWidth: 0 }}>
+                        <div className="ig-sug-name" style={{ fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer' }} onClick={() => { setProfileKey(`cat:${cat}`); setCurView('profile'); }}><span>{cat}</span></div>
+                        <div className="ig-sug-sub" style={{ fontSize: '12px', color: '#a8a8a8' }}>{count} video{count!==1?'s':''}</div>
+                      </div>
+                      <button className="ig-sug-btn" style={{ background: 'none', border: 'none', color: '#0095f6', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }} onClick={() => { setProfileKey(`cat:${cat}`); setCurView('profile'); }}>View</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
         )}
 
         {curView === 'explore' && (
@@ -437,11 +623,129 @@ export const InstagramView = () => {
           onSave={() => toggleSave(curModal.id)}
         />
       )}
+
+      {/* Story Viewer */}
+      {activeStoryCategory && (
+        <StoryViewer
+          category={activeStoryCategory}
+          items={allVideos.value.filter(v => (v.category || 'Uncategorized') === activeStoryCategory)}
+          onClose={() => setActiveStoryCategory(null)}
+          strColor={strColor}
+          initial={initial}
+        />
+      )}
     </div>
   );
 };
 
 // Sub-components...
+
+const StoryViewer = ({ category, items, onClose, strColor, initial }: any) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [duration, setDuration] = useState(8); // default 8s
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const timerRef = useRef<any>(null);
+
+  const currentItem = items[currentIndex];
+
+  useEffect(() => {
+    if (!currentItem) return;
+    
+    // Reset timer and progress
+    if (timerRef.current) clearTimeout(timerRef.current);
+    
+    const itemDuration = currentItem.duration || 8;
+    setDuration(itemDuration);
+    
+    timerRef.current = setTimeout(() => {
+      handleNext();
+    }, itemDuration * 1000);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [currentIndex, currentItem]);
+
+  const handleNext = () => {
+    if (currentIndex < items.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      onClose();
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  if (!currentItem) return null;
+
+  const color = strColor(category);
+  const streamUrl = `/api/stream/${currentItem.id}`;
+  const thumbSrc = `/api/thumbs/${currentItem.id}/0`;
+
+  return (
+    <div className="ig-story-viewer open" style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 2000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <style>{`
+        @keyframes svprogress {
+          from { width: 0%; }
+          to { width: 100%; }
+        }
+      `}</style>
+      {/* Progress Bars */}
+      <div className="ig-sv-progress" style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', gap: '4px', padding: '10px 12px 0', zIndex: 10 }}>
+        {items.map((_: any, i: number) => (
+          <div className="ig-sv-bar" key={i} style={{ flex: 1, height: '2px', background: 'rgba(255,255,255,.35)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div 
+              className={`ig-sv-bar-fill ${i < currentIndex ? 'done' : i === currentIndex ? 'active' : ''}`} 
+              style={{ 
+                height: '100%', 
+                background: '#fff', 
+                width: i < currentIndex ? '100%' : '0%',
+                animation: i === currentIndex ? `svprogress ${duration}s linear forwards` : 'none'
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="ig-sv-header" style={{ position: 'absolute', top: '22px', left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', zIndex: 10 }}>
+        <div className="ig-sv-user" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="ig-sv-avatar" style={{ width: '34px', height: '34px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '14px', color: '#fff', flexShrink: 0, background: color }}>{initial(category)}</div>
+          <span className="ig-sv-name" style={{ fontSize: '14px', fontWeight: '600', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{category}</span>
+        </div>
+        <button className="ig-sv-close" onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '24px', cursor: 'pointer', lineHeight: 1, textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>✕</button>
+      </div>
+
+      <div className="ig-sv-media" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+        <video 
+          ref={videoRef}
+          src={streamUrl} 
+          autoPlay 
+          playsInline 
+          style={{ width: '100%', height: '100%', objectFit: 'contain', maxWidth: '500px', display: 'block' }}
+          poster={thumbSrc}
+          onLoadedMetadata={(e: any) => {
+            const dur = e.target.duration;
+            if (dur && dur > 0) setDuration(dur);
+          }}
+          onEnded={handleNext}
+        />
+        
+        {/* Zones */}
+        <div id="ig-sv-prev" onClick={handlePrev} style={{ position: 'absolute', top: 0, bottom: 0, width: '35%', cursor: 'pointer', zIndex: 5, left: 0 }} />
+        <div id="ig-sv-next" onClick={handleNext} style={{ position: 'absolute', top: 0, bottom: 0, width: '35%', cursor: 'pointer', zIndex: 5, right: 0 }} />
+      </div>
+
+      <div className="ig-sv-counter" style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', fontSize: '13px', color: 'rgba(255,255,255,.7)', zIndex: 10, textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>
+        {currentIndex + 1} / {items.length}
+      </div>
+    </div>
+  );
+};
+
 const PostCard = ({ item, liked, saved, onLike, onSave, onOpen, onOpenProfile, vaultUser, timeAgo, strColor, initial }: any) => {
   const isVault = item._vault;
   const name = item.name || item.originalName || 'Untitled';

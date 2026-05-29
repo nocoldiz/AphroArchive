@@ -10,7 +10,7 @@ const https = require('https');
 const url   = require('url');
 const { ACTOR_PHOTOS_DIR } = require('./config-server');
 const { json, actorMatchesAny, toId } = require('./helpers-server');
-const { loadActors, loadVideoMeta, loadFavs } = require('./db-server');
+const { loadActors, saveActors, loadVideoMeta, loadFavs, invalidateDbTypeCache } = require('./db-server');
 const { allVideos } = require('./videos-server');
 
 // ── Actor slug ───────────────────────────────────────────────────────
@@ -21,9 +21,9 @@ function actorSlug(name) { return name.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
 function httpsGet(reqUrl, headers) {
   return new Promise((resolve, reject) => {
-    const opts   = Object.assign(url.parse(reqUrl), { headers });
+    const urlObj = new URL(reqUrl);
     const client = reqUrl.startsWith('https') ? https : http;
-    client.get(opts, res => {
+    client.get(urlObj, { headers }, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
         return resolve(httpsGet(res.headers.location, headers));
       let data = '';
@@ -35,9 +35,9 @@ function httpsGet(reqUrl, headers) {
 
 function httpsGetStream(reqUrl, headers, dest) {
   return new Promise((resolve, reject) => {
-    const opts   = Object.assign(url.parse(reqUrl), { headers });
+    const urlObj = new URL(reqUrl);
     const client = reqUrl.startsWith('https') ? https : http;
-    client.get(opts, res => {
+    client.get(urlObj, { headers }, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
         return resolve(httpsGetStream(res.headers.location, headers, dest));
       if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
@@ -71,17 +71,21 @@ async function apiActors(req, res) {
   const videos = await allVideos();
   const meta   = loadVideoMeta();
   const result = actors
-    .map(e => ({
-      name: e.name,
-      count: videos.filter(v => {
+    .map(e => {
+      const matchingVideos = videos.filter(v => {
         const ma = meta[v.id]?.actors || [];
         return ma.some(a => a.toLowerCase() === e.name.toLowerCase()) || actorMatchesAny(v.name, e.terms);
-      }).length,
-      nationality: e.nationality,
-      age: e.age,
-      deceased: e.deceased,
-      imdb_page: e.imdb_page,
-    }))
+      });
+      return {
+        name: e.name,
+        count: matchingVideos.length,
+        duration: matchingVideos.reduce((sum, v) => sum + (v.duration || 0), 0),
+        nationality: e.nationality,
+        age: e.age,
+        deceased: e.deceased,
+        imdb_page: e.imdb_page,
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
   json(res, result);
 }
@@ -167,7 +171,115 @@ async function apiActorPhotoImg(req, res, actorName) {
   res.writeHead(404); res.end();
 }
 
+async function scrapeActorInfo(actorName) {
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+  const q = encodeURIComponent(actorName.toLowerCase());
+  const firstChar = actorName[0].toLowerCase().replace(/[^a-z]/, 'a');
+  const suggestUrl = `https://v2.sg.media-imdb.com/suggests/${firstChar}/${q}.json`;
+  
+  try {
+    const { body } = await httpsGet(suggestUrl, { 'User-Agent': UA, 'Accept': '*/*', 'Referer': 'https://www.imdb.com/' });
+    const match = body.match(/\((\{[\s\S]*\})\)/);
+    if (!match) return null;
+    const parsed = JSON.parse(match[1]);
+    
+    let imdbId = null;
+    let imageUrl = null;
+    
+    for (const item of (parsed.d || [])) {
+      if (item.id && item.id.startsWith('nm')) {
+        imdbId = item.id;
+        if (item.i && item.i.imageUrl) imageUrl = item.i.imageUrl;
+        break;
+      }
+    }
+    
+    if (!imdbId) return null;
+    
+    const actorUrl = `https://www.imdb.com/name/${imdbId}/`;
+    const { body: html } = await httpsGet(actorUrl, { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9' });
+    
+    const jsonLdMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    let info = {};
+    
+    if (jsonLdMatch) {
+      try {
+        const data = JSON.parse(jsonLdMatch[1]);
+        info.name = data.name;
+        info.birthDate = data.birthDate;
+        info.deathDate = data.deathDate;
+        info.description = data.description;
+        if (data.image) imageUrl = data.image;
+      } catch (e) {
+        console.error('Failed to parse JSON-LD for actor', actorName, e);
+      }
+    }
+    
+    return {
+      imdbId,
+      imageUrl,
+      ...info
+    };
+  } catch (e) {
+    console.error('Failed to scrape actor info for', actorName, e);
+    return null;
+  }
+}
+
+async function scrapeAndSaveActorInfo(actorName) {
+  const info = await scrapeActorInfo(actorName);
+  if (!info) return false;
+  
+  const raw = {};
+  loadActors().forEach(a => {
+    raw[a.name] = { date_of_birth: a.date_of_birth, nationality: a.nationality, imdb_page: a.imdb_page };
+  });
+
+  if (!raw[actorName]) raw[actorName] = {};
+  if (info.birthDate) raw[actorName].date_of_birth = info.birthDate;
+  if (info.imdbId) raw[actorName].imdb_page = `https://www.imdb.com/name/${info.imdbId}/`;
+
+  saveActors(raw);
+  invalidateDbTypeCache('actors');
+  
+  if (info.imageUrl) {
+    const destPath = path.join(ACTOR_PHOTOS_DIR, actorName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '.jpg');
+    if (!fs.existsSync(destPath)) {
+      try {
+        const out = fs.createWriteStream(destPath);
+        const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+        await httpsGetStream(info.imageUrl, { 'User-Agent': UA, 'Referer': 'https://www.imdb.com/' }, out);
+      } catch (e) {
+        console.error('Failed to download actor photo', e);
+      }
+    }
+  }
+  
+  return true;
+}
+
+async function apiActorsScrapeMissing(req, res) {
+  const { loadActors } = require('./db-server');
+  const actors = loadActors();
+  const missing = actors.filter(actor => actor.age === null && !actor.nationality && !actor.imdb_page);
+  
+  if (missing.length === 0) return json(res, { ok: true, message: 'No actors missing info' });
+  
+  (async () => {
+    console.log(`Starting background scraping for ${missing.length} actors`);
+    for (const actor of missing) {
+      console.log(`Scraping info for ${actor.name}`);
+      await scrapeAndSaveActorInfo(actor.name);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    console.log('Finished background scraping for actors');
+  })();
+  
+  json(res, { ok: true, count: missing.length });
+}
+
 module.exports = {
   apiActors, apiActorVideos,
   apiActorPhotos, apiActorPhotoScrape, apiActorPhotoImg,
+  scrapeAndSaveActorInfo, scrapeActorInfo, apiActorsScrapeMissing
 };

@@ -1,7 +1,10 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted } from '../../store';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchBookmarkCat } from '../../store';
+import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
+import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
+import { VideoCard } from '../UI/VideoGrid';
+import { AdvancedPlayer } from '../UI/AdvancedPlayer';
 
 export const PlayerView = () => {
   const video = currentVideo.value;
@@ -15,16 +18,113 @@ export const PlayerView = () => {
   const [chapters, setChapters] = useState<any[]>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
   const [subtitles, setSubtitles] = useState<any[]>([]);
-  const [nextUp, setNextUp] = useState<any[]>([]);
-
   if (!video) return null;
+
+  const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  useEffect(() => {
+    let timer: any;
+    if (downloadJobId) {
+      timer = setInterval(async () => {
+        const r = await fetch('/api/download/jobs');
+        const jobs = await r.json();
+        const job = jobs.find((j: any) => j.id === downloadJobId);
+        if (job) {
+          setDownloadProgress(job.progress);
+          if (job.status === 'done') {
+            clearInterval(timer);
+            setDownloadJobId(null);
+            setIsDownloading(false);
+            
+            let targetCat = video.category || '';
+            if (video.isBookmark && (targetCat === 'Bookmarks' || targetCat === 'Uncategorized' || !targetCat)) {
+              const match = matchBookmarkCat(video.name, categories.value);
+              if (match && match.catPath !== 'Bookmarks') {
+                targetCat = match.catPath;
+              } else {
+                targetCat = '';
+              }
+            }
+            const cleanCat = targetCat.trim();
+            const isVirtual = cleanCat.toLowerCase() === 'bookmarks' || cleanCat.toLowerCase() === 'uncategorized';
+            const physicalCat = isVirtual ? '' : cleanCat;
+            const relPath = physicalCat ? `${physicalCat}/${job.title}.mp4` : `${job.title}.mp4`;
+            const base64 = btoa(unescape(encodeURIComponent(relPath)));
+            const newId = base64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+            
+            currentVideo.value = {
+              ...video,
+              id: newId,
+              isBookmark: false,
+              path: relPath,
+              category: physicalCat || 'Uncategorized'
+            };
+            
+            if ((window as any).toast) (window as any).toast('Video downloaded and loaded!');
+            loadVideos();
+          } else if (job.status === 'error') {
+            clearInterval(timer);
+            setDownloadJobId(null);
+            setIsDownloading(false);
+            alert('Download failed: ' + job.error);
+          }
+        }
+      }, 1000);
+    }
+    return () => { if (timer) clearInterval(timer); };
+  }, [downloadJobId]);
+
+  const startDownload = async () => {
+    if (!video) return;
+    const downloadUrl = video.isBookmark ? video.bookmarkUrl : video.path;
+    if (!downloadUrl) return;
+
+    let targetCat = video.category || '';
+    if (video.isBookmark && (targetCat === 'Bookmarks' || targetCat === 'Uncategorized' || !targetCat)) {
+      const match = matchBookmarkCat(video.name, categories.value);
+      if (match && match.catPath !== 'Bookmarks') {
+        targetCat = match.catPath;
+      } else {
+        targetCat = '';
+      }
+    }
+
+    setIsDownloading(true);
+    const r = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: downloadUrl, category: targetCat })
+    });
+    const d = await r.json();
+    if (d.ok && d.ids && d.ids.length > 0) {
+      setDownloadJobId(d.ids[0]);
+    } else {
+      setIsDownloading(false);
+      alert('Failed to start download');
+    }
+  };
 
   useEffect(() => {
     if (video) {
-      const list = allVideos.value
-        .filter(v => v.category === video.category && v.id !== video.id)
-        .slice(0, 10);
-      setNextUp(list);
+      if (skipNextUpUpdate.value) {
+        skipNextUpUpdate.value = false;
+        return;
+      }
+      const allVis = filteredVideos.value;
+      const idx = allVis.findIndex(v => v.id === video.id);
+      
+      if (idx !== -1) {
+        const after = allVis.slice(idx + 1);
+        const before = allVis.slice(0, idx);
+        playerNextUp.value = [...after, ...before];
+      } else {
+        const list = allVideos.value
+          .filter(v => v.category === video.category && v.id !== video.id)
+          .slice(0, 10);
+        playerNextUp.value = list;
+      }
     }
   }, [video]);
 
@@ -39,34 +139,55 @@ export const PlayerView = () => {
   const handleDrop = (e: any, index: number) => {
     e.preventDefault();
     const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-    const newList = [...nextUp];
+    const newList = [...playerNextUp.value];
     const [removed] = newList.splice(fromIndex, 1);
     newList.splice(index, 0, removed);
-    setNextUp(newList);
+    playerNextUp.value = newList;
   };
 
   const removeVideo = (id: string) => {
-    setNextUp(nextUp.filter(v => v.id !== id));
+    playerNextUp.value = playerNextUp.value.filter(v => v.id !== id);
   };
 
   useEffect(() => {
     if (!video || video.isVault) return;
     fetch(`/api/videos/${video.id}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(d => {
         setActors(d.actors || []);
         setTags(d.tags || []);
         setStudio(d.studio || '');
-        setRating(d.video.rating || null);
-        setChapters(d.chapters || []);
+        setRating(d.video?.rating ?? null);
+        setChapters(d.video?.chapters || []);
         setSuggested(d.suggested || []);
-      });
+      })
+      .catch(() => {});
 
     fetch(`/api/subtitles/${video.id}`)
       .then(r => r.json())
       .then(tracks => setSubtitles(tracks))
       .catch(() => { });
   }, [video]);
+
+  const relatedVideos = useMemo(() => {
+    if (!video) return [];
+    const nextUpIds = new Set(playerNextUp.value.map(v => v.id));
+    
+    const titleWords = video.name.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    
+    return allVideos.value.filter(v => {
+      if (v.id === video.id) return false;
+      if (nextUpIds.has(v.id)) return false;
+      
+      const sameActors = actors.length > 0 && v.actors && v.actors.some(a => actors.includes(a));
+      const sameTags = tags.length > 0 && v.tags && v.tags.some(t => tags.includes(t));
+      
+      const vTitleWords = v.name.toLowerCase().split(/\s+/);
+      const sameTitle = titleWords.some(w => vTitleWords.includes(w));
+      
+      return sameActors || sameTags || sameTitle;
+    }).slice(0, 8);
+  }, [video, playerNextUp.value, actors, tags, allVideos.value]);
 
   const toggleFav = async () => {
     if (!video) return;
@@ -82,37 +203,9 @@ export const PlayerView = () => {
       const tag = (e.target as HTMLElement).tagName.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement).isContentEditable) return;
 
-      const vid = videoRef.current;
-      if (!vid) return;
-
       switch (e.key) {
-        case 'ArrowLeft':
-          e.preventDefault();
-          vid.currentTime = Math.max(0, vid.currentTime - 10);
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          vid.currentTime = Math.min(vid.duration || Infinity, vid.currentTime + 10);
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          vid.volume = Math.min(1, Math.round((vid.volume + 0.1) * 10) / 10);
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          vid.volume = Math.max(0, Math.round((vid.volume - 0.1) * 10) / 10);
-          break;
-        case ' ':
-          if (document.activeElement !== vid) {
-            e.preventDefault();
-            if (vid.paused) vid.play(); else vid.pause();
-          }
-          break;
-        case 'f': case 'F':
+        case 'v': case 'V':
           toggleFav();
-          break;
-        case 'm': case 'M':
-          vid.muted = !vid.muted;
           break;
       }
     };
@@ -130,6 +223,20 @@ export const PlayerView = () => {
     });
     if (r.ok) {
       setRating(stars);
+    }
+  };
+
+  const handleEncrypt = async () => {
+    if (!video) return;
+    if (!confirm(`Encrypt video "${video.name}" and move to Vault?`)) return;
+
+    const r = await fetch(`/api/videos/${video.id}/encrypt`, { method: 'POST' });
+    if (r.ok) {
+      if ((window as any).toast) (window as any).toast('Video encrypted and moved to Vault');
+      currentView.value = 'home';
+    } else {
+      const err = await r.json();
+      if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
     }
   };
 
@@ -164,25 +271,43 @@ export const PlayerView = () => {
       <div className="pv-layout">
         <div className="pv-main">
           <div className="video-player-wrap">
-            <video
-              ref={videoRef}
-              id="video-player"
-              src={video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`}
-              controls
-              autoPlay
-              muted={isMuted.value}
-              style={{ width: '100%', maxHeight: '80vh', background: '#000' }}
-            >
-              {subtitles.map((t, i) => (
-                <track
-                  key={t.filename}
-                  kind="subtitles"
-                  label={t.label}
-                  src={`/api/subtitle-file/${video.id}/${encodeURIComponent(t.filename)}`}
-                  default={i === 0}
-                />
-              ))}
-            </video>
+            {video.isBookmark && !(video.path && /\.(mp4|webm|ogg|m3u8|mkv|avi|mov)(\?.*)?$/i.test(video.path)) ? (
+              <div className="bm-fallback" style={{ background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9', gap: '16px' }}>
+                {video.img && (
+                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '100%', maxHeight: '70%', display: 'flex', justifyContent: 'center' }}>
+                    <img src={video.img} alt={video.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' }} />
+                  </a>
+                )}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: '1rem', padding: '10px 20px' }}>
+                    Open in browser ↗
+                  </a>
+                  <button onClick={() => startDownload()} className="btn" style={{ fontSize: '1rem', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    <span>Download Video</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <AdvancedPlayer
+                src={video.isBookmark ? video.path : (video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`)}
+                videoId={video.id}
+                subtitles={subtitles}
+                chapters={chapters}
+                videoRef={videoRef}
+                isMuted={isMuted.value}
+                onNext={() => {
+                  if (playerNextUp.value.length > 0) {
+                    currentVideo.value = playerNextUp.value[0];
+                  }
+                }}
+                onPrev={() => {}}
+              />
+            )}
             <video
               id="video-player-zap"
               controls
@@ -190,6 +315,23 @@ export const PlayerView = () => {
               style={{ display: 'none', width: '100%', maxHeight: '80vh', background: '#000' }}
             />
           </div>
+          
+          {zapOn.value && (
+            <div className="mos-ui" style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'rgba(0,0,0,0.8)', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', color: '#fff' }}>
+              <div className="mos-c" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Interval:</span>
+                <button onClick={() => setZapIv(-2)} style={{ padding: '2px 8px', cursor: 'pointer', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)' }}>-</button>
+                <span>{zapIv.value}s</span>
+                <button onClick={() => setZapIv(2)} style={{ padding: '2px 8px', cursor: 'pointer', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)' }}>+</button>
+              </div>
+              <button onClick={toggleZapLock} style={{ padding: '5px 10px', cursor: 'pointer', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)' }}>
+                {zapLock.value ? 'Unlock (Resume Zapping)' : 'Lock to Current'}
+              </button>
+              <button onClick={stopZapping} style={{ padding: '5px 10px', cursor: 'pointer', background: 'var(--bg3)', border: '1px solid var(--brd)', color: '#ff4a4a' }}>
+                Exit Zapping
+              </button>
+            </div>
+          )}
 
           <div className="player-info">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -208,8 +350,8 @@ export const PlayerView = () => {
 
             <div className="player-meta" style={{ display: 'flex', gap: '15px', color: 'var(--tx3)', fontSize: '0.9rem', marginBottom: '20px' }}>
               <span>{video.category}</span>
-              <span>{(video.size / 1024 / 1024).toFixed(1)} MB</span>
-              <span>{(video.duration / 60).toFixed(1)}m</span>
+              <span>{((video.size || 0) / 1024 / 1024).toFixed(1)} MB</span>
+              <span>{video.duration ? (video.duration / 60).toFixed(1) + 'm' : '—'}</span>
             </div>
 
             <div className="player-info-actions" style={{ display: 'flex', gap: '10px', marginBottom: '25px', flexWrap: 'wrap' }}>
@@ -253,7 +395,63 @@ export const PlayerView = () => {
                 </svg>
                 <span>Pin</span>
               </button>
+
+              <button onClick={() => handleEncrypt()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                <span>Encrypt</span>
+              </button>
+
+              <button onClick={async () => {
+                if (!confirm(`Delete video "${video.name}" from disk?\nThis action cannot be undone.`)) return;
+                const r = await fetch(`/api/videos/${video.id}`, { method: 'DELETE' });
+                if (r.ok) {
+                  if ((window as any).toast) (window as any).toast('Video deleted');
+                  currentView.value = 'home';
+                  allVideos.value = allVideos.value.filter((v: any) => v.id !== video.id);
+                } else {
+                  const err = await r.json();
+                  if ((window as any).toast) (window as any).toast('Delete failed: ' + (err.error || 'Unknown error'));
+                }
+              }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: '#ff4a4a' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+                </svg>
+                <span>Delete</span>
+              </button>
+              
+              {video.isBookmark && (
+                <>
+                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--tx)', textDecoration: 'none' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    <span>Open Link</span>
+                  </a>
+                  <button onClick={() => startDownload()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    <span>Download</span>
+                  </button>
+                </>
+              )}
             </div>
+
+            {isDownloading && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.85rem', color: 'var(--tx3)' }}>
+                  <span>Downloading...</span>
+                  <span>{downloadProgress.toFixed(1)}%</span>
+                </div>
+                <div style={{ width: '100%', height: '4px', background: 'var(--brd)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ width: `${downloadProgress}%`, height: '100%', background: 'var(--ac)' }} />
+                </div>
+              </div>
+            )}
 
             <div className="player-studio-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
               <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Studio</span>
@@ -295,6 +493,18 @@ export const PlayerView = () => {
             </div>
 
             <AiComments />
+            {relatedVideos.length > 0 && (
+              <div style={{ marginTop: '30px' }}>
+                <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Related Videos</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+                  {relatedVideos.map(v => (
+                    <div key={v.id} onClickCapture={() => { skipNextUpUpdate.value = true; }}>
+                      <VideoCard video={v} isSelected={false} isRelated={true} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -323,33 +533,26 @@ export const PlayerView = () => {
             <div className="playlist-header">
               <span>Next Up</span>
               <span className="playlist-count">
-                {nextUp.length}
+                {playerNextUp.value.length}
               </span>
             </div>
             <div className="playlist-list">
-              {nextUp.map((v, index) => (
+              {playerNextUp.value.map((v, index) => (
                 <div 
                   key={v.id} 
-                  className="playlist-item" 
                   draggable={true}
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, index)}
-                  style={{ cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                  style={{ cursor: 'grab', position: 'relative', marginBottom: '10px' }}
                 >
-                  <div onClick={() => currentVideo.value = v} style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                    <img src={`/api/thumbs/${v.id}/0`} className="pl-thumb" />
-                    <div className="pl-info">
-                      <div className="pl-name">{v.name}</div>
-                      <div className="pl-meta">{(v.duration / 60).toFixed(1)}m</div>
-                    </div>
-                  </div>
+                  <VideoCard video={v} isSelected={false} index={index} />
                   <button 
                     className="pl-remove-btn" 
                     onClick={(e) => { e.stopPropagation(); removeVideo(v.id); }}
-                    style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ position: 'absolute', top: '5px', left: '5px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', cursor: 'pointer', padding: '5px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4 }}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M18 6L6 18M6 6l12 12" />
                     </svg>
                   </button>

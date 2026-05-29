@@ -17,6 +17,11 @@ export interface Video {
   catPath?: string;
   fav?: boolean;
   chapters?: any[];
+  isExternal?: boolean;
+  isBookmark?: boolean;
+  embedUrl?: string;
+  bookmarkUrl?: string;
+  img?: string;
 }
 
 export interface Category {
@@ -51,9 +56,50 @@ export interface AppPrefs {
   anthropicApiKey?: string;
   visionProvider?: string;
   disableSearchTracking?: boolean;
+  vaultSelfDestruct?: boolean;
+  hiddenTags?: string[];
+  sourceFolders?: string[];
 }
 export interface ThumbnailGroup {
   id: string;
   count: number;
   thumbs: string[];
+}
+
+export interface Book {
+  id: string;
+  title?: string;
+  filename: string;
+  ext?: string;
+  size?: number;
+  sizeF?: string;
+  date?: number;
+  type?: 'fanfiction' | 'url' | 'local';
+  chapters?: number;
+}
+
+export interface AudioFile {
+  id: string;
+  title: string;
+  ext: string;
+  size: number;
+  sizeF: string;
+  date: number;
+}
+
+export interface PhotoFile {
+  id: string;
+  filename: string;
+  size: number;
+  sizeF: string;
+  date: number;
+  isAi?: boolean;
+  aiPrompt?: string;
+}
+
+export interface PageItem {
+  id: string;
+  name: string;
+  sizeF: string;
+  mtime: string | number;
 }

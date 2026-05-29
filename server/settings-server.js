@@ -4,36 +4,36 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
-const { HIDDEN_FILE, ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON } = require('./config-server');
+const { VIDEOS_DIR } = require('./config-server');
 const { json, readBody }  = require('./helpers-server');
-const { loadPrefs, savePrefs } = require('./db-server');
-
-function readJsonKeys(file) {
-  try { return Object.keys(JSON.parse(fs.readFileSync(file, 'utf-8'))).join('\n'); }
-  catch { return ''; }
-}
+const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios } = require('./db-server');
 
 function apiSettingsLists(req, res) {
-  const read = f => { try { return fs.readFileSync(f, 'utf-8'); } catch { return ''; } };
   json(res, {
-    hidden:     read(HIDDEN_FILE),
-    categories: readJsonKeys(CATEGORIES_JSON),
-    actors:     readJsonKeys(ACTORS_JSON),
-    studios:    readJsonKeys(STUDIOS_JSON),
+    hidden:     loadHidden().join('\n'),
+    categories: loadCategories().map(c => c.name).join('\n'),
+    actors:     loadActors().map(a => a.name).join('\n'),
+    studios:    loadStudios().map(s => s.name).join('\n'),
   });
 }
 
 async function apiSettingsSave(req, res, file) {
-  const map = { hidden: HIDDEN_FILE };
-  if (!map[file]) return json(res, { error: 'Unknown file' }, 400);
+  if (file !== 'hidden') return json(res, { error: 'Unknown file' }, 400);
   const data  = await readBody(req);
   const lines = (data.content || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  fs.writeFileSync(map[file], lines.join('\n') + (lines.length ? '\n' : ''));
+  saveHidden(lines);
   json(res, { ok: true, count: lines.length });
 }
 
 function apiGetPrefs(req, res) {
-  json(res, loadPrefs());
+  const prefs = loadPrefs();
+  const videosDirExists = fs.existsSync(VIDEOS_DIR);
+  const missingSourceFolders = (prefs.sourceFolders || []).filter(f => !fs.existsSync(f));
+  json(res, {
+    ...prefs,
+    videosDirExists,
+    missingSourceFolders
+  });
 }
 
 async function apiSavePrefs(req, res) {
@@ -61,8 +61,80 @@ async function apiSavePrefs(req, res) {
   if ('networkEnabled' in body)   prefs.networkEnabled   = !!body.networkEnabled;
   if ('aiCommentMasterPrompt' in body) prefs.aiCommentMasterPrompt = String(body.aiCommentMasterPrompt || '').trim();
   if ('aiReplyMasterPrompt' in body)   prefs.aiReplyMasterPrompt   = String(body.aiReplyMasterPrompt || '').trim();
+  if ('sourceFolders' in body) {
+    if (Array.isArray(body.sourceFolders)) {
+      prefs.sourceFolders = body.sourceFolders.map(p => String(p).trim()).filter(Boolean);
+      try {
+        const { invalidateScanCache } = require('./videos-server');
+        invalidateScanCache();
+      } catch (e) {}
+    }
+  }
   savePrefs(prefs);
   json(res, { ok: true });
 }
 
-module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs };
+function apiBrowseFolders(req, res, params) {
+  const os = require('os');
+  let currentPath = params.get('path');
+  
+  if (!currentPath) {
+    currentPath = os.homedir();
+  }
+  
+  try {
+    const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+    const dirs = [];
+    for (const ent of entries) {
+      if (ent.isDirectory() && !ent.name.startsWith('.')) {
+        dirs.push(ent.name);
+      }
+    }
+      
+    const drives = [];
+    if (process.platform === 'win32') {
+      for (let i = 65; i <= 90; i++) {
+        const drive = String.fromCharCode(i) + ':\\';
+        try {
+          if (fs.existsSync(drive)) drives.push(drive);
+        } catch (e) {}
+      }
+    } else {
+      drives.push('/');
+    }
+      
+    json(res, {
+      currentPath: path.resolve(currentPath),
+      parent: path.resolve(currentPath) === path.resolve(path.dirname(currentPath)) ? null : path.dirname(path.resolve(currentPath)),
+      dirs: dirs.sort(),
+      drives: drives
+    });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+function apiBrowseFoldersNative(req, res) {
+  if (process.platform !== 'win32') {
+    return json(res, { error: 'Native file selector only supported on Windows' }, 400);
+  }
+  
+  const { exec } = require('child_process');
+  const scriptLines = [
+    'Add-Type -AssemblyName System.Windows.Forms',
+    '$fb = New-Object System.Windows.Forms.FolderBrowserDialog',
+    '$fb.Description = "Select Source Folder"',
+    'if ($fb.ShowDialog() -eq \'OK\') { $fb.SelectedPath }',
+  ].join('\n');
+  const encoded = Buffer.from(scriptLines, 'utf16le').toString('base64');
+
+  exec(`powershell -STA -EncodedCommand ${encoded}`, (error, stdout) => {
+    if (error) {
+      return json(res, { error: error.message }, 500);
+    }
+    const selectedPath = stdout.trim();
+    json(res, { path: selectedPath || null });
+  });
+}
+
+module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative };

@@ -1,7 +1,8 @@
 import { useEffect } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, loadPrefs, currentView, presetPickerState, sortMode, isShuffle } from './store';
+import { videos, loadVideos, loadCategories, loadPrefs, currentView, presetPickerState, sortMode, isShuffle, showConnectModal } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
+import { ConnectModal } from './components/modals/ConnectModal';
 import { DropOverlay } from './components/UI/DropOverlay';
 
 export function App() {
@@ -63,10 +64,21 @@ export function App() {
 
     // Check if preset picker is needed on startup
     fetch('/api/presets')
-      .then(r => r.json())
-      .then(data => {
-        if (data.needed) {
-          presetPickerState.value = { visible: true, mergeMode: false };
+      .then(r => {
+        if (!r.ok) {
+          throw new Error(`HTTP error! status: ${r.status}`);
+        }
+        return r.text(); // Read as plain text first
+      })
+      .then(text => {
+        try {
+          const data = JSON.parse(text); // Parse JSON manually
+          if (data.needed) {
+            presetPickerState.value = { visible: true, mergeMode: false };
+          }
+        } catch (e) {
+          console.error('Invalid JSON response:', text); // Log raw response
+          throw e; // Re-throw the error for debugging
         }
       })
       .catch(e => console.error('Failed to check presets', e));
@@ -77,6 +89,7 @@ export function App() {
 
       <PresetPicker />
       <ProfileModal />
+      {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}
       <DropOverlay />
     </>
   );

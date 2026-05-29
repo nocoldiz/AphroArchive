@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { allVideos } from '../../store';
+import { allVideos, currentVideo, currentView } from '../../store';
 
 export const ChaptersView = () => {
   const [q, setQ] = useState('');
@@ -20,10 +20,8 @@ export const ChaptersView = () => {
       // Fallback if openVid is not available
       const v = videos.find(v => v.id === id);
       if (v) {
-        import('../../store').then(m => {
-          m.currentVideo.value = v;
-          m.currentView.value = 'player';
-        });
+        currentVideo.value = v;
+        currentView.value = 'player';
       }
     }
   };

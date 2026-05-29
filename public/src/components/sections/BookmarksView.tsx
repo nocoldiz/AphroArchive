@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { rebuildBookmarkVidIds } from '../../store';
+import { rebuildBookmarkVidIds, currentVideo, currentView } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
 interface BookmarkItem {
@@ -7,6 +7,11 @@ interface BookmarkItem {
   title: string;
   img?: string;
   fav?: boolean;
+  scrapedVideoUrl?: string;
+  hasVideo?: boolean;
+  embedUrl?: string;
+  hasEmbed?: boolean;
+  category?: string;
 }
 
 interface BookmarkCardProps {
@@ -16,33 +21,40 @@ interface BookmarkCardProps {
   onUpdate: (url: string, updates: Partial<BookmarkItem>) => void;
 }
 
-const BookmarkCard = ({ item, onRemove, onToggleStar, onUpdate }: BookmarkCardProps) => {
+const BookmarkCard = ({ item, onRemove, onToggleStar }: BookmarkCardProps) => {
   const hostname = new URL(item.url).hostname;
+  const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
 
-  useEffect(() => {
-    if (!item.img) {
-      fetch('/api/bookmarks/generate-thumb', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: item.url })
-      })
-      .then(r => r.json())
-      .then(res => {
-        if (res.img) {
-          onUpdate(item.url, { img: res.img });
-        }
-      })
-      .catch(() => {});
-    }
-  }, [item.img, item.url, onUpdate]);
+  const openPlayer = () => {
+    currentVideo.value = {
+      id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+      name: item.title,
+      path: item.scrapedVideoUrl || '',
+      relPath: item.url,
+      category: item.category || 'Bookmarks',
+      isBookmark: true,
+      img: item.img,
+      embedUrl: item.embedUrl,
+      bookmarkUrl: item.url,
+    } as any;
+    currentView.value = 'player';
+  };
 
   return (
-    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={() => (window as any).openBfIframe(item.url, item.title || 'Viewing Bookmark')}>
+    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={openPlayer}>
       <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
         {item.img ? (
           <img src={item.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>No Thumb</div>
+        )}
+        {/* External-link indicator when no playable source */}
+        {!hasPlayable && (
+          <div style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.6)', borderRadius: '4px', padding: '2px 4px', display: 'flex', alignItems: 'center' }} title="No direct video — opens in browser">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </div>
         )}
         <input type="checkbox" class="bf-chk" value={item.url} onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '10px', left: '10px' }} />
         
@@ -88,34 +100,84 @@ interface DownloadJob {
   error?: string;
 }
 
+interface ActiveCat { name: string; path: string; }
+
+function matchTitleToCategory(title: string, cats: ActiveCat[]): string | null {
+  const normalized = title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  for (const cat of cats) {
+    const catKey = cat.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (catKey && normalized.includes(catKey)) return cat.name;
+  }
+  return null;
+}
+
 export const BookmarksView = () => {
   const [items, setItems] = useState<BookmarkItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<BookmarkItem[]>([]);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [groupByCategory, setGroupByCategory] = useState(true);
+  const [activeCats, setActiveCats] = useState<ActiveCat[]>([]);
   const [matchedCount, setMatchedCount] = useState(0);
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [websites, setWebsites] = useState<any[]>([]);
+  const [selectedWebsite, setSelectedWebsite] = useState<string>('');
 
   const dlPollerRef = useRef<any>(null);
+  const [scrapeJob, setScrapeJob] = useState<{ running: boolean, total: number, done: number, failed: number, current: string } | null>(null);
+  const scrapePollerRef = useRef<any>(null);
 
   useEffect(() => {
-    setLoading(true);
-    fetch('/api/bookmarks/cache')
-      .then(r => r.json())
-      .then(d => {
-        if (d.items) {
-          setItems(d.items);
-          setVisibleItems(d.items);
-          updateMatches(d.items);
+    const checkStatus = async () => {
+      try {
+        const r = await fetch('/api/bookmarks/scrape-status');
+        const d = await r.json();
+        setScrapeJob(d);
+        if (d.running && !scrapePollerRef.current) {
+          scrapePollerRef.current = setInterval(async () => {
+            const r2 = await fetch('/api/bookmarks/scrape-status');
+            const d2 = await r2.json();
+            setScrapeJob(d2);
+            if (!d2.running && scrapePollerRef.current) {
+              clearInterval(scrapePollerRef.current);
+              scrapePollerRef.current = null;
+            }
+          }, 1500);
         }
-        setLoading(false);
-      })
-      .catch(() => {
-        setItems([]);
-        setVisibleItems([]);
-        setLoading(false);
-      });
+      } catch (e) {}
+    };
+    checkStatus();
+    return () => { if (scrapePollerRef.current) clearInterval(scrapePollerRef.current); };
+  }, []);
+
+  const loadBookmarks = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch('/api/bookmarks/cache?limit=0');
+      const d = await r.json();
+      if (d.items) {
+        setItems(d.items);
+        updateMatches(d.items);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadBookmarks(); }, []);
+
+  useEffect(() => {
+    fetch('/api/websites')
+      .then(r => r.json())
+      .then(setWebsites)
+      .catch(() => {});
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(data => setActiveCats(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
   const updateMatches = (items: BookmarkItem[]) => {
@@ -137,11 +199,26 @@ export const BookmarksView = () => {
 
   useEffect(() => {
     const term = search.trim().toLowerCase();
-    const filtered = term
-      ? items.filter(item => item.title.toLowerCase().includes(term) || item.url.toLowerCase().includes(term))
-      : items;
+    let filtered = items;
+
+    if (selectedWebsite) {
+      filtered = filtered.filter(item => {
+        try {
+          const itemUrl = new URL(item.url);
+          const webUrl = new URL(selectedWebsite);
+          return itemUrl.hostname === webUrl.hostname || itemUrl.hostname.endsWith('.' + webUrl.hostname);
+        } catch {
+          return item.url.includes(selectedWebsite);
+        }
+      });
+    }
+
+    if (term) {
+      filtered = filtered.filter(item => item.title.toLowerCase().includes(term) || item.url.toLowerCase().includes(term));
+    }
+
     setVisibleItems(filtered);
-  }, [search, items]);
+  }, [search, items, selectedWebsite]);
 
   // Download poller
   useEffect(() => {
@@ -174,8 +251,40 @@ export const BookmarksView = () => {
       const r = await fetch(`/api/browser-favs?browser=${browser}`);
       const d = await r.json();
       if (d.items) {
-        setItems(d.items);
-        updateMatches(d.items);
+        // Filter bookmarks to only include those matching profile websites!
+        const filtered = d.items.filter((item: any) => {
+          return websites.some(w => {
+            try {
+              const itemUrl = new URL(item.url);
+              const webUrl = new URL(w.url);
+              return itemUrl.hostname === webUrl.hostname || itemUrl.hostname.endsWith('.' + webUrl.hostname);
+            } catch {
+              return item.url.includes(w.url);
+            }
+          });
+        });
+        
+        // Merge with existing items (avoid duplicates)
+        const existingUrls = new Set(items.map(it => it.url));
+        const newItems = [...items];
+        for (const item of filtered) {
+          if (!existingUrls.has(item.url)) {
+            newItems.push(item);
+          }
+        }
+        
+        setItems(newItems);
+        updateMatches(newItems);
+        
+        // Save to cache
+        await fetch('/api/bookmarks/cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: newItems })
+        });
+        
+        const w = window as any;
+        if (w.toast) w.toast(`Imported ${filtered.length} bookmarks`);
       }
     } catch { }
     setLoading(false);
@@ -239,7 +348,6 @@ export const BookmarksView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls, category: '' })
     });
-    const d = await r.json();
     if (r.ok) {
       // Start poller
       const jobsRes = await fetch('/api/download/jobs');
@@ -267,6 +375,60 @@ export const BookmarksView = () => {
     });
   };
 
+  const saveToDb = async () => {
+    if (!items.length) {
+      alert('No bookmarks to save');
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await fetch('/api/bookmarks/save-to-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        const w = window as any;
+        if (w.toast) w.toast(`Saved ${d.count} bookmarks to DB`);
+      } else {
+        alert('Failed to save bookmarks: ' + (d.error || 'Unknown error'));
+      }
+    } catch (e: any) {
+      alert('Error saving bookmarks: ' + e.message);
+    }
+    setLoading(false);
+  };
+
+  const startScraping = async () => {
+    try {
+      const r = await fetch('/api/bookmarks/start-scraping', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        const w = window as any;
+        if (w.toast) w.toast('Scraping started');
+      } else {
+        alert('Failed to start scraping: ' + (d.error || 'Unknown error'));
+      }
+    } catch (e: any) {
+      alert('Error starting scraping: ' + e.message);
+    }
+  };
+
+  const rescrapeAll = async () => {
+    if (!confirm('Clear all scraped data and rescrape everything from scratch?')) return;
+    try {
+      const r = await fetch('/api/bookmarks/rescrape-all', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        const w = window as any;
+        if (w.toast) w.toast('Rescraping all from start');
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+  };
+
   const total = items.length;
   const pct = total ? Math.round((matchedCount / total) * 100) : 0;
 
@@ -278,6 +440,9 @@ export const BookmarksView = () => {
           <button class="btn" onClick={() => importFavs('chrome')}>Import Chrome</button>
           <button class="btn" onClick={() => importFavs('firefox')}>Import Firefox</button>
           <button class="btn" onClick={clearAll}>Clear All</button>
+          <button class="btn" onClick={saveToDb}>Save to DB</button>
+          <button class="btn" onClick={startScraping}>Start Scraping</button>
+          <button class="btn" onClick={rescrapeAll}>Rescrape All</button>
         </div>
       </div>
 
@@ -292,10 +457,27 @@ export const BookmarksView = () => {
           onFilterChange={setSearch}
         >
           <span className="sg-sep"></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title="Filter by Website">
+            <select 
+              value={selectedWebsite} 
+              onChange={(e: any) => setSelectedWebsite(e.target.value)}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '3px 6px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+            >
+              <option value="">All Websites</option>
+              {websites.map(w => (
+                <option key={w.name} value={w.url}>{w.name}</option>
+              ))}
+            </select>
+          </div>
+          <span className="sg-sep"></span>
           <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
             <button className={`ss-tab ${viewMode === 'grid' ? 'on' : ''}`} onClick={() => setViewMode('grid')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'grid' ? 'var(--ac)' : 'transparent', color: viewMode === 'grid' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Grid</button>
             <button className={`ss-tab ${viewMode === 'list' ? 'on' : ''}`} onClick={() => setViewMode('list')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'list' ? 'var(--ac)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>List</button>
           </div>
+          <span className="sg-sep"></span>
+          <button className={`sort-btn ${groupByCategory ? 'on' : ''}`} onClick={() => setGroupByCategory(g => !g)} title="Group by category">
+            Categories
+          </button>
           <span className="sg-sep"></span>
           <button className="sort-btn" onClick={copyAllVisible}>Copy URLs</button>
           <button className="sort-btn" onClick={openAllVisible}>Open All</button>
@@ -310,37 +492,75 @@ export const BookmarksView = () => {
           </div>
           <span>{pct}% in library</span>
         </div>
+        {scrapeJob && scrapeJob.running && (
+          <div class="scrape-progress" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Scraping: {scrapeJob.done}/{scrapeJob.total}</span>
+            <div style={{ width: '150px', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round((scrapeJob.done / (scrapeJob.total || 1)) * 100)}%`, height: '100%', background: 'var(--accent)' }}></div>
+            </div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={scrapeJob.current}>{scrapeJob.current}</span>
+          </div>
+        )}
       </div>
 
       {loading ? (
         <div class="cv-loading">Loading bookmarks…</div>
       ) : visibleItems.length === 0 ? (
         <div class="empty-state">No bookmarks found</div>
-      ) : viewMode === 'grid' ? (
-        <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-          {visibleItems.map((item) => (
-            <BookmarkCard 
-              key={item.url} 
-              item={item} 
-              onRemove={removeItem} 
-              onToggleStar={toggleStar}
-              onUpdate={updateItem}
-            />
-          ))}
-        </div>
-      ) : (
-        <div class="bf-list">
-          {visibleItems.map(item => (
-            <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>
-              <input type="checkbox" class="bf-chk" value={item.url} />
-              <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent(item.url)}`} width="16" height="16" />
-              <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: 'var(--text)', textDecoration: 'none' }}>{item.title}</a>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{new URL(item.url).hostname}</span>
-              <button class="btn" onClick={() => removeItem(item.url)}>Remove</button>
-            </div>
-          ))}
-        </div>
-      )}
+      ) : (() => {
+        const renderCard = (item: BookmarkItem) => (
+          <BookmarkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} />
+        );
+        const renderRow = (item: BookmarkItem) => (
+          <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>
+            <input type="checkbox" class="bf-chk" value={item.url} aria-label="Select bookmark" />
+            <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent(item.url)}`} width="16" height="16" alt="" />
+            <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: 'var(--text)', textDecoration: 'none' }}>{item.title}</a>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{new URL(item.url).hostname}</span>
+            <button class="btn" onClick={() => removeItem(item.url)}>Remove</button>
+          </div>
+        );
+
+        if (groupByCategory) {
+          const groups: Record<string, BookmarkItem[]> = {};
+          for (const item of visibleItems) {
+            const matched = activeCats.length > 0 ? matchTitleToCategory(item.title, activeCats) : null;
+            const key = matched || item.category || 'Uncategorized';
+            (groups[key] = groups[key] || []).push(item);
+          }
+          const sortedKeys = Object.keys(groups).sort((a, b) => {
+            if (a === 'Uncategorized') return 1;
+            if (b === 'Uncategorized') return -1;
+            return a.localeCompare(b);
+          });
+          return (
+            <>
+              {sortedKeys.map(cat => (
+                <div key={cat} style={{ marginBottom: '30px' }}>
+                  <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {cat} <span style={{ fontWeight: 400, opacity: 0.6 }}>({groups[cat].length})</span>
+                  </h3>
+                  {viewMode === 'grid' ? (
+                    <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+                      {groups[cat].map(renderCard)}
+                    </div>
+                  ) : (
+                    <div class="bf-list">{groups[cat].map(renderRow)}</div>
+                  )}
+                </div>
+              ))}
+            </>
+          );
+        }
+
+        return viewMode === 'grid' ? (
+          <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+            {visibleItems.map(renderCard)}
+          </div>
+        ) : (
+          <div class="bf-list">{visibleItems.map(renderRow)}</div>
+        );
+      })()}
 
       {/* Download Queue */}
       {jobs.length > 0 && (

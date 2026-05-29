@@ -1,17 +1,14 @@
-import { h } from 'preact';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
-import { contextMenuState, categoryMasterPassword } from '../../store';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
   const { visible, x, y, type, data } = state;
 
-  const [showEncryptModal, setShowEncryptModal] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
 
-  const [pw1, setPw1] = useState('');
-  const [pw2, setPw2] = useState('');
+  const [targetProfile, setTargetProfile] = useState('default');
   const [progressTitle, setProgressTitle] = useState('');
   const [progressDesc, setProgressDesc] = useState('');
   const [progressCur, setProgressCur] = useState(0);
@@ -84,22 +81,34 @@ export const ContextMenu = () => {
   };
 
   const handleHide = async () => {
-    const parts = data.path.split('/');
-    const folderName = parts[parts.length - 1];
+    try {
+      const res = await fetch('/api/all-categories');
+      const d = await res.json();
+      let enabled = d.enabled || [];
+      const allCats = d.categories || [];
+      
+      if (enabled.length === 0) {
+        // If empty, all are enabled. So we populate with all paths.
+        enabled = allCats.map((c: any) => c.path);
+      }
+      
+      // Remove current category path
+      const updated = enabled.filter((p: string) => p !== data.path);
+      
+      const r = await fetch('/api/enabled-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: updated })
+      });
 
-    if (!confirm(`Hide category "${data.name}"?\nThis will add "${folderName}" to your hidden categories list.`)) return;
-
-    const r = await fetch('/api/categories/hide', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: folderName })
-    });
-
-    if (r.ok) {
-      toast(`Category "${data.name}" hidden`);
-      refresh();
-    } else {
-      toast('Hide failed');
+      if (r.ok) {
+        toast(`Category "${data.name}" hidden`);
+        refresh();
+      } else {
+        toast('Hide failed');
+      }
+    } catch (e: any) {
+      toast('Error hiding category: ' + e.message);
     }
   };
 
@@ -128,29 +137,69 @@ export const ContextMenu = () => {
     }
   };
 
-  const handleEncrypt = () => {
-    if (categoryMasterPassword.value) {
-      setPw1(categoryMasterPassword.value);
-      setPw2(categoryMasterPassword.value);
+  const handleDownloadZip = async () => {
+    const password = prompt('Enter password for ZIP (leave blank for no encryption):');
+    if (password === null) return;
+
+    toast('Generating ZIP...');
+    try {
+      const res = await fetch('/api/category/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: data.path, password }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast('Download failed: ' + (err.error || 'Unknown error'));
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `category-${data.name.replace(/[^a-zA-Z0-9_-]/g, '_')}-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast('Download complete');
+    } catch (e: any) {
+      toast('Download failed: ' + e.message);
     }
-    setShowEncryptModal(true);
+  };
+
+  const handleHideTag = async () => {
+    const tagName = data.name;
+
+    const currentHidden = appPrefs.value.hiddenTags || [];
+    const updates = { hiddenTags: [...currentHidden, tagName] };
+
+    await updatePrefs(updates);
+    toast(`Tag "${tagName}" hidden`);
+    contextMenuState.value = { ...contextMenuState.value, visible: false };
+  };
+
+  const handleEncrypt = () => {
+    if (!isVaultUnlocked.value) {
+      toast('Unlock Vault profile first');
+      return;
+    }
+    if (!confirm(`Encrypt category "${data.name}" and move to Vault?`)) return;
+    execEncrypt();
   };
 
   const handleUnlock = () => {
-    if (categoryMasterPassword.value) {
-      execUnlock(false, categoryMasterPassword.value);
-    } else {
-      setShowUnlockModal(true);
+    if (!isVaultUnlocked.value) {
+      toast('Unlock Vault profile first');
+      return;
     }
+    setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
+    setShowUnlockModal(true);
   };
 
   const execEncrypt = async () => {
-    if (!pw1) { toast('Password required'); return; }
-    if (pw1 !== pw2) { toast('Passwords do not match'); return; }
-
-    setShowEncryptModal(false);
-    setProgressTitle(data.partial ? 'Finishing Encryption' : 'Encrypting Category');
-    setProgressDesc(`Processing files in ${data.path}...`);
+    setProgressTitle('Encrypting Category');
+    setProgressDesc(`Moving files in ${data.path} to Vault...`);
     setProgressCur(0);
     setProgressTotal(0);
     setShowProgressModal(true);
@@ -158,7 +207,7 @@ export const ContextMenu = () => {
     const r = await fetch('/api/categories/encrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: data.path, password: pw1 })
+      body: JSON.stringify({ path: data.path })
     });
 
     if (r.ok) {
@@ -195,63 +244,49 @@ export const ContextMenu = () => {
     }
   };
 
-  const execUnlock = async (isPermanent: boolean, overridePw?: string) => {
-    const passwordToUse = overridePw || pw1;
-    if (!passwordToUse) { toast('Password required'); return; }
-
+  const execUnlock = async () => {
     setShowUnlockModal(false);
-    const endpoint = isPermanent ? '/api/categories/decrypt' : '/api/categories/unlock';
+    setProgressTitle('Restoring Category');
+    setProgressDesc(`Decrypting files to profile "${targetProfile}"...`);
+    setProgressCur(0);
+    setProgressTotal(0);
+    setShowProgressModal(true);
 
-    if (isPermanent) {
-      setProgressTitle('Decrypting Category');
-      setProgressDesc(`Permanently restoring files in ${data.path}...`);
-      setProgressCur(0);
-      setProgressTotal(0);
-      setShowProgressModal(true);
-    }
-
-    const r = await fetch(endpoint, {
+    const r = await fetch('/api/categories/decrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: data.path, password: passwordToUse })
+      body: JSON.stringify({ path: data.path, targetProfile })
     });
 
     if (r.ok) {
-      if (!categoryMasterPassword.value) {
-        categoryMasterPassword.value = passwordToUse;
-      }
-      if (isPermanent) {
-        const reader = r.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop()!;
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const msg = JSON.parse(line);
-              if (msg.total) {
-                setProgressCur(msg.cur);
-                setProgressTotal(msg.total);
-              }
-              if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
-            } catch (e) { }
-          }
+      const reader = r.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop()!;
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.total) {
+              setProgressCur(msg.cur);
+              setProgressTotal(msg.total);
+            }
+            if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
+          } catch (e) { }
         }
-        setProgressTitle('Complete');
-        setProgressDesc('Category decryption finished successfully.');
-      } else {
-        toast('Category unlocked temporarily');
       }
+      setProgressTitle('Complete');
+      setProgressDesc('Category restored successfully.');
       refresh();
     } else {
       const err = await r.json();
       toast('Action failed: ' + (err.error || 'Unknown error'));
-      if (isPermanent) setShowProgressModal(false);
+      setShowProgressModal(false);
     }
   };
 
@@ -287,14 +322,68 @@ export const ContextMenu = () => {
             <ContextItem label="Hide" icon="eye-off" onClick={handleHide} />
             <ContextItem label="Open folder" icon="folder" onClick={handleOpenFolder} />
             <ContextItem label="Compress Videos" icon="download" onClick={handleCompress} />
+            <ContextItem label="Download ZIP" icon="download" onClick={handleDownloadZip} />
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
             {data.encrypted ? (
-              <ContextItem label="Unlock" icon="lock" onClick={handleUnlock} />
+              <ContextItem label="Restore to Profile" icon="lock" onClick={handleUnlock} />
             ) : data.partial ? (
               <ContextItem label="Finish Encryption" icon="lock" onClick={handleEncrypt} color="#e84040" />
             ) : (
               <ContextItem label="Encrypt" icon="lock" onClick={handleEncrypt} />
             )}
+          </>
+        )}
+        {type === 'video' && (
+          <>
+            <ContextItem label={data.fav ? "Unfavourite" : "Favourite"} icon="star" onClick={async () => {
+              const r = await fetch(`/api/favourites/${data.id}`, { method: 'POST' });
+              const d = await r.json();
+
+              const currentVideos = [...videos.value];
+              const idx = currentVideos.findIndex(v => v.id === data.id);
+              if (idx !== -1) {
+                currentVideos[idx] = { ...currentVideos[idx], fav: d.fav };
+                videos.value = currentVideos;
+              }
+
+              const w = window as any;
+              if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
+            }} />
+            <ContextItem label="Rename" icon="edit" onClick={() => (window as any).openRen && (window as any).openRen(data.id, data.name)} />
+            <ContextItem label="Move to Category" icon="folder" onClick={() => (window as any).openMov && (window as any).openMov(data.id, data.name, data.catPath || '')} />
+            <ContextItem label="Add to Playlist" icon="list" onClick={() => {
+              currentVideo.value = data;
+              showAddToCollectionModal.value = true;
+            }} />
+            <ContextItem label="Tags" icon="tag" onClick={() => {
+              tagModalState.value = { visible: true, vidId: data.id, bmUrl: null };
+            }} />
+            <ContextItem label="Actors" icon="user" onClick={() => {
+              actorModalState.value = { visible: true, vidId: data.id };
+            }} />
+            <ContextItem label="Encrypt" icon="lock" onClick={async () => {
+              if (!confirm(`Encrypt video "${data.name}" and move to Vault?`)) return;
+              const r = await fetch(`/api/videos/${data.id}/encrypt`, { method: 'POST' });
+              if (r.ok) {
+                if ((window as any).toast) (window as any).toast('Video encrypted and moved to Vault');
+                videos.value = videos.value.filter(v => v.id !== data.id);
+              } else {
+                const err = await r.json();
+                if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
+              }
+            }} />
+            <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
+              if (!confirm(`Delete video "${data.name}" from disk?\nThis action cannot be undone.`)) return;
+              const r = await fetch(`/api/videos/${data.id}`, { method: 'DELETE' });
+              if (r.ok) {
+                if ((window as any).toast) (window as any).toast('Video deleted');
+                videos.value = videos.value.filter(v => v.id !== data.id);
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+              } else {
+                const err = await r.json();
+                if ((window as any).toast) (window as any).toast('Delete failed: ' + (err.error || 'Unknown error'));
+              }
+            }} />
           </>
         )}
         {type === 'all_videos' && (
@@ -303,40 +392,44 @@ export const ContextMenu = () => {
             <ContextItem label="Unlock all encrypted" icon="lock" onClick={() => toast('Not implemented in TSX yet')} />
           </>
         )}
+        {type === 'tag' && (
+          <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
+        )}
+        {(type === 'file' || type === 'book' || type === 'audio' || type === 'photo' || type === 'page') && (
+          <>
+            {data.onOpen && <ContextItem label="Open" icon="folder" onClick={() => {
+              data.onOpen();
+              contextMenuState.value = { ...contextMenuState.value, visible: false };
+            }} />}
+            <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
+              if (data.onDelete) await data.onDelete();
+              contextMenuState.value = { ...contextMenuState.value, visible: false };
+            }} />
+          </>
+        )}
       </div>
-
-      {showEncryptModal && (
-        <div className="modal on" style={{ display: 'flex' }}>
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2>{data.partial ? "Finish Encryption" : "Encrypt Category"}</h2>
-            </div>
-            <div className="modal-body">
-              <p>{data.partial ? "Encrypt the remaining files in this category." : "Encrypt all files in this category."}</p>
-              <input type="password" value={pw1} onInput={(e: any) => setPw1(e.target.value)} placeholder="Password" class="premium-input" style={{ width: '100%', marginBottom: '10px' }} />
-              <input type="password" value={pw2} onInput={(e: any) => setPw2(e.target.value)} placeholder="Confirm Password" class="premium-input" style={{ width: '100%' }} />
-            </div>
-            <div className="modal-footer">
-              <button class="modal-btn modal-btn--primary" onClick={execEncrypt}>Encrypt</button>
-              <button class="modal-btn" onClick={() => setShowEncryptModal(false)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showUnlockModal && (
         <div className="modal on" style={{ display: 'flex' }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h2>Unlock Category</h2>
+              <h2>Restore Category</h2>
             </div>
             <div className="modal-body">
-              <p>Enter the password to access this category.</p>
-              <input type="password" value={pw1} onInput={(e: any) => setPw1(e.target.value)} placeholder="Password" class="premium-input" style={{ width: '100%' }} />
+              <p>Choose the target profile to restore this category to:</p>
+              <select
+                value={targetProfile}
+                onChange={(e: any) => setTargetProfile(e.target.value)}
+                class="premium-input"
+                style={{ width: '100%', padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
+              >
+                {profiles.value.filter(p => p !== 'Vault').map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
             </div>
             <div className="modal-footer">
-              <button class="modal-btn modal-btn--primary" onClick={() => execUnlock(false)}>Unlock Temporarily</button>
-              <button class="modal-btn" onClick={() => execUnlock(true)} style={{ fontSize: '12px', opacity: 0.7 }}>Decrypt Permanently</button>
+              <button class="modal-btn modal-btn--primary" onClick={execUnlock}>Restore</button>
               <button class="modal-btn" onClick={() => setShowUnlockModal(false)}>Cancel</button>
             </div>
           </div>

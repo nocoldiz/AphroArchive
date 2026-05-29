@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { currentVideo, currentView, allVideos, appPrefs, tagModalState, actorModalState, showAddToCollectionModal, isMuted } from '../../store';
-import '../../../reddit.css';
+import './RedditView.css';
 
 export const RedditView = () => {
   const [vids, setVids] = useState<any[]>([]);
+  const [hiddenTerms, setHiddenTerms] = useState<string[]>([]);
   const [vaultItems, setVaultItems] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
   const [books, setBooks] = useState<any[]>([]);
@@ -41,14 +42,15 @@ export const RedditView = () => {
   const loadAllData = async () => {
     setFeedLoading(true);
     try {
-      const [v, vStatus, p, b, a, st, t] = await Promise.all([
+      const [v, vStatus, p, b, a, st, t, lists] = await Promise.all([
         fetch('/api/videos?sort=date').then(r => r.json()),
         fetch('/api/vault/status').then(r => r.json()),
         fetch('/api/photos').then(r => r.json()),
         fetch('/api/books').then(r => r.json()),
         fetch('/api/actors').then(r => r.json()),
         fetch('/api/studios').then(r => r.json()),
-        fetch('/api/tags').then(r => r.json())
+        fetch('/api/tags').then(r => r.json()),
+        fetch('/api/settings/lists').then(r => r.json())
       ]);
 
       setVids(v);
@@ -57,6 +59,7 @@ export const RedditView = () => {
       setActors(a);
       setStudios(st);
       setTags(t);
+      if (lists.hidden) setHiddenTerms(lists.hidden);
 
       setVaultUnlocked(!!vStatus.unlocked);
       if (vStatus.unlocked) {
@@ -103,6 +106,24 @@ export const RedditView = () => {
       list = vids.filter(v => v.studio && v.studio.toLowerCase() === studio.toLowerCase());
     }
 
+    if (hiddenTerms.length > 0) {
+      list = list.filter(item => {
+        const name = item.name || item.title || item.filename || '';
+        const cat = item.category || '';
+        const tags = item.tags || (item as any).videoMeta?.tags || [];
+        
+        const match = hiddenTerms.some(term => {
+          const termLo = term.toLowerCase();
+          if (name.toLowerCase().includes(termLo)) return true;
+          const catLo = cat.toLowerCase();
+          if (catLo === termLo || catLo.startsWith(termLo + '/') || catLo.startsWith(termLo + '\\')) return true;
+          if (tags.some((t: string) => t.toLowerCase() === termLo)) return true;
+          return false;
+        });
+        return !match;
+      });
+    }
+
     if (searchQ) {
       const q = searchQ.toLowerCase();
       list = list.filter(v => (v.name || v.title || v.filename || '').toLowerCase().includes(q));
@@ -117,7 +138,7 @@ export const RedditView = () => {
     }
     
     return list;
-  }, [curSub, curSort, searchQ, vids, vaultItems, photos, books, hotRnd]);
+  }, [curSub, curSort, searchQ, vids, vaultItems, photos, books, hotRnd, hiddenTerms]);
 
   const loadComments = async (videoId: string) => {
     setLoadingComments(true);

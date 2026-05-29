@@ -1,4 +1,4 @@
-import { searchQuery } from '../../store';
+import { searchQuery, currentView } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const Search = () => {
@@ -33,6 +33,10 @@ export const Search = () => {
     const val = e.target.value;
     searchQuery.value = val;
     (window as any).q = val;
+
+    if (val && currentView.value !== 'browse') {
+      currentView.value = 'browse';
+    }
 
     const h = getSuggest(val);
     setHint(h);

@@ -12,7 +12,13 @@
       "Bash(awk '{print NR\": \"$0}')",
       "Bash(git -C C:/github/AphroArchive ls-files --error-unmatch db/categories.json)",
       "Bash(git -C C:/github/AphroArchive status --short db/presets/actors.json db/presets/categories.json)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\github\\\\AphroArchive\" -Recurse -Depth 2)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(Get-ChildItem \"c:\\\\github\\\\AphroArchive\\\\db\\\\\" -Recurse | Where-Object {$_.Extension -eq '.json'} | Select-Object FullName)",
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\github\\\\AphroArchive\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

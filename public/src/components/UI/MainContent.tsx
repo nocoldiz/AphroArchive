@@ -16,7 +16,6 @@ import { AudioView } from '../sections/AudioView';
 import { BooksView } from '../sections/BooksView';
 import { CollectionsView } from '../sections/CollectionsView';
 import { DatabaseView } from '../sections/DatabaseView';
-import { TagDetailView } from '../sections/TagDetailView';
 import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
 import { StudioModal } from '../modals/StudioModal';
@@ -25,15 +24,15 @@ import { BookmarkIframeModal } from '../modals/BookmarkIframeModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
-import { VaultPhotoLightbox } from '../modals/VaultPhotoLightbox';
 import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
 import { PlayerView } from '../sections/PlayerView';
+import { MosaicView } from '../sections/MosaicView';
 import { PromptsView } from '../sections/PromptsView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
 import { ActorScraperView } from '../sections/ActorScraperView';
-import { ConnectModal } from '../modals/ConnectModal';
+import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { useEffect } from 'preact/hooks';
 
 export const MainContent = () => {
@@ -86,7 +85,7 @@ export const MainContent = () => {
   }, []);
 
   const renderView = () => {
-    if (view === 'home') return <HomeView />;
+    if (view === 'hub') return <HomeView />;
     if (view === 'chapters') return <ChaptersView />;
     if (view === 'scraper') return <ActorScraperView />;
     if (view === 'settings') return <SettingsView />;
@@ -95,7 +94,6 @@ export const MainContent = () => {
     if (view === 'studios') return <StudiosView />;
     if (view === 'photos') return <PhotosView />;
     if (view === 'bookmarks') return <BookmarksView />;
-    if (view === 'tag') return <TagDetailView />;
     if (view === 'collections') return <CollectionsView />;
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;
@@ -108,15 +106,7 @@ export const MainContent = () => {
     if (view === 'vault') return <VaultView />;
     if (view === 'prompts') return <PromptsView />;
     if (view === 'player') return <PlayerView />;
-    if (view === 'mosaic') return null;
-    if (view === 'connect') {
-      return (
-        <>
-          <BrowseView />
-          <ConnectModal onClose={() => { currentView.value = 'home'; }} />
-        </>
-      );
-    }
+    if (view === 'mosaic') return <MosaicView />;
     return <BrowseView />;
   };
 
@@ -131,8 +121,8 @@ export const MainContent = () => {
       <BookmarkIframeModal />
       <RenameModal />
       <MoveModal />
-      <VaultPhotoLightbox />
       <VisionModal />
+      <VaultUnlockModal />
     </>
   );
 };

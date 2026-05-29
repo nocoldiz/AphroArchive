@@ -148,11 +148,11 @@ export const PromptsView = () => {
     }
   };
 
-  const execSendPrompt = async () => {
+  const execSendPromptTo = async (serviceId: string) => {
     if (!sendPrompt) return;
     const text = valorizedTexts[sendPrompt.id] || sendPrompt.text;
 
-    if (sendService === '__llama__') {
+    if (serviceId === '__llama__') {
       setSendResponse('Running…');
       try {
         const r = await fetch('/api/prompts/run-local', {
@@ -172,7 +172,7 @@ export const PromptsView = () => {
       return;
     }
 
-    const site = PROMPT_SITES.find(s => s.id === sendService);
+    const site = PROMPT_SITES.find(s => s.id === serviceId);
     if (!site) return;
     await navigator.clipboard.writeText(text).catch(() => {});
     window.open(site.url, '_blank');
@@ -382,27 +382,31 @@ export const PromptsView = () => {
                 readOnly 
                 value={valorizedTexts[sendPrompt.id] || sendPrompt.text}
               />
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--tx2)', marginTop: '5px' }}>Web Services (Copies prompt & opens site)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '8px' }}>
+                {PROMPT_SITES.filter(s => !s.local).map(s => (
+                  <button 
+                    key={s.id} 
+                    className="modal-btn" 
+                    style={{ padding: '6px 10px', fontSize: '0.8rem', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '6px', cursor: 'pointer', color: 'var(--tx)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                    onClick={() => execSendPromptTo(s.id)}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+              
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--tx2)', marginTop: '5px' }}>Local Execution</div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <select 
+                <input 
                   className="stg-ta" 
-                  style={{ flex: 1, padding: '8px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px' }}
-                  value={sendService}
-                  onChange={(e: any) => setSendService(e.target.value)}
-                >
-                  <option value="__llama__">Local Llama (Ollama)</option>
-                  {PROMPT_SITES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                {sendService === '__llama__' && (
-                  <input 
-                    className="stg-ta" 
-                    style={{ width: '120px', padding: '8px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px' }} 
-                    placeholder="Model" 
-                    value={sendModel}
-                    onInput={(e: any) => setSendModel(e.target.value)}
-                  />
-                )}
-                <button className="pt-btn" style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }} onClick={execSendPrompt}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ verticalAlign: '-2px', marginRight: '5px' }}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Send
+                  style={{ flex: 1, padding: '8px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px' }} 
+                  placeholder="Model (e.g. llama3)" 
+                  value={sendModel}
+                  onInput={(e: any) => setSendModel(e.target.value)}
+                />
+                <button className="pt-btn" style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }} onClick={() => execSendPromptTo('__llama__')}>
+                  Run with Ollama
                 </button>
               </div>
               {sendResponse && (

@@ -7,7 +7,7 @@ const fs              = require('fs');
 const path            = require('path');
 const { spawn, execFile } = require('child_process');
 const { VIDEOS_DIR, YT_DLP_BIN, BM_DIR } = require('./config-server');
-const { json, readBody }                  = require('./helpers-server');
+const { json, readBody, toId }            = require('./helpers-server');
 
 // ── Queue state ──────────────────────────────────────────────────────
 
@@ -29,6 +29,26 @@ function enqueueDownload(dlUrl, category) {
   return id;
 }
 
+async function handleBookmarkConversion(url) {
+  try {
+    const { loadBookmarksCache, saveBookmarksCache } = require('./db-server');
+    const cache = loadBookmarksCache();
+    const items = cache.items || [];
+    const idx = items.findIndex(item => item.url === url);
+    if (idx !== -1) {
+      items.splice(idx, 1);
+      saveBookmarksCache({ items });
+      console.log(`[download-conv] Successfully converted bookmark ${url} to local video (removed from bookmarks cache)`);
+      
+      const { invalidateScanCache, initVideoMeta } = require('./videos-server');
+      invalidateScanCache();
+      initVideoMeta().catch(err => console.error('initVideoMeta failed after bookmark download:', err));
+    }
+  } catch (err) {
+    console.error('Failed to convert bookmark after successful download:', err);
+  }
+}
+
 async function processDownloadQueue() {
   if (dlRunning) return;
   const next = [...downloadJobs.values()].find(j => j.status === 'queued');
@@ -39,6 +59,11 @@ async function processDownloadQueue() {
     await runYtDlp(next);
     next.status   = 'done';
     next.progress = 100;
+    if (next.outputPath && fs.existsSync(next.outputPath)) {
+      const rel = path.relative(VIDEOS_DIR, next.outputPath);
+      next.videoId = toId(rel);
+    }
+    await handleBookmarkConversion(next.url);
   } catch (e) {
     if (downloadJobs.has(next.id)) { next.status = 'error'; next.error = e.message; }
   } finally {
@@ -49,7 +74,10 @@ async function processDownloadQueue() {
 
 function runYtDlp(job) {
   return new Promise((resolve, reject) => {
-    const outDir = job.category ? path.join(VIDEOS_DIR, job.category) : VIDEOS_DIR;
+    const cleanCat = (job.category || '').trim();
+    const isVirtual = cleanCat.toLowerCase() === 'bookmarks' || cleanCat.toLowerCase() === 'uncategorized';
+    const physicalCat = isVirtual ? '' : cleanCat;
+    const outDir = physicalCat ? path.join(VIDEOS_DIR, physicalCat) : VIDEOS_DIR;
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const proc = spawn(YT_DLP_BIN, [
@@ -62,9 +90,11 @@ function runYtDlp(job) {
 
     const parseLine = line => {
       const dst = line.match(/\[download\] Destination:\s*(.+)/);
-      if (dst) job.title = path.basename(dst[1].trim()).replace(/\.[^.]+$/, '');
+      if (dst) { job.title = path.basename(dst[1].trim()).replace(/\.[^.]+$/, ''); job.outputPath = dst[1].trim(); }
+      const merger = line.match(/\[Merger\] Merging formats into "(.+)"/);
+      if (merger) job.outputPath = merger[1].trim();
       const already = line.match(/\[download\] (.+) has already been downloaded/);
-      if (already) { job.title = path.basename(already[1].trim()).replace(/\.[^.]+$/, ''); job.progress = 100; }
+      if (already) { job.title = path.basename(already[1].trim()).replace(/\.[^.]+$/, ''); job.progress = 100; job.outputPath = already[1].trim(); }
       const prog = line.match(/\[download\]\s+([\d.]+)%.*?at\s+(\S+)\s+ETA\s+(\S+)/);
       if (prog) { job.progress = parseFloat(prog[1]); job.speed = prog[2]; job.eta = prog[3]; }
     };

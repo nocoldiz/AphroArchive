@@ -1,15 +1,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
-import { isMuted } from '../../store';
-
-interface AudioFile {
-  id: string;
-  title: string;
-  ext: string;
-  size: number;
-  sizeF: string;
-  date: number;
-}
+import { isMuted, cardSize, contextMenuState } from '../../store';
+import { AudioFile } from '../../types';
 
 export const AudioView = () => {
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
@@ -68,6 +60,23 @@ export const AudioView = () => {
     }
   };
 
+  const openCtx = (e: any, file: AudioFile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'audio',
+      data: {
+        id: file.id,
+        name: file.title,
+        onDelete: () => deleteAudio(file.id),
+        onOpen: () => playAudio(file.id)
+      }
+    };
+  };
+
   const handleUpload = async (e: any) => {
     const fileInput = e.target;
     const files = fileInput.files;
@@ -119,7 +128,6 @@ export const AudioView = () => {
           showStarred={false}
           showShuffle={false}
           showSource={false}
-          showCardSize={false}
           showFilter={true}
           currentSort={sort}
           onSortChange={(val: any) => setSort(val)}
@@ -147,7 +155,7 @@ export const AudioView = () => {
         </SectionControls>
       </div>
 
-      <div id="audioGrid" className={view === 'list' ? 'au-list' : 'au-grid'} style={{ display: view === 'list' ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: view === 'card' ? 'repeat(auto-fill, minmax(200px, 1fr))' : 'none', gap: '12px', padding: '16px 0' }}>
+      <div id="audioGrid" className={view === 'list' ? 'au-list' : 'au-grid'} style={{ display: view === 'list' ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: view === 'card' ? `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))` : 'none', gap: '12px', padding: '16px 0' }}>
         {loading && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>Loading…</div>}
         {!loading && filteredFiles.length === 0 && (
           <div id="audioEmpty" style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No audio files found.</div>
@@ -157,6 +165,7 @@ export const AudioView = () => {
             key={f.id} 
             className={`${view === 'card' ? 'au-card' : 'au-row'} ${curAudio === f.id ? 'playing' : ''}`} 
             onClick={() => playAudio(f.id)}
+            onContextMenu={(e) => openCtx(e, f)}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 

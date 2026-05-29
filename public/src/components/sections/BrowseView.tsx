@@ -1,5 +1,5 @@
 import { VideoGrid } from '../UI/VideoGrid';
-import { galleryFilter, sortMode, isShuffle, favFilter, recentVideos, currentView, cardSize } from '../../store';
+import { galleryFilter, sortMode, isShuffle, favFilter, recentVideos, currentView, cardSize, currentCategory, currentTag } from '../../store';
 import { SearchExtras } from '../UI/SearchExtras';
 import { SectionControls } from '../UI/SectionControls';
 
@@ -7,7 +7,12 @@ export const BrowseView = () => {
   return (
     <div className="browse-view on" id="browse-view">
       <div className="section-header">
-        <h2 id="section-title">All Videos</h2><span id="result-count"></span>
+        <h2 id="section-title">{
+          currentCategory.value === 'uncategorized' ? 'Uncategorized' :
+          currentCategory.value ? currentCategory.value.replace(/\//g, ' / ') :
+          currentTag.value ? currentTag.value :
+          'All Videos'
+        }</h2><span id="result-count"></span>
         <SectionControls 
           showClearHistory={currentView.value === 'recent'}
           onClearHistory={async () => {

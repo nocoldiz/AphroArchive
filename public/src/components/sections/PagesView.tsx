@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
-
-interface PageItem {
-  id: string;
-  name: string;
-  sizeF: string;
-  mtime: string | number;
-}
+import { cardSize, contextMenuState } from '../../store';
+import { PageItem } from '../../types';
 
 export const PagesView = () => {
   const [pagesList, setPagesList] = useState<PageItem[]>([]);
@@ -59,6 +54,23 @@ export const PagesView = () => {
     }
   };
 
+  const openCtx = (e: any, page: PageItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'page',
+      data: {
+        id: page.id,
+        name: page.name,
+        onDelete: () => deletePage(page.id, page.name),
+        onOpen: () => openPage(page.id, page.name)
+      }
+    };
+  };
+
   const handleUpload = async (e: any) => {
     const input = e.target;
     const files = [...input.files].filter((f: File) => /\.(html?|xhtml|mhtml)$/i.test(f.name));
@@ -91,7 +103,6 @@ export const PagesView = () => {
           showStarred={false}
           showShuffle={false}
           showSource={false}
-          showCardSize={false}
           showFilter={true}
           currentFilter={query}
           onFilterChange={setQuery}
@@ -107,7 +118,7 @@ export const PagesView = () => {
         </SectionControls>
       </div>
 
-      <div id="pagesGrid" className="pages-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', padding: '16px 0' }}>
+      <div id="pagesGrid" className="pages-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '16px', padding: '16px 0' }}>
         {loading && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem', padding: '8px 0' }}>Loading…</div>}
         {!loading && filteredPages.length === 0 && (
           <div id="pagesEmpty" style={{ color: 'var(--tx2)', fontSize: '0.85rem', padding: '8px 0' }}>
@@ -115,7 +126,7 @@ export const PagesView = () => {
           </div>
         )}
         {!loading && filteredPages.map(p => (
-          <div key={p.id} className="page-card" onClick={() => openPage(p.id, p.name)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg2)', borderRadius: '8px', cursor: 'pointer', position: 'relative' }}>
+          <div key={p.id} className="page-card" onClick={() => openPage(p.id, p.name)} onContextMenu={(e) => openCtx(e, p)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg2)', borderRadius: '8px', cursor: 'pointer', position: 'relative' }}>
             <div className="page-card-icon">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>

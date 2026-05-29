@@ -5,7 +5,11 @@
     "searchURL": "https://www.youtube.com/results?search_query={q}",
     "scrapeMethod": "youtube",
     "description": "Video sharing platform",
-    "tags": ["video", "fitness"]
+    "tags": [
+      "video",
+      "fitness"
+    ],
+    "embed": ""
   },
   {
     "name": "Vimeo",
@@ -13,6 +17,10 @@
     "searchURL": "https://vimeo.com/search?q={q}",
     "scrapeMethod": "vimeo",
     "description": "High quality video platform",
-    "tags": ["video", "hd"]
+    "tags": [
+      "video",
+      "hd"
+    ],
+    "embed": ""
   }
 ]

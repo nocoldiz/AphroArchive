@@ -202,4 +202,72 @@ async function apiVaultDownloadZip(req, res) {
   res.end(zip);
 }
 
-module.exports = { apiVaultDownloadZip };
+async function apiCategoryDownloadZip(req, res) {
+  const body     = await readBody(req);
+  const category = typeof body.category === 'string' ? body.category.trim() : '';
+  const password = typeof body.password === 'string' ? body.password.trim() : '';
+
+  if (!category) return json(res, { error: 'Category required' }, 400);
+
+  const videos = require('./videos-server');
+  const allVids = await videos.allVideos();
+  
+  let list = allVids;
+  if (category === 'uncategorized' || category === '__uncategorized__' || category === '') {
+    const { loadCategories } = require('./db-server');
+    const defined = loadCategories();
+    list = list.filter(v => v.catPath === '' && !defined.some(e => require('./helpers-server').wordMatchAny(v.name, e.terms)));
+  } else {
+    const { loadCategories } = require('./db-server');
+    const defined = loadCategories();
+    const catLo = category.toLowerCase();
+    const matchingEntry = defined.find(e => e.name.toLowerCase() === catLo);
+    const cl = category.toLowerCase().replace(/\\/g, '/');
+    list = list.filter(v => {
+      const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
+      const isChild = vp === cl || vp.startsWith(cl + '/');
+      return isChild || v.category === category || (matchingEntry && v.catPath === '' && require('./helpers-server').wordMatchAny(v.name, matchingEntry.terms));
+    });
+  }
+
+  if (!list.length) return json(res, { error: 'No files in category' }, 400);
+  if (list.length > 200) return json(res, { error: 'Too many files (max 200)' }, 400);
+
+  let totalSize = 0;
+  const files = [];
+  const { VIDEOS_DIR } = require('./config-server');
+  const path = require('path');
+  const fs = require('fs');
+  
+  for (const v of list) {
+    const fp = path.join(VIDEOS_DIR, v.rel);
+    if (!fs.existsSync(fp)) continue;
+    
+    const stat = fs.statSync(fp);
+    totalSize += stat.size;
+    if (totalSize > 500 * 1024 * 1024) {
+      return json(res, { error: 'Category too large for ZIP (max 500MB)' }, 400);
+    }
+    
+    const data = fs.readFileSync(fp);
+    files.push({ name: path.basename(v.rel), data });
+  }
+
+  let zip;
+  try {
+    zip = buildZip(files, password || null);
+  } catch (e) {
+    return json(res, { error: 'ZIP build failed: ' + e.message }, 500);
+  }
+
+  const filename = 'category-' + category.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + Date.now() + '.zip';
+  res.writeHead(200, {
+    'Content-Type':        'application/zip',
+    'Content-Length':      zip.length,
+    'Content-Disposition': 'attachment; filename="' + filename + '"',
+    'Cache-Control':       'no-store',
+  });
+  res.end(zip);
+}
+
+module.exports = { apiVaultDownloadZip, apiCategoryDownloadZip };

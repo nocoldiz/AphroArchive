@@ -1,14 +1,9 @@
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
-
-interface PhotoFile {
-  id: string;
-  filename: string;
-  size: number;
-  sizeF: string;
-  date: number;
-}
+import { PhotoLightbox } from '../modals/PhotoLightbox';
+import { contextMenuState } from '../../store';
+import { PhotoFile } from '../../types';
 
 export const PhotosView = () => {
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
@@ -19,6 +14,7 @@ export const PhotosView = () => {
   const [slideSecs, setSlideSecs] = useState(3);
   const [description, setDescription] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [aiFilter, setAiFilter] = useState<'all' | 'ai' | 'normal'>('all');
 
   const slideTimerRef = useRef<any>(null);
 
@@ -46,6 +42,10 @@ export const PhotosView = () => {
       const q = search.toLowerCase();
       files = files.filter(f => f.filename.toLowerCase().includes(q));
     }
+    
+    if (aiFilter === 'ai') files = files.filter(f => f.isAi);
+    else if (aiFilter === 'normal') files = files.filter(f => !f.isAi);
+    
     return files;
   };
 
@@ -97,6 +97,23 @@ export const PhotosView = () => {
     } else {
       if (w.toast) w.toast('Delete failed');
     }
+  };
+
+  const openCtx = (e: any, photo: PhotoFile, idx: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'photo',
+      data: {
+        id: photo.id,
+        name: photo.filename,
+        onDelete: () => deletePhoto(photo.id),
+        onOpen: () => openLightbox(idx)
+      }
+    };
   };
 
   const describePhoto = async (id: string) => {
@@ -173,6 +190,16 @@ export const PhotosView = () => {
         >
           <span className="sg-sep"></span>
           <button className="sort-btn" onClick={startMosaic}>Mosaic</button>
+          <span className="sg-sep"></span>
+          <select 
+            value={aiFilter} 
+            onChange={(e: any) => setAiFilter(e.target.value)} 
+            style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '5px', cursor: 'pointer' }}
+          >
+            <option value="all">All Photos</option>
+            <option value="ai">AI Only</option>
+            <option value="normal">No AI</option>
+          </select>
         </SectionControls>
       </div>
 
@@ -183,7 +210,7 @@ export const PhotosView = () => {
       ) : (
         <div className="ph-grid" id="photosGrid">
           {files.map((f, i) => (
-            <div key={f.id} className="ph-card" onClick={() => openLightbox(i)}>
+            <div key={f.id} className="ph-card" onClick={() => openLightbox(i)} onContextMenu={(e) => openCtx(e, f, i)}>
               <img className="ph-thumb" src={`/api/photos/${f.id}/img`} alt={f.filename} loading="lazy" />
               <div className="ph-overlay">
                 <span className="ph-name">{f.filename}</span>
@@ -201,42 +228,25 @@ export const PhotosView = () => {
       )}
 
       {/* Lightbox Modal */}
-      {lightboxIdx !== null && currentPhoto && (
-        <div id="photosLightbox" className="ph-lightbox on">
-          <button className="ph-lb-close" onClick={closeLightbox}>×</button>
-          
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '80%', position: 'relative' }}>
-            <button className="ph-lb-nav ph-lb-prev" onClick={prevPhoto}>‹</button>
-            <img id="photosLbImg" src={`/api/photos/${currentPhoto.id}/img`} alt="" />
-            <button className="ph-lb-nav ph-lb-next" onClick={nextPhoto}>›</button>
-          </div>
-
-          <div className="ph-lb-caption" style={{ color: 'white', marginTop: '20px', textAlign: 'center', width: '80%' }}>
-            <div id="photosLbCaption" style={{ fontSize: '1rem', marginBottom: '10px' }}>
-              {currentPhoto.filename}  ·  {currentPhoto.sizeF}
-            </div>
-            
-            <div className="ph-lb-actions" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '15px' }}>
-              <button id="photosLbSlideBtn" className="ph-lb-action-btn" onClick={() => setSlideshowOn(!slideshowOn)}>
-                {slideshowOn ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                )}
-                <span>{slideshowOn ? 'Pause' : 'Play'}</span>
-              </button>
-              <button className="ph-lb-action-btn" onClick={() => downloadPhoto(currentPhoto)}>Download</button>
-              <button className="ph-lb-action-btn" onClick={() => describePhoto(currentPhoto.id)}>Describe</button>
-            </div>
-
-            {description && (
-              <div id="photosLbDesc" style={{ background: 'rgba(255,255,255,0.1)', padding: '10px', borderRadius: '5px', fontSize: '0.9rem' }}>
-                {description}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <PhotoLightbox
+        isOpen={lightboxIdx !== null && currentPhoto !== null}
+        onClose={closeLightbox}
+        imgUrl={currentPhoto ? `/api/photos/${currentPhoto.id}/img` : ''}
+        title={currentPhoto ? currentPhoto.filename : ''}
+        sizeF={currentPhoto ? currentPhoto.sizeF : ''}
+        onPrev={prevPhoto}
+        onNext={nextPhoto}
+        onDelete={currentPhoto ? () => deletePhoto(currentPhoto.id) : undefined}
+        onDownload={currentPhoto ? () => downloadPhoto(currentPhoto) : undefined}
+        onDescribe={currentPhoto ? () => describePhoto(currentPhoto.id) : undefined}
+        slideshowOn={slideshowOn}
+        onToggleSlideshow={() => setSlideshowOn(!slideshowOn)}
+        slideSecs={slideSecs}
+        onSlideSecsChange={setSlideSecs}
+        description={description}
+        isAi={currentPhoto ? currentPhoto.isAi : false}
+        aiPrompt={currentPhoto ? currentPhoto.aiPrompt : ''}
+      />
     </div>
   );
 };

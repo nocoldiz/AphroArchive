@@ -16,9 +16,22 @@ export const ProfileModal = () => {
   useEffect(() => {
     if (state.visible) {
       fetch('/api/presets')
-        .then(r => r.json())
-        .then(data => setPresets(data.profiles || []))
-        .catch(e => console.error(e));
+        .then(r => {
+          if (!r.ok) {
+            throw new Error(`HTTP error! status: ${r.status}`);
+          }
+          return r.text(); // Read as plain text first
+        })
+        .then(text => {
+          try {
+            const data = JSON.parse(text); // Parse JSON manually
+            setPresets(data.profiles || []);
+          } catch (e) {
+            console.error('Invalid JSON response:', text); // Log raw response
+            throw e; // Re-throw the error for debugging
+          }
+        })
+        .catch(e => console.error('Failed to load presets', e));
     }
   }, [state.visible]);
 

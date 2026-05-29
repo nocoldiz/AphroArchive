@@ -14,7 +14,7 @@ const DATA_DIR = IS_PKG ? path.dirname(process.execPath) : ROOT_DIR;
 function resolveBin(name) {
   const winName = process.platform === 'win32' ? name + '.exe' : name;
   const local = path.join(DATA_DIR, winName);
-  return fs.existsSync(local) ? local : name;
+  return fs.existsSync(local) ? local : (process.platform === 'win32' ? winName : name);
 }
 
 const BM_DIR = path.join(DATA_DIR, 'cache');

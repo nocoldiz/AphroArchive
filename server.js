@@ -45,18 +45,32 @@ const vision = require('./server/vision-server');
 const vaultZip = require('./server/vault-zip-server');
 const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
+const { startBackgroundWorker } = require('./server/background-worker-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
-fs.mkdirSync(CACHE_DIR, { recursive: true });
-fs.mkdirSync(VIDEOS_DIR, { recursive: true });
-fs.mkdirSync(AUDIO_DIR, { recursive: true });
-fs.mkdirSync(BOOKS_DIR, { recursive: true });
-fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-fs.mkdirSync(PAGES_DIR, { recursive: true });
-fs.mkdirSync(cfg.BM_THUMBS_DIR, { recursive: true });
-fs.mkdirSync(path.dirname(BM_CACHE_FILE), { recursive: true });
-fs.mkdirSync(path.join(process.cwd(), 'models'), { recursive: true });
+function ensureDirSync(dirPath) {
+  try {
+    const stats = fs.lstatSync(dirPath);
+    if (stats.isSymbolicLink() && !fs.existsSync(dirPath)) {
+      console.warn(`\x1b[33m⚠️  Warning: '${dirPath}' is a broken symlink (target is missing). Unlinking and creating a local directory...\x1b[0m`);
+      fs.unlinkSync(dirPath);
+    }
+  } catch (err) {
+    // If the path doesn't exist, lstatSync will throw, which is expected.
+  }
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+ensureDirSync(CACHE_DIR);
+ensureDirSync(VIDEOS_DIR);
+ensureDirSync(AUDIO_DIR);
+ensureDirSync(BOOKS_DIR);
+ensureDirSync(PHOTOS_DIR);
+ensureDirSync(PAGES_DIR);
+ensureDirSync(cfg.BM_THUMBS_DIR);
+ensureDirSync(path.dirname(BM_CACHE_FILE));
+ensureDirSync(path.join(process.cwd(), 'models'));
 
 (async () => { await comments.initCommentsModel(); })();
 
@@ -98,9 +112,9 @@ function isLocalhost(req) {
 // ── HTTP server ───────────────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
-  const parsed = url.parse(req.url, true);
-  const p = parsed.pathname;
-  const params = new URLSearchParams(parsed.search || '');
+  const urlObj = new URL(req.url, `http://localhost:${PORT}`);
+  const p = urlObj.pathname;
+  const params = urlObj.searchParams;
 
   // Block remote connections unless network access is explicitly enabled
   if (!isLocalhost(req) && !loadPrefs().networkEnabled) {
@@ -147,6 +161,7 @@ const server = http.createServer(async (req, res) => {
 
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetail(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
+  if ((m = p.match(/^\/api\/videos\/([^/]+)\/encrypt$/)) && req.method === 'POST') return videos.apiEncryptVideo(req, res, m[1]);
   if ((m = p.match(/^\/api\/stream\/([^/]+)$/)) && req.method === 'GET') return videos.apiStream(req, res, m[1]);
   if ((m = p.match(/^\/api\/favourites\/([^/]+)$/)) && req.method === 'POST') return videos.apiToggleFav(req, res, m[1]);
   if ((m = p.match(/^\/api\/history\/([^/]+)$/)) && req.method === 'POST') return videos.apiAddHistory(req, res, m[1]);
@@ -177,6 +192,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/actor-photos' && req.method === 'GET') return actors.apiActorPhotos(req, res);
   if ((m = p.match(/^\/api\/actor-photos\/(.+)\/scrape$/)) && req.method === 'POST') return actors.apiActorPhotoScrape(req, res, decodeURIComponent(m[1]));
   if ((m = p.match(/^\/api\/actor-photos\/(.+)\/img$/)) && req.method === 'GET') return actors.apiActorPhotoImg(req, res, decodeURIComponent(m[1]));
+  if (p === '/api/actors/scrape-missing' && req.method === 'POST') return actors.apiActorsScrapeMissing(req, res);
 
   // ── Thumbnails ───────────────────────────────────────────────────────
   if ((m = p.match(/^\/api\/thumbs\/([^/]+)\/generate$/)) && req.method === 'POST') return thumbnails.apiThumbGen(req, res, m[1]);
@@ -186,6 +202,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-thumbs/start' && req.method === 'POST') return genThumbs.apiGenThumbsStart(req, res);
   if (p === '/api/gen-thumbs/stop' && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
   if (p === '/api/gen-thumbs/status' && req.method === 'GET') return genThumbs.apiGenThumbsStatus(req, res);
+  if (p === '/api/gen-thumbs/poll' && req.method === 'GET') return genThumbs.apiGenThumbsStatusPoll(req, res);
 
   // ── Collections ──────────────────────────────────────────────────────
   if (p === '/api/collections' && req.method === 'GET') return collections.apiCollections(req, res);
@@ -207,6 +224,11 @@ const server = http.createServer(async (req, res) => {
 
   // ── Bookmarks / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
+  if (p === '/api/bookmarks/save-to-db' && req.method === 'POST') {
+    const body = await readBody(req);
+    const result = require('./server/db-server').saveBookmarksToDb(body.items || []);
+    return json(res, result);
+  }
   if (p === '/api/websites/starred' && req.method === 'GET') return json(res, loadStarredSites());
   if (p === '/api/websites/star' && req.method === 'POST') {
     const body = await readBody(req);
@@ -225,6 +247,12 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/bookmarks/generate-thumb' && req.method === 'POST') return bookmarks.apiGenerateBookmarkThumb(req, res);
   if (p === '/api/bookmarks/generate-all' && req.method === 'POST') return bookmarks.apiGenerateAllBookmarkThumbs(req, res);
   if (p === '/api/bookmarks/generation-status' && req.method === 'GET') return bookmarks.apiBookmarkGenerationStatus(req, res);
+  if (p === '/api/bookmarks/scrape-status' && req.method === 'GET') return bookmarks.apiScrapeStatus(req, res);
+  if (p === '/api/bookmarks/stop-scraping' && req.method === 'POST') return bookmarks.apiStopScraping(req, res);
+  if (p === '/api/bookmarks/thumb-status' && req.method === 'GET') return bookmarks.apiBookmarkThumbStatus(req, res);
+  if (p === '/api/bookmarks/stop-generating' && req.method === 'POST') return bookmarks.apiStopBookmarkThumbs(req, res);
+  if (p === '/api/bookmarks/start-scraping' && req.method === 'POST') return bookmarks.apiStartScraping(req, res);
+  if (p === '/api/bookmarks/rescrape-all' && req.method === 'POST') return bookmarks.apiRescrapeAll(req, res);
   if ((m = p.match(/^\/api\/bookmarks\/thumbs\/(.+)$/)) && req.method === 'GET') return bookmarks.apiBookmarkThumbImg(req, res, m[1]);
   if (p === '/api/bookmarks/cache' && req.method === 'GET') return bookmarks.apiGetBookmarksCache(req, res);
   if (p === '/api/bookmarks/cache' && req.method === 'POST') return bookmarks.apiSaveBookmarksCache(req, res);
@@ -245,17 +273,19 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/ai-tag$/)) && req.method === 'POST') return vault.apiVaultAiTag(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/rename$/)) && req.method === 'PUT') return vault.apiVaultRename(req, res, m[1]);
   if (p === '/api/vault/download-zip' && req.method === 'POST') return vaultZip.apiVaultDownloadZip(req, res);
+  if (p === '/api/category/download-zip' && req.method === 'POST') return vaultZip.apiCategoryDownloadZip(req, res);
   if (p === '/api/vault/folders' && req.method === 'POST') return vault.apiVaultCreateFolder(req, res);
   if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDeleteFolder(req, res, m[1]);
   if (p === '/api/vault/favs' && req.method === 'GET') return vault.apiVaultFavsGet(req, res);
   if ((m = p.match(/^\/api\/vault\/favs\/([^/]+)$/)) && req.method === 'POST') return vault.apiVaultFavsToggle(req, res, m[1]);
   if (p === '/api/vault/change-password' && req.method === 'POST') return vault.apiVaultChangePassword(req, res);
-  if (p === '/api/vault' && req.method === 'DELETE') return vault.apiVaultDeleteVault(req, res);
+  if ((p === '/api/vault' && req.method === 'DELETE') || (p === '/api/vault/delete-vault' && req.method === 'POST')) return vault.apiVaultDeleteVault(req, res);
   if (p === '/api/vault/read-book' && req.method === 'GET') return vault.apiVaultReadBook(req, res, params.get('id'));
   if ((m = p.match(/^\/api\/vault\/stream-page\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultStreamPage(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/page-resource\/([^/]+)\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultPageResource(req, res, m[1], m[2]);
   if ((m = p.match(/^\/api\/vault\/text\/([^/]+)$/)) && req.method === 'PUT') return vault.apiVaultUpdateTextFile(req, res, m[1]);
   if (p === '/api/vault/import-drop' && req.method === 'POST') return vault.apiVaultImportDrop(req, res);
+  if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/restore$/)) && req.method === 'POST') return vault.apiVaultRestoreFile(req, res, m[1]);
 
   // ── Presets ──────────────────────────────────────────────────────────
   if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
@@ -280,6 +310,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/books\/read\/([^/]+)$/)) && req.method === 'GET') return books.apiBooksRead(req, res, m[1]);
   if ((m = p.match(/^\/api\/books\/([^/]+)$/)) && req.method === 'PUT') return books.apiBooksWrite(req, res, m[1]);
   if ((m = p.match(/^\/api\/books\/([^/]+)$/)) && req.method === 'DELETE') return books.apiBooksDelete(req, res, m[1]);
+  if ((m = p.match(/^\/api\/books\/cbz\/([^/]+)\/files$/)) && req.method === 'GET') return books.apiBooksCbzFiles(req, res, m[1]);
+  if ((m = p.match(/^\/api\/books\/cbz\/([^/]+)\/file\/(.+)$/)) && req.method === 'GET') return books.apiBooksCbzFile(req, res, m[1], m[2]);
 
   // ── Audio ────────────────────────────────────────────────────────────
   if (p === '/api/audio' && req.method === 'GET') return audio.apiAudioList(req, res);
@@ -288,7 +320,9 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/audio\/([^/]+)$/)) && req.method === 'DELETE') return audio.apiAudioDelete(req, res, m[1]);
 
   // ── Photos ───────────────────────────────────────────────────────────
+  if (p === '/api/videos/upload' && req.method === 'POST') return videos.apiVideosUpload(req, res);
   if (p === '/api/photos' && req.method === 'GET') return photos.apiPhotosList(req, res);
+  if (p === '/api/photos/upload' && req.method === 'POST') return photos.apiPhotosUpload(req, res);
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/img$/)) && req.method === 'GET') return photos.apiPhotoServe(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/download$/)) && req.method === 'GET') return photos.apiPhotoDownload(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)$/)) && req.method === 'DELETE') return photos.apiPhotoDelete(req, res, m[1]);
@@ -322,6 +356,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/settings\/(hidden|whitelist)$/)) && req.method === 'PUT') return settings.apiSettingsSave(req, res, m[1]);
   if (p === '/api/settings/prefs' && req.method === 'GET') return settings.apiGetPrefs(req, res);
   if (p === '/api/settings/prefs' && req.method === 'PUT') return settings.apiSavePrefs(req, res);
+  if (p === '/api/browse-folders' && req.method === 'GET') return settings.apiBrowseFolders(req, res, params);
+  if (p === '/api/browse-folders-native' && req.method === 'GET') return settings.apiBrowseFoldersNative(req, res);
 
   // ── AI Comments ──────────────────────────────────────────────────────
   if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);
@@ -350,8 +386,6 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  if (p === '/instagram') return serveStatic(req, res, 'instagram.html');
-  if (p === '/reddit' || p.startsWith('/reddit/') || p === '/r' || p.startsWith('/r/')) return serveStatic(req, res, 'reddit.html');
   const spaRoutes = /^\/(thumbnails|bookmarks|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
@@ -362,6 +396,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, async () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
   await initVideoMeta();
+  startBackgroundWorker();
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);

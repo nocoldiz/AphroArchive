@@ -7,7 +7,8 @@ const fs    = require('fs');
 const path  = require('path');
 const http  = require('http');
 const https = require('https');
-const { BOOKS_DIR } = require('./config-server');
+const zlib = require('zlib');
+const { BOOKS_DIR, CACHE_DIR } = require('./config-server');
 const { json, readBody, formatBytes } = require('./helpers-server');
 const { loadBooksMeta, saveBooksMeta } = require('./db-server');
 
@@ -125,8 +126,8 @@ async function apiBooksUpload(req, res) {
   const filename     = decodeURIComponent(req.headers['x-filename'] || 'book.txt');
   const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
   const ext          = path.extname(safeFilename).toLowerCase();
-  const allowed      = new Set(['.pdf', '.txt', '.doc', '.docx', '.md', '.epub']);
-  if (!allowed.has(ext)) return json(res, { error: 'Unsupported file type. Allowed: pdf, txt, doc, docx, md, epub' }, 400);
+  const allowed      = new Set(['.pdf', '.txt', '.doc', '.docx', '.md', '.epub', '.cbz']);
+  if (!allowed.has(ext)) return json(res, { error: 'Unsupported file type. Allowed: pdf, txt, doc, docx, md, epub, cbz' }, 400);
 
   let outName = safeFilename, counter = 1;
   while (fs.existsSync(path.join(BOOKS_DIR, outName))) {
@@ -231,12 +232,142 @@ function apiBooksDelete(req, res, id) {
     return json(res, { error: 'Invalid path' }, 400);
   }
   try { fs.unlinkSync(filePath); } catch {}
+  
+  // Clean up CBZ cache if it exists
+  const cacheDir = path.join(CACHE_DIR, 'cbz', id);
+  if (fs.existsSync(cacheDir)) {
+    try { fs.rmSync(cacheDir, { recursive: true, force: true }); } catch (e) { console.error('Failed to clean CBZ cache:', e); }
+  }
+
   const meta = loadBooksMeta();
   delete meta[filename];
   saveBooksMeta(meta);
   json(res, { ok: true });
 }
 
+// ── CBZ Support ──────────────────────────────────────────────────────
+
+function extractCbz(filePath, outDir) {
+  const fd = fs.openSync(filePath, 'r');
+  const stat = fs.fstatSync(fd);
+  const size = stat.size;
+  
+  const bufLen = Math.min(size, 1024);
+  const buf = Buffer.alloc(bufLen);
+  fs.readSync(fd, buf, 0, bufLen, size - bufLen);
+  
+  let eocdOffset = -1;
+  for (let i = bufLen - 22; i >= 0; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocdOffset = size - bufLen + i;
+      break;
+    }
+  }
+  
+  if (eocdOffset === -1) {
+    fs.closeSync(fd);
+    throw new Error('Not a valid ZIP file (EOCD not found)');
+  }
+  
+  const eocd = Buffer.alloc(22);
+  fs.readSync(fd, eocd, 0, 22, eocdOffset);
+  const cdOffset = eocd.readUInt32LE(16);
+  const cdSize = eocd.readUInt32LE(12);
+  const cdCount = eocd.readUInt16LE(8);
+  
+  const cdBuf = Buffer.alloc(cdSize);
+  fs.readSync(fd, cdBuf, 0, cdSize, cdOffset);
+  
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+  
+  let p = 0;
+  const files = [];
+  for (let i = 0; i < cdCount; i++) {
+    if (p + 46 > cdSize) break;
+    if (cdBuf.readUInt32LE(p) !== 0x02014b50) break;
+    
+    const compression = cdBuf.readUInt16LE(p + 10);
+    const compSize = cdBuf.readUInt32LE(p + 20);
+    const uncompSize = cdBuf.readUInt32LE(p + 24);
+    const nameLen = cdBuf.readUInt16LE(p + 28);
+    const extraLen = cdBuf.readUInt16LE(p + 30);
+    const commentLen = cdBuf.readUInt16LE(p + 32);
+    const localOffset = cdBuf.readUInt32LE(p + 42);
+    
+    const filename = cdBuf.toString('utf-8', p + 46, p + 46 + nameLen);
+    p += 46 + nameLen + extraLen + commentLen;
+    
+    if (/\.(jpg|jpeg|png|webp|gif)$/i.test(filename)) {
+      const lh = Buffer.alloc(30);
+      fs.readSync(fd, lh, 0, 30, localOffset);
+      const lhNameLen = lh.readUInt16LE(26);
+      const lhExtraLen = lh.readUInt16LE(28);
+      const dataOffset = localOffset + 30 + lhNameLen + lhExtraLen;
+      
+      const compData = Buffer.alloc(compSize);
+      fs.readSync(fd, compData, 0, compSize, dataOffset);
+      
+      let uncompData;
+      if (compression === 0) {
+        uncompData = compData;
+      } else if (compression === 8) {
+        try {
+          uncompData = zlib.inflateRawSync(compData);
+        } catch (e) {
+          console.error(`Failed to inflate ${filename}: ${e.message}`);
+          continue;
+        }
+      } else {
+        continue;
+      }
+      
+      const safeName = path.basename(filename);
+      fs.writeFileSync(path.join(outDir, safeName), uncompData);
+      files.push(safeName);
+    }
+  }
+  
+  fs.closeSync(fd);
+  return files.sort();
+}
+
+function apiBooksCbzFiles(req, res, id) {
+  const filename = bookFromId(id);
+  const filePath = path.join(BOOKS_DIR, path.basename(filename));
+  if (!fs.existsSync(filePath)) return json(res, { error: 'Not found' }, 404);
+  
+  const cacheDir = path.join(CACHE_DIR, 'cbz', id);
+  try {
+    let files;
+    if (fs.existsSync(cacheDir)) {
+      files = fs.readdirSync(cacheDir).sort();
+    } else {
+      files = extractCbz(filePath, cacheDir);
+    }
+    json(res, { files });
+  } catch (e) {
+    json(res, { error: 'Failed to extract CBZ: ' + e.message }, 500);
+  }
+}
+
+function apiBooksCbzFile(req, res, id, filepath) {
+  const cacheDir = path.join(CACHE_DIR, 'cbz', id);
+  const fp = path.join(cacheDir, path.basename(filepath));
+  if (!fs.existsSync(fp)) return json(res, { error: 'Not found' }, 404);
+  
+  const ext = path.extname(filepath).toLowerCase();
+  let mime = 'application/octet-stream';
+  if (ext === '.jpg' || ext === '.jpeg') mime = 'image/jpeg';
+  else if (ext === '.png') mime = 'image/png';
+  else if (ext === '.webp') mime = 'image/webp';
+  else if (ext === '.gif') mime = 'image/gif';
+  
+  const stat = fs.statSync(fp);
+  res.writeHead(200, { 'Content-Type': mime, 'Content-Length': stat.size });
+  fs.createReadStream(fp).pipe(res);
+}
+
 module.exports = {
   apiBooksList, apiBooksUpload, apiBooksImportUrl, apiBooksRead, apiBooksWrite, apiBooksDelete,
+  apiBooksCbzFiles, apiBooksCbzFile,
 };

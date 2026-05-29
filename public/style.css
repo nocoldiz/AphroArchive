@@ -1790,14 +1790,6 @@ input {
   border-color: var(--ac)
 }
 
-/* ── Tags ── */
-.tag-detail-view {
-  display: none
-}
-
-.tag-detail-view.on {
-  display: block
-}
 
 /* ── Vault ── */
 .vault-view {
@@ -2848,31 +2840,39 @@ input {
 
 /* --- 2. Toggle Modes (Controlled by JS data-thumb-mode) --- */
 
-/* HIDE MODE: Blur everything by default */
-#vaultGrid[data-thumb-mode="hide"] .vault-ct img,
-#vaultGrid[data-thumb-mode="hide"] .vault-folder-icon svg {
+/* HIDE MODE: Blur all and unblur when mouse is in grid */
+.video-grid[data-thumb-mode="hide"] .card-thumb img,
+.video-grid[data-thumb-mode="hide"] .card-thumb video {
   filter: blur(25px) grayscale(1);
   opacity: 0.15;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.video-grid[data-thumb-mode="hide"]:hover .card-thumb img,
+.video-grid[data-thumb-mode="hide"]:hover .card-thumb video {
+  filter: blur(0) grayscale(0);
+  opacity: 1;
 }
 
 /* HOVER REVEAL MODE: Blur by default, reveal on card hover */
-#vaultGrid[data-thumb-mode="hover"] .vault-ct img,
-#vaultGrid[data-thumb-mode="hover"] .vault-folder-icon svg {
+.video-grid[data-thumb-mode="hover"] .card-thumb img,
+.video-grid[data-thumb-mode="hover"] .card-thumb video {
   filter: blur(25px) grayscale(1);
   opacity: 0.15;
+  transition: filter 0.2s ease, opacity 0.2s ease;
 }
 
-#vaultGrid[data-thumb-mode="hover"] .video-card:hover .vault-ct img,
-#vaultGrid[data-thumb-mode="hover"] .vault-folder-tile:hover .vault-folder-icon svg {
+.video-grid[data-thumb-mode="hover"] .video-card:hover .card-thumb img,
+.video-grid[data-thumb-mode="hover"] .video-card:hover .card-thumb video {
   filter: blur(0) grayscale(0);
   opacity: 1;
 }
 
 /* SHOW MODE: Clear images */
-#vaultGrid[data-thumb-mode="show"] .vault-ct img,
-#vaultGrid[data-thumb-mode="show"] .vault-folder-icon svg {
-  filter: none;
-  opacity: 1;
+.video-grid[data-thumb-mode="show"] .card-thumb img,
+.video-grid[data-thumb-mode="show"] .card-thumb video {
+  filter: none !important;
+  opacity: 1 !important;
 }
 
 /* --- 3. Global Auto-Hide (Privacy Mode Override) --- */
@@ -7180,4 +7180,61 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   color: var(--tx2);
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+/* ── Burger Menu & Mobile Sidebar ── */
+.burger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--brd);
+  background: var(--bg2);
+  cursor: pointer;
+  color: var(--tx);
+  transition: all var(--tr);
+  flex-shrink: 0;
+}
+
+.burger-btn:hover {
+  background: var(--bg3);
+  border-color: var(--tx3);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  top: 53px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 999;
+}
+
+@media (max-width: 768px) {
+  .burger-btn {
+    display: flex;
+  }
+
+  .side {
+    position: fixed !important;
+    top: 53px;
+    left: -240px; /* Hide sidebar */
+    width: 240px !important;
+    height: calc(100vh - 53px);
+    z-index: 1000;
+    background: var(--bg2) !important;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 5px 0 15px rgba(0, 0, 0, 0.5);
+  }
+
+  .side.open {
+    left: 0 !important;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
 }

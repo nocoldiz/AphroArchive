@@ -1,9 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { vaultMode, isVaultUnlocked, currentVideo, currentView } from '../../store';
-import { VaultMosaic } from './VaultMosaic';
-import { VaultSettingsModal } from './VaultSettingsModal';
-import { VaultScrapeModal } from './VaultScrapeModal';
-import { VaultPhotoViewer } from './VaultPhotoViewer';
+import { vaultMode, isVaultUnlocked, currentVideo, currentView, contextMenuState } from '../../store';
+import { PhotoLightbox } from '../modals/PhotoLightbox';
 
 interface VaultFile {
   id: string;
@@ -55,8 +52,8 @@ export const VaultView = () => {
   const [aiIds, setAiIds] = useState<Set<string>>(new Set());
   const [showMosaic, setShowMosaic] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showScrape, setShowScrape] = useState(false);
-  const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [blobUrl, setBlobUrl] = useState('');
 
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -74,6 +71,30 @@ export const VaultView = () => {
       loadVaultFiles();
     }
   }, [status.unlocked]);
+
+  const photoFiles = useMemo(() => files.filter(f => VAULT_PHOTO_EXTS.has((f.ext || '').toLowerCase())), [files]);
+
+  useEffect(() => {
+    if (lightboxIdx === null || !photoFiles[lightboxIdx]) {
+      setBlobUrl('');
+      return;
+    }
+    const f = photoFiles[lightboxIdx];
+    setBlobUrl('');
+    fetch(`/api/vault/stream/${f.id}`)
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+      })
+      .catch(() => setBlobUrl(`/api/vault/stream/${f.id}`));
+
+    return () => {
+      if (blobUrl && blobUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [lightboxIdx, photoFiles]);
 
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
@@ -114,7 +135,7 @@ export const VaultView = () => {
       const fils = items.filter((f: any) => f.type !== 'folder');
 
       setFolders(fols);
-      setFiles(fils);
+      setFiles(fils.map((f: any) => ({ ...f, isVault: true })));
       setFavIds(new Set(Array.isArray(favs) ? favs : []));
       setCategories(cats);
 
@@ -258,7 +279,8 @@ export const VaultView = () => {
       };
       currentView.value = 'player';
     } else if (VAULT_PHOTO_EXTS.has(extLower)) {
-      setActivePhotoId(f.id);
+      const idx = photoFiles.findIndex(file => file.id === f.id);
+      setLightboxIdx(idx >= 0 ? idx : 0);
     } else if (VAULT_BOOK_EXTS.has(extLower)) {
       const w = window as any;
       if (w.openBook) {
@@ -267,6 +289,23 @@ export const VaultView = () => {
         alert('Book reader not available');
       }
     }
+  };
+
+  const openCtx = (e: any, file: VaultFile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: e.pageX,
+      y: e.pageY,
+      type: 'file',
+      data: {
+        id: file.id,
+        name: file.name || file.originalName,
+        onDelete: () => handleDeleteFile(file.id),
+        onOpen: () => handleFileClick(file)
+      }
+    };
   };
 
   const handleToggleSelect = (id: string) => {
@@ -537,7 +576,12 @@ export const VaultView = () => {
             </button>
 
             <button
-              onClick={() => setShowMosaic(true)}
+              onClick={() => {
+                const w = window as any;
+                if (w.startMosaicWithPhotos) {
+                  w.startMosaicWithPhotos(files.filter(f => VAULT_PHOTO_EXTS.has((f.ext || '').toLowerCase())));
+                }
+              }}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="Dynamic Mosaic"
             >
@@ -558,14 +602,6 @@ export const VaultView = () => {
               title="Remove duplicate files"
             >
               Dedup
-            </button>
-
-            <button
-              onClick={() => setShowScrape(true)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
-              title="Auto-scrape each file online"
-            >
-              Scrape
             </button>
 
             <button
@@ -698,7 +734,7 @@ export const VaultView = () => {
             const isFav = favIds.has(f.id);
             const isSelected = selectedIds.has(f.id);
             return (
-              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} style={{ border: isSelected ? '1px solid var(--ac)' : '1px solid var(--brd)' }}>
+              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined }}>
                 <div className="card-thumb" style={{ cursor: 'pointer' }} onClick={() => handleFileClick(f)}>
                   {isImg ? (
                     <img src={`/api/vault/stream/${f.id}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
@@ -782,15 +818,20 @@ export const VaultView = () => {
           </div>
         )}
 
-        {showMosaic && <VaultMosaic pool={files} onClose={() => setShowMosaic(false)} />}
-        {showSettings && <VaultSettingsModal files={files} onClose={() => setShowSettings(false)} />}
-        {showScrape && <VaultScrapeModal files={files} onClose={() => setShowScrape(false)} />}
-        {activePhotoId && (
-          <VaultPhotoViewer
-            files={files.filter(f => VAULT_PHOTO_EXTS.has((f.ext || '').toLowerCase()))}
-            initialFileId={activePhotoId}
-            onClose={() => setActivePhotoId(null)}
-            onDelete={(id) => setFiles(prev => prev.filter(f => f.id !== id))}
+        {lightboxIdx !== null && photoFiles[lightboxIdx] && (
+          <PhotoLightbox
+            isOpen={true}
+            onClose={() => setLightboxIdx(null)}
+            imgUrl={blobUrl}
+            title={photoFiles[lightboxIdx].name || photoFiles[lightboxIdx].originalName}
+            sizeF={photoFiles[lightboxIdx].sizeF}
+            onPrev={() => setLightboxIdx(prev => (prev !== null && prev > 0 ? prev - 1 : photoFiles.length - 1))}
+            onNext={() => setLightboxIdx(prev => (prev !== null && prev < photoFiles.length - 1 ? prev + 1 : 0))}
+            onDelete={() => handleDeleteFile(photoFiles[lightboxIdx].id)}
+            onFav={() => handleToggleFav(photoFiles[lightboxIdx].id)}
+            isFav={favIds.has(photoFiles[lightboxIdx].id)}
+            onDownload={() => downloadFile(photoFiles[lightboxIdx].id, photoFiles[lightboxIdx].name || photoFiles[lightboxIdx].originalName)}
+            onDescribe={() => describeFile(photoFiles[lightboxIdx].id, 'photo')}
           />
         )}
       </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag } from '../../store';
+import { currentView, currentCategory, categories, currentTag, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -54,18 +54,29 @@ const SectionHeader = ({ label, id, style, onClick, action }: { label: string, i
 
 export const Sidebar = () => {
   const view = currentView.value;
+  const isOpen = isSidebarOpen.value;
+
+  useEffect(() => {
+    const el = document.getElementById('side');
+    if (el) {
+      if (isOpen) {
+        el.classList.add('open');
+      } else {
+        el.classList.remove('open');
+      }
+    }
+  }, [isOpen]);
   if (view === 'reddit') return null;
 
-  const [bookmarkItems, setBookmarkItems] = useState<any[]>([]);
+  const [bookmarkCount, setBookmarkCount] = useState(0);
   const [tags, setTags] = useState<{ name: string, count: number }[]>([]);
   const [tagsOpen, setTagsOpen] = useState(true);
+  const [catsOpen, setCatsOpen] = useState(true);
 
   useEffect(() => {
     fetch('/api/bookmarks/cache')
       .then(r => r.json())
-      .then(d => {
-        if (d.items) setBookmarkItems(d.items);
-      })
+      .then(d => setBookmarkCount(d.total || (d.items ? d.items.length : 0)))
       .catch(() => {});
 
     fetch('/api/tags')
@@ -74,13 +85,11 @@ export const Sidebar = () => {
       .catch(() => {});
   }, []);
 
-  const bmCountFor = (key: string, items: any[]) => {
-    const kn = key.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    return items.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
-  };
+
 
   const setView = (view: string, legacyFn?: string) => {
     currentView.value = view;
+    isSidebarOpen.value = false;
     if (legacyFn && (window as any)[legacyFn]) {
       (window as any)[legacyFn]();
     }
@@ -89,6 +98,8 @@ export const Sidebar = () => {
   const selectCategory = (catName: string) => {
     currentView.value = 'browse';
     currentCategory.value = catName;
+    currentTag.value = null;
+    isSidebarOpen.value = false;
     // Compatibility
     (window as any).cat = catName;
     if ((window as any).showCategory) (window as any).showCategory(catName);
@@ -96,11 +107,52 @@ export const Sidebar = () => {
 
   const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
+  // Derive filtered counts from allVideos + sourceFilter so badges update when filter changes
+  const sf = sourceFilter.value;
+  const vids = allVideos.value;
+  const filteredVids = sf === 'local'
+    ? vids.filter(v => !(v as any).isExternal)
+    : sf === 'remote'
+    ? vids.filter(v => (v as any).isExternal)
+    : vids;
+
+  const catCountMap = new Map<string, number>();
+  for (const v of filteredVids) {
+    const cp = (v as any).catPath as string;
+    if (!cp) continue;
+    const parts = cp.split('/');
+    let cur = '';
+    for (const p of parts) {
+      cur = cur ? cur + '/' + p : p;
+      catCountMap.set(cur, (catCountMap.get(cur) || 0) + 1);
+    }
+  }
+  const displayCategories = categories.value.map(c => ({ ...c, count: catCountMap.get(c.path) || 0 }));
+
+  const tagCountMap = new Map<string, number>();
+  for (const v of filteredVids) {
+    for (const tag of ((v as any).tags || []) as string[]) {
+      tagCountMap.set(tag, (tagCountMap.get(tag) || 0) + 1);
+    }
+  }
+  const displayTags = tags
+    .filter(t => !(appPrefs.value.hiddenTags || []).includes(t.name))
+    .map(t => ({ ...t, count: tagCountMap.get(t.name) || 0 }));
+
   return (
-    <div className="side-scroll">
+    <>
+      {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
+      <div className="side-scroll">
       {/* Library */}
       <SectionHeader label="Library" id="sh3-library" />
       <div className="side-section" id="librarySection">
+        <SidebarItem
+          id="home-sidebar"
+          label="Home"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>}
+          onClick={() => setView('hub')}
+          isActive={currentView.value === 'hub'}
+        />
         <SidebarItem
           id="fBtn"
           label="Favourites"
@@ -173,8 +225,8 @@ export const Sidebar = () => {
           id="videos-media-sidebar"
           label="Videos"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>}
-          onClick={() => setView('home', 'goHome')}
-          isActive={currentView.value === 'home' && !currentCategory.value}
+          onClick={() => setView('hub', 'goHome')}
+          isActive={currentView.value === 'hub' && !currentCategory.value}
         />
         <SidebarItem
           id="thumbnails-sidebar"
@@ -227,6 +279,7 @@ export const Sidebar = () => {
         <SidebarItem
           id="import-favs-sidebar"
           label="Bookmarks"
+          badge={bookmarkCount > 0 ? bookmarkCount : undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>}
           onClick={() => setView('bookmarks', 'showImportFavs')}
           isActive={currentView.value === 'bookmarks'}
@@ -255,8 +308,8 @@ export const Sidebar = () => {
           id="connect-sidebar"
           label="Connect"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><circle cx="12" cy="20" r="1" fill="currentColor" /></svg>}
-          onClick={() => setView('connect', 'showConnect')}
-          isActive={currentView.value === 'connect'}
+          onClick={() => showConnectModal.value = true}
+          isActive={false}
         />
         <SidebarItem
           id="settings-sidebar"
@@ -272,6 +325,11 @@ export const Sidebar = () => {
       <SectionHeader
         label="Categories"
         id="sh3-cats"
+        onClick={() => {
+          const newState = !catsOpen;
+          setCatsOpen(newState);
+          if (newState) setTagsOpen(false);
+        }}
         action={
           <button className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -281,21 +339,20 @@ export const Sidebar = () => {
           </button>
         }
       />
-      <div className="side-section" id="catsSection">
-        {categories.value.slice(0, 15).map(c => {
+      <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
+        {displayCategories.map(c => {
           let lockIcon = null;
           if (c.partial) {
             lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="3" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>;
           } else if (c.encrypted) {
             lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px', opacity: 0.7, verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
           }
-          const bmCount = bmCountFor(c.path || '', bookmarkItems);
           return (
             <SidebarItem
               key={c.name}
               label={c.name}
               icon={lockIcon}
-              badge={c.count + bmCount}
+              badge={c.count}
               onClick={() => selectCategory(c.path)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -332,7 +389,7 @@ export const Sidebar = () => {
                 })
                 .catch(err => console.error('Move failed', err));
               }}
-              isActive={currentCategory.value === c.name}
+              isActive={currentCategory.value === c.path}
               indent
             />
           );
@@ -340,9 +397,17 @@ export const Sidebar = () => {
       </div>
 
       <div className="side-sep" id="tags-sep"></div>
-      <SectionHeader label="Tags" id="sh3-tags" onClick={() => setTagsOpen(!tagsOpen)} />
+      <SectionHeader 
+        label="Tags" 
+        id="sh3-tags" 
+        onClick={() => {
+          const newState = !tagsOpen;
+          setTagsOpen(newState);
+          if (newState) setCatsOpen(false);
+        }} 
+      />
       <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
-        {tags.map(t => (
+        {displayTags.map(t => (
           <SidebarItem
             key={t.name}
             id={`tag-${t.name}`}
@@ -350,14 +415,23 @@ export const Sidebar = () => {
             badge={t.count}
             icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>}
             onClick={() => {
-              currentView.value = 'tag';
+              currentCategory.value = '';
               currentTag.value = t.name;
+              currentView.value = 'browse';
+              isSidebarOpen.value = false;
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if ((window as any).showContextMenu) {
+                (window as any).showContextMenu(e, 'tag', { name: t.name });
+              }
             }}
             isActive={currentTag.value === t.name}
             indent
           />
         ))}
       </div>
-    </div>
+      </div>
+    </>
   );
 };

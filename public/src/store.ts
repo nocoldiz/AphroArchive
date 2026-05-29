@@ -11,8 +11,11 @@ export const studios = signal<Studio[]>([]);
 export const appPrefs = signal<Partial<AppPrefs>>({});
 
 // ─── Navigation & View State ──────────────────────────────────────────
-export const currentView = signal<string>('home');
+export const currentView = signal<string>('hub');
 export const currentVideo = signal<Video | null>(null);
+export const playerNextUp = signal<Video[]>([]);
+export const skipNextUpUpdate = signal<boolean>(false);
+export const isSidebarOpen = signal<boolean>(false);
 
 export const contextMenuState = signal<{
   visible: boolean;
@@ -131,7 +134,15 @@ export const favFilter = signal<boolean>(false);
 export const searchQuery = signal<string>('');
 export const visionModalText = signal<string | null>(null);
 export const showAddToCollectionModal = signal<boolean>(false);
+export const showConnectModal = signal<boolean>(false);
 export const galleryFilter = signal<string>('');
+export const sourceFilter = signal<string>('both');
+
+if (typeof window !== 'undefined') {
+  sourceFilter.subscribe(val => {
+    (window as any).srcFilter = val;
+  });
+}
 
 export const cardSize = signal<number>(parseInt(localStorage.getItem('cardSize') || '270', 10));
 
@@ -153,6 +164,8 @@ export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true
 export const profiles = signal<string[]>(['default']);
 export const activeProfile = signal<string>('default');
 export const profileModalState = signal<{ visible: boolean }>({ visible: false });
+export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
+export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
 export async function loadProfiles() {
   const res = await fetch('/api/profiles');
@@ -162,11 +175,20 @@ export async function loadProfiles() {
 }
 
 export async function switchProfile(name: string) {
-  await fetch('/api/profiles/switch', {
+  const res = await fetch('/api/profiles/switch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ profile: name })
   });
+  
+  if (res.status === 401) {
+    const data = await res.json();
+    if (data.locked) {
+      vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: name };
+      return;
+    }
+  }
+  
   activeProfile.value = name;
   window.location.reload();
 }
@@ -324,21 +346,32 @@ w._dualTagVids = [];
 // ─── Computed State ──────────────────────────────────────────────────
 // Example: Automatically filter videos based on search and category
 export const filteredVideos = computed(() => {
-  let list = isRecentMode.value ? [...recentVideos.value] : [...videos.value]; // Create a copy to avoid mutating original array
-  
-  if (currentCategory.value) {
-    list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
-  }
-
-  if (currentView.value === 'favourites' || favFilter.value) {
-    list = list.filter(v => v.starred || v.fav);
-  }
+  let list = [...videos.value];
   
   if (searchQuery.value) {
+    list = [...allVideos.value];
     const q = searchQuery.value.toLowerCase();
     list = list.filter(v => v.name.toLowerCase().includes(q));
-  }
+  } else {
+    if (isRecentMode.value) {
+      list = [...recentVideos.value];
+    }
+    
+    if (currentCategory.value === 'uncategorized') {
+      list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks'));
+    } else if (currentCategory.value) {
+      list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
+    }
 
+    if (currentTag.value) {
+      list = list.filter(v => v.tags && v.tags.includes(currentTag.value!));
+    }
+
+    if (currentView.value === 'favourites' || favFilter.value) {
+      list = list.filter(v => v.starred || v.fav);
+    }
+  }
+  
   if (galleryFilter.value) {
     const gf = galleryFilter.value.toLowerCase();
     list = list.filter(v => 
@@ -346,6 +379,12 @@ export const filteredVideos = computed(() => {
       (v.category && v.category.toLowerCase().includes(gf)) ||
       (v.tags && v.tags.some(t => t.toLowerCase().includes(gf)))
     );
+  }
+
+  if (sourceFilter.value === 'local') {
+    list = list.filter(v => !v.isBookmark);
+  } else if (sourceFilter.value === 'remote') {
+    list = list.filter(v => !!v.isBookmark);
   }
 
   // Apply sorting or shuffle
@@ -367,13 +406,111 @@ export const filteredVideos = computed(() => {
 });
 
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
+export function matchBookmarkCat(title: string, cats: any[], explicitCategory?: string): { catPath: string; category: string } {
+  if (explicitCategory) {
+    const found = cats.find((c: any) => c.path === explicitCategory || c.name === explicitCategory || c.path === explicitCategory.replace(/\\/g, '/'));
+    if (found) {
+      return { catPath: found.path, category: found.name };
+    }
+  }
+
+  const norm = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  for (const cat of cats) {
+    if (cat.path === 'Bookmarks') continue;
+    const key = cat.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (key && norm.includes(key)) return { catPath: cat.path, category: cat.name };
+  }
+  return { catPath: 'Bookmarks', category: 'Bookmarks' };
+}
+
 export async function loadVideos() {
   isLoadingVideos.value = true;
-  const res = await fetch('/api/videos');
+  const [res, bRes, cRes] = await Promise.all([
+    fetch('/api/videos'),
+    fetch('/api/bookmarks/cache?limit=0').catch(() => null),
+    fetch('/api/categories').catch(() => null),
+  ]);
   const data = await res.json();
-  allVideos.value = data;
-  videos.value = data;
+
+  const cats = cRes ? await cRes.json().catch(() => []) : [];
+  if (Array.isArray(cats)) categories.value = cats;
+
+  let bookmarksData: any[] = [];
+  try {
+    if (bRes) {
+      const bData = await bRes.json();
+      bookmarksData = bData.items || [];
+    }
+  } catch (e) {}
+
+  const bookmarkVideos = bookmarksData
+    .filter((b: any) => b.scrapedVideoUrl || b.embedUrl)
+    .map((b: any) => {
+      const { catPath, category } = matchBookmarkCat(b.title, cats, b.category);
+      return {
+        id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+        name: b.title,
+        path: b.scrapedVideoUrl || '',
+        relPath: b.url,
+        catPath,
+        category,
+        isBookmark: true,
+        isExternal: true,
+        embedUrl: b.embedUrl,
+        bookmarkUrl: b.url,
+        img: b.img,
+        hasVideo: !!b.scrapedVideoUrl,
+        size: 0,
+        duration: 0,
+        mtime: Date.now()
+      };
+    });
+
+  const combined = [...data, ...bookmarkVideos];
+
+  allVideos.value = combined;
+  videos.value = combined;
   isLoadingVideos.value = false;
+
+  // Recompute category counts from combined list (local + bookmark videos)
+  if (Array.isArray(cats) && cats.length > 0) {
+    const countMap = new Map<string, number>();
+    for (const v of combined) {
+      if (!v.catPath) continue;
+      const parts = (v.catPath as string).split('/');
+      let cur = '';
+      for (const p of parts) {
+        cur = cur ? cur + '/' + p : p;
+        countMap.set(cur, (countMap.get(cur) || 0) + 1);
+      }
+    }
+    categories.value = cats.map((c: any) => ({ ...c, count: countMap.get(c.path) || 0 }));
+  }
+  syncUrlToState();
+
+  // If the videos folder or configured path folders are missing/empty, show bookmarks
+  let shouldShowBookmarks = false;
+  if (data.length === 0) {
+    shouldShowBookmarks = true;
+  }
+  try {
+    let prefs = appPrefs.value;
+    if (!prefs || Object.keys(prefs).length === 0) {
+      const pRes = await fetch('/api/settings/prefs');
+      prefs = await pRes.json();
+      appPrefs.value = prefs;
+    }
+    if (prefs.videosDirExists === false || (prefs.missingSourceFolders && prefs.missingSourceFolders.length > 0)) {
+      shouldShowBookmarks = true;
+    }
+  } catch (e) {}
+
+  if (shouldShowBookmarks) {
+    const cur = currentView.value;
+    if (cur === 'hub' || cur === 'home' || cur === 'browse' || cur === '') {
+      currentView.value = 'bookmarks';
+    }
+  }
 }
 
 export async function loadCategories() {
@@ -418,7 +555,7 @@ w.load = async () => {
 
 // Navigation Bridge
 w.showHome = () => {
-  currentView.value = 'home';
+  currentView.value = 'hub';
   if (location.pathname !== '/') history.pushState(null, '', '/');
 };
 
@@ -436,7 +573,7 @@ w.goHome = () => {
     if (vpz) vpz.style.display = 'none';
     w.activePlayer = 'video-player';
   }
-  currentView.value = 'home';
+  currentView.value = 'hub';
   currentCategory.value = '';
   currentTag.value = null;
   searchQuery.value = '';
@@ -494,6 +631,95 @@ currentView.subscribe(view => {
   }
 });
 
+export function syncUrlToState() {
+  if (typeof window === 'undefined') return;
+  const p = window.location.pathname;
+  if (p === '/' || p === '/hub' || p === '/home') {
+    currentView.value = 'hub';
+    currentVideo.value = null;
+    currentCategory.value = '';
+    currentTag.value = null;
+    return;
+  }
+  
+  let m;
+  if ((m = p.match(/^\/video\/([^/]+)$/))) {
+    const vidId = m[1];
+    const vid = videos.value.find(v => v.id === vidId);
+    if (vid) {
+      currentVideo.value = vid;
+      // We might need to set a view that shows the video player!
+      // If it's a modal, it will open automatically if currentVideo is set!
+    }
+  } else if ((m = p.match(/^\/cat\/([^/]+)$/))) {
+    currentView.value = 'browse';
+    currentCategory.value = decodeURIComponent(m[1]);
+    currentTag.value = null;
+    currentVideo.value = null;
+  } else if ((m = p.match(/^\/tag\/([^/]+)$/))) {
+    currentView.value = 'browse';
+    currentTag.value = decodeURIComponent(m[1]);
+    currentCategory.value = '';
+    currentVideo.value = null;
+  } else if ((m = p.match(/^\/actor\/([^/]+)$/))) {
+    currentView.value = 'actors';
+    currentActor.value = decodeURIComponent(m[1]);
+    currentCategory.value = '';
+    currentTag.value = null;
+    currentVideo.value = null;
+  } else if ((m = p.match(/^\/studio\/([^/]+)$/))) {
+    currentView.value = 'studios';
+    currentStudio.value = decodeURIComponent(m[1]);
+    currentCategory.value = '';
+    currentTag.value = null;
+    currentVideo.value = null;
+  } else {
+    // Other views
+    const view = p.replace(/^\//, '');
+    currentView.value = view;
+    currentVideo.value = null;
+    currentCategory.value = '';
+    currentTag.value = null;
+  }
+}
+
+export function updateUrl() {
+  if (typeof window === 'undefined') return;
+  const view = currentView.value;
+  let path = '/';
+  
+  if (view === 'hub' || view === 'home') {
+    path = '/';
+  } else if (currentVideo.value) {
+    path = `/video/${currentVideo.value.id}`;
+  } else if (currentCategory.value) {
+    path = `/cat/${encodeURIComponent(currentCategory.value)}`;
+  } else if (currentTag.value) {
+    path = `/tag/${encodeURIComponent(currentTag.value)}`;
+  } else if (view === 'browse') {
+    path = '/browse';
+  } else {
+    path = `/${view}`;
+  }
+  
+  if (window.location.pathname !== path) {
+    history.pushState(null, '', path);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  // Subscribe to signals
+  currentView.subscribe(updateUrl);
+  currentCategory.subscribe(updateUrl);
+  currentTag.subscribe(updateUrl);
+  currentVideo.subscribe(updateUrl);
+
+  // Listen for popstate
+  window.addEventListener('popstate', syncUrlToState);
+
+  // Run on load
+  setTimeout(syncUrlToState, 100);
+}
 
 w.loadC = async () => {
   const data = await api.fetchCategories();
@@ -527,7 +753,7 @@ w.filterVideosCat = (catFilter: string) => {
   if (!catFilter) return w._applySort(w.favFilter ? w._allVideos.filter((v: any) => v.fav) : w._allVideos);
   return w._applySort(w._allVideos.filter((v: any) => {
     if (w.favFilter && !v.fav) return false;
-    if (catFilter === '__uncategorized__' || catFilter === '') return v.catPath === '';
+    if (catFilter === 'uncategorized' || catFilter === '__uncategorized__' || catFilter === '') return !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks');
     const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
     const cl = catFilter.toLowerCase().replace(/\\/g, '/');
     return vp === cl || vp.startsWith(cl + '/') || v.category === catFilter;
@@ -562,12 +788,7 @@ w.refresh = async (full = false) => {
   if (w.studioMode) { closeView('studios-view', 'studioMode'); closeView('studio-detail-view', 'studioMode'); closeView('studio-sidebar', 'studioMode'); }
   if (w.actorMode) { closeView('actors-view', 'actorMode'); closeView('actor-detail-view', 'actorMode'); closeView('actor-sidebar', 'actorMode'); }
   
-  if (w.curTag) {
-    const el = document.getElementById('tag-detail-view');
-    if (el) el.classList.remove('on');
-    document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
-    w.curTag = null;
-  }
+  currentTag.value = null;
   
   const bv = document.getElementById('browse-view');
   if (bv) bv.classList.remove('off');
