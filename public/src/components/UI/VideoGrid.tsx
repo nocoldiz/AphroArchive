@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchBookmarkCat } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 
@@ -150,9 +150,9 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       onMouseLeave={handleMouseLeave}
       style={{ 
         animationDelay: `${Math.min((index ?? 0) * 35, 420)}ms`,
-        border: isSelected ? '2px solid var(--ac)' : '1px solid var(--brd)',
-        backgroundColor: isSelected ? 'var(--bg3)' : 'var(--bg2)',
-        boxShadow: isSelected ? '0 0 10px rgba(0, 120, 215, 0.3)' : undefined
+        border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)',
+        backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : 'var(--bg2)',
+        boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined
       }}
       draggable={true}
       onDragStart={(e) => {
@@ -273,6 +273,46 @@ export const VideoSelBar = () => {
   const count = selectedVideoIds.value.size;
   if (count === 0) return null;
 
+  const selectedVids = allVideos.value.filter(v => selectedVideoIds.value.has(v.id));
+  const bookmarkVids = selectedVids.filter(v => v.isBookmark);
+  const hasBookmarks = bookmarkVids.length > 0;
+
+  const downloadSelected = async () => {
+    if (!bookmarkVids.length) return;
+
+    let successCount = 0;
+    for (const v of bookmarkVids) {
+      let targetCat = v.category || '';
+      if (targetCat === 'Bookmarks' || targetCat === 'Uncategorized' || !targetCat) {
+        const catsList = categories.value || [];
+        const match = matchBookmarkCat(v.name, catsList);
+        if (match && match.catPath !== 'Bookmarks') {
+          targetCat = match.catPath;
+        } else {
+          targetCat = '';
+        }
+      }
+
+      try {
+        const r = await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: v.bookmarkUrl || v.relPath, category: targetCat })
+        });
+        const d = await r.json();
+        if (d.ok) successCount++;
+      } catch (e) {}
+    }
+
+    if ((window as any).toast) {
+      (window as any).toast(`Enqueued ${successCount} downloads!`);
+    }
+
+    // Reset selection
+    selectedVideoIds.value = new Set();
+    videoSelMode.value = false;
+  };
+
   return (
     <div className="video-sel-bar" style={{ 
       display: 'flex', 
@@ -292,6 +332,21 @@ export const VideoSelBar = () => {
       border: '1px solid rgba(255,255,255,0.1)'
     }}>
       <span id="videoSelCount" style={{ fontWeight: 'bold' }}>{count} video{count !== 1 ? 's' : ''} selected</span>
+      
+      {hasBookmarks && (
+        <button 
+          onClick={downloadSelected}
+          style={{ background: '#ff7300', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Download ({bookmarkVids.length})
+        </button>
+      )}
+
       <button 
         onClick={(e) => (window as any).showVideoSelMoveMenu && (window as any).showVideoSelMoveMenu(e)}
         style={{ background: 'var(--ac)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}

@@ -404,7 +404,14 @@ export const filteredVideos = computed(() => {
 });
 
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
-function matchBookmarkCat(title: string, cats: any[]): { catPath: string; category: string } {
+export function matchBookmarkCat(title: string, cats: any[], explicitCategory?: string): { catPath: string; category: string } {
+  if (explicitCategory) {
+    const found = cats.find((c: any) => c.path === explicitCategory || c.name === explicitCategory || c.path === explicitCategory.replace(/\\/g, '/'));
+    if (found) {
+      return { catPath: found.path, category: found.name };
+    }
+  }
+
   const norm = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   for (const cat of cats) {
     if (cat.path === 'Bookmarks') continue;
@@ -437,7 +444,7 @@ export async function loadVideos() {
   const bookmarkVideos = bookmarksData
     .filter((b: any) => b.scrapedVideoUrl || b.embedUrl)
     .map((b: any) => {
-      const { catPath, category } = matchBookmarkCat(b.title, cats);
+      const { catPath, category } = matchBookmarkCat(b.title, cats, b.category);
       return {
         id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
         name: b.title,

@@ -29,6 +29,26 @@ function enqueueDownload(dlUrl, category) {
   return id;
 }
 
+async function handleBookmarkConversion(url) {
+  try {
+    const { loadBookmarksCache, saveBookmarksCache } = require('./db-server');
+    const cache = loadBookmarksCache();
+    const items = cache.items || [];
+    const idx = items.findIndex(item => item.url === url);
+    if (idx !== -1) {
+      items.splice(idx, 1);
+      saveBookmarksCache({ items });
+      console.log(`[download-conv] Successfully converted bookmark ${url} to local video (removed from bookmarks cache)`);
+      
+      const { invalidateScanCache, initVideoMeta } = require('./videos-server');
+      invalidateScanCache();
+      initVideoMeta().catch(err => console.error('initVideoMeta failed after bookmark download:', err));
+    }
+  } catch (err) {
+    console.error('Failed to convert bookmark after successful download:', err);
+  }
+}
+
 async function processDownloadQueue() {
   if (dlRunning) return;
   const next = [...downloadJobs.values()].find(j => j.status === 'queued');
@@ -39,6 +59,7 @@ async function processDownloadQueue() {
     await runYtDlp(next);
     next.status   = 'done';
     next.progress = 100;
+    await handleBookmarkConversion(next.url);
   } catch (e) {
     if (downloadJobs.has(next.id)) { next.status = 'error'; next.error = e.message; }
   } finally {
@@ -49,7 +70,10 @@ async function processDownloadQueue() {
 
 function runYtDlp(job) {
   return new Promise((resolve, reject) => {
-    const outDir = job.category ? path.join(VIDEOS_DIR, job.category) : VIDEOS_DIR;
+    const cleanCat = (job.category || '').trim();
+    const isVirtual = cleanCat.toLowerCase() === 'bookmarks' || cleanCat.toLowerCase() === 'uncategorized';
+    const physicalCat = isVirtual ? '' : cleanCat;
+    const outDir = physicalCat ? path.join(VIDEOS_DIR, physicalCat) : VIDEOS_DIR;
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const proc = spawn(YT_DLP_BIN, [

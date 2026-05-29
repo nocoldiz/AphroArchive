@@ -1,4 +1,4 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchBookmarkCat } from '../../store';
 import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
@@ -38,7 +38,19 @@ export const PlayerView = () => {
             setDownloadJobId(null);
             setIsDownloading(false);
             
-            const relPath = video.category ? `${video.category}/${job.title}.mp4` : `${job.title}.mp4`;
+            let targetCat = video.category || '';
+            if (video.isBookmark && (targetCat === 'Bookmarks' || targetCat === 'Uncategorized' || !targetCat)) {
+              const match = matchBookmarkCat(video.name, categories.value);
+              if (match && match.catPath !== 'Bookmarks') {
+                targetCat = match.catPath;
+              } else {
+                targetCat = '';
+              }
+            }
+            const cleanCat = targetCat.trim();
+            const isVirtual = cleanCat.toLowerCase() === 'bookmarks' || cleanCat.toLowerCase() === 'uncategorized';
+            const physicalCat = isVirtual ? '' : cleanCat;
+            const relPath = physicalCat ? `${physicalCat}/${job.title}.mp4` : `${job.title}.mp4`;
             const base64 = btoa(unescape(encodeURIComponent(relPath)));
             const newId = base64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
             
@@ -46,10 +58,12 @@ export const PlayerView = () => {
               ...video,
               id: newId,
               isBookmark: false,
-              path: relPath
+              path: relPath,
+              category: physicalCat || 'Uncategorized'
             };
             
             if ((window as any).toast) (window as any).toast('Video downloaded and loaded!');
+            loadVideos();
           } else if (job.status === 'error') {
             clearInterval(timer);
             setDownloadJobId(null);
@@ -63,12 +77,25 @@ export const PlayerView = () => {
   }, [downloadJobId]);
 
   const startDownload = async () => {
-    if (!video || !video.path) return;
+    if (!video) return;
+    const downloadUrl = video.isBookmark ? video.bookmarkUrl : video.path;
+    if (!downloadUrl) return;
+
+    let targetCat = video.category || '';
+    if (video.isBookmark && (targetCat === 'Bookmarks' || targetCat === 'Uncategorized' || !targetCat)) {
+      const match = matchBookmarkCat(video.name, categories.value);
+      if (match && match.catPath !== 'Bookmarks') {
+        targetCat = match.catPath;
+      } else {
+        targetCat = '';
+      }
+    }
+
     setIsDownloading(true);
     const r = await fetch('/api/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: video.path, category: video.category })
+      body: JSON.stringify({ url: downloadUrl, category: targetCat })
     });
     const d = await r.json();
     if (d.ok && d.ids && d.ids.length > 0) {
@@ -243,22 +270,27 @@ export const PlayerView = () => {
       <div className="pv-layout">
         <div className="pv-main">
           <div className="video-player-wrap">
-            {video.isBookmark && !video.path ? (
-              video.embedUrl ? (
-                <iframe
-                  src={video.embedUrl}
-                  style={{ width: '100%', aspectRatio: '16/9', border: 'none', display: 'block' }}
-                  allowFullScreen
-                  allow="autoplay; fullscreen"
-                />
-              ) : (
-                <div className="bm-fallback" style={{ background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9', gap: '16px' }}>
-                  {video.img && <img src={video.img} alt={video.name} style={{ maxWidth: '100%', maxHeight: '70%', objectFit: 'contain' }} />}
+            {video.isBookmark && !(video.path && /\\.(mp4|webm|ogg|m3u8|mkv|avi|mov)(\\?.*)?$/i.test(video.path)) ? (
+              <div className="bm-fallback" style={{ background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9', gap: '16px' }}>
+                {video.img && (
+                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '100%', maxHeight: '70%', display: 'flex', justifyContent: 'center' }}>
+                    <img src={video.img} alt={video.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' }} />
+                  </a>
+                )}
+                <div style={{ display: 'flex', gap: '10px' }}>
                   <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: '1rem', padding: '10px 20px' }}>
                     Open in browser ↗
                   </a>
+                  <button onClick={() => startDownload()} className="btn" style={{ fontSize: '1rem', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    <span>Download Video</span>
+                  </button>
                 </div>
-              )
+              </div>
             ) : (
               <AdvancedPlayer
                 src={video.isBookmark ? video.path : (video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`)}
@@ -387,14 +419,24 @@ export const PlayerView = () => {
               </button>
               
               {video.isBookmark && (
-                <button onClick={() => startDownload()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                  <span>Download</span>
-                </button>
+                <>
+                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--tx)', textDecoration: 'none' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    <span>Open Link</span>
+                  </a>
+                  <button onClick={() => startDownload()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    <span>Download</span>
+                  </button>
+                </>
               )}
             </div>
 

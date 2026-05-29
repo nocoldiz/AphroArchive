@@ -447,17 +447,33 @@ async function apiCategories(req, res) {
   const playableBookmarks = bookmarks.filter(b => b.scrapedVideoUrl || b.embedUrl);
   let unmatched = 0;
   for (const bm of playableBookmarks) {
-    const norm = (bm.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     let matched = false;
-    for (const [key, entry] of catEntries) {
-      if (key === 'Bookmarks') continue;
-      const kn = entry.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      if (kn && norm.includes(kn)) {
-        entry.count++;
-        matched = true;
-        break;
+
+    // Check explicit category first
+    if (bm.category) {
+      for (const [key, entry] of catEntries) {
+        if (key === 'Bookmarks') continue;
+        if (entry.path === bm.category || entry.name === bm.category || bm.category.replace(/\\/g, '/') === entry.path) {
+          entry.count++;
+          matched = true;
+          break;
+        }
       }
     }
+
+    if (!matched) {
+      const norm = (bm.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      for (const [key, entry] of catEntries) {
+        if (key === 'Bookmarks') continue;
+        const kn = entry.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        if (kn && norm.includes(kn)) {
+          entry.count++;
+          matched = true;
+          break;
+        }
+      }
+    }
+
     if (!matched) unmatched++;
   }
 

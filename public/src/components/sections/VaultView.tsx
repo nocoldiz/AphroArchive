@@ -734,7 +734,7 @@ export const VaultView = () => {
             const isFav = favIds.has(f.id);
             const isSelected = selectedIds.has(f.id);
             return (
-              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '1px solid var(--ac)' : '1px solid var(--brd)' }}>
+              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined }}>
                 <div className="card-thumb" style={{ cursor: 'pointer' }} onClick={() => handleFileClick(f)}>
                   {isImg ? (
                     <img src={`/api/vault/stream/${f.id}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
