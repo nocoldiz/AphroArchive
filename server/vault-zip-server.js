@@ -213,7 +213,7 @@ async function apiCategoryDownloadZip(req, res) {
   const allVids = await videos.allVideos();
   
   let list = allVids;
-  if (category === '__uncategorized__' || category === '') {
+  if (category === 'uncategorized' || category === '__uncategorized__' || category === '') {
     const { loadCategories } = require('./db-server');
     const defined = loadCategories();
     list = list.filter(v => v.catPath === '' && !defined.some(e => require('./helpers-server').wordMatchAny(v.name, e.terms)));

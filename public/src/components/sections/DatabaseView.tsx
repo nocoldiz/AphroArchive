@@ -85,13 +85,15 @@ export const DatabaseView = () => {
   };
 
   const handleSave = async () => {
-    const name = editName || formData.name?.trim();
+    const name = activeTab === 'websites'
+      ? (formData.name?.trim() || editName)
+      : (editName || formData.name?.trim());
     if (!name) { alert('Name is required'); return; }
-    
+
     const r = await fetch(`/api/db/${activeTab}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, data: formData })
+      body: JSON.stringify({ name, oldName: editName || undefined, data: formData })
     });
     
     if (r.ok) {
@@ -190,30 +192,44 @@ export const DatabaseView = () => {
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading…</div>
       ) : activeTab === 'folders' ? (
         <div>
-          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="modal-btn modal-btn--primary" onClick={handleSaveFolders}>Save Visibility</button>
+          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
+              {enabledFolders.size === 0
+                ? 'All folders visible (none explicitly enabled)'
+                : `${enabledFolders.size} of ${folders.length} folders enabled`}
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" className="modal-btn" onClick={() => setEnabledFolders(new Set())}>Enable All</button>
+              <button type="button" className="modal-btn modal-btn--primary" onClick={handleSaveFolders}>Save</button>
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
-            {folders.map(f => (
-              <label key={f.path} style={{ background: 'var(--bg2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  checked={enabledFolders.size === 0 || enabledFolders.has(f.path)} 
-                  onChange={(e) => {
-                    const next = new Set(enabledFolders);
-                    if (enabledFolders.size === 0) {
-                      folders.forEach(fold => { if (fold.path !== f.path) next.add(fold.path); });
-                    } else {
-                      if (e.target.checked) next.add(f.path);
-                      else next.delete(f.path);
-                    }
-                    setEnabledFolders(next);
-                  }}
-                />
-                <span style={{ fontSize: '0.9rem' }}>{f.name}</span>
-              </label>
-            ))}
-          </div>
+          {folders.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
+              No subfolders found in videos directory.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
+              {folders.map(f => (
+                <label key={f.path} style={{ background: 'var(--bg2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={enabledFolders.size === 0 || enabledFolders.has(f.path)}
+                    onChange={(e: any) => {
+                      const next = new Set(enabledFolders);
+                      if (enabledFolders.size === 0) {
+                        folders.forEach(fold => { if (fold.path !== f.path) next.add(fold.path); });
+                      } else {
+                        if (e.target.checked) next.add(f.path);
+                        else next.delete(f.path);
+                      }
+                      setEnabledFolders(next);
+                    }}
+                  />
+                  <span style={{ fontSize: '0.9rem' }}>{f.name}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       ) : entries.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>No entries found.</div>
@@ -270,11 +286,11 @@ export const DatabaseView = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Name</label>
-                <input 
-                  type="text" 
-                  value={editName || formData.name || ''} 
+                <input
+                  type="text"
+                  value={activeTab === 'websites' ? (formData.name ?? editName ?? '') : (editName || formData.name || '')}
                   onInput={(e: any) => updateFormField('name', e.target.value)}
-                  disabled={!!editName}
+                  disabled={!!editName && activeTab !== 'websites'}
                   style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }}
                 />
               </div>

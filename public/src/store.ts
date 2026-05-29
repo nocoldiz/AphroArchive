@@ -357,7 +357,9 @@ export const filteredVideos = computed(() => {
       list = [...recentVideos.value];
     }
     
-    if (currentCategory.value) {
+    if (currentCategory.value === 'uncategorized') {
+      list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks'));
+    } else if (currentCategory.value) {
       list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
     }
 
@@ -739,7 +741,7 @@ w.filterVideosCat = (catFilter: string) => {
   if (!catFilter) return w._applySort(w.favFilter ? w._allVideos.filter((v: any) => v.fav) : w._allVideos);
   return w._applySort(w._allVideos.filter((v: any) => {
     if (w.favFilter && !v.fav) return false;
-    if (catFilter === '__uncategorized__' || catFilter === '') return v.catPath === '';
+    if (catFilter === 'uncategorized' || catFilter === '__uncategorized__' || catFilter === '') return !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks');
     const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
     const cl = catFilter.toLowerCase().replace(/\\/g, '/');
     return vp === cl || vp.startsWith(cl + '/') || v.category === catFilter;

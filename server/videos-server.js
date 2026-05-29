@@ -368,7 +368,7 @@ async function apiVideos(req, res, params) {
   
   // 1. Check for strict null instead of truthiness
   if (cat !== null) {
-    if (cat === '__uncategorized__' || cat === '') {
+    if (cat === 'uncategorized' || cat === '__uncategorized__' || cat === '') {
       const defined = loadCategories();
       list = list.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms)));
     } else {
@@ -531,11 +531,11 @@ async function apiCategories(req, res) {
   // Uncategorized count
   const defined = loadCategories();
   const uncatCount = videos.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms))).length;
-  cats.unshift({ name: 'Uncategorized', path: '__uncategorized__', count: uncatCount });
+  cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
 
   cats.sort((a, b) => {
-    if (a.path === '__uncategorized__') return -1;
-    if (b.path === '__uncategorized__') return 1;
+    if (a.path === 'uncategorized') return -1;
+    if (b.path === 'uncategorized') return 1;
     return a.name.localeCompare(b.name);
   });
 
@@ -543,33 +543,35 @@ async function apiCategories(req, res) {
 }
 
 async function apiGetAllCategories(req, res) {
-  const videos = await cachedScan();
-  const catMap = new Map();
+  const hidden = loadHidden();
+  const list = [];
 
-  for (const v of videos) {
-    const cp = v.catPath;
-    if (!cp) continue;
-    
-    const parts = cp.split('/');
-    let currentPath = '';
-    
-    for (let i = 0; i < parts.length; i++) {
-      currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
-      if (!catMap.has(currentPath)) {
-        catMap.set(currentPath, {
-          name: currentPath.replace(/\//g, ' / '),
-          path: currentPath
-        });
+  async function walk(dir, rel) {
+    if (!fs.existsSync(dir)) return;
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue;
+        const subRel = rel ? rel + '/' + ent.name : ent.name;
+        const full = path.join(VIDEOS_DIR, subRel);
+        if (path.resolve(full) === path.resolve(VAULT_DIR)) continue;
+        if (path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
+        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
+        list.push({ name: subRel.replace(/\//g, ' / '), path: subRel });
+        await walk(full, subRel);
       }
+    } catch (e) {
+      console.error('[folders walk]', dir, e.message);
     }
   }
 
-  const list = Array.from(catMap.values());
+  await walk(VIDEOS_DIR, '');
   list.sort((a, b) => a.name.localeCompare(b.name));
-  
+  console.log('[folders] found', list.length, 'folders in', VIDEOS_DIR);
+
   const db = require('./db-server');
   const enabled = db.loadEnabledCategories();
-  
+
   json(res, { categories: list, enabled });
 }
 

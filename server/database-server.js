@@ -48,12 +48,13 @@ function apiDbGet(req, res, type) {
 
 async function apiDbUpsert(req, res, type) {
   const body = await readBody(req);
-  const { name, data } = body;
+  const { name, data, oldName } = body;
   if (!name || typeof name !== 'string') return json(res, { error: 'Name required' }, 400);
 
   if (type === 'websites') {
     const sites = loadWebsites();
-    const idx   = sites.findIndex(s => (s.name || s.url) === name);
+    const searchName = (oldName && typeof oldName === 'string') ? oldName : name;
+    const idx   = sites.findIndex(s => (s.name || s.url) === searchName);
     const entry = { name, url: data.url || '', searchURL: data.searchURL || '', scrapeMethod: data.scrapeMethod || '', tags: data.tags || [], description: data.description || '' };
     if (idx >= 0) sites[idx] = entry; else sites.push(entry);
     saveWebsites(sites);
