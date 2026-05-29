@@ -433,6 +433,21 @@ export const PlayerView = () => {
                 </svg>
                 <span>Delete</span>
               </button>
+
+              {!video.isBookmark && !video.isVault && (
+                <button onClick={async () => {
+                  const r = await fetch('/api/videos/open-folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: video.id })
+                  });
+                }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span>Open Folder</span>
+                </button>
+              )}
               
               {video.isBookmark && (
                 <>
