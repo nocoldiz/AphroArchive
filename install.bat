@@ -11,20 +11,20 @@ echo.
 :: ── Install mode menu ─────────────────────────────────────────────────
 echo  Choose install mode:
 echo.
-echo    [1] Full install (recommended)
-echo         Installs ALL dependencies including dev/build tools (vite,
-echo         TypeScript, pkg, etc.) — needed for development and building
-echo         executable packages.
-echo.
-echo    [2] Minimal install
+echo    [1] Minimal install (default)
 echo         Installs only runtime dependencies required to run the
 echo         server (Preact, better-sqlite3, etc.). Skips optional LLM
 echo         module and dev/build tools. Faster and uses less disk space.
 echo.
+echo    [2] Full install
+echo         Installs ALL dependencies including dev/build tools (vite,
+echo         TypeScript, pkg, etc.) — needed for development and building
+echo         executable packages.
+echo.
 set /p INSTALL_MODE="Enter choice (1 or 2): "
 if not defined INSTALL_MODE set INSTALL_MODE=1
 echo.
-if "%INSTALL_MODE%"=="2" (
+if "%INSTALL_MODE%"=="1" (
     echo  Minimal mode selected — will skip optional and dev dependencies.
 ) else (
     echo  Full mode selected — installing all dependencies.
@@ -77,28 +77,28 @@ if exist "node_modules" (
     echo  node_modules removed
 )
 echo  Cleaning npm cache...
-call npm cache clean --force 2>&1
+npm cache clean --force
 echo  npm cache cleaned  OK
 echo.
 
-:: ── 4. npm install ──────────────────────────────────────────────────────────
-if "%INSTALL_MODE%"=="2" (
+ :: ── 4. npm install ──────────────────────────────────────────────────────────
+if "%INSTALL_MODE%"=="1" (
     echo [4/7] Running npm install (minimal — runtime deps only)...
-    echo  Installing: better-sqlite3 preact @preact/signals
+    echo  Installing preact, @preact/signals, better-sqlite3...
+    echo  (better-sqlite3 is a native module — first install may take a minute)
     echo  --------------------------------------------
-    call npm install better-sqlite3 preact @preact/signals --loglevel verbose 2>&1
+    npm install preact @preact/signals better-sqlite3 --omit=optional --loglevel verbose
+    if errorlevel 1 (
+        echo.
+        echo  [ERROR] Failed to install core dependencies.
+        pause
+        exit /b 1
+    )
 ) else (
     echo [4/7] Running npm install (full — all dependencies)...
     echo  Starting npm install — this may take a while...
     echo  --------------------------------------------
-    call npm install --loglevel verbose 2>&1
-)
-if errorlevel 1 (
-    echo.
-    echo  [ERROR] npm install failed.
-    echo  Check the log above for details about what went wrong.
-    pause
-    exit /b 1
+    npm install --loglevel verbose
 )
 echo  --------------------------------------------
 echo  npm install  OK
