@@ -16,7 +16,6 @@ import { AudioView } from '../sections/AudioView';
 import { BooksView } from '../sections/BooksView';
 import { CollectionsView } from '../sections/CollectionsView';
 import { DatabaseView } from '../sections/DatabaseView';
-import { TagDetailView } from '../sections/TagDetailView';
 import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
 import { StudioModal } from '../modals/StudioModal';
@@ -108,7 +107,6 @@ export const MainContent = () => {
     if (view === 'prompts') return <PromptsView />;
     if (view === 'player') return <PlayerView />;
     if (view === 'mosaic') return <MosaicView />;
-    if (view === 'tag') return <TagDetailView />;
     return <BrowseView />;
   };
 

@@ -50,8 +50,9 @@ export const DatabaseView = () => {
         ]);
         const foldersData = await foldersRes.json();
         const prefsData = await prefsRes.json();
+        const actualPaths = new Set((foldersData.categories as any[]).map(f => f.path));
         setFolders(foldersData.categories);
-        setEnabledFolders(new Set(foldersData.enabled));
+        setEnabledFolders(new Set((foldersData.enabled as string[]).filter(p => actualPaths.has(p))));
         setSourceFolders(prefsData.sourceFolders || []);
       } catch (e) {
         console.error(e);
@@ -278,7 +279,7 @@ export const DatabaseView = () => {
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
               {enabledFolders.size === 0
                 ? 'All categories visible (none explicitly enabled)'
-                : `${enabledFolders.size} of ${folders.length} categories enabled`}
+                : `${folders.filter(f => enabledFolders.has(f.path)).length} of ${folders.length} categories enabled`}
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" className="modal-btn" onClick={() => setEnabledFolders(new Set())}>Enable All</button>

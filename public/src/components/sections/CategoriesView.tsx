@@ -90,8 +90,9 @@ export const CategoriesView = () => {
                 currentCategory.value = item.path;
                 currentView.value = 'browse';
               } else {
+                currentCategory.value = '';
                 currentTag.value = item.name;
-                currentView.value = 'tag';
+                currentView.value = 'browse';
               }
             };
             const onContextMenu = (e: MouseEvent) => {

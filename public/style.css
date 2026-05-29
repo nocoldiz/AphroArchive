@@ -1790,14 +1790,6 @@ input {
   border-color: var(--ac)
 }
 
-/* ── Tags ── */
-.tag-detail-view {
-  display: none
-}
-
-.tag-detail-view.on {
-  display: block
-}
 
 /* ── Vault ── */
 .vault-view {

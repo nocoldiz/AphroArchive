@@ -657,7 +657,7 @@ export function syncUrlToState() {
     currentTag.value = null;
     currentVideo.value = null;
   } else if ((m = p.match(/^\/tag\/([^/]+)$/))) {
-    currentView.value = 'tag';
+    currentView.value = 'browse';
     currentTag.value = decodeURIComponent(m[1]);
     currentCategory.value = '';
     currentVideo.value = null;
@@ -788,12 +788,7 @@ w.refresh = async (full = false) => {
   if (w.studioMode) { closeView('studios-view', 'studioMode'); closeView('studio-detail-view', 'studioMode'); closeView('studio-sidebar', 'studioMode'); }
   if (w.actorMode) { closeView('actors-view', 'actorMode'); closeView('actor-detail-view', 'actorMode'); closeView('actor-sidebar', 'actorMode'); }
   
-  if (w.curTag) {
-    const el = document.getElementById('tag-detail-view');
-    if (el) el.classList.remove('on');
-    document.querySelectorAll('#tagList .sidebar-item').forEach(el => el.classList.remove('on'));
-    w.curTag = null;
-  }
+  currentTag.value = null;
   
   const bv = document.getElementById('browse-view');
   if (bv) bv.classList.remove('off');
