@@ -34,6 +34,10 @@ function getCatKey(p) {
   return (p || '').replace(/\\/g, '/').toLowerCase();
 }
 
+function isHiddenFolderName(name) {
+  return String(name || '').toLowerCase() === 'hidden';
+}
+
 let _scanCache = null;
 let _watchDebounce = null;
 const unlockedCategories = new Map(); // catPath -> key (Buffer)
@@ -111,7 +115,7 @@ async function scan(dir, base = dir, isExternal = false) {
       await Promise.all(chunk.map(async (ent) => {
         const fp = path.join(dir, ent.name);
         if (ent.isDirectory()) {
-          if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR)) return;
+          if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR) || isHiddenFolderName(ent.name)) return;
           const sub = await scan(fp, base, isExternal);
           out.push(...sub);
           return;
@@ -138,18 +142,19 @@ async function scan(dir, base = dir, isExternal = false) {
         const rel = path.relative(base, fp);
         const cat = path.dirname(rel);
         const st  = await fs.promises.stat(fp);
-        const catPath = isExternal ? '' : (cat === '.' ? '' : cat.replace(/\\/g, '/'));
+        const catPath = cat === '.' ? '' : cat.replace(/\\/g, '/');
         out.push({
           id: toId(isExternal ? fp : rel),
           name: path.basename(originalName, realExt),
           filename: ent.name,
           ext: realExt,
           encrypted,
-          rel: isExternal ? fp : rel, 
-          category: isExternal ? 'Uncategorized' : (cat === '.' ? 'Uncategorized' : cat.replace(/[\\/]/g, ' / ')),
+          rel: isExternal ? fp : rel,
+          category: catPath ? catPath.replace(/\//g, ' / ') : 'Uncategorized',
           catPath,
           size: st.size, sizeF: formatBytes(st.size),
           modified: st.mtime.toISOString(), mtime: st.mtimeMs,
+          ...(isExternal ? { isExternal: true } : {}),
         });
       }));
     }
@@ -544,30 +549,63 @@ async function apiCategories(req, res) {
 
 async function apiGetAllCategories(req, res) {
   const hidden = loadHidden();
-  const list = [];
+  // path -> { name, path, isExternal }
+  const catMap = new Map();
 
-  async function walk(dir, rel) {
+  async function walkMain(dir, rel) {
     if (!fs.existsSync(dir)) return;
     try {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true });
       for (const ent of entries) {
         if (!ent.isDirectory()) continue;
+        if (isHiddenFolderName(ent.name)) continue;
         const subRel = rel ? rel + '/' + ent.name : ent.name;
         const full = path.join(VIDEOS_DIR, subRel);
         if (path.resolve(full) === path.resolve(VAULT_DIR)) continue;
         if (path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
         if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
-        list.push({ name: subRel.replace(/\//g, ' / '), path: subRel });
-        await walk(full, subRel);
+        const key = getCatKey(subRel);
+        if (!catMap.has(key)) catMap.set(key, { name: subRel.replace(/\//g, ' / '), path: subRel, isExternal: false });
+        await walkMain(full, subRel);
       }
     } catch (e) {
-      console.error('[folders walk]', dir, e.message);
+      console.error('[folders walk main]', dir, e.message);
     }
   }
 
-  await walk(VIDEOS_DIR, '');
-  list.sort((a, b) => a.name.localeCompare(b.name));
-  console.log('[folders] found', list.length, 'folders in', VIDEOS_DIR);
+  async function walkExternal(dir, rel) {
+    if (!fs.existsSync(dir)) return;
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue;
+        if (isHiddenFolderName(ent.name)) continue;
+        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
+        const subRel = rel ? rel + '/' + ent.name : ent.name;
+        const key = getCatKey(subRel);
+        if (!catMap.has(key)) catMap.set(key, { name: subRel.replace(/\//g, ' / '), path: subRel, isExternal: true });
+        await walkExternal(path.join(dir, ent.name), subRel);
+      }
+    } catch (e) {
+      console.error('[folders walk external]', dir, e.message);
+    }
+  }
+
+  await walkMain(VIDEOS_DIR, '');
+
+  try {
+    const prefs = loadPrefs();
+    if (prefs.sourceFolders) {
+      for (const folder of prefs.sourceFolders) {
+        if (fs.existsSync(folder)) await walkExternal(folder, '');
+      }
+    }
+  } catch (e) {
+    console.error('[folders walk source]', e.message);
+  }
+
+  const list = [...catMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+  console.log('[folders] found', list.length, 'folders total');
 
   const db = require('./db-server');
   const enabled = db.loadEnabledCategories();
@@ -595,6 +633,7 @@ async function apiMainCategories(req, res) {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true });
       for (const ent of entries) {
         if (!ent.isDirectory()) continue;
+        if (isHiddenFolderName(ent.name)) continue;
         const subRel = rel ? path.join(rel, ent.name) : ent.name;
         const full = path.join(VIDEOS_DIR, subRel);
         if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
@@ -818,13 +857,36 @@ async function apiMove(req, res, id) {
   const isExternal = !fp.startsWith(path.resolve(VIDEOS_DIR));
 
   if (isExternal) {
+    const targetDir = targetCategory ? path.join(VIDEOS_DIR, targetCategory) : VIDEOS_DIR;
+    const resolvedTarget = path.resolve(targetDir);
+    if (!resolvedTarget.startsWith(path.resolve(VIDEOS_DIR))) return json(res, { error: 'Invalid category' }, 400);
+    if (!fs.existsSync(resolvedTarget)) fs.mkdirSync(resolvedTarget, { recursive: true });
+
+    const filename = path.basename(fp);
+    const newPath = path.join(resolvedTarget, filename);
+    if (fs.existsSync(newPath)) return json(res, { error: 'A file with that name already exists in the target category' }, 409);
+
     try {
-      const meta = loadVideoMeta();
-      if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
-      meta[id].category = targetCategory;
-      saveVideoMeta(meta);
+      try {
+        fs.renameSync(fp, newPath);
+      } catch (renameErr) {
+        if (renameErr.code === 'EXDEV') {
+          // Cross-device: copy then delete
+          fs.copyFileSync(fp, newPath);
+          fs.unlinkSync(fp);
+        } else {
+          throw renameErr;
+        }
+      }
       invalidateScanCache();
-      return json(res, { ok: true, newId: id });
+      const newRel = path.relative(VIDEOS_DIR, newPath);
+      const newId  = toId(newRel);
+      const favs = loadFavs();
+      const fi   = favs.indexOf(id);
+      if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
+      const meta = loadVideoMeta();
+      if (meta[id]) { meta[newId] = { ...meta[id] }; delete meta[id]; saveVideoMeta(meta); }
+      return json(res, { ok: true, newId });
     } catch (e) {
       return json(res, { error: e.message }, 500);
     }

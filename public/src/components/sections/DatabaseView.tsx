@@ -18,8 +18,10 @@ export const DatabaseView = () => {
   const [editName, setEditName] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
 
-  const [folders, setFolders] = useState<{name: string, path: string}[]>([]);
+  const [folders, setFolders] = useState<{name: string, path: string, isExternal?: boolean}[]>([]);
   const [enabledFolders, setEnabledFolders] = useState<Set<string>>(new Set());
+  const [sourceFolders, setSourceFolders] = useState<string[]>([]);
+  const [newSourceFolder, setNewSourceFolder] = useState('');
 
   const tabs = [
     { id: 'actors', name: 'Actors' },
@@ -42,10 +44,15 @@ export const DatabaseView = () => {
     if (tab === 'folders') {
       setLoading(true);
       try {
-        const r = await fetch('/api/all-categories');
-        const data = await r.json();
-        setFolders(data.categories);
-        setEnabledFolders(new Set(data.enabled));
+        const [foldersRes, prefsRes] = await Promise.all([
+          fetch('/api/all-categories'),
+          fetch('/api/settings/prefs'),
+        ]);
+        const foldersData = await foldersRes.json();
+        const prefsData = await prefsRes.json();
+        setFolders(foldersData.categories);
+        setEnabledFolders(new Set(foldersData.enabled));
+        setSourceFolders(prefsData.sourceFolders || []);
       } catch (e) {
         console.error(e);
       } finally {
@@ -142,12 +149,59 @@ export const DatabaseView = () => {
         body: JSON.stringify({ paths: Array.from(enabledFolders) }),
       });
       if (!res.ok) throw new Error('Server error');
-      
+
       const w = window as any;
       if (w.toast) w.toast('Folders visibility saved');
     } catch (e: any) {
       alert('Error: ' + e.message);
     }
+  };
+
+  const handleAddSourceFolder = async () => {
+    const val = newSourceFolder.trim();
+    if (!val) return;
+    if (sourceFolders.includes(val)) {
+      const w = window as any;
+      if (w.toast) w.toast('Folder already added');
+      return;
+    }
+    const updated = [...sourceFolders, val];
+    try {
+      const res = await fetch('/api/settings/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceFolders: updated }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      setNewSourceFolder('');
+      loadTab('folders');
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+  };
+
+  const handleRemoveSourceFolder = async (folder: string) => {
+    const updated = sourceFolders.filter(f => f !== folder);
+    try {
+      const res = await fetch('/api/settings/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceFolders: updated }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      loadTab('folders');
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
+  };
+
+  const handleBrowseNative = async () => {
+    try {
+      const res = await fetch('/api/browse-folders-native');
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      if (data.path) setNewSourceFolder(data.path);
+    } catch (e) {}
   };
 
   return (
@@ -192,6 +246,34 @@ export const DatabaseView = () => {
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading…</div>
       ) : activeTab === 'folders' ? (
         <div>
+          {/* Source Folders Management */}
+          <div style={{ marginBottom: '24px', background: 'var(--bg2)', padding: '16px', borderRadius: '8px', border: '1px solid var(--brd)' }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: '0.9rem', color: 'var(--ac)' }}>Source Folders</h4>
+            {sourceFolders.length === 0 ? (
+              <div style={{ fontSize: '0.8rem', color: 'var(--tx3)', marginBottom: '8px' }}>No source folders added. Files from added folders appear alongside your main library.</div>
+            ) : (
+              sourceFolders.map(f => (
+                <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', background: 'var(--bg3)', padding: '8px 10px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--tx)', wordBreak: 'break-all', marginRight: '8px' }}>{f}</span>
+                  <button onClick={() => handleRemoveSourceFolder(f)} style={{ flexShrink: 0, background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>Remove</button>
+                </div>
+              ))
+            )}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+              <input
+                type="text"
+                value={newSourceFolder}
+                onInput={(e: any) => setNewSourceFolder(e.target.value)}
+                onKeyDown={(e: any) => e.key === 'Enter' && handleAddSourceFolder()}
+                placeholder="C:\path\to\folder"
+                style={{ flex: 1, padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+              />
+              <button onClick={handleBrowseNative} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>Browse</button>
+              <button onClick={handleAddSourceFolder} style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>Add</button>
+            </div>
+          </div>
+
+          {/* Category visibility */}
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
               {enabledFolders.size === 0
@@ -205,12 +287,12 @@ export const DatabaseView = () => {
           </div>
           {folders.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
-              No subfolders found in videos directory.
+              No subfolders found in videos directory or source folders.
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
               {folders.map(f => (
-                <label key={f.path} style={{ background: 'var(--bg2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                <label key={f.path} style={{ background: 'var(--bg2)', padding: '12px', borderRadius: '8px', border: `1px solid ${f.isExternal ? 'var(--ac)' : 'var(--brd)'}`, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={enabledFolders.size === 0 || enabledFolders.has(f.path)}
@@ -225,7 +307,8 @@ export const DatabaseView = () => {
                       setEnabledFolders(next);
                     }}
                   />
-                  <span style={{ fontSize: '0.9rem' }}>{f.name}</span>
+                  <span style={{ fontSize: '0.9rem', flex: 1 }}>{f.name}</span>
+                  {f.isExternal && <span style={{ fontSize: '0.7rem', color: 'var(--ac)', opacity: 0.8, flexShrink: 0 }}>external</span>}
                 </label>
               ))}
             </div>
