@@ -1,7 +1,7 @@
 {
   "name": "aphro-archive",
   "version": "1.0.0",
-  "description": "Zero-dependency local video organizer",
+  "description": "Local media organizer and browser",
   "main": "server.js",
   "bin": "server.js",
   "scripts": {
