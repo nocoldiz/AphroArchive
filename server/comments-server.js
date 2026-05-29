@@ -3,12 +3,11 @@
 //  comments-server.js — AI comment generation + persistence
 // ═══════════════════════════════════════════════════════════════════
 
-const fs = require('fs');
-const path = require('path');
 const { json, readBody } = require('./helpers-server');
-const { loadPrefs } = require('./db-server');
-const { CACHE_DIR } = require('./config-server');
+const { loadPrefs, loadComments, saveComments, clearAllComments: dbClearAllComments } = require('./db-server');
 
+const fs   = require('fs');
+const path = require('path');
 const MODELS_DIR = path.join(process.cwd(), 'models');
 const MODEL_FILE = path.join(MODELS_DIR, 'llama-3.2-1b-instruct.gguf');
 
@@ -93,36 +92,27 @@ function _buildComments(texts, videoId) {
   return out;
 }
 
-function _cacheFile(videoId) {
-  const safe = videoId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 200);
-  return path.join(CACHE_DIR, 'comments_' + safe + '.json');
-}
-
 function loadCommentFile(videoId) {
-  const f = _cacheFile(videoId);
-  if (!fs.existsSync(f)) return null; // null = not yet generated (vs [] = generated but empty)
-  try {
-    const data = JSON.parse(fs.readFileSync(f, 'utf-8'));
-    // Migrate old format (plain string array) to structured
-    if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'string') {
-      const migrated = data.map(text => ({
-        id: 'ai_' + _uid(),
-        text,
-        author: _rndUser(),
-        isAI: true,
-        parentId: null,
-        ts: Date.now() - Math.floor(Math.random() * 86300000 * 7)
-      }));
-      saveCommentFile(videoId, migrated);
-      return migrated;
-    }
-    return Array.isArray(data) ? data : [];
-  } catch { return []; }
+  const data = loadComments(videoId);
+  if (data === null) return null;
+  // Migrate old format (plain string array) to structured
+  if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'string') {
+    const migrated = data.map(text => ({
+      id: 'ai_' + _uid(),
+      text,
+      author: _rndUser(),
+      isAI: true,
+      parentId: null,
+      ts: Date.now() - Math.floor(Math.random() * 86300000 * 7)
+    }));
+    saveComments(videoId, migrated);
+    return migrated;
+  }
+  return Array.isArray(data) ? data : [];
 }
 
 function saveCommentFile(videoId, comments) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-  fs.writeFileSync(_cacheFile(videoId), JSON.stringify(comments, null, 2));
+  saveComments(videoId, comments);
 }
 
 // ── AI text generation ────────────────────────────────────────────────────────
@@ -285,9 +275,8 @@ async function apiReplyToComment(req, res) {
 
 function apiClearAllComments(req, res) {
   try {
-    const files = fs.readdirSync(CACHE_DIR).filter(f => f.startsWith('comments_') && f.endsWith('.json'));
-    files.forEach(f => fs.unlinkSync(path.join(CACHE_DIR, f)));
-    return json(res, { ok: true, deleted: files.length });
+    dbClearAllComments();
+    return json(res, { ok: true });
   } catch (e) {
     return json(res, { error: e.message }, 500);
   }

@@ -6,12 +6,16 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, VIDEOS_DIR, VIDEO_EXT } = require('./config-server');
+const { VIDEOS_DIR, VIDEO_EXT } = require('./config-server');
 const { invalidateScanCache } = require('./videos-server');
-const { json, readBody }                      = require('./helpers-server');
-const { readDbFile, writeDbFile, loadWebsites, saveWebsites, invalidateDbTypeCache, loadCategories, loadStudios } = require('./db-server');
-
-const DB_FILES = { actors: ACTORS_JSON, categories: CATEGORIES_JSON, studios: STUDIOS_JSON };
+const { json, readBody } = require('./helpers-server');
+const {
+  loadActors, saveActors,
+  loadWebsites, saveWebsites,
+  loadCategories, saveCategories,
+  loadStudios, saveStudios,
+  invalidateDbTypeCache,
+} = require('./db-server');
 
 function apiDbGet(req, res, type) {
   if (type === 'websites') {
@@ -23,27 +27,22 @@ function apiDbGet(req, res, type) {
   if (type === 'categories') {
     const cats = loadCategories();
     const obj = {};
-    cats.forEach(c => { 
-      obj[c.name] = { 
-        displayName: c.displayName, 
-        tags: c.terms.slice(1) 
-      }; 
-    });
+    cats.forEach(c => { obj[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     return json(res, obj);
   }
   if (type === 'studios') {
     const studios = loadStudios();
     const obj = {};
-    studios.forEach(s => { 
-      obj[s.name] = { 
-        website: s.website, 
-        short_description: s.description 
-      }; 
-    });
+    studios.forEach(s => { obj[s.name] = { website: s.website, short_description: s.description }; });
     return json(res, obj);
   }
-  if (!DB_FILES[type]) return json(res, { error: 'Unknown type' }, 400);
-  json(res, readDbFile(DB_FILES[type]));
+  if (type === 'actors') {
+    const actors = loadActors();
+    const obj = {};
+    actors.forEach(a => { obj[a.name] = { nationality: a.nationality, imdb_page: a.imdb_page }; });
+    return json(res, obj);
+  }
+  return json(res, { error: 'Unknown type' }, 400);
 }
 
 async function apiDbUpsert(req, res, type) {
@@ -62,28 +61,32 @@ async function apiDbUpsert(req, res, type) {
   }
   if (type === 'categories') {
     const cats = loadCategories();
-    const db = {};
-    cats.forEach(c => { db[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
-    db[name] = data || {};
-    saveCategories(db);
+    const raw = {};
+    cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
+    raw[name] = data || {};
+    saveCategories(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
   if (type === 'studios') {
     const studios = loadStudios();
-    const db = {};
-    studios.forEach(s => { db[s.name] = { website: s.website, short_description: s.description }; });
-    db[name] = data || {};
-    saveStudios(db);
+    const raw = {};
+    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    raw[name] = data || {};
+    saveStudios(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
-  if (!DB_FILES[type]) return json(res, { error: 'Unknown type' }, 400);
-  const db   = readDbFile(DB_FILES[type]);
-  db[name]   = data || {};
-  writeDbFile(DB_FILES[type], db);
-  invalidateDbTypeCache(type);
-  json(res, { ok: true });
+  if (type === 'actors') {
+    const actors = loadActors();
+    const raw = {};
+    actors.forEach(a => { raw[a.name] = { date_of_birth: null, nationality: a.nationality, imdb_page: a.imdb_page }; });
+    raw[name] = data || {};
+    saveActors(raw);
+    invalidateDbTypeCache(type);
+    return json(res, { ok: true });
+  }
+  return json(res, { error: 'Unknown type' }, 400);
 }
 
 async function apiDbDelete(req, res, type, name) {
@@ -94,28 +97,32 @@ async function apiDbDelete(req, res, type, name) {
   }
   if (type === 'categories') {
     const cats = loadCategories();
-    const db = {};
-    cats.forEach(c => { db[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
-    delete db[name];
-    saveCategories(db);
+    const raw = {};
+    cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
+    delete raw[name];
+    saveCategories(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
   if (type === 'studios') {
     const studios = loadStudios();
-    const db = {};
-    studios.forEach(s => { db[s.name] = { website: s.website, short_description: s.description }; });
-    delete db[name];
-    saveStudios(db);
+    const raw = {};
+    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    delete raw[name];
+    saveStudios(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
-  if (!DB_FILES[type]) return json(res, { error: 'Unknown type' }, 400);
-  const db = readDbFile(DB_FILES[type]);
-  delete db[name];
-  writeDbFile(DB_FILES[type], db);
-  invalidateDbTypeCache(type);
-  json(res, { ok: true });
+  if (type === 'actors') {
+    const actors = loadActors();
+    const raw = {};
+    actors.forEach(a => { raw[a.name] = { date_of_birth: null, nationality: a.nationality, imdb_page: a.imdb_page }; });
+    delete raw[name];
+    saveActors(raw);
+    invalidateDbTypeCache(type);
+    return json(res, { ok: true });
+  }
+  return json(res, { error: 'Unknown type' }, 400);
 }
 
 async function apiDbImport(req, res) {

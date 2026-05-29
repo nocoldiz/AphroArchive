@@ -27,6 +27,8 @@ const {
   loadAudioMeta, saveAudioMeta,
   loadBooksMeta, saveBooksMeta,
   loadRatings,
+  loadBookmarksCache,
+  loadVideoIndex, saveVideoIndex, clearVideoIndex,
 } = require('./db-server');
 
 // ── Video scan cache ─────────────────────────────────────────────────
@@ -45,11 +47,12 @@ let masterPassword = null; // Session master password
 
 function invalidateScanCache() {
   _scanCache = null;
+  clearVideoIndex();
 }
 
 function _onVideoDirChange() {
   if (_watchDebounce) clearTimeout(_watchDebounce);
-  _watchDebounce = setTimeout(() => { _scanCache = null; }, 300);
+  _watchDebounce = setTimeout(invalidateScanCache, 300);
 }
 
 try {
@@ -59,42 +62,50 @@ try {
 }
 
 async function cachedScan() {
-  if (!_scanCache) {
-    let all = await scan(VIDEOS_DIR);
-    
-    try {
-      const prefs = loadPrefs();
-      if (prefs.sourceFolders) {
-        for (const folder of prefs.sourceFolders) {
-          if (fs.existsSync(folder)) {
-            const extFiles = await scan(folder, folder, true); // true = isExternal
-            all.push(...extFiles);
+  if (_scanCache) return _scanCache;
+
+  // Fast path: load previously indexed list from DB
+  const indexed = loadVideoIndex();
+  if (indexed && indexed.length > 0) {
+    _scanCache = indexed;
+    return _scanCache;
+  }
+
+  // DB empty: scan filesystem, then persist to DB for next start
+  let all = await scan(VIDEOS_DIR);
+
+  try {
+    const prefs = loadPrefs();
+    if (prefs.sourceFolders) {
+      for (const folder of prefs.sourceFolders) {
+        if (fs.existsSync(folder)) {
+          const extFiles = await scan(folder, folder, true);
+          all.push(...extFiles);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to scan external folders:', e);
+  }
+
+  try {
+    const cats = loadCategories();
+    all = all.map(v => {
+      if (path.isAbsolute(v.rel) && v.category === 'Uncategorized') {
+        for (const cat of cats) {
+          if (wordMatchAny(v.name, cat.terms)) {
+            return { ...v, category: cat.displayName, catPath: cat.name };
           }
         }
       }
-    } catch (e) {
-      console.error('Failed to scan external folders:', e);
-    }
-    
-    // Auto-categorize external files based on title matching
-    try {
-      const cats = loadCategories();
-      all = all.map(v => {
-        if (path.isAbsolute(v.rel) && v.category === 'Uncategorized') {
-          for (const cat of cats) {
-            if (wordMatchAny(v.name, cat.terms)) {
-              return { ...v, category: cat.displayName, catPath: cat.name };
-            }
-          }
-        }
-        return v;
-      });
-    } catch (e) {
-      console.error('Failed to auto-categorize external files:', e);
-    }
-    
-    _scanCache = all;
+      return v;
+    });
+  } catch (e) {
+    console.error('Failed to auto-categorize external files:', e);
   }
+
+  saveVideoIndex(all);
+  _scanCache = all;
   return _scanCache;
 }
 
@@ -207,13 +218,9 @@ async function allVideos() {
   });
 
   // Load Bookmarks as remote videos
-  const { BM_CACHE_FILE } = require('./config-server');
   let bookmarks = [];
   try {
-    if (fs.existsSync(BM_CACHE_FILE)) {
-      const bmData = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
-      bookmarks = bmData.items || [];
-    }
+    bookmarks = loadBookmarksCache().items || [];
   } catch (e) {
     console.error('Failed to load bookmarks cache in allVideos:', e);
   }
@@ -408,13 +415,9 @@ async function apiCategories(req, res) {
   const hidden = loadHidden();
   const catMap = new Map();
 
-  const { BM_CACHE_FILE } = require('./config-server');
   let bookmarks = [];
   try {
-    if (fs.existsSync(BM_CACHE_FILE)) {
-      const bmData = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
-      bookmarks = bmData.items || [];
-    }
+    bookmarks = loadBookmarksCache().items || [];
   } catch (e) {
     console.error('Failed to load bookmarks cache:', e);
   }
@@ -1074,13 +1077,9 @@ async function apiCategoriesOverview(req, res) {
     }
   }
 
-  const { BM_CACHE_FILE } = require('./config-server');
   let bookmarks = [];
   try {
-    if (fs.existsSync(BM_CACHE_FILE)) {
-      const bmData = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
-      bookmarks = bmData.items || [];
-    }
+    bookmarks = loadBookmarksCache().items || [];
   } catch (e) {
     // Ignore
   }

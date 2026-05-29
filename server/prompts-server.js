@@ -7,18 +7,9 @@ const fs   = require('fs');
 const path = require('path');
 const http = require('http');
 const { randomUUID } = require('crypto');
-const { PROMPTS_FILE, COMFYUI_WORKFLOWS_DIR } = require('./config-server');
+const { COMFYUI_WORKFLOWS_DIR } = require('./config-server');
 const { json, readBody } = require('./helpers-server');
-
-// ── Storage ──────────────────────────────────────────────────────────
-
-function loadPrompts() {
-  try { return JSON.parse(fs.readFileSync(PROMPTS_FILE, 'utf-8')); } catch { return []; }
-}
-
-function savePrompts(arr) {
-  fs.writeFileSync(PROMPTS_FILE, JSON.stringify(arr));
-}
+const { loadPrompts, savePrompt, updatePrompt: dbUpdatePrompt, deletePrompt: dbDeletePrompt, deleteAllPrompts: dbDeleteAllPrompts } = require('./db-server');
 
 // ── Handlers ─────────────────────────────────────────────────────────
 
@@ -36,36 +27,29 @@ async function apiAddPrompt(req, res) {
     sites: Array.isArray(body.sites) ? body.sites : [],
     createdAt: Date.now(),
   };
-  const arr = loadPrompts();
-  arr.unshift(prompt);
-  savePrompts(arr);
+  savePrompt(prompt);
   json(res, prompt);
 }
 
 async function apiUpdatePrompt(req, res, id) {
   const body = await readBody(req);
-  const arr = loadPrompts();
-  const idx = arr.findIndex(p => p.id === id);
-  if (idx < 0) return json(res, { error: 'not found' }, 404);
-  if (body.text !== undefined) arr[idx].text = body.text.trim();
-  if (Array.isArray(body.sites)) arr[idx].sites = body.sites;
-  savePrompts(arr);
-  json(res, arr[idx]);
+  const fields = {};
+  if (body.text !== undefined) fields.text = body.text.trim();
+  if (Array.isArray(body.sites)) fields.sites = body.sites;
+  const ok = dbUpdatePrompt(id, fields);
+  if (!ok) return json(res, { error: 'not found' }, 404);
+  const updated = loadPrompts().find(p => p.id === id);
+  json(res, updated || { ok: true });
 }
 
 async function apiDeletePrompt(req, res, id) {
-  const arr = loadPrompts().filter(p => p.id !== id);
-  savePrompts(arr);
+  dbDeletePrompt(id);
   json(res, { ok: true });
 }
 
 async function apiDeleteAllPrompts(req, res) {
-  try {
-    savePrompts([]); // Overwrite the prompts file with an empty array
-    json(res, { success: true });
-  } catch (err) {
-    json(res, { error: 'Failed to clear prompts storage' }, 500);
-  }
+  dbDeleteAllPrompts();
+  json(res, { success: true });
 }
 
 // In your main server router (likely where other /api/prompts routes are defined):

@@ -8,9 +8,9 @@ const path  = require('path');
 const http  = require('http');
 const https = require('https');
 const url   = require('url');
-const { ACTOR_PHOTOS_DIR, ACTORS_JSON } = require('./config-server');
+const { ACTOR_PHOTOS_DIR } = require('./config-server');
 const { json, actorMatchesAny, toId } = require('./helpers-server');
-const { loadActors, loadVideoMeta, loadFavs } = require('./db-server');
+const { loadActors, saveActors, loadVideoMeta, loadFavs, invalidateDbTypeCache } = require('./db-server');
 const { allVideos } = require('./videos-server');
 
 // ── Actor slug ───────────────────────────────────────────────────────
@@ -230,18 +230,16 @@ async function scrapeAndSaveActorInfo(actorName) {
   const info = await scrapeActorInfo(actorName);
   if (!info) return false;
   
-  let raw = {};
-  try { raw = JSON.parse(fs.readFileSync(ACTORS_JSON, 'utf-8')); } catch (e) {}
-  
+  const raw = {};
+  loadActors().forEach(a => {
+    raw[a.name] = { date_of_birth: a.date_of_birth, nationality: a.nationality, imdb_page: a.imdb_page };
+  });
+
   if (!raw[actorName]) raw[actorName] = {};
-  
   if (info.birthDate) raw[actorName].date_of_birth = info.birthDate;
   if (info.imdbId) raw[actorName].imdb_page = `https://www.imdb.com/name/${info.imdbId}/`;
-  if (info.description) raw[actorName].bio = info.description;
-  
-  fs.writeFileSync(ACTORS_JSON, JSON.stringify(raw, null, 2));
-  
-  const { invalidateDbTypeCache } = require('./db-server');
+
+  saveActors(raw);
   invalidateDbTypeCache('actors');
   
   if (info.imageUrl) {

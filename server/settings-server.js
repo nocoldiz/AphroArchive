@@ -4,31 +4,24 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
-const { HIDDEN_FILE, ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, VIDEOS_DIR } = require('./config-server');
+const { VIDEOS_DIR } = require('./config-server');
 const { json, readBody }  = require('./helpers-server');
-const { loadPrefs, savePrefs } = require('./db-server');
-
-function readJsonKeys(file) {
-  try { return Object.keys(JSON.parse(fs.readFileSync(file, 'utf-8'))).join('\n'); }
-  catch { return ''; }
-}
+const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios } = require('./db-server');
 
 function apiSettingsLists(req, res) {
-  const read = f => { try { return fs.readFileSync(f, 'utf-8'); } catch { return ''; } };
   json(res, {
-    hidden:     read(HIDDEN_FILE),
-    categories: readJsonKeys(CATEGORIES_JSON),
-    actors:     readJsonKeys(ACTORS_JSON),
-    studios:    readJsonKeys(STUDIOS_JSON),
+    hidden:     loadHidden().join('\n'),
+    categories: loadCategories().map(c => c.name).join('\n'),
+    actors:     loadActors().map(a => a.name).join('\n'),
+    studios:    loadStudios().map(s => s.name).join('\n'),
   });
 }
 
 async function apiSettingsSave(req, res, file) {
-  const map = { hidden: HIDDEN_FILE };
-  if (!map[file]) return json(res, { error: 'Unknown file' }, 400);
+  if (file !== 'hidden') return json(res, { error: 'Unknown file' }, 400);
   const data  = await readBody(req);
   const lines = (data.content || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  fs.writeFileSync(map[file], lines.join('\n') + (lines.length ? '\n' : ''));
+  saveHidden(lines);
   json(res, { ok: true, count: lines.length });
 }
 
@@ -127,16 +120,15 @@ function apiBrowseFoldersNative(req, res) {
   }
   
   const { exec } = require('child_process');
-  const script = `
-    Add-Type -AssemblyName System.Windows.Forms
-    $fb = New-Object System.Windows.Forms.FolderBrowserDialog
-    $fb.Description = "Select Source Folder"
-    if ($fb.ShowDialog() -eq 'OK') {
-      $fb.SelectedPath
-    }
-  `.replace(/\n/g, ' ').trim();
-  
-  exec(`powershell -Command "${script}"`, (error, stdout, stderr) => {
+  const scriptLines = [
+    'Add-Type -AssemblyName System.Windows.Forms',
+    '$fb = New-Object System.Windows.Forms.FolderBrowserDialog',
+    '$fb.Description = "Select Source Folder"',
+    'if ($fb.ShowDialog() -eq \'OK\') { $fb.SelectedPath }',
+  ].join('\n');
+  const encoded = Buffer.from(scriptLines, 'utf16le').toString('base64');
+
+  exec(`powershell -STA -EncodedCommand ${encoded}`, (error, stdout) => {
     if (error) {
       return json(res, { error: error.message }, 500);
     }

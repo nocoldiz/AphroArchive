@@ -382,9 +382,9 @@ export const filteredVideos = computed(() => {
   }
 
   if (sourceFilter.value === 'local') {
-    list = list.filter(v => !v.isExternal);
+    list = list.filter(v => !v.isBookmark);
   } else if (sourceFilter.value === 'remote') {
-    list = list.filter(v => v.isExternal);
+    list = list.filter(v => !!v.isBookmark);
   }
 
   // Apply sorting or shuffle

@@ -1,12 +1,11 @@
 'use strict';
 
 const fs = require('fs');
-const path = require('path');
 const { execFile } = require('child_process');
-const { THUMBS_DIR, FFMPEG_BIN, CACHE_DIR } = require('./config-server');
+const { THUMBS_DIR, FFMPEG_BIN } = require('./config-server');
 const { json } = require('./helpers-server');
-
-const HASHES_FILE = path.join(CACHE_DIR, '.AphroArchive-visual-hashes.json');
+const { loadVisualHashes, setVisualHash, saveVisualHashes } = require('./db-server');
+const path = require('path');
 
 let _job = null;
 const _clients = new Set();
@@ -34,24 +33,21 @@ async function getVisualHash(videoId) {
 function calculateSimilarity(h1, h2) {
   if (h1 === h2) return 1.0;
   if (!h1 || !h2 || h1.length !== h2.length) return 0;
-  
+
   let diff = 0;
   for (let i = 0; i < h1.length; i += 2) {
     const v1 = parseInt(h1.substr(i, 2), 16);
     const v2 = parseInt(h2.substr(i, 2), 16);
     diff += Math.abs(v1 - v2);
   }
-  return 1 - (diff / (255 * 32 * 2)); // 32 bytes * 2 chars/byte = 64 pixels
+  return 1 - (diff / (255 * 32 * 2));
 }
 
 async function runScan(allVideos) {
   _job = { running: true, stop: false, total: allVideos.length, done: 0, groups: [] };
   broadcast({ type: 'start', total: allVideos.length });
 
-  let hashes = {};
-  if (fs.existsSync(HASHES_FILE)) {
-    try { hashes = JSON.parse(fs.readFileSync(HASHES_FILE, 'utf8')); } catch {}
-  }
+  const hashes = loadVisualHashes();
 
   const list = [];
   for (const v of allVideos) {
@@ -61,7 +57,7 @@ async function runScan(allVideos) {
       hash = await getVisualHash(v.id);
       if (hash) {
         hashes[v.id] = hash;
-        if (_job.done % 100 === 0) fs.writeFileSync(HASHES_FILE, JSON.stringify(hashes));
+        setVisualHash(v.id, hash);
       }
     }
     if (hash) list.push({ ...v, hash });
@@ -69,7 +65,7 @@ async function runScan(allVideos) {
     if (_job.done % 20 === 0) broadcast({ type: 'progress', done: _job.done, total: _job.total });
   }
 
-  fs.writeFileSync(HASHES_FILE, JSON.stringify(hashes));
+  saveVisualHashes(hashes);
 
   if (_job.stop) {
     _job.running = false;

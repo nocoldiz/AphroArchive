@@ -152,15 +152,16 @@ export const PlayerView = () => {
   useEffect(() => {
     if (!video || video.isVault) return;
     fetch(`/api/videos/${video.id}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(d => {
         setActors(d.actors || []);
         setTags(d.tags || []);
         setStudio(d.studio || '');
-        setRating(d.video.rating || null);
-        setChapters(d.chapters || []);
+        setRating(d.video?.rating ?? null);
+        setChapters(d.video?.chapters || []);
         setSuggested(d.suggested || []);
-      });
+      })
+      .catch(() => {});
 
     fetch(`/api/subtitles/${video.id}`)
       .then(r => r.json())
@@ -270,7 +271,7 @@ export const PlayerView = () => {
       <div className="pv-layout">
         <div className="pv-main">
           <div className="video-player-wrap">
-            {video.isBookmark && !(video.path && /\\.(mp4|webm|ogg|m3u8|mkv|avi|mov)(\\?.*)?$/i.test(video.path)) ? (
+            {video.isBookmark && !(video.path && /\.(mp4|webm|ogg|m3u8|mkv|avi|mov)(\?.*)?$/i.test(video.path)) ? (
               <div className="bm-fallback" style={{ background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9', gap: '16px' }}>
                 {video.img && (
                   <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '100%', maxHeight: '70%', display: 'flex', justifyContent: 'center' }}>
@@ -349,8 +350,8 @@ export const PlayerView = () => {
 
             <div className="player-meta" style={{ display: 'flex', gap: '15px', color: 'var(--tx3)', fontSize: '0.9rem', marginBottom: '20px' }}>
               <span>{video.category}</span>
-              <span>{(video.size / 1024 / 1024).toFixed(1)} MB</span>
-              <span>{(video.duration / 60).toFixed(1)}m</span>
+              <span>{((video.size || 0) / 1024 / 1024).toFixed(1)} MB</span>
+              <span>{video.duration ? (video.duration / 60).toFixed(1) + 'm' : '—'}</span>
             </div>
 
             <div className="player-info-actions" style={{ display: 'flex', gap: '10px', marginBottom: '25px', flexWrap: 'wrap' }}>
