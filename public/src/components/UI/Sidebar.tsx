@@ -111,9 +111,9 @@ export const Sidebar = () => {
   const sf = sourceFilter.value;
   const vids = allVideos.value;
   const filteredVids = sf === 'local'
-    ? vids.filter(v => !(v as any).isExternal)
+    ? vids.filter(v => !(v as any).isBookmark)
     : sf === 'remote'
-    ? vids.filter(v => (v as any).isExternal)
+    ? vids.filter(v => !!(v as any).isBookmark)
     : vids;
 
   const catCountMap = new Map<string, number>();

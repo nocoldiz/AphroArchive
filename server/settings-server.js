@@ -31,6 +31,7 @@ function apiGetPrefs(req, res) {
   const missingSourceFolders = (prefs.sourceFolders || []).filter(f => !fs.existsSync(f));
   json(res, {
     ...prefs,
+    videosDir: VIDEOS_DIR,
     videosDirExists,
     missingSourceFolders
   });

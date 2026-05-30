@@ -59,6 +59,8 @@ export interface AppPrefs {
   vaultSelfDestruct?: boolean;
   hiddenTags?: string[];
   sourceFolders?: string[];
+  videosDir?: string;
+  videosDirExists?: boolean;
 }
 export interface ThumbnailGroup {
   id: string;

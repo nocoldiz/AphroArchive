@@ -2050,9 +2050,15 @@ function apiVideosUpload(req, res) {
   });
 }
 
+async function apiRescan(req, res) {
+  invalidateScanCache();
+  await cachedScan();
+  json(res, { ok: true });
+}
+
 module.exports = {
   scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
-  apiVideosUpload,
+  apiVideosUpload, apiRescan,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
   apiGetAllCategories, apiSetEnabledCategories,
   apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,

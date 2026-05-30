@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { categories } from '../../store';
+import { categories, loadVideos } from '../../store';
 
 interface DownloadJob {
   id: string;
@@ -105,6 +105,7 @@ export const DownloadManager = () => {
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [open, setOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<Record<string, string>>({});
+  const [rescanning, setRescanning] = useState(false);
   const [scrapers, setScrapers] = useState<{
     videoThumbs: ScraperStatus;
     bmMeta: ScraperStatus;
@@ -356,6 +357,32 @@ export const DownloadManager = () => {
               style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
             >
               Scrape missing
+            </button>
+          </div>
+
+          <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderTop: '1px solid var(--brd)' }}>
+            <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+              </svg>
+            </span>
+            <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Local Videos</span>
+            <button
+              disabled={rescanning}
+              onClick={async () => {
+                setRescanning(true);
+                try {
+                  await fetch('/api/videos/rescan', { method: 'POST' });
+                  await loadVideos();
+                  const w = window as any;
+                  if (w.toast) w.toast('Rescan complete');
+                } catch {}
+                setRescanning(false);
+              }}
+              style={{ background: rescanning ? 'var(--bg3)' : 'var(--ac)', color: rescanning ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: rescanning ? 'default' : 'pointer' }}
+            >
+              {rescanning ? 'Scanning…' : 'Rescan'}
             </button>
           </div>
 

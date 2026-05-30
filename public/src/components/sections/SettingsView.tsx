@@ -1,4 +1,4 @@
-import { appPrefs, updatePrefs } from '../../store';
+import { appPrefs, updatePrefs, loadVideos } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { PERSONALITIES, Personality } from '../../personalities';
 import { JSX } from 'preact';
@@ -515,16 +515,24 @@ export const SettingsView = () => {
 
             {/* List of current folders */}
             <div style={{ marginBottom: '16px' }}>
+              {/* Main videos folder — always shown, not removable */}
+              {prefs.videosDir && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '8px', opacity: 0.8 }}>
+                  <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all' }}>{prefs.videosDir}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--tx3)', whiteSpace: 'nowrap', marginLeft: '8px' }}>default</span>
+                </div>
+              )}
               {prefs.sourceFolders && prefs.sourceFolders.length > 0 ? (
                 prefs.sourceFolders.map((folder: string, idx: number) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '8px' }}>
                     <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all' }}>{folder}</span>
-                    <button 
-                      className="modal-btn modal-btn--danger" 
+                    <button
+                      className="modal-btn modal-btn--danger"
                       style={{ padding: '4px 8px', fontSize: '12px' }}
-                      onClick={() => {
+                      onClick={async () => {
                         const updated = prefs.sourceFolders!.filter((_: any, i: number) => i !== idx);
-                        updatePrefs({ sourceFolders: updated });
+                        await updatePrefs({ sourceFolders: updated });
+                        loadVideos();
                       }}
                     >
                       Remove
@@ -532,7 +540,7 @@ export const SettingsView = () => {
                   </div>
                 ))
               ) : (
-                <p style={{ fontSize: '13px', color: 'var(--tx3)', textAlign: 'center' }}>No source folders added yet.</p>
+                !prefs.videosDir && <p style={{ fontSize: '13px', color: 'var(--tx3)', textAlign: 'center' }}>No source folders added yet.</p>
               )}
             </div>
 
@@ -567,14 +575,15 @@ export const SettingsView = () => {
               </button>
               <button 
                 className="modal-btn modal-btn--primary"
-                onClick={() => {
+                onClick={async () => {
                   const input = document.getElementById('new-source-folder') as HTMLInputElement;
                   const val = input.value.trim();
                   if (val) {
                     const current = prefs.sourceFolders || [];
                     if (!current.includes(val)) {
-                      updatePrefs({ sourceFolders: [...current, val] });
+                      await updatePrefs({ sourceFolders: [...current, val] });
                       input.value = '';
+                      loadVideos();
                     } else {
                       if (window.toast) window.toast('Folder already added');
                     }
