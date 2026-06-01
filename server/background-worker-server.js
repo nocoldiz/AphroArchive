@@ -56,27 +56,31 @@ async function scanAndProcess() {
       const fp = path.join(VIDEOS_DIR, file.rel);
       const id = file.id;
 
-      // 1. Check Thumbnails
-      const thumbDir = path.join(THUMBS_DIR, id);
-      const hasThumbs = fs.existsSync(thumbDir) && fs.readdirSync(thumbDir).some(f => f.endsWith('.jpg'));
-      if (!hasThumbs) {
-        console.log(`Background worker: Generating thumbnails for ${file}`);
-        await genThumbs(id, fp);
-        processedCount++;
-      }
-
-      // 2. Check Subtitles
-      const dir = path.dirname(fp);
-      const base = path.basename(fp, path.extname(fp));
-      const targetSub = path.join(dir, `${base}.en.vtt`);
-      
-      if (!fs.existsSync(targetSub)) {
-        const hasEmbeddedSubs = await ffprobeSubtitles(fp);
-        if (hasEmbeddedSubs) {
-          console.log(`Background worker: Extracting subtitles for ${file}`);
-          await extractSubtitles(fp, targetSub);
+      try {
+        // 1. Check Thumbnails
+        const thumbDir = path.join(THUMBS_DIR, id);
+        const hasThumbs = fs.existsSync(thumbDir) && fs.readdirSync(thumbDir).some(f => f.endsWith('.jpg'));
+        if (!hasThumbs) {
+          console.log(`Background worker: Generating thumbnails for ${file.rel}`);
+          await genThumbs(id, fp);
           processedCount++;
         }
+
+        // 2. Check Subtitles
+        const dir = path.dirname(fp);
+        const base = path.basename(fp, path.extname(fp));
+        const targetSub = path.join(dir, `${base}.en.vtt`);
+
+        if (!fs.existsSync(targetSub)) {
+          const hasEmbeddedSubs = await ffprobeSubtitles(fp);
+          if (hasEmbeddedSubs) {
+            console.log(`Background worker: Extracting subtitles for ${file.rel}`);
+            await extractSubtitles(fp, targetSub);
+            processedCount++;
+          }
+        }
+      } catch (e) {
+        console.error(`Background worker: Failed to process ${file.rel}:`, e.message);
       }
     }
 

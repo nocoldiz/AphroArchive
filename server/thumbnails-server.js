@@ -15,12 +15,14 @@ const crypto = require('crypto');
 
 function ffprobeDuration(fp) {
   return new Promise(resolve => {
-    execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', fp],
-      { timeout: 15000 },
-      (err, out) => {
-        if (err) return resolve(null);
-        try { resolve(parseFloat(JSON.parse(out).format.duration) || null); } catch { resolve(null); }
-      });
+    try {
+      execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', fp],
+        { timeout: 15000 },
+        (err, out) => {
+          if (err) return resolve(null);
+          try { resolve(parseFloat(JSON.parse(out).format.duration) || null); } catch { resolve(null); }
+        });
+    } catch { resolve(null); }
   });
 }
 
@@ -36,9 +38,11 @@ async function genThumbs(id, fp) {
   const times = [0.1, 0.25, 0.5, 0.75, 0.9].map(p => (dur * p).toFixed(2));
   let n = 0;
   await Promise.all(times.map((t, i) => new Promise(resolve => {
-    execFile(FFMPEG_BIN, ['-ss', t, '-i', fp, '-vframes', '1', '-vf', 'scale=480:-1', '-q:v', '3', '-y', path.join(dir, `${i}.jpg`)],
-      { timeout: 30000 },
-      err => { if (!err) n++; resolve(); });
+    try {
+      execFile(FFMPEG_BIN, ['-ss', t, '-i', fp, '-vframes', '1', '-vf', 'scale=480:-1', '-q:v', '3', '-y', path.join(dir, `${i}.jpg`)],
+        { timeout: 30000 },
+        err => { if (!err) n++; resolve(); });
+    } catch { resolve(); }
   })));
   return { count: n, duration: dur };
 }

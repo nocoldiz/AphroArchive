@@ -176,7 +176,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     const vid = videoRef.current;
     if (!vid) return;
     if (vid.paused) {
-      vid.play();
+      vid.play().catch(() => {});
     } else {
       vid.pause();
     }
@@ -188,6 +188,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
     const pct = x / rect.width;
+    if (!isFinite(vid.duration)) return;
     vid.currentTime = pct * vid.duration;
   };
 

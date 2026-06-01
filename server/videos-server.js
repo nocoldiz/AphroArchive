@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  videos.js — Video scanning, listing, and all video API handlers
 // ═══════════════════════════════════════════════════════════════════
@@ -469,6 +469,33 @@ async function apiCategories(req, res) {
         entry.hasUnencrypted = true;
       }
     }
+  }
+
+  // Include empty directories from the filesystem so newly created folders appear
+  try {
+    if (fs.existsSync(VIDEOS_DIR)) {
+      const walkDir = (dir, rel) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const ent of entries) {
+          if (!ent.isDirectory()) continue;
+          if (isHiddenFolderName(ent.name)) continue;
+          const subRel = rel ? rel + '/' + ent.name : ent.name;
+          const key = subRel.replace(/\\/g, '/');
+          if (!catMap.has(key)) {
+            catMap.set(key, {
+              name: key.replace(/\//g, ' / '),
+              path: key,
+              count: 0,
+              hasUnencrypted: false
+            });
+          }
+          walkDir(path.join(dir, ent.name), subRel);
+        }
+      };
+      walkDir(VIDEOS_DIR, '');
+    }
+  } catch (e) {
+    console.error('[apiCategories] filesystem walk error:', e.message);
   }
 
   // Add playable links to category counts — first match only (mirrors client matchLinkCat)
