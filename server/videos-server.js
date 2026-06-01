@@ -67,7 +67,28 @@ async function cachedScan() {
   // Fast path: load previously indexed list from DB
   const indexed = loadVideoIndex();
   if (indexed && indexed.length > 0) {
-    _scanCache = indexed;
+    // Prune entries whose directory no longer exists on disk
+    let prefs;
+    try { prefs = loadPrefs(); } catch (e) { prefs = {}; }
+    const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
+    const dirExistsCache = new Map();
+    const dirExists = dir => {
+      if (!dirExistsCache.has(dir)) dirExistsCache.set(dir, fs.existsSync(dir));
+      return dirExistsCache.get(dir);
+    };
+    const valid = indexed.filter(v => {
+      const dir = v.isExternal
+        ? path.dirname(v.rel)
+        : (v.catPath ? path.join(VIDEOS_DIR, v.catPath) : VIDEOS_DIR);
+      if (dirExists(dir)) return true;
+      // For external files, also check against source folders by catPath
+      if (v.isExternal && v.catPath) {
+        return sourceFolders.some(sf => dirExists(path.join(sf, v.catPath)));
+      }
+      return false;
+    });
+    if (valid.length !== indexed.length) saveVideoIndex(valid);
+    _scanCache = valid;
     return _scanCache;
   }
 
@@ -493,6 +514,21 @@ async function apiCategories(req, res) {
       count: unmatched,
       hasUnencrypted: false
     });
+  }
+
+  // Remove categories whose physical directory no longer exists
+  {
+    let sfPrefs;
+    try { sfPrefs = loadPrefs(); } catch (e) { sfPrefs = {}; }
+    const existingSF = (sfPrefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
+    const toRemove = [];
+    for (const [key, entry] of catMap.entries()) {
+      if (key === 'Links') continue;
+      if (fs.existsSync(path.join(VIDEOS_DIR, entry.path))) continue;
+      if (existingSF.some(sf => fs.existsSync(path.join(sf, entry.path)))) continue;
+      toRemove.push(key);
+    }
+    toRemove.forEach(k => catMap.delete(k));
   }
 
   const cats = [];
