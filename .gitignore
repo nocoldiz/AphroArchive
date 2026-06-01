@@ -1,4 +1,4 @@
-videos
+﻿videos
 books
 audio
 photos
@@ -13,7 +13,7 @@ dist/
 .AphroArchive-thumbs
 .AphroArchive-actor-photos
 settings
-bookmarks_cache.json
+links_cache.json
 process
 .aider.tags.cache.v4/cache.db
 .aider.tags.cache.v4/cache.db-shm

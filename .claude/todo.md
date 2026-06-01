@@ -1,4 +1,4 @@
-# AphroArchive — TODO & Roadmap
+﻿# AphroArchive — TODO & Roadmap
 
 ## Security (Fix First)
 
@@ -92,7 +92,7 @@
 - [ ] **Date range filter** — Filter videos added/modified between two dates.
 - [ ] **Duration filter** — Filter by short/medium/long (e.g., <5min, 5-30min, 30min+).
 - [ ] **Unwatched filter** — Show only videos not yet in watch history.
-- [ ] **Saved searches** — Bookmark a filter/query combo and recall it with one click.
+- [ ] **Saved searches** — Link a filter/query combo and recall it with one click.
 - [ ] **Recent searches** — Dropdown of last 10 search terms when clicking the search bar.
 - [ ] **Search within actors/studios pages** — The actor and studio detail pages have no search; hard to find a video when an actor has 100+ entries.
 

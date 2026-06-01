@@ -1,4 +1,4 @@
-*,
+﻿*,
 *::before,
 *::after {
   box-sizing: border-box;
@@ -4045,7 +4045,7 @@ input {
   transition: width 0.4s
 }
 
-/* ── Bookmark Grid View ── */
+/* ── Link Grid View ── */
 .bf-view-toggle {
   display: flex;
   gap: 4px;
@@ -4240,7 +4240,7 @@ input {
   flex-shrink: 0
 }
 
-/* ── Bookmark iframe viewer ── */
+/* ── Link iframe viewer ── */
 .bfiframe-mo {
   position: fixed;
   inset: 0;

@@ -1,6 +1,6 @@
-import { useRef, useState, useEffect } from 'preact/hooks';
+﻿import { useRef, useState, useEffect } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchBookmarkCat } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 
@@ -50,7 +50,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
   };
 
   useEffect(() => {
-    if (!cardRef.current || video.isBookmark) return;
+    if (!cardRef.current || video.isLink) return;
     const observer = new IntersectionObserver(entries => {
       for (const e of entries) {
         if (e.isIntersecting) {
@@ -117,7 +117,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
 
   const handleTag = (e: any) => {
     e.stopPropagation();
-    tagModalState.value = { visible: true, vidId: video.id, bmUrl: null };
+    tagModalState.value = { visible: true, vidId: video.id, linkUrl: null };
   };
 
   const handleActor = (e: any) => {
@@ -188,13 +188,13 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       `}</style>
       <div className="card-thumb">
         <img
-          src={video.isBookmark ? (video.img || '') : `/api/thumbs/${video.id}/0`}
+          src={video.isLink ? (video.img || '') : `/api/thumbs/${video.id}/0`}
           loading="lazy"
           className="video-thumb"
           id={`img-${video.id}`}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        {showVideo && !video.isBookmark && (
+        {showVideo && !video.isLink && (
           <video
             src={`/api/stream/${video.id}`}
             autoPlay
@@ -274,19 +274,19 @@ export const VideoSelBar = () => {
   if (count === 0) return null;
 
   const selectedVids = allVideos.value.filter(v => selectedVideoIds.value.has(v.id));
-  const bookmarkVids = selectedVids.filter(v => v.isBookmark);
-  const hasBookmarks = bookmarkVids.length > 0;
+  const linkVids = selectedVids.filter(v => v.isLink);
+  const hasLinks = linkVids.length > 0;
 
   const downloadSelected = async () => {
-    if (!bookmarkVids.length) return;
+    if (!linkVids.length) return;
 
     let successCount = 0;
-    for (const v of bookmarkVids) {
+    for (const v of linkVids) {
       let targetCat = v.category || '';
-      if (targetCat === 'Bookmarks' || targetCat === 'Uncategorized' || !targetCat) {
+      if (targetCat === 'Links' || targetCat === 'Uncategorized' || !targetCat) {
         const catsList = categories.value || [];
-        const match = matchBookmarkCat(v.name, catsList);
-        if (match && match.catPath !== 'Bookmarks') {
+        const match = matchLinkCat(v.name, catsList);
+        if (match && match.catPath !== 'Links') {
           targetCat = match.catPath;
         } else {
           targetCat = '';
@@ -297,7 +297,7 @@ export const VideoSelBar = () => {
         const r = await fetch('/api/download', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: v.bookmarkUrl || v.relPath, category: targetCat })
+          body: JSON.stringify({ url: v.linkUrl || v.relPath, category: targetCat })
         });
         const d = await r.json();
         if (d.ok) successCount++;
@@ -333,7 +333,7 @@ export const VideoSelBar = () => {
     }}>
       <span id="videoSelCount" style={{ fontWeight: 'bold' }}>{count} video{count !== 1 ? 's' : ''} selected</span>
       
-      {hasBookmarks && (
+      {hasLinks && (
         <button 
           onClick={downloadSelected}
           style={{ background: '#ff7300', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
@@ -343,7 +343,7 @@ export const VideoSelBar = () => {
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          Download ({bookmarkVids.length})
+          Download ({linkVids.length})
         </button>
       )}
 

@@ -1,7 +1,7 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
-//  bookmarks.js — Websites, browser-favs import, OG thumbnails,
-//                 bookmarks cache, and scrape proxy
+//  links.js — Websites, browser-favs import, OG thumbnails,
+//                 links cache, and scrape proxy
 // ═══════════════════════════════════════════════════════════════════
 
 const fs    = require('fs');
@@ -10,9 +10,9 @@ const http  = require('http');
 const https = require('https');
 const os    = require('os');
 const url   = require('url');
-const { BM_DIR, BM_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
+const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
 const { json, readBody, serveStatic }   = require('./helpers-server');
-const { loadWebsites, saveWebsites, loadBookmarksCache, saveBookmarksCache, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories } = require('./db-server');
+const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories } = require('./db-server');
 const { wordMatchAny } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
@@ -62,10 +62,10 @@ async function apiOgThumb(req, res) {
 
   // Check if we have a generated thumb first
   const thumbId = Buffer.from(targetUrl).toString('base64url');
-  const fpPng = path.join(BM_THUMBS_DIR, thumbId + '.png');
-  const fpJpg = path.join(BM_THUMBS_DIR, thumbId + '.jpg');
+  const fpPng = path.join(LINK_THUMBS_DIR, thumbId + '.png');
+  const fpJpg = path.join(LINK_THUMBS_DIR, thumbId + '.jpg');
   if (fs.existsSync(fpPng) || fs.existsSync(fpJpg)) {
-    return json(res, { img: '/api/bookmarks/thumbs/' + thumbId });
+    return json(res, { img: '/api/links/thumbs/' + thumbId });
   }
 
   const now    = Date.now();
@@ -77,7 +77,7 @@ async function apiOgThumb(req, res) {
   json(res, { img });
 }
 
-// ── Bookmark Thumbnail Generation (Edge headless) ────────────────────
+// ── Link Thumbnail Generation (Edge headless) ────────────────────
 
 let _bmJob = null; // { running, stop, total, done, failed, current }
 const _bmClients = new Set();
@@ -245,9 +245,9 @@ async function generateSmartThumbnail(targetUrl, outPath) {
   }
 }
 
-function apiBookmarkThumbImg(req, res, id) {
-  const fpPng = path.join(BM_THUMBS_DIR, id + '.png');
-  const fpJpg = path.join(BM_THUMBS_DIR, id + '.jpg');
+function apiLinkThumbImg(req, res, id) {
+  const fpPng = path.join(LINK_THUMBS_DIR, id + '.png');
+  const fpJpg = path.join(LINK_THUMBS_DIR, id + '.jpg');
   const fp = fs.existsSync(fpPng) ? fpPng : (fs.existsSync(fpJpg) ? fpJpg : null);
 
   if (!fp) {
@@ -261,39 +261,39 @@ function apiBookmarkThumbImg(req, res, id) {
   fs.createReadStream(fp).pipe(res);
 }
 
-async function apiGenerateBookmarkThumb(req, res) {
+async function apiGenerateLinkThumb(req, res) {
   const body = await readBody(req);
   const url = body.url;
   if (!url) return json(res, { error: 'url required' }, 400);
 
   const id = Buffer.from(url).toString('base64url');
-  const outPath = path.join(BM_THUMBS_DIR, id + '.png'); // Edge uses png
+  const outPath = path.join(LINK_THUMBS_DIR, id + '.png'); // Edge uses png
 
   try {
     await generateSmartThumbnail(url, outPath);
-    json(res, { ok: true, img: '/api/bookmarks/thumbs/' + id });
+    json(res, { ok: true, img: '/api/links/thumbs/' + id });
   } catch (e) {
     json(res, { error: e.message }, 500);
   }
 }
 
-async function apiGenerateAllBookmarkThumbs(req, res) {
+async function apiGenerateAllLinkThumbs(req, res) {
   if (_bmJob && _bmJob.running) return json(res, { error: 'Already running' });
 
-  const bookmarks = loadBookmarksCache().items || [];
-  if (!bookmarks.length) return json(res, { error: 'No bookmarks to process' });
+  const links = loadLinksCache().items || [];
+  if (!links.length) return json(res, { error: 'No links to process' });
 
-  _bmJob = { running: true, stop: false, total: bookmarks.length, done: 0, failed: 0, current: '' };
-  broadcastBm({ type: 'start', total: bookmarks.length });
+  _bmJob = { running: true, stop: false, total: links.length, done: 0, failed: 0, current: '' };
+  broadcastBm({ type: 'start', total: links.length });
 
   (async () => {
-    for (const item of bookmarks) {
+    for (const item of links) {
       if (_bmJob.stop) break;
       _bmJob.current = item.title || item.url;
       broadcastBm({ type: 'progress', done: _bmJob.done, total: _bmJob.total, current: _bmJob.current });
 
       const id = Buffer.from(item.url).toString('base64url');
-      const outPath = path.join(BM_THUMBS_DIR, id + '.png');
+      const outPath = path.join(LINK_THUMBS_DIR, id + '.png');
 
       if (!fs.existsSync(outPath)) {
         try {
@@ -312,7 +312,7 @@ async function apiGenerateAllBookmarkThumbs(req, res) {
   json(res, { ok: true });
 }
 
-function apiBookmarkGenerationStatus(req, res) {
+function apiLinkGenerationStatus(req, res) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -331,9 +331,9 @@ function apiBookmarkGenerationStatus(req, res) {
   req.on('close', () => _bmClients.delete(res));
 }
 
-// ── Bookmarks cache ───────────────────────────────────────────────────
+// ── Links cache ───────────────────────────────────────────────────
 
-// ── Bookmarks Scraper Worker ──────────────────────────────────────────
+// ── Links Scraper Worker ──────────────────────────────────────────
 
 let _scrapeJob = null; // { running, stop, total, done, failed, current }
 
@@ -389,7 +389,7 @@ function extractEmbedUrl(pageUrl) {
   });
 }
 
-function scrapeBookmark(pageUrl) {
+function scrapeLink(pageUrl) {
   return new Promise((resolve) => {
     const ytdlpAvailable = fs.existsSync(YT_DLP_BIN);
     if (!ytdlpAvailable) {
@@ -415,7 +415,7 @@ function scrapeBookmark(pageUrl) {
   });
 }
 
-function autoCategorizeBookmarks(items) {
+function autoCategorizeLinks(items) {
   const cats = loadCategories();
   const enabledPaths = loadEnabledCategories();
   const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
@@ -437,7 +437,7 @@ function autoCategorizeBookmarks(items) {
 function startScrapingWorker({ reset = false } = {}) {
   if (_scrapeJob && _scrapeJob.running) return;
 
-  const cache = loadBookmarksCache();
+  const cache = loadLinksCache();
   const allItems = cache.items || [];
 
   if (reset) {
@@ -447,8 +447,8 @@ function startScrapingWorker({ reset = false } = {}) {
       delete item.embedUrl;
       delete item.hasEmbed;
     }
-    saveBookmarksCache(cache);
-    console.log('[scrape] reset — cleared scraped data from', allItems.length, 'bookmarks');
+    saveLinksCache(cache);
+    console.log('[scrape] reset — cleared scraped data from', allItems.length, 'links');
   }
 
   const toProcess = allItems.filter(b => !b.scrapedVideoUrl);
@@ -458,7 +458,7 @@ function startScrapingWorker({ reset = false } = {}) {
   }
 
   _scrapeJob = { running: true, stop: false, total: toProcess.length, done: 0, failed: 0, current: '' };
-  console.log('[scrape] starting —', toProcess.length, 'bookmarks to process');
+  console.log('[scrape] starting —', toProcess.length, 'links to process');
 
   (async () => {
     for (const item of toProcess) {
@@ -467,7 +467,7 @@ function startScrapingWorker({ reset = false } = {}) {
       console.log(`[scrape] (${_scrapeJob.done + 1}/${_scrapeJob.total}) ${item.title || item.url}`);
 
       try {
-        const result = await scrapeBookmark(item.url);
+        const result = await scrapeLink(item.url);
         if (result.videoUrl) {
           item.scrapedVideoUrl = result.videoUrl;
           item.hasVideo = true;
@@ -480,9 +480,9 @@ function startScrapingWorker({ reset = false } = {}) {
         }
         if (result.thumbUrl && !item.img) {
           const id = Buffer.from(item.url).toString('base64url');
-          const outPath = path.join(BM_THUMBS_DIR, id + '.png');
+          const outPath = path.join(LINK_THUMBS_DIR, id + '.png');
           try { await downloadImage(result.thumbUrl, outPath); } catch {}
-          item.img = '/api/bookmarks/thumbs/' + id;
+          item.img = '/api/links/thumbs/' + id;
           console.log(`[scrape]   thumb: ${result.thumbUrl}`);
         }
         if (!result.videoUrl && !result.embedUrl) {
@@ -492,18 +492,18 @@ function startScrapingWorker({ reset = false } = {}) {
         // Screenshot fallback: if still no preview, take a page screenshot
         if (!item.img) {
           const id = Buffer.from(item.url).toString('base64url');
-          const outPath = path.join(BM_THUMBS_DIR, id + '.png');
+          const outPath = path.join(LINK_THUMBS_DIR, id + '.png');
           if (!fs.existsSync(outPath)) {
             try {
               console.log('[scrape]   no thumb — taking screenshot fallback');
               await takeScreenshotWithBannerRemoval(item.url, outPath);
-              item.img = '/api/bookmarks/thumbs/' + id;
+              item.img = '/api/links/thumbs/' + id;
               console.log('[scrape]   screenshot saved');
             } catch (e) {
               console.log('[scrape]   screenshot fallback failed:', e.message);
             }
           } else {
-            item.img = '/api/bookmarks/thumbs/' + id;
+            item.img = '/api/links/thumbs/' + id;
           }
         }
 
@@ -513,7 +513,7 @@ function startScrapingWorker({ reset = false } = {}) {
         _scrapeJob.failed++;
       }
 
-      const currentCache = loadBookmarksCache();
+      const currentCache = loadLinksCache();
       const currentItems = currentCache.items || [];
       const currentItem = currentItems.find(it => it.url === item.url);
       if (currentItem) {
@@ -522,12 +522,12 @@ function startScrapingWorker({ reset = false } = {}) {
         if (item.embedUrl) currentItem.embedUrl = item.embedUrl;
         if (item.hasEmbed) currentItem.hasEmbed = item.hasEmbed;
         if (item.img) currentItem.img = item.img;
-        saveBookmarksCache(currentCache);
+        saveLinksCache(currentCache);
       }
     }
-    const finalCache = loadBookmarksCache();
-    autoCategorizeBookmarks(finalCache.items || []);
-    saveBookmarksCache(finalCache);
+    const finalCache = loadLinksCache();
+    autoCategorizeLinks(finalCache.items || []);
+    saveLinksCache(finalCache);
     console.log(`[scrape] done — ${_scrapeJob.done} ok, ${_scrapeJob.failed} failed`);
     _scrapeJob.running = false;
   })();
@@ -542,16 +542,16 @@ function apiStopScraping(req, res) {
   json(res, { ok: true });
 }
 
-function apiBookmarkThumbStatus(req, res) {
+function apiLinkThumbStatus(req, res) {
   json(res, _bmJob || { running: false });
 }
 
-function apiStopBookmarkThumbs(req, res) {
+function apiStopLinkThumbs(req, res) {
   if (_bmJob && _bmJob.running) _bmJob.stop = true;
   json(res, { ok: true });
 }
 
-function apiGetBookmarksCache(req, res) {
+function apiGetLinksCache(req, res) {
   const urlObj = new URL(req.url, 'http://localhost');
   const params = urlObj.searchParams;
   const rawLimit = parseInt(params.get('limit'));
@@ -560,7 +560,7 @@ function apiGetBookmarksCache(req, res) {
   const page = parseInt(params.get('page')) || 1;
   const query = params.get('q') || '';
 
-  const cache = loadBookmarksCache();
+  const cache = loadLinksCache();
   let items = cache.items || [];
 
   if (query) {
@@ -587,15 +587,15 @@ function apiGetBookmarksCache(req, res) {
   });
 }
 
-async function apiSaveBookmarksCache(req, res) {
+async function apiSaveLinksCache(req, res) {
   const body  = await readBody(req);
   const items = Array.isArray(body.items) ? body.items : [];
   try {
     if (_scrapeJob && _scrapeJob.running) {
       _scrapeJob.stop = true;
     }
-    autoCategorizeBookmarks(items);
-    saveBookmarksCache({ items });
+    autoCategorizeLinks(items);
+    saveLinksCache({ items });
     json(res, { ok: true, count: items.length });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -685,7 +685,7 @@ function matchesWhitelist(urlStr, whitelist) {
   } catch { return false; }
 }
 
-// LZ4 block decompressor for Firefox mozlz4 bookmark backups
+// LZ4 block decompressor for Firefox mozlz4 link backups
 function decompressLz4Block(src, uncompressedSize) {
   const dst = Buffer.allocUnsafe(uncompressedSize);
   let si = 0, di = 0;
@@ -714,41 +714,41 @@ function readMozlz4(filePath) {
   return JSON.parse(decompressLz4Block(raw.slice(12), uncompressedSize).toString('utf-8'));
 }
 
-function extractChromeBookmarks(node, results) {
+function extractChromeLinks(node, results) {
   if (node.type === 'url' && node.url) results.push({ title: node.name || node.url, url: node.url });
-  if (node.children) for (const c of node.children) extractChromeBookmarks(c, results);
+  if (node.children) for (const c of node.children) extractChromeLinks(c, results);
 }
 
-function extractFirefoxBookmarks(node, results) {
+function extractFirefoxLinks(node, results) {
   if (node.type === 'text/x-moz-place' && node.uri) results.push({ title: node.title || node.uri, url: node.uri });
-  if (node.children) for (const c of node.children) extractFirefoxBookmarks(c, results);
+  if (node.children) for (const c of node.children) extractFirefoxLinks(c, results);
 }
 
-function getChromeBookmarkPaths() {
+function getChromeLinkPaths() {
   const home       = os.homedir();
   const candidates = [];
   if (process.platform === 'win32') {
     const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
     candidates.push(
-      path.join(local, 'Google', 'Chrome', 'User Data', 'Default', 'Bookmarks'),
-      path.join(local, 'Microsoft', 'Edge', 'User Data', 'Default', 'Bookmarks'),
-      path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data', 'Default', 'Bookmarks'),
+      path.join(local, 'Google', 'Chrome', 'User Data', 'Default', 'Links'),
+      path.join(local, 'Microsoft', 'Edge', 'User Data', 'Default', 'Links'),
+      path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data', 'Default', 'Links'),
     );
   } else if (process.platform === 'darwin') {
     candidates.push(
-      path.join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'Bookmarks'),
-      path.join(home, 'Library', 'Application Support', 'Microsoft Edge', 'Default', 'Bookmarks'),
+      path.join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'Links'),
+      path.join(home, 'Library', 'Application Support', 'Microsoft Edge', 'Default', 'Links'),
     );
   } else {
     candidates.push(
-      path.join(home, '.config', 'google-chrome', 'Default', 'Bookmarks'),
-      path.join(home, '.config', 'chromium', 'Default', 'Bookmarks'),
+      path.join(home, '.config', 'google-chrome', 'Default', 'Links'),
+      path.join(home, '.config', 'chromium', 'Default', 'Links'),
     );
   }
   return candidates.filter(p => fs.existsSync(p));
 }
 
-function getFirefoxBookmarkPaths() {
+function getFirefoxLinkPaths() {
   const home = os.homedir();
   let profilesRoot;
   if (process.platform === 'win32') {
@@ -761,7 +761,7 @@ function getFirefoxBookmarkPaths() {
   if (!fs.existsSync(profilesRoot)) return [];
   const results = [];
   for (const profileDir of fs.readdirSync(profilesRoot)) {
-    const backupsDir = path.join(profilesRoot, profileDir, 'bookmarkbackups');
+    const backupsDir = path.join(profilesRoot, profileDir, 'linkbackups');
     if (!fs.existsSync(backupsDir)) continue;
     const files = fs.readdirSync(backupsDir)
       .filter(f => f.endsWith('.jsonlz4') || f.endsWith('.json'))
@@ -782,24 +782,24 @@ function apiBrowserFavs(req, res) {
 
     const all = [];
     if (browser === 'chrome') {
-      const paths = getChromeBookmarkPaths();
-      if (!paths.length) return json(res, { error: 'Chrome/Edge bookmarks file not found. Make sure Chrome or Edge is installed and has been opened at least once.', items: [] }, 404);
+      const paths = getChromeLinkPaths();
+      if (!paths.length) return json(res, { error: 'Chrome/Edge links file not found. Make sure Chrome or Edge is installed and has been opened at least once.', items: [] }, 404);
       for (const p of paths) {
         try {
           const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
           for (const root of Object.values(data.roots || {})) {
-            if (root && typeof root === 'object') extractChromeBookmarks(root, all);
+            if (root && typeof root === 'object') extractChromeLinks(root, all);
           }
-        } catch (e) { console.error('Bookmarks read error:', p, e.message); }
+        } catch (e) { console.error('Links read error:', p, e.message); }
       }
     } else if (browser === 'firefox') {
-      const paths = getFirefoxBookmarkPaths();
-      if (!paths.length) return json(res, { error: 'Firefox bookmark backups not found. Make sure Firefox is installed and has been opened at least once.', items: [] }, 404);
+      const paths = getFirefoxLinkPaths();
+      if (!paths.length) return json(res, { error: 'Firefox link backups not found. Make sure Firefox is installed and has been opened at least once.', items: [] }, 404);
       for (const p of paths) {
         try {
           const data = p.endsWith('.jsonlz4') ? readMozlz4(p) : JSON.parse(fs.readFileSync(p, 'utf-8'));
-          extractFirefoxBookmarks(data, all);
-        } catch (e) { console.error('Firefox bookmarks read error:', p, e.message); }
+          extractFirefoxLinks(data, all);
+        } catch (e) { console.error('Firefox links read error:', p, e.message); }
       }
     } else {
       return json(res, { error: 'Unknown browser' }, 400);
@@ -832,11 +832,11 @@ async function apiBrowserFavsFile(req, res) {
       } else {
         parsed = JSON.parse(buf.toString('utf-8'));
       }
-      extractFirefoxBookmarks(parsed, all);
+      extractFirefoxLinks(parsed, all);
     } else {
       const parsed = JSON.parse(buf.toString('utf-8'));
       for (const root of Object.values(parsed.roots || {})) {
-        if (root && typeof root === 'object') extractChromeBookmarks(root, all);
+        if (root && typeof root === 'object') extractChromeLinks(root, all);
       }
     }
 
@@ -849,16 +849,16 @@ async function apiBrowserFavsFile(req, res) {
 
 module.exports = {
   apiOgThumb,
-  apiGetBookmarksCache, apiSaveBookmarksCache,
+  apiGetLinksCache, apiSaveLinksCache,
   apiWebsiteAdd, apiWebsiteDelete, apiWebsiteUpdate,
   apiScrape,
   apiBrowserFavs, apiBrowserFavsFile,
-  apiBookmarkThumbImg,
-  apiGenerateBookmarkThumb,
-  apiGenerateAllBookmarkThumbs,
-  apiBookmarkGenerationStatus,
+  apiLinkThumbImg,
+  apiGenerateLinkThumb,
+  apiGenerateAllLinkThumbs,
+  apiLinkGenerationStatus,
   apiScrapeStatus, apiStopScraping,
-  apiBookmarkThumbStatus, apiStopBookmarkThumbs,
+  apiLinkThumbStatus, apiStopLinkThumbs,
   apiStartScraping,
   apiRescrapeAll,
 };

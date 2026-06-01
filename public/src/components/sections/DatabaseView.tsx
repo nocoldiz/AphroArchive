@@ -24,7 +24,7 @@ export const DatabaseView = () => {
   const [newSourceFolder, setNewSourceFolder] = useState('');
 
   const tabs = [
-    { id: 'folders', name: 'Categories' },
+    { id: 'folders', name: 'Folders' },
     { id: 'actors', name: 'Actors' },
     { id: 'categories', name: 'Tags' },
     { id: 'studios', name: 'Studios' },
@@ -152,7 +152,7 @@ export const DatabaseView = () => {
       if (!res.ok) throw new Error('Server error');
 
       const w = window as any;
-      if (w.toast) w.toast('Categories visibility saved');
+      if (w.toast) w.toast('Folders visibility saved');
     } catch (e: any) {
       alert('Error: ' + e.message);
     }
@@ -278,8 +278,8 @@ export const DatabaseView = () => {
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
               {enabledFolders.size === 0
-                ? 'All categories visible (none explicitly enabled)'
-                : `${folders.filter(f => enabledFolders.has(f.path)).length} of ${folders.length} categories enabled`}
+                ? 'All folders visible (none explicitly enabled)'
+                : `${folders.filter(f => enabledFolders.has(f.path)).length} of ${folders.length} folders enabled`}
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" className="modal-btn" onClick={() => setEnabledFolders(new Set())}>Enable All</button>
@@ -288,7 +288,7 @@ export const DatabaseView = () => {
           </div>
           {folders.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
-              No categories found in videos directory or source folders.
+              No folders found in videos directory or source folders.
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>

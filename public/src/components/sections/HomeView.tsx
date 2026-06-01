@@ -1,4 +1,4 @@
-import { currentView, currentCategory } from '../../store';
+﻿import { currentView, currentCategory } from '../../store';
 
 export const HomeView = () => {
   const callLegacy = (fnName: string, ...args: any[]) => {
@@ -105,8 +105,8 @@ export const HomeView = () => {
             </svg>
           </div>
           <div className="home-card-body">
-            <div className="home-card-name">Categories</div>
-            <div className="home-card-desc">Browse by folder/category</div>
+            <div className="home-card-name">Folders</div>
+            <div className="home-card-desc">Browse by folder</div>
           </div>
         </div>
 
@@ -151,7 +151,7 @@ export const HomeView = () => {
           </div>
           <div className="home-card-body">
             <div className="home-card-name">Chapters</div>
-            <div className="home-card-desc">Video chapters & bookmarks</div>
+            <div className="home-card-desc">Video chapters & links</div>
           </div>
         </div>
 
@@ -264,15 +264,15 @@ export const HomeView = () => {
           <h3 style={sectionTitleStyle}>Web</h3>
         </div>
 
-        <div className="home-card" onClick={() => nav('bookmarks', '/bookmarks')}>
+        <div className="home-card" onClick={() => nav('links', '/links')}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
             </svg>
           </div>
           <div className="home-card-body">
-            <div className="home-card-name">Bookmarks</div>
-            <div className="home-card-desc">Imported browser bookmarks</div>
+            <div className="home-card-name">Links</div>
+            <div className="home-card-desc">Imported browser links</div>
           </div>
         </div>
 
@@ -303,7 +303,7 @@ export const HomeView = () => {
           </div>
           <div className="home-card-body">
             <div className="home-card-name">Database</div>
-            <div className="home-card-desc">Edit actors, studios & categories</div>
+            <div className="home-card-desc">Edit actors, studios & folders</div>
           </div>
         </div>
 

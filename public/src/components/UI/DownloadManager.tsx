@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+﻿import { useState, useEffect, useRef } from 'preact/hooks';
 import { categories, loadVideos } from '../../store';
 
 interface DownloadJob {
@@ -124,8 +124,8 @@ export const DownloadManager = () => {
         const [dlRes, vtRes, bmMetaRes, bmThRes] = await Promise.all([
           fetch('/api/download/jobs'),
           fetch('/api/gen-thumbs/poll'),
-          fetch('/api/bookmarks/scrape-status'),
-          fetch('/api/bookmarks/thumb-status'),
+          fetch('/api/links/scrape-status'),
+          fetch('/api/links/thumb-status'),
         ]);
         if (dlRes.ok) setJobs(await dlRes.json());
         const vt = vtRes.ok ? await vtRes.json() : { running: false };
@@ -154,7 +154,7 @@ export const DownloadManager = () => {
   const badgeCount = activeDlCount + activeScraperCount;
 
   const cats = (categories.value as any[]).filter(
-    c => c.path && c.path !== 'uncategorized' && c.path !== 'Bookmarks'
+    c => c.path && c.path !== 'uncategorized' && c.path !== 'Links'
   );
 
   const removeJob = async (id: string) => {
@@ -190,7 +190,7 @@ export const DownloadManager = () => {
       <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
     </svg>
   );
-  const iconBookmark = (
+  const iconLink = (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
     </svg>
@@ -326,14 +326,14 @@ export const DownloadManager = () => {
           />
 
           <ScraperRow
-            label="Bookmark Metadata"
-            icon={iconBookmark}
+            label="Link Metadata"
+            icon={iconLink}
             status={scrapers.bmMeta}
-            onStart={() => scraperAction('/api/bookmarks/start-scraping')}
-            onStop={() => scraperAction('/api/bookmarks/stop-scraping')}
+            onStart={() => scraperAction('/api/links/start-scraping')}
+            onStop={() => scraperAction('/api/links/stop-scraping')}
             extraActions={
               <button
-                onClick={() => scraperAction('/api/bookmarks/rescrape-all')}
+                onClick={() => scraperAction('/api/links/rescrape-all')}
                 style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.68rem', cursor: 'pointer' }}
               >
                 Rescrape all
@@ -342,11 +342,11 @@ export const DownloadManager = () => {
           />
 
           <ScraperRow
-            label="Bookmark Thumbnails"
+            label="Link Thumbnails"
             icon={iconThumb}
             status={scrapers.bmThumbs}
-            onStart={() => scraperAction('/api/bookmarks/generate-all')}
-            onStop={() => scraperAction('/api/bookmarks/stop-generating')}
+            onStart={() => scraperAction('/api/links/generate-all')}
+            onStop={() => scraperAction('/api/links/stop-generating')}
           />
 
           <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>

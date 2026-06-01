@@ -1,4 +1,4 @@
-# Checklist of Missing Features in `index.html`
+﻿# Checklist of Missing Features in `index.html`
 
 ## Modals to be Ported
 - [ ] **Add to Collection Modal** (`#collection-modal`) - Used to add videos to playlists. Still referenced by `PlayerView.tsx` via legacy global function `openAddToCollection()`.
@@ -6,7 +6,7 @@
 - [ ] **Studio Modal** (`#studio-modal`) - Used for editing studio details.
 - [ ] **Tag Modal** (`#tag-modal`) - Used for editing tag details.
 - [ ] **Vault Zip Modal** (`#vaultZipModal`) - Used for downloading the vault as a ZIP file.
-- [ ] **Bookmark Iframe Modal** (`#bfiframeMo`) - Used to view bookmarked sites in an iframe.
+- [ ] **Link Iframe Modal** (`#bfiframeMo`) - Used to view linked sites in an iframe.
 
 ## Already Ported (Can be removed from `index.html`)
 - [x] **Database Modal** (`#dbMo`) - Handled inline in `DatabaseView.tsx`.

@@ -1,4 +1,4 @@
-import { signal, computed } from '@preact/signals';
+﻿import { signal, computed } from '@preact/signals';
 import { Video, Category, Actor, Studio, AppPrefs, ThumbnailGroup } from './types';
 import * as api from './api';
 
@@ -34,11 +34,11 @@ export const contextMenuState = signal<{
 export const tagModalState = signal<{
   visible: boolean;
   vidId: string | null;
-  bmUrl: string | null;
+  linkUrl: string | null;
 }>({
   visible: false,
   vidId: null,
-  bmUrl: null
+  linkUrl: null
 });
 
 export const actorModalState = signal<{
@@ -65,7 +65,7 @@ export const vaultZipModalState = signal<{
   ids: []
 });
 
-export const bookmarkIframeModalState = signal<{
+export const linkIframeModalState = signal<{
   visible: boolean;
   url: string;
   title: string;
@@ -78,24 +78,24 @@ export const bookmarkIframeModalState = signal<{
 export const renameModalState = signal<{
   visible: boolean;
   vidId: string | null;
-  bmUrl: string | null;
+  linkUrl: string | null;
   currentName: string;
 }>({
   visible: false,
   vidId: null,
-  bmUrl: null,
+  linkUrl: null,
   currentName: ''
 });
 
 export const moveModalState = signal<{
   visible: boolean;
   vidIds: string[];
-  bmUrl: string | null;
+  linkUrl: string | null;
   currentCategory: string;
 }>({
   visible: false,
   vidIds: [],
-  bmUrl: null,
+  linkUrl: null,
   currentCategory: ''
 });
 
@@ -111,9 +111,9 @@ export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentActor = signal<string | null>(null);
 export const currentStudio = signal<string | null>(null);
-export const bookmarkVidIds = signal<Set<string>>(new Set());
+export const linkVidIds = signal<Set<string>>(new Set());
 
-export function rebuildBookmarkVidIds(items: any[]) {
+export function rebuildLinkVidIds(items: any[]) {
   const set = new Set<string>();
   const vids = (window as any).V || []; // Fallback to global V if videos signal is not populated yet
   for (const v of vids) {
@@ -124,7 +124,7 @@ export function rebuildBookmarkVidIds(items: any[]) {
       }
     }
   }
-  bookmarkVidIds.value = set;
+  linkVidIds.value = set;
 }
 
 // Bridge for legacy JS
@@ -218,13 +218,13 @@ Object.defineProperty(window, 'vaultMode', { get() { return vaultMode.value; }, 
 Object.defineProperty(window, 'videoSelMode', { get() { return videoSelMode.value; }, set(v) { videoSelMode.value = v; } });
 
 (window as any).openRen = (id: string, name: string) => {
-  renameModalState.value = { visible: true, vidId: id, bmUrl: null, currentName: name };
+  renameModalState.value = { visible: true, vidId: id, linkUrl: null, currentName: name };
 };
 (window as any).openMov = (id: string, name: string, curCatPath: string) => {
-  moveModalState.value = { visible: true, vidIds: [id], bmUrl: null, currentCategory: curCatPath };
+  moveModalState.value = { visible: true, vidIds: [id], linkUrl: null, currentCategory: curCatPath };
 };
 (window as any).openBulkMove = (ids: string[]) => {
-  moveModalState.value = { visible: true, vidIds: ids, bmUrl: null, currentCategory: '' };
+  moveModalState.value = { visible: true, vidIds: ids, linkUrl: null, currentCategory: '' };
 };
 
 (window as any).openPresetPickerManual = () => {
@@ -305,12 +305,12 @@ w.zapNextVid = null;
 w.zapNextTime = 0;
 w.activePlayer = 'video-player';
 
-Object.defineProperty(w, 'bookmarkVidIds', {
-  get() { return bookmarkVidIds.value; },
-  set(v) { bookmarkVidIds.value = v; }
+Object.defineProperty(w, 'linkVidIds', {
+  get() { return linkVidIds.value; },
+  set(v) { linkVidIds.value = v; }
 });
 
-w.bmMatchedUrls = new Set();
+w.linkMatchedUrls = new Set();
 w.collectionsMode = false;
 w.curCollection = null;
 w.settingsMode = false;
@@ -327,14 +327,14 @@ w.mosTileCount = 6;
 w.mosHoveredIdx = -1;
 w.mosTilesState = [];
 w.playlistSkipped = new Set();
-w.bmThumbObs = null;
+w.linkThumbObs = null;
 w.acTerms = [];
-w._bfCats = [];
-w._bfItems = [];
-w._bfMatchedCount = 0;
-w._bfVisible = [];
-w._bfKnownTerms = [];
-w._bfViewMode = 'list';
+w._lfCats = [];
+w._lfItems = [];
+w._lfMatchedCount = 0;
+w._lfVisible = [];
+w._lfKnownTerms = [];
+w._lfViewMode = 'list';
 w.dlPoller = null;
 w.cvTargetId = null;
 w.promptsMode = false;
@@ -358,7 +358,7 @@ export const filteredVideos = computed(() => {
     }
     
     if (currentCategory.value === 'uncategorized') {
-      list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks'));
+      list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isLink && v.catPath === 'Links'));
     } else if (currentCategory.value) {
       list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
     }
@@ -382,9 +382,9 @@ export const filteredVideos = computed(() => {
   }
 
   if (sourceFilter.value === 'local') {
-    list = list.filter(v => !v.isBookmark);
+    list = list.filter(v => !v.isLink);
   } else if (sourceFilter.value === 'remote') {
-    list = list.filter(v => !!v.isBookmark);
+    list = list.filter(v => !!v.isLink);
   }
 
   // Apply sorting or shuffle
@@ -406,7 +406,7 @@ export const filteredVideos = computed(() => {
 });
 
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
-export function matchBookmarkCat(title: string, cats: any[], explicitCategory?: string): { catPath: string; category: string } {
+export function matchLinkCat(title: string, cats: any[], explicitCategory?: string): { catPath: string; category: string } {
   if (explicitCategory) {
     const found = cats.find((c: any) => c.path === explicitCategory || c.name === explicitCategory || c.path === explicitCategory.replace(/\\/g, '/'));
     if (found) {
@@ -416,18 +416,18 @@ export function matchBookmarkCat(title: string, cats: any[], explicitCategory?: 
 
   const norm = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   for (const cat of cats) {
-    if (cat.path === 'Bookmarks') continue;
+    if (cat.path === 'Links') continue;
     const key = cat.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     if (key && norm.includes(key)) return { catPath: cat.path, category: cat.name };
   }
-  return { catPath: 'Bookmarks', category: 'Bookmarks' };
+  return { catPath: 'Links', category: 'Links' };
 }
 
 export async function loadVideos() {
   isLoadingVideos.value = true;
   const [res, bRes, cRes] = await Promise.all([
     fetch('/api/videos'),
-    fetch('/api/bookmarks/cache?limit=0').catch(() => null),
+    fetch('/api/links/cache?limit=0').catch(() => null),
     fetch('/api/categories').catch(() => null),
   ]);
   const data = await res.json();
@@ -435,18 +435,18 @@ export async function loadVideos() {
   const cats = cRes ? await cRes.json().catch(() => []) : [];
   if (Array.isArray(cats)) categories.value = cats;
 
-  let bookmarksData: any[] = [];
+  let linksData: any[] = [];
   try {
     if (bRes) {
       const bData = await bRes.json();
-      bookmarksData = bData.items || [];
+      linksData = bData.items || [];
     }
   } catch (e) {}
 
-  const bookmarkVideos = bookmarksData
+  const linkVideos = linksData
     .filter((b: any) => b.scrapedVideoUrl || b.embedUrl)
     .map((b: any) => {
-      const { catPath, category } = matchBookmarkCat(b.title, cats, b.category);
+      const { catPath, category } = matchLinkCat(b.title, cats, b.category);
       return {
         id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
         name: b.title,
@@ -454,10 +454,10 @@ export async function loadVideos() {
         relPath: b.url,
         catPath,
         category,
-        isBookmark: true,
+        isLink: true,
         isExternal: true,
         embedUrl: b.embedUrl,
-        bookmarkUrl: b.url,
+        linkUrl: b.url,
         img: b.img,
         hasVideo: !!b.scrapedVideoUrl,
         size: 0,
@@ -466,13 +466,13 @@ export async function loadVideos() {
       };
     });
 
-  const combined = [...data, ...bookmarkVideos];
+  const combined = [...data, ...linkVideos];
 
   allVideos.value = combined;
   videos.value = combined;
   isLoadingVideos.value = false;
 
-  // Recompute category counts from combined list (local + bookmark videos)
+  // Recompute category counts from combined list (local + link videos)
   if (Array.isArray(cats) && cats.length > 0) {
     const countMap = new Map<string, number>();
     for (const v of combined) {
@@ -488,11 +488,11 @@ export async function loadVideos() {
   }
   syncUrlToState();
 
-  // Only redirect to bookmarks if no videos found from any source (local + external + bookmarks)
-  if (data.length === 0 && bookmarkVideos.length === 0) {
+  // Only redirect to links if no videos found from any source (local + external + links)
+  if (data.length === 0 && linkVideos.length === 0) {
     const cur = currentView.value;
     if (cur === 'hub' || cur === 'home' || cur === 'browse' || cur === '') {
-      currentView.value = 'bookmarks';
+      currentView.value = 'links';
     }
   }
 }
@@ -737,9 +737,9 @@ w.filterVideosCat = (catFilter: string) => {
   if (!catFilter) return w._applySort(w.favFilter ? w._allVideos.filter((v: any) => v.fav) : w._allVideos);
   return w._applySort(w._allVideos.filter((v: any) => {
     if (w.favFilter && !v.fav) return false;
-    if (w.srcFilter === 'remote' && !v.isBookmark) return false;
-    if (w.srcFilter === 'local' && v.isBookmark) return false;
-    if (catFilter === 'uncategorized' || catFilter === '__uncategorized__' || catFilter === '') return !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks');
+    if (w.srcFilter === 'remote' && !v.isLink) return false;
+    if (w.srcFilter === 'local' && v.isLink) return false;
+    if (catFilter === 'uncategorized' || catFilter === '__uncategorized__' || catFilter === '') return !v.catPath || v.catPath === '' || (v.isLink && v.catPath === 'Links');
     const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
     const cl = catFilter.toLowerCase().replace(/\\/g, '/');
     return vp === cl || vp.startsWith(cl + '/') || v.category === catFilter;
@@ -754,8 +754,8 @@ w.filterVideosByTag = (terms: string[]) => {
   };
   return w._applySort(w._allVideos.filter((v: any) => {
     if (w.favFilter && !v.fav) return false;
-    if (w.srcFilter === 'remote' && !v.isBookmark) return false;
-    if (w.srcFilter === 'local' && v.isBookmark) return false;
+    if (w.srcFilter === 'remote' && !v.isLink) return false;
+    if (w.srcFilter === 'local' && v.isLink) return false;
     const vTagsLo = (v.tags || []).map((t: any) => t.toLowerCase());
     return vTagsLo.some((t: string) => termsLo.includes(t)) || terms.some(t => wordMatch(v.name, t));
   }));
@@ -809,8 +809,8 @@ w.openStudio = (name: string) => {
 };
 
 w.showImportFavs = () => {
-  currentView.value = 'bookmarks';
-  history.pushState(null, '', '/bookmarks');
+  currentView.value = 'links';
+  history.pushState(null, '', '/links');
 };
 
 w.openVid = (id: string) => {

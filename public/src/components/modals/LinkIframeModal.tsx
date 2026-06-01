@@ -1,12 +1,12 @@
-import { useEffect } from 'preact/hooks';
-import { bookmarkIframeModalState } from '../../store';
+﻿import { useEffect } from 'preact/hooks';
+import { linkIframeModalState } from '../../store';
 
-export const BookmarkIframeModal = () => {
-  const state = bookmarkIframeModalState.value;
+export const LinkIframeModal = () => {
+  const state = linkIframeModalState.value;
 
   const handleClose = (e?: any) => {
     if (e && e.target !== e.currentTarget) return;
-    bookmarkIframeModalState.value = { visible: false, url: '', title: '' };
+    linkIframeModalState.value = { visible: false, url: '', title: '' };
   };
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export const BookmarkIframeModal = () => {
     <div className={`bfiframe-mo ${state.visible ? 'on' : ''}`} onClick={handleClose}>
       <div className="bfiframe-box">
         <div className="bfiframe-hd">
-          <span className="bfiframe-title">{state.title || 'Viewing Bookmark'}</span>
+          <span className="bfiframe-title">{state.title || 'Viewing Link'}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
             <a
               href={state.url}
@@ -59,9 +59,9 @@ export const BookmarkIframeModal = () => {
 
 if (typeof window !== 'undefined') {
   (window as any).openBfIframe = (url: string, title: string) => {
-    bookmarkIframeModalState.value = { visible: true, url, title };
+    linkIframeModalState.value = { visible: true, url, title };
   };
   (window as any).closeBfIframe = () => {
-    bookmarkIframeModalState.value = { visible: false, url: '', title: '' };
+    linkIframeModalState.value = { visible: false, url: '', title: '' };
   };
 }

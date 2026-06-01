@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  config.js — Directory paths, MIME types, and environment config
 // ═══════════════════════════════════════════════════════════════════
@@ -17,12 +17,12 @@ function resolveBin(name) {
   return fs.existsSync(local) ? local : (process.platform === 'win32' ? winName : name);
 }
 
-const BM_DIR = path.join(DATA_DIR, 'cache');
+const LINK_DIR = path.join(DATA_DIR, 'cache');
 const FFMPEG_BIN = resolveBin('ffmpeg');
 const FFPROBE_BIN = resolveBin('ffprobe');
 const YT_DLP_BIN = (() => {
   const winName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
-  const inBmDir = path.join(BM_DIR, winName);
+  const inBmDir = path.join(LINK_DIR, winName);
   return fs.existsSync(inBmDir) ? inBmDir : resolveBin('yt-dlp');
 })();
 
@@ -40,7 +40,7 @@ const DB_DIR = path.join(ROOT_DIR, 'db');
 const BOOKS_DIR = path.join(DATA_DIR, 'books');
 const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
 const PAGES_DIR = path.join(DATA_DIR, 'pages');
-const BM_THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-bm-thumbs');
+const LINK_THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-bm-thumbs');
 
 const EDGE_BIN = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 
@@ -61,8 +61,8 @@ const ACTORS_JSON = path.join(DB_DIR, 'actors.json');
 const CATEGORIES_JSON = path.join(DB_DIR, 'categories.json');
 const STUDIOS_JSON = path.join(DB_DIR, 'studios.json');
 const WEBSITES_JSON = path.join(DB_DIR, 'websites.json');
-const BM_CACHE_FILE = path.join(CACHE_DIR, 'bookmarks_cache.json');
-const OG_THUMB_CACHE_FILE = path.join(BM_DIR, 'og_thumb_cache.json');
+const BM_CACHE_FILE = path.join(CACHE_DIR, 'links_cache.json');
+const OG_THUMB_CACHE_FILE = path.join(LINK_DIR, 'og_thumb_cache.json');
 const STARRED_SITES_FILE = path.join(CACHE_DIR, '.AphroArchive-starred-sites.json');
 const PROMPTS_FILE = path.join(CACHE_DIR, '.AphroArchive-prompts.json');
 const COMFYUI_WORKFLOWS_DIR = path.join(CACHE_DIR, 'comfyui-workflows');
@@ -122,11 +122,11 @@ function getLocalIP() {
 }
 
 module.exports = {
-  ROOT_DIR, IS_PKG, DATA_DIR, BM_DIR,
+  ROOT_DIR, IS_PKG, DATA_DIR, LINK_DIR,
   FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN,
   VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
   THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, PROCESS_DIR, IGNORED_DIR,
-  DB_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, BM_THUMBS_DIR, EDGE_BIN,
+  DB_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, LINK_THUMBS_DIR, EDGE_BIN,
   FAVOURITES_FILE, HISTORY_FILE, THUMBS_CACHE_FILE,
   VAULT_CONFIG_FILE, VAULT_META_FILE, BROWSER_WHITELIST_FILE,
   COLLECTIONS_FILE, RATINGS_FILE, HIDDEN_FILE, PREFS_FILE,

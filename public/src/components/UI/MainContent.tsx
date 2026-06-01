@@ -1,4 +1,4 @@
-import { currentView, currentVideo } from '../../store';
+﻿import { currentView, currentVideo } from '../../store';
 import { VideoGrid } from './VideoGrid';
 import { SettingsView } from '../sections/SettingsView';
 import { ThumbnailsView } from '../sections/ThumbnailsView';
@@ -8,7 +8,7 @@ import { CategoriesView } from '../sections/CategoriesView';
 import { ActorsView } from '../sections/ActorsView';
 import { StudiosView } from '../sections/StudiosView';
 import { PhotosView } from '../sections/PhotosView';
-import { BookmarksView } from '../sections/BookmarksView';
+import { LinksView } from '../sections/LinksView';
 import { VisionModal } from '../modals/VisionModal';
 import { PagesView } from '../sections/PagesView';
 import { SearchSitesView } from '../sections/SearchSitesView';
@@ -20,7 +20,7 @@ import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
 import { StudioModal } from '../modals/StudioModal';
 import { VaultZipModal } from '../modals/VaultZipModal';
-import { BookmarkIframeModal } from '../modals/BookmarkIframeModal';
+import { LinkIframeModal } from '../modals/LinkIframeModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
@@ -93,7 +93,7 @@ export const MainContent = () => {
     if (view === 'actors') return <ActorsView />;
     if (view === 'studios') return <StudiosView />;
     if (view === 'photos') return <PhotosView />;
-    if (view === 'bookmarks') return <BookmarksView />;
+    if (view === 'links') return <LinksView />;
     if (view === 'collections') return <CollectionsView />;
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;
@@ -118,7 +118,7 @@ export const MainContent = () => {
       <ActorModal />
       <StudioModal />
       <VaultZipModal />
-      <BookmarkIframeModal />
+      <LinkIframeModal />
       <RenameModal />
       <MoveModal />
       <VisionModal />

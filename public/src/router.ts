@@ -1,4 +1,4 @@
-import { currentView, currentActor, currentStudio, currentCategory, currentTag } from './store';
+﻿import { currentView, currentActor, currentStudio, currentCategory, currentTag } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
@@ -19,7 +19,7 @@ export async function routeToPath(path: string) {
   if (path === '/thumbnails') { currentView.value = 'thumbnails'; return; }
   if (path === '/settings') { currentView.value = 'settings'; return; }
   if (path === '/photos') { currentView.value = 'photos'; return; }
-  if (path === '/bookmarks') { currentView.value = 'bookmarks'; return; }
+  if (path === '/links') { currentView.value = 'links'; return; }
   
   if (path === '/pages')  { currentView.value = 'pages'; return; }
   if (path === '/search') { currentView.value = 'search'; return; }
@@ -50,7 +50,7 @@ export function setupRouter() {
     const scrollable = document.documentElement.scrollHeight - window.innerHeight;
     const scrolled = window.scrollY;
     if (scrollable - scrolled < 800) {
-      const total = (w.V ? w.V.length : 0) + (typeof w.getBmList === 'function' ? w.getBmList().length : 0);
+      const total = (w.V ? w.V.length : 0) + (typeof w.getLinkList === 'function' ? w.getLinkList().length : 0);
       if (w._renderLimit < total) {
         w._renderLimit += 60;
         if (w.curTag) w.openTag(w.curTag);

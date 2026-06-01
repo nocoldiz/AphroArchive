@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  downloads.js — yt-dlp download queue API handlers
 // ═══════════════════════════════════════════════════════════════════
@@ -6,7 +6,7 @@
 const fs              = require('fs');
 const path            = require('path');
 const { spawn, execFile } = require('child_process');
-const { VIDEOS_DIR, YT_DLP_BIN, BM_DIR } = require('./config-server');
+const { VIDEOS_DIR, YT_DLP_BIN, LINK_DIR } = require('./config-server');
 const { json, readBody, toId }            = require('./helpers-server');
 
 // ── Queue state ──────────────────────────────────────────────────────
@@ -29,23 +29,23 @@ function enqueueDownload(dlUrl, category) {
   return id;
 }
 
-async function handleBookmarkConversion(url) {
+async function handleLinkConversion(url) {
   try {
-    const { loadBookmarksCache, saveBookmarksCache } = require('./db-server');
-    const cache = loadBookmarksCache();
+    const { loadLinksCache, saveLinksCache } = require('./db-server');
+    const cache = loadLinksCache();
     const items = cache.items || [];
     const idx = items.findIndex(item => item.url === url);
     if (idx !== -1) {
       items.splice(idx, 1);
-      saveBookmarksCache({ items });
-      console.log(`[download-conv] Successfully converted bookmark ${url} to local video (removed from bookmarks cache)`);
+      saveLinksCache({ items });
+      console.log(`[download-conv] Successfully converted link ${url} to local video (removed from links cache)`);
       
       const { invalidateScanCache, initVideoMeta } = require('./videos-server');
       invalidateScanCache();
-      initVideoMeta().catch(err => console.error('initVideoMeta failed after bookmark download:', err));
+      initVideoMeta().catch(err => console.error('initVideoMeta failed after link download:', err));
     }
   } catch (err) {
-    console.error('Failed to convert bookmark after successful download:', err);
+    console.error('Failed to convert link after successful download:', err);
   }
 }
 
@@ -63,7 +63,7 @@ async function processDownloadQueue() {
       const rel = path.relative(VIDEOS_DIR, next.outputPath);
       next.videoId = toId(rel);
     }
-    await handleBookmarkConversion(next.url);
+    await handleLinkConversion(next.url);
   } catch (e) {
     if (downloadJobs.has(next.id)) { next.status = 'error'; next.error = e.message; }
   } finally {
@@ -75,7 +75,7 @@ async function processDownloadQueue() {
 function runYtDlp(job) {
   return new Promise((resolve, reject) => {
     const cleanCat = (job.category || '').trim();
-    const isVirtual = cleanCat.toLowerCase() === 'bookmarks' || cleanCat.toLowerCase() === 'uncategorized';
+    const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
     const physicalCat = isVirtual ? '' : cleanCat;
     const outDir = physicalCat ? path.join(VIDEOS_DIR, physicalCat) : VIDEOS_DIR;
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
@@ -158,7 +158,7 @@ function apiDownloadCheck(req, res) {
 
 function apiReadDownloadQueue(req, res) {
   try {
-    const queuePath = path.join(BM_DIR, 'download_queue.txt');
+    const queuePath = path.join(LINK_DIR, 'download_queue.txt');
     const content   = fs.existsSync(queuePath) ? fs.readFileSync(queuePath, 'utf-8') : '';
     const urls      = content.split('\n').map(l => l.trim()).filter(Boolean);
     json(res, { urls });
@@ -169,8 +169,8 @@ async function apiWriteDownloadQueue(req, res) {
   const body = await readBody(req);
   const urls = Array.isArray(body.urls) ? body.urls.filter(u => typeof u === 'string' && u) : [];
   try {
-    fs.mkdirSync(BM_DIR, { recursive: true });
-    fs.writeFileSync(path.join(BM_DIR, 'download_queue.txt'), urls.join('\n') + (urls.length ? '\n' : ''), 'utf-8');
+    fs.mkdirSync(LINK_DIR, { recursive: true });
+    fs.writeFileSync(path.join(LINK_DIR, 'download_queue.txt'), urls.join('\n') + (urls.length ? '\n' : ''), 'utf-8');
     json(res, { ok: true, count: urls.length });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -180,8 +180,8 @@ async function apiDownloadQueueAdd(req, res) {
   const dlUrl   = typeof body.url === 'string' ? body.url.trim() : '';
   if (!dlUrl) return json(res, { error: 'No URL provided' }, 400);
   try {
-    fs.mkdirSync(BM_DIR, { recursive: true });
-    const queuePath = path.join(BM_DIR, 'download_queue.txt');
+    fs.mkdirSync(LINK_DIR, { recursive: true });
+    const queuePath = path.join(LINK_DIR, 'download_queue.txt');
     const existing  = fs.existsSync(queuePath)
       ? fs.readFileSync(queuePath, 'utf-8').split('\n').map(l => l.trim()).filter(Boolean)
       : [];
@@ -195,7 +195,7 @@ async function apiDownloadQueueRemove(req, res) {
   const dlUrl = typeof body.url === 'string' ? body.url.trim() : '';
   if (!dlUrl) return json(res, { error: 'No URL provided' }, 400);
   try {
-    const queuePath = path.join(BM_DIR, 'download_queue.txt');
+    const queuePath = path.join(LINK_DIR, 'download_queue.txt');
     if (!fs.existsSync(queuePath)) return json(res, { ok: true });
     const lines = fs.readFileSync(queuePath, 'utf-8').split('\n').map(l => l.trim()).filter(l => l && l !== dlUrl);
     fs.writeFileSync(queuePath, lines.join('\n') + (lines.length ? '\n' : ''), 'utf-8');

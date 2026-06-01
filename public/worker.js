@@ -1,9 +1,9 @@
-// public/worker.js - Offloads heavy filtering/sorting from the UI thread
+﻿// public/worker.js - Offloads heavy filtering/sorting from the UI thread
 self.onmessage = function(e) {
   const { type, data, requestId } = e.data;
   
   if (type === 'filter') {
-    const { videos, bookmarks, galleryFilter, recentMode, favM, srcFilter, recentVids, shuf, sort } = data;
+    const { videos, links, galleryFilter, recentMode, favM, srcFilter, recentVids, shuf, sort } = data;
     
     let base = recentMode ? recentVids : (favM ? videos.filter(v => v.fav) : videos);
     
@@ -27,11 +27,11 @@ self.onmessage = function(e) {
     }
 
     const localResult = srcFilter === 'remote' ? [] : base;
-    let bookmarksResult = (!recentMode && !favM && srcFilter !== 'local') ? bookmarks : [];
+    let linksResult = (!recentMode && !favM && srcFilter !== 'local') ? links : [];
     
     if (galleryFilter) {
       const gf = galleryFilter.toLowerCase();
-      bookmarksResult = bookmarksResult.filter(it => 
+      linksResult = linksResult.filter(it => 
         it.title.toLowerCase().includes(gf) || 
         it.url.toLowerCase().includes(gf)
       );
@@ -40,7 +40,7 @@ self.onmessage = function(e) {
     self.postMessage({ 
       type: 'filterResult', 
       local: localResult, 
-      finalBms: bookmarksResult,
+      finalBms: linksResult,
       requestId 
     });
   }

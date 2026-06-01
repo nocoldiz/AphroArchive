@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+﻿import { useState, useEffect } from 'preact/hooks';
 import { currentView, currentCategory, categories, currentTag, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos } from '../../store';
 
 interface SidebarItemProps {
@@ -68,15 +68,15 @@ export const Sidebar = () => {
   }, [isOpen]);
   if (view === 'reddit') return null;
 
-  const [bookmarkCount, setBookmarkCount] = useState(0);
+  const [linkCount, setLinkCount] = useState(0);
   const [tags, setTags] = useState<{ name: string, count: number }[]>([]);
   const [tagsOpen, setTagsOpen] = useState(true);
   const [catsOpen, setCatsOpen] = useState(true);
 
   useEffect(() => {
-    fetch('/api/bookmarks/cache')
+    fetch('/api/links/cache')
       .then(r => r.json())
-      .then(d => setBookmarkCount(d.total || (d.items ? d.items.length : 0)))
+      .then(d => setLinkCount(d.total || (d.items ? d.items.length : 0)))
       .catch(() => {});
 
     fetch('/api/tags')
@@ -111,9 +111,9 @@ export const Sidebar = () => {
   const sf = sourceFilter.value;
   const vids = allVideos.value;
   const filteredVids = sf === 'local'
-    ? vids.filter(v => !(v as any).isBookmark)
+    ? vids.filter(v => !(v as any).isLink)
     : sf === 'remote'
-    ? vids.filter(v => !!(v as any).isBookmark)
+    ? vids.filter(v => !!(v as any).isLink)
     : vids;
 
   const catCountMap = new Map<string, number>();
@@ -189,7 +189,7 @@ export const Sidebar = () => {
       <div className="side-section" id="browseSection">
         <SidebarItem
           id="categories-view-sidebar"
-          label="Categories"
+          label="Folders"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>}
           onClick={() => setView('categories', 'showCategoriesView')}
           isActive={currentView.value === 'categories'}
@@ -278,11 +278,11 @@ export const Sidebar = () => {
       <div className="side-section" id="webSection">
         <SidebarItem
           id="import-favs-sidebar"
-          label="Bookmarks"
-          badge={bookmarkCount > 0 ? bookmarkCount : undefined}
+          label="Links"
+          badge={linkCount > 0 ? linkCount : undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>}
-          onClick={() => setView('bookmarks', 'showImportFavs')}
-          isActive={currentView.value === 'bookmarks'}
+          onClick={() => setView('links', 'showImportFavs')}
+          isActive={currentView.value === 'links'}
         />
         <SidebarItem
           id="search-sites-sidebar"
@@ -323,7 +323,7 @@ export const Sidebar = () => {
       {/* Categories & Tags */}
       <div className="side-sep"></div>
       <SectionHeader
-        label="Categories"
+        label="Folders"
         id="sh3-cats"
         onClick={() => {
           const newState = !catsOpen;

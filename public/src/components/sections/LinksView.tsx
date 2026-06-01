@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
-import { rebuildBookmarkVidIds, currentVideo, currentView } from '../../store';
+﻿import { useState, useEffect, useRef } from 'preact/hooks';
+import { rebuildLinkVidIds, currentVideo, currentView } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
-interface BookmarkItem {
+interface LinkItem {
   url: string;
   title: string;
   img?: string;
@@ -14,14 +14,14 @@ interface BookmarkItem {
   category?: string;
 }
 
-interface BookmarkCardProps {
-  item: BookmarkItem;
+interface LinkCardProps {
+  item: LinkItem;
   onRemove: (url: string) => void;
   onToggleStar: (url: string) => void;
-  onUpdate: (url: string, updates: Partial<BookmarkItem>) => void;
+  onUpdate: (url: string, updates: Partial<LinkItem>) => void;
 }
 
-const BookmarkCard = ({ item, onRemove, onToggleStar }: BookmarkCardProps) => {
+const LinkCard = ({ item, onRemove, onToggleStar }: LinkCardProps) => {
   const hostname = new URL(item.url).hostname;
   const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
 
@@ -31,11 +31,11 @@ const BookmarkCard = ({ item, onRemove, onToggleStar }: BookmarkCardProps) => {
       name: item.title,
       path: item.scrapedVideoUrl || '',
       relPath: item.url,
-      category: item.category || 'Bookmarks',
-      isBookmark: true,
+      category: item.category || 'Links',
+      isLink: true,
       img: item.img,
       embedUrl: item.embedUrl,
-      bookmarkUrl: item.url,
+      linkUrl: item.url,
     } as any;
     currentView.value = 'player';
   };
@@ -111,9 +111,9 @@ function matchTitleToCategory(title: string, cats: ActiveCat[]): string | null {
   return null;
 }
 
-export const BookmarksView = () => {
-  const [items, setItems] = useState<BookmarkItem[]>([]);
-  const [visibleItems, setVisibleItems] = useState<BookmarkItem[]>([]);
+export const LinksView = () => {
+  const [items, setItems] = useState<LinkItem[]>([]);
+  const [visibleItems, setVisibleItems] = useState<LinkItem[]>([]);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [groupByCategory, setGroupByCategory] = useState(true);
@@ -131,12 +131,12 @@ export const BookmarksView = () => {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const r = await fetch('/api/bookmarks/scrape-status');
+        const r = await fetch('/api/links/scrape-status');
         const d = await r.json();
         setScrapeJob(d);
         if (d.running && !scrapePollerRef.current) {
           scrapePollerRef.current = setInterval(async () => {
-            const r2 = await fetch('/api/bookmarks/scrape-status');
+            const r2 = await fetch('/api/links/scrape-status');
             const d2 = await r2.json();
             setScrapeJob(d2);
             if (!d2.running && scrapePollerRef.current) {
@@ -151,10 +151,10 @@ export const BookmarksView = () => {
     return () => { if (scrapePollerRef.current) clearInterval(scrapePollerRef.current); };
   }, []);
 
-  const loadBookmarks = async () => {
+  const loadLinks = async () => {
     setLoading(true);
     try {
-      const r = await fetch('/api/bookmarks/cache?limit=0');
+      const r = await fetch('/api/links/cache?limit=0');
       const d = await r.json();
       if (d.items) {
         setItems(d.items);
@@ -167,7 +167,7 @@ export const BookmarksView = () => {
     }
   };
 
-  useEffect(() => { loadBookmarks(); }, []);
+  useEffect(() => { loadLinks(); }, []);
 
   useEffect(() => {
     fetch('/api/websites')
@@ -180,8 +180,8 @@ export const BookmarksView = () => {
       .catch(() => {});
   }, []);
 
-  const updateMatches = (items: BookmarkItem[]) => {
-    rebuildBookmarkVidIds(items);
+  const updateMatches = (items: LinkItem[]) => {
+    rebuildLinkVidIds(items);
     // Count matches
     const w = window as any;
     const vids = w.V || [];
@@ -251,7 +251,7 @@ export const BookmarksView = () => {
       const r = await fetch(`/api/browser-favs?browser=${browser}`);
       const d = await r.json();
       if (d.items) {
-        // Filter bookmarks to only include those matching profile websites!
+        // Filter links to only include those matching profile websites!
         const filtered = d.items.filter((item: any) => {
           return websites.some(w => {
             try {
@@ -277,14 +277,14 @@ export const BookmarksView = () => {
         updateMatches(newItems);
         
         // Save to cache
-        await fetch('/api/bookmarks/cache', {
+        await fetch('/api/links/cache', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items: newItems })
         });
         
         const w = window as any;
-        if (w.toast) w.toast(`Imported ${filtered.length} bookmarks`);
+        if (w.toast) w.toast(`Imported ${filtered.length} links`);
       }
     } catch { }
     setLoading(false);
@@ -292,9 +292,9 @@ export const BookmarksView = () => {
 
   const clearAll = async () => {
     if (!items.length) return;
-    if (!confirm(`Clear all ${items.length} imported bookmarks?`)) return;
+    if (!confirm(`Clear all ${items.length} imported links?`)) return;
 
-    await fetch('/api/bookmarks/cache', {
+    await fetch('/api/links/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: [] })
@@ -302,14 +302,14 @@ export const BookmarksView = () => {
     setItems([]);
     setVisibleItems([]);
     setMatchedCount(0);
-    rebuildBookmarkVidIds([]);
+    rebuildLinkVidIds([]);
   };
 
   const removeItem = async (url: string) => {
     const newItems = items.filter(it => it.url !== url);
     setItems(newItems);
     updateMatches(newItems);
-    await fetch('/api/bookmarks/cache', {
+    await fetch('/api/links/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: newItems })
@@ -319,17 +319,17 @@ export const BookmarksView = () => {
   const toggleStar = async (url: string) => {
     const newItems = items.map(it => it.url === url ? { ...it, fav: !it.fav } : it);
     setItems(newItems);
-    await fetch('/api/bookmarks/cache', {
+    await fetch('/api/links/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: newItems })
     });
   };
 
-  const updateItem = async (url: string, updates: Partial<BookmarkItem>) => {
+  const updateItem = async (url: string, updates: Partial<LinkItem>) => {
     const newItems = items.map(it => it.url === url ? { ...it, ...updates } : it);
     setItems(newItems);
-    await fetch('/api/bookmarks/cache', {
+    await fetch('/api/links/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: newItems })
@@ -340,7 +340,7 @@ export const BookmarksView = () => {
     const checkboxes = document.querySelectorAll('.bf-chk:checked') as NodeListOf<HTMLInputElement>;
     const urls = Array.from(checkboxes).map(el => el.value);
     if (!urls.length) {
-      alert('Select at least one bookmark');
+      alert('Select at least one link');
       return;
     }
     const r = await fetch('/api/download', {
@@ -377,12 +377,12 @@ export const BookmarksView = () => {
 
   const saveToDb = async () => {
     if (!items.length) {
-      alert('No bookmarks to save');
+      alert('No links to save');
       return;
     }
     setLoading(true);
     try {
-      const r = await fetch('/api/bookmarks/save-to-db', {
+      const r = await fetch('/api/links/save-to-db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items })
@@ -390,19 +390,19 @@ export const BookmarksView = () => {
       const d = await r.json();
       if (d.ok) {
         const w = window as any;
-        if (w.toast) w.toast(`Saved ${d.count} bookmarks to DB`);
+        if (w.toast) w.toast(`Saved ${d.count} links to DB`);
       } else {
-        alert('Failed to save bookmarks: ' + (d.error || 'Unknown error'));
+        alert('Failed to save links: ' + (d.error || 'Unknown error'));
       }
     } catch (e: any) {
-      alert('Error saving bookmarks: ' + e.message);
+      alert('Error saving links: ' + e.message);
     }
     setLoading(false);
   };
 
   const startScraping = async () => {
     try {
-      const r = await fetch('/api/bookmarks/start-scraping', { method: 'POST' });
+      const r = await fetch('/api/links/start-scraping', { method: 'POST' });
       const d = await r.json();
       if (d.ok) {
         const w = window as any;
@@ -418,7 +418,7 @@ export const BookmarksView = () => {
   const rescrapeAll = async () => {
     if (!confirm('Clear all scraped data and rescrape everything from scratch?')) return;
     try {
-      const r = await fetch('/api/bookmarks/rescrape-all', { method: 'POST' });
+      const r = await fetch('/api/links/rescrape-all', { method: 'POST' });
       const d = await r.json();
       if (d.ok) {
         const w = window as any;
@@ -435,7 +435,7 @@ export const BookmarksView = () => {
   return (
     <div class="import-favs-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ margin: 0 }}>Bookmarks</h1>
+        <h1 style={{ margin: 0 }}>Links</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button class="btn" onClick={() => importFavs('chrome')}>Import Chrome</button>
           <button class="btn" onClick={() => importFavs('firefox')}>Import Firefox</button>
@@ -475,8 +475,8 @@ export const BookmarksView = () => {
             <button className={`ss-tab ${viewMode === 'list' ? 'on' : ''}`} onClick={() => setViewMode('list')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'list' ? 'var(--ac)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>List</button>
           </div>
           <span className="sg-sep"></span>
-          <button className={`sort-btn ${groupByCategory ? 'on' : ''}`} onClick={() => setGroupByCategory(g => !g)} title="Group by category">
-            Categories
+          <button className={`sort-btn ${groupByCategory ? 'on' : ''}`} onClick={() => setGroupByCategory(g => !g)} title="Group by folder">
+            Folders
           </button>
           <span className="sg-sep"></span>
           <button className="sort-btn" onClick={copyAllVisible}>Copy URLs</button>
@@ -485,7 +485,7 @@ export const BookmarksView = () => {
         </SectionControls>
 
       <div class="bf-stats" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-        <span>{visibleItems.length} bookmarks</span>
+        <span>{visibleItems.length} links</span>
         <div class="bf-pct-wrap" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
           <div class="bf-pct-bar" style={{ width: '200px', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
             <div class="bf-pct-fill" style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}></div>
@@ -504,16 +504,16 @@ export const BookmarksView = () => {
       </div>
 
       {loading ? (
-        <div class="cv-loading">Loading bookmarks…</div>
+        <div class="cv-loading">Loading links…</div>
       ) : visibleItems.length === 0 ? (
-        <div class="empty-state">No bookmarks found</div>
+        <div class="empty-state">No links found</div>
       ) : (() => {
-        const renderCard = (item: BookmarkItem) => (
-          <BookmarkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} />
+        const renderCard = (item: LinkItem) => (
+          <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} />
         );
-        const renderRow = (item: BookmarkItem) => (
+        const renderRow = (item: LinkItem) => (
           <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>
-            <input type="checkbox" class="bf-chk" value={item.url} aria-label="Select bookmark" />
+            <input type="checkbox" class="bf-chk" value={item.url} aria-label="Select link" />
             <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent(item.url)}`} width="16" height="16" alt="" />
             <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: 'var(--text)', textDecoration: 'none' }}>{item.title}</a>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{new URL(item.url).hostname}</span>
@@ -522,7 +522,7 @@ export const BookmarksView = () => {
         );
 
         if (groupByCategory) {
-          const groups: Record<string, BookmarkItem[]> = {};
+          const groups: Record<string, LinkItem[]> = {};
           for (const item of visibleItems) {
             const matched = activeCats.length > 0 ? matchTitleToCategory(item.title, activeCats) : null;
             const key = matched || item.category || 'Uncategorized';

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+﻿import { useState, useEffect } from 'preact/hooks';
 
 interface Site {
   url: string;
@@ -113,18 +113,18 @@ export const SearchSitesView = () => {
     }
   };
 
-  const bookmarkResult = (r: ScrapeResult) => {
-    if (!w._bfItems) return;
-    const already = w._bfItems.some((it: any) => it.url === r.url);
+  const linkResult = (r: ScrapeResult) => {
+    if (!w._lfItems) return;
+    const already = w._lfItems.some((it: any) => it.url === r.url);
     if (already) {
-      if (w.toast) w.toast('Already in bookmarks');
+      if (w.toast) w.toast('Already in links');
       return;
     }
-    w._bfItems.push({ url: r.url, title: r.title, img: r.thumb });
+    w._lfItems.push({ url: r.url, title: r.title, img: r.thumb });
     if (w.bfSaveCache) w.bfSaveCache();
-    if (w.rebuildBookmarkVidIds) w.rebuildBookmarkVidIds(w._bfItems);
+    if (w.rebuildLinkVidIds) w.rebuildLinkVidIds(w._lfItems);
     if (w.renCats) w.renCats();
-    if (w.toast) w.toast('Saved to bookmarks');
+    if (w.toast) w.toast('Saved to links');
   };
 
   const openSite = (site: Site) => {
@@ -248,8 +248,8 @@ export const SearchSitesView = () => {
                   </div>
                   <button 
                     className="ss-card-bm" 
-                    onClick={(e) => { e.stopPropagation(); bookmarkResult(r); }} 
-                    title="Save to bookmarks"
+                    onClick={(e) => { e.stopPropagation(); linkResult(r); }} 
+                    title="Save to links"
                     style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', padding: '4px', borderRadius: '4px', cursor: 'pointer' }}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>

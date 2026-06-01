@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  db.js — All load/save functions for persistent data
 // ═══════════════════════════════════════════════════════════════════
@@ -14,9 +14,9 @@ const {
   HIDDEN_FILE,
   WEBSITES_JSON,
   ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON,
-  BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE,
+  BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
   BOOKS_META_FILE, AUDIO_META_FILE,
-  BM_DIR,
+  LINK_DIR,
 } = require('./config-server');
 
 const Database = require('better-sqlite3');
@@ -95,7 +95,7 @@ function ensureSchema(database) {
       imdb_page TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS bookmarks (
+    CREATE TABLE IF NOT EXISTS links (
       url TEXT PRIMARY KEY,
       title TEXT,
       category TEXT,
@@ -344,19 +344,19 @@ function _migrateJsonToSqlite() {
     }
   } catch (e) { console.error('[migrate] actors:', e.message); }
 
-  // Bookmarks cache
+  // Links cache
   try {
-    const bmCount = db.prepare('SELECT COUNT(*) as c FROM bookmarks').get().c;
+    const bmCount = db.prepare('SELECT COUNT(*) as c FROM links').get().c;
     if (bmCount === 0 && fs.existsSync(BM_CACHE_FILE)) {
       const data = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
       const items = Array.isArray(data.items) ? data.items : [];
       db.transaction(() => {
-        const ins = db.prepare('INSERT OR IGNORE INTO bookmarks (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const ins = db.prepare('INSERT OR IGNORE INTO links (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
         for (const it of items) ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null, it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now());
       })();
-      console.log(`[migrate] bookmarks_cache.json → bookmarks table (${items.length} items)`);
+      console.log(`[migrate] links_cache.json → links table (${items.length} items)`);
     }
-  } catch (e) { console.error('[migrate] bookmarks:', e.message); }
+  } catch (e) { console.error('[migrate] links:', e.message); }
 
   // OG thumb cache
   try {
@@ -897,11 +897,11 @@ function saveOgThumbCache(map) {
   } catch (e) { console.error('Failed to save OG thumb cache:', e); }
 }
 
-// ── Bookmarks cache ──────────────────────────────────────────────────
+// ── Links cache ──────────────────────────────────────────────────
 
-function loadBookmarksCache() {
+function loadLinksCache() {
   try {
-    const rows = db.prepare('SELECT url, title, category, img, scraped_video_url, embed_url, added_at FROM bookmarks').all();
+    const rows = db.prepare('SELECT url, title, category, img, scraped_video_url, embed_url, added_at FROM links').all();
     const items = rows.map(r => ({
       url: r.url,
       title: r.title,
@@ -913,23 +913,23 @@ function loadBookmarksCache() {
     }));
     return { items };
   } catch (e) {
-    console.error('Failed to load bookmarks cache from SQLite:', e);
+    console.error('Failed to load links cache from SQLite:', e);
     return { items: [] };
   }
 }
 
-function saveBookmarksCache(data) {
+function saveLinksCache(data) {
   const items = (data && Array.isArray(data.items)) ? data.items : [];
   try {
     db.transaction(() => {
-      db.prepare('DELETE FROM bookmarks').run();
-      const ins = db.prepare('INSERT INTO bookmarks (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      db.prepare('DELETE FROM links').run();
+      const ins = db.prepare('INSERT INTO links (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
       for (const it of items) {
         ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null,
           it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now());
       }
     })();
-  } catch (e) { console.error('Failed to save bookmarks cache to SQLite:', e); }
+  } catch (e) { console.error('Failed to save links cache to SQLite:', e); }
 }
 
 // ── Books meta ───────────────────────────────────────────────────────
@@ -1317,7 +1317,7 @@ function clearVideoIndex() {
   }
 }
 
-function saveBookmarksToDb(items) {
+function saveLinksToDb(items) {
   const cats = loadCategories();
   const { wordMatchAny } = require('./helpers-server');
   
@@ -1338,7 +1338,7 @@ function saveBookmarksToDb(items) {
     })();
     return { ok: true, count: items.length };
   } catch (e) {
-    console.error('Failed to save bookmarks to SQLite:', e);
+    console.error('Failed to save links to SQLite:', e);
     return { error: e.message };
   }
 }
@@ -1356,7 +1356,7 @@ module.exports = {
   loadWebsites, saveWebsites,
   loadStarredSites, saveStarredSites,
   loadOgThumbCache, saveOgThumbCache,
-  loadBookmarksCache, saveBookmarksCache,
+  loadLinksCache, saveLinksCache,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
   loadActors, saveActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,
@@ -1368,5 +1368,5 @@ module.exports = {
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   switchProfile, getCurrentProfile: () => currentProfile,
   closeDb: () => { if (db) { db.close(); db = null; } },
-  saveBookmarksToDb
+  saveLinksToDb
 };

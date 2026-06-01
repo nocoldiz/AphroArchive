@@ -1,4 +1,4 @@
-
+﻿
 Oh, gracious heavens! In an era rife with mechanical contraptions and electrical sorcery, a most ingenious invention has emerged for the gentle preservation of one’s private visual entertainments.
 
 AphroArchive  
@@ -10,13 +10,13 @@ This zero-dependencies degenerate little apparatus, permits the discerning house
 
 - Graceful Browsing & Searching — One may peruse the entire collection with full-text inquiry, arrange by date, name, size, or duration, and even indulge in a gentle shuffle.  
 - Categories & Descriptive Labels — Automatically discerned from the arrangement of one’s folders, with helpful tallies displayed in the side-panel.  
-- Integration of Distant Curiosities — Import bookmarks from one’s web-browser; these appear as elegant cards beside one’s local selections, complete with small illustrative portraits drawn from their public announcements.  
+- Integration of Distant Curiosities — Import links from one’s web-browser; these appear as elegant cards beside one’s local selections, complete with small illustrative portraits drawn from their public announcements.  
 - Source Distinction — Easily toggle between All, Local, or those acquired from afar.  
 - Notable Personages & Establishments — Browse by the names of performers or production houses, intelligently matched from the titles of the files themselves.  
 - The Secret Vault — A concealed, password-guarded chamber for those collected item one wishes to shield from accidental discovery.  
 - Marked Favourites — Bestow a star upon favoured selections and summon them at will.  
 - Record of Recent Viewings — The apparatus discreetly remembers what has lately been observed.  
-- Zapping Mode — For those moments of whimsical fancy, it advances automatically through random selections (excluding distant bookmarks, naturally).  
+- Zapping Mode — For those moments of whimsical fancy, it advances automatically through random selections (excluding distant links, naturally).  
 - Mosaic Mode — A delightful wall of multiple small moving tiles, perfect for contemplative browsing.  
 - Detection of Duplicates — Identifies any unfortunate repetitions by matching file dimensions.  
 - Named Groupings — Assemble cherished pieces into personal collections or “playlists,” as the young folk say.  

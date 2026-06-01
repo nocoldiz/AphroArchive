@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState } from '../../store';
+﻿import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -356,7 +356,7 @@ export const ContextMenu = () => {
               showAddToCollectionModal.value = true;
             }} />
             <ContextItem label="Tags" icon="tag" onClick={() => {
-              tagModalState.value = { visible: true, vidId: data.id, bmUrl: null };
+              tagModalState.value = { visible: true, vidId: data.id, linkUrl: null };
             }} />
             <ContextItem label="Actors" icon="user" onClick={() => {
               actorModalState.value = { visible: true, vidId: data.id };

@@ -1,4 +1,4 @@
-# Full SQLite Migration Plan
+﻿# Full SQLite Migration Plan
 
 ## Goal
 
@@ -14,9 +14,9 @@ SQLite.
 
 | File | Owner module | Content |
 |------|-------------|---------|
-| `cache/bookmarks_cache.json` | bookmarks-server | Bookmark items cache |
-| `cache/og_thumb_cache.json` | bookmarks-server | OG-image URL cache |
-| `cache/.AphroArchive-starred-sites.json` | bookmarks-server | Starred website URLs |
+| `cache/links_cache.json` | links-server | Link items cache |
+| `cache/og_thumb_cache.json` | links-server | OG-image URL cache |
+| `cache/.AphroArchive-starred-sites.json` | links-server | Starred website URLs |
 | `cache/.AphroArchive-thumbcache.json` | db-server | Thumbnail duration/frame cache |
 | `cache/.AphroArchive-visual-hashes.json` | duplicates-server | Perceptual hash per video |
 | `cache/.AphroArchive-prompts.json` | prompts-server | Saved AI prompts |
@@ -33,7 +33,7 @@ SQLite.
 | `cache/.AphroArchive-history.json` | db-server (legacy) | History (already in SQLite) |
 | `cache/.AphroArchive-collections.json` | db-server (legacy) | Collections (already in SQLite) |
 | `cache/.AphroArchive-prefs.json` | db-server (legacy) | Prefs (already in SQLite settings) |
-| `cache/whitelist.txt` | bookmarks-server | Browser bookmark domain whitelist |
+| `cache/whitelist.txt` | links-server | Browser link domain whitelist |
 | `cache/hidden.txt` | settings-server (legacy) | Hidden category terms (already in SQLite settings) |
 
 ---
@@ -61,9 +61,9 @@ CREATE TABLE IF NOT EXISTS actors (
 );
 ```
 
-### `bookmarks`
+### `links`
 ```sql
-CREATE TABLE IF NOT EXISTS bookmarks (
+CREATE TABLE IF NOT EXISTS links (
   url TEXT PRIMARY KEY,
   title TEXT,
   category TEXT,
@@ -151,8 +151,8 @@ CREATE TABLE IF NOT EXISTS audio_meta (
 |----------|--------|
 | `loadActors()` | Read from `actors` table instead of `actors.json` |
 | `saveActors(raw)` | Write to `actors` table (new) |
-| `loadBookmarksCache()` | Read from `bookmarks` table |
-| `saveBookmarksCache(data)` | Write to `bookmarks` table |
+| `loadLinksCache()` | Read from `links` table |
+| `saveLinksCache(data)` | Write to `links` table |
 | `loadOgThumbCache()` | Read from `og_thumbs` table → return Map |
 | `saveOgThumbCache(map)` | Write to `og_thumbs` table |
 | `loadThumbsCache()` | Read from `thumbs_cache` table |
@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS audio_meta (
 - Import `loadVisualHashes`, `setVisualHash`, `saveVisualHashes` from `db-server`
 
 ### `videos-server.js`
-- Replace all 4 direct `BM_CACHE_FILE` reads with `loadBookmarksCache()` from db-server
+- Replace all 4 direct `BM_CACHE_FILE` reads with `loadLinksCache()` from db-server
 
 ---
 
@@ -209,7 +209,7 @@ Each migration block checks if the SQLite table is empty before importing.
 | From | To |
 |------|----|
 | `actors.json` | `actors` table |
-| `bookmarks_cache.json` | `bookmarks` table |
+| `links_cache.json` | `links` table |
 | `og_thumb_cache.json` | `og_thumbs` table |
 | `.AphroArchive-thumbcache.json` | `thumbs_cache` table |
 | `.AphroArchive-visual-hashes.json` | `visual_hashes` table |

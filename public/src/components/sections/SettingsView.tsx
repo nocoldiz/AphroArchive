@@ -223,7 +223,7 @@ export const SettingsView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: hiddenCats.join('\n') })
     });
-    if (r.ok) alert('Hidden categories saved!');
+    if (r.ok) alert('Hidden folders saved!');
     else alert('Save failed');
   };
 
@@ -595,7 +595,7 @@ export const SettingsView = () => {
             </div>
           </div>
 
-          {/* Hidden Categories & Tags Section */}
+          {/* Hidden Folders & Tags Section */}
           <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)' }}>
             <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Hidden Tags</h3>
             <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '8px' }}>Type a tag and press Enter to hide it.</p>

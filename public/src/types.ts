@@ -1,4 +1,4 @@
-export interface Video {
+﻿export interface Video {
   id: string;
   name: string;
   path: string;
@@ -18,9 +18,9 @@ export interface Video {
   fav?: boolean;
   chapters?: any[];
   isExternal?: boolean;
-  isBookmark?: boolean;
+  isLink?: boolean;
   embedUrl?: string;
-  bookmarkUrl?: string;
+  linkUrl?: string;
   img?: string;
 }
 

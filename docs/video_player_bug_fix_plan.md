@@ -1,4 +1,4 @@
-# Video Player Bug Fix Plan
+﻿# Video Player Bug Fix Plan
 
 ## Current Architecture Overview
 
@@ -150,9 +150,9 @@ When clicking a related video → `currentVideo.value = newVideo` → component 
 
 File: `PlayerView.tsx`, lines 250-255
 
-`jumpToChapter` tries `videoRef.current.currentTime = time`. But for bookmark videos, there's no AdvancedPlayer rendered — just a static fallback. The ref is still created but points to nothing useful.
+`jumpToChapter` tries `videoRef.current.currentTime = time`. But for link videos, there's no AdvancedPlayer rendered — just a static fallback. The ref is still created but points to nothing useful.
 
-**Fix: Guard `jumpToChapter` with a check for the video type (non-bookmark, non-vault).**
+**Fix: Guard `jumpToChapter` with a check for the video type (non-link, non-vault).**
 
 ---
 

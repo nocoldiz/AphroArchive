@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  videos.js — Video scanning, listing, and all video API handlers
 // ═══════════════════════════════════════════════════════════════════
@@ -27,7 +27,7 @@ const {
   loadAudioMeta, saveAudioMeta,
   loadBooksMeta, saveBooksMeta,
   loadRatings,
-  loadBookmarksCache,
+  loadLinksCache,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
 } = require('./db-server');
 
@@ -217,15 +217,15 @@ async function allVideos() {
     return { ...v, category, catPath, tags };
   });
 
-  // Load Bookmarks as remote videos
-  let bookmarks = [];
+  // Load Links as remote videos
+  let links = [];
   try {
-    bookmarks = loadBookmarksCache().items || [];
+    links = loadLinksCache().items || [];
   } catch (e) {
-    console.error('Failed to load bookmarks cache in allVideos:', e);
+    console.error('Failed to load links cache in allVideos:', e);
   }
 
-  const bmVideos = bookmarks.map(item => {
+  const bmVideos = links.map(item => {
     const titleWords = item.title.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3);
     const tags = [...new Set(titleWords)];
     
@@ -239,7 +239,7 @@ async function allVideos() {
       category: item.category || 'Uncategorized',
       catPath: item.category || '',
       tags: tags,
-      isBookmark: true,
+      isLink: true,
       scrapedVideoUrl: item.scrapedVideoUrl,
       img: item.img,
       size: 0,
@@ -415,11 +415,11 @@ async function apiCategories(req, res) {
   const hidden = loadHidden();
   const catMap = new Map();
 
-  let bookmarks = [];
+  let links = [];
   try {
-    bookmarks = loadBookmarksCache().items || [];
+    links = loadLinksCache().items || [];
   } catch (e) {
-    console.error('Failed to load bookmarks cache:', e);
+    console.error('Failed to load links cache:', e);
   }
 
   for (const v of videos) {
@@ -450,17 +450,17 @@ async function apiCategories(req, res) {
     }
   }
 
-  // Add playable bookmarks to category counts — first match only (mirrors client matchBookmarkCat)
+  // Add playable links to category counts — first match only (mirrors client matchLinkCat)
   const catEntries = [...catMap.entries()];
-  const playableBookmarks = bookmarks.filter(b => b.scrapedVideoUrl || b.embedUrl);
+  const playableLinks = links.filter(b => b.scrapedVideoUrl || b.embedUrl);
   let unmatched = 0;
-  for (const bm of playableBookmarks) {
+  for (const bm of playableLinks) {
     let matched = false;
 
     // Check explicit category first
     if (bm.category) {
       for (const [key, entry] of catEntries) {
-        if (key === 'Bookmarks') continue;
+        if (key === 'Links') continue;
         if (entry.path === bm.category || entry.name === bm.category || bm.category.replace(/\\/g, '/') === entry.path) {
           entry.count++;
           matched = true;
@@ -472,7 +472,7 @@ async function apiCategories(req, res) {
     if (!matched) {
       const norm = (bm.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       for (const [key, entry] of catEntries) {
-        if (key === 'Bookmarks') continue;
+        if (key === 'Links') continue;
         const kn = entry.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
         if (kn && norm.includes(kn)) {
           entry.count++;
@@ -485,11 +485,11 @@ async function apiCategories(req, res) {
     if (!matched) unmatched++;
   }
 
-  // Virtual "Bookmarks" category for unmatched playable bookmarks
+  // Virtual "Links" category for unmatched playable links
   if (unmatched > 0) {
-    catMap.set('Bookmarks', {
-      name: 'Bookmarks',
-      path: 'Bookmarks',
+    catMap.set('Links', {
+      name: 'Links',
+      path: 'Links',
       count: unmatched,
       hasUnencrypted: false
     });
@@ -501,9 +501,9 @@ async function apiCategories(req, res) {
     const isHidden = parts.some(part => hidden.some(t => t.toLowerCase() === part.toLowerCase()));
     if (isHidden) continue;
 
-    const isBookmarks = key === 'Bookmarks';
+    const isLinks = key === 'Links';
     const full = path.join(VIDEOS_DIR, entry.path);
-    const isConfigured = !isBookmarks && fs.existsSync(path.join(full, '.cat-enc-config.json'));
+    const isConfigured = !isLinks && fs.existsSync(path.join(full, '.cat-enc-config.json'));
 
     cats.push({
       name: entry.name,
@@ -511,7 +511,7 @@ async function apiCategories(req, res) {
       count: entry.count,
       encrypted: isConfigured,
       partial: isConfigured && entry.hasUnencrypted,
-      unlocked: isBookmarks ? true : isUnlocked(entry.path)
+      unlocked: isLinks ? true : isUnlocked(entry.path)
     });
   }
 
@@ -1077,31 +1077,31 @@ async function apiCategoriesOverview(req, res) {
     }
   }
 
-  let bookmarks = [];
+  let links = [];
   try {
-    bookmarks = loadBookmarksCache().items || [];
+    links = loadLinksCache().items || [];
   } catch (e) {
     // Ignore
   }
 
-  // Add bookmarks (remote videos) count
+  // Add links (remote videos) count
   for (const [key, e] of catMap.entries()) {
-    if (key === 'Bookmarks') continue;
+    if (key === 'Links') continue;
     const kn = e.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    const bmCount = bookmarks.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
+    const bmCount = links.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
     e.count += bmCount;
   }
 
-  // Add virtual category "Bookmarks" if there are any playable bookmarks
-  const playableBookmarks = bookmarks.filter(b => b.scrapedVideoUrl);
-  if (playableBookmarks.length > 0) {
-    const randomBm = playableBookmarks[Math.floor(Math.random() * playableBookmarks.length)];
+  // Add virtual category "Links" if there are any playable links
+  const playableLinks = links.filter(b => b.scrapedVideoUrl);
+  if (playableLinks.length > 0) {
+    const randomBm = playableLinks[Math.floor(Math.random() * playableLinks.length)];
     const thumbId = randomBm.img || '';
-    catMap.set('Bookmarks', {
+    catMap.set('Links', {
       type: 'cat',
-      name: 'Bookmarks',
-      path: 'Bookmarks',
-      count: playableBookmarks.length,
+      name: 'Links',
+      path: 'Links',
+      count: playableLinks.length,
       ids: [],
       thumbId: thumbId,
       duration: 0
@@ -1136,11 +1136,11 @@ async function apiCategoriesOverview(req, res) {
   }
 
   const result = [...filteredCats, ...tagMap.values()].map(e => {
-    const isBookmarks = e.name === 'Bookmarks';
+    const isLinks = e.name === 'Links';
     const thumbId = e.thumbId || (e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null);
     let encrypted = false;
     let partial = false;
-    if (e.type === 'cat' && !isBookmarks) {
+    if (e.type === 'cat' && !isLinks) {
       const full = path.join(VIDEOS_DIR, e.path);
       encrypted = fs.existsSync(path.join(full, '.cat-enc-config.json'));
       if (encrypted) {
@@ -1149,7 +1149,7 @@ async function apiCategoriesOverview(req, res) {
         partial = hasUnencrypted;
       }
     }
-    const unlocked = isBookmarks ? true : isUnlocked(e.path || '');
+    const unlocked = isLinks ? true : isUnlocked(e.path || '');
     return { type: e.type, name: e.name, path: e.path || null, count: e.count, thumbId, encrypted, partial, unlocked, duration: e.duration };
   });
   json(res, result);
