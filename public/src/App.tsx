@@ -84,12 +84,32 @@ export function App() {
       .catch(e => console.error('Failed to check presets', e));
     // 6. Panic Key/Mouse listener
     const triggerPanic = () => {
+      // Hide everything and stop all media immediately, then shut down the server.
+      try {
+        document.body.style.background = '#fff';
+        document.body.style.color = '#fff';
+        document.body.style.overflow = 'hidden';
+        document.body.innerHTML = '';
+      } catch (err) {
+        console.error('Failed to hide page before panic:', err);
+      }
+      document.querySelectorAll('audio, video').forEach((media) => {
+        try {
+          media.pause();
+          if ((media as HTMLMediaElement).src) {
+            (media as HTMLMediaElement).src = '';
+          }
+          media.removeAttribute('src');
+          (media as HTMLMediaElement).load();
+        } catch (_) {}
+      });
+
       // Send panic to server — fire & forget
       fetch('/api/panic', { method: 'POST' }).catch(() => {});
-      // Close the tab/window
+
+      // Close the tab/window after a short delay
       setTimeout(() => {
         window.close();
-        // Fallback if window.close() is blocked (most browsers)
       }, 200);
     };
 

@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, vaultUnlockModalState } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -6,6 +6,8 @@ export const ContextMenu = () => {
   const { visible, x, y, type, data } = state;
 
   const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
+  const [showVaultUnlockModal, setShowVaultUnlockModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
 
   const [targetProfile, setTargetProfile] = useState('default');
@@ -30,7 +32,7 @@ export const ContextMenu = () => {
     };
   }, [visible]);
 
-  if (!visible) return null;
+  if (!visible && !showEncryptConfirm && !showUnlockModal && !showProgressModal) return null;
 
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -170,37 +172,47 @@ export const ContextMenu = () => {
     contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
 
-  const checkVaultStatus = async (): Promise<boolean> => {
+  const checkVaultAndPrompt = async (action: () => void): Promise<void> => {
     try {
       const res = await fetch('/api/vault/status');
       const status = await res.json();
       if (!status.configured) {
         toast('Vault not configured. Set it up first from the Vault view.');
-        return false;
+        return;
       }
       if (!status.unlocked) {
-        toast('Vault is locked. Unlock it first.');
-        return false;
+        // Open the vault unlock modal; after unlock it will update isVaultUnlocked signal
+        vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: null };
+        // Poll until unlocked, then proceed
+        const checkInterval = setInterval(async () => {
+          const r2 = await fetch('/api/vault/status');
+          const s2 = await r2.json();
+          if (s2.unlocked) {
+            clearInterval(checkInterval);
+            isVaultUnlocked.value = true;
+            action();
+          }
+        }, 500);
+        return;
       }
-      return true;
+      action();
     } catch {
       toast('Failed to check vault status');
-      return false;
     }
   };
 
   const handleEncrypt = async () => {
-    const ok = await checkVaultStatus();
-    if (!ok) return;
-    if (!confirm(`Encrypt category "${data.name}" and move to Vault?`)) return;
-    execEncrypt();
+    checkVaultAndPrompt(() => {
+      setShowEncryptConfirm(true);
+      closeMenu();
+    });
   };
 
   const handleUnlock = async () => {
-    const ok = await checkVaultStatus();
-    if (!ok) return;
-    setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
-    setShowUnlockModal(true);
+    checkVaultAndPrompt(async () => {
+      setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
+      setShowUnlockModal(true);
+    });
   };
 
   const execEncrypt = async () => {
@@ -308,10 +320,11 @@ export const ContextMenu = () => {
 
   return (
     <>
-      <div id="context-menu" style={{
-        display: 'block',
-        left: `${posX}px`,
-        top: `${posY}px`,
+      {visible && (
+        <div id="context-menu" style={{
+          display: 'block',
+          left: `${posX}px`,
+          top: `${posY}px`,
         position: 'absolute',
         background: 'var(--bg2)',
         border: '1px solid var(--brd)',
@@ -414,6 +427,7 @@ export const ContextMenu = () => {
           </>
         )}
       </div>
+      )}
 
       {showUnlockModal && (
         <div className="modal on" style={{ display: 'flex' }}>
@@ -437,6 +451,27 @@ export const ContextMenu = () => {
             <div className="modal-footer">
               <button class="modal-btn modal-btn--primary" onClick={execUnlock}>Restore</button>
               <button class="modal-btn" onClick={() => setShowUnlockModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEncryptConfirm && (
+        <div className="modal on" style={{ display: 'flex' }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Encrypt Category</h2>
+            </div>
+            <div className="modal-body">
+              <p>Encrypt category "{data.name}" and move it to Vault?</p>
+              <p>This will encrypt all files inside and move them into the vault.</p>
+            </div>
+            <div className="modal-footer">
+              <button class="modal-btn modal-btn--primary" onClick={() => {
+                setShowEncryptConfirm(false);
+                execEncrypt();
+              }}>Encrypt</button>
+              <button class="modal-btn" onClick={() => setShowEncryptConfirm(false)}>Cancel</button>
             </div>
           </div>
         </div>
