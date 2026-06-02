@@ -134,7 +134,15 @@ export const Sidebar = () => {
       catCountMap.set(cur, (catCountMap.get(cur) || 0) + 1);
     }
   }
-  const displayCategories = categories.value.map(c => ({ ...c, count: catCountMap.get(c.path) || 0 }));
+  const displayCategories = categories.value
+    .map(c => ({ ...c, count: catCountMap.get(c.path) || 0 }))
+    .sort((a, b) => {
+      // Keep Uncategorized (empty path) at the top
+      if (a.path === '') return -1;
+      if (b.path === '') return 1;
+      // Sort the rest by name
+      return a.name.localeCompare(b.name);
+    });
 
   // Count per tag group: pre-computed v.tags match OR live name-match against group terms
   const displayTags = tagGroups
@@ -195,6 +203,33 @@ export const Sidebar = () => {
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
           onClick={() => setView('vault', 'showVault')}
           isActive={currentView.value === 'vault'}
+        />
+      </div>
+
+      {/* Manage */}
+      <div className="side-sep"></div>
+      <SectionHeader label="Manage" id="sh3-manage" />
+      <div className="side-section" id="manageSection">
+        <SidebarItem
+          id="database-sidebar"
+          label="Database"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg>}
+          onClick={() => setView('database', 'showDatabase')}
+          isActive={currentView.value === 'database'}
+        />
+        <SidebarItem
+          id="connect-sidebar"
+          label="Connect"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><circle cx="12" cy="20" r="1" fill="currentColor" /></svg>}
+          onClick={() => showConnectModal.value = true}
+          isActive={false}
+        />
+        <SidebarItem
+          id="settings-sidebar"
+          label="Settings"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>}
+          onClick={() => setView('settings', 'showSettings')}
+          isActive={currentView.value === 'settings'}
         />
       </div>
 
@@ -314,33 +349,6 @@ export const Sidebar = () => {
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></svg>}
           onClick={() => setView('search', 'showSearchSites')}
           isActive={currentView.value === 'search'}
-        />
-      </div>
-
-      {/* Manage */}
-      <div className="side-sep"></div>
-      <SectionHeader label="Manage" id="sh3-manage" />
-      <div className="side-section" id="manageSection">
-        <SidebarItem
-          id="database-sidebar"
-          label="Database"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg>}
-          onClick={() => setView('database', 'showDatabase')}
-          isActive={currentView.value === 'database'}
-        />
-        <SidebarItem
-          id="connect-sidebar"
-          label="Connect"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><circle cx="12" cy="20" r="1" fill="currentColor" /></svg>}
-          onClick={() => showConnectModal.value = true}
-          isActive={false}
-        />
-        <SidebarItem
-          id="settings-sidebar"
-          label="Settings"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>}
-          onClick={() => setView('settings', 'showSettings')}
-          isActive={currentView.value === 'settings'}
         />
       </div>
 

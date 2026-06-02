@@ -366,8 +366,8 @@ const server = http.createServer(async (req, res) => {
   // ── Panic Button ─────────────────────────────────────────────────────
   if (p === '/api/panic' && req.method === 'POST') {
     console.log('\n\x1b[1;31m⚠️  PANIC BUTTON TRIGGERED — shutting down\x1b[0m\n');
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, message: 'Panic — shutting down' }));
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end('<!DOCTYPE html><html><head><title></title><style>body{background:#000;margin:0;padding:0}</style></head><body></body></html>');
     // Use a short timeout to let the response be sent before exiting
     setTimeout(() => {
       process.exit(0);
