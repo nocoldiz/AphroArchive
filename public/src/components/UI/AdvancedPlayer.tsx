@@ -36,6 +36,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   const [hoverX, setHoverX] = useState(0);
   const [buffered, setBuffered] = useState<{ start: number; end: number }[]>([]);
   const [localZap, setLocalZap] = useState(false);
+  const [loading, setLoading] = useState(false);
   const controlsTimeoutRef = useRef<any>(null);
   const onNextRef = useRef(onNext);
   const onPrevRef = useRef(onPrev);
@@ -65,6 +66,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       }
       setBuffered(ranges);
     };
+    const onWaiting = () => setLoading(true);
+    const onCanPlay = () => setLoading(false);
 
     vid.addEventListener('play', onPlay);
     vid.addEventListener('pause', onPause);
@@ -73,6 +76,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     vid.addEventListener('volumechange', onVolumeChange);
     vid.addEventListener('ended', onEnded);
     vid.addEventListener('progress', onProgress);
+    vid.addEventListener('waiting', onWaiting);
+    vid.addEventListener('canplay', onCanPlay);
 
     return () => {
       vid.removeEventListener('play', onPlay);
@@ -82,6 +87,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       vid.removeEventListener('volumechange', onVolumeChange);
       vid.removeEventListener('ended', onEnded);
       vid.removeEventListener('progress', onProgress);
+      vid.removeEventListener('waiting', onWaiting);
+      vid.removeEventListener('canplay', onCanPlay);
     };
   }, []);
 
@@ -268,6 +275,36 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
           />
         ))}
       </video>
+
+      {/* Loading Spinner */}
+      {loading && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(0,0,0,0.3)',
+          zIndex: 5
+        }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            border: '3px solid rgba(255,255,255,0.2)',
+            borderTop: '3px solid #fff',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }} />
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
 
       {/* Controls Overlay */}
       <div style={{

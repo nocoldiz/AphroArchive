@@ -1,4 +1,4 @@
-﻿import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -170,20 +170,35 @@ export const ContextMenu = () => {
     contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
 
-  const handleEncrypt = () => {
-    if (!isVaultUnlocked.value) {
-      toast('Unlock Vault profile first');
-      return;
+  const checkVaultStatus = async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/vault/status');
+      const status = await res.json();
+      if (!status.configured) {
+        toast('Vault not configured. Set it up first from the Vault view.');
+        return false;
+      }
+      if (!status.unlocked) {
+        toast('Vault is locked. Unlock it first.');
+        return false;
+      }
+      return true;
+    } catch {
+      toast('Failed to check vault status');
+      return false;
     }
+  };
+
+  const handleEncrypt = async () => {
+    const ok = await checkVaultStatus();
+    if (!ok) return;
     if (!confirm(`Encrypt category "${data.name}" and move to Vault?`)) return;
     execEncrypt();
   };
 
-  const handleUnlock = () => {
-    if (!isVaultUnlocked.value) {
-      toast('Unlock Vault profile first');
-      return;
-    }
+  const handleUnlock = async () => {
+    const ok = await checkVaultStatus();
+    if (!ok) return;
     setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
     setShowUnlockModal(true);
   };

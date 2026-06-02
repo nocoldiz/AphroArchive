@@ -93,35 +93,53 @@ export function App() {
       }, 200);
     };
 
-    // Parse a stored panic key string like "Escape", "F12", "KeyP+Ctrl+Shift", "Mouse4"
-    const checkPanicMatch = (e: { key?: string; code?: string; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; metaKey?: boolean; button?: number }) => {
-      const panicKey = localStorage.getItem('panicKey');
-      if (!panicKey) return false;
-      const keys = panicKey.split('+');
-      let match = true;
-      let keyFound = false;
-      for (const k of keys) {
-        const kt = k.trim().toLowerCase();
-        if (kt === 'ctrl') { if (!e.ctrlKey) match = false; }
-        else if (kt === 'shift') { if (!e.shiftKey) match = false; }
-        else if (kt === 'alt') { if (!e.altKey) match = false; }
-        else if (kt === 'meta' || kt === 'win' || kt === 'cmd') { if (!e.metaKey) match = false; }
-        else if (kt.startsWith('mouse')) {
-          // e.g. "Mouse3" = middle button, "Mouse4" = back button, "Mouse5" = forward button
-          keyFound = true;
-          const btnNum = parseInt(kt.replace('mouse', ''), 10);
-          if (isNaN(btnNum) || e.button !== btnNum) match = false;
-        }
-        else {
-          keyFound = true;
-          const keyStr = (e.key || '').toLowerCase();
-          const codeStr = (e.code || '').toLowerCase();
-          if (keyStr !== kt && codeStr !== kt) match = false;
-        }
+    // Parse panic keys (stored as JSON array in localStorage)
+    const getPanicKeys = (): string[] => {
+      try {
+        const keys = localStorage.getItem('panicKeys');
+        return keys ? JSON.parse(keys) : [];
+      } catch {
+        // Fallback to single key for backward compatibility
+        const single = localStorage.getItem('panicKey');
+        return single ? [single] : [];
       }
-      // Must find at least one actual key/mouse in the string
-      if (!keyFound) return false;
-      return match;
+    };
+
+    // Check if event matches any panic key
+    const checkPanicMatch = (e: { key?: string; code?: string; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; metaKey?: boolean; button?: number }) => {
+      const panicKeys = getPanicKeys();
+      if (panicKeys.length === 0) return false;
+      
+      return panicKeys.some(panicKey => {
+        const keys = panicKey.split('+');
+        let match = true;
+        let keyFound = false;
+        
+        for (const k of keys) {
+          const kt = k.trim().toLowerCase();
+          if (kt === 'ctrl') { if (!e.ctrlKey) match = false; }
+          else if (kt === 'shift') { if (!e.shiftKey) match = false; }
+          else if (kt === 'alt') { if (!e.altKey) match = false; }
+          else if (kt === 'meta' || kt === 'win' || kt === 'cmd') { if (!e.metaKey) match = false; }
+          else if (kt.startsWith('mouse')) {
+            // e.g. "Mouse3" = middle button, "Mouse4" = back button, "Mouse5" = forward button
+            keyFound = true;
+            // Case-insensitive extract of button number
+            const btnStr = kt.replace(/^mouse/i, '');
+            const btnNum = parseInt(btnStr, 10);
+            if (isNaN(btnNum) || e.button !== btnNum) match = false;
+          }
+          else {
+            keyFound = true;
+            const keyStr = (e.key || '').toLowerCase();
+            const codeStr = (e.code || '').toLowerCase();
+            if (keyStr !== kt && codeStr !== kt) match = false;
+          }
+        }
+        // Must find at least one actual key/mouse in the string
+        if (!keyFound) return false;
+        return match;
+      });
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -138,9 +156,10 @@ export function App() {
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      // Only check if the stored key is a mouse button
-      const panicKey = localStorage.getItem('panicKey') || '';
-      if (!panicKey.toLowerCase().startsWith('mouse')) return;
+      // Check if any stored panic key is a mouse button
+      const panicKeys = getPanicKeys();
+      const hasMouse = panicKeys.some(k => k.toLowerCase().startsWith('mouse'));
+      if (!hasMouse) return;
       if (checkPanicMatch(e)) {
         e.preventDefault();
         e.stopPropagation();

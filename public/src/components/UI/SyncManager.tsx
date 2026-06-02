@@ -11,6 +11,15 @@ interface ScraperStatus {
   skipped?: number;
 }
 
+interface EncProgress {
+  running: boolean;
+  type: string;
+  category: string;
+  total: number;
+  done: number;
+  current: string;
+}
+
 function ProgressBar({ done = 0, total = 0, color = 'var(--ac)' }: { done?: number; total?: number; color?: string }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
@@ -100,20 +109,28 @@ export const SyncManager = () => {
     bmMeta: { running: false },
     bmThumbs: { running: false },
   });
+  const [encProgress, setEncProgress] = useState<EncProgress>({
+    running: false, type: '', category: '', total: 0, done: 0, current: '',
+  });
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const [vtRes, bmMetaRes, bmThRes] = await Promise.all([
+        const [vtRes, bmMetaRes, bmThRes, encRes] = await Promise.all([
           fetch('/api/gen-thumbs/poll'),
           fetch('/api/links/scrape-status'),
           fetch('/api/links/thumb-status'),
+          fetch('/api/encryption/status'),
         ]);
         const vt = vtRes.ok ? await vtRes.json() : { running: false };
         const bm = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
         const bt = bmThRes.ok ? await bmThRes.json() : { running: false };
         setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt });
+        if (encRes.ok) {
+          const enc = await encRes.json();
+          setEncProgress(enc);
+        }
       } catch {}
     };
     poll();
@@ -131,7 +148,8 @@ export const SyncManager = () => {
   }, [open]);
 
   const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs].filter(s => s.running).length
-    + (rescanning ? 1 : 0) + (autoCatLoading ? 1 : 0) + (recatAllLoading ? 1 : 0);
+    + (rescanning ? 1 : 0) + (autoCatLoading ? 1 : 0) + (recatAllLoading ? 1 : 0)
+    + (encProgress.running ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
     await fetch(url, { method }).catch(() => {});
@@ -204,6 +222,11 @@ export const SyncManager = () => {
       <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
     </svg>
   );
+  const iconLock = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+  );
 
   return (
     <>
@@ -274,7 +297,7 @@ export const SyncManager = () => {
               onStop={() => scraperAction('/api/links/stop-generating')}
             />
 
-            {/* Auto Categorize — uncategorized root videos only */}
+            {/* Auto Categorize */}
             <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
               <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconFolder}</span>
               <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Auto Categorize</span>
@@ -290,7 +313,7 @@ export const SyncManager = () => {
               </button>
             </div>
 
-            {/* Recategorize All — every video, including already-categorized */}
+            {/* Recategorize All */}
             <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
               <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconFolder}</span>
               <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Recategorize All</span>
@@ -306,6 +329,7 @@ export const SyncManager = () => {
               </button>
             </div>
 
+            {/* Actor Data */}
             <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
               <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconActor}</span>
               <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Actor Data</span>
@@ -317,6 +341,28 @@ export const SyncManager = () => {
               </button>
             </div>
 
+            {/* ── Encryption Progress ── */}
+            {encProgress.running && (
+              <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>{iconLock}</span>
+                  <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>
+                    {encProgress.type === 'encrypt' ? 'Encrypt' : 'Decrypt'} ({encProgress.category})
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
+                    {encProgress.total > 0 ? `${encProgress.done}/${encProgress.total}` : '…'}
+                  </span>
+                </div>
+                {encProgress.total > 0 && <ProgressBar done={encProgress.done} total={encProgress.total} />}
+                {encProgress.current && (
+                  <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={encProgress.current}>
+                    {encProgress.current}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Local Videos Rescan */}
             <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
               <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconRescan}</span>
               <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Local Videos</span>

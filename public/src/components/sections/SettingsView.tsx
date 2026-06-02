@@ -950,50 +950,85 @@ export const SettingsView = () => {
             Panic Button
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
-            Configure a keyboard shortcut or mouse button that instantly closes the tab and shuts down the server.
-            Useful for quickly hiding everything if someone walks in.
+            Configure keyboard shortcuts or mouse buttons that instantly close the tab and shut down the server.
+            You can set multiple panic triggers for flexibility.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* Current binding display */}
+            {/* Current bindings list */}
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Current Binding</label>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '10px',
-                background: 'var(--bg3)', 
-                border: '1px solid var(--brd)', 
-                borderRadius: '6px', 
-                padding: '12px 16px',
-                minHeight: '45px'
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Active Triggers</label>
+              <div id="panic-keys-list" style={{ 
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                minHeight: '40px'
               }}>
-                <span id="panic-key-display" style={{ 
-                  fontFamily: 'monospace', 
-                  fontSize: '1.1rem', 
-                  color: localStorage.getItem('panicKey') ? 'var(--ac)' : 'var(--tx3)',
-                  fontWeight: 'bold',
-                  letterSpacing: '1px'
-                }}>
-                  {localStorage.getItem('panicKey') || 'Not set'}
-                </span>
+                {(() => {
+                  try {
+                    const keys = JSON.parse(localStorage.getItem('panicKeys') || '[]');
+                    if (keys.length === 0) {
+                      return <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>No triggers set</span>;
+                    }
+                    return keys.map((key: string, idx: number) => (
+                      <div key={idx} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: 'var(--bg3)',
+                        border: '1px solid var(--brd)',
+                        borderRadius: '6px',
+                        padding: '10px 14px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9rem',
+                        color: 'var(--ac)'
+                      }}>
+                        <span>{key}</span>
+                        <button
+                          className="modal-btn modal-btn--danger"
+                          onClick={() => {
+                            try {
+                              const keys = JSON.parse(localStorage.getItem('panicKeys') || '[]');
+                              keys.splice(idx, 1);
+                              localStorage.setItem('panicKeys', JSON.stringify(keys));
+                              // Force UI update by rerendering
+                              const list = document.getElementById('panic-keys-list');
+                              if (list) list.style.opacity = '0.5';
+                              setTimeout(() => window.location.reload(), 100);
+                            } catch {}
+                          }}
+                          style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ));
+                  } catch {
+                    return <span style={{ color: 'var(--tx3)', fontStyle: 'italic' }}>No triggers set</span>;
+                  }
+                })()}
               </div>
             </div>
 
             {/* Key capture input */}
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Press a key combination to set</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Add New Trigger (keyboard or mouse)</label>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <input
                   type="text"
                   id="panic-key-capture"
-                  placeholder="Press a key..."
+                  placeholder="Click to listen... (press key or mouse button)"
                   readOnly
                   onFocus={(e) => {
                     const input = e.currentTarget;
-                    input.value = 'Listening...';
+                    input.value = 'Listening for keyboard/mouse...';
                     input.style.color = 'var(--ac)';
-                    const handler = (ev: KeyboardEvent) => {
+                    
+                    let captured = false;
+                    
+                    const handleKey = (ev: KeyboardEvent) => {
+                      if (captured) return;
+                      captured = true;
                       ev.preventDefault();
                       ev.stopPropagation();
                       const parts: string[] = [];
@@ -1001,32 +1036,65 @@ export const SettingsView = () => {
                       if (ev.shiftKey) parts.push('Shift');
                       if (ev.altKey) parts.push('Alt');
                       if (ev.metaKey) parts.push('Meta');
-                      // Only add the main key if it's not a modifier alone
                       const key = ev.key;
                       const isModifier = key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta';
                       if (!isModifier) {
-                        // Use a cleaner representation
                         if (key === ' ') parts.push('Space');
                         else if (key.length === 1) parts.push(key.toUpperCase());
                         else parts.push(key);
                       }
                       const combo = parts.join('+');
-                      if (combo) {
-                        localStorage.setItem('panicKey', combo);
-                        input.value = combo;
-                        input.blur();
-                        const display = document.getElementById('panic-key-display');
-                        if (display) {
-                          display.textContent = combo;
-                          display.style.color = 'var(--ac)';
-                        }
-                      }
-                      document.removeEventListener('keydown', handler);
+                      if (combo) savePanicKey(combo);
+                      cleanup();
                     };
-                    document.addEventListener('keydown', handler, { once: true });
+                    
+                    const handleMouse = (ev: MouseEvent) => {
+                      if (captured) return;
+                      captured = true;
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      const parts: string[] = [];
+                      if (ev.ctrlKey) parts.push('Ctrl');
+                      if (ev.shiftKey) parts.push('Shift');
+                      if (ev.altKey) parts.push('Alt');
+                      if (ev.metaKey) parts.push('Meta');
+                      
+                      // Map button numbers to names
+                      const buttonNames: { [key: number]: string } = {
+                        0: 'Left', 1: 'Middle', 2: 'Right', 3: 'Mouse4', 4: 'Mouse5'
+                      };
+                      const btnName = buttonNames[ev.button] || `Mouse${ev.button}`;
+                      if (ev.button !== 0) { // Not left click
+                        parts.push(btnName);
+                      }
+                      const combo = parts.join('+').replace('+Left', '').trim();
+                      if (combo) savePanicKey(combo.startsWith('Mouse') ? combo : '');
+                      cleanup();
+                    };
+                    
+                    const savePanicKey = (key: string) => {
+                      if (!key) return;
+                      try {
+                        const keys = JSON.parse(localStorage.getItem('panicKeys') || '[]');
+                        if (!keys.includes(key)) {
+                          keys.push(key);
+                          localStorage.setItem('panicKeys', JSON.stringify(keys));
+                        }
+                        input.value = key;
+                        input.blur();
+                      } catch {}
+                    };
+                    
+                    const cleanup = () => {
+                      document.removeEventListener('keydown', handleKey);
+                      document.removeEventListener('mousedown', handleMouse);
+                    };
+                    
+                    document.addEventListener('keydown', handleKey, { once: false });
+                    document.addEventListener('mousedown', handleMouse, { once: false });
                   }}
                   onBlur={(e) => {
-                    if (!e.currentTarget.value || e.currentTarget.value === 'Listening...') {
+                    if (e.currentTarget.value === 'Listening for keyboard/mouse...' || !e.currentTarget.value) {
                       e.currentTarget.value = '';
                     }
                     e.currentTarget.style.color = 'var(--tx)';
@@ -1046,28 +1114,26 @@ export const SettingsView = () => {
                 <button
                   className="modal-btn modal-btn--danger"
                   onClick={() => {
-                    localStorage.removeItem('panicKey');
-                    const display = document.getElementById('panic-key-display');
-                    if (display) {
-                      display.textContent = 'Not set';
-                      display.style.color = 'var(--tx3)';
-                    }
+                    localStorage.setItem('panicKeys', '[]');
+                    const list = document.getElementById('panic-keys-list');
+                    if (list) list.style.opacity = '0.5';
+                    setTimeout(() => window.location.reload(), 100);
                   }}
                   style={{ padding: '10px 16px', flexShrink: 0 }}
                 >
-                  Clear
+                  Clear All
                 </button>
               </div>
             </div>
 
             {/* Mouse button presets */}
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Mouse Button Presets</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Quick Presets</label>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {[
                   { label: 'Mouse4 (Back)', value: 'Mouse4' },
                   { label: 'Mouse5 (Forward)', value: 'Mouse5' },
-                  { label: 'Middle Click', value: 'Mouse3' },
+                  { label: 'Middle Click', value: 'Mouse1' },
                   { label: 'Ctrl+Shift+Escape', value: 'Ctrl+Shift+Escape' },
                   { label: 'F12', value: 'F12' },
                 ].map(preset => (
@@ -1075,12 +1141,14 @@ export const SettingsView = () => {
                     key={preset.value}
                     className="modal-btn"
                     onClick={() => {
-                      localStorage.setItem('panicKey', preset.value);
-                      const display = document.getElementById('panic-key-display');
-                      if (display) {
-                        display.textContent = preset.value;
-                        display.style.color = 'var(--ac)';
-                      }
+                      try {
+                        const keys = JSON.parse(localStorage.getItem('panicKeys') || '[]');
+                        if (!keys.includes(preset.value)) {
+                          keys.push(preset.value);
+                          localStorage.setItem('panicKeys', JSON.stringify(keys));
+                        }
+                        window.location.reload();
+                      } catch {}
                     }}
                     style={{ fontSize: '0.82rem', padding: '6px 12px' }}
                   >
@@ -1091,8 +1159,8 @@ export const SettingsView = () => {
             </div>
 
             <div style={{ fontSize: '12px', color: 'var(--tx3)', borderTop: '1px solid var(--brd)', paddingTop: '12px' }}>
-              <strong>How it works:</strong> When the panic key is pressed, the server shuts down immediately and the browser tab closes.
-              The key binding is stored only in your browser's localStorage.
+              <strong>How it works:</strong> Add one or more triggers. When any trigger is activated, the server shuts down immediately and the browser tab closes.
+              The bindings are stored only in your browser's localStorage.
             </div>
           </div>
         </div>

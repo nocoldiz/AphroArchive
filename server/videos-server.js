@@ -45,6 +45,24 @@ let _watchDebounce = null;
 const unlockedCategories = new Map(); // catPath -> key (Buffer)
 let masterPassword = null; // Session master password
 
+// ── Encryption progress tracker (shared for polling) ──────────────────
+let _encryptionProgress = {
+  running: false,
+  type: '',   // 'encrypt' | 'decrypt'
+  category: '',
+  total: 0,
+  done: 0,
+  current: '',
+  error: '',
+  ok: false,
+};
+function updateEncryptionProgress(partial) {
+  _encryptionProgress = { ..._encryptionProgress, ...partial };
+}
+function getEncryptionProgress() {
+  return { ..._encryptionProgress };
+}
+
 function invalidateScanCache() {
   _scanCache = null;
   clearVideoIndex();
@@ -767,9 +785,21 @@ async function apiStream(req, res, id) {
   const fp = safePath(id);
   if (!fp) { res.writeHead(404); res.end('Not found'); return; }
   
-  const v = (await allVideos()).find(v => v.id === id);
-  const isEnc = v && v.encrypted;
-  const key   = isEnc ? getUnlockKey(v.catPath) : null;
+  // Optimize: Just check if encrypted without loading all videos
+  let isEnc = false;
+  let key = null;
+  try {
+    const meta = loadVideoMeta();
+    if (meta[id]?.encrypted) {
+      isEnc = true;
+      // Get category path for this specific video
+      const all = await cachedScan();
+      const v = all.find(v => v.id === id);
+      if (v) {
+        key = isEnc ? getUnlockKey(v.catPath) : null;
+      }
+    }
+  } catch {}
   
   if (isEnc && !key) {
     res.writeHead(401);
@@ -779,7 +809,7 @@ async function apiStream(req, res, id) {
   const stat = await fs.promises.stat(fp);
   const size = stat.size;
   const ext  = path.extname(fp).toLowerCase();
-  const ct   = MIME[v?.ext || ext] || 'application/octet-stream';
+  const ct   = MIME[ext] || 'application/octet-stream';
 
   if (isEnc) {
     // Stream decrypt from file
@@ -1749,9 +1779,15 @@ async function apiEncryptCategory(req, res) {
     const total = videos.filter(v => !v.encrypted).length;
     let encryptedCount = 0;
 
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' });
-    const sendProgress = (obj) => res.write(JSON.stringify(obj) + '\n');
+    updateEncryptionProgress({ running: true, type: 'encrypt', category: catPath, total, done: 0, current: '', error: '', ok: false });
 
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' });
+    const sendProgress = (obj) => {
+      res.write(JSON.stringify(obj) + '\n');
+      if (obj.cur !== undefined) updateEncryptionProgress({ done: obj.cur, current: obj.file || '' });
+      if (obj.error) updateEncryptionProgress({ error: obj.error, running: false });
+      if (obj.ok) updateEncryptionProgress({ running: false, ok: true });
+    };
     const meta = loadVideoMeta();
     const vaultKey = getVaultKey();
 
@@ -2478,6 +2514,10 @@ async function apiCategorizeExecute(req, res) {
   json(res, { ok: true, movedVideos, movedLinks, errors });
 }
 
+function apiEncryptionStatus(req, res) {
+  json(res, getEncryptionProgress());
+}
+
 module.exports = {
   scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
   apiVideosUpload, apiRescan,
@@ -2498,4 +2538,5 @@ module.exports = {
   apiEncryptVideo, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey,
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
   apiCategorizePlan, apiCategorizeExecute,
+  apiEncryptionStatus, getEncryptionProgress,
 };
