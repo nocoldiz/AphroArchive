@@ -232,10 +232,8 @@ async function allVideos() {
   
   let list = all.map(v => {
     const vMeta = meta[v.id] || {};
-    const category = vMeta.category || v.category;
-    const catPath = vMeta.category || v.catPath;
     const tags = vMeta.tags || [];
-    return { ...v, category, catPath, tags };
+    return { ...v, tags };
   });
 
   // Load Links as remote videos
@@ -930,7 +928,7 @@ async function apiMove(req, res, id) {
       const fi   = favs.indexOf(id);
       if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
       const meta = loadVideoMeta();
-      if (meta[id]) { meta[newId] = { ...meta[id] }; delete meta[id]; saveVideoMeta(meta); }
+      if (meta[id]) { meta[newId] = { ...meta[id], category: targetCategory }; delete meta[id]; saveVideoMeta(meta); }
       return json(res, { ok: true, newId });
     } catch (e) {
       return json(res, { error: e.message }, 500);
@@ -956,7 +954,7 @@ async function apiMove(req, res, id) {
     const fi   = favs.indexOf(id);
     if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
     const meta = loadVideoMeta();
-    if (meta[id]) { meta[newId] = { ...meta[id] }; delete meta[id]; saveVideoMeta(meta); }
+    if (meta[id]) { meta[newId] = { ...meta[id], category: targetCategory }; delete meta[id]; saveVideoMeta(meta); }
     json(res, { ok: true, newId });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -1574,7 +1572,8 @@ async function apiRenameCategory(req, res) {
       if (rel.startsWith(oldPathFwd + '/') || rel === oldPathFwd) {
         const newRel = newPathRel + rel.substring(oldPathFwd.length);
         const newId = toId(newRel);
-        meta[newId] = { ...meta[id] };
+        const newCatPath = path.dirname(newRel).replace(/\\/g, '/');
+        meta[newId] = { ...meta[id], category: newCatPath === '.' ? '' : newCatPath };
         delete meta[id];
         changed = true;
       }
