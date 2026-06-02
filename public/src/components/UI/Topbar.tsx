@@ -1,6 +1,6 @@
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
-import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen } from '../../store';
+import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState } from '../../store';
 import { useEffect } from 'preact/hooks';
 
 export const Topbar = () => {
@@ -17,7 +17,7 @@ export const Topbar = () => {
   };
 
   const openImport = () => {
-    if ((window as any).openImport) (window as any).openImport();
+    importModalState.value = { visible: true };
   };
 
   const toggleDual = () => {
@@ -34,12 +34,6 @@ export const Topbar = () => {
 
   const togglePan = () => {
     if ((window as any).togglePan) (window as any).togglePan();
-  };
-
-  const handleGlobalFiles = (files: FileList | null) => {
-    if (files && (window as any).handleGlobalFiles) {
-      (window as any).handleGlobalFiles(files);
-    }
   };
 
   return (
@@ -149,15 +143,6 @@ export const Topbar = () => {
           )}
         </button>
 
-        <input
-          type="file"
-          id="globalFileIn"
-          multiple
-          title="Import files"
-          accept="video/*,audio/*,.pdf,.txt,.doc,.docx,.md,.epub,.mp3,.flac,.wav,.ogg,.aac,.m4a,.wma,.opus,.aiff"
-          style={{ display: 'none' }}
-          onChange={(e) => handleGlobalFiles((e.target as HTMLInputElement).files)}
-        />
       </div>
     </div>
   );

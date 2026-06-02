@@ -37,6 +37,10 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   const [buffered, setBuffered] = useState<{ start: number; end: number }[]>([]);
   const [localZap, setLocalZap] = useState(false);
   const controlsTimeoutRef = useRef<any>(null);
+  const onNextRef = useRef(onNext);
+  const onPrevRef = useRef(onPrev);
+  useEffect(() => { onNextRef.current = onNext; });
+  useEffect(() => { onPrevRef.current = onPrev; });
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -51,7 +55,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       setMuted(vid.muted);
     };
     const onEnded = () => {
-      if (onNext) onNext();
+      if (onNextRef.current) onNextRef.current();
     };
     const onProgress = () => {
       const buf = vid.buffered;
@@ -79,7 +83,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       vid.removeEventListener('ended', onEnded);
       vid.removeEventListener('progress', onProgress);
     };
-  }, [onNext]);
+  }, []);
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -160,17 +164,17 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
           toggleFullscreen();
           break;
         case 'n': case 'N':
-          if (onNext) onNext();
+          if (onNextRef.current) onNextRef.current();
           break;
         case 'p': case 'P':
-          if (onPrev) onPrev();
+          if (onPrevRef.current) onPrevRef.current();
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [muted, onNext, onPrev]);
+  }, [muted]);
 
   const togglePlay = () => {
     const vid = videoRef.current;
@@ -249,6 +253,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       <video
         ref={videoRef}
         src={src}
+        preload="auto"
         style={{ width: '100%', maxHeight: '80vh', display: 'block' }}
         onClick={togglePlay}
         autoPlay

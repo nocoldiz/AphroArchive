@@ -151,22 +151,18 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (!video || video.isVault) return;
-    fetch(`/api/videos/${video.id}`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(d => {
-        setActors(d.actors || []);
-        setTags(d.tags || []);
-        setStudio(d.studio || '');
-        setRating(d.video?.rating ?? null);
-        setChapters(d.video?.chapters || []);
-        setSuggested(d.suggested || []);
-      })
-      .catch(() => {});
-
-    fetch(`/api/subtitles/${video.id}`)
-      .then(r => r.json())
-      .then(tracks => setSubtitles(tracks))
-      .catch(() => { });
+    Promise.all([
+      fetch(`/api/videos/${video.id}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+      fetch(`/api/subtitles/${video.id}`).then(r => r.json()).catch(() => [])
+    ]).then(([d, tracks]) => {
+      setActors(d.actors || []);
+      setTags(d.tags || []);
+      setStudio(d.studio || '');
+      setRating(d.video?.rating ?? null);
+      setChapters(d.video?.chapters || []);
+      setSuggested(d.suggested || []);
+      setSubtitles(tracks);
+    }).catch(() => {});
   }, [video]);
 
   const relatedVideos = useMemo(() => {
@@ -294,6 +290,7 @@ export const PlayerView = () => {
               </div>
             ) : video.isVault ? (
               <AdvancedPlayer
+                key={video.id}
                 src={`/api/vault/stream/${video.id}`}
                 videoId={video.id}
                 subtitles={subtitles}
@@ -309,6 +306,7 @@ export const PlayerView = () => {
               />
             ) : (
               <AdvancedPlayer
+                key={video.id}
                 src={`/api/stream/${video.id}`}
                 videoId={video.id}
                 subtitles={subtitles}

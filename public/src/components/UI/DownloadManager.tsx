@@ -24,6 +24,14 @@ interface ScraperStatus {
   skipped?: number;
 }
 
+interface BulkStatus {
+  running: boolean;
+  done: number;
+  total: number;
+  current: string;
+  log: string[];
+}
+
 function suggestCategory(title: string, cats: any[]): string {
   const norm = title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   for (const cat of cats) {
@@ -115,23 +123,28 @@ export const DownloadManager = () => {
     bmMeta: { running: false },
     bmThumbs: { running: false },
   });
+  const [bulk, setBulk] = useState<BulkStatus>({ running: false, done: 0, total: 0, current: '', log: [] });
+  const [bulkUrls, setBulkUrls] = useState('');
+  const [showBulkInput, setShowBulkInput] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // Poll downloads + all scraper statuses
+  // Poll downloads + all scraper statuses + bulk
   useEffect(() => {
     const poll = async () => {
       try {
-        const [dlRes, vtRes, bmMetaRes, bmThRes] = await Promise.all([
+        const [dlRes, vtRes, bmMetaRes, bmThRes, blkRes] = await Promise.all([
           fetch('/api/download/jobs'),
           fetch('/api/gen-thumbs/poll'),
           fetch('/api/links/scrape-status'),
           fetch('/api/links/thumb-status'),
+          fetch('/api/bulk-download/status'),
         ]);
         if (dlRes.ok) setJobs(await dlRes.json());
         const vt = vtRes.ok ? await vtRes.json() : { running: false };
         const bm = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
         const bt = bmThRes.ok ? await bmThRes.json() : { running: false };
         setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt });
+        if (blkRes.ok) setBulk(await blkRes.json());
       } catch {}
     };
     poll();
@@ -151,7 +164,7 @@ export const DownloadManager = () => {
 
   const activeDlCount = jobs.filter(j => j.status === 'queued' || j.status === 'running').length;
   const activeScraperCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs].filter(s => s.running).length;
-  const badgeCount = activeDlCount + activeScraperCount;
+  const badgeCount = activeDlCount + activeScraperCount + (bulk.running ? 1 : 0);
 
   const cats = (categories.value as any[]).filter(
     c => c.path && c.path !== 'uncategorized' && c.path !== 'Links'
@@ -184,6 +197,19 @@ export const DownloadManager = () => {
   const scraperAction = async (url: string, method = 'POST') => {
     await fetch(url, { method }).catch(() => {});
   };
+
+  const startBulkDownload = async () => {
+    const urls = bulkUrls.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+    if (!urls.length) return;
+    const r = await fetch('/api/bulk-download/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    if (r.ok) { setBulkUrls(''); setShowBulkInput(false); }
+  };
+
+  const stopBulkDownload = () => fetch('/api/bulk-download/stop', { method: 'POST' }).catch(() => {});
 
   const iconThumb = (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -311,6 +337,91 @@ export const DownloadManager = () => {
               })}
             </div>
           )}
+
+          {/* ── Bulk Download section ─────────────────────── */}
+          <div style={{ borderBottom: '1px solid var(--brd)' }}>
+            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/>
+                  <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>
+                </svg>
+              </span>
+              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Bulk Download</span>
+              {bulk.running ? (
+                <>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
+                    {bulk.total > 0 ? `${bulk.done}/${bulk.total}` : 'running…'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={stopBulkDownload}
+                    style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
+                  >
+                    Stop
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowBulkInput(v => !v)}
+                  style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
+                >
+                  {showBulkInput ? 'Cancel' : 'Add URLs'}
+                </button>
+              )}
+            </div>
+
+            {bulk.running && bulk.total > 0 && <ProgressBar done={bulk.done} total={bulk.total} />}
+            {bulk.running && bulk.current && (
+              <div style={{ padding: '0 14px 6px', fontSize: '0.68rem', color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={bulk.current}>
+                {bulk.current}
+              </div>
+            )}
+            {bulk.running && bulk.log.length > 0 && (
+              <div style={{ margin: '0 14px 8px', background: 'var(--bg3)', borderRadius: '4px', padding: '6px 8px', maxHeight: '100px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.65rem', color: 'var(--tx2)', lineHeight: '1.4' }}>
+                {bulk.log.slice(-20).map((l, i) => <div key={i}>{l}</div>)}
+              </div>
+            )}
+            {!bulk.running && bulk.total > 0 && bulk.log.length > 0 && (
+              <div style={{ padding: '0 14px 8px', fontSize: '0.7rem', color: 'var(--tx3)' }}>
+                Done — {bulk.total} item(s) processed
+              </div>
+            )}
+
+            {showBulkInput && !bulk.running && (
+              <div style={{ padding: '0 14px 10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <textarea
+                  value={bulkUrls}
+                  onInput={(e: any) => setBulkUrls(e.target.value)}
+                  placeholder={'Paste URLs, one per line\nhttps://example.com/video1\nhttps://example.com/video2'}
+                  rows={5}
+                  style={{
+                    width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                    background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)',
+                    borderRadius: '5px', padding: '6px 8px', fontSize: '0.72rem',
+                    fontFamily: 'monospace', lineHeight: '1.5',
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--tx3)' }}>
+                    {bulkUrls.split('\n').filter(l => l.trim().startsWith('http')).length} URL(s)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={startBulkDownload}
+                    disabled={!bulkUrls.split('\n').some(l => l.trim().startsWith('http'))}
+                    style={{
+                      background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px',
+                      padding: '4px 14px', fontSize: '0.75rem', cursor: 'pointer',
+                    }}
+                  >
+                    Start
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* ── Background Tasks section ───────────────────── */}
           <div style={{ padding: '8px 14px 4px', fontSize: '0.72rem', fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>

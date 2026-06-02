@@ -25,6 +25,10 @@
     "outputPath": "dist"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/preferences": "^8.0.1",
     "@preact/signals": "^2.9.0",
     "better-sqlite3": "^12.10.0",
     "node-llama-cpp": "^3.18.1",

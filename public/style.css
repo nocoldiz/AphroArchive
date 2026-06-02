@@ -509,6 +509,28 @@ input {
   opacity: 1
 }
 
+.thumb-actions button {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s, color 0.2s;
+}
+.thumb-actions button:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
+}
+.thumb-actions button.fav-active {
+  color: #ffb700;
+}
+
 .cta-btn {
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);

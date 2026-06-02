@@ -107,6 +107,8 @@ export const presetPickerState = signal<{
   mergeMode: false
 });
 
+export const importModalState = signal<{ visible: boolean }>({ visible: false });
+
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentPhotoFolder = signal<string>('');

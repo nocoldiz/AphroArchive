@@ -12,8 +12,8 @@ const os    = require('os');
 const url   = require('url');
 const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
 const { json, readBody, serveStatic }   = require('./helpers-server');
-const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories } = require('./db-server');
-const { wordMatchAny } = require('./helpers-server');
+const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories, loadAllVideoTags } = require('./db-server');
+const { wordMatchAny, wordMatch } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
 
@@ -847,6 +847,64 @@ async function apiBrowserFavsFile(req, res) {
   }
 }
 
+// ── URL-paste import ─────────────────────────────────────────────────
+
+function deriveTitleFromUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const segments = u.pathname.split('/').filter(Boolean);
+    // Try last path segment first, then second-to-last
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = decodeURIComponent(segments[i]).replace(/\.[^.]+$/, ''); // strip extension
+      const cleaned = seg.replace(/[-_+.]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (cleaned.length >= 3) return cleaned;
+    }
+    return u.hostname.replace(/^www\./, '');
+  } catch { return rawUrl; }
+}
+
+async function apiImportLinks(req, res) {
+  const body = await readBody(req);
+  const rawUrls = Array.isArray(body.urls)
+    ? body.urls.filter(u => typeof u === 'string' && u.startsWith('http'))
+    : [];
+  if (!rawUrls.length) return json(res, { error: 'No URLs provided' }, 400);
+
+  const cache = loadLinksCache();
+  const existing = new Set((cache.items || []).map(i => i.url));
+  const cats = loadCategories();
+  const allTags = loadAllVideoTags();
+
+  let added = 0, skipped = 0;
+  const newItems = [];
+
+  for (const rawUrl of rawUrls) {
+    if (existing.has(rawUrl)) { skipped++; continue; }
+
+    const title = deriveTitleFromUrl(rawUrl);
+    const searchText = title + ' ' + rawUrl;
+
+    // Category: first match from categories DB
+    let category = '';
+    for (const cat of cats) {
+      if (wordMatchAny(title, cat.terms)) { category = cat.displayName; break; }
+    }
+
+    // Tags: match known video tags against title + URL path
+    const matchedTags = allTags.filter(tag => tag.length >= 2 && wordMatch(searchText, tag));
+
+    newItems.push({ url: rawUrl, title, category, tags: matchedTags, addedAt: Date.now() });
+    existing.add(rawUrl);
+    added++;
+  }
+
+  if (newItems.length) {
+    saveLinksCache({ items: [...(cache.items || []), ...newItems] });
+  }
+
+  json(res, { ok: true, added, skipped });
+}
+
 module.exports = {
   apiOgThumb,
   apiGetLinksCache, apiSaveLinksCache,
@@ -861,4 +919,5 @@ module.exports = {
   apiLinkThumbStatus, apiStopLinkThumbs,
   apiStartScraping,
   apiRescrapeAll,
+  apiImportLinks,
 };

@@ -102,7 +102,8 @@ function ensureSchema(database) {
       img TEXT,
       scraped_video_url TEXT,
       embed_url TEXT,
-      added_at INTEGER
+      added_at INTEGER,
+      tags TEXT
     );
 
     CREATE TABLE IF NOT EXISTS og_thumbs (
@@ -197,6 +198,8 @@ function ensureSchema(database) {
       FOREIGN KEY (website_name) REFERENCES websites(name) ON DELETE CASCADE
     );
   `);
+  // Migrations for columns added after initial schema
+  try { database.exec('ALTER TABLE links ADD COLUMN tags TEXT'); } catch {}
 }
 
 function switchProfile(profileName) {
@@ -901,7 +904,7 @@ function saveOgThumbCache(map) {
 
 function loadLinksCache() {
   try {
-    const rows = db.prepare('SELECT url, title, category, img, scraped_video_url, embed_url, added_at FROM links').all();
+    const rows = db.prepare('SELECT url, title, category, img, scraped_video_url, embed_url, added_at, tags FROM links').all();
     const items = rows.map(r => ({
       url: r.url,
       title: r.title,
@@ -910,6 +913,7 @@ function loadLinksCache() {
       scrapedVideoUrl: r.scraped_video_url,
       embedUrl: r.embed_url,
       addedAt: r.added_at,
+      tags: r.tags ? JSON.parse(r.tags) : [],
     }));
     return { items };
   } catch (e) {
@@ -923,10 +927,11 @@ function saveLinksCache(data) {
   try {
     db.transaction(() => {
       db.prepare('DELETE FROM links').run();
-      const ins = db.prepare('INSERT INTO links (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const ins = db.prepare('INSERT INTO links (url, title, category, img, scraped_video_url, embed_url, added_at, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
       for (const it of items) {
+        const tagsJson = Array.isArray(it.tags) && it.tags.length ? JSON.stringify(it.tags) : null;
         ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null,
-          it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now());
+          it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now(), tagsJson);
       }
     })();
   } catch (e) { console.error('Failed to save links cache to SQLite:', e); }
@@ -1317,6 +1322,12 @@ function clearVideoIndex() {
   }
 }
 
+function loadAllVideoTags() {
+  try {
+    return db.prepare('SELECT DISTINCT tag FROM video_tags ORDER BY tag').all().map(r => r.tag);
+  } catch { return []; }
+}
+
 function saveLinksToDb(items) {
   const cats = loadCategories();
   const { wordMatchAny } = require('./helpers-server');
@@ -1368,5 +1379,5 @@ module.exports = {
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   switchProfile, getCurrentProfile: () => currentProfile,
   closeDb: () => { if (db) { db.close(); db = null; } },
-  saveLinksToDb
+  saveLinksToDb, loadAllVideoTags,
 };

@@ -222,6 +222,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/download-queue' && req.method === 'POST') return downloads.apiWriteDownloadQueue(req, res);
   if (p === '/api/download-queue/add' && req.method === 'POST') return downloads.apiDownloadQueueAdd(req, res);
   if (p === '/api/download-queue/remove' && req.method === 'POST') return downloads.apiDownloadQueueRemove(req, res);
+  if (p === '/api/bulk-download/start' && req.method === 'POST') return downloads.apiBulkDownloadStart(req, res);
+  if (p === '/api/bulk-download/status' && req.method === 'GET') return downloads.apiBulkDownloadStatus(req, res);
+  if (p === '/api/bulk-download/stop' && req.method === 'POST') return downloads.apiBulkDownloadStop(req, res);
 
   // ── Links / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
@@ -257,6 +260,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/links\/thumbs\/(.+)$/)) && req.method === 'GET') return links.apiLinkThumbImg(req, res, m[1]);
   if (p === '/api/links/cache' && req.method === 'GET') return links.apiGetLinksCache(req, res);
   if (p === '/api/links/cache' && req.method === 'POST') return links.apiSaveLinksCache(req, res);
+  if (p === '/api/links/import-urls' && req.method === 'POST') return links.apiImportLinks(req, res);
   if (p === '/api/browser-favs' && req.method === 'GET') return links.apiBrowserFavs(req, res);
   if (p === '/api/browser-favs/file' && req.method === 'POST') return links.apiBrowserFavsFile(req, res);
 

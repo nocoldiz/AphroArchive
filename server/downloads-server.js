@@ -203,7 +203,94 @@ async function apiDownloadQueueRemove(req, res) {
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
+// ── Bulk downloader (Python script) ─────────────────────────────────
+
+let bulkProc = null;
+let bulkLog = [];
+let bulkStatus = { running: false, log: [], done: 0, total: 0, current: '' };
+
+async function apiBulkDownloadStart(req, res) {
+  const body = await readBody(req);
+  const urls = Array.isArray(body.urls) ? body.urls.filter(u => typeof u === 'string' && u.startsWith('http')) : [];
+  if (!urls.length) return json(res, { error: 'No URLs provided' }, 400);
+  if (bulkStatus.running) return json(res, { error: 'Already running' }, 409);
+
+  bulkLog = [];
+  bulkStatus = { running: true, log: [], done: 0, total: urls.length, current: '' };
+
+  const pythonBin = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, '..', 'bulkdowloader.py');
+  const projectRoot = path.join(__dirname, '..');
+
+  try {
+    bulkProc = spawn(pythonBin, ['-u', scriptPath], {
+      cwd: projectRoot,
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+    });
+  } catch (e) {
+    bulkStatus.running = false;
+    return json(res, { error: e.message }, 500);
+  }
+
+  bulkProc.stdin.write(urls.join('\n') + '\ndone\n');
+  bulkProc.stdin.end();
+
+  const addLog = line => {
+    console.log('[bulk]', line);
+    bulkLog.push(line);
+    if (bulkLog.length > 300) bulkLog.shift();
+    bulkStatus.log = [...bulkLog];
+    const m = line.match(/\[(\d+)\/(\d+)\]\s*Processing:/);
+    if (m) {
+      bulkStatus.done = parseInt(m[1]) - 1;
+      bulkStatus.total = parseInt(m[2]);
+      bulkStatus.current = line.replace(/^\[\d+\/\d+\]\s*/, '').trim();
+    }
+  };
+
+  // Split on \r or \n so carriage-return progress lines are captured immediately
+  const feedLines = (buf, prefix) => {
+    const parts = buf.split(/[\r\n]/);
+    const remainder = parts.pop(); // last incomplete chunk
+    for (const l of parts) { if (l.trim()) addLog(prefix + l.trim()); }
+    return remainder;
+  };
+
+  let outBuf = '', errBuf = '';
+  bulkProc.stdout.on('data', d => { outBuf = feedLines(outBuf + d.toString('utf8'), ''); });
+  bulkProc.stderr.on('data', d => { errBuf = feedLines(errBuf + d.toString('utf8'), '[err] '); });
+
+  bulkProc.on('error', err => {
+    console.error('[bulk] spawn error:', err.message);
+    bulkStatus.running = false;
+    bulkStatus.log = [...bulkLog, '[error] ' + err.message];
+    bulkProc = null;
+  });
+
+  bulkProc.on('close', code => {
+    if (outBuf.trim()) addLog(outBuf.trim());
+    if (errBuf.trim()) addLog('[err] ' + errBuf.trim());
+    console.log('[bulk] process exited with code', code);
+    bulkStatus.running = false;
+    bulkStatus.done = bulkStatus.total;
+    bulkProc = null;
+  });
+
+  json(res, { ok: true, total: urls.length });
+}
+
+function apiBulkDownloadStatus(req, res) {
+  json(res, bulkStatus);
+}
+
+function apiBulkDownloadStop(req, res) {
+  if (bulkProc) { bulkProc.kill('SIGKILL'); bulkProc = null; }
+  bulkStatus.running = false;
+  json(res, { ok: true });
+}
+
 module.exports = {
   apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadCheck,
   apiReadDownloadQueue, apiWriteDownloadQueue, apiDownloadQueueAdd, apiDownloadQueueRemove,
+  apiBulkDownloadStart, apiBulkDownloadStatus, apiBulkDownloadStop,
 };

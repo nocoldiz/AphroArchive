@@ -148,7 +148,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       data-id={video.id}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      style={{ 
+      style={{
         animationDelay: `${Math.min((index ?? 0) * 35, 420)}ms`,
         border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)',
         backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : 'var(--bg2)',
@@ -163,29 +163,6 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       }}
       ref={cardRef}
     >
-      <style>{`
-        .thumb-actions button {
-          background: rgba(0, 0, 0, 0.5);
-          backdrop-filter: blur(4px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: white;
-          border-radius: 50%;
-          width: 28px;
-          height: 28px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: background 0.2s, transform 0.2s, color 0.2s;
-        }
-        .thumb-actions button:hover {
-          background: rgba(0, 0, 0, 0.8);
-          transform: scale(1.1);
-        }
-        .thumb-actions button.fav-active {
-          color: #ffb700;
-        }
-      `}</style>
       <div className="card-thumb">
         <img
           src={video.isLink ? (video.img || '') : `/api/thumbs/${video.id}/0`}
