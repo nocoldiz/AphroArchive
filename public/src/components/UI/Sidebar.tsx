@@ -70,6 +70,7 @@ export const Sidebar = () => {
 
   const [linkCount, setLinkCount] = useState(0);
   const [tags, setTags] = useState<{ name: string, count: number }[]>([]);
+  useEffect(() => { (window as any)._sidebarSetTags = setTags; return () => { delete (window as any)._sidebarSetTags; }; }, []);
   const [tagsOpen, setTagsOpen] = useState(true);
   const [catsOpen, setCatsOpen] = useState(true);
 

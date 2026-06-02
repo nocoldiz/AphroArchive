@@ -1,4 +1,4 @@
-﻿import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState } from '../../store';
+﻿import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -82,28 +82,19 @@ export const ContextMenu = () => {
 
   const handleHide = async () => {
     try {
-      const res = await fetch('/api/all-categories');
-      const d = await res.json();
-      let enabled = d.enabled || [];
-      const allCats = d.categories || [];
-      
-      if (enabled.length === 0) {
-        // If empty, all are enabled. So we populate with all paths.
-        enabled = allCats.map((c: any) => c.path);
-      }
-      
-      // Remove current category path
-      const updated = enabled.filter((p: string) => p !== data.path);
-      
-      const r = await fetch('/api/enabled-categories', {
+      const r = await fetch('/api/categories/hide', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paths: updated })
+        body: JSON.stringify({ name: data.path })
       });
 
       if (r.ok) {
         toast(`Category "${data.name}" hidden`);
-        refresh();
+        closeMenu();
+        await loadVideos();
+        const tagRes = await fetch('/api/tags');
+        const tagData = await tagRes.json();
+        (window as any)._sidebarSetTags?.(tagData);
       } else {
         toast('Hide failed');
       }

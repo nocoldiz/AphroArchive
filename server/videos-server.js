@@ -559,7 +559,11 @@ async function apiCategories(req, res) {
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
     const parts = key.split('/');
-    const isHidden = parts.some(part => hidden.some(t => t.toLowerCase() === part.toLowerCase()));
+    const kLo = key.toLowerCase();
+    const isHidden = hidden.some(t => {
+      const tLo = t.toLowerCase();
+      return kLo === tLo || kLo.startsWith(tLo + '/') || parts.some(part => part.toLowerCase() === tLo);
+    });
     if (isHidden) continue;
 
     const isLinks = key === 'Links';
