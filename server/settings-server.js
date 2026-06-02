@@ -6,7 +6,7 @@
 const fs   = require('fs');
 const { VIDEOS_DIR } = require('./config-server');
 const { json, readBody }  = require('./helpers-server');
-const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios } = require('./db-server');
+const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios, loadVaultConfig } = require('./db-server');
 
 function apiSettingsLists(req, res) {
   json(res, {
@@ -71,8 +71,43 @@ async function apiSavePrefs(req, res) {
       } catch (e) {}
     }
   }
+  let feedFoldersChanged = false;
+  if ('feedFolders' in body) {
+    if (Array.isArray(body.feedFolders)) {
+      prefs.feedFolders = body.feedFolders.map(p => String(p).trim()).filter(Boolean);
+      feedFoldersChanged = true;
+    }
+  }
+  if ('privateFeedFolders' in body) {
+    if (Array.isArray(body.privateFeedFolders)) {
+      prefs.privateFeedFolders = body.privateFeedFolders.map(p => String(p).trim()).filter(Boolean);
+      feedFoldersChanged = true;
+    }
+  }
   savePrefs(prefs);
+  if (feedFoldersChanged) {
+    try {
+      const fw = require('./feed-watcher-server');
+      fw.stopWatchers();
+      fw.startWatchers(loadPrefs());
+    } catch (e) {}
+  }
   json(res, { ok: true });
+}
+
+async function apiVerifyVaultPassword(req, res) {
+  const cfg = loadVaultConfig();
+  if (!cfg) return json(res, { ok: false, error: 'Vault not configured' });
+  const body = await readBody(req);
+  const pw = (body.password || '').trim();
+  if (!pw) return json(res, { ok: false });
+  try {
+    const { deriveKeys } = require('./vault-server');
+    const { verifyHash } = await deriveKeys(pw, cfg.salt);
+    json(res, { ok: verifyHash === cfg.verifyHash });
+  } catch (e) {
+    json(res, { ok: false, error: e.message });
+  }
 }
 
 function apiBrowseFolders(req, res, params) {
@@ -138,4 +173,4 @@ function apiBrowseFoldersNative(req, res) {
   });
 }
 
-module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative };
+module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative, apiVerifyVaultPassword };

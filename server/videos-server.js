@@ -2136,6 +2136,78 @@ async function apiRescan(req, res) {
   json(res, { ok: true });
 }
 
+// Auto-categorize uncategorized videos (and links) by matching filename against category terms.
+// Videos are moved within their own root (VIDEOS_DIR or external source folder).
+async function apiAutoCategorizeUncategorized(req, res) {
+  const cats = loadCategories();
+  const prefs = loadPrefs();
+  const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
+  const roots = [VIDEOS_DIR, ...sourceFolders];
+
+  let movedVideos = 0;
+  const errors = [];
+
+  for (const root of roots) {
+    let entries;
+    try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
+
+    for (const ent of entries) {
+      if (!ent.isFile()) continue;
+      const ext = path.extname(ent.name).toLowerCase();
+      if (!VIDEO_EXT.has(ext)) continue;
+
+      const stem = path.basename(ent.name, ext);
+      let matched = null;
+      for (const cat of cats) {
+        if (wordMatchAny(stem, cat.terms)) { matched = cat; break; }
+      }
+      if (!matched) continue;
+
+      const src = path.join(root, ent.name);
+      const destDir = path.join(root, matched.displayName || matched.name);
+      try {
+        fs.mkdirSync(destDir, { recursive: true });
+        // Generate unique dest name
+        let dest = path.join(destDir, ent.name);
+        if (fs.existsSync(dest)) {
+          let n = 1;
+          do { dest = path.join(destDir, `${stem}_${n}${ext}`); n++; } while (fs.existsSync(dest));
+        }
+        fs.renameSync(src, dest);
+        movedVideos++;
+      } catch (e) {
+        errors.push(`${ent.name}: ${e.message}`);
+      }
+    }
+  }
+
+  // Also auto-categorize uncategorized links
+  let categorizedLinks = 0;
+  try {
+    const { loadLinksCache, saveLinksCache } = require('./db-server');
+    const cache = loadLinksCache();
+    const items = cache.items || [];
+    const VIRTUAL = new Set(['', 'links', 'uncategorized']);
+    for (const item of items) {
+      if (item.category && !VIRTUAL.has(item.category.toLowerCase())) continue;
+      const text = (item.title || '') + ' ' + (item.url || '');
+      for (const cat of cats) {
+        if (wordMatchAny(text, cat.terms)) {
+          item.category = cat.displayName || cat.name;
+          categorizedLinks++;
+          break;
+        }
+      }
+    }
+    saveLinksCache({ items });
+  } catch (e) {
+    errors.push('links: ' + e.message);
+  }
+
+  invalidateScanCache();
+  json(res, { ok: true, movedVideos, categorizedLinks, errors });
+}
+
 module.exports = {
   scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
   apiVideosUpload, apiRescan,
@@ -2153,5 +2225,6 @@ module.exports = {
   apiImport,
   apiAddChapter, apiDeleteChapter,
   apiRenameCategory, apiDeleteCategory, apiHideCategory,
-  apiEncryptVideo, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey
+  apiEncryptVideo, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey,
+  apiAutoCategorizeUncategorized,
 };

@@ -417,12 +417,20 @@ function scrapeLink(pageUrl) {
 
 function autoCategorizeLinks(items) {
   const cats = loadCategories();
+  const allTags = loadAllVideoTags();
   const enabledPaths = loadEnabledCategories();
   const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
 
   for (const item of items) {
-    if (item.category) continue; // don't overwrite manual assignments
     const title = item.title || '';
+    const searchText = title + ' ' + (item.url || '');
+
+    // Fill in tags for items that have none yet
+    if (!item.tags || item.tags.length === 0) {
+      item.tags = allTags.filter(tag => tag.length >= 2 && wordMatch(searchText, tag));
+    }
+
+    if (item.category) continue; // don't overwrite manual assignments
     for (const cat of cats) {
       const isEnabled = enabledSet.size === 0 || enabledSet.has(cat.name.toLowerCase());
       if (!isEnabled) continue;
@@ -899,7 +907,9 @@ async function apiImportLinks(req, res) {
   }
 
   if (newItems.length) {
-    saveLinksCache({ items: [...(cache.items || []), ...newItems] });
+    const merged = [...(cache.items || []), ...newItems];
+    autoCategorizeLinks(merged);
+    saveLinksCache({ items: merged });
   }
 
   json(res, { ok: true, added, skipped });

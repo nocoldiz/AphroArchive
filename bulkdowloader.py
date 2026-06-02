@@ -172,13 +172,41 @@ class UniversalVideoDownloader:
             print(f"   -> Saving to: {folder_name}/", flush=True)
             self.download_single(url, folder_name)
     
+    _COLLISION_EXTS = ('mp4', 'mkv', 'webm', 'avi', 'mov', 'wmv', 'flv', 'm4v')
+
+    def _unique_stem(self, folder_path: Path, stem: str) -> str:
+        """Return a stem (no extension) that doesn't collide with existing files."""
+        def exists(s):
+            return any((folder_path / f"{s}.{e}").exists() for e in self._COLLISION_EXTS)
+        if not exists(stem):
+            return stem
+        n = 1
+        while exists(f"{stem}_{n}"):
+            n += 1
+        return f"{stem}_{n}"
+
     def download_single(self, url, folder_name):
         folder_path = self.base_dir / folder_name
         folder_path.mkdir(exist_ok=True)
-        
+
         ydl_opts = self.get_site_specific_opts(url)
-        ydl_opts['outtmpl'] = str(folder_path / '%(title)s.%(ext)s')
-        
+
+        # ── Pre-resolve a unique filename to avoid silent overwrites ──────
+        outtmpl = str(folder_path / '%(title)s.%(ext)s')
+        try:
+            info_opts = {**ydl_opts, 'quiet': True, 'no_warnings': True}
+            with yt_dlp.YoutubeDL(info_opts) as probe:
+                info = probe.extract_info(url, download=False)
+            if info:
+                raw = probe.prepare_filename(info)  # sanitized full path
+                stem = Path(raw).stem
+                unique = self._unique_stem(folder_path, stem)
+                outtmpl = str(folder_path / f"{unique}.%(ext)s")
+        except Exception as e:
+            print(f"   [warn] pre-check failed, using default template: {e}", flush=True)
+
+        ydl_opts['outtmpl'] = outtmpl
+
         try:
             print("   Starting download...", flush=True)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:

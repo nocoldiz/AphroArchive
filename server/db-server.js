@@ -200,6 +200,8 @@ function ensureSchema(database) {
   `);
   // Migrations for columns added after initial schema
   try { database.exec('ALTER TABLE links ADD COLUMN tags TEXT'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN downloaded INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN local_video_id TEXT'); } catch {}
 }
 
 function switchProfile(profileName) {
@@ -904,7 +906,7 @@ function saveOgThumbCache(map) {
 
 function loadLinksCache() {
   try {
-    const rows = db.prepare('SELECT url, title, category, img, scraped_video_url, embed_url, added_at, tags FROM links').all();
+    const rows = db.prepare('SELECT url, title, category, img, scraped_video_url, embed_url, added_at, tags, downloaded, local_video_id FROM links').all();
     const items = rows.map(r => ({
       url: r.url,
       title: r.title,
@@ -914,6 +916,8 @@ function loadLinksCache() {
       embedUrl: r.embed_url,
       addedAt: r.added_at,
       tags: r.tags ? JSON.parse(r.tags) : [],
+      downloaded: !!r.downloaded,
+      localVideoId: r.local_video_id || null,
     }));
     return { items };
   } catch (e) {
@@ -927,11 +931,12 @@ function saveLinksCache(data) {
   try {
     db.transaction(() => {
       db.prepare('DELETE FROM links').run();
-      const ins = db.prepare('INSERT INTO links (url, title, category, img, scraped_video_url, embed_url, added_at, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+      const ins = db.prepare('INSERT INTO links (url, title, category, img, scraped_video_url, embed_url, added_at, tags, downloaded, local_video_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const it of items) {
         const tagsJson = Array.isArray(it.tags) && it.tags.length ? JSON.stringify(it.tags) : null;
         ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null,
-          it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now(), tagsJson);
+          it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now(), tagsJson,
+          it.downloaded ? 1 : 0, it.localVideoId ?? null);
       }
     })();
   } catch (e) { console.error('Failed to save links cache to SQLite:', e); }

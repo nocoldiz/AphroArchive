@@ -1,6 +1,6 @@
-﻿import { useRef, useState, useEffect } from 'preact/hooks';
+﻿import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 
@@ -22,8 +22,32 @@ interface VideoCardProps {
 export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProps) => {
   const [showVideo, setShowVideo] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [dlQueued, setDlQueued] = useState(false);
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  const downloadLink = useCallback(async (e: any) => {
+    e.stopPropagation();
+    if (dlQueued) return;
+    const url = video.linkUrl || video.relPath;
+    if (!url) return;
+
+    // Pick target category: use catPath unless it's the virtual 'Links' bucket
+    const rawCat = video.catPath || '';
+    const cat = (rawCat === 'Links' || rawCat === 'Uncategorized' || !rawCat) ? '' : rawCat;
+
+    setDlQueued(true);
+    try {
+      await fetch('/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, category: cat }),
+      });
+      if ((window as any).toast) (window as any).toast('Download queued');
+    } catch {
+      setDlQueued(false);
+    }
+  }, [video, dlQueued]);
 
   const openCtx = (e: any) => {
     e.preventDefault();
@@ -190,13 +214,13 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
           />
         )}
         
-        <div className="thumb-actions" style={{ 
-          position: 'absolute', 
-          top: '5px', 
-          right: '5px', 
-          display: 'flex', 
+        <div className="thumb-actions" style={{
+          position: 'absolute',
+          top: '5px',
+          right: '5px',
+          display: 'flex',
           flexDirection: 'column',
-          gap: '5px', 
+          gap: '5px',
           zIndex: 3,
           opacity: isHovered ? 1 : 0,
           transform: isHovered ? 'translateY(0)' : 'translateY(-5px)',
@@ -214,6 +238,20 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
           ) : (
             <button onClick={toggleFav} title="Favourite" className={video.fav ? 'fav-active' : ''}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </button>
+          )}
+          {video.isLink && (
+            <button
+              onClick={downloadLink}
+              title={dlQueued ? 'Download queued…' : 'Download video'}
+              className={dlQueued ? 'fav-active' : ''}
+              style={{ opacity: dlQueued ? 0.5 : 1 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
             </button>
           )}
           <button onClick={openCtx} title="Menu">

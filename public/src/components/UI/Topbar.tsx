@@ -1,5 +1,6 @@
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
+import { SyncManager } from './SyncManager';
 import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState } from '../../store';
 import { useEffect } from 'preact/hooks';
 
@@ -76,8 +77,9 @@ export const Topbar = () => {
           </svg>
         </button>
 
+        <SyncManager />
         <DownloadManager />
-        
+
         <button id="dualBtn" onClick={toggleDual} title="Dual mode">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="2" y="3" width="9" height="18" rx="1" />
@@ -114,6 +116,14 @@ export const Topbar = () => {
             <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
             <circle cx="12" cy="12" r="4" />
             <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+
+        <button id="dlQueueBtn" onClick={() => currentView.value = 'download-queue'} title="Download Queue" class={view === 'download-queue' ? 'on' : ''}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
 

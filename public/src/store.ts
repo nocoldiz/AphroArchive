@@ -416,7 +416,12 @@ export const filteredVideos = computed(() => {
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
 export function matchLinkCat(title: string, cats: any[], explicitCategory?: string): { catPath: string; category: string } {
   if (explicitCategory) {
-    const found = cats.find((c: any) => c.path === explicitCategory || c.name === explicitCategory || c.path === explicitCategory.replace(/\\/g, '/'));
+    const found = cats.find((c: any) =>
+      c.path === explicitCategory ||
+      c.name === explicitCategory ||
+      (c.displayName && c.displayName === explicitCategory) ||
+      c.path === explicitCategory.replace(/\\/g, '/')
+    );
     if (found) {
       return { catPath: found.path, category: found.name };
     }
@@ -428,7 +433,7 @@ export function matchLinkCat(title: string, cats: any[], explicitCategory?: stri
     const key = cat.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     if (key && norm.includes(key)) return { catPath: cat.path, category: cat.name };
   }
-  return { catPath: 'Links', category: 'Links' };
+  return { catPath: '', category: '' };
 }
 
 export async function loadVideos() {
@@ -451,13 +456,21 @@ export async function loadVideos() {
     }
   } catch (e) {}
 
+  // Build map: localVideoId → original page URL for links that were downloaded
+  const downloadedLinkMap = new Map<string, string>();
+  for (const b of linksData) {
+    if (b.downloaded && b.localVideoId && b.url) {
+      downloadedLinkMap.set(b.localVideoId, b.url);
+    }
+  }
+
   const linkVideos = linksData
-    .filter((b: any) => b.scrapedVideoUrl || b.embedUrl)
+    .filter((b: any) => b.url && !b.downloaded)
     .map((b: any) => {
       const { catPath, category } = matchLinkCat(b.title, cats, b.category);
       return {
         id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-        name: b.title,
+        name: b.title || b.url,
         path: b.scrapedVideoUrl || '',
         relPath: b.url,
         catPath,
@@ -467,14 +480,24 @@ export async function loadVideos() {
         embedUrl: b.embedUrl,
         linkUrl: b.url,
         img: b.img,
+        tags: b.tags || [],
         hasVideo: !!b.scrapedVideoUrl,
+        hasEmbed: !!b.embedUrl,
         size: 0,
         duration: 0,
-        mtime: Date.now()
+        mtime: b.addedAt || Date.now()
       };
     });
 
-  const combined = [...data, ...linkVideos];
+  // Annotate local videos that came from a downloaded link with the original page URL
+  const localVideos = downloadedLinkMap.size > 0
+    ? (data as any[]).map((v: any) => {
+        const origUrl = downloadedLinkMap.get(v.id);
+        return origUrl ? { ...v, linkUrl: origUrl } : v;
+      })
+    : data;
+
+  const combined = [...localVideos, ...linkVideos];
 
   allVideos.value = combined;
   videos.value = combined;

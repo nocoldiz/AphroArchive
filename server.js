@@ -46,6 +46,7 @@ const vaultZip = require('./server/vault-zip-server');
 const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
 const { startBackgroundWorker } = require('./server/background-worker-server');
+const feedWatcher = require('./server/feed-watcher-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -132,6 +133,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Video routes ────────────────────────────────────────────────────
   if (p === '/api/videos/rescan' && req.method === 'POST') return videos.apiRescan(req, res);
+  if (p === '/api/videos/auto-categorize' && req.method === 'POST') return videos.apiAutoCategorizeUncategorized(req, res);
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
   if (p === '/api/categories' && req.method === 'GET') return videos.apiCategories(req, res);
   if (p === '/api/categories-overview' && req.method === 'GET') return videos.apiCategoriesOverview(req, res);
@@ -364,6 +366,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/settings/prefs' && req.method === 'PUT') return settings.apiSavePrefs(req, res);
   if (p === '/api/browse-folders' && req.method === 'GET') return settings.apiBrowseFolders(req, res, params);
   if (p === '/api/browse-folders-native' && req.method === 'GET') return settings.apiBrowseFoldersNative(req, res);
+  if (p === '/api/feed-folders/verify-vault' && req.method === 'POST') return settings.apiVerifyVaultPassword(req, res);
 
   // ── AI Comments ──────────────────────────────────────────────────────
   if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);
@@ -404,6 +407,7 @@ server.listen(PORT, async () => {
   invalidateScanCache(); // force fresh filesystem scan on every startup
   await initVideoMeta();
   startBackgroundWorker();
+  feedWatcher.startWatchers(loadPrefs());
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);

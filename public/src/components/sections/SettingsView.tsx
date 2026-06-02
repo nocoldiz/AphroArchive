@@ -595,6 +595,156 @@ export const SettingsView = () => {
             </div>
           </div>
 
+          {/* Feed Folders Section */}
+          <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', gridColumn: '1 / -1' }}>
+            <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="icon-rss" />
+              Feed Folders
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+              {/* Regular Feed Folders */}
+              <div>
+                <h4 style={{ margin: '0 0 6px', color: 'var(--tx)' }}>Regular</h4>
+                <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '12px' }}>
+                  Files added here are automatically moved to your videos folder as uncategorized.
+                </p>
+                <div style={{ marginBottom: '12px' }}>
+                  {(prefs.feedFolders || []).map((folder: string, idx: number) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all' }}>{folder}</span>
+                      <button
+                        className="modal-btn modal-btn--danger"
+                        style={{ padding: '4px 8px', fontSize: '12px', flexShrink: 0, marginLeft: '8px' }}
+                        onClick={async () => {
+                          const updated = (prefs.feedFolders || []).filter((_: any, i: number) => i !== idx);
+                          await updatePrefs({ feedFolders: updated });
+                        }}
+                      >Remove</button>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    id="new-feed-folder"
+                    placeholder="C:\\Users\\...\\Downloads"
+                    style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }}
+                  />
+                  <button
+                    className="modal-btn modal-btn--secondary"
+                    onClick={async () => {
+                      try {
+                        const r = await fetch('/api/browse-folders-native');
+                        const d = await r.json();
+                        if (d.path) (document.getElementById('new-feed-folder') as HTMLInputElement).value = d.path;
+                        else if (d.error) alert(d.error);
+                      } catch {}
+                    }}
+                  >Browse</button>
+                  <button
+                    className="modal-btn modal-btn--primary"
+                    onClick={async () => {
+                      const input = document.getElementById('new-feed-folder') as HTMLInputElement;
+                      const val = input.value.trim();
+                      if (!val) return;
+                      const current = prefs.feedFolders || [];
+                      if (current.includes(val)) { if (window.toast) window.toast('Folder already added'); return; }
+                      await updatePrefs({ feedFolders: [...current, val] });
+                      input.value = '';
+                    }}
+                  >Add</button>
+                </div>
+              </div>
+
+              {/* Private Feed Folders */}
+              <div>
+                <h4 style={{ margin: '0 0 6px', color: 'var(--tx)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="icon-lock" style={{ fontSize: '14px' }} /> Private
+                </h4>
+                <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '12px' }}>
+                  Files added here are encrypted to your vault and source files securely shredded. Enter vault password to authorize.
+                </p>
+                <div style={{ marginBottom: '12px' }}>
+                  {(prefs.privateFeedFolders || []).map((folder: string, idx: number) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <i className="icon-lock" style={{ fontSize: '12px', color: 'var(--tx3)', flexShrink: 0 }} />{folder}
+                      </span>
+                      <button
+                        className="modal-btn modal-btn--danger"
+                        style={{ padding: '4px 8px', fontSize: '12px', flexShrink: 0, marginLeft: '8px' }}
+                        onClick={async () => {
+                          const updated = (prefs.privateFeedFolders || []).filter((_: any, i: number) => i !== idx);
+                          await updatePrefs({ privateFeedFolders: updated });
+                        }}
+                      >Remove</button>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      id="new-private-feed-folder"
+                      placeholder="C:\\Users\\...\\Private"
+                      style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }}
+                    />
+                    <button
+                      className="modal-btn modal-btn--secondary"
+                      onClick={async () => {
+                        try {
+                          const r = await fetch('/api/browse-folders-native');
+                          const d = await r.json();
+                          if (d.path) (document.getElementById('new-private-feed-folder') as HTMLInputElement).value = d.path;
+                          else if (d.error) alert(d.error);
+                        } catch {}
+                      }}
+                    >Browse</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="password"
+                      id="new-private-feed-password"
+                      placeholder="Vault password"
+                      style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }}
+                    />
+                    <button
+                      className="modal-btn modal-btn--primary"
+                      onClick={async () => {
+                        const folderInput = document.getElementById('new-private-feed-folder') as HTMLInputElement;
+                        const pwInput = document.getElementById('new-private-feed-password') as HTMLInputElement;
+                        const folderVal = folderInput.value.trim();
+                        const pw = pwInput.value;
+                        if (!folderVal || !pw) return;
+                        const current = prefs.privateFeedFolders || [];
+                        if (current.includes(folderVal)) { if (window.toast) window.toast('Folder already added'); return; }
+                        try {
+                          const r = await fetch('/api/feed-folders/verify-vault', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ password: pw }),
+                          });
+                          const d = await r.json();
+                          if (!d.ok) {
+                            if (window.toast) window.toast(d.error || 'Incorrect vault password');
+                            else alert(d.error || 'Incorrect vault password');
+                            return;
+                          }
+                          await updatePrefs({ privateFeedFolders: [...current, folderVal] });
+                          folderInput.value = '';
+                          pwInput.value = '';
+                        } catch (e) {
+                          if (window.toast) window.toast('Error verifying vault password');
+                        }
+                      }}
+                    >Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Hidden Folders & Tags Section */}
           <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)' }}>
             <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px' }}>Hidden Tags</h3>

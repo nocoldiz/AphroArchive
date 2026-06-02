@@ -22,6 +22,8 @@
   embedUrl?: string;
   linkUrl?: string;
   img?: string;
+  hasVideo?: boolean;
+  hasEmbed?: boolean;
 }
 
 export interface Category {
@@ -59,6 +61,8 @@ export interface AppPrefs {
   vaultSelfDestruct?: boolean;
   hiddenTags?: string[];
   sourceFolders?: string[];
+  feedFolders?: string[];
+  privateFeedFolders?: string[];
   videosDir?: string;
   videosDirExists?: boolean;
 }

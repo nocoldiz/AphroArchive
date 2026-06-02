@@ -15,15 +15,6 @@ interface DownloadJob {
   movedTo?: string;
 }
 
-interface ScraperStatus {
-  running: boolean;
-  done?: number;
-  total?: number;
-  failed?: number;
-  current?: string;
-  skipped?: number;
-}
-
 interface BulkStatus {
   running: boolean;
   done: number;
@@ -50,61 +41,6 @@ function ProgressBar({ done = 0, total = 0, color = 'var(--ac)' }: { done?: numb
   );
 }
 
-function ScraperRow({
-  label, icon, status, onStart, onStop, extraActions,
-}: {
-  label: string;
-  icon: preact.JSX.Element;
-  status: ScraperStatus;
-  onStart: () => void;
-  onStop?: () => void;
-  extraActions?: preact.JSX.Element;
-}) {
-  const { running, done = 0, total = 0, current } = status;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-
-  return (
-    <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-        <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>
-        <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>{label}</span>
-        {running ? (
-          <>
-            <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
-              {total > 0 ? `${done}/${total} (${pct}%)` : 'running…'}
-            </span>
-            {onStop && (
-              <button
-                onClick={onStop}
-                title="Stop"
-                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
-              >
-                Stop
-              </button>
-            )}
-          </>
-        ) : (
-          <>
-            {extraActions}
-            <button
-              onClick={onStart}
-              style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
-            >
-              Start
-            </button>
-          </>
-        )}
-      </div>
-      {running && total > 0 && <ProgressBar done={done} total={total} />}
-      {running && current && (
-        <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={current}>
-          {current}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const DL_STATUS_COLOR: Record<string, string> = {
   done: '#1a7a3a', error: '#a11', running: 'var(--ac)', queued: 'var(--bg3)',
 };
@@ -113,37 +49,31 @@ export const DownloadManager = () => {
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [open, setOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<Record<string, string>>({});
-  const [rescanning, setRescanning] = useState(false);
-  const [scrapers, setScrapers] = useState<{
-    videoThumbs: ScraperStatus;
-    bmMeta: ScraperStatus;
-    bmThumbs: ScraperStatus;
-  }>({
-    videoThumbs: { running: false },
-    bmMeta: { running: false },
-    bmThumbs: { running: false },
-  });
   const [bulk, setBulk] = useState<BulkStatus>({ running: false, done: 0, total: 0, current: '', log: [] });
   const [bulkUrls, setBulkUrls] = useState('');
   const [showBulkInput, setShowBulkInput] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const prevJobStatuses = useRef<Record<string, string>>({});
 
-  // Poll downloads + all scraper statuses + bulk
   useEffect(() => {
     const poll = async () => {
       try {
-        const [dlRes, vtRes, bmMetaRes, bmThRes, blkRes] = await Promise.all([
+        const [dlRes, blkRes] = await Promise.all([
           fetch('/api/download/jobs'),
-          fetch('/api/gen-thumbs/poll'),
-          fetch('/api/links/scrape-status'),
-          fetch('/api/links/thumb-status'),
           fetch('/api/bulk-download/status'),
         ]);
-        if (dlRes.ok) setJobs(await dlRes.json());
-        const vt = vtRes.ok ? await vtRes.json() : { running: false };
-        const bm = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
-        const bt = bmThRes.ok ? await bmThRes.json() : { running: false };
-        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt });
+        if (dlRes.ok) {
+          const newJobs: DownloadJob[] = await dlRes.json();
+          // Detect transitions to 'done' and reload the video list
+          let anyNewlyDone = false;
+          for (const job of newJobs) {
+            const prev = prevJobStatuses.current[job.id];
+            if (job.status === 'done' && prev && prev !== 'done') anyNewlyDone = true;
+            prevJobStatuses.current[job.id] = job.status;
+          }
+          setJobs(newJobs);
+          if (anyNewlyDone) loadVideos();
+        }
         if (blkRes.ok) setBulk(await blkRes.json());
       } catch {}
     };
@@ -163,8 +93,7 @@ export const DownloadManager = () => {
   }, [open]);
 
   const activeDlCount = jobs.filter(j => j.status === 'queued' || j.status === 'running').length;
-  const activeScraperCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs].filter(s => s.running).length;
-  const badgeCount = activeDlCount + activeScraperCount + (bulk.running ? 1 : 0);
+  const badgeCount = activeDlCount + (bulk.running ? 1 : 0);
 
   const cats = (categories.value as any[]).filter(
     c => c.path && c.path !== 'uncategorized' && c.path !== 'Links'
@@ -194,10 +123,6 @@ export const DownloadManager = () => {
     }
   };
 
-  const scraperAction = async (url: string, method = 'POST') => {
-    await fetch(url, { method }).catch(() => {});
-  };
-
   const startBulkDownload = async () => {
     const urls = bulkUrls.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
     if (!urls.length) return;
@@ -210,22 +135,6 @@ export const DownloadManager = () => {
   };
 
   const stopBulkDownload = () => fetch('/api/bulk-download/stop', { method: 'POST' }).catch(() => {});
-
-  const iconThumb = (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-    </svg>
-  );
-  const iconLink = (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-    </svg>
-  );
-  const iconActor = (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-    </svg>
-  );
 
   return (
     <div style={{ position: 'relative' }} ref={wrapRef}>
@@ -421,80 +330,6 @@ export const DownloadManager = () => {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* ── Background Tasks section ───────────────────── */}
-          <div style={{ padding: '8px 14px 4px', fontSize: '0.72rem', fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Background Tasks
-          </div>
-
-          <ScraperRow
-            label="Video Thumbnails"
-            icon={iconThumb}
-            status={scrapers.videoThumbs}
-            onStart={() => scraperAction('/api/gen-thumbs/start')}
-            onStop={() => scraperAction('/api/gen-thumbs/stop')}
-          />
-
-          <ScraperRow
-            label="Link Metadata"
-            icon={iconLink}
-            status={scrapers.bmMeta}
-            onStart={() => scraperAction('/api/links/start-scraping')}
-            onStop={() => scraperAction('/api/links/stop-scraping')}
-            extraActions={
-              <button
-                onClick={() => scraperAction('/api/links/rescrape-all')}
-                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.68rem', cursor: 'pointer' }}
-              >
-                Rescrape all
-              </button>
-            }
-          />
-
-          <ScraperRow
-            label="Link Thumbnails"
-            icon={iconThumb}
-            status={scrapers.bmThumbs}
-            onStart={() => scraperAction('/api/links/generate-all')}
-            onStop={() => scraperAction('/api/links/stop-generating')}
-          />
-
-          <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
-            <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconActor}</span>
-            <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Actor Data</span>
-            <button
-              onClick={() => scraperAction('/api/actors/scrape-missing')}
-              style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
-            >
-              Scrape missing
-            </button>
-          </div>
-
-          <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderTop: '1px solid var(--brd)' }}>
-            <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
-                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-              </svg>
-            </span>
-            <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Local Videos</span>
-            <button
-              disabled={rescanning}
-              onClick={async () => {
-                setRescanning(true);
-                try {
-                  await fetch('/api/videos/rescan', { method: 'POST' });
-                  await loadVideos();
-                  const w = window as any;
-                  if (w.toast) w.toast('Rescan complete');
-                } catch {}
-                setRescanning(false);
-              }}
-              style={{ background: rescanning ? 'var(--bg3)' : 'var(--ac)', color: rescanning ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: rescanning ? 'default' : 'pointer' }}
-            >
-              {rescanning ? 'Scanning…' : 'Rescan'}
-            </button>
           </div>
 
         </div>

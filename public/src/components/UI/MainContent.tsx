@@ -31,6 +31,7 @@ import { MosaicView } from '../sections/MosaicView';
 import { PromptsView } from '../sections/PromptsView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
+import { DownloadQueueView } from '../sections/DownloadQueueView';
 import { ActorScraperView } from '../sections/ActorScraperView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
@@ -95,6 +96,7 @@ export const MainContent = () => {
     if (view === 'studios') return <StudiosView />;
     if (view === 'photos') return <PhotosView />;
     if (view === 'links') return <LinksView />;
+    if (view === 'download-queue') return <DownloadQueueView />;
     if (view === 'collections') return <CollectionsView />;
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;

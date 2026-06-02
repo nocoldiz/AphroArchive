@@ -29,23 +29,24 @@ function enqueueDownload(dlUrl, category) {
   return id;
 }
 
-async function handleLinkConversion(url) {
+async function handleLinkConversion(url, localVideoId) {
   try {
     const { loadLinksCache, saveLinksCache } = require('./db-server');
     const cache = loadLinksCache();
     const items = cache.items || [];
-    const idx = items.findIndex(item => item.url === url);
-    if (idx !== -1) {
-      items.splice(idx, 1);
+    const item = items.find(it => it.url === url);
+    if (item) {
+      item.downloaded = true;
+      if (localVideoId) item.localVideoId = localVideoId;
       saveLinksCache({ items });
-      console.log(`[download-conv] Successfully converted link ${url} to local video (removed from links cache)`);
-      
+      console.log(`[download-conv] Marked link as downloaded: ${url}${localVideoId ? ' → ' + localVideoId : ''}`);
+
       const { invalidateScanCache, initVideoMeta } = require('./videos-server');
       invalidateScanCache();
       initVideoMeta().catch(err => console.error('initVideoMeta failed after link download:', err));
     }
   } catch (err) {
-    console.error('Failed to convert link after successful download:', err);
+    console.error('Failed to mark link as downloaded:', err);
   }
 }
 
@@ -63,7 +64,7 @@ async function processDownloadQueue() {
       const rel = path.relative(VIDEOS_DIR, next.outputPath);
       next.videoId = toId(rel);
     }
-    await handleLinkConversion(next.url);
+    await handleLinkConversion(next.url, next.videoId);
   } catch (e) {
     if (downloadJobs.has(next.id)) { next.status = 'error'; next.error = e.message; }
   } finally {
@@ -125,6 +126,13 @@ function runYtDlp(job) {
 
 async function apiDownloadAdd(req, res) {
   const body = await readBody(req);
+  // Per-item category support: { items: [{ url, category }] }
+  if (Array.isArray(body.items)) {
+    const valid = body.items.filter(i => i?.url);
+    if (!valid.length) return json(res, { error: 'No valid items' }, 400);
+    const ids = valid.map(i => enqueueDownload(i.url, i.category || ''));
+    return json(res, { ok: true, ids });
+  }
   const urls = Array.isArray(body.urls) ? body.urls : (body.url ? [body.url] : []);
   if (!urls.length) return json(res, { error: 'URL required' }, 400);
   const category = (body.category || '').trim();
