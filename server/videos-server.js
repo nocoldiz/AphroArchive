@@ -581,13 +581,27 @@ async function apiCategories(req, res) {
   const uncatCount = videos.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms))).length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
 
-  cats.sort((a, b) => {
+  const db = require('./db-server');
+  const enabledPaths = db.loadEnabledCategories();
+  const filtered = enabledPaths.length > 0
+    ? cats.filter(c => {
+        if (c.path === 'uncategorized') return true;
+        const pathLo = c.path.toLowerCase();
+        // show if this path or any ancestor is explicitly enabled
+        return enabledPaths.some(ep => {
+          const epLo = ep.toLowerCase();
+          return pathLo === epLo || pathLo.startsWith(epLo + '/');
+        });
+      })
+    : cats;
+
+  filtered.sort((a, b) => {
     if (a.path === 'uncategorized') return -1;
     if (b.path === 'uncategorized') return 1;
     return a.name.localeCompare(b.name);
   });
 
-  json(res, cats);
+  json(res, filtered);
 }
 
 async function apiGetAllCategories(req, res) {

@@ -132,12 +132,14 @@ export const Sidebar = () => {
   const tagCountMap = new Map<string, number>();
   for (const v of filteredVids) {
     for (const tag of ((v as any).tags || []) as string[]) {
-      tagCountMap.set(tag, (tagCountMap.get(tag) || 0) + 1);
+      const key = tag.toLowerCase();
+      tagCountMap.set(key, (tagCountMap.get(key) || 0) + 1);
     }
   }
   const displayTags = tags
     .filter(t => !(appPrefs.value.hiddenTags || []).includes(t.name))
-    .map(t => ({ ...t, count: tagCountMap.get(t.name) || 0 }));
+    .map(t => ({ ...t, count: tagCountMap.get(t.name.toLowerCase()) || 0 }))
+    .sort((a, b) => b.count - a.count);
 
   return (
     <>
@@ -325,11 +327,7 @@ export const Sidebar = () => {
       <SectionHeader
         label="Folders"
         id="sh3-cats"
-        onClick={() => {
-          const newState = !catsOpen;
-          setCatsOpen(newState);
-          if (newState) setTagsOpen(false);
-        }}
+        onClick={() => setCatsOpen(v => !v)}
         action={
           <button className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -400,11 +398,7 @@ export const Sidebar = () => {
       <SectionHeader 
         label="Tags" 
         id="sh3-tags" 
-        onClick={() => {
-          const newState = !tagsOpen;
-          setTagsOpen(newState);
-          if (newState) setCatsOpen(false);
-        }} 
+        onClick={() => setTagsOpen(v => !v)}
       />
       <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
         {displayTags.map(t => (

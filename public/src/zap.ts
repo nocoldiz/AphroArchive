@@ -76,7 +76,11 @@ function getRandomVidForZapping() {
   const V = allVideos.value;
   const bms = linkVidIds.value;
   
-  let list = cat ? V.filter(v => v.category === cat || v.catPath === cat) : V;
+  let list = cat ? V.filter(v => {
+    const cl = cat.toLowerCase().replace(/\\/g, '/');
+    const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+    return vp === cl || vp.startsWith(cl + '/') || v.category === cat;
+  }) : V;
   list = list.filter(v => !bms.has(v.id));
   
   if (!list.length) list = V.filter(v => !bms.has(v.id));

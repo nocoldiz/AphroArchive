@@ -360,11 +360,16 @@ export const filteredVideos = computed(() => {
     if (currentCategory.value === 'uncategorized') {
       list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isLink && v.catPath === 'Links'));
     } else if (currentCategory.value) {
-      list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
+      const cl = currentCategory.value.toLowerCase().replace(/\\/g, '/');
+      list = list.filter(v => {
+        const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+        return vp === cl || vp.startsWith(cl + '/') || v.category === currentCategory.value;
+      });
     }
 
     if (currentTag.value) {
-      list = list.filter(v => v.tags && v.tags.includes(currentTag.value!));
+      const tagLo = currentTag.value.toLowerCase();
+      list = list.filter(v => v.tags && (v.tags as string[]).some(t => t.toLowerCase() === tagLo));
     }
 
     if (currentView.value === 'favourites' || favFilter.value) {

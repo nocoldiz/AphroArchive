@@ -19,7 +19,7 @@ const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, C
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
 const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites } = require('./server/db-server');
-const { initVideoMeta } = require('./server/videos-server');
+const { initVideoMeta, invalidateScanCache } = require('./server/videos-server');
 const { getLocalIPs, getLocalIP } = require('./server/config-server');
 
 // ── Modules ──────────────────────────────────────────────────────────
@@ -396,6 +396,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, async () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
+  invalidateScanCache(); // force fresh filesystem scan on every startup
   await initVideoMeta();
   startBackgroundWorker();
   const localIP = getLocalIP();
