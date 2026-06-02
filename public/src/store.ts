@@ -109,6 +109,7 @@ export const presetPickerState = signal<{
 
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
+export const currentPhotoFolder = signal<string>('');
 export const currentActor = signal<string | null>(null);
 export const currentStudio = signal<string | null>(null);
 export const linkVidIds = signal<Set<string>>(new Set());

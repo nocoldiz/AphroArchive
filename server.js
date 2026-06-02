@@ -323,6 +323,7 @@ const server = http.createServer(async (req, res) => {
   // ── Photos ───────────────────────────────────────────────────────────
   if (p === '/api/videos/upload' && req.method === 'POST') return videos.apiVideosUpload(req, res);
   if (p === '/api/photos' && req.method === 'GET') return photos.apiPhotosList(req, res);
+  if (p === '/api/photos/folders' && req.method === 'GET') return photos.apiPhotoFolders(req, res);
   if (p === '/api/photos/upload' && req.method === 'POST') return photos.apiPhotosUpload(req, res);
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/img$/)) && req.method === 'GET') return photos.apiPhotoServe(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/download$/)) && req.method === 'GET') return photos.apiPhotoDownload(req, res, m[1]);

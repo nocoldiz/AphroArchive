@@ -92,6 +92,7 @@ export interface AudioFile {
 export interface PhotoFile {
   id: string;
   filename: string;
+  folder: string;
   size: number;
   sizeF: string;
   date: number;

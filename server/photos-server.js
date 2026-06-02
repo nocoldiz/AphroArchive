@@ -56,8 +56,9 @@ function photoFromId(id) {
   return { rootType: parts[0], rel: Buffer.from(parts[1], 'base64url').toString('utf-8') };
 }
 
-function scanPhotos(dir, base, rootType) {
+function scanPhotos(dir, base, rootType, folderPath) {
   if (!base) base = dir;
+  if (folderPath === undefined) folderPath = '';
   const out = [];
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
@@ -68,12 +69,13 @@ function scanPhotos(dir, base, rootType) {
       if (rootType === 'v') {
         if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR)) continue;
       }
-      out.push(...scanPhotos(fp, base, rootType));
+      const childFolder = folderPath ? folderPath + '/' + e.name : e.name;
+      out.push(...scanPhotos(fp, base, rootType, childFolder));
     } else if (e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase())) {
       const rel  = rootType === 's' ? fp : path.relative(base, fp);
       const stat = fs.statSync(fp);
       const ext  = path.extname(e.name).toLowerCase();
-      
+
       let isAi = false;
       let aiPrompt = '';
       if (ext === '.png') {
@@ -87,6 +89,7 @@ function scanPhotos(dir, base, rootType) {
       out.push({
         id:       photoToId(rootType, rel),
         filename: e.name,
+        folder:   folderPath,
         rel,
         ext,
         size:     stat.size,
@@ -98,6 +101,38 @@ function scanPhotos(dir, base, rootType) {
     }
   }
   return out;
+}
+
+function apiPhotoFolders(req, res) {
+  fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+  const photos = [
+    ...scanPhotos(PHOTOS_DIR, PHOTOS_DIR, 'p'),
+    ...scanPhotos(VIDEOS_DIR, VIDEOS_DIR, 'v'),
+  ];
+  try {
+    const { loadPrefs } = require('./db-server');
+    const prefs = loadPrefs();
+    if (prefs.sourceFolders) {
+      for (const folder of prefs.sourceFolders) {
+        if (fs.existsSync(folder)) photos.push(...scanPhotos(folder, folder, 's'));
+      }
+    }
+  } catch (e) {}
+
+  const folderSet = new Map();
+  for (const p of photos) {
+    if (!p.folder) continue;
+    const parts = p.folder.split('/');
+    let cur = '';
+    for (const part of parts) {
+      cur = cur ? cur + '/' + part : part;
+      if (!folderSet.has(cur)) folderSet.set(cur, cur.replace(/\//g, ' / '));
+    }
+  }
+  const folders = [...folderSet.entries()]
+    .map(([p, name]) => ({ path: p, name }))
+    .sort((a, b) => a.path.localeCompare(b.path));
+  json(res, folders);
 }
 
 function apiPhotosList(req, res) {
@@ -200,4 +235,4 @@ function apiPhotosUpload(req, res) {
   });
 }
 
-module.exports = { apiPhotosList, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload };
+module.exports = { apiPhotosList, apiPhotoFolders, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload };
