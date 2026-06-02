@@ -1,4 +1,6 @@
-import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter } from '../../store';
+import { useState } from 'preact/hooks';
+import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter, currentCategory } from '../../store';
+import { CategoryTagsModal } from './CategoryTagsModal';
 
 interface SectionControlsProps {
   showSort?: boolean;
@@ -73,7 +75,12 @@ export const SectionControls = ({
   const cSize = currentCardSize !== undefined ? currentCardSize : cardSize.value;
   const setCSize = onCardSizeChange || ((val: number) => cardSize.value = val);
 
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const activeCat = currentCategory.value;
+  const showTagsBtn = activeCat && activeCat !== 'uncategorized';
+
   return (
+    <>
     <div className="section-controls">
       {showFilter && (
         <>
@@ -172,7 +179,17 @@ export const SectionControls = ({
           </select>
         </div>
       </>
+      {showTagsBtn && (
+        <>
+          <span className="sg-sep"></span>
+          <button className="sort-btn" onClick={() => setTagsOpen(true)} title="Edit folder tags">Tags</button>
+        </>
+      )}
       {children}
     </div>
+    {tagsOpen && showTagsBtn && (
+      <CategoryTagsModal catPath={activeCat} onClose={() => setTagsOpen(false)} />
+    )}
+    </>
   );
 };

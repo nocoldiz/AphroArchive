@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { loadVideos } from '../../store';
+import { CategorizeModal, ChangeItem } from './CategorizeModal';
 
 interface ScraperStatus {
   running: boolean;
@@ -74,9 +75,22 @@ function ScraperRow({
   );
 }
 
+interface ModalState {
+  mode: 'uncategorized' | 'all';
+  changes: ChangeItem[];
+  categories: string[];
+  confirming: boolean;
+  result?: string;
+}
+
 export const SyncManager = () => {
   const [open, setOpen] = useState(false);
   const [rescanning, setRescanning] = useState(false);
+  const [autoCatLoading, setAutoCatLoading] = useState(false);
+  const [recatAllLoading, setRecatAllLoading] = useState(false);
+  const [autoCatResult, setAutoCatResult] = useState<string | undefined>();
+  const [recatAllResult, setRecatAllResult] = useState<string | undefined>();
+  const [modal, setModal] = useState<ModalState | null>(null);
   const [scrapers, setScrapers] = useState<{
     videoThumbs: ScraperStatus;
     bmMeta: ScraperStatus;
@@ -117,10 +131,51 @@ export const SyncManager = () => {
   }, [open]);
 
   const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs].filter(s => s.running).length
-    + (rescanning ? 1 : 0);
+    + (rescanning ? 1 : 0) + (autoCatLoading ? 1 : 0) + (recatAllLoading ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
     await fetch(url, { method }).catch(() => {});
+  };
+
+  const openCategorizeModal = async (mode: 'uncategorized' | 'all') => {
+    const setLoading = mode === 'all' ? setRecatAllLoading : setAutoCatLoading;
+    setLoading(true);
+    try {
+      const r = await fetch('/api/videos/categorize-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      const { changes, categories } = await r.json();
+      setModal({ mode, changes, categories, confirming: false });
+    } catch {
+      if (mode === 'all') setRecatAllResult('error fetching plan');
+      else setAutoCatResult('error fetching plan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirm = async (moves: { srcPath: string; destFolder: string; root: string }[]) => {
+    if (!modal) return;
+    setModal(m => m ? { ...m, confirming: true } : null);
+    try {
+      const r = await fetch('/api/videos/categorize-execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moves, mode: modal.mode }),
+      });
+      const d = await r.json();
+      const result = `${d.movedVideos} moved, ${d.categorizedLinks} links`;
+      if (modal.mode === 'all') setRecatAllResult(result);
+      else setAutoCatResult(result);
+      await loadVideos();
+      setModal(null);
+    } catch {
+      if (modal.mode === 'all') setRecatAllResult('error');
+      else setAutoCatResult('error');
+      setModal(null);
+    }
   };
 
   const iconThumb = (
@@ -138,6 +193,11 @@ export const SyncManager = () => {
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
     </svg>
   );
+  const iconFolder = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>
+  );
   const iconRescan = (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
@@ -146,106 +206,151 @@ export const SyncManager = () => {
   );
 
   return (
-    <div style={{ position: 'relative' }} ref={wrapRef}>
-      <button
-        class={open ? 'on' : ''}
-        title="Sync & Background Tasks"
-        onClick={() => setOpen(v => !v)}
-        style={{ position: 'relative' }}
-      >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
-          <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-        </svg>
-        {activeCount > 0 && (
-          <span style={{
-            position: 'absolute', top: '-5px', right: '-5px',
-            background: 'var(--ac)', color: '#fff', borderRadius: '50%',
-            fontSize: '9px', width: '14px', height: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 700, pointerEvents: 'none',
+    <>
+      <div style={{ position: 'relative' }} ref={wrapRef}>
+        <button
+          class={open ? 'on' : ''}
+          title="Sync & Background Tasks"
+          onClick={() => setOpen(v => !v)}
+          style={{ position: 'relative' }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
+            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+          </svg>
+          {activeCount > 0 && (
+            <span style={{
+              position: 'absolute', top: '-5px', right: '-5px',
+              background: 'var(--ac)', color: '#fff', borderRadius: '50%',
+              fontSize: '9px', width: '14px', height: '14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700, pointerEvents: 'none',
+            }}>
+              {activeCount}
+            </span>
+          )}
+        </button>
+
+        {open && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+            background: 'var(--bg2)', border: '1px solid var(--brd)',
+            borderRadius: '10px', width: '320px', zIndex: 9999,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
           }}>
-            {activeCount}
-          </span>
-        )}
-      </button>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)' }}>
+              <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Sync & Background Tasks</span>
+            </div>
 
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-          background: 'var(--bg2)', border: '1px solid var(--brd)',
-          borderRadius: '10px', width: '320px', zIndex: 9999,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-        }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Sync & Background Tasks</span>
-          </div>
+            <ScraperRow
+              label="Video Thumbnails"
+              icon={iconThumb}
+              status={scrapers.videoThumbs}
+              onStart={() => scraperAction('/api/gen-thumbs/start')}
+              onStop={() => scraperAction('/api/gen-thumbs/stop')}
+            />
 
-          <ScraperRow
-            label="Video Thumbnails"
-            icon={iconThumb}
-            status={scrapers.videoThumbs}
-            onStart={() => scraperAction('/api/gen-thumbs/start')}
-            onStop={() => scraperAction('/api/gen-thumbs/stop')}
-          />
+            <ScraperRow
+              label="Link Metadata"
+              icon={iconLink}
+              status={scrapers.bmMeta}
+              onStart={() => scraperAction('/api/links/start-scraping')}
+              onStop={() => scraperAction('/api/links/stop-scraping')}
+              extraActions={
+                <button
+                  onClick={() => scraperAction('/api/links/rescrape-all')}
+                  style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.68rem', cursor: 'pointer' }}
+                >
+                  Rescrape all
+                </button>
+              }
+            />
 
-          <ScraperRow
-            label="Link Metadata"
-            icon={iconLink}
-            status={scrapers.bmMeta}
-            onStart={() => scraperAction('/api/links/start-scraping')}
-            onStop={() => scraperAction('/api/links/stop-scraping')}
-            extraActions={
+            <ScraperRow
+              label="Link Thumbnails"
+              icon={iconThumb}
+              status={scrapers.bmThumbs}
+              onStart={() => scraperAction('/api/links/generate-all')}
+              onStop={() => scraperAction('/api/links/stop-generating')}
+            />
+
+            {/* Auto Categorize — uncategorized root videos only */}
+            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
+              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconFolder}</span>
+              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Auto Categorize</span>
+              {autoCatResult && !autoCatLoading && (
+                <span style={{ fontSize: '0.68rem', color: 'var(--tx3)' }}>{autoCatResult}</span>
+              )}
               <button
-                onClick={() => scraperAction('/api/links/rescrape-all')}
-                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.68rem', cursor: 'pointer' }}
+                disabled={autoCatLoading}
+                onClick={() => openCategorizeModal('uncategorized')}
+                style={{ background: autoCatLoading ? 'var(--bg3)' : 'var(--ac)', color: autoCatLoading ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: autoCatLoading ? 'default' : 'pointer' }}
               >
-                Rescrape all
+                {autoCatLoading ? 'Loading…' : 'Run'}
               </button>
-            }
-          />
+            </div>
 
-          <ScraperRow
-            label="Link Thumbnails"
-            icon={iconThumb}
-            status={scrapers.bmThumbs}
-            onStart={() => scraperAction('/api/links/generate-all')}
-            onStop={() => scraperAction('/api/links/stop-generating')}
-          />
+            {/* Recategorize All — every video, including already-categorized */}
+            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
+              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconFolder}</span>
+              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Recategorize All</span>
+              {recatAllResult && !recatAllLoading && (
+                <span style={{ fontSize: '0.68rem', color: 'var(--tx3)' }}>{recatAllResult}</span>
+              )}
+              <button
+                disabled={recatAllLoading}
+                onClick={() => openCategorizeModal('all')}
+                style={{ background: recatAllLoading ? 'var(--bg3)' : '#c07800', color: recatAllLoading ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: recatAllLoading ? 'default' : 'pointer' }}
+              >
+                {recatAllLoading ? 'Loading…' : 'Run'}
+              </button>
+            </div>
 
-          <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
-            <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconActor}</span>
-            <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Actor Data</span>
-            <button
-              onClick={() => scraperAction('/api/actors/scrape-missing')}
-              style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
-            >
-              Scrape missing
-            </button>
+            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
+              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconActor}</span>
+              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Actor Data</span>
+              <button
+                onClick={() => scraperAction('/api/actors/scrape-missing')}
+                style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
+              >
+                Scrape missing
+              </button>
+            </div>
+
+            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconRescan}</span>
+              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Local Videos</span>
+              <button
+                disabled={rescanning}
+                onClick={async () => {
+                  setRescanning(true);
+                  try {
+                    await fetch('/api/videos/rescan', { method: 'POST' });
+                    await loadVideos();
+                    const w = window as any;
+                    if (w.toast) w.toast('Rescan complete');
+                  } catch {}
+                  setRescanning(false);
+                }}
+                style={{ background: rescanning ? 'var(--bg3)' : 'var(--ac)', color: rescanning ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: rescanning ? 'default' : 'pointer' }}
+              >
+                {rescanning ? 'Scanning…' : 'Rescan'}
+              </button>
+            </div>
           </div>
+        )}
+      </div>
 
-          <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
-            <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconRescan}</span>
-            <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Local Videos</span>
-            <button
-              disabled={rescanning}
-              onClick={async () => {
-                setRescanning(true);
-                try {
-                  await fetch('/api/videos/rescan', { method: 'POST' });
-                  await loadVideos();
-                  const w = window as any;
-                  if (w.toast) w.toast('Rescan complete');
-                } catch {}
-                setRescanning(false);
-              }}
-              style={{ background: rescanning ? 'var(--bg3)' : 'var(--ac)', color: rescanning ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: rescanning ? 'default' : 'pointer' }}
-            >
-              {rescanning ? 'Scanning…' : 'Rescan'}
-            </button>
-          </div>
-        </div>
+      {modal && (
+        <CategorizeModal
+          mode={modal.mode}
+          changes={modal.changes}
+          categories={modal.categories}
+          confirming={modal.confirming}
+          onConfirm={handleConfirm}
+          onCancel={() => setModal(null)}
+        />
       )}
-    </div>
+    </>
   );
 };

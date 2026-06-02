@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder } from '../../store';
+import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -69,8 +69,7 @@ export const Sidebar = () => {
   if (view === 'reddit') return null;
 
   const [linkCount, setLinkCount] = useState(0);
-  const [tags, setTags] = useState<{ name: string, count: number }[]>([]);
-  useEffect(() => { (window as any)._sidebarSetTags = setTags; return () => { delete (window as any)._sidebarSetTags; }; }, []);
+  const [tagGroups, setTagGroups] = useState<{ displayName: string, terms: string[] }[]>([]);
   const [tagsOpen, setTagsOpen] = useState(true);
   const [catsOpen, setCatsOpen] = useState(true);
   const [photoFolders, setPhotoFolders] = useState<{ path: string, name: string }[]>([]);
@@ -82,9 +81,9 @@ export const Sidebar = () => {
       .then(d => setLinkCount(d.total || (d.items ? d.items.length : 0)))
       .catch(() => {});
 
-    fetch('/api/tags')
+    fetch('/api/db-tags')
       .then(r => r.json())
-      .then(setTags)
+      .then((data: any[]) => setTagGroups(data.map(g => ({ displayName: g.displayName, terms: g.terms || [] }))))
       .catch(() => {});
 
     fetch('/api/photos/folders')
@@ -106,7 +105,7 @@ export const Sidebar = () => {
   const selectCategory = (catName: string) => {
     currentView.value = 'browse';
     currentCategory.value = catName;
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     isSidebarOpen.value = false;
     // Compatibility
     (window as any).cat = catName;
@@ -137,16 +136,22 @@ export const Sidebar = () => {
   }
   const displayCategories = categories.value.map(c => ({ ...c, count: catCountMap.get(c.path) || 0 }));
 
-  const tagCountMap = new Map<string, number>();
-  for (const v of filteredVids) {
-    for (const tag of ((v as any).tags || []) as string[]) {
-      const key = tag.toLowerCase();
-      tagCountMap.set(key, (tagCountMap.get(key) || 0) + 1);
-    }
-  }
-  const displayTags = tags
-    .filter(t => !(appPrefs.value.hiddenTags || []).includes(t.name))
-    .map(t => ({ ...t, count: tagCountMap.get(t.name.toLowerCase()) || 0 }))
+  // Count per tag group: pre-computed v.tags match OR live name-match against group terms
+  const displayTags = tagGroups
+    .filter(g => !(appPrefs.value.hiddenTags || []).includes(g.displayName))
+    .map(g => {
+      const nameLo = g.displayName.toLowerCase();
+      const count = filteredVids.filter(v => {
+        const vtags = ((v as any).tags || []) as string[];
+        if (vtags.some(t => t.toLowerCase() === nameLo)) return true;
+        const vname = ((v as any).name || '').toLowerCase();
+        return g.terms.some(t =>
+          new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(vname)
+        );
+      }).length;
+      return { name: g.displayName, terms: g.terms, count };
+    })
+    .filter(t => t.count > 0)
     .sort((a, b) => b.count - a.count);
 
   return (
@@ -428,6 +433,7 @@ export const Sidebar = () => {
             onClick={() => {
               currentCategory.value = '';
               currentTag.value = t.name;
+              currentTagTerms.value = t.terms;
               currentView.value = 'browse';
               isSidebarOpen.value = false;
             }}

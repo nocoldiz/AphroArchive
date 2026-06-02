@@ -7,6 +7,8 @@ pages
 node_modules/
 db/actors.json
 db/categories.json
+motherless_downloads/
+video_downloads/
 db/websites.json
 db/studios.json
 dist/

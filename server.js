@@ -134,6 +134,10 @@ const server = http.createServer(async (req, res) => {
   // ── Video routes ────────────────────────────────────────────────────
   if (p === '/api/videos/rescan' && req.method === 'POST') return videos.apiRescan(req, res);
   if (p === '/api/videos/auto-categorize' && req.method === 'POST') return videos.apiAutoCategorizeUncategorized(req, res);
+  if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
+  if (p === '/api/videos/categorize-plan' && req.method === 'POST') return videos.apiCategorizePlan(req, res);
+  if (p === '/api/videos/categorize-execute' && req.method === 'POST') return videos.apiCategorizeExecute(req, res);
+  if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
   if (p === '/api/categories' && req.method === 'GET') return videos.apiCategories(req, res);
   if (p === '/api/categories-overview' && req.method === 'GET') return videos.apiCategoriesOverview(req, res);
@@ -305,6 +309,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/profiles/rename' && req.method === 'POST') return profiles.apiRenameProfile(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
+  if (p === '/api/db/category-tags' && req.method === 'GET') return database.apiGetCategoryTags(req, res);
+  if (p === '/api/db/category-tags' && req.method === 'POST') return database.apiUpdateCategoryTags(req, res);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'POST') return database.apiDbUpsert(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/(.+)$/)) && req.method === 'DELETE') return database.apiDbDelete(req, res, m[1], decodeURIComponent(m[2]));

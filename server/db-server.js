@@ -927,7 +927,11 @@ function loadLinksCache() {
 }
 
 function saveLinksCache(data) {
-  const items = (data && Array.isArray(data.items)) ? data.items : [];
+  const raw = (data && Array.isArray(data.items)) ? data.items : [];
+  // Deduplicate by URL — last write wins (most recent metadata)
+  const byUrl = new Map();
+  for (const it of raw) if (it.url) byUrl.set(it.url, it);
+  const items = [...byUrl.values()];
   try {
     db.transaction(() => {
       db.prepare('DELETE FROM links').run();

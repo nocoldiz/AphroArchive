@@ -111,6 +111,7 @@ export const importModalState = signal<{ visible: boolean }>({ visible: false })
 
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
+export const currentTagTerms = signal<string[]>([]);
 export const currentPhotoFolder = signal<string>('');
 export const currentActor = signal<string | null>(null);
 export const currentStudio = signal<string | null>(null);
@@ -372,7 +373,17 @@ export const filteredVideos = computed(() => {
 
     if (currentTag.value) {
       const tagLo = currentTag.value.toLowerCase();
-      list = list.filter(v => v.tags && (v.tags as string[]).some(t => t.toLowerCase() === tagLo));
+      const terms = currentTagTerms.value;
+      list = list.filter(v => {
+        if (v.tags && (v.tags as string[]).some(t => t.toLowerCase() === tagLo)) return true;
+        if (terms.length > 0) {
+          const name = (v.name || '').toLowerCase();
+          return terms.some(t =>
+            new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(name)
+          );
+        }
+        return false;
+      });
     }
 
     if (currentView.value === 'favourites' || favFilter.value) {
@@ -590,7 +601,7 @@ w.goHome = () => {
   }
   currentView.value = 'hub';
   currentCategory.value = '';
-  currentTag.value = null;
+  currentTag.value = null; currentTagTerms.value = [];
   searchQuery.value = '';
   if (location.pathname !== '/') history.pushState(null, '', '/');
   if (w.refresh) w.refresh();
@@ -653,7 +664,7 @@ export function syncUrlToState() {
     currentView.value = 'hub';
     currentVideo.value = null;
     currentCategory.value = '';
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     return;
   }
   
@@ -669,7 +680,7 @@ export function syncUrlToState() {
   } else if ((m = p.match(/^\/cat\/([^/]+)$/))) {
     currentView.value = 'browse';
     currentCategory.value = decodeURIComponent(m[1]);
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else if ((m = p.match(/^\/tag\/([^/]+)$/))) {
     currentView.value = 'browse';
@@ -680,13 +691,13 @@ export function syncUrlToState() {
     currentView.value = 'actors';
     currentActor.value = decodeURIComponent(m[1]);
     currentCategory.value = '';
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else if ((m = p.match(/^\/studio\/([^/]+)$/))) {
     currentView.value = 'studios';
     currentStudio.value = decodeURIComponent(m[1]);
     currentCategory.value = '';
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else {
     // Other views
@@ -694,7 +705,7 @@ export function syncUrlToState() {
     currentView.value = view;
     currentVideo.value = null;
     currentCategory.value = '';
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
   }
 }
 
@@ -807,7 +818,7 @@ w.refresh = async (full = false) => {
   if (w.studioMode) { closeView('studios-view', 'studioMode'); closeView('studio-detail-view', 'studioMode'); closeView('studio-sidebar', 'studioMode'); }
   if (w.actorMode) { closeView('actors-view', 'actorMode'); closeView('actor-detail-view', 'actorMode'); closeView('actor-sidebar', 'actorMode'); }
   
-  currentTag.value = null;
+  currentTag.value = null; currentTagTerms.value = [];
   
   const bv = document.getElementById('browse-view');
   if (bv) bv.classList.remove('off');

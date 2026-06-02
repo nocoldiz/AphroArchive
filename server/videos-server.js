@@ -115,7 +115,9 @@ async function cachedScan() {
       if (path.isAbsolute(v.rel) && v.category === 'Uncategorized') {
         for (const cat of cats) {
           if (wordMatchAny(v.name, cat.terms)) {
-            return { ...v, category: cat.displayName, catPath: cat.name };
+            // Only update category label — leave catPath empty so root-level
+            // external files still appear as uncategorized in the sidebar.
+            return { ...v, category: cat.displayName };
           }
         }
       }
@@ -400,8 +402,7 @@ async function apiVideos(req, res, params) {
   // 1. Check for strict null instead of truthiness
   if (cat !== null) {
     if (cat === 'uncategorized' || cat === '__uncategorized__' || cat === '') {
-      const defined = loadCategories();
-      list = list.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms)));
+      list = list.filter(v => v.catPath === '');
     } else {
       const defined = loadCategories();
       const catLo = cat.toLowerCase();
@@ -580,9 +581,8 @@ async function apiCategories(req, res) {
     });
   }
 
-  // Uncategorized count
-  const defined = loadCategories();
-  const uncatCount = videos.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms))).length;
+  // Uncategorized count — all videos sitting at root (no subfolder)
+  const uncatCount = videos.filter(v => v.catPath === '').length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
 
   const db = require('./db-server');
@@ -2208,6 +2208,171 @@ async function apiAutoCategorizeUncategorized(req, res) {
   json(res, { ok: true, movedVideos, categorizedLinks, errors });
 }
 
+async function apiRecategorizeAll(req, res) {
+  const cats = loadCategories();
+  const prefs = loadPrefs();
+  const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
+  let movedVideos = 0;
+  const errors = [];
+
+  for (const root of roots) {
+    const files = [];
+    const collect = (dir) => {
+      let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of ents) {
+        if (e.isDirectory() && !isHiddenFolderName(e.name)) collect(path.join(dir, e.name));
+        else if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
+          files.push(path.join(dir, e.name));
+      }
+    };
+    collect(root);
+
+    for (const src of files) {
+      const ext = path.extname(src).toLowerCase();
+      const stem = path.basename(src, ext);
+      let matched = null;
+      for (const cat of cats) { if (wordMatchAny(stem, cat.terms)) { matched = cat; break; } }
+      if (!matched) continue;
+      const destDir = path.join(root, matched.displayName || matched.name);
+      if (path.resolve(path.dirname(src)) === path.resolve(destDir)) continue;
+      try {
+        fs.mkdirSync(destDir, { recursive: true });
+        let dest = path.join(destDir, path.basename(src));
+        if (fs.existsSync(dest)) {
+          let n = 1;
+          do { dest = path.join(destDir, `${stem}_${n}${ext}`); n++; } while (fs.existsSync(dest));
+        }
+        fs.renameSync(src, dest);
+        movedVideos++;
+      } catch (e) { errors.push(`${path.basename(src)}: ${e.message}`); }
+    }
+  }
+
+  let categorizedLinks = 0;
+  try {
+    const { loadLinksCache, saveLinksCache } = require('./db-server');
+    const cache = loadLinksCache();
+    const items = cache.items || [];
+    for (const item of items) {
+      const text = (item.title || '') + ' ' + (item.url || '');
+      for (const cat of cats) {
+        if (wordMatchAny(text, cat.terms)) {
+          const newCat = cat.displayName || cat.name;
+          if (item.category !== newCat) { item.category = newCat; categorizedLinks++; }
+          break;
+        }
+      }
+    }
+    saveLinksCache({ items });
+  } catch (e) { errors.push('links: ' + e.message); }
+
+  invalidateScanCache();
+  json(res, { ok: true, movedVideos, categorizedLinks, errors });
+}
+
+function buildCategorizePlan(roots, cats, mode) {
+  const changes = [];
+  for (const root of roots) {
+    const files = [];
+    if (mode === 'all') {
+      const collect = (dir) => {
+        let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of ents) {
+          if (e.isDirectory() && !isHiddenFolderName(e.name)) collect(path.join(dir, e.name));
+          else if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
+            files.push(path.join(dir, e.name));
+        }
+      };
+      collect(root);
+    } else {
+      let ents; try { ents = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
+      for (const e of ents) {
+        if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
+          files.push(path.join(root, e.name));
+      }
+    }
+
+    for (const src of files) {
+      const ext = path.extname(src).toLowerCase();
+      const stem = path.basename(src, ext);
+      let matched = null;
+      for (const cat of cats) { if (wordMatchAny(stem, cat.terms)) { matched = cat; break; } }
+      if (!matched) continue;
+      const destFolder = matched.displayName || matched.name;
+      if (path.resolve(path.dirname(src)) === path.resolve(path.join(root, destFolder))) continue;
+      const currentFolder = path.relative(root, path.dirname(src)).replace(/\\/g, '/') || '';
+      changes.push({ srcPath: src, name: path.basename(src), currentFolder, destFolder, root });
+    }
+  }
+  return changes;
+}
+
+async function apiCategorizePlan(req, res) {
+  const body = await readBody(req);
+  const mode = body.mode === 'all' ? 'all' : 'uncategorized';
+  const cats = loadCategories();
+  const prefs = loadPrefs();
+  const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
+  const changes = buildCategorizePlan(roots, cats, mode);
+  const categories = cats.map(c => c.displayName || c.name).sort();
+  json(res, { changes, categories });
+}
+
+async function apiCategorizeExecute(req, res) {
+  const body = await readBody(req);
+  const moves = Array.isArray(body.moves) ? body.moves : [];
+  const mode = body.mode === 'all' ? 'all' : 'uncategorized';
+  const prefs = loadPrefs();
+  const cats = loadCategories();
+  const allowedRoots = new Set(
+    [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))].map(r => path.resolve(r))
+  );
+  let movedVideos = 0;
+  const errors = [];
+
+  for (const move of moves) {
+    const { srcPath, destFolder, root } = move;
+    if (!srcPath || !destFolder || !root) continue;
+    if (!allowedRoots.has(path.resolve(root))) { errors.push(`${path.basename(srcPath)}: root not allowed`); continue; }
+    const ext = path.extname(srcPath).toLowerCase();
+    const stem = path.basename(srcPath, ext);
+    const destDir = path.join(root, destFolder);
+    try {
+      fs.mkdirSync(destDir, { recursive: true });
+      let dest = path.join(destDir, path.basename(srcPath));
+      if (fs.existsSync(dest)) {
+        let n = 1;
+        do { dest = path.join(destDir, `${stem}_${n}${ext}`); n++; } while (fs.existsSync(dest));
+      }
+      fs.renameSync(srcPath, dest);
+      movedVideos++;
+    } catch (e) { errors.push(`${path.basename(srcPath)}: ${e.message}`); }
+  }
+
+  let categorizedLinks = 0;
+  try {
+    const { loadLinksCache, saveLinksCache } = require('./db-server');
+    const cache = loadLinksCache();
+    const items = cache.items || [];
+    const VIRTUAL = new Set(['', 'links', 'uncategorized']);
+    for (const item of items) {
+      if (mode === 'uncategorized' && item.category && !VIRTUAL.has(item.category.toLowerCase())) continue;
+      const text = (item.title || '') + ' ' + (item.url || '');
+      for (const cat of cats) {
+        if (wordMatchAny(text, cat.terms)) {
+          const newCat = cat.displayName || cat.name;
+          if (item.category !== newCat) { item.category = newCat; categorizedLinks++; }
+          break;
+        }
+      }
+    }
+    saveLinksCache({ items });
+  } catch (e) { errors.push('links: ' + e.message); }
+
+  invalidateScanCache();
+  json(res, { ok: true, movedVideos, categorizedLinks, errors });
+}
+
 module.exports = {
   scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
   apiVideosUpload, apiRescan,
@@ -2226,5 +2391,6 @@ module.exports = {
   apiAddChapter, apiDeleteChapter,
   apiRenameCategory, apiDeleteCategory, apiHideCategory,
   apiEncryptVideo, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey,
-  apiAutoCategorizeUncategorized,
+  apiAutoCategorizeUncategorized, apiRecategorizeAll,
+  apiCategorizePlan, apiCategorizeExecute,
 };

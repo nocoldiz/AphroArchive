@@ -147,4 +147,40 @@ async function apiDbImport(req, res) {
   json(res, { results });
 }
 
-module.exports = { apiDbGet, apiDbUpsert, apiDbDelete, apiDbImport };
+function apiGetCategoryTags(req, res) {
+  const url = new URL('http://x' + req.url);
+  const catPath = (url.searchParams.get('path') || '').trim();
+  const cats = loadCategories();
+  const pathLo = catPath.toLowerCase();
+  const matched = cats.find(c =>
+    (c.displayName || '').toLowerCase() === pathLo ||
+    c.name.toLowerCase() === pathLo
+  );
+  if (!matched) return json(res, { found: false, name: catPath, displayName: catPath, tags: [] });
+  json(res, { found: true, name: matched.name, displayName: matched.displayName, tags: matched.terms.slice(1) });
+}
+
+async function apiUpdateCategoryTags(req, res) {
+  const body = await readBody(req);
+  const { catPath, tags } = body;
+  if (!catPath || typeof catPath !== 'string') return json(res, { error: 'catPath required' }, 400);
+  const cats = loadCategories();
+  const pathLo = catPath.toLowerCase();
+  const matched = cats.find(c =>
+    (c.displayName || '').toLowerCase() === pathLo ||
+    c.name.toLowerCase() === pathLo
+  );
+  const raw = {};
+  cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
+  const cleanTags = Array.isArray(tags) ? tags.map(t => String(t).trim()).filter(Boolean) : [];
+  if (matched) {
+    raw[matched.name] = { displayName: matched.displayName, tags: cleanTags };
+  } else {
+    raw[catPath] = { displayName: catPath, tags: cleanTags };
+  }
+  saveCategories(raw);
+  invalidateDbTypeCache('categories');
+  json(res, { ok: true });
+}
+
+module.exports = { apiDbGet, apiDbUpsert, apiDbDelete, apiDbImport, apiGetCategoryTags, apiUpdateCategoryTags };
