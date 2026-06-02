@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
-import { useState, useEffect } from 'preact/hooks';
-import { presetPickerState, activeProfile } from '../../store';
+import { useState, useEffect, useRef } from 'preact/hooks';
+import { presetPickerState, activeProfile, dbPendingOpen } from '../../store';
 import { ActorScraperView } from './ActorScraperView';
 
 interface DbEntry {
@@ -24,6 +24,7 @@ export const DatabaseView = () => {
   const [newSourceFolder, setNewSourceFolder] = useState('');
   const [autoCatRunning, setAutoCatRunning] = useState(false);
   const [autoCatResult, setAutoCatResult] = useState<{movedVideos: number, categorizedLinks: number, errors: string[]} | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const tabs = [
     { id: 'folders', name: 'Folders' },
@@ -37,6 +38,19 @@ export const DatabaseView = () => {
   useEffect(() => {
     loadTab(activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    return dbPendingOpen.subscribe(val => {
+      if (!val) return;
+      setActiveTab(val.tab);
+      if (val.action === 'add') {
+        setEditName(null);
+        setFormData({});
+        setModalOpen(true);
+      }
+      dbPendingOpen.value = null;
+    });
+  }, []);
 
   const loadTab = async (tab: string) => {
     if (tab === 'duplicates') {
@@ -207,6 +221,39 @@ export const DatabaseView = () => {
     } catch (e) {}
   };
 
+  const handleExportJson = () => {
+    const a = document.createElement('a');
+    a.href = `/api/db/${activeTab}/export`;
+    a.download = `${activeTab}.json`;
+    a.click();
+  };
+
+  const handleImportJson = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    let data: any;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      alert('Invalid JSON file');
+      return;
+    }
+    const r = await fetch(`/api/db/${activeTab}/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const w = window as any;
+    if (r.ok) {
+      const d = await r.json();
+      if (w.toast) w.toast(`Imported ${d.count} entries`);
+      loadTab(activeTab);
+    } else {
+      if (w.toast) w.toast('Import failed');
+    }
+  };
+
   const handleAutoCategorize = async () => {
     setAutoCatRunning(true);
     setAutoCatResult(null);
@@ -249,12 +296,15 @@ export const DatabaseView = () => {
 
       {/* Action Bar */}
       {activeTab !== 'duplicates' && activeTab !== 'folders' && (
-        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+          <input ref={importFileRef} type="file" accept=".json" title="Import JSON" style={{ display: 'none' }} onChange={handleImportJson} />
           <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: false }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset as Profile</button>
           <button className="modal-btn" onClick={handleReset} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Reset to Preset</button>
           {activeTab === 'actors' && (
             <button className="modal-btn" onClick={() => setScraperModalOpen(true)} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Scrape Actor Data</button>
           )}
+          <button className="modal-btn" onClick={handleExportJson} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Export JSON</button>
+          <button className="modal-btn" onClick={() => importFileRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import JSON</button>
           <button className="modal-btn modal-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
         </div>
       )}

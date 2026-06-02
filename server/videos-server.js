@@ -2270,6 +2270,29 @@ async function apiRecategorizeAll(req, res) {
   json(res, { ok: true, movedVideos, categorizedLinks, errors });
 }
 
+// ── Scoring / fuzzy matching ──────────────────────────────────────────
+function computeScore(text, cat) {
+  let best = 0;
+  for (const term of cat.terms) {
+    if (wordMatch(text, term)) return 100;
+    const tl = term.toLowerCase(), xl = text.toLowerCase();
+    if (xl.includes(tl)) { best = Math.max(best, 60); continue; }
+    const words = xl.split(/\W+/).filter(w => w.length >= 3);
+    for (const w of words) {
+      if (tl.startsWith(w.slice(0, 3)) || w.startsWith(tl.slice(0, 3))) {
+        best = Math.max(best, 30); break;
+      }
+    }
+  }
+  return best;
+}
+
+function bestCatMatch(text, cats) {
+  let best = null, bs = 0;
+  for (const c of cats) { const s = computeScore(text, c); if (s > bs) { bs = s; best = c; } }
+  return { cat: best, score: bs };
+}
+
 function buildCategorizePlan(roots, cats, mode) {
   const changes = [];
   for (const root of roots) {
@@ -2313,24 +2336,112 @@ async function apiCategorizePlan(req, res) {
   const cats = loadCategories();
   const prefs = loadPrefs();
   const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
-  const changes = buildCategorizePlan(roots, cats, mode);
+
+  // Map folder name → category for quick lookup
+  const catByFolder = new Map();
+  for (const c of cats) {
+    catByFolder.set((c.displayName || c.name).toLowerCase(), c);
+    catByFolder.set(c.name.toLowerCase(), c);
+  }
+
+  const uncategorized = [];
+  const categorized = [];
+
+  // ── Videos ───────────────────────────────────────────────────────────
+  for (const root of roots) {
+    const files = [];
+    if (mode === 'all') {
+      const collect = (dir) => {
+        let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of ents) {
+          if (e.isDirectory() && !isHiddenFolderName(e.name)) collect(path.join(dir, e.name));
+          else if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
+            files.push(path.join(dir, e.name));
+        }
+      };
+      collect(root);
+    } else {
+      let ents; try { ents = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
+      for (const e of ents)
+        if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
+          files.push(path.join(root, e.name));
+    }
+
+    for (const src of files) {
+      const ext = path.extname(src).toLowerCase();
+      const stem = path.basename(src, ext);
+      const currentFolder = path.relative(root, path.dirname(src)).replace(/\\/g, '/') || '';
+      const topFolder = currentFolder.split('/')[0] || '';
+      const folderCat = topFolder ? catByFolder.get(topFolder.toLowerCase()) : null;
+      const id = Buffer.from(src).toString('base64url');
+
+      if (folderCat && computeScore(stem, folderCat) > 0) {
+        categorized.push({
+          type: 'video', id, name: path.basename(src),
+          currentFolder, matchedCategory: folderCat.displayName || folderCat.name,
+          score: computeScore(stem, folderCat),
+        });
+      } else {
+        const { cat: suggested, score } = bestCatMatch(stem, cats);
+        uncategorized.push({
+          type: 'video', id, name: path.basename(src),
+          currentFolder, suggestedCategory: suggested ? (suggested.displayName || suggested.name) : '',
+          score, srcPath: src, root,
+        });
+      }
+    }
+  }
+
+  // ── Links ─────────────────────────────────────────────────────────────
+  try {
+    const { loadLinksCache } = require('./db-server');
+    const VIRTUAL = new Set(['', 'links', 'uncategorized']);
+    const items = loadLinksCache().items || [];
+    for (const item of items) {
+      const text = (item.title || '') + ' ' + (item.url || '');
+      const curCat = item.category || '';
+      const catObj = !VIRTUAL.has(curCat.toLowerCase()) ? catByFolder.get(curCat.toLowerCase()) : null;
+      const id = Buffer.from(item.url).toString('base64url');
+      const name = item.title || item.url;
+
+      if (catObj && computeScore(text, catObj) > 0) {
+        categorized.push({
+          type: 'link', id, name, url: item.url,
+          currentFolder: curCat, matchedCategory: curCat,
+          score: computeScore(text, catObj),
+        });
+      } else {
+        const { cat: suggested, score } = bestCatMatch(text, cats);
+        uncategorized.push({
+          type: 'link', id, name, url: item.url,
+          currentFolder: VIRTUAL.has(curCat.toLowerCase()) ? '' : curCat,
+          suggestedCategory: suggested ? (suggested.displayName || suggested.name) : '',
+          score,
+        });
+      }
+    }
+  } catch (e) { console.error('[apiCategorizePlan] links error:', e.message); }
+
   const categories = cats.map(c => c.displayName || c.name).sort();
-  json(res, { changes, categories });
+  uncategorized.sort((a, b) => b.score - a.score);
+  categorized.sort((a, b) => b.score - a.score);
+  json(res, { uncategorized, categorized, categories });
 }
 
 async function apiCategorizeExecute(req, res) {
   const body = await readBody(req);
   const moves = Array.isArray(body.moves) ? body.moves : [];
-  const mode = body.mode === 'all' ? 'all' : 'uncategorized';
   const prefs = loadPrefs();
-  const cats = loadCategories();
   const allowedRoots = new Set(
     [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))].map(r => path.resolve(r))
   );
-  let movedVideos = 0;
+  let movedVideos = 0, movedLinks = 0;
   const errors = [];
 
-  for (const move of moves) {
+  const videoMoves = moves.filter(m => m.type === 'video' || (!m.type && m.srcPath));
+  const linkMoves  = moves.filter(m => m.type === 'link'  || (!m.type && m.url));
+
+  for (const move of videoMoves) {
     const { srcPath, destFolder, root } = move;
     if (!srcPath || !destFolder || !root) continue;
     if (!allowedRoots.has(path.resolve(root))) { errors.push(`${path.basename(srcPath)}: root not allowed`); continue; }
@@ -2349,28 +2460,22 @@ async function apiCategorizeExecute(req, res) {
     } catch (e) { errors.push(`${path.basename(srcPath)}: ${e.message}`); }
   }
 
-  let categorizedLinks = 0;
-  try {
-    const { loadLinksCache, saveLinksCache } = require('./db-server');
-    const cache = loadLinksCache();
-    const items = cache.items || [];
-    const VIRTUAL = new Set(['', 'links', 'uncategorized']);
-    for (const item of items) {
-      if (mode === 'uncategorized' && item.category && !VIRTUAL.has(item.category.toLowerCase())) continue;
-      const text = (item.title || '') + ' ' + (item.url || '');
-      for (const cat of cats) {
-        if (wordMatchAny(text, cat.terms)) {
-          const newCat = cat.displayName || cat.name;
-          if (item.category !== newCat) { item.category = newCat; categorizedLinks++; }
-          break;
-        }
+  if (linkMoves.length > 0) {
+    try {
+      const { loadLinksCache, saveLinksCache } = require('./db-server');
+      const cache = loadLinksCache();
+      const items = cache.items || [];
+      const byUrl = new Map(items.map(i => [i.url, i]));
+      for (const move of linkMoves) {
+        const item = byUrl.get(move.url);
+        if (item && move.newCategory) { item.category = move.newCategory; movedLinks++; }
       }
-    }
-    saveLinksCache({ items });
-  } catch (e) { errors.push('links: ' + e.message); }
+      saveLinksCache({ items });
+    } catch (e) { errors.push('links: ' + e.message); }
+  }
 
   invalidateScanCache();
-  json(res, { ok: true, movedVideos, categorizedLinks, errors });
+  json(res, { ok: true, movedVideos, movedLinks, errors });
 }
 
 module.exports = {

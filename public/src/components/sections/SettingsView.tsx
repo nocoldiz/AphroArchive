@@ -943,6 +943,160 @@ export const SettingsView = () => {
           )}
         </div>
       )}
+        {/* Panic Button Section */}
+        <div className="settings-section" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', marginBottom: '24px' }}>
+          <h3 style={{ margin: 0, color: 'var(--ac)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <i className="icon-alert-triangle" />
+            Panic Button
+          </h3>
+          <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
+            Configure a keyboard shortcut or mouse button that instantly closes the tab and shuts down the server.
+            Useful for quickly hiding everything if someone walks in.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Current binding display */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Current Binding</label>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '10px',
+                background: 'var(--bg3)', 
+                border: '1px solid var(--brd)', 
+                borderRadius: '6px', 
+                padding: '12px 16px',
+                minHeight: '45px'
+              }}>
+                <span id="panic-key-display" style={{ 
+                  fontFamily: 'monospace', 
+                  fontSize: '1.1rem', 
+                  color: localStorage.getItem('panicKey') ? 'var(--ac)' : 'var(--tx3)',
+                  fontWeight: 'bold',
+                  letterSpacing: '1px'
+                }}>
+                  {localStorage.getItem('panicKey') || 'Not set'}
+                </span>
+              </div>
+            </div>
+
+            {/* Key capture input */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Press a key combination to set</label>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  id="panic-key-capture"
+                  placeholder="Press a key..."
+                  readOnly
+                  onFocus={(e) => {
+                    const input = e.currentTarget;
+                    input.value = 'Listening...';
+                    input.style.color = 'var(--ac)';
+                    const handler = (ev: KeyboardEvent) => {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      const parts: string[] = [];
+                      if (ev.ctrlKey) parts.push('Ctrl');
+                      if (ev.shiftKey) parts.push('Shift');
+                      if (ev.altKey) parts.push('Alt');
+                      if (ev.metaKey) parts.push('Meta');
+                      // Only add the main key if it's not a modifier alone
+                      const key = ev.key;
+                      const isModifier = key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta';
+                      if (!isModifier) {
+                        // Use a cleaner representation
+                        if (key === ' ') parts.push('Space');
+                        else if (key.length === 1) parts.push(key.toUpperCase());
+                        else parts.push(key);
+                      }
+                      const combo = parts.join('+');
+                      if (combo) {
+                        localStorage.setItem('panicKey', combo);
+                        input.value = combo;
+                        input.blur();
+                        const display = document.getElementById('panic-key-display');
+                        if (display) {
+                          display.textContent = combo;
+                          display.style.color = 'var(--ac)';
+                        }
+                      }
+                      document.removeEventListener('keydown', handler);
+                    };
+                    document.addEventListener('keydown', handler, { once: true });
+                  }}
+                  onBlur={(e) => {
+                    if (!e.currentTarget.value || e.currentTarget.value === 'Listening...') {
+                      e.currentTarget.value = '';
+                    }
+                    e.currentTarget.style.color = 'var(--tx)';
+                  }}
+                  style={{ 
+                    flex: 1, 
+                    background: 'var(--bg3)', 
+                    color: 'var(--tx)', 
+                    border: '1px solid var(--brd)', 
+                    borderRadius: '6px', 
+                    padding: '10px',
+                    fontFamily: 'monospace',
+                    cursor: 'pointer',
+                    caretColor: 'transparent'
+                  }}
+                />
+                <button
+                  className="modal-btn modal-btn--danger"
+                  onClick={() => {
+                    localStorage.removeItem('panicKey');
+                    const display = document.getElementById('panic-key-display');
+                    if (display) {
+                      display.textContent = 'Not set';
+                      display.style.color = 'var(--tx3)';
+                    }
+                  }}
+                  style={{ padding: '10px 16px', flexShrink: 0 }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {/* Mouse button presets */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Mouse Button Presets</label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Mouse4 (Back)', value: 'Mouse4' },
+                  { label: 'Mouse5 (Forward)', value: 'Mouse5' },
+                  { label: 'Middle Click', value: 'Mouse3' },
+                  { label: 'Ctrl+Shift+Escape', value: 'Ctrl+Shift+Escape' },
+                  { label: 'F12', value: 'F12' },
+                ].map(preset => (
+                  <button
+                    key={preset.value}
+                    className="modal-btn"
+                    onClick={() => {
+                      localStorage.setItem('panicKey', preset.value);
+                      const display = document.getElementById('panic-key-display');
+                      if (display) {
+                        display.textContent = preset.value;
+                        display.style.color = 'var(--ac)';
+                      }
+                    }}
+                    style={{ fontSize: '0.82rem', padding: '6px 12px' }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ fontSize: '12px', color: 'var(--tx3)', borderTop: '1px solid var(--brd)', paddingTop: '12px' }}>
+              <strong>How it works:</strong> When the panic key is pressed, the server shuts down immediately and the browser tab closes.
+              The key binding is stored only in your browser's localStorage.
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );

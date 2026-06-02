@@ -168,6 +168,7 @@ export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true
 export const profiles = signal<string[]>(['default']);
 export const activeProfile = signal<string>('default');
 export const profileModalState = signal<{ visible: boolean }>({ visible: false });
+export const dbPendingOpen = signal<{ tab: string; action: 'add' } | null>(null);
 export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
 export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 

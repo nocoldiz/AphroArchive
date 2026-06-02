@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { loadVideos } from '../../store';
-import { CategorizeModal, ChangeItem } from './CategorizeModal';
+import { CategorizeModal, PlanItem, Move } from './CategorizeModal';
 
 interface ScraperStatus {
   running: boolean;
@@ -77,10 +77,10 @@ function ScraperRow({
 
 interface ModalState {
   mode: 'uncategorized' | 'all';
-  changes: ChangeItem[];
+  uncategorized: PlanItem[];
+  categorized: PlanItem[];
   categories: string[];
   confirming: boolean;
-  result?: string;
 }
 
 export const SyncManager = () => {
@@ -146,8 +146,8 @@ export const SyncManager = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),
       });
-      const { changes, categories } = await r.json();
-      setModal({ mode, changes, categories, confirming: false });
+      const { uncategorized, categorized, categories } = await r.json();
+      setModal({ mode, uncategorized: uncategorized || [], categorized: categorized || [], categories, confirming: false });
     } catch {
       if (mode === 'all') setRecatAllResult('error fetching plan');
       else setAutoCatResult('error fetching plan');
@@ -156,17 +156,17 @@ export const SyncManager = () => {
     }
   };
 
-  const handleConfirm = async (moves: { srcPath: string; destFolder: string; root: string }[]) => {
+  const handleConfirm = async (moves: Move[]) => {
     if (!modal) return;
     setModal(m => m ? { ...m, confirming: true } : null);
     try {
       const r = await fetch('/api/videos/categorize-execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moves, mode: modal.mode }),
+        body: JSON.stringify({ moves }),
       });
       const d = await r.json();
-      const result = `${d.movedVideos} moved, ${d.categorizedLinks} links`;
+      const result = `${d.movedVideos} videos, ${d.movedLinks} links`;
       if (modal.mode === 'all') setRecatAllResult(result);
       else setAutoCatResult(result);
       await loadVideos();
@@ -344,7 +344,8 @@ export const SyncManager = () => {
       {modal && (
         <CategorizeModal
           mode={modal.mode}
-          changes={modal.changes}
+          uncategorized={modal.uncategorized}
+          categorized={modal.categorized}
           categories={modal.categories}
           confirming={modal.confirming}
           onConfirm={handleConfirm}

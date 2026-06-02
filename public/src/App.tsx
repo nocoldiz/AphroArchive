@@ -82,6 +82,78 @@ export function App() {
         }
       })
       .catch(e => console.error('Failed to check presets', e));
+    // 6. Panic Key/Mouse listener
+    const triggerPanic = () => {
+      // Send panic to server — fire & forget
+      fetch('/api/panic', { method: 'POST' }).catch(() => {});
+      // Close the tab/window
+      setTimeout(() => {
+        window.close();
+        // Fallback if window.close() is blocked (most browsers)
+      }, 200);
+    };
+
+    // Parse a stored panic key string like "Escape", "F12", "KeyP+Ctrl+Shift", "Mouse4"
+    const checkPanicMatch = (e: { key?: string; code?: string; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; metaKey?: boolean; button?: number }) => {
+      const panicKey = localStorage.getItem('panicKey');
+      if (!panicKey) return false;
+      const keys = panicKey.split('+');
+      let match = true;
+      let keyFound = false;
+      for (const k of keys) {
+        const kt = k.trim().toLowerCase();
+        if (kt === 'ctrl') { if (!e.ctrlKey) match = false; }
+        else if (kt === 'shift') { if (!e.shiftKey) match = false; }
+        else if (kt === 'alt') { if (!e.altKey) match = false; }
+        else if (kt === 'meta' || kt === 'win' || kt === 'cmd') { if (!e.metaKey) match = false; }
+        else if (kt.startsWith('mouse')) {
+          // e.g. "Mouse3" = middle button, "Mouse4" = back button, "Mouse5" = forward button
+          keyFound = true;
+          const btnNum = parseInt(kt.replace('mouse', ''), 10);
+          if (isNaN(btnNum) || e.button !== btnNum) match = false;
+        }
+        else {
+          keyFound = true;
+          const keyStr = (e.key || '').toLowerCase();
+          const codeStr = (e.code || '').toLowerCase();
+          if (keyStr !== kt && codeStr !== kt) match = false;
+        }
+      }
+      // Must find at least one actual key/mouse in the string
+      if (!keyFound) return false;
+      return match;
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger panic when user is typing in an input/textarea/contenteditable
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) return;
+      // Don't trigger while the panic-capture input is focused (user is setting a new key)
+      if (document.activeElement?.id === 'panic-key-capture') return;
+      if (checkPanicMatch(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerPanic();
+      }
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // Only check if the stored key is a mouse button
+      const panicKey = localStorage.getItem('panicKey') || '';
+      if (!panicKey.toLowerCase().startsWith('mouse')) return;
+      if (checkPanicMatch(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerPanic();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
   }, []);
 
   return (

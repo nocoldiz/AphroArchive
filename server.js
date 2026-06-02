@@ -311,6 +311,8 @@ const server = http.createServer(async (req, res) => {
   // ── Database ─────────────────────────────────────────────────────────
   if (p === '/api/db/category-tags' && req.method === 'GET') return database.apiGetCategoryTags(req, res);
   if (p === '/api/db/category-tags' && req.method === 'POST') return database.apiUpdateCategoryTags(req, res);
+  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/export$/)) && req.method === 'GET') return database.apiDbExportJson(req, res, m[1]);
+  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/import$/)) && req.method === 'POST') return database.apiDbImportJson(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'POST') return database.apiDbUpsert(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/(.+)$/)) && req.method === 'DELETE') return database.apiDbDelete(req, res, m[1], decodeURIComponent(m[2]));
@@ -360,6 +362,18 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/comfyui/status' && req.method === 'GET') return prompts.apiComfyStatus(req, res);
   if (p === '/api/comfyui/workflows' && req.method === 'GET') return prompts.apiComfyWorkflows(req, res);
   if (p === '/api/comfyui/send' && req.method === 'POST') return prompts.apiComfySend(req, res);
+
+  // ── Panic Button ─────────────────────────────────────────────────────
+  if (p === '/api/panic' && req.method === 'POST') {
+    console.log('\n\x1b[1;31m⚠️  PANIC BUTTON TRIGGERED — shutting down\x1b[0m\n');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, message: 'Panic — shutting down' }));
+    // Use a short timeout to let the response be sent before exiting
+    setTimeout(() => {
+      process.exit(0);
+    }, 100);
+    return;
+  }
 
   // ── Remote control ───────────────────────────────────────────────────
   if (p === '/api/remote/events' && req.method === 'GET') return remote.apiRemoteEvents(req, res);

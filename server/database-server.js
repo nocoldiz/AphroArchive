@@ -183,4 +183,64 @@ async function apiUpdateCategoryTags(req, res) {
   json(res, { ok: true });
 }
 
-module.exports = { apiDbGet, apiDbUpsert, apiDbDelete, apiDbImport, apiGetCategoryTags, apiUpdateCategoryTags };
+function apiDbExportJson(req, res, type) {
+  let data;
+  if (type === 'actors') {
+    const actors = loadActors();
+    data = {};
+    actors.forEach(a => { data[a.name] = { date_of_birth: a.date_of_birth || null, nationality: a.nationality || null, imdb_page: a.imdb_page || null }; });
+  } else if (type === 'categories') {
+    const cats = loadCategories();
+    data = {};
+    cats.forEach(c => { data[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
+  } else if (type === 'studios') {
+    const studios = loadStudios();
+    data = {};
+    studios.forEach(s => { data[s.name] = { website: s.website || null, short_description: s.description || null }; });
+  } else if (type === 'websites') {
+    data = loadWebsites();
+  } else {
+    return json(res, { error: 'Unknown type' }, 400);
+  }
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="${type}.json"`);
+  res.end(JSON.stringify(data, null, 2));
+}
+
+async function apiDbImportJson(req, res, type) {
+  const body = await readBody(req);
+  if (type === 'websites') {
+    if (!Array.isArray(body)) return json(res, { error: 'Expected array' }, 400);
+    const sites = loadWebsites();
+    const existing = new Map(sites.map(s => [s.name || s.url, s]));
+    for (const s of body) { existing.set(s.name || s.url, s); }
+    saveWebsites(Array.from(existing.values()));
+    return json(res, { ok: true, count: body.length });
+  }
+  if (typeof body !== 'object' || Array.isArray(body)) return json(res, { error: 'Expected object' }, 400);
+  if (type === 'actors') {
+    const actors = loadActors();
+    const raw = {};
+    actors.forEach(a => { raw[a.name] = { date_of_birth: a.date_of_birth, nationality: a.nationality, imdb_page: a.imdb_page }; });
+    Object.assign(raw, body);
+    saveActors(raw);
+  } else if (type === 'categories') {
+    const cats = loadCategories();
+    const raw = {};
+    cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
+    Object.assign(raw, body);
+    saveCategories(raw);
+  } else if (type === 'studios') {
+    const studios = loadStudios();
+    const raw = {};
+    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    Object.assign(raw, body);
+    saveStudios(raw);
+  } else {
+    return json(res, { error: 'Unknown type' }, 400);
+  }
+  invalidateDbTypeCache(type);
+  return json(res, { ok: true, count: Object.keys(body).length });
+}
+
+module.exports = { apiDbGet, apiDbUpsert, apiDbDelete, apiDbImport, apiGetCategoryTags, apiUpdateCategoryTags, apiDbExportJson, apiDbImportJson };

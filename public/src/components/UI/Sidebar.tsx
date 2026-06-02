@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder } from '../../store';
+import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -417,10 +417,18 @@ export const Sidebar = () => {
       </div>
 
       <div className="side-sep" id="tags-sep"></div>
-      <SectionHeader 
-        label="Tags" 
-        id="sh3-tags" 
+      <SectionHeader
+        label="Tags"
+        id="sh3-tags"
         onClick={() => setTagsOpen(v => !v)}
+        action={
+          <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'categories', action: 'add' }; }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        }
       />
       <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
         {displayTags.map(t => (
