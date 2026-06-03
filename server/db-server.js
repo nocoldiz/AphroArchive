@@ -575,6 +575,47 @@ function savePrefs(p) {
   }
 }
 
+function getDefaultWriteRoot() {
+  try {
+    const prefs = loadPrefs();
+    const candidate = (prefs.defaultRoot || prefs.defaultPath || prefs.defaultWriteRoot || '').toString().trim();
+    if (candidate) {
+      return path.resolve(candidate);
+    }
+  } catch (e) {
+    console.error('getDefaultWriteRoot error:', e.message);
+  }
+  const { VIDEOS_DIR } = require('./config-server');
+  return VIDEOS_DIR;
+}
+
+function resolveCategoryPhysicalPath(catPath) {
+  const writeRoot = getDefaultWriteRoot();
+  const roots = [writeRoot];
+  const writeRes = path.resolve(writeRoot);
+  const vRes = path.resolve( require('./config-server').VIDEOS_DIR );
+  if (writeRes !== vRes) roots.push( require('./config-server').VIDEOS_DIR );
+
+  try {
+    const p = loadPrefs();
+    for (const sf of (p.sourceFolders || [])) {
+      if (!sf) continue;
+      const r = path.resolve(sf);
+      if (fs.existsSync(sf) && !roots.some(rr => path.resolve(rr) === r)) {
+        roots.push(sf);
+      }
+    }
+  } catch (e) {}
+
+  if (!catPath) return writeRoot;
+  const rel = String(catPath).replace(/\\/g, '/');
+  for (const root of roots) {
+    const cand = path.join(root, rel);
+    if (fs.existsSync(cand)) return cand;
+  }
+  return path.join(writeRoot, rel);
+}
+
 // ── Ratings (legacy, now merged into video meta) ─────────────────────
 
 function loadRatings()  { try { return JSON.parse(fs.readFileSync(RATINGS_FILE, 'utf-8')); } catch { return {}; } }
@@ -981,9 +1022,18 @@ function deleteLink(url) {
 // For scraping or individual edits, prefer upsertLink.
 function saveLinksCache(data) {
   const raw = (data && Array.isArray(data.items)) ? data.items : [];
-  const byUrl = new Map();
-  for (const it of raw) if (it.url) byUrl.set(it.url, it);
-  const items = [...byUrl.values()];
+  const seenUrls = new Set();
+  const seenNames = new Set();
+  const items = [];
+  for (const it of raw) {
+    if (!it || !it.url) continue;
+    const u = it.url;
+    const nm = (it.title || '').trim().toLowerCase();
+    if (seenUrls.has(u) || (nm && seenNames.has(nm))) continue;
+    seenUrls.add(u);
+    if (nm) seenNames.add(nm);
+    items.push(it);
+  }
   try {
     db.transaction(() => {
       db.prepare('DELETE FROM links').run();
@@ -1389,10 +1439,19 @@ function saveLinksToDb(items) {
   const { wordMatchAny } = require('./helpers-server');
   
   try {
+    const seenUrls = new Set();
+    const seenNames = new Set();
+    let inserted = 0;
     db.transaction(() => {
       const insertVideo = db.prepare('INSERT OR IGNORE INTO videos (id, title, category) VALUES (?, ?, ?)');
       for (const item of items) {
-        const id = Buffer.from(item.url).toString('base64url');
+        if (!item || !item.url) continue;
+        const u = item.url;
+        const nm = (item.title || '').trim().toLowerCase();
+        if (seenUrls.has(u) || (nm && seenNames.has(nm))) continue;
+        seenUrls.add(u);
+        if (nm) seenNames.add(nm);
+        const id = Buffer.from(u).toString('base64url');
         let category = 'Uncategorized';
         for (const cat of cats) {
           if (wordMatchAny(item.title, cat.terms)) {
@@ -1401,9 +1460,10 @@ function saveLinksToDb(items) {
           }
         }
         insertVideo.run(id, item.title, category);
+        inserted++;
       }
     })();
-    return { ok: true, count: items.length };
+    return { ok: true, count: inserted };
   } catch (e) {
     console.error('Failed to save links to SQLite:', e);
     return { error: e.message };
@@ -1413,7 +1473,7 @@ function saveLinksToDb(items) {
 module.exports = {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
-  loadPrefs, savePrefs,
+  loadPrefs, savePrefs, getDefaultWriteRoot, resolveCategoryPhysicalPath,
   loadRatings, saveRatings,
   loadVideoMeta, saveVideoMeta, setVideoMetaFields,
   loadThumbsCache, saveThumbsCache, setThumbCacheEntry,

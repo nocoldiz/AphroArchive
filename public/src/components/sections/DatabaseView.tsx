@@ -21,6 +21,7 @@ export const DatabaseView = () => {
   const [folders, setFolders] = useState<{name: string, path: string, isExternal?: boolean}[]>([]);
   const [enabledFolders, setEnabledFolders] = useState<Set<string>>(new Set());
   const [sourceFolders, setSourceFolders] = useState<string[]>([]);
+  const [defaultRoot, setDefaultRoot] = useState<string>('');
   const [newSourceFolder, setNewSourceFolder] = useState('');
   const [autoCatRunning, setAutoCatRunning] = useState(false);
   const [autoCatResult, setAutoCatResult] = useState<{movedVideos: number, categorizedLinks: number, errors: string[]} | null>(null);
@@ -70,6 +71,7 @@ export const DatabaseView = () => {
         setFolders(foldersData.categories);
         setEnabledFolders(new Set((foldersData.enabled as string[]).filter(p => actualPaths.has(p))));
         setSourceFolders(prefsData.sourceFolders || []);
+        setDefaultRoot(prefsData.defaultRoot || prefsData.defaultPath || prefsData.defaultWriteRoot || '');
       } catch (e) {
         console.error(e);
       } finally {
@@ -212,6 +214,23 @@ export const DatabaseView = () => {
     }
   };
 
+  const handleSetDefaultRoot = async (val: string) => {
+    const v = val || '';
+    try {
+      const res = await fetch('/api/settings/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaultRoot: v }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      setDefaultRoot(v);
+      const w = window as any;
+      if (w.toast) w.toast('Default path updated for downloads/moves');
+    } catch (e: any) {
+      alert('Error saving default path: ' + e.message);
+    }
+  };
+
   const handleBrowseNative = async () => {
     try {
       const res = await fetch('/api/browse-folders-native');
@@ -338,6 +357,23 @@ export const DatabaseView = () => {
               />
               <button onClick={handleBrowseNative} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>Browse</button>
               <button onClick={handleAddSourceFolder} style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>Add</button>
+            </div>
+            {/* Default write root selector */}
+            <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--brd)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--ac)', marginBottom: '6px', fontWeight: 600 }}>Default path for downloads, moves, uploads &amp; new folders</div>
+              <select
+                value={defaultRoot}
+                onChange={(e: any) => handleSetDefaultRoot(e.target.value)}
+                style={{ width: '100%', padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+              >
+                <option value="">Main videos folder (default)</option>
+                {sourceFolders.map(f => (
+                  <option key={f} value={f}>{f} (external source)</option>
+                ))}
+              </select>
+              <div style={{ fontSize: '0.7rem', color: 'var(--tx3)', marginTop: '4px' }}>
+                All new video files from downloads/moves/uploads and created folders will use this root. Main videos is used if none selected.
+              </div>
             </div>
           </div>
 

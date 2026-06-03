@@ -1,5 +1,5 @@
 {
-  "openrouter_key": "",
+  "openrouter_key": "YOUR_OPENROUTER_KEY",
   "comfy_url": "http://127.0.0.1:8188",
   "jailbreak": "maximum",
   "search_mode": "similar",

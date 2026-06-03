@@ -264,12 +264,16 @@ export const LinksView = () => {
           });
         });
         
-        // Merge with existing items (avoid duplicates)
+        // Merge with existing items (avoid duplicates by url or name)
         const existingUrls = new Set(items.map(it => it.url));
+        const existingNames = new Set(items.map(it => (it.title || '').trim().toLowerCase()).filter(Boolean));
         const newItems = [...items];
         for (const item of filtered) {
-          if (!existingUrls.has(item.url)) {
+          const nm = (item.title || '').trim().toLowerCase();
+          if (!existingUrls.has(item.url) && !(nm && existingNames.has(nm))) {
             newItems.push(item);
+            existingUrls.add(item.url);
+            if (nm) existingNames.add(nm);
           }
         }
         
@@ -303,6 +307,41 @@ export const LinksView = () => {
     setVisibleItems([]);
     setMatchedCount(0);
     rebuildLinkVidIds([]);
+  };
+
+  const removeDuplicates = async () => {
+    if (!items.length) return;
+    const seenUrls = new Set<string>();
+    const seenNames = new Set<string>();
+    const cleaned: any[] = [];
+    for (const item of items) {
+      const u = item.url;
+      const nm = (item.title || '').trim().toLowerCase();
+      if (!u || seenUrls.has(u) || (nm && seenNames.has(nm))) continue;
+      seenUrls.add(u);
+      if (nm) seenNames.add(nm);
+      cleaned.push(item);
+    }
+    const removed = items.length - cleaned.length;
+    if (removed <= 0) {
+      const w = window as any;
+      if (w.toast) w.toast('No duplicates found (by link or name)');
+      return;
+    }
+    if (!confirm(`Remove ${removed} duplicate links (same URL or same name)? Keep ${cleaned.length}?`)) return;
+    setItems(cleaned);
+    updateMatches(cleaned);
+    try {
+      await fetch('/api/links/cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: cleaned })
+      });
+      const w = window as any;
+      if (w.toast) w.toast(`Removed ${removed} duplicates`);
+    } catch (e: any) {
+      alert('Error saving after dedup: ' + e.message);
+    }
   };
 
   const removeItem = async (url: string) => {
@@ -480,6 +519,7 @@ export const LinksView = () => {
           <button class="btn" onClick={() => importFileRef.current?.click()} title="Import links from JSON file">Import JSON</button>
           <input ref={importFileRef as any} type="file" accept=".json,application/json" aria-label="Import links from JSON file" style={{ display: 'none' }} onChange={onImportFileChange as any} />
           <button class="btn" onClick={clearAll}>Clear All</button>
+          <button class="btn" onClick={removeDuplicates} title="Remove links that have duplicate URL or duplicate name/title">Remove Duplicates</button>
           <button class="btn" onClick={saveToDb}>Save to DB</button>
           <button class="btn" onClick={startScraping}>Start Scraping</button>
           <button class="btn" onClick={rescrapeAll}>Rescrape All</button>

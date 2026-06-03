@@ -8,6 +8,7 @@ const path            = require('path');
 const { spawn, execFile } = require('child_process');
 const { VIDEOS_DIR, YT_DLP_BIN, LINK_DIR } = require('./config-server');
 const { json, readBody, toId, fromId }      = require('./helpers-server');
+const { getDefaultWriteRoot } = require('./db-server');
 
 // ── Persistence ──────────────────────────────────────────────────────
 
@@ -82,10 +83,17 @@ async function autoMoveVideo(videoId, pendingCategory) {
     if (!cleanCat) return;
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
     if (isVirtual) return;
-    const rel  = fromId(videoId);
-    const src  = path.join(VIDEOS_DIR, rel);
+    const writeRoot = getDefaultWriteRoot();
+    const rel = fromId(videoId);
+    let src = rel;
+    if (!path.isAbsolute(src)) {
+      src = path.join(VIDEOS_DIR, rel);
+      if (!fs.existsSync(src)) {
+        src = path.join(writeRoot, rel);
+      }
+    }
     if (!fs.existsSync(src)) return;
-    const destDir = path.join(VIDEOS_DIR, cleanCat);
+    const destDir = path.join(writeRoot, cleanCat);
     fs.mkdirSync(destDir, { recursive: true });
     const dest = path.join(destDir, path.basename(src));
     if (src !== dest) fs.renameSync(src, dest);
@@ -129,9 +137,15 @@ async function runJob(next) {
     await runYtDlp(next);
     next.status   = 'done';
     next.progress = 100;
+    const writeRoot = getDefaultWriteRoot();
     if (next.outputPath && fs.existsSync(next.outputPath)) {
-      const rel = path.relative(VIDEOS_DIR, next.outputPath);
-      next.videoId = toId(rel);
+      const outRes = path.resolve(next.outputPath);
+      if (outRes.startsWith(path.resolve(VIDEOS_DIR))) {
+        const rel = path.relative(VIDEOS_DIR, next.outputPath).replace(/\\/g, '/');
+        next.videoId = toId(rel);
+      } else {
+        next.videoId = toId(next.outputPath);
+      }
     }
     if (next.pendingCategory && next.videoId) {
       await autoMoveVideo(next.videoId, next.pendingCategory);
@@ -139,9 +153,12 @@ async function runJob(next) {
       const cleanCat = next.pendingCategory.trim();
       const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
       if (!isVirtual && next.outputPath) {
-        const newPath = path.join(VIDEOS_DIR, cleanCat, path.basename(next.outputPath));
+        const newPath = path.join(writeRoot, cleanCat, path.basename(next.outputPath));
         if (fs.existsSync(newPath)) {
-          next.videoId = toId(path.relative(VIDEOS_DIR, newPath));
+          const npRes = path.resolve(newPath);
+          next.videoId = npRes.startsWith(path.resolve(VIDEOS_DIR))
+            ? toId( path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/') )
+            : toId(newPath);
         }
       }
     }
@@ -159,8 +176,9 @@ function runYtDlp(job) {
   return new Promise((resolve, reject) => {
     const cleanCat = (job.category || '').trim();
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
+    const writeRoot = getDefaultWriteRoot();
     const physicalCat = isVirtual ? '' : cleanCat;
-    const outDir = physicalCat ? path.join(VIDEOS_DIR, physicalCat) : VIDEOS_DIR;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : writeRoot;
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const proc = spawn(YT_DLP_BIN, [

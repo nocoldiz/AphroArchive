@@ -518,16 +518,21 @@ export async function loadVideos() {
   // Recompute category counts from combined list (local + link videos)
   if (Array.isArray(cats) && cats.length > 0) {
     const countMap = new Map<string, number>();
+    let uncategorizedCount = 0;
     for (const v of combined) {
-      if (!v.catPath) continue;
-      const parts = (v.catPath as string).split('/');
+      const cp = (v.catPath as string) || '';
+      if (!cp) {
+        uncategorizedCount++;
+        continue;
+      }
+      const parts = cp.split('/');
       let cur = '';
       for (const p of parts) {
         cur = cur ? cur + '/' + p : p;
         countMap.set(cur, (countMap.get(cur) || 0) + 1);
       }
     }
-    categories.value = cats.map((c: any) => ({ ...c, count: countMap.get(c.path) || 0 }));
+    categories.value = cats.map((c: any) => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (countMap.get(c.path) || 0) }));
   }
   syncUrlToState();
 

@@ -71,6 +71,10 @@ async function apiSavePrefs(req, res) {
       } catch (e) {}
     }
   }
+  if ('defaultRoot' in body || 'defaultPath' in body || 'defaultWriteRoot' in body) {
+    const val = body.defaultRoot ?? body.defaultPath ?? body.defaultWriteRoot ?? '';
+    prefs.defaultRoot = val ? String(val).trim() : '';
+  }
   let feedFoldersChanged = false;
   if ('feedFolders' in body) {
     if (Array.isArray(body.feedFolders)) {

@@ -870,7 +870,8 @@ async function apiImportLinks(req, res) {
   if (!rawUrls.length) return json(res, { error: 'No URLs provided' }, 400);
 
   const cache = loadLinksCache();
-  const existing = new Set((cache.items || []).map(i => i.url));
+  const existingUrls = new Set((cache.items || []).map(i => i.url));
+  const existingNames = new Set((cache.items || []).map(i => (i.title || '').trim().toLowerCase()).filter(Boolean));
   const cats = loadCategories();
   const allTags = loadAllVideoTags();
 
@@ -878,9 +879,12 @@ async function apiImportLinks(req, res) {
   const newItems = [];
 
   for (const rawUrl of rawUrls) {
-    if (existing.has(rawUrl)) { skipped++; continue; }
+    if (existingUrls.has(rawUrl)) { skipped++; continue; }
 
     const title = deriveTitleFromUrl(rawUrl);
+    const nm = (title || '').trim().toLowerCase();
+    if (nm && existingNames.has(nm)) { skipped++; continue; }
+
     const searchText = title + ' ' + rawUrl;
 
     // Category: first match from categories DB
@@ -893,7 +897,8 @@ async function apiImportLinks(req, res) {
     const matchedTags = allTags.filter(tag => tag.length >= 2 && wordMatch(searchText, tag));
 
     newItems.push({ url: rawUrl, title, category, tags: matchedTags, addedAt: Date.now() });
-    existing.add(rawUrl);
+    existingUrls.add(rawUrl);
+    if (nm) existingNames.add(nm);
     added++;
   }
 
@@ -939,6 +944,7 @@ async function apiImportLinksJson(req, res) {
 
   const cache    = loadLinksCache();
   const existingUrls = new Set((cache.items || []).map(it => it.url));
+  const existingNames = new Set((cache.items || []).map(it => (it.title || '').trim().toLowerCase()).filter(Boolean));
 
   let added = 0, skipped = 0;
   const VALID_FIELDS = ['url','title','category','img','scrapedVideoUrl','hasVideo','embedUrl','hasEmbed','addedAt','tags','downloaded','localVideoId','fav'];
@@ -951,13 +957,15 @@ async function apiImportLinksJson(req, res) {
     for (const f of VALID_FIELDS) if (item[f] !== undefined) clean[f] = item[f];
     if (!clean.url) continue;
 
-    if (existingUrls.has(clean.url)) {
+    const nm = (clean.title || '').trim().toLowerCase();
+    if (existingUrls.has(clean.url) || (nm && existingNames.has(nm))) {
       skipped++;
     } else {
       clean.addedAt = clean.addedAt || Date.now();
       clean.tags    = Array.isArray(clean.tags) ? clean.tags : [];
       upsertLink(clean);
       existingUrls.add(clean.url);
+      if (nm) existingNames.add(nm);
       added++;
     }
   }

@@ -20,6 +20,8 @@ const {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
   loadPrefs,
+  getDefaultWriteRoot,
+  resolveCategoryPhysicalPath,
   loadVideoMeta, saveVideoMeta, setVideoMetaFields,
   loadThumbsCache, saveThumbsCache,
   loadHidden, saveHidden,
@@ -38,6 +40,28 @@ function getCatKey(p) {
 
 function isHiddenFolderName(name) {
   return String(name || '').toLowerCase() === 'hidden';
+}
+
+function isCategoryEnabled(catPath, enabledPaths) {
+  if (!catPath || catPath === 'uncategorized' || catPath === 'Links') return true;
+  if (!enabledPaths || enabledPaths.length === 0) return true;
+  const pathLo = String(catPath).toLowerCase().replace(/\\/g, '/');
+  return enabledPaths.some(ep => {
+    const epLo = String(ep).toLowerCase().replace(/\\/g, '/');
+    return pathLo === epLo || pathLo.startsWith(epLo + '/');
+  });
+}
+
+function getExistingTopLevelFolders(root) {
+  try {
+    return new Set(
+      fs.readdirSync(root, { withFileTypes: true })
+        .filter(e => e.isDirectory() && !isHiddenFolderName(e.name))
+        .map(e => e.name)
+    );
+  } catch {
+    return new Set();
+  }
 }
 
 let _scanCache = null;
@@ -178,14 +202,17 @@ async function runDecryptCategory(catPath, targetProfile) {
       }
       const encPath = path.join(VAULT_DIR, item.id + '.enc');
       if (!fs.existsSync(encPath)) continue;
-      const targetDir = path.join(VIDEOS_DIR, item.category);
+      const writeRoot = getDefaultWriteRoot();
+      const targetDir = path.join(writeRoot, item.category);
       if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
       const targetFilePath = path.join(targetDir, item.originalName || item.name + (item.ext || '.mp4'));
       await decryptFile(encPath, targetFilePath, vaultKey);
       doneCount++;
       console.log(`[DEC] ${item.originalName || item.name} (${doneCount}/${total}, ${total - doneCount} left)`);
 
-      const newRel = path.relative(VIDEOS_DIR, targetFilePath).replace(/\\/g, '/');
+      const newRel = path.resolve(targetFilePath).startsWith(path.resolve(VIDEOS_DIR))
+        ? path.relative(VIDEOS_DIR, targetFilePath).replace(/\\/g, '/')
+        : targetFilePath;
       const newId = toId(newRel);
 
       if (item.videoMeta) {
@@ -610,6 +637,7 @@ async function apiVideos(req, res, params) {
 async function apiCategories(req, res) {
   const videos = await cachedScan();
   const hidden = loadHidden();
+  const meta = loadVideoMeta();
   const catMap = new Map();
 
   let links = [];
@@ -758,23 +786,17 @@ async function apiCategories(req, res) {
     });
   }
 
-  // Uncategorized count — all videos sitting at root (no subfolder)
-  const uncatCount = videos.filter(v => v.catPath === '').length;
+  // Uncategorized count — all videos sitting at root (no subfolder), filtered to match visible ones (hidden terms applied)
+  const uncatCount = videos.filter(v => {
+    if (v.catPath !== '') return false;
+    if (hidden.length && isVideoHidden(v, hidden, (meta[v.id] && meta[v.id].tags) || [])) return false;
+    return true;
+  }).length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
 
   const db = require('./db-server');
   const enabledPaths = db.loadEnabledCategories();
-  const filtered = enabledPaths.length > 0
-    ? cats.filter(c => {
-        if (c.path === 'uncategorized') return true;
-        const pathLo = c.path.toLowerCase();
-        // show if this path or any ancestor is explicitly enabled
-        return enabledPaths.some(ep => {
-          const epLo = ep.toLowerCase();
-          return pathLo === epLo || pathLo.startsWith(epLo + '/');
-        });
-      })
-    : cats;
+  const filtered = cats.filter(c => isCategoryEnabled(c.path, enabledPaths));
 
   filtered.sort((a, b) => {
     if (a.path === 'uncategorized') return -1;
@@ -883,6 +905,23 @@ async function apiMainCategories(req, res) {
   }
 
   await walk(VIDEOS_DIR);
+
+  // Filter to only enabled folders for current user (consistent with browser folder lists)
+  try {
+    const dbmod = require('./db-server');
+    const enabledPaths = dbmod.loadEnabledCategories();
+    // keep uncat + enabled ones; note main-cats only covers VIDEOS_DIR not sources
+    const before = result.length;
+    // re-filter in place
+    for (let i = result.length - 1; i >= 0; i--) {
+      if (!isCategoryEnabled(result[i].path, enabledPaths)) {
+        result.splice(i, 1);
+      }
+    }
+  } catch (e) {
+    console.error('[main-categories] enabled filter error:', e.message);
+  }
+
   result.sort((a, b) => {
     if (a.path === '') return -1;
     if (b.path === '') return 1;
@@ -895,7 +934,8 @@ async function apiCreateCategory(req, res) {
   const body = await readBody(req);
   const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
   if (!name) return json(res, { error: 'Name required' }, 400);
-  const dir = path.join(VIDEOS_DIR, name);
+  const writeRoot = getDefaultWriteRoot();
+  const dir = path.join(writeRoot, name);
   if (fs.existsSync(dir)) return json(res, { error: 'Already exists' }, 409);
   try { fs.mkdirSync(dir, { recursive: true }); json(res, { ok: true, name }); }
   catch (e) { json(res, { error: e.message }, 500); }
@@ -1104,61 +1144,46 @@ async function apiMove(req, res, id) {
   const fp             = safePath(id);
   if (!fp) return json(res, { error: 'Not found' }, 404);
 
-  const isExternal = !fp.startsWith(path.resolve(VIDEOS_DIR));
+  const writeRoot = getDefaultWriteRoot();
+  const resolvedWrite = path.resolve(writeRoot);
 
-  if (isExternal) {
-    const targetDir = targetCategory ? path.join(VIDEOS_DIR, targetCategory) : VIDEOS_DIR;
-    const resolvedTarget = path.resolve(targetDir);
-    if (!resolvedTarget.startsWith(path.resolve(VIDEOS_DIR))) return json(res, { error: 'Invalid category' }, 400);
-    if (!fs.existsSync(resolvedTarget)) fs.mkdirSync(resolvedTarget, { recursive: true });
-
-    const filename = path.basename(fp);
-    const newPath = path.join(resolvedTarget, filename);
-    if (fs.existsSync(newPath)) return json(res, { error: 'A file with that name already exists in the target category' }, 409);
-
-    try {
-      try {
-        fs.renameSync(fp, newPath);
-      } catch (renameErr) {
-        if (renameErr.code === 'EXDEV') {
-          // Cross-device: copy then delete
-          fs.copyFileSync(fp, newPath);
-          fs.unlinkSync(fp);
-        } else {
-          throw renameErr;
-        }
-      }
-      invalidateScanCache();
-      const newRel = path.relative(VIDEOS_DIR, newPath);
-      const newId  = toId(newRel);
-      const favs = loadFavs();
-      const fi   = favs.indexOf(id);
-      if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
-      const meta = loadVideoMeta();
-      if (meta[id]) { meta[newId] = { ...meta[id], category: targetCategory }; delete meta[id]; saveVideoMeta(meta); }
-      return json(res, { ok: true, newId });
-    } catch (e) {
-      return json(res, { error: e.message }, 500);
-    }
-  }
-
-  const targetDir      = targetCategory ? path.join(VIDEOS_DIR, targetCategory) : VIDEOS_DIR;
+  const targetDir = targetCategory ? path.join(writeRoot, targetCategory) : writeRoot;
   const resolvedTarget = path.resolve(targetDir);
-  if (!resolvedTarget.startsWith(path.resolve(VIDEOS_DIR))) return json(res, { error: 'Invalid category' }, 400);
+  if (!resolvedTarget.startsWith(resolvedWrite)) return json(res, { error: 'Invalid category' }, 400);
   if (!fs.existsSync(resolvedTarget)) fs.mkdirSync(resolvedTarget, { recursive: true });
 
   const filename = path.basename(fp);
-  const newPath  = path.join(resolvedTarget, filename);
+  const newPath = path.join(resolvedTarget, filename);
   if (path.resolve(newPath) === path.resolve(fp)) return json(res, { error: 'Already in this category' }, 400);
   if (fs.existsSync(newPath)) return json(res, { error: 'A file with that name already exists in the target category' }, 409);
 
   try {
-    fs.renameSync(fp, newPath);
+    try {
+      fs.renameSync(fp, newPath);
+    } catch (renameErr) {
+      if (renameErr.code === 'EXDEV') {
+        // Cross-device (e.g. main <-> source root): copy then delete
+        fs.copyFileSync(fp, newPath);
+        fs.unlinkSync(fp);
+      } else {
+        throw renameErr;
+      }
+    }
     invalidateScanCache();
-    const newRel = path.relative(VIDEOS_DIR, newPath);
-    const newId  = toId(newRel);
+
+    // Compute rel/id based on the scan root the *new* file lives under (main uses relative; sources use abs)
+    const newResolved = path.resolve(newPath);
+    let newRel, newId;
+    if (newResolved.startsWith(path.resolve(VIDEOS_DIR))) {
+      newRel = path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/');
+      newId = toId(newRel);
+    } else {
+      newRel = newPath;
+      newId = toId(newPath);
+    }
+
     const favs = loadFavs();
-    const fi   = favs.indexOf(id);
+    const fi = favs.indexOf(id);
     if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
     const meta = loadVideoMeta();
     if (meta[id]) { meta[newId] = { ...meta[id], category: targetCategory }; delete meta[id]; saveVideoMeta(meta); }
@@ -1381,6 +1406,16 @@ async function apiCategoriesOverview(req, res) {
     return !hidden.some(t => { const tl = t.toLowerCase(); return lo === tl || lo.startsWith(tl + '/') || lo.startsWith(tl + '\\'); });
   });
 
+  // Respect enabled folders for current profile/user (so browser does not show disabled folders)
+  let catsForOverview = filteredCats;
+  try {
+    const dbmod = require('./db-server');
+    const enabledPaths = dbmod.loadEnabledCategories();
+    catsForOverview = filteredCats.filter(c => isCategoryEnabled(c.path, enabledPaths));
+  } catch (e) {
+    console.error('[categories-overview] enabled filter error:', e.message);
+  }
+
   // ── Tags ──
   const folderNames = new Set(
     videos.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
@@ -1403,7 +1438,7 @@ async function apiCategoriesOverview(req, res) {
     }
   }
 
-  const result = [...filteredCats, ...tagMap.values()].map(e => {
+  const result = [...catsForOverview, ...tagMap.values()].map(e => {
     const isLinks = e.name === 'Links';
     const thumbId = e.thumbId || (e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null);
     let encrypted = false;
@@ -1662,9 +1697,10 @@ async function apiImport(req, res) {
   const ext          = path.extname(safeFilename).toLowerCase();
 
   let destDir, kind;
+  const writeRoot = getDefaultWriteRoot();
   if (VIDEO_EXT.has(ext)) {
     const safeCat = categoryHdr ? categoryHdr.replace(/[^a-zA-Z0-9 \-_]/g, '').trim() : '';
-    destDir = safeCat ? path.join(VIDEOS_DIR, safeCat) : VIDEOS_DIR;
+    destDir = safeCat ? path.join(writeRoot, safeCat) : writeRoot;
     kind = 'video';
   }
   else if (AUDIO_EXT.has(ext)) { destDir = AUDIO_DIR;  kind = 'audio'; }
@@ -1672,7 +1708,7 @@ async function apiImport(req, res) {
   else if (IMAGE_EXT.has(ext)) { destDir = PHOTOS_DIR; kind = 'photo'; }
   else return json(res, { error: 'Unsupported file type: ' + ext }, 400);
 
-  if (kind === 'video' && !path.resolve(destDir).startsWith(path.resolve(VIDEOS_DIR)))
+  if (kind === 'video' && !path.resolve(destDir).startsWith(path.resolve(writeRoot)))
     return json(res, { error: 'Invalid category' }, 400);
 
   fs.mkdirSync(destDir, { recursive: true });
@@ -1694,7 +1730,11 @@ async function apiImport(req, res) {
   let videoId = null;
   if (kind === 'video') {
     invalidateScanCache();
-    videoId = toId(path.relative(VIDEOS_DIR, path.join(destDir, outName)));
+    const outFile = path.join(destDir, outName);
+    const oRes = path.resolve(outFile);
+    videoId = oRes.startsWith(path.resolve(VIDEOS_DIR))
+      ? toId( path.relative(VIDEOS_DIR, outFile).replace(/\\/g, '/') )
+      : toId(outFile);
   }
 
   if (kind === 'audio') {
@@ -1751,12 +1791,12 @@ async function apiDeleteChapter(req, res, id, chapterId) {
 
 async function apiRenameCategory(req, res) {
   const body = await readBody(req);
-  const oldPath = body.oldPath; // relative path from VIDEOS_DIR
+  const oldPath = body.oldPath; // relative category path
   const newName = body.newName; // just the name
   
   if (!oldPath || !newName) return json(res, { error: 'oldPath and newName required' }, 400);
   
-  const oldDir = path.join(VIDEOS_DIR, oldPath);
+  const oldDir = resolveCategoryPhysicalPath(oldPath);
   if (!fs.existsSync(oldDir)) return json(res, { error: 'Category not found' }, 404);
   
   const parentDir = path.dirname(oldDir);
@@ -1768,16 +1808,19 @@ async function apiRenameCategory(req, res) {
     fs.renameSync(oldDir, newDir);
     invalidateScanCache();
     
-    // Update metadata for all videos in this category
+    // Update metadata for all videos in this category (best-effort; id migration works reliably for videos under main VIDEOS_DIR root)
     const meta = loadVideoMeta();
     const oldPathFwd = oldPath.replace(/\\/g, '/');
-    const newPathRel = path.relative(VIDEOS_DIR, newDir).replace(/\\/g, '/');
+    const wroot = getDefaultWriteRoot();
+    const newBase = path.resolve(newDir).startsWith(path.resolve(wroot)) ? wroot : VIDEOS_DIR;
+    const newPathRel = path.relative(newBase, newDir).replace(/\\/g, '/');
     
     let changed = false;
     for (const id of Object.keys(meta)) {
-      const rel = fromId(id);
+      const rel = fromId(id).replace(/\\/g, '/');
       if (rel.startsWith(oldPathFwd + '/') || rel === oldPathFwd) {
-        const newRel = newPathRel + rel.substring(oldPathFwd.length);
+        const suffix = rel.substring(oldPathFwd.length);
+        const newRel = newPathRel + suffix;
         const newId = toId(newRel);
         const newCatPath = path.dirname(newRel).replace(/\\/g, '/');
         meta[newId] = { ...meta[id], category: newCatPath === '.' ? '' : newCatPath };
@@ -1796,11 +1839,12 @@ async function apiDeleteCategory(req, res) {
   const catPath = body.path;
   if (!catPath) return json(res, { error: 'path required' }, 400);
   
-  const dir = path.join(VIDEOS_DIR, catPath);
+  const dir = resolveCategoryPhysicalPath(catPath);
   if (!fs.existsSync(dir)) return json(res, { error: 'Category not found' }, 404);
   
   try {
-    // 1. Move all videos in this folder to VIDEOS_DIR (main folder)
+    const writeRoot = getDefaultWriteRoot();
+    // 1. Move all videos in this folder to the root of the current default write path (making them uncategorized there)
     function moveRecursive(currentDir) {
       if (!fs.existsSync(currentDir)) return;
       const entries = fs.readdirSync(currentDir, { withFileTypes: true });
@@ -1809,13 +1853,13 @@ async function apiDeleteCategory(req, res) {
         if (ent.isDirectory()) {
           moveRecursive(fullPath);
         } else if (ent.isFile() && VIDEO_EXT.has(path.extname(ent.name).toLowerCase())) {
-          let dst = path.join(VIDEOS_DIR, ent.name);
+          let dst = path.join(writeRoot, ent.name);
           // If collision, rename with (1) etc.
           let counter = 1;
           const ext = path.extname(ent.name);
           const base = path.basename(ent.name, ext);
           while (fs.existsSync(dst)) {
-            dst = path.join(VIDEOS_DIR, `${base} (${counter++})${ext}`);
+            dst = path.join(writeRoot, `${base} (${counter++})${ext}`);
           }
           fs.renameSync(fullPath, dst);
         }
@@ -2178,12 +2222,12 @@ function getUnlockedCategoryKey(catPath) {
 }
 
 function apiVideosUpload(req, res) {
-  const { VIDEOS_DIR } = require('./config-server');
-  fs.mkdirSync(VIDEOS_DIR, { recursive: true });
+  const writeRoot = getDefaultWriteRoot();
+  fs.mkdirSync(writeRoot, { recursive: true });
   const rawName = req.headers['x-filename'] || 'video.mp4';
   const safeName = path.basename(rawName).replace(/[^a-zA-Z0-9._\-\s]/g, '_');
   
-  const dest = path.join(VIDEOS_DIR, safeName);
+  const dest = path.join(writeRoot, safeName);
   const chunks = [];
   req.on('data', c => chunks.push(c));
   req.on('end', () => {
@@ -2215,6 +2259,7 @@ async function apiAutoCategorizeUncategorized(req, res) {
   for (const root of roots) {
     let entries;
     try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
+    const existing = getExistingTopLevelFolders(root);
 
     for (const ent of entries) {
       if (!ent.isFile()) continue;
@@ -2228,10 +2273,14 @@ async function apiAutoCategorizeUncategorized(req, res) {
       }
       if (!matched) continue;
 
+      const destFolder = matched.displayName || matched.name;
+      if (!existing.has(destFolder)) continue;
+
       const src = path.join(root, ent.name);
-      const destDir = path.join(root, matched.displayName || matched.name);
+      const destDir = path.join(root, destFolder);
       try {
-        fs.mkdirSync(destDir, { recursive: true });
+        // never create new folders for auto-tagging; only move into existing ones
+        if (!fs.existsSync(destDir)) continue;
         // Generate unique dest name
         let dest = path.join(destDir, ent.name);
         if (fs.existsSync(dest)) {
@@ -2290,6 +2339,7 @@ async function apiRecategorizeAll(req, res) {
       }
     };
     collect(root);
+    const existing = getExistingTopLevelFolders(root);
 
     for (const src of files) {
       const ext = path.extname(src).toLowerCase();
@@ -2297,10 +2347,13 @@ async function apiRecategorizeAll(req, res) {
       let matched = null;
       for (const cat of cats) { if (wordMatchAny(stem, cat.terms)) { matched = cat; break; } }
       if (!matched) continue;
-      const destDir = path.join(root, matched.displayName || matched.name);
+      const destFolder = matched.displayName || matched.name;
+      const destDir = path.join(root, destFolder);
       if (path.resolve(path.dirname(src)) === path.resolve(destDir)) continue;
+      if (!existing.has(destFolder)) continue;
       try {
-        fs.mkdirSync(destDir, { recursive: true });
+        // never create new folders for auto-tagging; only move into existing ones
+        if (!fs.existsSync(destDir)) continue;
         let dest = path.join(destDir, path.basename(src));
         if (fs.existsSync(dest)) {
           let n = 1;
@@ -2376,6 +2429,7 @@ function buildCategorizePlan(roots, cats, mode) {
           files.push(path.join(root, e.name));
       }
     }
+    const existing = getExistingTopLevelFolders(root);
 
     for (const src of files) {
       const ext = path.extname(src).toLowerCase();
@@ -2384,6 +2438,7 @@ function buildCategorizePlan(roots, cats, mode) {
       for (const cat of cats) { if (wordMatchAny(stem, cat.terms)) { matched = cat; break; } }
       if (!matched) continue;
       const destFolder = matched.displayName || matched.name;
+      if (!existing.has(destFolder)) continue;
       if (path.resolve(path.dirname(src)) === path.resolve(path.join(root, destFolder))) continue;
       const currentFolder = path.relative(root, path.dirname(src)).replace(/\\/g, '/') || '';
       changes.push({ srcPath: src, name: path.basename(src), currentFolder, destFolder, root });
@@ -2404,6 +2459,19 @@ async function apiCategorizePlan(req, res) {
   for (const c of cats) {
     catByFolder.set((c.displayName || c.name).toLowerCase(), c);
     catByFolder.set(c.name.toLowerCase(), c);
+  }
+
+  // Per-root sets of category folder names (displayName||name) that physically exist there.
+  // Auto-suggestions only for cats whose folder exists under the item's own root (no cross-root).
+  const validByRoot = new Map();
+  for (const root of roots) {
+    const existing = getExistingTopLevelFolders(root);
+    const valids = new Set();
+    for (const c of cats) {
+      const dn = c.displayName || c.name;
+      if (existing.has(dn)) valids.add(dn);
+    }
+    validByRoot.set(path.resolve(root), valids);
   }
 
   const uncategorized = [];
@@ -2445,10 +2513,16 @@ async function apiCategorizePlan(req, res) {
         });
       } else {
         const { cat: suggested, score } = bestCatMatch(stem, cats);
+        let suggestedCategory = '';
+        if (suggested) {
+          const dn = suggested.displayName || suggested.name;
+          const valids = validByRoot.get(path.resolve(root)) || new Set();
+          if (valids.has(dn)) suggestedCategory = dn;
+        }
         uncategorized.push({
           type: 'video', id, name: path.basename(src),
-          currentFolder, suggestedCategory: suggested ? (suggested.displayName || suggested.name) : '',
-          score, srcPath: src, root,
+          currentFolder, suggestedCategory,
+          score: suggestedCategory ? score : 0, srcPath: src, root,
         });
       }
     }
@@ -2484,7 +2558,9 @@ async function apiCategorizePlan(req, res) {
     }
   } catch (e) { console.error('[apiCategorizePlan] links error:', e.message); }
 
-  const categories = cats.map(c => c.displayName || c.name).sort();
+  const allValidDestNames = new Set();
+  for (const v of validByRoot.values()) for (const n of v) allValidDestNames.add(n);
+  const categories = Array.from(allValidDestNames).sort();
   uncategorized.sort((a, b) => b.score - a.score);
   categorized.sort((a, b) => b.score - a.score);
   json(res, { uncategorized, categorized, categories });
@@ -2511,7 +2587,11 @@ async function apiCategorizeExecute(req, res) {
     const stem = path.basename(srcPath, ext);
     const destDir = path.join(root, destFolder);
     try {
-      fs.mkdirSync(destDir, { recursive: true });
+      // never create new folders for auto-categorize; only move into existing ones
+      if (!fs.existsSync(destDir)) {
+        errors.push(`${path.basename(srcPath)}: target folder does not exist`);
+        continue;
+      }
       let dest = path.join(destDir, path.basename(srcPath));
       if (fs.existsSync(dest)) {
         let n = 1;

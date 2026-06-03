@@ -124,9 +124,13 @@ export const Sidebar = () => {
     : vids;
 
   const catCountMap = new Map<string, number>();
+  let uncategorizedCount = 0;
   for (const v of filteredVids) {
-    const cp = (v as any).catPath as string;
-    if (!cp) continue;
+    const cp = ((v as any).catPath as string) || '';
+    if (!cp) {
+      uncategorizedCount++;
+      continue;
+    }
     const parts = cp.split('/');
     let cur = '';
     for (const p of parts) {
@@ -135,11 +139,11 @@ export const Sidebar = () => {
     }
   }
   const displayCategories = categories.value
-    .map(c => ({ ...c, count: catCountMap.get(c.path) || 0 }))
+    .map(c => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (catCountMap.get(c.path) || 0) }))
     .sort((a, b) => {
-      // Keep Uncategorized (empty path) at the top
-      if (a.path === '') return -1;
-      if (b.path === '') return 1;
+      // Keep Uncategorized at the top
+      if (a.path === 'uncategorized') return -1;
+      if (b.path === 'uncategorized') return 1;
       // Sort the rest by name
       return a.name.localeCompare(b.name);
     });
