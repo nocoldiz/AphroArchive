@@ -433,12 +433,24 @@ export const HARDCODED_OPTIONS: Record<string, string[]> = {
   expression: ['serious', 'determined', 'smirk', 'smile', 'light_smile', 'angry', 'grin', 'frown', 'evil_smile', 'confident', 'smug', 'happy', 'sad', 'worried', 'shouting', 'laughing', 'crying', 'scared', 'surprised', 'annoyed', 'crazy_smile', 'grimace', 'bored', 'tired', 'embarrassed', 'nervous', 'expressionless', 'deadpan', 'crazy_eyes', 'arrogant smirk, looking down', 'blushing shy, biting lower lip', 'bored / unimpressed (brat)', 'confident dominant stare', 'crying from pleasure, mascara run', 'desperate needy, pleading eyes', 'ecstatic orgasm, mouth open screaming', 'exhausted, eyes half closed', 'hungry for more, licking lips', 'playful wink and tongue tip', 'proud of the mess on her face', 'satisfied afterglow, lazy smile', 'seductive half lidded eyes, slight smile', 'shocked ahegao, eyes crossed', 'soft gentle smile, innocent', 'tongue hanging out, drooling'],
   background: ['grass', 'outdoors', 'rock', 'flower', 'bush', 'stone', 'leaves', 'roots', 'vines', 'moss', 'branch', 'pine_tree', 'ivy', 'fern', 'mushroom', 'fallen_leaves', 'water', 'reeds', 'log', 'boulder', 'overgrown', 'wildflowers', 'dead_tree', 'stump', 'pond', 'thorns', 'lily_pad', 'crystal', 'bioluminescent', 'giant_mushroom', 'forest', 'ruins', 'outdoors', 'mountain', 'castle', 'sky', 'desert', 'cave', 'temple', 'field', 'ocean', 'dungeon', 'tower', 'cliff', 'storm', 'canyon', 'bridge', 'lake', 'battlefield', 'graveyard', 'volcano', 'wetland', 'aurora', 'palace', 'village', 'floating_island', 'underground', 'shrine', 'wasteland', 'library', 'portal_(object', 'underwater'],
   setting: ['luxury modern bedroom, silk sheets', 'steamy shower, water running down body', 'dark dungeon, chains, dim torch light', 'public park at night, risky', 'classroom desk after hours', 'penthouse balcony overlooking city', 'cheap motel, neon sign glow', 'beach at sunset, sand on skin', 'a beach with palm trees', 'a castle on a hill', 'a desert landscape with sand dunes', 'a flower garden in full bloom', 'a forest with a winding river', 'a fountain in a city square', 'a lighthouse on a cliff by the sea', 'a mountainous location full of icy boulders and snow', 'a national park with wildlife', 'a place full of gardens suspended by ropes and chains', 'a place taken by nature full of mosses and vegetation', 'a place with lots of leaves on the ground and autumn colors', 'a place with a very vast nature with big trees and lots of vegetation', 'cyberpunk alley', 'ancient temple ruins', 'snowy mountain cabin', 'luxury yacht deck at night', 'abandoned industrial warehouse', 'rooftop garden overlooking city', 'steamy onsen hot spring', 'crystal cave with bioluminescence', 'overgrown jungle ruins'],
-  action: ['fingering her dripping pussy', 'deepthroat blowjob, throat bulge', 'vaginal creampie, cum overflowing', 'hard anal pounding, gaped', 'double penetration, two cocks', 'facesitting, smothering', 'titfuck with massive cleavage', 'breeding press, legs pinned back', 'gangbang, covered in cum', 'rimming, tongue deep', 'scissoring, wet pussies grinding', 'handjob + cum on her face', 'futa on female, massive insertion', 'masturbating with huge dildo', 'squirting orgasm mid fuck', 'spanked red ass while fucked', 'choked lightly, eyes watering', 'tied in shibari, helpless', 'public use, strangers watching', 'pushing out creampie, pushing cum out', 'ahegao mid orgasm, body shaking', 'multiple loads, bukkake', 'internal creampie, belly slightly distended', 'lesbian 69', 'threesome', 'orgy', 'doggy style creampie', 'exhibitionism in public', 'bondage and discipline', 'cum play', 'penetration and insertions', 'stimulation with toys'],
+  action: ['fingering her dripping pussy', 'deepthroat blowjob, throat bulge', 'vaginal creampie, cum overflowing', 'hard anal pounding, gaped', 'double penetration, two cocks', 'facesitting, smothering', 'titfuck with massive cleavage', 'breeding press, legs pinned back', 'gangbang, covered in cum', 'rimming, tongue deep', 'scissoring, wet pussies grinding', 'handjob + cum on her face', 'futa on female, massive insertion', 'masturbating with huge dildo', 'squirting orgasm mid fuck', 'spanked red ass while fucked', 'choked lightly, eyes watering', 'tied in shibari, helpless', 'public use, strangers watching', 'pushing out creampie, pushing cum out', 'ahegao mid orgasm, body shaking', 'multiple loads, bukkake', 'internal creampie, belly slightly distended', 'lesbian 69', 'threesome', 'orgy', 'doggy style creampie', 'exhibitionism in public', 'bondage and discipline', 'cum play', 'penetration and insertions', 'stimulation with toys', 'bdsm', 'shibari', 'femdom', 'humiliation', 'wax play', 'clothed sex', 'cuckolding', 'netorare', 'public nudity', 'voyeurism', 'yaoi', 'yuri', 'tribadism', 'futa on female', 'futanari', 'bara', 'gangbang', 'spitroast', 'double penetration', 'bukkake', 'facial', 'creampie', 'cum inflation', 'object insertion', 'fisting', 'anal fisting', 'large insertion', 'stomach bulge', 'clothed female nude male', 'sitting on face', 'body writing', 'public use', 'slave', 'nipple torture', 'clitoris torture', 'spanked', 'tied', 'gagged', 'blindfolded', 'latex', 'leash', 'collar', 'chastity', 'dildo riding', 'vibrator', 'hitachi', 'prostate massager', 'butt plug', 'anal beads'],
   pose: ['contrapposto', 'standing', 'leaning_forward', 'leaning_back', 'arched_back', 'twisted_torso', 'leaning_to_the_side', 'sway_back', 'ahegao while in mating press', 'airplane arms', 'airplane_arms', 'akanbe', 'all fours', 'all_fours', 'animal pose', 'animal_pose', 'a-pose', 'arched back', 'archer pose', 'archer_pose', 'arm at side', 'arm behind back', 'arm behind head', 'arm up', 'arm_at_side', 'arm_behind_back', 'arm_behind_head', 'arm_hug', 'arm_support', 'arm_up', 'arms at side', 'arms behind back', 'arms behind head', 'arms up', 'arms_at_side', 'arms_behind_back', 'arms_up', 'baby carry', 'baby_carry', 'back-to-back', 'balancing', 'battoujutsu stance', 'battoujutsu_stance', 'bending over', 'bent over', 'bent over table or desk', 'bent_over', 'body bridge', 'body_bridge', 'bras d\'honneur', 'bras_d\'honneur', 'bunny pose', 'bunny_pose', 'butterfly sitting', 'butterfly_sitting', 'carried breast rest', 'carried_breast_rest', 'carrying', 'carrying over shoulder', 'carrying under arm', 'carrying_over_shoulder', 'carrying_under_arm', 'cheek-to-cheek', 'chest stand', 'chest_stand', 'child carry', 'child_carry', 'claw pose', 'claw_pose', 'cowering', 'cowgirl, leaning forward, tits hanging', 'crawling', 'crossed ankles', 'crossed arms', 'crossed legs', 'crossed_ankles', 'crossed_arms', 'crossed_legs', 'crouching', 'crucifixion', 'doggy style, looking back over shoulder', 'dojikko pose', 'dojikko_pose', 'dorsiflexion', 'dynamic_pose', 'eye contact', 'eye_contact', 'face down ass up, cheeks spread', 'faceplant', 'fetal position', 'fetal_position', 'fighting stance', 'fighting_stance', 'figure four sitting', 'figure_four_sitting', 'fireman\'s carry', 'fireman\'s_carry', 'flexing', 'folded', 'forehead-to-forehead', 'full scorpion', 'full_scorpion', 'gendou pose', 'gendou_pose', 'hands tied above head, stretched', 'handstand', 'head_down', 'head_rest', 'head_tilt', 'heads together', 'heads_together', 'headstand', 'heroic pose', 'holding hands', 'holding pussy open with both hands', 'holding_hands', 'horns pose', 'horns_pose', 'hug', 'hug_from_behind', 'hugging own legs', 'hugging_own_legs', 'indian style', 'indian_style', 'interlocked fingers', 'interlocked_fingers', 'inugami-ke no ichizoku pose', 'inugami-ke_no_ichizoku_pose', 'jojo pose', 'jojo_pose', 'jumping', 'kneeling', 'kneeling, back straight, hands on thighs', 'knees apart feet together', 'knees to chest', 'knees together feet apart', 'knees_apart_feet_together', 'knees_to_chest', 'knees_together_feet_apart', 'leaning back', 'leaning forward', 'leaning_back', 'leaning_forward', 'leg lift', 'leg lock', 'leg up', 'leg_lift', 'leg_lock', 'leg_up', 'legs apart', 'legs over head', 'legs spread wide, knees up, presenting', 'legs up', 'legs_apart', 'legs_over_head', 'legs_up', 'letter pose', 'letter_pose', 'looking_afar', 'looking_at_viewer', 'looking_to_the_side', 'lotus position', 'lotus_position', 'lying', 'lying down', 'missionary, legs folded to chest', 'object hug', 'object_hug', 'ojou-sama pose', 'ojou-sama_pose', 'on all fours, deep arch, ass up', 'on back', 'on knees with tongue out', 'on side', 'on stomach', 'on_back', 'on_side', 'on_stomach', 'one knee', 'one_knee', 'onna zuwari', 'outstretched arm', 'outstretched arms', 'outstretched leg', 'outstretched_arm', 'outstretched_arms', 'outstretched_hand', 'outstretched_leg', 'own hands clasped', 'own hands together', 'own_hands_clasped', 'own_hands_together', 'paw pose', 'paw_pose', 'pigeon pose', 'pigeon_pose', 'pigeon-toed', 'piggyback', 'plantar flexion', 'plantar_flexion', 'praise the sun', 'praise_the_sun', 'princess carry', 'princess_carry', 'prostration', 'proud pose', 'reaching', 'reclining', 'riding reverse, ass focus', 'running', 'saboten pose', 'saboten_pose', 'salute', 'scorpion pose', 'scorpion_pose', 'seiza', 'selfie angle, phone in hand, lewd pose', 'shoulder carry', 'shoulder_carry', 'shrugging', 'shushing', 'side view, one leg raised high', 'sitting', 'sitting on lap', 'sitting on person', 'sitting on shoulder', 'sitting_on_lap', 'sitting_on_person', 'sitting_on_shoulder', 'slouching', 'split', 'spread arms', 'spread eagle on bed', 'spread legs', 'spread_arms', 'spread_legs', 'squatting', 'squatting, knees out, pussy exposed', 'standing', 'standing contrapposto, hand on hip', 'standing on one leg', 'standing on shoulder', 'standing split', 'standing_on_one_leg', 'standing_on_shoulder', 'standing_split', 'star hands', 'star_hands', 'straddling', 'stretching', 'stroking_own_chin', 'superhero landing', 'superhero_landing', 'symmetrical hand pose', 'symmetrical_hand_pose', 'tail hug', 'tail_hug', 'thigh straddling', 'thigh_straddling', 'tiptoe kiss', 'tiptoe_kiss', 'tiptoes', 'top-down bottom-up', 'top-down_bottom-up', 't-pose', 'twisted torso', 'twisted_torso', 'upright straddle', 'upright_straddle', 'upside-down', 'v arms', 'v_arms', 'v_over_eye', 'victory pose', 'victory_pose', 'villain pose', 'villain_pose', 'w arms', 'w_arms', 'waist_hug', 'walking', 'wallwalking', 'wariza', 'wariza sitting on knees', 'watson cross', 'watson_cross_', 'waving', 'wing hug', 'wing_hug', 'yoga', 'yokozuwari', 'zombie pose', 'zombie_pose'],
   photography: ['aerial view', 'aiming at viewer', 'atmospheric perspective', 'bird\'s eye view', 'bird\'s-eye view', 'bird�?Ts-eye view', 'boom shot', 'camera view', 'close up', 'close-up', 'cowboy shot', 'crane shot', 'crotch shot', 'dolly shot', 'dolly zoom', 'downblouse', 'downpants', 'dutch angle', 'establishing shot', 'extreme close-up', 'extreme long shot', 'extreme perspective', 'eye level', 'eyewear view', 'facing viewer', 'first person view', 'fish-eye lens', 'fisheye', 'fisheye lens', 'fisheye-shot', 'afterimage', 'asymmetry', 'balance', 'bokeh', 'border', 'bust chart', 'character chart', 'chart', 'collage', 'column lineup', 'converging lines', 'cropped', 'depth of field', 'diagonal lines', 'diagram'],
   lighting: ['alpenglow', 'ambient lighting', 'ambient occlusion', 'artificial lighting', 'back light', 'back lighting', 'backlight', 'beautifully lit', 'belt of venus', 'bioluminiscent', 'bright light', 'bright rays', 'brilliant rays', 'candle light', 'celestial rays', 'chiaroscuro', 'cinematic lighting', 'crepuscular rays', 'dense light rays', 'diffuse lighting', 'dim light', 'directional lighting', 'dramatically lit', 'dynamic lighting', 'effulgent rays', 'fill light', 'flat light', 'flickering light', 'global illumination', 'glorious rays', 'glow in the dark', 'glow rays', 'glowwave', 'god rays', 'golden hour', 'hard light', 'hard lighting', 'high light', 'holographic', 'holography', 'iridescence', 'key light', 'lens flare', 'lighting', 'low light', 'luminescent rays', 'luminous rays', 'moody lighting', 'natural lighting', 'neon', 'neon pastel', 'polarized light', 'radiant', 'radiant beams', 'radiant light', 'radiant rays', 'rays of light', 'rays of sun', 'reflected lighting', 'refraction', 'rim light', 'shimmering rays', 'shining rays', 'side light', 'soft light', 'soft shaded', 'specular lighting', 'sun rays', 'sunbeams', 'sunrays shine upon it', 'sunshine rays', 'tenebrism', 'three point lighting', 'top light', 'volumetric lighting'],
   style: ['photorealistic, raw photo', 'oil painting, classical', 'watercolor, soft', 'digital art, sharp', 'anime style, cel shaded', 'pencil sketch, detailed', 'cinematic, filmic color grade', 'impressionist, painterly', 'concept art, illustrative', 'hyper detailed, 8k', 'score_9, score_8_up aesthetic', 'source_pony, pony diffusion', 'realistic skin texture, pores', 'studio ghibli inspired (light)', 'hentai, glossy anime', '3d render, octane', 'vintage pinup, 1950s', 'glamour photography, vogue', 'erotic comic book style', 'dark fantasy, frank frazetta'],
   quality: ['128-bit style graphics', '12k resolution', '16-bit', '16-bit style graphics', '16k 3d', '16k resolution', '1ms shutter speed', '20 megapixels', '256-bit style graphics', '2d sprite', '2k resolution', '32-bit style graphics', '32k resolution', '3840x2160', '3d', '4k', '4k resolution', '64-bit style graphics', '8-bit style graphics', '8k', '8k 3d', '8k resolution', '8k resolution / 16k resolution', 'absurd res', 'acid colors', 'aerial photograph', 'aesthetic', 'airbrush', 'ambient lighting', 'ambient occlusion', 'amiga style graphics', 'anti-aliasing', 'artstation', 'atari 2600 style graphics', 'atari 7800 style graphics', 'atari jaguar style graphics', 'atmospheric', 'augmented reality', 'award-winning', 'back lighting', 'backlight', 'beautiful', 'beautifully lit', 'bioluminiscent', 'biomorphic', 'biophilic', 'bitmap', 'blocky', 'blu-ray', 'bokeh', 'bounding volume hierarchy (bvh)', 'bryce 3d', 'candle light', 'cel shading', 'chromatic abberation', 'chromatic aberration', 'cinema 4d', 'cinematic light', 'cinematic lighting', 'commodore 64 style graphics', 'contest winner', 'crisp', 'cryengine', 'crystallized', 'cubic', 'dark', 'de-pixelated', 'dehazed', 'depth of field', 'desaturated', 'detailed', 'digital painting', 'direct lighting', 'dof', 'double exposure', 'dramatically lit', 'dreamcast style graphics', 'dynamic composition', 'dynamic lighting', 'dystopian', 'eldritch', 'elegant', 'eye strain', 'f 2.8 lens', 'faceted', 'feline', 'flat shading', 'fluo colors', 'foreboding', 'furry', 'fxaa', 'gamecube style graphics', 'geometric', 'glass', 'global illumination', 'golden hour', 'gpu (graphics processing unit)', 'hallucinogenic', 'hardware acceleration', 'hd', 'hd-dvd', 'hdr', 'hdr rendering', 'hi res', 'high chroma', 'high contrast', 'high definition', 'high resolution', 'high-res', 'highly detailed', 'hq', 'hyper detailed', 'hyper realistic', 'hypermaximalist', 'hypomorphic', 'indirect illumination', 'infectious', 'insanely detailed and intricate', 'intricate', 'intricate artwork', 'iridescence', 'isometric', 'kaleidoscopic', 'light propagation volumes (lpvs)', 'lighting', 'lomo effect', 'long exposure', 'low contrast', 'low-poly', 'low-res', 'lumen global illumination', 'macabre', 'manhattan distance', 'marbling', 'masterpiece', 'matte', 'maya', 'messy', 'metallic', 'microdisplacement', 'microscopic', 'monochromatic', 'moody lighting', 'motion capture', 'multiracial', 'nanite geometry', 'nebulous', 'nes style graphics', 'nintendo 64 (n64) style graphics', 'nvidia rtx', 'octane', 'octane render', 'oily', 'ornate', 'overgrown', 'path traced', 'path tracing', 'pbr material', 'phong shading', 'photon mapping', 'photorealistic', 'physically based rendering (pbr)', 'pixelated', 'pixellated', 'polarized light', 'polygonal', 'post processed', 'powerful', 'primary colors', 'prismatic', 'procedural', 'procedural generation', 'procedural texture', 'professional photoshoot', 'ps1 style graphics', 'ps2 style graphics', 'ps3 style graphics', 'ps4 style graphics', 'ps5 style graphics', 'radiant', 'raster graphics', 'rasterization', 'rasterized', 'ray traced', 'ray tracing', 'reflection', 'refraction', 'rendered with blender', 'retina display', 'rtx', 'rtx (real-time ray tracing)', 'screen space ambient occlusion', 'sega genesis style graphics', 'sepia', 'sfumato', 'shaded', 'shader', 'shadows', 'sharp focus', 'shot on nikon d750', 'simplified', 'skeletal animation', 'sketchfab', 'sketchup', 'skybox', 'smooth', 'smooth gradients', 'snes style graphics', 'soft shaded', 'sony playstation vita style graphics', 'sony psp style graphics', 'splash art', 'studio quality', 'stunning', 'stylized', 'super detailed', 'super sharp', 'super wide angle', 'superabsurd res', 'switch style graphics', 'terrain rendering', 'tesselation', 'textured', 'tilt-shift', 'ultra hd', 'ultrafine detail', 'unimaginable beauty', 'unreal engine', 'v-ray', 'vector graphics', 'vibrant color scheme', 'virtual reality', 'volumetric lighting', 'voronoi manhattan', 'voronoi minkowski', 'voxel', 'voxel engine', 'voxel geometry', 'voxel-based', 'voxelated', 'vray tracing', 'wii style graphics', 'wii u style graphics', 'wireframe model', 'wireframe rendering', 'xbox 360 style graphics', 'xbox one style graphics', 'xbox series s style graphics', 'xbox series x style graphics', 'xbox style graphics'],
+
+  // New from wildcards folder for fetishes/gay/etc presets
+  bondage: ['bdsm', 'asphyxiation', 'strangling', 'bondage', 'breast bondage', 'predicament bondage', 'shibari', 'spreader bar', 'suspension', 'femdom', 'assertive female', 'clothed female nude male', 'sitting on face', 'humiliation', 'body writing', 'neglect play', 'public use', 'tally', 'rope walking', 'slave', 'spanked', 'torture', 'clitoris torture', 'nipple torture', 'nipple pull', 'ball busting', 'tickle torture', 'wax play'],
+  fetishGear: ['ball gag', 'bit gag', 'blindfold', 'bodysuit', 'bondage outfit', 'chain', 'chastity belt', 'chastity bra', 'chastity cage', 'clamp', 'cleave gag', 'clitoris clamp', 'clitoris leash', 'collar', 'crotch rope', 'cuffs', 'gag', 'gimp suit', 'handcuffs', 'hobble', 'latex', 'leash', 'leash on penis', 'monoglove', 'nipple chain', 'nipple clamps', 'nipple leash', 'nose hook', 'panty gag', 'piercing'],
+  sexPositions: ['69', 'amazon position', 'anvil position', 'bent over', 'boy on top', 'cowgirl position', 'doggystyle', 'folded', 'folded / knees to chest / legs over head / legs up', 'full nelson', 'girl on top', 'knees to chest', 'legs over head', 'legs up', 'mating press', 'missionary', 'on side', 'piledriver', 'prone bone', 'reverse cowgirl position', 'reverse suspended congress', 'reverse upright straddle', 'spitroast', 'spooning', 'suspended congress', 'top-down bottom-up', 'upright straddle'],
+  groupSex: ['group sex', 'bisexual', 'bisexual female', 'bisexual male', 'daisy chain', 'gangbang', 'double penetration', 'triple penetration', 'love train', 'cooperative fellatio', 'cooperative footjob', 'multiple breast smother', 'orgy', 'reverse spitroast', 'spitroast', 'teamwork', 'threesome'],
+  cumPlay: ['autofacial', 'bukkake', 'cum', 'cum bath', 'cum in ass', 'cum in clothes', 'cum in cup', 'cum in mouth', 'cum in pussy', 'cum in throat', 'cum in urethra', 'cum inflation', 'cum on ass', 'cum on body', 'cum on breasts', 'cum on clothes', 'cum on fingers', 'cum on food', 'cum on glasses', 'cum on hair', 'cum on pussy', 'cum on tongue', 'cum pool', 'cumdrip', 'cumdump', 'ejaculating while penetrated', 'ejaculation', 'facial', 'felching', 'gokkun'],
+  sexToys: ['anal beads', 'anal tail', 'aneros', 'artificial vagina', 'breast pump', 'bunny vibrator', 'butt plug', 'butt plug tail', 'butterfly vibrator', 'catheter', 'clitoris pump', 'cock ring', 'dildo', 'dildo gag', 'dildo harness', 'dildo riding', 'dildo under panties', 'double dildo', 'dragon dildo', 'egg vibrator', 'food insertion', 'hitachi magic wand', 'horse dildo', 'huge dildo', 'judas cradle', 'mask challenge (meme)', 'pillory', 'prostate massager', 'public vibrator', 'pump'],
+  penetration: ['object insertion', 'vaginal object insertion', 'anal object insertion', 'large insertion', 'stomach bulge', 'food insertion', 'animal insertion', 'multiple insertions', 'urethral insertion', 'sounding', 'cervical penetration', 'nipple penetration', 'nosejob', 'fingering', 'anal fingering', 'prostate milking', 'fingering through clothes', 'fingering through panties', 'implied fingering', 'fisting', 'anal fisting', 'self fisting', 'sex', 'after sex', 'after anal', 'after buttjob', 'after fellatio', 'after fingering', 'after frottage', 'after insertion'],
+  exhibition: ['caught', 'cheating', 'clothed sex', 'cuckolding', 'exhibitionism', 'netorare', 'peeping', 'prostitution', 'public indecency', 'public nudity', 'public use', 'public vibrator', 'stealth masturbation', 'stealth sex', 'voyeurism', 'walk-in', 'zenra'],
+  sameSex: ['yaoi', 'bara', 'implied yaoi', 'bulges touching', 'penises touching', 'testicles touching', 'yuri', 'implied yuri', 'tribadism'],
+  futanari: ['futanari', 'futa', 'dickgirl', 'futa on female', 'futa on male', 'futa on futa', 'futanari on female', 'futanari on male'],
 };
 
 // Optional aliases for legacy UI keys (map to above)
@@ -449,6 +461,464 @@ export const HARDCODED_OPTION_ALIASES: Record<string, string> = {
   bodyType: 'body',
   breastSize: 'breasts',
   clothes: 'clothing',
+};
+
+// Presets for the prompt generator modal. Each preset sets numChars, chars[], background, action, pose, photography, lighting, style, quality etc.
+// Selecting one populates the dropdowns for quick scene setup (normal, gay, lesbian, fetishes, group, etc.).
+export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { description?: string }> = {
+  'straight-vanilla': {
+    description: 'Classic man + woman, missionary/vaginal, romantic',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'lingerie', expression: 'soft gentle smile, innocent' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'vaginal creampie, cum overflowing',
+    pose: 'missionary, legs folded to chest',
+    photography: 'close-up',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality, highly detailed',
+  },
+  'lesbian-vanilla': {
+    description: 'Two women, sensual scissoring/tribbing',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '24', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'lingerie pulled to the side', expression: 'seductive half lidded eyes, slight smile' },
+      { gender: 'girl', age: '22', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'medium hair', eyes: 'hazel eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }
+    ],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'scissoring, wet pussies grinding',
+    pose: 'scissoring, wet pussies grinding',
+    photography: 'close up',
+    lighting: 'moody lighting, candle light',
+    style: 'cinematic, filmic color grade',
+    quality: 'masterpiece, best quality',
+  },
+  'gay-anal': {
+    description: 'Two men, doggy/anal focus',
+    numChars: 2,
+    chars: [
+      { gender: 'man', age: '28', ethnicity: 'ebony', hair: 'short hair', eyes: 'brown eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' },
+      { gender: 'man', age: '25', ethnicity: 'caucasian', hair: 'short hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'ahegao mid orgasm, body shaking' }
+    ],
+    background: 'modern bedroom',
+    setting: 'modern bedroom',
+    action: 'hard anal pounding, gaped',
+    pose: 'doggy style, looking back over shoulder',
+    photography: 'from behind',
+    lighting: 'dramatic lighting',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed, sharp focus',
+  },
+  'threesome-mmf': {
+    description: 'Man + woman + man, spitroast/DP',
+    numChars: 2, // simplified, builder handles
+    chars: [
+      { gender: 'girl', age: '23', ethnicity: 'mixed race, unique golden tone', hair: 'long hair', eyes: 'green eyes', body: 'curvy', breasts: 'huge breasts', clothing: 'lingerie pulled to the side', expression: 'shocked ahegao, eyes crossed' },
+      { gender: 'man', age: '30', ethnicity: 'ebony', hair: 'short hair', eyes: 'brown eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident' }
+    ],
+    background: 'penthouse',
+    setting: 'penthouse balcony overlooking city',
+    action: 'double penetration, two cocks',
+    pose: 'spitroast',
+    photography: 'wide shot',
+    lighting: 'neon',
+    style: 'glamour photography, vogue',
+    quality: 'best quality, ultra detailed',
+  },
+  'futa-on-female': {
+    description: 'Futanari dominating female',
+    numChars: 2,
+    chars: [
+      { gender: 'futanari', age: '25', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'violet eyes', body: 'futanari build, feminine curves + package', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'evil smile' },
+      { gender: 'girl', age: '21', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'medium hair', eyes: 'blue eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'bondage gear', expression: 'desperate needy, pleading eyes' }
+    ],
+    background: 'dark dungeon',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'futa on female, massive insertion',
+    pose: 'mating press',
+    photography: 'low angle',
+    lighting: 'chiaroscuro',
+    style: 'hentai, glossy anime',
+    quality: 'score_9, score_8_up aesthetic',
+  },
+  'bondage-shibari': {
+    description: 'Shibari bondage, femdom or m/f',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '24', ethnicity: 'exotic middle eastern, olive skin, dark features', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'bondage outfit', expression: 'tongue hanging out, drooling' }],
+    background: 'dark dungeon',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'tied in shibari, helpless',
+    pose: 'hands tied above head, stretched',
+    photography: 'glamour shot',
+    lighting: 'dramatically lit, candle light',
+    style: 'erotic comic book style',
+    quality: 'intricate, highly detailed',
+  },
+  'bukkake-gangbang': {
+    description: 'Multiple men, bukkake/cum play',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'cum soaked and clinging', expression: 'proud of the mess on her face' }],
+    background: 'cheap motel, neon sign glow',
+    setting: 'cheap motel, neon sign glow',
+    action: 'bukkake, covered in cum',
+    pose: 'kneeling, back straight, hands on thighs',
+    photography: 'close-up',
+    lighting: 'neon pastel',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality',
+  },
+  'exhibition-public': {
+    description: 'Public sex / exhibitionism / voyeur',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '25', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'micro skirt hiked up, no panties', expression: 'playful wink and tongue tip' },
+      { gender: 'man', age: '27', ethnicity: 'caucasian', hair: 'short hair', eyes: 'green eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' }
+    ],
+    background: 'public park at night',
+    setting: 'public park at night, risky',
+    action: 'clothed sex',
+    pose: 'bent over',
+    photography: 'from behind',
+    lighting: 'moonlight',
+    style: 'cinematic, filmic color grade',
+    quality: 'highly detailed',
+  },
+  'fetish-latex-latexdom': {
+    description: 'Latex / fetish gear, dominant/sub',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '26', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'latex', expression: 'confident dominant stare' }],
+    background: 'modern dungeon',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'femdom',
+    pose: 'standing',
+    photography: 'studio lighting',
+    lighting: 'hard light',
+    style: 'glamour photography, vogue',
+    quality: 'best quality',
+  },
+  'orgy-group': {
+    description: 'Full orgy / group sex',
+    numChars: 3,
+    chars: [
+      { gender: 'girl', age: '23', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'curvy', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' },
+      { gender: 'man', age: '29', ethnicity: 'ebony', hair: 'short hair', eyes: 'brown eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident' },
+      { gender: 'girl', age: '21', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'medium hair', eyes: 'hazel eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'lingerie pulled to the side', expression: 'ahegao mid orgasm, body shaking' }
+    ],
+    background: 'luxury penthouse',
+    setting: 'penthouse balcony overlooking city',
+    action: 'orgy',
+    pose: 'spitroast',
+    photography: 'wide shot',
+    lighting: 'ambient lighting',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality, 8k',
+  },
+  // === Many additional presets (straight, lesbian, gay, futa, fetishes, public, etc.) ===
+  'straight-creampie': {
+    description: 'Hetero vaginal creampie focus',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '20', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'lingerie pulled to the side', expression: 'ecstatic orgasm, mouth open screaming' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'vaginal creampie, cum overflowing',
+    pose: 'missionary, legs folded to chest',
+    photography: 'close-up',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality, highly detailed',
+  },
+  'straight-anal': {
+    description: 'Anal pounding, gape focus',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'micro skirt hiked up, no panties', expression: 'crying from pleasure, mascara run' }],
+    background: 'cheap motel, neon sign glow',
+    setting: 'cheap motel, neon sign glow',
+    action: 'hard anal pounding, gaped',
+    pose: 'doggy style, looking back over shoulder',
+    photography: 'from behind',
+    lighting: 'dramatic lighting',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed, sharp focus',
+  },
+  'straight-oral': {
+    description: 'Deepthroat / facefuck',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'hazel eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'tongue hanging out, drooling' },
+      { gender: 'man', age: '27', ethnicity: 'caucasian', hair: 'short hair', eyes: 'brown eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' }
+    ],
+    background: 'modern bedroom',
+    setting: 'modern bedroom',
+    action: 'deepthroat blowjob, throat bulge',
+    pose: 'kneeling, back straight, hands on thighs',
+    photography: 'close-up',
+    lighting: 'soft shaded',
+    style: 'cinematic, filmic color grade',
+    quality: 'best quality, ultra detailed',
+  },
+  'lesbian-69': {
+    description: 'Mutual oral 69, wet yuri',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '24', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'tongue hanging out, drooling' },
+      { gender: 'girl', age: '22', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'medium hair', eyes: 'hazel eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }
+    ],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'lesbian 69',
+    pose: '69',
+    photography: 'from above',
+    lighting: 'moody lighting, candle light',
+    style: 'cinematic, filmic color grade',
+    quality: 'masterpiece, best quality',
+  },
+  'lesbian-strap': {
+    description: 'Strap-on / pegging lesbian',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '26', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'lingerie', expression: 'confident dominant stare' },
+      { gender: 'girl', age: '23', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'brown eyes', body: 'thick and soft, wide hips, plush thighs', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'desperate needy, pleading eyes' }
+    ],
+    background: 'dark dungeon, chains, dim torch light',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'femdom',
+    pose: 'doggy style, looking back over shoulder',
+    photography: 'low angle',
+    lighting: 'chiaroscuro',
+    style: 'erotic comic book style',
+    quality: 'intricate, highly detailed',
+  },
+  'gay-missionary': {
+    description: 'Two men, intimate missionary anal',
+    numChars: 2,
+    chars: [
+      { gender: 'man', age: '25', ethnicity: 'caucasian', hair: 'short hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'soft gentle smile, innocent' },
+      { gender: 'man', age: '28', ethnicity: 'ebony', hair: 'short hair', eyes: 'brown eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }
+    ],
+    background: 'modern bedroom',
+    setting: 'modern bedroom',
+    action: 'hard anal pounding, gaped',
+    pose: 'missionary, legs folded to chest',
+    photography: 'close-up',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed, sharp focus',
+  },
+  'futa-on-male': {
+    description: 'Futanari topping male',
+    numChars: 2,
+    chars: [
+      { gender: 'futanari', age: '24', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'violet eyes', body: 'futanari build, feminine curves + package', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'evil smile' },
+      { gender: 'man', age: '26', ethnicity: 'nordic', hair: 'short hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'ahegao mid orgasm, body shaking' }
+    ],
+    background: 'steamy shower, water running down body',
+    setting: 'steamy shower, water running down body',
+    action: 'futa on male, massive insertion',
+    pose: 'mating press',
+    photography: 'low angle',
+    lighting: 'diffuse lighting',
+    style: 'hentai, glossy anime',
+    quality: 'score_9, score_8_up aesthetic',
+  },
+  'futa-solo': {
+    description: 'Solo futanari self play',
+    numChars: 1,
+    chars: [{ gender: 'futanari', age: '23', ethnicity: 'mixed race, unique golden tone', hair: 'very long hair', eyes: 'violet-blue eyes', body: 'futanari build, feminine curves + package', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'seductive half lidded eyes, slight smile' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'masturbating with huge dildo',
+    pose: 'on side',
+    photography: 'close up',
+    lighting: 'soft bedroom lighting',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality',
+  },
+  'bondage-hogtie': {
+    description: 'Hogtied shibari strict bondage',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '25', ethnicity: 'exotic middle eastern, olive skin, dark features', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'bondage outfit', expression: 'tongue hanging out, drooling' }],
+    background: 'dark dungeon, chains, dim torch light',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'tied in shibari, helpless',
+    pose: 'hogtied',
+    photography: 'glamour shot',
+    lighting: 'dramatically lit, candle light',
+    style: 'erotic comic book style',
+    quality: 'intricate, highly detailed',
+  },
+  'bondage-suspension': {
+    description: 'Rope suspension / predicament',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '21', ethnicity: 'indian beauty, warm brown, expressive eyes', hair: 'long hair', eyes: 'hazel eyes', body: 'body built for breeding, fertile hips, soft belly', breasts: 'huge breasts', clothing: 'bondage harness', expression: 'desperate needy, pleading eyes' }],
+    background: 'abandoned industrial warehouse',
+    setting: 'abandoned industrial warehouse',
+    action: 'suspension',
+    pose: 'hands tied above head, stretched',
+    photography: 'low angle',
+    lighting: 'hard light',
+    style: 'glamour photography, vogue',
+    quality: 'best quality',
+  },
+  'bukkake-multiple': {
+    description: 'Bukkake + cum inflation play',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'cum soaked and clinging', expression: 'proud of the mess on her face' }],
+    background: 'cheap motel, neon sign glow',
+    setting: 'cheap motel, neon sign glow',
+    action: 'multiple loads, bukkake',
+    pose: 'kneeling, back straight, hands on thighs',
+    photography: 'close-up',
+    lighting: 'neon pastel',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality',
+  },
+  'exhibition-train': {
+    description: 'Public transport exhibition / stealth',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '24', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'micro skirt hiked up, no panties', expression: 'playful wink and tongue tip' },
+      { gender: 'man', age: '28', ethnicity: 'caucasian', hair: 'short hair', eyes: 'green eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' }
+    ],
+    background: 'public park at night',
+    setting: 'public park at night, risky',
+    action: 'stealth sex',
+    pose: 'bent over',
+    photography: 'from behind',
+    lighting: 'moonlight',
+    style: 'cinematic, filmic color grade',
+    quality: 'highly detailed',
+  },
+  'femdom-pegging': {
+    description: 'Femdom pegging male sub',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '27', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'latex', expression: 'confident dominant stare' },
+      { gender: 'man', age: '24', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'short hair', eyes: 'blue eyes', body: 'skinny', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'ahegao mid orgasm, body shaking' }
+    ],
+    background: 'dark dungeon, chains, dim torch light',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'femdom',
+    pose: 'doggy style, looking back over shoulder',
+    photography: 'low angle',
+    lighting: 'hard light',
+    style: 'glamour photography, vogue',
+    quality: 'best quality',
+  },
+  'latex-catsuit': {
+    description: 'Shiny latex catsuit fetish',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '26', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'latex', expression: 'confident dominant stare' }],
+    background: 'modern dungeon',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'latex',
+    pose: 'standing',
+    photography: 'studio lighting',
+    lighting: 'hard light',
+    style: 'glamour photography, vogue',
+    quality: 'best quality',
+  },
+  'public-beach': {
+    description: 'Risky beach sex exhibition',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '23', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'completely nude, bare skin', expression: 'playful wink and tongue tip' },
+      { gender: 'man', age: '26', ethnicity: 'caucasian', hair: 'short hair', eyes: 'green eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' }
+    ],
+    background: 'beach at sunset, sand on skin',
+    setting: 'a beach with palm trees',
+    action: 'clothed sex',
+    pose: 'bent over',
+    photography: 'from behind',
+    lighting: 'golden hour sunlight',
+    style: 'cinematic, filmic color grade',
+    quality: 'highly detailed',
+  },
+  'milf-seduction': {
+    description: 'Mature MILF seducing',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '35', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'thick and soft, wide hips, plush thighs', breasts: 'large breasts', clothing: 'lingerie', expression: 'seductive half lidded eyes, slight smile' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'vaginal creampie, cum overflowing',
+    pose: 'cowgirl, leaning forward, tits hanging',
+    photography: 'cowboy shot',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality, highly detailed',
+  },
+  'schoolgirl-uniform': {
+    description: 'School uniform fantasy (18+)',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'blue eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'micro skirt hiked up, no panties', expression: 'blushing shy, biting lower lip' }],
+    background: 'classroom desk after hours',
+    setting: 'classroom desk after hours',
+    action: 'vaginal creampie, cum overflowing',
+    pose: 'bent over table or desk',
+    photography: 'from behind',
+    lighting: 'dim light',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed',
+  },
+  'cuckold-watch': {
+    description: 'Cuckold / watching partner',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '24', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'lingerie pulled to the side', expression: 'ecstatic orgasm, mouth open screaming' },
+      { gender: 'man', age: '30', ethnicity: 'caucasian', hair: 'short hair', eyes: 'brown eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' }
+    ],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'cuckolding',
+    pose: 'missionary, legs folded to chest',
+    photography: 'wide shot',
+    lighting: 'soft light, golden hour',
+    style: 'cinematic, filmic color grade',
+    quality: 'highly detailed',
+  },
+  'gloryhole-anon': {
+    description: 'Gloryhole anonymous use',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'proud of the mess on her face' }],
+    background: 'public park at night',
+    setting: 'public park at night, risky',
+    action: 'public use',
+    pose: 'kneeling, back straight, hands on thighs',
+    photography: 'close-up',
+    lighting: 'neon pastel',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality',
+  },
+  'watersports-play': {
+    description: 'Watersports / piss play fetish',
+    numChars: 2,
+    chars: [
+      { gender: 'girl', age: '21', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'long hair', eyes: 'brown eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'tongue hanging out, drooling' },
+      { gender: 'man', age: '26', ethnicity: 'middle eastern', hair: 'short hair', eyes: 'brown eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' }
+    ],
+    background: 'steamy shower, water running down body',
+    setting: 'steamy shower, water running down body',
+    action: 'watersports play',
+    pose: 'standing',
+    photography: 'close up',
+    lighting: 'diffuse lighting',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed',
+  },
+  'petplay-collar': {
+    description: 'Pet play with collar/leash',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '20', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'body built for breeding, fertile hips, soft belly', breasts: 'large breasts', clothing: 'collar still on, everything else gone', expression: 'blushing shy, biting lower lip' }],
+    background: 'modern dungeon',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'slave',
+    pose: 'on all fours',
+    photography: 'low angle',
+    lighting: 'dramatically lit, candle light',
+    style: 'erotic comic book style',
+    quality: 'intricate, highly detailed',
+  },
 };
 
 export function getNumSubjectsPhrase(n: BuilderNumChars, gender0?: string, gender1?: string): string {
@@ -611,6 +1081,11 @@ export function pickRandomForCategory(cat: string, cache?: Map<string, string[]>
   if (hard && hard.length > 0) {
     return hard[Math.floor(Math.random() * hard.length)];
   }
+  // age special: prefer numeric for the new typable age field
+  if (cat === 'age') {
+    const nums = AGE_PRESETS.filter(a => /^\d/.test(String(a)));
+    if (nums.length) return nums[Math.floor(Math.random() * nums.length)];
+  }
   // 2. Fallback to alias
   const aliasKey = HARDCODED_OPTION_ALIASES[cat];
   if (aliasKey) {
@@ -633,18 +1108,28 @@ export function pickRandomForCategory(cat: string, cache?: Map<string, string[]>
   return '';
 }
 
-// Convenience: create a builder state pre-filled with random choices from cache
-export function inspireRandomBuilder(base: Partial<BuilderState> = {}, cache?: Map<string, string[]>): BuilderState {
-  const st: BuilderState = { ...DEFAULT_BUILDER, ...base, chars: [...(base.chars || DEFAULT_BUILDER.chars)] };
-  const num = st.numChars;
-  st.chars = Array.from({ length: num }, (_, i) => ({ ...(st.chars[i] || {}) }));
+// Convenience: create a builder state by re-rolling only unpinned fields (pins protect from "Inspire All" / master shuffle).
+// Pass the *current* full builder state so pinned values are preserved; unpinned get fresh random from HARDCODED.
+export function inspireRandomBuilder(current: BuilderState, pinned: Set<string> = new Set(), cache?: Map<string, string[]>): BuilderState {
+  const st: BuilderState = {
+    ...current,
+    chars: (current.chars || []).map(c => ({ ...c })),
+  };
+  let num = (st.numChars || 1) as BuilderNumChars;
+  if (num < 1) num = 1;
+  if (num > 3) num = 3;
+  while (st.chars.length < num) st.chars.push({});
+  st.chars = st.chars.slice(0, num);
 
-  // randomize per char fields
+  // randomize per char fields (skip if pinned for that char index)
   const charCats: (keyof CharSpec)[] = ['gender', 'age', 'ethnicity', 'hair', 'eyes', 'body', 'breasts', 'clothing', 'expression'];
   for (let i = 0; i < num; i++) {
     for (const k of charCats) {
+      const pinKey = `${String(k)}-${i}`;
+      if (pinned.has(pinKey)) continue;
       if (k === 'age') {
-        if (!st.chars[i].age && Math.random() > 0.3) st.chars[i].age = AGE_PRESETS[Math.floor(Math.random() * AGE_PRESETS.length)];
+        const nums = AGE_PRESETS.filter(a => /^\d/.test(String(a)));
+        st.chars[i].age = nums.length ? nums[Math.floor(Math.random() * nums.length)] : '22';
       } else {
         const picked = pickRandomForCategory(k as string, cache || new Map());
         if (picked) (st.chars[i] as any)[k] = picked;
@@ -652,13 +1137,12 @@ export function inspireRandomBuilder(base: Partial<BuilderState> = {}, cache?: M
     }
   }
 
-  // globals
-  const globals: (keyof BuilderState)[] = ['background', 'setting', 'action', 'pose', 'photography', 'lighting', 'style'];
+  // globals (also shuffle quality)
+  const globals: (keyof BuilderState)[] = ['background', 'setting', 'action', 'pose', 'photography', 'lighting', 'style', 'quality'];
   for (const g of globals) {
-    if (!(st as any)[g]) {
-      const picked = pickRandomForCategory(g as string, cache || new Map());
-      if (picked) (st as any)[g] = picked;
-    }
+    if (pinned.has(g as string)) continue;
+    const picked = pickRandomForCategory(g as string, cache || new Map());
+    if (picked) (st as any)[g] = picked;
   }
   return st;
 }

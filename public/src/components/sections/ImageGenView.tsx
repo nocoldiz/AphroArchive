@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
 import { appPrefs } from '../../store';
 import {
   PROMPT_TEMPLATES,
-  AI_TARGETS,
   MODEL_TARGETS,
   type ModelTarget,
   quickRandomCharacterPrompt,
@@ -20,8 +19,8 @@ import {
   pickRandomForCategory,
   HARDCODED_OPTIONS,
   HARDCODED_OPTION_ALIASES,
+  PROMPT_PRESETS,
 } from '../../characterPrompts';
-import { SYSTEM_PROMPTS } from '../../assistantPrompts';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -96,37 +95,6 @@ async function resolveStaticPrompt(template: string, cache: Map<string, string[]
     if (prompt === before) break;
   }
   return prompt.trim();
-}
-
-async function generateAIPrompt(idea: string, target: string, isNsfw: boolean): Promise<string> {
-  const system = `You are an expert prompt engineer specialized in creating high-quality, detailed prompts for text-to-image models.
-Target: ${target}.
-${target.includes('pony') ? 'Always start with quality tags like score_9, score_8_up, score_7_up, source_pony when appropriate.' : ''}
-${target.includes('flux') ? 'Write in natural, descriptive, cinematic language. Avoid heavy token lists.' : ''}
-${isNsfw ? 'The user wants explicit adult/porn content. Be direct, use anatomical terms, describe body, pose, act, expression, fluids, lighting in vivid detail.' : 'Keep tasteful unless user specifies otherwise.'}
-Output ONLY the final prompt text. No explanations, no quotes. Make it 40-120 tokens long, highly detailed, optimized for the target model.`;
-  const resp = await fetch('/api/assistant/chat', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'system', content: system }, { role: 'user', content: `Create a single excellent prompt for: ${idea || 'a beautiful scene'}.` }], model: undefined }),
-  });
-  if (!resp.ok) throw new Error('Assistant request failed');
-  const reader = resp.body?.getReader();
-  if (!reader) throw new Error('No stream');
-  const decoder = new TextDecoder();
-  let full = '', buf = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split('\n'); buf = lines.pop() || '';
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const data = line.slice(6).trim();
-      if (data === '[DONE]') continue;
-      try { const parsed = JSON.parse(data); if (parsed.delta) full += parsed.delta; } catch {}
-    }
-  }
-  return full.trim() || 'Failed to generate prompt.';
 }
 
 function countCombos(prompt: string): number {
@@ -490,11 +458,9 @@ export const ImageGenView = () => {
   const promptRef   = useRef<HTMLTextAreaElement>(null);
   const negativeRef = useRef<HTMLTextAreaElement>(null);
 
-  const [genMode, setGenMode] = useState<'static' | 'ai' | 'advanced'>('static');
+  const [genMode, setGenMode] = useState<'static' | 'advanced'>('static');
   const [genTemplateKey, setGenTemplateKey] = useState<keyof typeof PROMPT_TEMPLATES>('ponyxl-default');
   const [customTemplate, setCustomTemplate] = useState('');
-  const [genIdea, setGenIdea] = useState('');
-  const [genTarget, setGenTarget] = useState('ponyxl');
   const [generatedPrompt, setGeneratedPrompt] = useState('');
   const [genLoading, setGenLoading] = useState(false);
   const wildcardFullCache = useRef(new Map<string, string[]>()).current;
@@ -513,6 +479,16 @@ export const ImageGenView = () => {
   const [builder, setBuilder] = useState<BuilderState>({ ...DEFAULT_BUILDER });
   const [builderPreview, setBuilderPreview] = useState('');
   const [showBuilderDetails, setShowBuilderDetails] = useState(true);
+  // Pinned fields (by key e.g. 'gender-0', 'age-1', 'action', 'background') are protected from master "Inspire All" shuffle
+  const [pinned, setPinned] = useState<Set<string>>(new Set());
+  const togglePin = (key: string) => {
+    setPinned(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+  const isPinned = (key: string) => pinned.has(key);
 
   const [generating, setGenerating] = useState(false);
   const [promptGenOpen, setPromptGenOpen] = useState(false);
@@ -558,12 +534,14 @@ export const ImageGenView = () => {
     loadCharOptions(wildcardFullCache, setCharOptions).catch(() => {});
   }, []);
 
-  // Auto-refresh builder preview when selections change (cheap, keeps UI live)
+  // Auto-refresh builder preview when selections change (cheap, keeps UI live).
+  // Also update generatedPrompt so "generated prompt" footer + apply buttons reflect live changes on dropdown edits.
   useEffect(() => {
     if (genMode !== 'advanced') return;
     try {
       const p = buildPromptFromBuilder(builder, undefined); // no resolve for speed, Compose can resolve
       setBuilderPreview(p);
+      setGeneratedPrompt(p);
     } catch {}
   }, [builder, genMode]);
 
@@ -669,14 +647,6 @@ export const ImageGenView = () => {
     finally { setGenLoading(false); }
   };
 
-  const doAIGenerate = async () => {
-    if (!genIdea.trim() && !confirm('No idea entered — generate a random one?')) return;
-    setGenLoading(true);
-    try { setGeneratedPrompt(await generateAIPrompt(genIdea.trim() || 'a beautiful detailed scene', genTarget, true)); }
-    catch (e) { setGeneratedPrompt('AI failed: ' + (e as Error).message); }
-    finally { setGenLoading(false); }
-  };
-
   const doAdvancedRandomize = async () => {
     setAdvLoading(true);
     try {
@@ -734,7 +704,7 @@ export const ImageGenView = () => {
     if (Object.keys(opts).length < 5) {
       await loadCharOptions(wildcardFullCache, (o) => { opts = o; setCharOptions(o); });
     }
-    const inspired = inspireRandomBuilder({ target: builder.target, nsfw: builder.nsfw, numChars: builder.numChars, useWildcardInspiration: true }, wildcardFullCache);
+    const inspired = inspireRandomBuilder(builder, pinned, wildcardFullCache);
     setBuilder(inspired);
     setAdvTarget(inspired.target);
     setAdvNsfw(inspired.nsfw);
@@ -759,11 +729,6 @@ export const ImageGenView = () => {
         const template = buildPromptFromBuilder(builder, undefined);
         for (let i = 0; i < massGenCount; i++) {
           results.push(await resolveStaticPrompt(template, wildcardFullCache));
-        }
-      } else if (genMode === 'ai') {
-        for (let i = 0; i < massGenCount; i++) {
-          const inspired = inspireRandomBuilder({ target: advTarget, nsfw: advNsfw, numChars: builder.numChars, useWildcardInspiration: true }, wildcardFullCache);
-          results.push(buildPromptFromBuilder(inspired, wildcardFullCache));
         }
       } else {
         const key = genTemplateKey as keyof typeof PROMPT_TEMPLATES;
@@ -792,6 +757,7 @@ export const ImageGenView = () => {
   const clearBuilder = () => {
     setBuilder({ ...DEFAULT_BUILDER });
     setBuilderPreview('');
+    setPinned(new Set());
   };
 
   const randomizeOneCategory = async (cat: string, isChar: boolean, charIdx?: number) => {
@@ -826,6 +792,24 @@ export const ImageGenView = () => {
     const tokStr = tokens.join(', ');
     insertAtCursor(promptRef as any, params.prompt, tokStr ? ', ' + tokStr : '', v => setParam('prompt', v));
     setActiveField('prompt');
+  };
+
+  const applyPreset = (presetKey: string) => {
+    if (!presetKey || !PROMPT_PRESETS[presetKey]) return;
+    const p = PROMPT_PRESETS[presetKey];
+    // Apply to builder state (will update dropdowns reactively)
+    const patch: any = { ...p };
+    if (p.numChars) patch.numChars = p.numChars;
+    if (p.chars) patch.chars = p.chars;
+    // Only set fields that exist in builder UI
+    ['background', 'setting', 'action', 'pose', 'photography', 'lighting', 'style', 'quality'].forEach(k => {
+      if ((p as any)[k] !== undefined) patch[k] = (p as any)[k];
+    });
+    updateBuilder(patch);
+    // Auto compose preview
+    setTimeout(() => {
+      try { composeBuilderPrompt(false); } catch {}
+    }, 50);
   };
 
   const applyGenerated = (toField: 'prompt' | 'negative', mode: 'replace' | 'append') => {
@@ -1210,10 +1194,10 @@ export const ImageGenView = () => {
             <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
               <span style={{ fontWeight: 700, fontSize: '15px', flex: 1 }}>✨ Prompt Generator</span>
               <div style={{ display: 'flex', gap: '4px' }}>
-                {(['static', 'ai', 'advanced'] as const).map(m => (
+                {(['static', 'advanced'] as const).map(m => (
                   <button key={m} onClick={() => setGenMode(m)}
                     style={{ fontSize: '12px', padding: '4px 12px', borderRadius: '5px', border: genMode === m ? '1px solid var(--ac)' : '1px solid var(--brd)', background: genMode === m ? 'var(--ac)' : 'transparent', color: genMode === m ? '#fff' : 'var(--tx2)', cursor: 'pointer', textTransform: 'capitalize' }}>
-                    {m === 'static' ? 'Template' : m === 'ai' ? 'AI' : 'Builder'}
+                    {m === 'static' ? 'Template' : 'Builder'}
                   </button>
                 ))}
               </div>
@@ -1252,29 +1236,6 @@ export const ImageGenView = () => {
                 </div>
               )}
 
-              {/* ── AI mode ── */}
-              {genMode === 'ai' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px', fontWeight: 600 }}>Idea / concept</label>
-                    <input value={genIdea} onInput={(e: any) => setGenIdea(e.target.value)} placeholder="e.g. cyberpunk hacker girl in rain"
-                      style={{ width: '100%', boxSizing: 'border-box', fontSize: '13px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '6px 8px', color: 'var(--tx)' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px', fontWeight: 600 }}>Target model</label>
-                    <select value={genTarget} onChange={(e: any) => setGenTarget(e.target.value)}
-                      style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '6px 8px', fontSize: '13px' }}>
-                      {AI_TARGETS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={doAIGenerate} disabled={genLoading} style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '5px', padding: '8px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>{genLoading ? 'Asking AI…' : 'Generate with AI'}</button>
-                    <button onClick={() => setGeneratedPrompt('')} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '8px 14px', fontSize: '13px', cursor: 'pointer' }}>Clear</button>
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--tx3)' }}>Uses OpenRouter key from Assistant settings. Mass Generate (top-right) uses local builder instead of LLM calls.</div>
-                </div>
-              )}
-
               {/* ── Advanced builder mode ── */}
               {genMode === 'advanced' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1302,6 +1263,34 @@ export const ImageGenView = () => {
                     <button onClick={clearBuilder} style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}>Clear</button>
                   </div>
 
+                  {/* Presets for quick porn scenes (normal/gay/fetish/etc) — populates all dropdowns */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg3)', borderRadius: '6px', padding: '8px 12px', border: '1px solid var(--brd)' }}>
+                    <span style={{ color: 'var(--tx3)', fontSize: '12px', fontWeight: 600 }}>🎭 Preset Scene</span>
+                    <select onChange={(e: any) => {
+                      const v = e.target.value;
+                      if (v === '__random__') {
+                        const keys = Object.keys(PROMPT_PRESETS);
+                        if (keys.length) {
+                          const rk = keys[Math.floor(Math.random() * keys.length)];
+                          applyPreset(rk);
+                        }
+                        // reset visual to placeholder after random
+                        try { e.target.value = ''; } catch {}
+                        return;
+                      }
+                      applyPreset(v);
+                    }} defaultValue=""
+                      style={{ flex: 1, background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}>
+                      <option value="">— Choose a porn scene preset (populates dropdowns) —</option>
+                      <option value="__random__">— Random Preset —</option>
+                      {Object.keys(PROMPT_PRESETS).map(key => {
+                        const pr = PROMPT_PRESETS[key];
+                        return <option key={key} value={key}>{key.replace(/-/g, ' ')} {pr.description ? '— ' + pr.description : ''}</option>;
+                      })}
+                    </select>
+                    <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>select to fill</span>
+                  </div>
+
                   {/* Characters */}
                   <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
                     <div style={{ padding: '7px 12px', background: 'var(--bg3)', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1317,15 +1306,59 @@ export const ImageGenView = () => {
                             const opts = charOpts(cat);
                             const tokenName = BUILDER_CATEGORY_WILDCARDS[cat]?.[0] || cat;
                             const cur = val || '';
+                            const pinK = `${String(charKey)}-${i}`;
+                            const pinnedNow = isPinned(pinK);
+                            const pinBtn = (
+                              <button onClick={() => togglePin(pinK)} title={pinnedNow ? 'Pinned (protected from Inspire All shuffle)' : 'Pin this field (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
+                            );
+                            const randBtn = (
+                              <button onClick={() => randomizeOneCategory(cat, true, i)} title="random this field" style={{ fontSize: '9px', padding: '0 2px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
+                            );
+                            // Special numeric typable age field (min 18). Randomize via 🎲 still works (picks from AGE_PRESETS numeric).
+                            if (cat === 'age' || charKey === 'age') {
+                              const ageStr = (val || '').toString();
+                              const ageDisplay = ageStr && /^\d/.test(ageStr) ? ageStr : '';
+                              return (
+                                <div key={charKey} style={{ minWidth: '70px', flex: 1 }}>
+                                  <div style={{ fontSize: '10px', color: 'var(--tx3)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                    {label}
+                                    {pinBtn}
+                                    {randBtn}
+                                  </div>
+                                  <input
+                                    type="number"
+                                    min={18}
+                                    step={1}
+                                    value={ageDisplay}
+                                    placeholder="18+"
+                                    onChange={(e: any) => {
+                                      const v = e.target.value;
+                                      const num = v ? Math.max(18, parseInt(v, 10) || 18) : '';
+                                      updateChar(i, { age: num ? String(num) : '' } as any);
+                                    }}
+                                    style={{ width: '100%', fontSize: '11px', padding: '2px 4px', background: 'var(--bg)', border: '1px solid var(--brd)', borderRadius: '3px', color: 'var(--tx)' }}
+                                  />
+                                </div>
+                              );
+                            }
                             return (
                               <div key={charKey} style={{ minWidth: '90px', flex: 1 }}>
                                 <div style={{ fontSize: '10px', color: 'var(--tx3)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '2px' }}>
                                   {label}
-                                  <button onClick={() => randomizeOneCategory(cat, true, i)} title="random" style={{ fontSize: '9px', padding: '0 2px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
+                                  {pinBtn}
+                                  {randBtn}
                                 </div>
-                                <select value={cur} onChange={(e: any) => updateChar(i, { [charKey]: e.target.value } as any)}
+                                <select value={cur} onChange={(e: any) => {
+                                  const v = e.target.value;
+                                  if (v === '__random__') {
+                                    randomizeOneCategory(cat, true, i);
+                                    return;
+                                  }
+                                  updateChar(i, { [charKey]: v } as any);
+                                }}
                                   style={{ width: '100%', fontSize: '11px', padding: '3px 4px', background: 'var(--bg)', border: '1px solid var(--brd)', borderRadius: '3px', color: 'var(--tx)' }}>
                                   <option value="">—</option>
+                                  <option value="__random__">— Random —</option>
                                   <option value={`__${tokenName}__`}>__{tokenName}__</option>
                                   {opts.slice(0, 60).map((o, j) => <option key={j} value={o}>{o.length > 26 ? o.slice(0,24)+'…' : o}</option>)}
                                 </select>
@@ -1361,14 +1394,21 @@ export const ImageGenView = () => {
                         const val = (builder as any)[cat] || '';
                         const opts = charOptions[cat] || [];
                         const token = (BUILDER_CATEGORY_WILDCARDS[cat]||[cat])[0];
+                        const pinnedNow = isPinned(cat);
                         return (
                           <div key={cat} style={{ marginBottom: '8px' }}>
                             <div style={{ fontSize: '11px', color: 'var(--tx3)', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               {cat === 'action' ? 'Sexual act / porn type' : 'Pose'}
+                              <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat, false)} style={{ fontSize: '9px', padding: '0 3px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>updateBuilder({ [cat]: e.target.value } as any)} style={{ width: '100%', fontSize: '12px', padding: '4px 6px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '4px', color: 'var(--tx)' }}>
+                            <select value={val} onChange={(e:any)=>{
+                              const v = e.target.value;
+                              if (v === '__random__') { randomizeOneCategory(cat, false); return; }
+                              updateBuilder({ [cat]: v } as any);
+                            }} style={{ width: '100%', fontSize: '12px', padding: '4px 6px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '4px', color: 'var(--tx)' }}>
                               <option value="">—</option>
+                              <option value="__random__">— Random —</option>
                               <option value={`__${token}__`}>__{token}__</option>
                               {opts.slice(0,55).map((o,j)=><option key={j} value={o}>{o}</option>)}
                             </select>
@@ -1382,14 +1422,21 @@ export const ImageGenView = () => {
                         const val = (builder as any)[cat] || '';
                         const opts = charOptions[cat] || [];
                         const token = (BUILDER_CATEGORY_WILDCARDS[cat]||[cat])[0];
+                        const pinnedNow = isPinned(cat);
                         return (
                           <div key={cat} style={{ marginBottom: '8px' }}>
                             <div style={{ fontSize: '11px', color: 'var(--tx3)', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'capitalize' }}>
                               {cat}
+                              <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat, false)} style={{ fontSize: '9px', padding: '0 3px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>updateBuilder({ [cat]: e.target.value } as any)} style={{ width: '100%', fontSize: '12px', padding: '4px 6px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '4px', color: 'var(--tx)' }}>
+                            <select value={val} onChange={(e:any)=>{
+                              const v = e.target.value;
+                              if (v === '__random__') { randomizeOneCategory(cat, false); return; }
+                              updateBuilder({ [cat]: v } as any);
+                            }} style={{ width: '100%', fontSize: '12px', padding: '4px 6px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '4px', color: 'var(--tx)' }}>
                               <option value="">—</option>
+                              <option value="__random__">— Random —</option>
                               <option value={`__${token}__`}>__{token}__</option>
                               {opts.slice(0,55).map((o,j)=><option key={j} value={o}>{o}</option>)}
                             </select>
@@ -1407,14 +1454,21 @@ export const ImageGenView = () => {
                         const val = (builder as any)[cat] || '';
                         const opts = charOptions[cat] || [];
                         const token = (BUILDER_CATEGORY_WILDCARDS[cat]||[cat])[0];
+                        const pinnedNow = isPinned(cat);
                         return (
                           <div key={cat}>
                             <div style={{ fontSize: '11px', color: 'var(--tx3)', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '3px', textTransform: 'capitalize' }}>
                               {cat}
+                              <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize:'9px', padding:'0 1px', background:'none', border:'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor:'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat,false)} style={{ fontSize:'9px', padding:'0 2px', background:'none', border:'none', color:'var(--ac)', cursor:'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>updateBuilder({ [cat]: e.target.value } as any)} style={{ width:'100%', fontSize:'11px', padding:'3px 4px', background:'var(--bg2)', border:'1px solid var(--brd)', borderRadius:'3px', color:'var(--tx)' }}>
+                            <select value={val} onChange={(e:any)=>{
+                              const v = e.target.value;
+                              if (v === '__random__') { randomizeOneCategory(cat, false); return; }
+                              updateBuilder({ [cat]: v } as any);
+                            }} style={{ width:'100%', fontSize:'11px', padding:'3px 4px', background:'var(--bg2)', border:'1px solid var(--brd)', borderRadius:'3px', color:'var(--tx)' }}>
                               <option value="">—</option>
+                              <option value="__random__">— Random —</option>
                               <option value={`__${token}__`}>__{token}__</option>
                               {opts.slice(0,50).map((o,j)=><option key={j} value={o}>{o.length>26?o.slice(0,24)+'…':o}</option>)}
                             </select>
@@ -1478,8 +1532,6 @@ export const ImageGenView = () => {
               <div style={{ fontSize: '12px', color: 'var(--tx2)', background: 'var(--bg3)', borderRadius: '6px', padding: '10px 12px', border: '1px solid var(--brd)' }}>
                 {genMode === 'advanced'
                   ? 'Uses current builder settings as a template — wildcard fields are resolved randomly each time.'
-                  : genMode === 'ai'
-                  ? 'Uses the local builder with full randomization (no LLM calls) to generate fast variations.'
                   : 'Resolves wildcards in the selected template randomly each time.'}
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
