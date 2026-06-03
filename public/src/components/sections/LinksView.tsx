@@ -154,7 +154,7 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
         setTagGroups(groups);
         setTagMatched(matched);
         setBookmarks(fresh);
-        setSelected(new Set(matched));
+        setSelected(new Set());
       } catch (e: any) { setError(e.message); }
       setLoading(false);
     })();

@@ -94,6 +94,7 @@ async function apiSavePrefs(req, res) {
   if ('assistantNsfw' in body) prefs.assistantNsfw = !!body.assistantNsfw;
   if ('assistantSystemMode' in body) prefs.assistantSystemMode = String(body.assistantSystemMode || 'default');
   if ('assistantStoryGenre' in body) prefs.assistantStoryGenre = String(body.assistantStoryGenre || 'Any');
+  if ('llamaModelUri' in body) prefs.llamaModelUri = String(body.llamaModelUri || '').trim();
   if ('comfyuiPath' in body) {
     prefs.comfyuiPath = String(body.comfyuiPath || '').trim();
     try {

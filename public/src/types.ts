@@ -66,6 +66,7 @@ export interface AppPrefs {
   videosDir?: string;
   videosDirExists?: boolean;
   comfyuiPath?: string;
+  llamaModelUri?: string;
 }
 export interface ThumbnailGroup {
   id: string;

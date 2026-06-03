@@ -75,6 +75,12 @@ try:
 except ImportError:
     HAS_FLUX = False
 
+try:
+    from diffusers import GGUFQuantizationConfig
+    HAS_GGUF = True
+except ImportError:
+    HAS_GGUF = False
+
 SCHEDULERS: dict = {}
 if HAS_DEPS:
     SCHEDULERS = {
@@ -203,19 +209,30 @@ def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> No
 
     send({'type': 'loading', 'model': os.path.basename(model_path)})
 
-    device = get_device()
-    dtype  = get_dtype()
+    device   = get_device()
+    dtype    = get_dtype()
+    is_gguf  = model_path.lower().endswith('.gguf')
     kwargs: dict = {'torch_dtype': dtype}
+
+    if is_gguf and not HAS_GGUF:
+        raise RuntimeError(
+            'GGUF models require diffusers>=0.32: pip install -U diffusers'
+        )
 
     if model_type == 'flux':
         if not HAS_FLUX:
             raise RuntimeError(
                 'Flux requires diffusers>=0.30: pip install -U diffusers transformers'
             )
-        # Flux uses bfloat16; VAE is bundled
-        pipe = FluxPipeline.from_single_file(model_path, torch_dtype=torch.bfloat16)  # type: ignore[name-defined]
+        bf16 = torch.bfloat16  # type: ignore[name-defined]
+        flux_kwargs: dict = {'torch_dtype': bf16}
+        if is_gguf:
+            flux_kwargs['quantization_config'] = GGUFQuantizationConfig(compute_dtype=bf16)
+        pipe = FluxPipeline.from_single_file(model_path, **flux_kwargs)  # type: ignore[name-defined]
     elif model_type in ('sdxl', 'pony'):
-        if vae_path and os.path.exists(vae_path):
+        if is_gguf:
+            kwargs['quantization_config'] = GGUFQuantizationConfig(compute_dtype=dtype)
+        elif vae_path and os.path.exists(vae_path):
             try:
                 vae = AutoencoderKL.from_single_file(vae_path, torch_dtype=dtype)
                 kwargs['vae'] = vae
@@ -224,7 +241,9 @@ def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> No
         pipe = StableDiffusionXLPipeline.from_single_file(model_path, **kwargs)
     else:
         kwargs['safety_checker'] = None
-        if vae_path and os.path.exists(vae_path):
+        if is_gguf:
+            kwargs['quantization_config'] = GGUFQuantizationConfig(compute_dtype=dtype)
+        elif vae_path and os.path.exists(vae_path):
             try:
                 vae = AutoencoderKL.from_single_file(vae_path, torch_dtype=dtype)
                 kwargs['vae'] = vae

@@ -16,14 +16,15 @@ const { json, readBody } = require('./helpers-server');
 const CONFIG_FILE = path.join(LINK_DIR, 'imagegen-config.json');
 
 const DEFAULT_CFG = {
-  modelsDir:    path.join(LINK_DIR, 'imagegen', 'models'),
-  vaesDir:      path.join(LINK_DIR, 'imagegen', 'vaes'),
-  lorasDir:     path.join(LINK_DIR, 'imagegen', 'loras'),
-  wildcardsDir: path.join(DB_DIR, 'wildcards'),
-  outputDir:    path.join(PHOTOS_DIR, 'ai-generated'),
-  modelType:    'sd15',
-  model:        '',
-  vae:          '',
+  modelsDir:           path.join(LINK_DIR, 'imagegen', 'models'),
+  diffusionModelsDir:  '',
+  vaesDir:             path.join(LINK_DIR, 'imagegen', 'vaes'),
+  lorasDir:            path.join(LINK_DIR, 'imagegen', 'loras'),
+  wildcardsDir:        path.join(DB_DIR, 'wildcards'),
+  outputDir:           path.join(PHOTOS_DIR, 'ai-generated'),
+  modelType:           'sd15',
+  model:               '',
+  vae:                 '',
 };
 
 let cfg = { ...DEFAULT_CFG };
@@ -62,8 +63,11 @@ function broadcast(data) {
 const PYTHON_SCRIPT = path.join(__dirname, '..', 'imagegen', 'imagegen.py');
 const PYTHON_BIN    = process.platform === 'win32' ? 'python' : 'python3';
 
+const log = (...args) => console.log('[imagegen]', ...args);
+
 function startEngine() {
   if (pyProc) return;
+  log('Starting Python engine…');
   pyProc = spawn(PYTHON_BIN, ['-u', PYTHON_SCRIPT], {
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
   });
@@ -78,9 +82,21 @@ function startEngine() {
       if (t) { try { handleMsg(JSON.parse(t)); } catch {} }
     }
   });
-  pyProc.stderr.on('data', () => {});   // suppress diffusers logs
+
+  // Stream Python stderr (diffusers/torch loading output) directly to console
+  let stderrBuf = '';
+  pyProc.stderr.on('data', (chunk) => {
+    stderrBuf += chunk.toString('utf-8');
+    const lines = stderrBuf.split('\n');
+    stderrBuf = lines.pop();
+    for (const line of lines) {
+      if (line.trim()) console.error('[imagegen/py]', line);
+    }
+  });
 
   pyProc.on('close', (code) => {
+    if (stderrBuf.trim()) console.error('[imagegen/py]', stderrBuf);
+    log(`Process exited (code ${code ?? '?'})`);
     pyProc = null; pyReady = false;
     status = { state: 'stopped', step: 0, total: 0, pct: 0, message: `Exited (${code ?? '?'})`, comboIdx: 0, comboTotal: 1 };
     if (currentJob) { currentJob.done({ ok: false, error: 'process exited' }); currentJob = null; }
@@ -89,7 +105,7 @@ function startEngine() {
   });
 
   pyProc.on('error', (err) => {
-    console.error('[imagegen] spawn error:', err.message);
+    log('Spawn error:', err.message);
     pyProc = null; pyReady = false;
     status = { state: 'error', step: 0, total: 0, pct: 0, message: err.message, comboIdx: 0, comboTotal: 1 };
     if (currentJob) { currentJob.done({ ok: false, error: err.message }); currentJob = null; }
@@ -100,6 +116,7 @@ function startEngine() {
 
 function stopEngine() {
   if (!pyProc) return;
+  log('Stopping engine…');
   try { pyProc.stdin.write(JSON.stringify({ action: 'quit' }) + '\n'); } catch {}
   setTimeout(() => { if (pyProc) { try { pyProc.kill('SIGKILL'); } catch {} pyProc = null; pyReady = false; } }, 2500);
 }
@@ -108,22 +125,29 @@ function handleMsg(msg) {
   switch (msg.type) {
     case 'ready':
       pyReady = true; pyDevice = msg.device || 'cpu';
+      log(`Engine ready on ${pyDevice}`);
       status = { state: 'idle', step: 0, total: 0, pct: 0, message: `Ready on ${pyDevice}`, comboIdx: 0, comboTotal: 1 };
       broadcast({ ...msg, queueLength: jobQueue.length });
       processQueue();
       break;
 
     case 'loading':
+      log(`Loading model: ${msg.model}`);
       status = { ...status, state: 'loading', message: `Loading ${msg.model}…` };
       broadcast(msg);
       break;
 
     case 'model_loaded':
+      log(`Model loaded: ${msg.model} on ${msg.device}`);
       status.message = `${msg.model} on ${msg.device}`;
       broadcast(msg);
       break;
 
     case 'progress':
+      process.stdout.write(
+        `\r[imagegen] Step ${msg.step}/${msg.total} (${msg.pct}%)${(msg.combo_total || 1) > 1 ? ` — combo ${(msg.combo_idx || 0) + 1}/${msg.combo_total}` : ''}   `
+      );
+      if (msg.step === msg.total) process.stdout.write('\n');
       status = {
         state: 'generating',
         step: msg.step, total: msg.total, pct: msg.pct,
@@ -134,6 +158,8 @@ function handleMsg(msg) {
       break;
 
     case 'done':
+      log(`Done — ${msg.count} image(s) in ${msg.elapsed}s`);
+      if (msg.paths && msg.paths.length) log('Saved:', msg.paths.join(', '));
       status = { state: 'idle', step: 0, total: 0, pct: 100, message: `Done in ${msg.elapsed}s`, comboIdx: 0, comboTotal: 1 };
       if (currentJob) { currentJob.done(msg); currentJob = null; }
       broadcast(msg);
@@ -141,13 +167,21 @@ function handleMsg(msg) {
       break;
 
     case 'cancelled':
+      log('Generation cancelled');
       status = { state: 'idle', step: 0, total: 0, pct: 0, message: 'Cancelled', comboIdx: 0, comboTotal: 1 };
       if (currentJob) { currentJob.done({ ok: false, cancelled: true }); currentJob = null; }
       broadcast(msg);
       processQueue();
       break;
 
+    case 'warning':
+      log('Warning:', msg.message);
+      broadcast(msg);
+      break;
+
     case 'error':
+      log('Error:', msg.message);
+      if (msg.traceback) console.error('[imagegen/py traceback]\n' + msg.traceback);
       status = { state: 'error', step: 0, total: 0, pct: 0, message: msg.message, comboIdx: 0, comboTotal: 1 };
       if (currentJob) { currentJob.done({ ok: false, error: msg.message }); currentJob = null; }
       broadcast(msg);
@@ -163,30 +197,35 @@ function processQueue() {
   if (!pyReady || !pyProc || currentJob || !jobQueue.length) return;
   const job = jobQueue.shift();
   currentJob = job;
+  const p = job.params;
+  log(`Starting job — model: ${require('path').basename(p.model)}, type: ${p.model_type}, size: ${p.width}x${p.height}, steps: ${p.steps}, seed: ${p.seed}`);
   status = { ...status, state: 'queued', message: 'Starting…' };
   pyProc.stdin.write(JSON.stringify({ action: 'generate', ...job.params }) + '\n');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-const MODEL_EXTS = new Set(['.safetensors', '.ckpt', '.pt']);
+const MODEL_EXTS = new Set(['.safetensors', '.ckpt', '.pt', '.gguf']);
 const IMG_EXTS   = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const WC_EXTS    = new Set(['.txt']);
 
 function scanFiles(dir, exts) {
   try {
     fs.mkdirSync(dir, { recursive: true });
-    return fs.readdirSync(dir)
-      .filter(f => exts.has(path.extname(f).toLowerCase()))
-      .map(f => {
-        const fp = path.join(dir, f);
+    const results = [];
+    const walk = (d) => {
+      for (const f of fs.readdirSync(d)) {
+        const fp = path.join(d, f);
         try {
           const st = fs.statSync(fp);
-          return { name: f, size: st.size, mtime: st.mtimeMs };
-        } catch { return null; }
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.name.localeCompare(b.name));
+          if (st.isDirectory()) { walk(fp); continue; }
+          if (exts.has(path.extname(f).toLowerCase()))
+            results.push({ name: path.relative(dir, fp).replace(/\\/g, '/'), size: st.size, mtime: st.mtimeMs });
+        } catch {}
+      }
+    };
+    walk(dir);
+    return results.sort((a, b) => a.name.localeCompare(b.name));
   } catch { return []; }
 }
 
@@ -213,7 +252,7 @@ function apiGetConfig(req, res) {
 
 async function apiSetConfig(req, res) {
   const body = await readBody(req);
-  const fields = ['modelsDir', 'vaesDir', 'lorasDir', 'wildcardsDir', 'outputDir', 'modelType', 'model', 'vae'];
+  const fields = ['modelsDir', 'diffusionModelsDir', 'vaesDir', 'lorasDir', 'wildcardsDir', 'outputDir', 'modelType', 'model', 'vae'];
   for (const f of fields) if (body[f] !== undefined) cfg[f] = body[f];
   saveCfg();
   json(res, { ok: true });
@@ -239,8 +278,13 @@ function apiGetAssets(req, res) {
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch {}
 
+  const checkpointModels  = scanFiles(cfg.modelsDir, MODEL_EXTS);
+  const diffusionModels   = cfg.diffusionModelsDir
+    ? scanFiles(cfg.diffusionModelsDir, MODEL_EXTS).map(m => ({ ...m, name: `diffusion_models/${m.name}` }))
+    : [];
+
   json(res, {
-    models:    scanFiles(cfg.modelsDir, MODEL_EXTS),
+    models:    [...checkpointModels, ...diffusionModels],
     vaes:      scanFiles(cfg.vaesDir,   MODEL_EXTS),
     loras:     scanFiles(cfg.lorasDir,  MODEL_EXTS),
     wildcards,
@@ -297,7 +341,19 @@ async function apiGenerate(req, res) {
   const body = await readBody(req);
   if (!body.model) return json(res, { error: 'No model specified' }, 400);
 
-  const modelPath = path.isAbsolute(body.model) ? body.model : path.join(cfg.modelsDir, body.model);
+  let modelPath;
+  if (path.isAbsolute(body.model)) {
+    modelPath = body.model;
+  } else if (body.model.startsWith('diffusion_models/') && cfg.diffusionModelsDir) {
+    modelPath = path.join(cfg.diffusionModelsDir, body.model.slice('diffusion_models/'.length));
+  } else {
+    modelPath = path.join(cfg.modelsDir, body.model);
+    // fall back to diffusion_models if not in checkpoints
+    if (!fs.existsSync(modelPath) && cfg.diffusionModelsDir) {
+      const alt = path.join(cfg.diffusionModelsDir, body.model);
+      if (fs.existsSync(alt)) modelPath = alt;
+    }
+  }
   if (!fs.existsSync(modelPath)) return json(res, { error: `Model not found: ${body.model}` }, 404);
 
   const vaePath   = body.vae ? (path.isAbsolute(body.vae) ? body.vae : path.join(cfg.vaesDir, body.vae)) : null;
@@ -328,11 +384,12 @@ async function apiGenerate(req, res) {
   if (!pyProc) startEngine();
 
   const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const combos = countCombinations(params.prompt);
+  log(`Job queued (${jobId}) — model: ${path.basename(modelPath)}, ${combos * params.batch} image(s), queue depth: ${jobQueue.length + 1}`);
   jobQueue.push({ id: jobId, params, done: () => {} });
   broadcast({ type: 'queued', jobId, queueLength: jobQueue.length });
   processQueue();
 
-  const combos = countCombinations(params.prompt);
   json(res, { ok: true, jobId, queuePosition: jobQueue.length, estimatedImages: combos * params.batch });
 }
 
@@ -381,11 +438,23 @@ function apiProgress(req, res) {
 
 // ── ComfyUI integration ───────────────────────────────────────────────
 
+const COMFYUI_MODEL_DIRS = [
+  'audio_encoders', 'checkpoints', 'clip', 'clip_vision', 'configs',
+  'controlnet', 'diffusers', 'diffusion_models', 'embeddings', 'gligen',
+  'hypernetworks', 'latent_upscale_models', 'loras', 'model_patches',
+  'onnx', 'photomaker', 'sams', 'style_models', 'text_encoders',
+  'unet', 'ultralytics', 'upscale_models', 'vae', 'vae_approx',
+];
+
 function applyComfyuiPath(comfyuiPath) {
   if (comfyuiPath) {
-    cfg.modelsDir = path.join(comfyuiPath, 'models', 'checkpoints');
-    cfg.vaesDir   = path.join(comfyuiPath, 'models', 'vae');
-    cfg.lorasDir  = path.join(comfyuiPath, 'models', 'loras');
+    cfg.modelsDir          = path.join(comfyuiPath, 'models', 'checkpoints');
+    cfg.diffusionModelsDir = path.join(comfyuiPath, 'models', 'diffusion_models');
+    cfg.vaesDir            = path.join(comfyuiPath, 'models', 'vae');
+    cfg.lorasDir           = path.join(comfyuiPath, 'models', 'loras');
+    for (const dir of COMFYUI_MODEL_DIRS) {
+      try { fs.mkdirSync(path.join(comfyuiPath, 'models', dir), { recursive: true }); } catch {}
+    }
   } else {
     cfg.modelsDir = DEFAULT_CFG.modelsDir;
     cfg.vaesDir   = DEFAULT_CFG.vaesDir;
@@ -427,7 +496,7 @@ loadCfg();
 try {
   const { loadPrefs } = require('./db-server');
   const comfyuiPath = (loadPrefs().comfyuiPath || '').trim();
-  if (comfyuiPath && cfg.modelsDir === DEFAULT_CFG.modelsDir) {
+  if (comfyuiPath) {
     applyComfyuiPath(comfyuiPath);
   }
 } catch {}

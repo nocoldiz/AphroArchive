@@ -357,7 +357,7 @@ export function getModelLabel(t: ModelTarget): string {
 // gender/age/ethnicity/body/clothing per character. Takes inspiration from
 // many wildcards by allowing __token__ fallbacks and random inspire.
 
-export type BuilderNumChars = 1 | 2 | 3;
+export type BuilderNumChars = 0 | 1 | 2 | 3;
 
 export interface CharSpec {
   gender?: string;
@@ -392,10 +392,10 @@ export interface BuilderState {
 
 export const DEFAULT_BUILDER: BuilderState = {
   target: 'ponyxl',
-  nsfw: true,
-  nsfwLevel: 55,   // default: solid erotic / vanilla-explicit (user can slide to SFW or max degenerate)
-  numChars: 1,
-  chars: [{ gender: 'girl', age: '20', ethnicity: '', body: '', breasts: '', clothing: '' }],
+  nsfw: false,
+  nsfwLevel: 0,   // default: start at pure SFW / none when modal opened (user slides up for heat)
+  numChars: 0,
+  chars: [],
   background: '',
   setting: '',
   action: '',
@@ -480,14 +480,129 @@ export const HARDCODED_OPTION_ALIASES: Record<string, string> = {
   clothes: 'clothing',
 };
 
+// Strict SFW mode for slider "none" (0-15 labeled SFW). Never pick or emit NSFW terms.
+export const SFW_THRESHOLD = 15;
+
+export function isNsfwPhrase(phrase: string): boolean {
+  if (!phrase) return false;
+  const cleaned = ' ' + phrase.toLowerCase().replace(/[.,;:!?()[\]{}]/g, ' ') + ' ';
+  const bad = [
+    ' pussy ', ' pussies ', ' cock ', ' dick ', ' penis ', ' balls ', ' erect ',
+    ' cum ', ' creampie ', ' bukkake ', ' facial ', ' ejaculation ',
+    ' anal ', ' gaped ', ' gape ',
+    ' nude ', ' naked ', ' bare skin ', ' completely nude ',
+    ' ahegao ', ' orgasm ', ' squirting ', ' cumming ',
+    ' dripping ', ' wet pussy ',
+    ' deepthroat ', ' throat bulge ', ' titfuck ', ' handjob ', ' fingering ', ' fisting ', ' fisted ',
+    ' gangbang ', ' threesome ', ' orgy ', ' spitroast ', ' double penetration ', ' triple penetration ',
+    ' public use ', ' exhibitionism ', ' voyeurism ', ' stealth sex ', ' stealth masturb ',
+    ' watersport ', ' piss ', ' golden shower ',
+    ' futa ', ' futanari ', ' dickgirl ',
+    ' bondage ', ' shibari ', ' tied ', ' gagged ', ' blindfold ', ' collar ', ' leash ', ' slave ', ' bdsm ', ' femdom ', ' humiliation ', ' spanked ', ' torture ', ' nipple torture ',
+    ' micro skirt ', ' no panties ', ' tits out ', ' shirt ripped ', ' cum soaked ', ' lingerie pulled ', ' hiked up ', ' pulled aside ', ' panties around ',
+    ' legs spread ', ' ass up ', ' pussy exposed ', ' spread eagle ', ' face down ass ', ' ass ',
+    ' masturbat ', ' dildo ', ' vibrator ', ' hitachi ', ' large insertion ', ' object insertion ', ' stomach bulge ',
+    ' doggy style ', ' missionary ', ' cowgirl ', ' mating press ', ' 69 ', ' scissoring ', ' tribadism ', ' trib ',
+    ' breeding ', ' breeding press ',
+    ' lesbian 69 ',
+    ' explicit ', ' penetration ', ' fluids ', ' heavy fetish ',
+    ' pornstar ', ' lewd ', ' exaggerated proportions ',
+    ' huge ', ' gigantic ', ' hyper ', ' massive ',
+  ];
+  return bad.some(w => cleaned.includes(w));
+}
+
+export function sanitizeBuilderStateForLevel(state: BuilderState, forceSafe = false): Partial<BuilderState> & { chars?: CharSpec[] } {
+  const level = Math.max(0, Math.min(100, Math.round(state.nsfwLevel ?? 55)));
+  const isSafe = forceSafe || (level <= SFW_THRESHOLD);
+  if (!isSafe) return {};
+  const p: Partial<BuilderState> & { chars?: CharSpec[] } = {};
+  const origChars = state.chars || [];
+  p.chars = origChars.map((c: CharSpec) => {
+    const nc: CharSpec = { ...c };
+    if (c.clothing && isNsfwPhrase(c.clothing)) nc.clothing = 'elegant dress';
+    if (c.body && isNsfwPhrase(c.body)) nc.body = 'slim and willowy, elegant proportions';
+    if (c.breasts && isNsfwPhrase(c.breasts)) nc.breasts = 'medium breasts';
+    if (c.expression && isNsfwPhrase(c.expression)) nc.expression = 'soft gentle smile, innocent';
+    return nc;
+  });
+  if (state.action && isNsfwPhrase(state.action)) p.action = '';
+  if (state.pose && isNsfwPhrase(state.pose)) p.pose = 'standing';
+  return p;
+}
+
 // Presets for the prompt generator modal (Builder tab).
 // Each preset is a *scene concept* (solo, couple, bondage pose, public dare, group vibe, etc.).
 // It populates the dropdowns (gender/age/body/clothing/action/pose/background etc).
 // The separate NSFW *slider* (0-100) then dials the final prompt from SFW/artistic all the way to
 // absolute degenerate heavy fetish. Presets are intentionally not pre-baked to one heat level anymore.
-export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { description?: string }> = {
+// Each has an nsfwScore (0-100). The scene concept is hidden in the dropdown unless the current
+// slider level >= its nsfwScore. This lets low slider (0 = none) only show appropriate tame concepts.
+export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { description?: string; nsfwScore?: number }> = {
+  // Pure scenery / environment-only presets (numChars: 0) for safe artistic prompts focused on background, lighting, atmosphere. nsfwScore 0 so always available at lowest slider.
+  'scenery-forest-morning': {
+    description: 'Peaceful forest at dawn with mist and light rays — pure scenery, no people',
+    nsfwScore: 0,
+    numChars: 0,
+    chars: [],
+    background: 'forest, morning mist, tall trees',
+    setting: 'dense ancient woodland, soft ferns and filtered sunlight',
+    photography: 'wide shot, establishing',
+    lighting: 'soft morning light, volumetric god rays, gentle mist',
+    style: 'photorealistic, natural, serene',
+    quality: 'highly detailed, atmospheric, masterpiece',
+  },
+  'scenery-mountain-sunset': {
+    description: 'Epic mountain landscape at golden hour, dramatic sky — no figures',
+    nsfwScore: 0,
+    numChars: 0,
+    chars: [],
+    background: 'rugged mountain peaks, snow, rocky ridges',
+    setting: 'vast alpine range under vast sky at sunset',
+    photography: 'long shot, panoramic',
+    lighting: 'golden hour sunlight, warm glow, long shadows, alpenglow',
+    style: 'cinematic, photorealistic, majestic',
+    quality: '8k, ultra detailed, award-winning landscape',
+  },
+  'scenery-urban-rain-night': {
+    description: 'Empty rainy city street at night, neon reflections on wet pavement',
+    nsfwScore: 0,
+    numChars: 0,
+    chars: [],
+    background: 'wet asphalt, city buildings, reflections',
+    setting: 'quiet empty urban street after rain, distant neon signs',
+    photography: 'street level, atmospheric perspective',
+    lighting: 'neon glow, wet reflections, moody low key night',
+    style: 'cinematic, filmic, cyberpunk-lite',
+    quality: 'detailed, moody, high contrast',
+  },
+  'scenery-lake-mist': {
+    description: 'Serene mountain lake at dawn, perfect mirror reflections and fog',
+    nsfwScore: 0,
+    numChars: 0,
+    chars: [],
+    background: 'still lake, pine forest, fog',
+    setting: 'tranquil alpine lake surrounded by mountains and trees',
+    photography: 'symmetrical wide',
+    lighting: 'soft diffused dawn, mist, glass-like reflections',
+    style: 'photorealistic, minimalist, peaceful',
+    quality: 'sharp, elegant composition, highly detailed',
+  },
+  'scenery-abstract-dunes': {
+    description: 'Minimalist desert dunes under soft sky, pure form and light — no life',
+    nsfwScore: 0,
+    numChars: 0,
+    chars: [],
+    background: 'sand dunes, minimal horizon',
+    setting: 'endless rolling golden sand dunes, clear sky',
+    photography: 'abstract composition',
+    lighting: 'soft side light, long soft shadows, warm tones',
+    style: 'minimalist, sculptural, fine art photography',
+    quality: 'clean, elegant, high resolution',
+  },
   'straight-vanilla': {
     description: 'Classic romantic couple — bedroom intimacy (slider controls heat)',
+    nsfwScore: 0,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'lingerie', expression: 'soft gentle smile, innocent' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -501,6 +616,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'lesbian-vanilla': {
     description: 'Two women, sensual scissoring/tribbing',
+    nsfwScore: 10,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '24', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'lingerie pulled to the side', expression: 'seductive half lidded eyes, slight smile' },
@@ -517,6 +633,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'gay-anal': {
     description: 'Two men, doggy/anal focus',
+    nsfwScore: 60,
     numChars: 2,
     chars: [
       { gender: 'man', age: '28', ethnicity: 'ebony', hair: 'short hair', eyes: 'brown eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' },
@@ -533,6 +650,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'threesome-mmf': {
     description: 'Man + woman + man, spitroast/DP',
+    nsfwScore: 65,
     numChars: 2, // simplified, builder handles
     chars: [
       { gender: 'girl', age: '23', ethnicity: 'mixed race, unique golden tone', hair: 'long hair', eyes: 'green eyes', body: 'curvy', breasts: 'huge breasts', clothing: 'lingerie pulled to the side', expression: 'shocked ahegao, eyes crossed' },
@@ -549,6 +667,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'futa-on-female': {
     description: 'Futanari dominating female',
+    nsfwScore: 70,
     numChars: 2,
     chars: [
       { gender: 'futanari', age: '25', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'violet eyes', body: 'futanari build, feminine curves + package', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'evil smile' },
@@ -565,6 +684,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'bondage-shibari': {
     description: 'Shibari bondage, femdom or m/f',
+    nsfwScore: 75,
     numChars: 1,
     chars: [{ gender: 'girl', age: '24', ethnicity: 'exotic middle eastern, olive skin, dark features', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'bondage outfit', expression: 'tongue hanging out, drooling' }],
     background: 'dark dungeon',
@@ -578,6 +698,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'bukkake-gangbang': {
     description: 'Multiple men, bukkake/cum play',
+    nsfwScore: 85,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'cum soaked and clinging', expression: 'proud of the mess on her face' }],
     background: 'cheap motel, neon sign glow',
@@ -591,6 +712,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'exhibition-public': {
     description: 'Public sex / exhibitionism / voyeur',
+    nsfwScore: 70,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '25', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'micro skirt hiked up, no panties', expression: 'playful wink and tongue tip' },
@@ -607,6 +729,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'fetish-latex-latexdom': {
     description: 'Latex / fetish gear, dominant/sub',
+    nsfwScore: 65,
     numChars: 1,
     chars: [{ gender: 'girl', age: '26', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'latex', expression: 'confident dominant stare' }],
     background: 'modern dungeon',
@@ -620,6 +743,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'orgy-group': {
     description: 'Full orgy / group sex',
+    nsfwScore: 80,
     numChars: 3,
     chars: [
       { gender: 'girl', age: '23', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'curvy', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' },
@@ -638,6 +762,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   // === Many additional presets (straight, lesbian, gay, futa, fetishes, public, etc.) ===
   'straight-creampie': {
     description: 'Hetero couple — intimate bedroom (slider dials to creampie/degen)',
+    nsfwScore: 50,
     numChars: 1,
     chars: [{ gender: 'girl', age: '20', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'lingerie pulled to the side', expression: 'ecstatic orgasm, mouth open screaming' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -651,6 +776,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'straight-anal': {
     description: 'Anal focused couple scene (slider to gape/extreme)',
+    nsfwScore: 65,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'micro skirt hiked up, no panties', expression: 'crying from pleasure, mascara run' }],
     background: 'cheap motel, neon sign glow',
@@ -664,6 +790,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'straight-oral': {
     description: 'Deepthroat / facefuck',
+    nsfwScore: 55,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'hazel eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'tongue hanging out, drooling' },
@@ -680,6 +807,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'lesbian-69': {
     description: 'Mutual oral 69, wet yuri',
+    nsfwScore: 55,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '24', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'tongue hanging out, drooling' },
@@ -696,6 +824,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'lesbian-strap': {
     description: 'Strap-on / pegging lesbian',
+    nsfwScore: 60,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '26', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'lingerie', expression: 'confident dominant stare' },
@@ -712,6 +841,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'gay-missionary': {
     description: 'Two men, intimate missionary anal',
+    nsfwScore: 60,
     numChars: 2,
     chars: [
       { gender: 'man', age: '25', ethnicity: 'caucasian', hair: 'short hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'soft gentle smile, innocent' },
@@ -728,6 +858,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'futa-on-male': {
     description: 'Futanari topping male',
+    nsfwScore: 70,
     numChars: 2,
     chars: [
       { gender: 'futanari', age: '24', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'violet eyes', body: 'futanari build, feminine curves + package', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'evil smile' },
@@ -744,6 +875,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'futa-solo': {
     description: 'Solo futanari self play',
+    nsfwScore: 60,
     numChars: 1,
     chars: [{ gender: 'futanari', age: '23', ethnicity: 'mixed race, unique golden tone', hair: 'very long hair', eyes: 'violet-blue eyes', body: 'futanari build, feminine curves + package', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'seductive half lidded eyes, slight smile' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -757,6 +889,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'bondage-hogtie': {
     description: 'Hogtied shibari strict bondage',
+    nsfwScore: 80,
     numChars: 1,
     chars: [{ gender: 'girl', age: '25', ethnicity: 'exotic middle eastern, olive skin, dark features', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'bondage outfit', expression: 'tongue hanging out, drooling' }],
     background: 'dark dungeon, chains, dim torch light',
@@ -770,6 +903,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'bondage-suspension': {
     description: 'Rope suspension / predicament',
+    nsfwScore: 82,
     numChars: 1,
     chars: [{ gender: 'girl', age: '21', ethnicity: 'indian beauty, warm brown, expressive eyes', hair: 'long hair', eyes: 'hazel eyes', body: 'body built for breeding, fertile hips, soft belly', breasts: 'huge breasts', clothing: 'bondage harness', expression: 'desperate needy, pleading eyes' }],
     background: 'abandoned industrial warehouse',
@@ -783,6 +917,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'bukkake-multiple': {
     description: 'Bukkake + cum inflation play',
+    nsfwScore: 88,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'cum soaked and clinging', expression: 'proud of the mess on her face' }],
     background: 'cheap motel, neon sign glow',
@@ -796,6 +931,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'exhibition-train': {
     description: 'Public transport exhibition / stealth',
+    nsfwScore: 75,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '24', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'micro skirt hiked up, no panties', expression: 'playful wink and tongue tip' },
@@ -812,6 +948,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'femdom-pegging': {
     description: 'Femdom pegging male sub',
+    nsfwScore: 70,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '27', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'latex', expression: 'confident dominant stare' },
@@ -828,6 +965,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'latex-catsuit': {
     description: 'Shiny latex catsuit fetish',
+    nsfwScore: 55,
     numChars: 1,
     chars: [{ gender: 'girl', age: '26', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'latex', expression: 'confident dominant stare' }],
     background: 'modern dungeon',
@@ -841,6 +979,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'public-beach': {
     description: 'Risky beach sex exhibition',
+    nsfwScore: 65,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '23', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'completely nude, bare skin', expression: 'playful wink and tongue tip' },
@@ -857,6 +996,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'milf-seduction': {
     description: 'Mature / MILF seduction scene (slider controls how filthy)',
+    nsfwScore: 45,
     numChars: 1,
     chars: [{ gender: 'girl', age: '35', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'thick and soft, wide hips, plush thighs', breasts: 'large breasts', clothing: 'lingerie', expression: 'seductive half lidded eyes, slight smile' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -870,6 +1010,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'schoolgirl-uniform': {
     description: 'School uniform (18+) fantasy — slider to full degen',
+    nsfwScore: 55,
     numChars: 1,
     chars: [{ gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'blue eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'micro skirt hiked up, no panties', expression: 'blushing shy, biting lower lip' }],
     background: 'classroom desk after hours',
@@ -883,6 +1024,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'cuckold-watch': {
     description: 'Cuckold / watching partner',
+    nsfwScore: 65,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '24', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'lingerie pulled to the side', expression: 'ecstatic orgasm, mouth open screaming' },
@@ -899,6 +1041,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'gloryhole-anon': {
     description: 'Anonymous gloryhole / public use concept (slider = how extreme)',
+    nsfwScore: 85,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'proud of the mess on her face' }],
     background: 'public park at night',
@@ -912,6 +1055,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'watersports-play': {
     description: 'Watersports / piss play fetish',
+    nsfwScore: 90,
     numChars: 2,
     chars: [
       { gender: 'girl', age: '21', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'long hair', eyes: 'brown eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'tongue hanging out, drooling' },
@@ -928,6 +1072,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'petplay-collar': {
     description: 'Pet play with collar/leash',
+    nsfwScore: 80,
     numChars: 1,
     chars: [{ gender: 'girl', age: '20', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'body built for breeding, fertile hips, soft belly', breasts: 'large breasts', clothing: 'collar still on, everything else gone', expression: 'blushing shy, biting lower lip' }],
     background: 'modern dungeon',
@@ -942,6 +1087,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   // === Many additional SOLO prompts (numChars:1) for quick 1girl/1boy/1futa scenes ===
   'solo-fingering-spread': {
     description: 'Solo girl self-pleasure — spread / fingering (use slider for intensity)',
+    nsfwScore: 40,
     numChars: 1,
     chars: [{ gender: 'girl', age: '21', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'desperate needy, pleading eyes' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -955,6 +1101,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-dildo-riding': {
     description: 'Solo dildo riding / toy play',
+    nsfwScore: 50,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -968,6 +1115,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-squirting-bed': {
     description: 'Solo intense orgasm / squirting (slider to full degen ahegao)',
+    nsfwScore: 70,
     numChars: 1,
     chars: [{ gender: 'girl', age: '20', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'medium hair', eyes: 'hazel eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'panties around one ankle', expression: 'shocked ahegao, eyes crossed' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -981,6 +1129,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-ahegao-mirror': {
     description: 'Solo ahegao face in mirror',
+    nsfwScore: 75,
     numChars: 1,
     chars: [{ gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'violet eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'shocked ahegao, eyes crossed' }],
     background: 'modern bedroom',
@@ -994,6 +1143,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-shower-wet': {
     description: 'Solo in steamy shower, water on skin',
+    nsfwScore: 0,
     numChars: 1,
     chars: [{ gender: 'girl', age: '23', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'completely nude, bare skin', expression: 'seductive half lidded eyes, slight smile' }],
     background: 'steamy shower, water running down body',
@@ -1007,6 +1157,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-lingerie-tease': {
     description: 'Solo lingerie tease / pulled aside',
+    nsfwScore: 5,
     numChars: 1,
     chars: [{ gender: 'girl', age: '24', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'lingerie pulled to the side', expression: 'playful wink and tongue tip' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -1020,6 +1171,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-ripped-tits': {
     description: 'Ripped shirt, tits out solo',
+    nsfwScore: 60,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'shirt ripped open, tits out', expression: 'crying from pleasure, mascara run' }],
     background: 'cheap motel, neon sign glow',
@@ -1033,6 +1185,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-blindfold-gag': {
     description: 'Blindfold + gag, rest naked solo',
+    nsfwScore: 70,
     numChars: 1,
     chars: [{ gender: 'girl', age: '25', ethnicity: 'exotic middle eastern, olive skin, dark features', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'blindfold and gag, rest naked', expression: 'tongue hanging out, drooling' }],
     background: 'dark dungeon, chains, dim torch light',
@@ -1046,6 +1199,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-heels-only': {
     description: 'Only heels left on, discarded clothes',
+    nsfwScore: 45,
     numChars: 1,
     chars: [{ gender: 'girl', age: '21', ethnicity: 'indian beauty, warm brown, expressive eyes', hair: 'long hair', eyes: 'hazel eyes', body: 'body built for breeding, fertile hips, soft belly', breasts: 'huge breasts', clothing: 'still wearing heels only', expression: 'hungry for more, licking lips' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -1059,6 +1213,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-milf-thick': {
     description: 'Mature thick MILF solo play',
+    nsfwScore: 45,
     numChars: 1,
     chars: [{ gender: 'girl', age: '35', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'thick and soft, wide hips, plush thighs', breasts: 'large breasts', clothing: 'lingerie', expression: 'satisfied afterglow, lazy smile' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -1072,6 +1227,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-chubby-jiggly': {
     description: 'Chubby BBW solo jiggle play',
+    nsfwScore: 55,
     numChars: 1,
     chars: [{ gender: 'girl', age: '28', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'brown eyes', body: 'BBW, heavy and jiggly all over', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }],
     background: 'cheap motel, neon sign glow',
@@ -1085,6 +1241,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-athletic-oiled': {
     description: 'Athletic oiled body solo flex',
+    nsfwScore: 10,
     numChars: 1,
     chars: [{ gender: 'girl', age: '24', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'oiled shiny skin over thick curves', breasts: 'perky breasts', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' }],
     background: 'modern bedroom',
@@ -1098,6 +1255,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-stealth-park': {
     description: 'Stealth public masturbation in park',
+    nsfwScore: 55,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'mixed race, unique golden tone', hair: 'long hair', eyes: 'green eyes', body: 'curvy', breasts: 'medium breasts', clothing: 'micro skirt hiked up, no panties', expression: 'nervous' }],
     background: 'public park at night, risky',
@@ -1111,6 +1269,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-exhibition-balcony': {
     description: 'Solo exhibition on balcony at night',
+    nsfwScore: 60,
     numChars: 1,
     chars: [{ gender: 'girl', age: '23', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim and willowy, elegant proportions', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'playful wink and tongue tip' }],
     background: 'penthouse balcony overlooking city',
@@ -1124,6 +1283,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-classroom-desk': {
     description: 'Solo after hours on classroom desk (18+)',
+    nsfwScore: 50,
     numChars: 1,
     chars: [{ gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'blue eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'micro skirt hiked up, no panties', expression: 'blushing shy, biting lower lip' }],
     background: 'classroom desk after hours',
@@ -1137,6 +1297,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-male-bed': {
     description: 'Solo male on bed, stroking',
+    nsfwScore: 45,
     numChars: 1,
     chars: [{ gender: 'man', age: '25', ethnicity: 'caucasian', hair: 'short hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -1150,6 +1311,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-male-shower': {
     description: 'Solo male in steamy shower',
+    nsfwScore: 0,
     numChars: 1,
     chars: [{ gender: 'man', age: '28', ethnicity: 'ebony', hair: 'short hair', eyes: 'brown eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'satisfied afterglow, lazy smile' }],
     background: 'steamy shower, water running down body',
@@ -1163,6 +1325,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-futa-huge-load': {
     description: 'Solo futa with huge cock, self play',
+    nsfwScore: 65,
     numChars: 1,
     chars: [{ gender: 'futanari', age: '23', ethnicity: 'mixed race, unique golden tone', hair: 'very long hair', eyes: 'violet-blue eyes', body: 'futanari build, feminine curves + package', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'proud of the mess on her face' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -1176,6 +1339,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-futa-standing': {
     description: 'Standing futa solo, cum play',
+    nsfwScore: 70,
     numChars: 1,
     chars: [{ gender: 'futanari', age: '24', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'violet eyes', body: 'futanari build, feminine curves + package', breasts: 'large breasts', clothing: 'lingerie pulled to the side', expression: 'hungry for more, licking lips' }],
     background: 'modern dungeon',
@@ -1189,6 +1353,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-trans-fem': {
     description: 'Trans woman solo sensual play',
+    nsfwScore: 40,
     numChars: 1,
     chars: [{ gender: 'trans female', age: '26', ethnicity: 'exotic middle eastern, olive skin, dark features', hair: 'long hair', eyes: 'brown eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'completely nude, bare skin', expression: 'seductive half lidded eyes, slight smile' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -1202,6 +1367,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-yoga-flex': {
     description: 'Flexible solo in deep yoga pose',
+    nsfwScore: 0,
     numChars: 1,
     chars: [{ gender: 'girl', age: '20', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'long hair', eyes: 'green eyes', body: 'slim and willowy, elegant proportions', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'soft gentle smile, innocent' }],
     background: 'luxury modern bedroom, silk sheets',
@@ -1215,6 +1381,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   'solo-cyberpunk-alley': {
     description: 'Risky solo in cyberpunk alley',
+    nsfwScore: 55,
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'lewd exaggerated proportions, tiny waist huge tits and ass', breasts: 'gigantic breasts', clothing: 'micro skirt hiked up, no panties', expression: 'crazy_eyes' }],
     background: 'cyberpunk alley',
@@ -1229,6 +1396,9 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
 };
 
 export function getNumSubjectsPhrase(n: BuilderNumChars, gender0?: string, gender1?: string): string {
+  if (n === 0) {
+    return 'scenery, landscape, environment, no people, empty scene, atmospheric background';
+  }
   if (n === 1) {
     const g = (gender0 || 'girl').toLowerCase();
     if (g.includes('boy') || g.includes('male') || g === 'man') return '1boy, solo male';
@@ -1258,27 +1428,39 @@ function joinParts(parts: (string | undefined | null)[]): string {
 }
 
 export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<string, string[]>): string {
-  const { target, nsfw: oldNsfw = true, nsfwLevel = 55, numChars, chars, background, setting, action, pose, photography, lighting, style, quality, useWildcardInspiration: useInsp } = state;
+  const { target, nsfw: oldNsfw = true, nsfwLevel = 0, numChars, chars, background, setting, action, pose, photography, lighting, style, quality, useWildcardInspiration: useInsp } = state;
+
+  let numCharsSafe = (numChars ?? 0) as BuilderNumChars;
+  if (numCharsSafe < 0) numCharsSafe = 0;
+  if (numCharsSafe > 3) numCharsSafe = 3;
 
   // Slider (0-100) is the source of truth for "amount of NSFW". Derive binary for prefixes/suffixes.
   const level = Math.max(0, Math.min(100, Math.round(nsfwLevel)));
   const isNsfw = level > 20;
+  const isSafe = level <= SFW_THRESHOLD;
+
+  // When slider at "none"/SFW, sanitize any NSFW words that may be lingering in state (from prior preset/inspire at higher level)
+  // so the generator *never* emits them in final prompt.
+  const sanitizePatch = isSafe ? sanitizeBuilderStateForLevel(state, true) : {};
+  const effChars = sanitizePatch.chars || chars;
+  const effAction = (sanitizePatch as any).action !== undefined ? (sanitizePatch as any).action : action;
+  const effPose = (sanitizePatch as any).pose !== undefined ? (sanitizePatch as any).pose : pose;
 
   const prefix = getModelPrefix(target, isNsfw);
   const suffix = getModelSuffix(target, isNsfw);
 
-  const c0 = chars[0] || {};
-  const c1 = chars[1] || {};
-  const c2 = chars[2] || {};
+  const c0 = effChars[0] || {};
+  const c1 = effChars[1] || {};
+  const c2 = effChars[2] || {};
 
   // Subjects header (pony friendly counts)
-  const subjHeader = getNumSubjectsPhrase(numChars, c0.gender, c1?.gender);
+  const subjHeader = getNumSubjectsPhrase(numCharsSafe, c0.gender, c1?.gender);
 
   // Per char descriptors (use chosen or __token__)
   const charDescs: string[] = [];
   const charKeys: (keyof CharSpec)[] = ['gender', 'age', 'ethnicity', 'hair', 'eyes', 'body', 'breasts', 'clothing', 'expression'];
-  for (let i = 0; i < numChars; i++) {
-    const c = chars[i] || {};
+  for (let i = 0; i < numCharsSafe; i++) {
+    const c = effChars[i] || {};
     const bits: string[] = [];
     const isTok = (s?: string) => !!s && s.startsWith('__') && s.endsWith('__');
     if (c.age) {
@@ -1293,11 +1475,14 @@ export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<
     if (c.breasts) bits.push(isTok(c.breasts) ? c.breasts : (c.breasts.toLowerCase().includes('breast') ? c.breasts : c.breasts + ' breasts'));
     if (c.clothing) bits.push(isTok(c.clothing) ? c.clothing : ('wearing ' + c.clothing));
     if (c.expression) bits.push(c.expression);
-    // Fill missing with tokens for inspiration
+    // Fill missing with tokens for inspiration (use safer token names when in SFW mode)
     if (useInsp) {
       if (!c.gender && i === 0) bits.push(pickOrToken('', 'gender', true));
       if (!c.body) bits.push(pickOrToken('', 'body_type', true));
-      if (!c.clothing) bits.push('wearing ' + pickOrToken('', 'clothing_state', true));
+      if (!c.clothing) {
+        const clothTok = isSafe ? 'clothing' : 'clothing_state';
+        bits.push('wearing ' + pickOrToken('', clothTok, true));
+      }
       if (!c.expression) bits.push(pickOrToken('', 'expression', true));
     }
     const desc = bits.filter(Boolean).join(', ');
@@ -1309,11 +1494,23 @@ export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<
   const setg = pickOrToken(setting, 'setting', useInsp);
   const scene = joinParts([bg, setg]);
 
-  // Porn type / act
-  const act = pickOrToken(action, 'sexual_act', useInsp);
+  // Porn type / act -- never include sexual_act token or value when slider is SFW/none
+  let act = '';
+  const rawAct = effAction || '';
+  if (!isSafe) {
+    act = pickOrToken(rawAct, 'sexual_act', useInsp);
+  } else if (rawAct && !rawAct.startsWith('__') && !isNsfwPhrase(rawAct)) {
+    act = rawAct;
+  }
 
-  // Pose
-  const ps = pickOrToken(pose, 'pose', useInsp);
+  // Pose -- sanitize explicit, and avoid token insertion for safety when SFW
+  let ps = pickOrToken(effPose, 'pose', useInsp && !isSafe);
+  if (isSafe && ps && isNsfwPhrase(ps)) ps = '';
+
+  if (numCharsSafe === 0) {
+    act = '';
+    ps = '';
+  }
 
   // Photography / view / composition
   const photo = pickOrToken(photography, 'Viewpoint', useInsp);
@@ -1332,18 +1529,21 @@ export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<
 
   // Main body pieces (now graduated by slider instead of binary)
   const bodyPieces: string[] = [];
-  if (level > 25) {
-    if (numChars === 1) {
+  if (level > 25 && numCharsSafe > 0) {
+    if (numCharsSafe === 1) {
       bodyPieces.push(level > 65 ? '{nude|__clothing_state__|detailed anatomy, wet, aroused}' : '{revealing|sheer|artistic nude}');
     } else {
       bodyPieces.push(level > 65 ? '{interacting intimately|__sexual_act__}' : 'intimate / sensual interaction');
     }
+  } else if (numCharsSafe === 0 && level > 15) {
+    // for pure scenery at moderate+ levels, add atmospheric descriptors
+    bodyPieces.push('atmospheric, detailed environment, immersive scenery');
   }
 
   const promptCore = joinParts([
     subjHeader,
     subjectsLine,
-    scene ? `in ${scene}` : '',
+    scene ? (numCharsSafe > 0 ? `in ${scene}` : scene) : '',
     act,
     ps,
     photo,
@@ -1402,11 +1602,25 @@ export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<
 
 // Helper to get a random value for a category (used by "inspire" buttons)
 // Prefers HARDCODED_OPTIONS so the prompt generator does not require the wildcards folder.
-export function pickRandomForCategory(cat: string, cache?: Map<string, string[]>): string {
+// When nsfwLevel <= SFW_THRESHOLD, filters out all NSFW phrases so generator never picks them.
+export function pickRandomForCategory(cat: string, cache?: Map<string, string[]>, nsfwLevel: number = 100): string {
+  const level = Math.max(0, Math.min(100, Math.round(nsfwLevel || 100)));
+  const isSafe = level <= SFW_THRESHOLD;
   // 1. Hardcoded (primary, makes folder optional for generator)
   const hard = HARDCODED_OPTIONS[cat];
   if (hard && hard.length > 0) {
-    return hard[Math.floor(Math.random() * hard.length)];
+    let pool: string[] = hard;
+    if (isSafe) {
+      pool = hard.filter(o => !isNsfwPhrase(o));
+      if (pool.length === 0) {
+        if (cat === 'action' || cat === 'pose') return '';
+        if (cat === 'clothing' || cat === 'clothes') return 'elegant dress';
+        if (cat === 'expression') return 'soft gentle smile, innocent';
+        if (cat === 'body') return 'slim and willowy, elegant proportions';
+        return '';
+      }
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
   }
   // age special: prefer numeric for the new typable age field
   if (cat === 'age') {
@@ -1418,7 +1632,12 @@ export function pickRandomForCategory(cat: string, cache?: Map<string, string[]>
   if (aliasKey) {
     const hardAlias = HARDCODED_OPTIONS[aliasKey];
     if (hardAlias && hardAlias.length > 0) {
-      return hardAlias[Math.floor(Math.random() * hardAlias.length)];
+      let pool: string[] = hardAlias;
+      if (isSafe) {
+        pool = hardAlias.filter(o => !isNsfwPhrase(o));
+        if (pool.length === 0) return '';
+      }
+      return pool[Math.floor(Math.random() * pool.length)];
     }
   }
   // 3. Legacy cache (from folder, optional now)
@@ -1427,7 +1646,10 @@ export function pickRandomForCategory(cat: string, cache?: Map<string, string[]>
     for (const n of names) {
       const lines = cache.get(n);
       if (lines && lines.length) {
-        const usable = lines.filter(l => l && !l.startsWith('#'));
+        let usable = lines.filter(l => l && !l.startsWith('#'));
+        if (isSafe) {
+          usable = usable.filter(l => !isNsfwPhrase(l));
+        }
         if (usable.length) return usable[Math.floor(Math.random() * usable.length)];
       }
     }
@@ -1441,17 +1663,18 @@ export function inspireRandomBuilder(current: BuilderState, pinned: Set<string> 
   const st: BuilderState = {
     ...current,
     chars: (current.chars || []).map(c => ({ ...c })),
-    nsfwLevel: current.nsfwLevel ?? 55,
-    nsfw: (current.nsfwLevel ?? 55) > 20,
+    nsfwLevel: current.nsfwLevel ?? 0,
+    nsfw: (current.nsfwLevel ?? 0) > 20,
   };
-  let num = (st.numChars || 1) as BuilderNumChars;
-  if (num < 1) num = 1;
+  let num = (st.numChars ?? 0) as BuilderNumChars;
+  if (num < 0) num = 0;
   if (num > 3) num = 3;
   while (st.chars.length < num) st.chars.push({});
   st.chars = st.chars.slice(0, num);
 
   // randomize per char fields (skip if pinned for that char index)
   const charCats: (keyof CharSpec)[] = ['gender', 'age', 'ethnicity', 'hair', 'eyes', 'body', 'breasts', 'clothing', 'expression'];
+  const level = st.nsfwLevel ?? 0;
   for (let i = 0; i < num; i++) {
     for (const k of charCats) {
       const pinKey = `${String(k)}-${i}`;
@@ -1460,7 +1683,7 @@ export function inspireRandomBuilder(current: BuilderState, pinned: Set<string> 
         const nums = AGE_PRESETS.filter(a => /^\d/.test(String(a)));
         st.chars[i].age = nums.length ? nums[Math.floor(Math.random() * nums.length)] : '22';
       } else {
-        const picked = pickRandomForCategory(k as string, cache || new Map());
+        const picked = pickRandomForCategory(k as string, cache || new Map(), level);
         if (picked) (st.chars[i] as any)[k] = picked;
       }
     }
@@ -1470,7 +1693,7 @@ export function inspireRandomBuilder(current: BuilderState, pinned: Set<string> 
   const globals: (keyof BuilderState)[] = ['background', 'setting', 'action', 'pose', 'photography', 'lighting', 'style', 'quality'];
   for (const g of globals) {
     if (pinned.has(g as string)) continue;
-    const picked = pickRandomForCategory(g as string, cache || new Map());
+    const picked = pickRandomForCategory(g as string, cache || new Map(), level);
     if (picked) (st as any)[g] = picked;
   }
   return st;

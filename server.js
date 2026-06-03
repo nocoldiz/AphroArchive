@@ -226,6 +226,7 @@ const server = http.createServer(async (req, res) => {
   // ── Downloads ────────────────────────────────────────────────────────
   if (p === '/api/download' && req.method === 'POST') return downloads.apiDownloadAdd(req, res);
   if (p === '/api/download/jobs' && req.method === 'GET') return downloads.apiDownloadJobs(req, res);
+  if (p === '/api/download/cancel-all' && req.method === 'POST') return downloads.apiDownloadCancelAll(req, res);
   if (p === '/api/download/check' && req.method === 'GET') return downloads.apiDownloadCheck(req, res);
   if ((m = p.match(/^\/api\/download\/jobs\/([^/]+)$/)) && req.method === 'DELETE') return downloads.apiDownloadRemove(req, res, m[1]);
   if (p === '/api/download-queue' && req.method === 'GET') return downloads.apiReadDownloadQueue(req, res);
@@ -292,6 +293,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/links/import-urls' && req.method === 'POST') return links.apiImportLinks(req, res);
   if (p === '/api/links/export'      && req.method === 'GET')  return links.apiExportLinksJson(req, res);
   if (p === '/api/links/import-json' && req.method === 'POST') return links.apiImportLinksJson(req, res);
+  if (p === '/api/links/move'        && req.method === 'PATCH') return links.apiLinkMove(req, res);
   if (p === '/api/browser-favs' && req.method === 'GET') return links.apiBrowserFavs(req, res);
   if (p === '/api/browser-favs/file' && req.method === 'POST') return links.apiBrowserFavsFile(req, res);
 
@@ -418,6 +420,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);
   if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
   if (p === '/api/comments/reply' && req.method === 'POST') return comments.apiReplyToComment(req, res);
+  if (p === '/api/comments/model/status' && req.method === 'GET') return comments.apiModelStatus(req, res);
+  if (p === '/api/comments/model/download' && req.method === 'POST') return comments.apiDownloadModel(req, res);
+  if (p === '/api/comments/model/download' && req.method === 'DELETE') return comments.apiCancelDownload(req, res);
   {
     const m = p.match(/^\/api\/comments\/([^/]+)\/add$/);
     if (m && req.method === 'POST') return comments.apiAddComment(req, res, decodeURIComponent(m[1]));

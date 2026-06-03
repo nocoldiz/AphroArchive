@@ -256,6 +256,18 @@ function apiDownloadRemove(req, res, id) {
   json(res, { ok: true });
 }
 
+function apiDownloadCancelAll(req, res) {
+  for (const [id, job] of downloadJobs.entries()) {
+    if (job.status === 'running' || job.status === 'queued') {
+      if (job._kill) job._kill();
+      downloadJobs.delete(id);
+    }
+  }
+  dlActive = 0;
+  saveJobs();
+  json(res, { ok: true });
+}
+
 async function apiDownloadUpdateJob(req, res, id) {
   const job = downloadJobs.get(id);
   if (!job) return json(res, { error: 'Not found' }, 404);
@@ -439,7 +451,7 @@ loadJobs();
 processDownloadQueue();
 
 module.exports = {
-  apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadCheck,
+  apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadCancelAll, apiDownloadCheck,
   apiDownloadUpdateJob, apiDownloadRestartJob,
   apiDownloadGetConfig, apiDownloadSetConfig,
   apiReadDownloadQueue, apiWriteDownloadQueue, apiDownloadQueueAdd, apiDownloadQueueRemove,

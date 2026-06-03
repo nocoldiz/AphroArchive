@@ -104,6 +104,11 @@ export const DownloadManager = () => {
     setJobs(prev => prev.filter(j => j.id !== id));
   };
 
+  const cancelAll = async () => {
+    await fetch('/api/download/cancel-all', { method: 'POST' });
+    setJobs(prev => prev.filter(j => j.status === 'done' || j.status === 'error'));
+  };
+
   const moveToCategory = async (job: DownloadJob) => {
     if (!job.videoId) return;
     const cat = moveTarget[job.id] !== undefined ? moveTarget[job.id] : suggestCategory(job.title, cats);
@@ -171,8 +176,16 @@ export const DownloadManager = () => {
         }}>
 
           {/* ── Downloads section ─────────────────────────── */}
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Downloads {jobs.length > 0 && `(${jobs.length})`}</span>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.85rem', flex: 1 }}>Downloads {jobs.length > 0 && `(${jobs.length})`}</span>
+            {activeDlCount > 0 && (
+              <button
+                onClick={cancelAll}
+                style={{ background: 'none', border: '1px solid var(--brd)', color: '#e55', cursor: 'pointer', fontSize: '0.72rem', borderRadius: '4px', padding: '2px 7px', whiteSpace: 'nowrap' }}
+              >
+                Stop all
+              </button>
+            )}
             {jobs.some(j => j.status === 'done' || j.status === 'error') && (
               <button
                 onClick={() => setJobs(prev => prev.filter(j => j.status === 'queued' || j.status === 'running'))}

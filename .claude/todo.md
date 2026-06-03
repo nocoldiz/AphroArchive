@@ -1,4 +1,20 @@
-﻿# AphroArchive — TODO & Roadmap
+﻿
+in imagegen: move wildcards inpsection ut in  prompt generator in a right column of the modal,, prompt generation modal should have only the builder view.
+Make it possible to write custom data in dropdowns instead of choosing the options, pin button should be grayed out when a dropdown is not pinned
+
+
+
+
+Fix that in browse/folders i can see disabled folders for the current users that are hidden in sidebar but visible here
+
+
+
+
+
+
+
+
+# AphroArchive — TODO & Roadmap
 
 ## Security (Fix First)
 

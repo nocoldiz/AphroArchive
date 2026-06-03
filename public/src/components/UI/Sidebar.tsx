@@ -219,6 +219,13 @@ export const Sidebar = () => {
       <SectionHeader label="Manage" id="sh3-manage" />
       <div className="side-section" id="manageSection">
         <SidebarItem
+          id="categorizer-sidebar"
+          label="Categorizer"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>}
+          onClick={() => setView('categorizer')}
+          isActive={currentView.value === 'categorizer'}
+        />
+        <SidebarItem
           id="database-sidebar"
           label="Database"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg>}
@@ -272,13 +279,6 @@ export const Sidebar = () => {
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>}
           onClick={() => setView('chapters', 'showChaptersView')}
           isActive={currentView.value === 'chapters'}
-        />
-        <SidebarItem
-          id="categorizer-sidebar"
-          label="Categorizer"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>}
-          onClick={() => setView('categorizer')}
-          isActive={currentView.value === 'categorizer'}
         />
       </div>
 

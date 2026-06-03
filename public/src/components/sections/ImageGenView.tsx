@@ -20,6 +20,9 @@ import {
   HARDCODED_OPTIONS,
   HARDCODED_OPTION_ALIASES,
   PROMPT_PRESETS,
+  isNsfwPhrase,
+  SFW_THRESHOLD,
+  sanitizeBuilderStateForLevel,
 } from '../../characterPrompts';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -504,6 +507,9 @@ export const ImageGenView = () => {
 
   const loadAll = useCallback(async () => {
     try {
+      if (appPrefs.value.comfyuiPath) {
+        await fetch('/api/imagegen/comfyui/sync', { method: 'POST' }).catch(() => {});
+      }
       const [cfgRes, assetsRes, galleryRes] = await Promise.all([
         fetch('/api/imagegen/config').then(r => r.json()),
         fetch('/api/imagegen/assets').then(r => r.json()),
@@ -527,6 +533,7 @@ export const ImageGenView = () => {
   }, []);
 
   useEffect(() => { loadAll(); }, []);
+  useEffect(() => { if (comfyuiPath) loadAll(); }, [comfyuiPath]);
 
   // Preload character editor options on startup so selects are ready in prompt builder
   useEffect(() => {
@@ -625,6 +632,7 @@ export const ImageGenView = () => {
     if (n.includes('flux')) return 'flux';
     if (n.includes('pony') || n.includes('pdxl')) return 'pony';
     if (n.includes('xl') || n.includes('sdxl')) return 'sdxl';
+    if (n.endsWith('.gguf')) return 'flux';
     return 'sd15';
   };
 
@@ -676,8 +684,8 @@ export const ImageGenView = () => {
   const updateBuilder = (patch: Partial<BuilderState>) => {
     setBuilder(b => {
       const next = { ...b, ...patch } as BuilderState;
-      // keep chars length in sync if numChars changes
-      if (patch.numChars != null && patch.numChars !== b.numChars) {
+      // keep chars length in sync if numChars changes (only for manual num buttons; presets provide their own chars array)
+      if (patch.numChars != null && patch.numChars !== b.numChars && !patch.chars) {
         const arr = [...(b.chars || [])];
         while (arr.length < patch.numChars) arr.push({});
         next.chars = arr.slice(0, patch.numChars);
@@ -759,9 +767,18 @@ export const ImageGenView = () => {
   };
 
   const clearBuilder = () => {
-    setBuilder({ ...DEFAULT_BUILDER, nsfwLevel: 55, nsfw: true });
+    setBuilder({ ...DEFAULT_BUILDER }); // starts at nsfwLevel 0
     setBuilderPreview('');
     setPinned(new Set());
+  };
+
+  // Filter options shown in builder dropdowns + random picks when slider is at SFW/none.
+  // Ensures the prompt generator UI never offers/picks NSFW words when level <= SFW_THRESHOLD.
+  const getSafeOptions = (cat: string): string[] => {
+    const raw = charOptions[cat] || [];
+    const lvl = builder.nsfwLevel ?? 55;
+    if (lvl > SFW_THRESHOLD) return raw;
+    return raw.filter((o: string) => !isNsfwPhrase(o));
   };
 
   const randomizeOneCategory = async (cat: string, isChar: boolean, charIdx?: number) => {
@@ -769,7 +786,12 @@ export const ImageGenView = () => {
     if (!opts[cat] || opts[cat].length === 0) {
       await loadCharOptions(wildcardFullCache, (o) => { opts = o; setCharOptions(o); });
     }
-    const picked = pickRandomForCategory(cat, wildcardFullCache) || (opts[cat] && opts[cat][Math.floor(Math.random() * opts[cat].length)]) || '';
+    const lvl = builder.nsfwLevel ?? 55;
+    let pool = (opts[cat] || []);
+    if (lvl <= SFW_THRESHOLD) {
+      pool = pool.filter((o: string) => !isNsfwPhrase(o));
+    }
+    const picked = pickRandomForCategory(cat, wildcardFullCache, lvl) || (pool.length ? pool[Math.floor(Math.random() * pool.length)] : '') || '';
     if (!picked) return;
     if (isChar && charIdx != null) {
       const ckey = cat === 'bodyType' || cat === 'body' ? 'body' : (cat === 'breastSize' || cat === 'breasts' ? 'breasts' : cat);
@@ -810,14 +832,18 @@ export const ImageGenView = () => {
       if ((p as any)[k] !== undefined) patch[k] = (p as any)[k];
     });
 
-    // Suggest a starting nsfwLevel based on preset name (rework: presets are concepts, slider is the heat control).
-    // User can immediately slide it to taste (artistic shibari at 20% or max degen at 100%).
+    // Use the preset's declared nsfwScore as the suggested starting level (so the concept remains visible after apply).
+    // Slider can then be moved independently; dropping it will sanitize fields + hide this concept from future dropdowns.
     if (patch.nsfwLevel == null) {
-      const k = presetKey.toLowerCase();
-      let suggested = 50;
-      if (/(bondage|latex|fetish|bukkake|gang|glory|watersport|public|exhibition|degen|extreme)/.test(k)) suggested = 82;
-      else if (/(anal|creampie|milf|school|strap|pegging|futa|huge)/.test(k)) suggested = 68;
-      else if (/(vanilla|solo|romantic|sensual)/.test(k)) suggested = 48;
+      const declared = (p as any).nsfwScore;
+      let suggested = (typeof declared === 'number' ? declared : 40);
+      // fallback regex only if no score was assigned (should not happen now)
+      if (typeof declared !== 'number') {
+        const k = presetKey.toLowerCase();
+        if (/(bondage|latex|fetish|bukkake|gang|glory|watersport|public|exhibition|degen|extreme)/.test(k)) suggested = 82;
+        else if (/(anal|creampie|milf|school|strap|pegging|futa|huge)/.test(k)) suggested = 68;
+        else if (/(vanilla|solo|romantic|sensual)/.test(k)) suggested = 48;
+      }
       patch.nsfwLevel = suggested;
       patch.nsfw = suggested > 20;
     }
@@ -984,7 +1010,13 @@ export const ImageGenView = () => {
             )}
 
             {/* Prompt Generator — opens modal */}
-            <button onClick={() => setPromptGenOpen(true)}
+            <button onClick={() => {
+              setPromptGenOpen(true);
+              // start fresh at 0 (none) every time the generator modal is opened
+              setBuilder({ ...DEFAULT_BUILDER, nsfwLevel: 0, nsfw: false });
+              setBuilderPreview('');
+              setPinned(new Set());
+            }}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '9px 13px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '6px', cursor: 'pointer', textAlign: 'left' }}>
               <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tx2)', flex: 1 }}>✨ Prompt Generator</span>
               {generatedPrompt && <span style={{ fontSize: '10px', color: 'var(--ac)' }}>prompt ready</span>}
@@ -1260,7 +1292,7 @@ export const ImageGenView = () => {
                       style={{ background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '3px 6px', fontSize: '12px' }}>
                       {MODEL_TARGETS.map(t => <option key={t} value={t}>{getModelLabel(t)}</option>)}
                     </select>
-                    {/* Slider replaces old binary NSFW checkbox. Controls how much NSFW / degeneracy is injected into the composed prompt (0 = SFW artistic, 100 = absolute degenerate heavy fetish). Presets are now scene concepts; slider dials the filth level. */}
+                    {/* Slider replaces old binary NSFW checkbox. Controls how much NSFW / degeneracy is injected (0 = SFW artistic/none ... 100 = degen). Scene concepts in the dropdown below are filtered/hidden unless their nsfwScore <= current level. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
                       <span style={{ color: 'var(--tx3)' }}>NSFW</span>
                       <input
@@ -1272,7 +1304,13 @@ export const ImageGenView = () => {
                         onChange={(e: any) => {
                           const lvl = parseInt(e.target.value, 10) || 0;
                           const isHot = lvl > 20;
-                          updateBuilder({ nsfwLevel: lvl, nsfw: isHot });
+                          let patch: Partial<BuilderState> = { nsfwLevel: lvl, nsfw: isHot };
+                          if (lvl <= SFW_THRESHOLD) {
+                            // clean any NSFW words from current fields so UI + generated prompt stay SFW
+                            const clean = sanitizeBuilderStateForLevel(builder, true);
+                            patch = { ...patch, ...clean };
+                          }
+                          updateBuilder(patch);
                           setAdvNsfw(isHot);
                         }}
                         style={{ width: '110px', accentColor: (builder.nsfwLevel ?? 55) > 70 ? '#f66' : 'var(--ac)' }}
@@ -1283,7 +1321,7 @@ export const ImageGenView = () => {
                       </span>
                     </div>
                     <span style={{ color: 'var(--tx3)', fontSize: '12px', marginLeft: '8px' }}>Characters</span>
-                    {[1,2,3].map(n => (
+                    {[0,1,2,3].map(n => (
                       <button key={n} onClick={() => setNumChars(n as BuilderNumChars)}
                         style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '4px', border: builder.numChars === n ? '1px solid var(--ac)' : '1px solid var(--brd)', background: builder.numChars === n ? 'var(--ac)' : 'var(--bg2)', color: builder.numChars === n ? '#fff' : 'var(--tx2)', cursor: 'pointer' }}>{n}</button>
                     ))}
@@ -1299,8 +1337,12 @@ export const ImageGenView = () => {
                     <span style={{ color: 'var(--tx3)', fontSize: '12px', fontWeight: 600 }}>🎭 Scene Concept</span>
                     <select onChange={(e: any) => {
                       const v = e.target.value;
+                      const currentLvl = builder.nsfwLevel ?? 0;
                       if (v === '__random__') {
-                        const keys = Object.keys(PROMPT_PRESETS);
+                        const keys = Object.keys(PROMPT_PRESETS).filter(k => {
+                          const pr = PROMPT_PRESETS[k] as any;
+                          return (pr.nsfwScore ?? 0) <= currentLvl;
+                        });
                         if (keys.length) {
                           const rk = keys[Math.floor(Math.random() * keys.length)];
                           applyPreset(rk);
@@ -1312,27 +1354,28 @@ export const ImageGenView = () => {
                       applyPreset(v);
                     }} defaultValue=""
                       style={{ flex: 1, background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}>
-                      <option value="">— Choose a scene concept (populates fields; slider sets filth level) —</option>
+                      <option value="">— Choose a scene concept (only those matching current level are shown) —</option>
                       <option value="__random__">— Random Preset —</option>
-                      {Object.keys(PROMPT_PRESETS).map(key => {
-                        const pr = PROMPT_PRESETS[key];
-                        return <option key={key} value={key}>{key.replace(/-/g, ' ')} {pr.description ? '— ' + pr.description : ''}</option>;
-                      })}
+                      {Object.entries(PROMPT_PRESETS)
+                        .filter(([, pr]) => ((pr as any).nsfwScore ?? 0) <= (builder.nsfwLevel ?? 0))
+                        .map(([key, pr]) => (
+                          <option key={key} value={key}>{key.replace(/-/g, ' ')} {pr.description ? '— ' + pr.description : ''}</option>
+                        ))}
                     </select>
-                    <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>slider dials NSFW</span>
+                    <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>concepts filtered by level</span>
                   </div>
 
                   {/* Characters */}
                   <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
                     <div style={{ padding: '7px 12px', background: 'var(--bg3)', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, flex: 1 }}>👤 Characters ({builder.numChars})</span>
+                      <span style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, flex: 1 }}>{builder.numChars > 0 ? `👤 Characters (${builder.numChars})` : '🏞️ Scenery only (no characters)'}</span>
                       <button onClick={() => setShowBuilderDetails(v => !v)} style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '3px', cursor: 'pointer', color: 'var(--tx3)' }}>{showBuilderDetails ? 'collapse' : 'expand'}</button>
                     </div>
-                    {showBuilderDetails && (
+                    {showBuilderDetails && builder.numChars > 0 && (
                       <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {Array.from({ length: builder.numChars }).map((_, i) => {
                           const c = builder.chars[i] || {};
-                          const charOpts = (k: string) => charOptions[k] || [];
+                          const charOpts = (k: string) => getSafeOptions(k);
                           const mkSel = (label: string, val: string | undefined, cat: string, charKey: keyof CharSpec) => {
                             const opts = charOpts(cat);
                             const tokenName = BUILDER_CATEGORY_WILDCARDS[cat]?.[0] || cat;
@@ -1420,16 +1463,16 @@ export const ImageGenView = () => {
                   {/* Act/Pose + Background — 2 col */}
                   <div className="imagegen-builder-2col" style={{ display: 'grid', gap: '12px' }}>
                     <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 12px', background: 'var(--bg3)' }}>
-                      <div style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, marginBottom: '8px' }}>🔥 Act + Pose</div>
+                      <div style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, marginBottom: '8px' }}>{builder.numChars > 0 ? '🔥 Act + Pose' : '🏞️ Scene & Atmosphere'}</div>
                       {(['action','pose'] as const).map(cat => {
                         const val = (builder as any)[cat] || '';
-                        const opts = charOptions[cat] || [];
+                        const opts = getSafeOptions(cat);
                         const token = (BUILDER_CATEGORY_WILDCARDS[cat]||[cat])[0];
                         const pinnedNow = isPinned(cat);
                         return (
                           <div key={cat} style={{ marginBottom: '8px' }}>
                             <div style={{ fontSize: '11px', color: 'var(--tx3)', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              {cat === 'action' ? 'Sexual act / porn type' : 'Pose'}
+                              {cat === 'action' ? (builder.numChars > 0 ? 'Sexual act / porn type' : 'Scene action / event') : 'Pose / composition'}
                               <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat, false)} style={{ fontSize: '9px', padding: '0 3px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
                             </div>
@@ -1451,7 +1494,7 @@ export const ImageGenView = () => {
                       <div style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, marginBottom: '8px' }}>🌆 Background / Setting</div>
                       {(['background','setting'] as const).map(cat => {
                         const val = (builder as any)[cat] || '';
-                        const opts = charOptions[cat] || [];
+                        const opts = getSafeOptions(cat);
                         const token = (BUILDER_CATEGORY_WILDCARDS[cat]||[cat])[0];
                         const pinnedNow = isPinned(cat);
                         return (
@@ -1483,7 +1526,7 @@ export const ImageGenView = () => {
                     <div className="imagegen-photo-grid" style={{ display: 'grid', gap: '10px' }}>
                       {(['photography','lighting','style','quality'] as const).map(cat => {
                         const val = (builder as any)[cat] || '';
-                        const opts = charOptions[cat] || [];
+                        const opts = getSafeOptions(cat);
                         const token = (BUILDER_CATEGORY_WILDCARDS[cat]||[cat])[0];
                         const pinnedNow = isPinned(cat);
                         return (

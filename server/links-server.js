@@ -989,6 +989,24 @@ async function apiImportLinksJson(req, res) {
   json(res, { ok: true, added, skipped, total });
 }
 
+async function apiLinkMove(req, res) {
+  try {
+    const body = await readBody(req);
+    const urls = Array.isArray(body.urls) ? body.urls : (body.url ? [body.url] : []);
+    const category = (body.category ?? '').trim();
+    if (!urls.length) return json(res, { error: 'urls required' }, 400);
+
+    const { items } = loadLinksCache();
+    const byUrl = new Map(items.map(l => [l.url, l]));
+    let updated = 0;
+    for (const url of urls) {
+      const link = byUrl.get(url);
+      if (link) { upsertLink({ ...link, category }); updated++; }
+    }
+    json(res, { ok: true, updated });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
 module.exports = {
   apiOgThumb,
   apiGetLinksCache, apiSaveLinksCache,
@@ -1005,4 +1023,5 @@ module.exports = {
   apiRescrapeAll,
   apiImportLinks,
   apiExportLinksJson, apiImportLinksJson,
+  apiLinkMove,
 };
