@@ -1,5 +1,5 @@
-import { signal } from '@preact/signals';
-import { allVideos, currentCategory, bookmarkVidIds, currentView, currentVideo } from './store';
+﻿import { signal } from '@preact/signals';
+import { allVideos, currentCategory, linkVidIds, currentView, currentVideo } from './store';
 
 // ─── Zapping Mode State ───
 export const zapOn = signal(false);
@@ -74,9 +74,13 @@ export function toggleZapLock() {
 function getRandomVidForZapping() {
   const cat = currentCategory.value;
   const V = allVideos.value;
-  const bms = bookmarkVidIds.value;
+  const bms = linkVidIds.value;
   
-  let list = cat ? V.filter(v => v.category === cat || v.catPath === cat) : V;
+  let list = cat ? V.filter(v => {
+    const cl = cat.toLowerCase().replace(/\\/g, '/');
+    const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+    return vp === cl || vp.startsWith(cl + '/') || v.category === cat;
+  }) : V;
   list = list.filter(v => !bms.has(v.id));
   
   if (!list.length) list = V.filter(v => !bms.has(v.id));

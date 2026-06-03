@@ -1,4 +1,4 @@
-*,
+﻿*,
 *::before,
 *::after {
   box-sizing: border-box;
@@ -507,6 +507,28 @@ input {
 
 .video-card:hover .card-thumb-actions {
   opacity: 1
+}
+
+.thumb-actions button {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s, color 0.2s;
+}
+.thumb-actions button:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
+}
+.thumb-actions button.fav-active {
+  color: #ffb700;
 }
 
 .cta-btn {
@@ -1627,10 +1649,6 @@ input {
 
 /* ── Responsive ── */
 @media(max-width:860px) {
-  .side {
-    display: none
-  }
-
   .topbar {
     padding: 8px 12px
   }
@@ -1651,6 +1669,14 @@ input {
   }
 
   .tb-acts .hsm {
+    display: none
+  }
+
+  #dualBtn, #mosBtn, #zapBtn, #panBtn, #igBtn, #rdBtn {
+    display: none
+  }
+
+  .logo-text {
     display: none
   }
 }
@@ -4045,7 +4071,7 @@ input {
   transition: width 0.4s
 }
 
-/* ── Bookmark Grid View ── */
+/* ── Link Grid View ── */
 .bf-view-toggle {
   display: flex;
   gap: 4px;
@@ -4240,7 +4266,7 @@ input {
   flex-shrink: 0
 }
 
-/* ── Bookmark iframe viewer ── */
+/* ── Link iframe viewer ── */
 .bfiframe-mo {
   position: fixed;
   inset: 0;
@@ -7212,15 +7238,16 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   z-index: 999;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 860px) {
   .burger-btn {
     display: flex;
   }
 
   .side {
+    display: flex !important;
     position: fixed !important;
     top: 53px;
-    left: -240px; /* Hide sidebar */
+    left: -240px;
     width: 240px !important;
     height: calc(100vh - 53px);
     z-index: 1000;
@@ -7236,5 +7263,38 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   .main-content {
     margin-left: 0 !important;
     width: 100% !important;
+  }
+}
+
+/* ── ImageGen responsive columns ── */
+.imagegen-cols {
+  grid-template-columns: 1fr 1fr;
+}
+
+.imagegen-builder-2col {
+  grid-template-columns: 1fr 1fr;
+}
+
+.imagegen-photo-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media(max-width:700px) {
+  .imagegen-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .imagegen-builder-2col {
+    grid-template-columns: 1fr;
+  }
+
+  .imagegen-photo-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media(max-width:420px) {
+  .imagegen-photo-grid {
+    grid-template-columns: 1fr;
   }
 }

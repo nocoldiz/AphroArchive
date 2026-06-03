@@ -547,6 +547,7 @@ async function apiVaultUnlock(req, res) {
     resetVaultTimer();
     json(res, { ok: true });
     processHiddenFolder();
+    try { require('./feed-watcher-server').processPendingPrivateFeed(); } catch {}
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
@@ -1110,5 +1111,6 @@ module.exports = {
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
   apiVaultRestoreFile,
-  deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault
+  deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
+  shredFile: _shredFile,
 };

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { ensureQRCode } from '../../utils';
 
 declare var QRCode: any;
 
@@ -10,6 +11,7 @@ export const ConnectModal = ({ onClose }: Props) => {
   const [networkEnabled, setNetworkEnabled] = useState(false);
   const [remoteMode, setRemoteMode] = useState(false);
   const [localUrl, setLocalUrl] = useState('');
+  const [verify, setVerify] = useState<{ ok?: boolean; error?: string; checking?: boolean }>({});
   const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,24 +36,31 @@ export const ConnectModal = ({ onClose }: Props) => {
   }, []);
 
   useEffect(() => {
-    if (localUrl && qrRef.current && typeof QRCode !== 'undefined') {
-      qrRef.current.innerHTML = '';
-      new QRCode(qrRef.current, {
-        text: localUrl,
-        width: 160,
-        height: 160,
-        colorDark: '#000000',
-        colorLight: '#ffffff',
-        correctLevel: 2 // QRErrorCorrectLevel.M
-      });
-      // Add border radius to the generated canvas/img
-      const child = qrRef.current.querySelector('canvas, img');
-      if (child) {
-        (child as HTMLElement).style.borderRadius = '8px';
-        (child as HTMLElement).style.display = 'block';
-        (child as HTMLElement).style.margin = '0 auto';
+    (async () => {
+      if (!localUrl || !qrRef.current) return;
+      try {
+        await ensureQRCode();
+        if (typeof QRCode === 'undefined') return;
+        qrRef.current.innerHTML = '';
+        new QRCode(qrRef.current, {
+          text: localUrl,
+          width: 160,
+          height: 160,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: 2 // QRErrorCorrectLevel.M
+        });
+        // Add border radius to the generated canvas/img
+        const child = qrRef.current.querySelector('canvas, img');
+        if (child) {
+          (child as HTMLElement).style.borderRadius = '8px';
+          (child as HTMLElement).style.display = 'block';
+          (child as HTMLElement).style.margin = '0 auto';
+        }
+      } catch (e) {
+        console.warn('QR code generation failed:', e);
       }
-    }
+    })();
   }, [localUrl, networkEnabled]);
 
   const toggleNetworkAccess = async () => {
@@ -78,6 +87,39 @@ export const ConnectModal = ({ onClose }: Props) => {
     if (w.toast) w.toast(next ? 'Remote Mode enabled' : 'Remote Mode disabled');
   };
 
+  const doVerify = async (url: string) => {
+    if (!url) return;
+    setVerify({ checking: true });
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(url + '/api/ping', { signal: controller.signal });
+      clearTimeout(tid);
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data && data.ok) { setVerify({ ok: true }); return; }
+      }
+      if (res.status === 403) {
+        const txt = await res.text().catch(() => '');
+        const msg = txt.includes('Network access is disabled') ? 'Network access disabled' : 'Forbidden';
+        setVerify({ ok: false, error: msg }); return;
+      }
+      setVerify({ ok: false, error: 'HTTP ' + res.status });
+    } catch (e: any) {
+      const msg = e?.name === 'AbortError' ? 'Timeout' : 'Unreachable';
+      setVerify({ ok: false, error: msg });
+    }
+  };
+
+  // Auto-verify when localUrl updates
+  useEffect(() => {
+    if (localUrl && networkEnabled) {
+      doVerify(localUrl);
+    } else {
+      setVerify({});
+    }
+  }, [localUrl, networkEnabled]);
+
   return (
     <div class="collection-modal" id="connectModal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={(e: any) => e.target.id === 'connectModal' && onClose()}>
       <div class="collection-modal-box" style={{ textAlign: 'center', width: '360px', maxWidth: '95vw' }}>
@@ -97,7 +139,16 @@ export const ConnectModal = ({ onClose }: Props) => {
         {/* Body shown only when network is enabled */}
         {networkEnabled && (
           <div id="connectModalBody" style={{ marginTop: '16px' }}>
-            <p id="connectUrl" style={{ fontSize: '0.8rem', color: 'var(--tx2)', marginBottom: '16px', wordBreak: 'break-all' }}>{localUrl}</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '8px' }}>
+              <p id="connectUrl" style={{ fontSize: '0.75rem', color: 'var(--tx2)', wordBreak: 'break-all', margin: 0 }}>{localUrl}</p>
+              <button onClick={() => doVerify(localUrl)} title="Re-verify" style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', fontSize: '0.65rem', padding: '1px 4px', borderRadius: '3px', cursor: 'pointer' }}>↻</button>
+            </div>
+            {(() => {
+              if (verify.checking) return <div style={{ fontSize: '0.7rem', color: 'var(--tx3)', marginBottom: '8px' }}>Verifying…</div>;
+              if (verify.ok) return <div style={{ fontSize: '0.7rem', color: '#4ade80', marginBottom: '8px' }}>✓ Remote URL verified</div>;
+              if (verify.error) return <div style={{ fontSize: '0.7rem', color: '#f87171', marginBottom: '8px' }}>✗ {verify.error}</div>;
+              return null;
+            })()}
             <div ref={qrRef} style={{ display: 'inline-block', background: '#fff', padding: '8px', borderRadius: '12px', marginBottom: '16px' }} />
             
             <div class="rm-row" onClick={toggleRemoteMode} style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}>

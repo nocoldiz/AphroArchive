@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  db.js — All load/save functions for persistent data
 // ═══════════════════════════════════════════════════════════════════
@@ -14,9 +14,9 @@ const {
   HIDDEN_FILE,
   WEBSITES_JSON,
   ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON,
-  BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE,
+  BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
   BOOKS_META_FILE, AUDIO_META_FILE,
-  BM_DIR,
+  LINK_DIR,
 } = require('./config-server');
 
 const Database = require('better-sqlite3');
@@ -95,14 +95,20 @@ function ensureSchema(database) {
       imdb_page TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS bookmarks (
+    CREATE TABLE IF NOT EXISTS links (
       url TEXT PRIMARY KEY,
       title TEXT,
       category TEXT,
       img TEXT,
       scraped_video_url TEXT,
+      has_video INTEGER DEFAULT 0,
       embed_url TEXT,
-      added_at INTEGER
+      has_embed INTEGER DEFAULT 0,
+      added_at INTEGER,
+      tags TEXT,
+      downloaded INTEGER DEFAULT 0,
+      local_video_id TEXT,
+      fav INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS og_thumbs (
@@ -197,6 +203,13 @@ function ensureSchema(database) {
       FOREIGN KEY (website_name) REFERENCES websites(name) ON DELETE CASCADE
     );
   `);
+  // Migrations for columns added after initial schema
+  try { database.exec('ALTER TABLE links ADD COLUMN tags TEXT'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN downloaded INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN local_video_id TEXT'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN has_video INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN has_embed INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN fav INTEGER DEFAULT 0'); } catch {}
 }
 
 function switchProfile(profileName) {
@@ -344,19 +357,19 @@ function _migrateJsonToSqlite() {
     }
   } catch (e) { console.error('[migrate] actors:', e.message); }
 
-  // Bookmarks cache
+  // Links cache
   try {
-    const bmCount = db.prepare('SELECT COUNT(*) as c FROM bookmarks').get().c;
+    const bmCount = db.prepare('SELECT COUNT(*) as c FROM links').get().c;
     if (bmCount === 0 && fs.existsSync(BM_CACHE_FILE)) {
       const data = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
       const items = Array.isArray(data.items) ? data.items : [];
       db.transaction(() => {
-        const ins = db.prepare('INSERT OR IGNORE INTO bookmarks (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        const ins = db.prepare('INSERT OR IGNORE INTO links (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
         for (const it of items) ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null, it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now());
       })();
-      console.log(`[migrate] bookmarks_cache.json → bookmarks table (${items.length} items)`);
+      console.log(`[migrate] links_cache.json → links table (${items.length} items)`);
     }
-  } catch (e) { console.error('[migrate] bookmarks:', e.message); }
+  } catch (e) { console.error('[migrate] links:', e.message); }
 
   // OG thumb cache
   try {
@@ -560,6 +573,47 @@ function savePrefs(p) {
   } catch (e) {
     console.error('Failed to save prefs to SQLite:', e);
   }
+}
+
+function getDefaultWriteRoot() {
+  try {
+    const prefs = loadPrefs();
+    const candidate = (prefs.defaultRoot || prefs.defaultPath || prefs.defaultWriteRoot || '').toString().trim();
+    if (candidate) {
+      return path.resolve(candidate);
+    }
+  } catch (e) {
+    console.error('getDefaultWriteRoot error:', e.message);
+  }
+  const { VIDEOS_DIR } = require('./config-server');
+  return VIDEOS_DIR;
+}
+
+function resolveCategoryPhysicalPath(catPath) {
+  const writeRoot = getDefaultWriteRoot();
+  const roots = [writeRoot];
+  const writeRes = path.resolve(writeRoot);
+  const vRes = path.resolve( require('./config-server').VIDEOS_DIR );
+  if (writeRes !== vRes) roots.push( require('./config-server').VIDEOS_DIR );
+
+  try {
+    const p = loadPrefs();
+    for (const sf of (p.sourceFolders || [])) {
+      if (!sf) continue;
+      const r = path.resolve(sf);
+      if (fs.existsSync(sf) && !roots.some(rr => path.resolve(rr) === r)) {
+        roots.push(sf);
+      }
+    }
+  } catch (e) {}
+
+  if (!catPath) return writeRoot;
+  const rel = String(catPath).replace(/\\/g, '/');
+  for (const root of roots) {
+    const cand = path.join(root, rel);
+    if (fs.existsSync(cand)) return cand;
+  }
+  return path.join(writeRoot, rel);
 }
 
 // ── Ratings (legacy, now merged into video meta) ─────────────────────
@@ -897,39 +951,96 @@ function saveOgThumbCache(map) {
   } catch (e) { console.error('Failed to save OG thumb cache:', e); }
 }
 
-// ── Bookmarks cache ──────────────────────────────────────────────────
+// ── Links cache ──────────────────────────────────────────────────
 
-function loadBookmarksCache() {
+function _rowToLink(r) {
+  return {
+    url: r.url,
+    title: r.title,
+    category: r.category,
+    img: r.img,
+    scrapedVideoUrl: r.scraped_video_url,
+    hasVideo: !!r.has_video,
+    embedUrl: r.embed_url,
+    hasEmbed: !!r.has_embed,
+    addedAt: r.added_at,
+    tags: r.tags ? JSON.parse(r.tags) : [],
+    downloaded: !!r.downloaded,
+    localVideoId: r.local_video_id || null,
+    fav: !!r.fav,
+  };
+}
+
+function _linkParams(it) {
+  return [
+    it.url,
+    it.title ?? null,
+    it.category ?? null,
+    it.img ?? null,
+    it.scrapedVideoUrl ?? null,
+    it.hasVideo ? 1 : 0,
+    it.embedUrl ?? null,
+    it.hasEmbed ? 1 : 0,
+    it.addedAt ?? Date.now(),
+    Array.isArray(it.tags) && it.tags.length ? JSON.stringify(it.tags) : null,
+    it.downloaded ? 1 : 0,
+    it.localVideoId ?? null,
+    it.fav ? 1 : 0,
+  ];
+}
+
+const _LINK_COLS = 'url, title, category, img, scraped_video_url, has_video, embed_url, has_embed, added_at, tags, downloaded, local_video_id, fav';
+const _LINK_PLACEHOLDERS = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+
+function loadLinksCache() {
   try {
-    const rows = db.prepare('SELECT url, title, category, img, scraped_video_url, embed_url, added_at FROM bookmarks').all();
-    const items = rows.map(r => ({
-      url: r.url,
-      title: r.title,
-      category: r.category,
-      img: r.img,
-      scrapedVideoUrl: r.scraped_video_url,
-      embedUrl: r.embed_url,
-      addedAt: r.added_at,
-    }));
-    return { items };
+    const rows = db.prepare(`SELECT ${_LINK_COLS} FROM links`).all();
+    return { items: rows.map(_rowToLink) };
   } catch (e) {
-    console.error('Failed to load bookmarks cache from SQLite:', e);
+    console.error('Failed to load links cache from SQLite:', e);
     return { items: [] };
   }
 }
 
-function saveBookmarksCache(data) {
-  const items = (data && Array.isArray(data.items)) ? data.items : [];
+// Upsert a single link into the current user's DB.
+function upsertLink(it) {
+  if (!it || !it.url) return;
+  try {
+    db.prepare(`INSERT OR REPLACE INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`).run(_linkParams(it));
+  } catch (e) { console.error('Failed to upsert link:', e); }
+}
+
+// Delete a single link by URL from the current user's DB.
+function deleteLink(url) {
+  if (!url) return;
+  try {
+    db.prepare('DELETE FROM links WHERE url = ?').run(url);
+  } catch (e) { console.error('Failed to delete link:', e); }
+}
+
+// Bulk replace — only use for full imports (JSON import, browser favs import).
+// For scraping or individual edits, prefer upsertLink.
+function saveLinksCache(data) {
+  const raw = (data && Array.isArray(data.items)) ? data.items : [];
+  const seenUrls = new Set();
+  const seenNames = new Set();
+  const items = [];
+  for (const it of raw) {
+    if (!it || !it.url) continue;
+    const u = it.url;
+    const nm = (it.title || '').trim().toLowerCase();
+    if (seenUrls.has(u) || (nm && seenNames.has(nm))) continue;
+    seenUrls.add(u);
+    if (nm) seenNames.add(nm);
+    items.push(it);
+  }
   try {
     db.transaction(() => {
-      db.prepare('DELETE FROM bookmarks').run();
-      const ins = db.prepare('INSERT INTO bookmarks (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      for (const it of items) {
-        ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null,
-          it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now());
-      }
+      db.prepare('DELETE FROM links').run();
+      const ins = db.prepare(`INSERT INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`);
+      for (const it of items) ins.run(_linkParams(it));
     })();
-  } catch (e) { console.error('Failed to save bookmarks cache to SQLite:', e); }
+  } catch (e) { console.error('Failed to save links cache to SQLite:', e); }
 }
 
 // ── Books meta ───────────────────────────────────────────────────────
@@ -1317,15 +1428,30 @@ function clearVideoIndex() {
   }
 }
 
-function saveBookmarksToDb(items) {
+function loadAllVideoTags() {
+  try {
+    return db.prepare('SELECT DISTINCT tag FROM video_tags ORDER BY tag').all().map(r => r.tag);
+  } catch { return []; }
+}
+
+function saveLinksToDb(items) {
   const cats = loadCategories();
   const { wordMatchAny } = require('./helpers-server');
   
   try {
+    const seenUrls = new Set();
+    const seenNames = new Set();
+    let inserted = 0;
     db.transaction(() => {
       const insertVideo = db.prepare('INSERT OR IGNORE INTO videos (id, title, category) VALUES (?, ?, ?)');
       for (const item of items) {
-        const id = Buffer.from(item.url).toString('base64url');
+        if (!item || !item.url) continue;
+        const u = item.url;
+        const nm = (item.title || '').trim().toLowerCase();
+        if (seenUrls.has(u) || (nm && seenNames.has(nm))) continue;
+        seenUrls.add(u);
+        if (nm) seenNames.add(nm);
+        const id = Buffer.from(u).toString('base64url');
         let category = 'Uncategorized';
         for (const cat of cats) {
           if (wordMatchAny(item.title, cat.terms)) {
@@ -1334,11 +1460,12 @@ function saveBookmarksToDb(items) {
           }
         }
         insertVideo.run(id, item.title, category);
+        inserted++;
       }
     })();
-    return { ok: true, count: items.length };
+    return { ok: true, count: inserted };
   } catch (e) {
-    console.error('Failed to save bookmarks to SQLite:', e);
+    console.error('Failed to save links to SQLite:', e);
     return { error: e.message };
   }
 }
@@ -1346,7 +1473,7 @@ function saveBookmarksToDb(items) {
 module.exports = {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
-  loadPrefs, savePrefs,
+  loadPrefs, savePrefs, getDefaultWriteRoot, resolveCategoryPhysicalPath,
   loadRatings, saveRatings,
   loadVideoMeta, saveVideoMeta, setVideoMetaFields,
   loadThumbsCache, saveThumbsCache, setThumbCacheEntry,
@@ -1356,7 +1483,7 @@ module.exports = {
   loadWebsites, saveWebsites,
   loadStarredSites, saveStarredSites,
   loadOgThumbCache, saveOgThumbCache,
-  loadBookmarksCache, saveBookmarksCache,
+  loadLinksCache, saveLinksCache, upsertLink, deleteLink,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
   loadActors, saveActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,
@@ -1368,5 +1495,5 @@ module.exports = {
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   switchProfile, getCurrentProfile: () => currentProfile,
   closeDb: () => { if (db) { db.close(); db = null; } },
-  saveBookmarksToDb
+  saveLinksToDb, loadAllVideoTags,
 };

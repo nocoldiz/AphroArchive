@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'preact/hooks';
+﻿import { useState, useEffect, useMemo } from 'preact/hooks';
 import { currentVideo, currentView, allVideos, appPrefs, tagModalState, actorModalState, showAddToCollectionModal, isMuted } from '../../store';
 import './RedditView.css';
 
@@ -350,7 +350,7 @@ export const RedditView = () => {
                                 <button onClick={(e) => { e.stopPropagation(); currentVideo.value = v; showAddToCollectionModal.value = true; }} title="Add to Playlist">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); tagModalState.value = { visible: true, vidId: v.id, bmUrl: null }; }} title="Tags">
+                                <button onClick={(e) => { e.stopPropagation(); tagModalState.value = { visible: true, vidId: v.id, linkUrl: null }; }} title="Tags">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); actorModalState.value = { visible: true, vidId: v.id }; }} title="Actors">
@@ -401,7 +401,7 @@ export const RedditView = () => {
                 </div>
               ))}
               
-              <div style={{ color: '#818384', fontSize: '0.8rem', padding: '8px', textTransform: 'uppercase', fontWeight: 'bold', marginTop: '10px' }}>Categories</div>
+              <div style={{ color: '#818384', fontSize: '0.8rem', padding: '8px', textTransform: 'uppercase', fontWeight: 'bold', marginTop: '10px' }}>Folders</div>
               {vids.map(v => v.category).filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 10).map(cat => (
                 <div 
                   key={cat} 

@@ -1,4 +1,4 @@
-# App-wise Improvements for AphroArchive
+﻿# App-wise Improvements for AphroArchive
 
 This document outlines potential improvements for the AphroArchive application, covering architecture, frontend migration, code quality, and feature enhancements.
 
@@ -8,7 +8,7 @@ This document outlines potential improvements for the AphroArchive application, 
   - Studio Modal
   - Tag Modal
   - Vault Zip Modal
-  - Bookmark Iframe Modal
+  - Link Iframe Modal
 - **Remove Standalone HTML Pages**: Once `InstagramView.tsx` and `RedditView.tsx` are fully featured and stable, remove `instagram.html` and `reddit.html` to clean up the project root.
 - **Migrate Zapping and Mosaic Modes**: These modes still rely on DOM manipulation of elements in `index.html`. They should be fully integrated into Preact state and components.
 - **Eliminate Global Window Bindings**: Many Preact components still call functions attached to `window` (e.g., `window.playVideo`). These should be replaced with direct imports or state signals.

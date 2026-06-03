@@ -52,6 +52,13 @@ function createWindow () {
   win.on('closed', () => {
     if (serverProcess) serverProcess.kill();
   });
+
+  // When server exits (e.g. via panic button), close the app
+  if (serverProcess) {
+    serverProcess.on('exit', () => {
+      app.quit();
+    });
+  }
 }
 
 app.whenReady().then(createWindow);

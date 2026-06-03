@@ -1,4 +1,4 @@
-import { currentView, currentVideo } from '../../store';
+﻿import { currentView, currentVideo } from '../../store';
 import { VideoGrid } from './VideoGrid';
 import { SettingsView } from '../sections/SettingsView';
 import { ThumbnailsView } from '../sections/ThumbnailsView';
@@ -8,7 +8,7 @@ import { CategoriesView } from '../sections/CategoriesView';
 import { ActorsView } from '../sections/ActorsView';
 import { StudiosView } from '../sections/StudiosView';
 import { PhotosView } from '../sections/PhotosView';
-import { BookmarksView } from '../sections/BookmarksView';
+import { LinksView } from '../sections/LinksView';
 import { VisionModal } from '../modals/VisionModal';
 import { PagesView } from '../sections/PagesView';
 import { SearchSitesView } from '../sections/SearchSitesView';
@@ -20,7 +20,7 @@ import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
 import { StudioModal } from '../modals/StudioModal';
 import { VaultZipModal } from '../modals/VaultZipModal';
-import { BookmarkIframeModal } from '../modals/BookmarkIframeModal';
+import { LinkIframeModal } from '../modals/LinkIframeModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
@@ -28,11 +28,15 @@ import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
 import { PlayerView } from '../sections/PlayerView';
 import { MosaicView } from '../sections/MosaicView';
-import { PromptsView } from '../sections/PromptsView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
+import { DownloadQueueView } from '../sections/DownloadQueueView';
 import { ActorScraperView } from '../sections/ActorScraperView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
+import { ImportModal } from '../modals/ImportModal';
+import { ImageGenView } from '../sections/ImageGenView';
+import { AssistantView } from '../sections/AssistantView';
+import { CategorizerView } from '../sections/CategorizerView';
 import { useEffect } from 'preact/hooks';
 
 export const MainContent = () => {
@@ -93,7 +97,8 @@ export const MainContent = () => {
     if (view === 'actors') return <ActorsView />;
     if (view === 'studios') return <StudiosView />;
     if (view === 'photos') return <PhotosView />;
-    if (view === 'bookmarks') return <BookmarksView />;
+    if (view === 'links') return <LinksView />;
+    if (view === 'download-queue') return <DownloadQueueView />;
     if (view === 'collections') return <CollectionsView />;
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;
@@ -104,9 +109,12 @@ export const MainContent = () => {
     if (view === 'audio') return <AudioView />;
     if (view === 'books') return <BooksView />;
     if (view === 'vault') return <VaultView />;
-    if (view === 'prompts') return <PromptsView />;
+    if (view === 'prompts') return <AssistantView />;
     if (view === 'player') return <PlayerView />;
-    if (view === 'mosaic') return <MosaicView />;
+    if (view === 'mosaic')   return <MosaicView />;
+    if (view === 'imagegen') return <ImageGenView />;
+    if (view === 'assistant') return <AssistantView />;
+    if (view === 'categorizer') return <CategorizerView />;
     return <BrowseView />;
   };
 
@@ -118,11 +126,12 @@ export const MainContent = () => {
       <ActorModal />
       <StudioModal />
       <VaultZipModal />
-      <BookmarkIframeModal />
+      <LinkIframeModal />
       <RenameModal />
       <MoveModal />
       <VisionModal />
       <VaultUnlockModal />
+      <ImportModal />
     </>
   );
 };

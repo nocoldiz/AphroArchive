@@ -1,6 +1,7 @@
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
-import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen } from '../../store';
+import { SyncManager } from './SyncManager';
+import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState } from '../../store';
 import { useEffect } from 'preact/hooks';
 
 export const Topbar = () => {
@@ -17,7 +18,7 @@ export const Topbar = () => {
   };
 
   const openImport = () => {
-    if ((window as any).openImport) (window as any).openImport();
+    importModalState.value = { visible: true };
   };
 
   const toggleDual = () => {
@@ -36,12 +37,6 @@ export const Topbar = () => {
     if ((window as any).togglePan) (window as any).togglePan();
   };
 
-  const handleGlobalFiles = (files: FileList | null) => {
-    if (files && (window as any).handleGlobalFiles) {
-      (window as any).handleGlobalFiles(files);
-    }
-  };
-
   return (
     <div className="topbar">
       <button className="burger-btn" onClick={() => isSidebarOpen.value = !isSidebarOpen.value} title="Toggle Sidebar">
@@ -56,7 +51,7 @@ export const Topbar = () => {
           <rect width="28" height="28" rx="6" fill="#e84040" />
           <polygon points="11,7 11,21 22,14" fill="#fff" />
         </svg>
-        AphroArchive
+        <span className="logo-text">AphroArchive</span>
       </div>
       
       <div className="search-w">
@@ -82,8 +77,9 @@ export const Topbar = () => {
           </svg>
         </button>
 
+        <SyncManager />
         <DownloadManager />
-        
+
         <button id="dualBtn" onClick={toggleDual} title="Dual mode">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="2" y="3" width="9" height="18" rx="1" />
@@ -123,6 +119,14 @@ export const Topbar = () => {
           </svg>
         </button>
 
+        <button id="dlQueueBtn" onClick={() => currentView.value = 'download-queue'} title="Download Queue" class={view === 'download-queue' ? 'on' : ''}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
+
         <button id="rdBtn" onClick={() => currentView.value = 'reddit'} title="Reddit mode">
           <svg width="15" height="15" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="12" fill="#ff4500" />
@@ -130,6 +134,12 @@ export const Topbar = () => {
             <circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500" />
             <circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500" />
             <path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" strokeWidth="1" strokeLinecap="round" fill="none" />
+          </svg>
+        </button>
+
+        <button id="assistantBtn" onClick={() => currentView.value = 'assistant'} title="Assistant" class={view === 'assistant' ? 'on' : ''}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </button>
 
@@ -149,15 +159,6 @@ export const Topbar = () => {
           )}
         </button>
 
-        <input
-          type="file"
-          id="globalFileIn"
-          multiple
-          title="Import files"
-          accept="video/*,audio/*,.pdf,.txt,.doc,.docx,.md,.epub,.mp3,.flac,.wav,.ogg,.aac,.m4a,.wma,.opus,.aiff"
-          style={{ display: 'none' }}
-          onChange={(e) => handleGlobalFiles((e.target as HTMLInputElement).files)}
-        />
       </div>
     </div>
   );

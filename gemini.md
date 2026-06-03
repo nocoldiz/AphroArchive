@@ -1,4 +1,4 @@
-# GEMINI.md
+﻿# GEMINI.md
 
 This file provides guidance to Gemini when working with code in this repository.
 
@@ -42,7 +42,7 @@ Module responsibilities:
 - `server/db.js` — All load/save functions for every JSON data file. Single source of truth for persistence. All state lives in flat JSON files under `cache/`.
 - `server/helpers.js` — Shared utilities: `json(res, data)`, `serveStatic`, `toId`/`fromId` (base64url file ID encoding), `readBody`, word-matching helpers.
 - `server/videos.js` — Video file scanning (recursive, skips `hidden/` and `Z/` dirs), all video API handlers, category derivation from folder structure.
-- Feature modules: `actors.js`, `vault.js`, `thumbnails.js`, `collections.js`, `downloads.js`, `bookmarks.js`, `books.js`, `audio.js`, `database.js`, `remote.js`, `settings.js`.
+- Feature modules: `actors.js`, `vault.js`, `thumbnails.js`, `collections.js`, `downloads.js`, `links.js`, `books.js`, `audio.js`, `database.js`, `remote.js`, `settings.js`.
 
 **Data storage**: All persistent data is in flat JSON files under `cache/` (runtime state) and `db/` (curated reference data — actors, categories, studios, websites). The `db/` directory is checked into git; `cache/` is not.
 

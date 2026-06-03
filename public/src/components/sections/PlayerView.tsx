@@ -1,4 +1,4 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchBookmarkCat } from '../../store';
+﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat } from '../../store';
 import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
@@ -39,16 +39,16 @@ export const PlayerView = () => {
             setIsDownloading(false);
             
             let targetCat = video.category || '';
-            if (video.isBookmark && (targetCat === 'Bookmarks' || targetCat === 'Uncategorized' || !targetCat)) {
-              const match = matchBookmarkCat(video.name, categories.value);
-              if (match && match.catPath !== 'Bookmarks') {
+            if (video.isLink && (targetCat === 'Links' || targetCat === 'Uncategorized' || !targetCat)) {
+              const match = matchLinkCat(video.name, categories.value);
+              if (match && match.catPath !== 'Links') {
                 targetCat = match.catPath;
               } else {
                 targetCat = '';
               }
             }
             const cleanCat = targetCat.trim();
-            const isVirtual = cleanCat.toLowerCase() === 'bookmarks' || cleanCat.toLowerCase() === 'uncategorized';
+            const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
             const physicalCat = isVirtual ? '' : cleanCat;
             const relPath = physicalCat ? `${physicalCat}/${job.title}.mp4` : `${job.title}.mp4`;
             const base64 = btoa(unescape(encodeURIComponent(relPath)));
@@ -57,7 +57,7 @@ export const PlayerView = () => {
             currentVideo.value = {
               ...video,
               id: newId,
-              isBookmark: false,
+              isLink: false,
               path: relPath,
               category: physicalCat || 'Uncategorized'
             };
@@ -78,13 +78,13 @@ export const PlayerView = () => {
 
   const startDownload = async () => {
     if (!video) return;
-    const downloadUrl = video.isBookmark ? video.bookmarkUrl : video.path;
+    const downloadUrl = video.isLink ? video.linkUrl : video.path;
     if (!downloadUrl) return;
 
     let targetCat = video.category || '';
-    if (video.isBookmark && (targetCat === 'Bookmarks' || targetCat === 'Uncategorized' || !targetCat)) {
-      const match = matchBookmarkCat(video.name, categories.value);
-      if (match && match.catPath !== 'Bookmarks') {
+    if (video.isLink && (targetCat === 'Links' || targetCat === 'Uncategorized' || !targetCat)) {
+      const match = matchLinkCat(video.name, categories.value);
+      if (match && match.catPath !== 'Links') {
         targetCat = match.catPath;
       } else {
         targetCat = '';
@@ -151,22 +151,18 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (!video || video.isVault) return;
-    fetch(`/api/videos/${video.id}`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(d => {
-        setActors(d.actors || []);
-        setTags(d.tags || []);
-        setStudio(d.studio || '');
-        setRating(d.video?.rating ?? null);
-        setChapters(d.video?.chapters || []);
-        setSuggested(d.suggested || []);
-      })
-      .catch(() => {});
-
-    fetch(`/api/subtitles/${video.id}`)
-      .then(r => r.json())
-      .then(tracks => setSubtitles(tracks))
-      .catch(() => { });
+    Promise.all([
+      fetch(`/api/videos/${video.id}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+      fetch(`/api/subtitles/${video.id}`).then(r => r.json()).catch(() => [])
+    ]).then(([d, tracks]) => {
+      setActors(d.actors || []);
+      setTags(d.tags || []);
+      setStudio(d.studio || '');
+      setRating(d.video?.rating ?? null);
+      setChapters(d.video?.chapters || []);
+      setSuggested(d.suggested || []);
+      setSubtitles(tracks);
+    }).catch(() => {});
   }, [video]);
 
   const relatedVideos = useMemo(() => {
@@ -271,15 +267,15 @@ export const PlayerView = () => {
       <div className="pv-layout">
         <div className="pv-main">
           <div className="video-player-wrap">
-            {video.isBookmark && !(video.path && /\.(mp4|webm|ogg|m3u8|mkv|avi|mov)(\?.*)?$/i.test(video.path)) ? (
+          {video.isLink ? (
               <div className="bm-fallback" style={{ background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9', gap: '16px' }}>
                 {video.img && (
-                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '100%', maxHeight: '70%', display: 'flex', justifyContent: 'center' }}>
+                  <a href={video.linkUrl} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '100%', maxHeight: '70%', display: 'flex', justifyContent: 'center' }}>
                     <img src={video.img} alt={video.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' }} />
                   </a>
                 )}
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: '1rem', padding: '10px 20px' }}>
+                  <a href={video.linkUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: '1rem', padding: '10px 20px' }}>
                     Open in browser ↗
                   </a>
                   <button onClick={() => startDownload()} className="btn" style={{ fontSize: '1rem', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -292,9 +288,26 @@ export const PlayerView = () => {
                   </button>
                 </div>
               </div>
+            ) : video.isVault ? (
+              <AdvancedPlayer
+                key={video.id}
+                src={`/api/vault/stream/${video.id}`}
+                videoId={video.id}
+                subtitles={subtitles}
+                chapters={chapters}
+                videoRef={videoRef}
+                isMuted={isMuted.value}
+                onNext={() => {
+                  if (playerNextUp.value.length > 0) {
+                    currentVideo.value = playerNextUp.value[0];
+                  }
+                }}
+                onPrev={() => {}}
+              />
             ) : (
               <AdvancedPlayer
-                src={video.isBookmark ? video.path : (video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`)}
+                key={video.id}
+                src={`/api/stream/${video.id}`}
                 videoId={video.id}
                 subtitles={subtitles}
                 chapters={chapters}
@@ -418,10 +431,25 @@ export const PlayerView = () => {
                 </svg>
                 <span>Delete</span>
               </button>
+
+              {!video.isLink && !video.isVault && (
+                <button onClick={async () => {
+                  const r = await fetch('/api/videos/open-folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: video.id })
+                  });
+                }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span>Open Folder</span>
+                </button>
+              )}
               
-              {video.isBookmark && (
+              {video.isLink && (
                 <>
-                  <a href={video.bookmarkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--tx)', textDecoration: 'none' }}>
+                  <a href={video.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--tx)', textDecoration: 'none' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                       <polyline points="15 3 21 3 21 9"></polyline>

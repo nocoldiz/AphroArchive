@@ -51,7 +51,7 @@ export const CategoriesView = () => {
   return (
     <div id="categories-view" class="categories-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>Categories & Tags</h1>
+        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>Folders & Tags</h1>
         <SectionControls
           showStarred={false}
           showShuffle={false}
@@ -73,7 +73,7 @@ export const CategoriesView = () => {
       {loading ? (
         <div class="cv-loading">Loading…</div>
       ) : sortedData.length === 0 ? (
-        <div id="cvEmpty" class="empty-state">No categories or tags found</div>
+        <div id="cvEmpty" class="empty-state">No folders or tags found</div>
       ) : (
         <div class="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
           {sortedData.map(item => {

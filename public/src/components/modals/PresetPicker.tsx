@@ -114,7 +114,7 @@ export const PresetPicker = () => {
                 <div className="preset-card-name" style={{ fontWeight: '500', color: 'var(--tx)' }}>{p.name}</div>
                 {p.description && <div className="preset-card-desc" style={{ fontSize: '0.75rem', color: 'var(--tx2)', marginTop: '2px' }}>{p.description}</div>}
                 <div className="preset-card-counts" style={{ fontSize: '0.7rem', color: 'var(--tx3)', marginTop: '4px', display: 'flex', gap: '8px' }}>
-                  {p.counts.categories && <span>{p.counts.categories} categories</span>}
+                  {p.counts.categories && <span>{p.counts.categories} folders</span>}
                   {p.counts.actors && <span>{p.counts.actors} actors</span>}
                   {p.counts.studios && <span>{p.counts.studios} studios</span>}
                   {p.counts.websites && <span>{p.counts.websites} websites</span>}

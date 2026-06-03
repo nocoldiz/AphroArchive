@@ -6,7 +6,7 @@
 const fs   = require('fs');
 const { VIDEOS_DIR } = require('./config-server');
 const { json, readBody }  = require('./helpers-server');
-const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios } = require('./db-server');
+const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios, loadVaultConfig } = require('./db-server');
 
 function apiSettingsLists(req, res) {
   json(res, {
@@ -31,6 +31,7 @@ function apiGetPrefs(req, res) {
   const missingSourceFolders = (prefs.sourceFolders || []).filter(f => !fs.existsSync(f));
   json(res, {
     ...prefs,
+    videosDir: VIDEOS_DIR,
     videosDirExists,
     missingSourceFolders
   });
@@ -55,6 +56,8 @@ async function apiSavePrefs(req, res) {
   if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   if ('vaultSelfDestruct' in body) prefs.vaultSelfDestruct = !!body.vaultSelfDestruct;
   if ('anthropicApiKey' in body) prefs.anthropicApiKey = String(body.anthropicApiKey || '').trim();
+  if ('openrouterApiKey' in body) prefs.openrouterApiKey = String(body.openrouterApiKey || '').trim();
+  if ('openrouterModel' in body) prefs.openrouterModel = String(body.openrouterModel || '').trim();
   if ('visionProvider' in body) prefs.visionProvider = body.visionProvider === 'claude' ? 'claude' : 'ollama';
   if ('ollamaUrl' in body) prefs.ollamaUrl = String(body.ollamaUrl || '').trim();
   if ('ollamaVisionModel' in body) prefs.ollamaVisionModel = String(body.ollamaVisionModel || '').trim();
@@ -70,8 +73,59 @@ async function apiSavePrefs(req, res) {
       } catch (e) {}
     }
   }
+  if ('defaultRoot' in body || 'defaultPath' in body || 'defaultWriteRoot' in body) {
+    const val = body.defaultRoot ?? body.defaultPath ?? body.defaultWriteRoot ?? '';
+    prefs.defaultRoot = val ? String(val).trim() : '';
+  }
+  let feedFoldersChanged = false;
+  if ('feedFolders' in body) {
+    if (Array.isArray(body.feedFolders)) {
+      prefs.feedFolders = body.feedFolders.map(p => String(p).trim()).filter(Boolean);
+      feedFoldersChanged = true;
+    }
+  }
+  if ('privateFeedFolders' in body) {
+    if (Array.isArray(body.privateFeedFolders)) {
+      prefs.privateFeedFolders = body.privateFeedFolders.map(p => String(p).trim()).filter(Boolean);
+      feedFoldersChanged = true;
+    }
+  }
+  // New assistant prefs (nsfw switch, jailbreak/system prompt mode, story genre) for AssistantView.tsx
+  if ('assistantNsfw' in body) prefs.assistantNsfw = !!body.assistantNsfw;
+  if ('assistantSystemMode' in body) prefs.assistantSystemMode = String(body.assistantSystemMode || 'default');
+  if ('assistantStoryGenre' in body) prefs.assistantStoryGenre = String(body.assistantStoryGenre || 'Any');
+  if ('llamaModelUri' in body) prefs.llamaModelUri = String(body.llamaModelUri || '').trim();
+  if ('comfyuiPath' in body) {
+    prefs.comfyuiPath = String(body.comfyuiPath || '').trim();
+    try {
+      const imagegen = require('./imagegen-server');
+      imagegen.applyComfyuiPath(prefs.comfyuiPath);
+    } catch {}
+  }
   savePrefs(prefs);
+  if (feedFoldersChanged) {
+    try {
+      const fw = require('./feed-watcher-server');
+      fw.stopWatchers();
+      fw.startWatchers(loadPrefs());
+    } catch (e) {}
+  }
   json(res, { ok: true });
+}
+
+async function apiVerifyVaultPassword(req, res) {
+  const cfg = loadVaultConfig();
+  if (!cfg) return json(res, { ok: false, error: 'Vault not configured' });
+  const body = await readBody(req);
+  const pw = (body.password || '').trim();
+  if (!pw) return json(res, { ok: false });
+  try {
+    const { deriveKeys } = require('./vault-server');
+    const { verifyHash } = await deriveKeys(pw, cfg.salt);
+    json(res, { ok: verifyHash === cfg.verifyHash });
+  } catch (e) {
+    json(res, { ok: false, error: e.message });
+  }
 }
 
 function apiBrowseFolders(req, res, params) {
@@ -137,4 +191,4 @@ function apiBrowseFoldersNative(req, res) {
   });
 }
 
-module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative };
+module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative, apiVerifyVaultPassword };

@@ -36,7 +36,12 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   const [hoverX, setHoverX] = useState(0);
   const [buffered, setBuffered] = useState<{ start: number; end: number }[]>([]);
   const [localZap, setLocalZap] = useState(false);
+  const [loading, setLoading] = useState(false);
   const controlsTimeoutRef = useRef<any>(null);
+  const onNextRef = useRef(onNext);
+  const onPrevRef = useRef(onPrev);
+  useEffect(() => { onNextRef.current = onNext; });
+  useEffect(() => { onPrevRef.current = onPrev; });
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -51,7 +56,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       setMuted(vid.muted);
     };
     const onEnded = () => {
-      if (onNext) onNext();
+      if (onNextRef.current) onNextRef.current();
     };
     const onProgress = () => {
       const buf = vid.buffered;
@@ -61,6 +66,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       }
       setBuffered(ranges);
     };
+    const onWaiting = () => setLoading(true);
+    const onCanPlay = () => setLoading(false);
 
     vid.addEventListener('play', onPlay);
     vid.addEventListener('pause', onPause);
@@ -69,6 +76,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     vid.addEventListener('volumechange', onVolumeChange);
     vid.addEventListener('ended', onEnded);
     vid.addEventListener('progress', onProgress);
+    vid.addEventListener('waiting', onWaiting);
+    vid.addEventListener('canplay', onCanPlay);
 
     return () => {
       vid.removeEventListener('play', onPlay);
@@ -78,8 +87,10 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       vid.removeEventListener('volumechange', onVolumeChange);
       vid.removeEventListener('ended', onEnded);
       vid.removeEventListener('progress', onProgress);
+      vid.removeEventListener('waiting', onWaiting);
+      vid.removeEventListener('canplay', onCanPlay);
     };
-  }, [onNext]);
+  }, []);
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -160,23 +171,23 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
           toggleFullscreen();
           break;
         case 'n': case 'N':
-          if (onNext) onNext();
+          if (onNextRef.current) onNextRef.current();
           break;
         case 'p': case 'P':
-          if (onPrev) onPrev();
+          if (onPrevRef.current) onPrevRef.current();
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [muted, onNext, onPrev]);
+  }, [muted]);
 
   const togglePlay = () => {
     const vid = videoRef.current;
     if (!vid) return;
     if (vid.paused) {
-      vid.play();
+      vid.play().catch(() => {});
     } else {
       vid.pause();
     }
@@ -188,6 +199,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
     const pct = x / rect.width;
+    if (!isFinite(vid.duration)) return;
     vid.currentTime = pct * vid.duration;
   };
 
@@ -248,6 +260,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       <video
         ref={videoRef}
         src={src}
+        preload="auto"
         style={{ width: '100%', maxHeight: '80vh', display: 'block' }}
         onClick={togglePlay}
         autoPlay
@@ -262,6 +275,36 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
           />
         ))}
       </video>
+
+      {/* Loading Spinner */}
+      {loading && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(0,0,0,0.3)',
+          zIndex: 5
+        }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            border: '3px solid rgba(255,255,255,0.2)',
+            borderTop: '3px solid #fff',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }} />
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
 
       {/* Controls Overlay */}
       <div style={{

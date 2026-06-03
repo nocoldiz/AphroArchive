@@ -1,5 +1,5 @@
-import { signal } from '@preact/signals';
-import { allVideos, categories, currentCategory, bookmarkVidIds, currentView, playerNextUp, filteredVideos } from './store';
+﻿import { signal } from '@preact/signals';
+import { allVideos, categories, currentCategory, linkVidIds, currentView, playerNextUp, filteredVideos } from './store';
 
 // ─── Mosaic State ───
 export const mosaicOn = signal(false);

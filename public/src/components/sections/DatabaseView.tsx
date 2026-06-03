@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
-import { useState, useEffect } from 'preact/hooks';
-import { presetPickerState, activeProfile } from '../../store';
+import { useState, useEffect, useRef } from 'preact/hooks';
+import { presetPickerState, activeProfile, dbPendingOpen, loadVideos } from '../../store';
 import { ActorScraperView } from './ActorScraperView';
 
 interface DbEntry {
@@ -21,10 +21,14 @@ export const DatabaseView = () => {
   const [folders, setFolders] = useState<{name: string, path: string, isExternal?: boolean}[]>([]);
   const [enabledFolders, setEnabledFolders] = useState<Set<string>>(new Set());
   const [sourceFolders, setSourceFolders] = useState<string[]>([]);
+  const [defaultRoot, setDefaultRoot] = useState<string>('');
   const [newSourceFolder, setNewSourceFolder] = useState('');
+  const [autoCatRunning, setAutoCatRunning] = useState(false);
+  const [autoCatResult, setAutoCatResult] = useState<{movedVideos: number, categorizedLinks: number, errors: string[]} | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const tabs = [
-    { id: 'folders', name: 'Categories' },
+    { id: 'folders', name: 'Folders' },
     { id: 'actors', name: 'Actors' },
     { id: 'categories', name: 'Tags' },
     { id: 'studios', name: 'Studios' },
@@ -35,6 +39,19 @@ export const DatabaseView = () => {
   useEffect(() => {
     loadTab(activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    return dbPendingOpen.subscribe(val => {
+      if (!val) return;
+      setActiveTab(val.tab);
+      if (val.action === 'add') {
+        setEditName(null);
+        setFormData({});
+        setModalOpen(true);
+      }
+      dbPendingOpen.value = null;
+    });
+  }, []);
 
   const loadTab = async (tab: string) => {
     if (tab === 'duplicates') {
@@ -54,6 +71,7 @@ export const DatabaseView = () => {
         setFolders(foldersData.categories);
         setEnabledFolders(new Set((foldersData.enabled as string[]).filter(p => actualPaths.has(p))));
         setSourceFolders(prefsData.sourceFolders || []);
+        setDefaultRoot(prefsData.defaultRoot || prefsData.defaultPath || prefsData.defaultWriteRoot || '');
       } catch (e) {
         console.error(e);
       } finally {
@@ -152,7 +170,8 @@ export const DatabaseView = () => {
       if (!res.ok) throw new Error('Server error');
 
       const w = window as any;
-      if (w.toast) w.toast('Categories visibility saved');
+      if (w.toast) w.toast('Folders visibility saved');
+      await loadVideos();
     } catch (e: any) {
       alert('Error: ' + e.message);
     }
@@ -196,6 +215,23 @@ export const DatabaseView = () => {
     }
   };
 
+  const handleSetDefaultRoot = async (val: string) => {
+    const v = val || '';
+    try {
+      const res = await fetch('/api/settings/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaultRoot: v }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      setDefaultRoot(v);
+      const w = window as any;
+      if (w.toast) w.toast('Default path updated for downloads/moves');
+    } catch (e: any) {
+      alert('Error saving default path: ' + e.message);
+    }
+  };
+
   const handleBrowseNative = async () => {
     try {
       const res = await fetch('/api/browse-folders-native');
@@ -203,6 +239,54 @@ export const DatabaseView = () => {
       if (data.error) { alert(data.error); return; }
       if (data.path) setNewSourceFolder(data.path);
     } catch (e) {}
+  };
+
+  const handleExportJson = () => {
+    const a = document.createElement('a');
+    a.href = `/api/db/${activeTab}/export`;
+    a.download = `${activeTab}.json`;
+    a.click();
+  };
+
+  const handleImportJson = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    let data: any;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      alert('Invalid JSON file');
+      return;
+    }
+    const r = await fetch(`/api/db/${activeTab}/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const w = window as any;
+    if (r.ok) {
+      const d = await r.json();
+      if (w.toast) w.toast(`Imported ${d.count} entries`);
+      loadTab(activeTab);
+    } else {
+      if (w.toast) w.toast('Import failed');
+    }
+  };
+
+  const handleAutoCategorize = async () => {
+    setAutoCatRunning(true);
+    setAutoCatResult(null);
+    try {
+      const r = await fetch('/api/videos/auto-categorize', { method: 'POST' });
+      const d = await r.json();
+      setAutoCatResult(d);
+      if (d.movedVideos > 0 || d.categorizedLinks > 0) loadTab('folders');
+    } catch (e: any) {
+      setAutoCatResult({ movedVideos: 0, categorizedLinks: 0, errors: [e.message] });
+    } finally {
+      setAutoCatRunning(false);
+    }
   };
 
   return (
@@ -232,12 +316,15 @@ export const DatabaseView = () => {
 
       {/* Action Bar */}
       {activeTab !== 'duplicates' && activeTab !== 'folders' && (
-        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+          <input ref={importFileRef} type="file" accept=".json" title="Import JSON" style={{ display: 'none' }} onChange={handleImportJson} />
           <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: false }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset as Profile</button>
           <button className="modal-btn" onClick={handleReset} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Reset to Preset</button>
           {activeTab === 'actors' && (
             <button className="modal-btn" onClick={() => setScraperModalOpen(true)} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Scrape Actor Data</button>
           )}
+          <button className="modal-btn" onClick={handleExportJson} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Export JSON</button>
+          <button className="modal-btn" onClick={() => importFileRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import JSON</button>
           <button className="modal-btn modal-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
         </div>
       )}
@@ -272,14 +359,56 @@ export const DatabaseView = () => {
               <button onClick={handleBrowseNative} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>Browse</button>
               <button onClick={handleAddSourceFolder} style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>Add</button>
             </div>
+            {/* Default write root selector */}
+            <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--brd)' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--ac)', marginBottom: '6px', fontWeight: 600 }}>Default path for downloads, moves, uploads &amp; new folders</div>
+              <select
+                value={defaultRoot}
+                onChange={(e: any) => handleSetDefaultRoot(e.target.value)}
+                style={{ width: '100%', padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+              >
+                <option value="">Main videos folder (default)</option>
+                {sourceFolders.map(f => (
+                  <option key={f} value={f}>{f} (external source)</option>
+                ))}
+              </select>
+              <div style={{ fontSize: '0.7rem', color: 'var(--tx3)', marginTop: '4px' }}>
+                All new video files from downloads/moves/uploads and created folders will use this root. Main videos is used if none selected.
+              </div>
+            </div>
+          </div>
+
+          {/* Auto-categorize */}
+          <div style={{ marginBottom: '24px', background: 'var(--bg2)', padding: '16px', borderRadius: '8px', border: '1px solid var(--brd)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h4 style={{ margin: '0 0 4px', fontSize: '0.9rem', color: 'var(--ac)' }}>Auto-Categorize Uncategorized</h4>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--tx3)' }}>
+                  Moves uncategorized videos to matching folders and tags uncategorized links — based on filename and category tags.
+                </p>
+              </div>
+              <button
+                onClick={handleAutoCategorize}
+                disabled={autoCatRunning}
+                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '6px', cursor: autoCatRunning ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: autoCatRunning ? 0.7 : 1, whiteSpace: 'nowrap' }}
+              >
+                {autoCatRunning ? 'Running…' : '⚡ Auto-Categorize'}
+              </button>
+            </div>
+            {autoCatResult && (
+              <div style={{ marginTop: '10px', fontSize: '0.8rem', color: autoCatResult.errors.length > 0 ? '#f44336' : '#4caf50', background: 'var(--bg3)', padding: '8px 12px', borderRadius: '4px' }}>
+                ✓ Moved {autoCatResult.movedVideos} video{autoCatResult.movedVideos !== 1 ? 's' : ''}, categorized {autoCatResult.categorizedLinks} link{autoCatResult.categorizedLinks !== 1 ? 's' : ''}
+                {autoCatResult.errors.length > 0 && <span> · {autoCatResult.errors.length} error{autoCatResult.errors.length !== 1 ? 's' : ''}</span>}
+              </div>
+            )}
           </div>
 
           {/* Category visibility */}
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
               {enabledFolders.size === 0
-                ? 'All categories visible (none explicitly enabled)'
-                : `${folders.filter(f => enabledFolders.has(f.path)).length} of ${folders.length} categories enabled`}
+                ? 'All folders visible (none explicitly enabled)'
+                : `${folders.filter(f => enabledFolders.has(f.path)).length} of ${folders.length} folders enabled`}
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" className="modal-btn" onClick={() => setEnabledFolders(new Set())}>Enable All</button>
@@ -288,7 +417,7 @@ export const DatabaseView = () => {
           </div>
           {folders.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
-              No categories found in videos directory or source folders.
+              No folders found in videos directory or source folders.
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>

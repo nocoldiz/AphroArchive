@@ -14,7 +14,7 @@ export const MoveModal = () => {
       fetch('/api/main-categories')
         .then(r => r.json())
         .then(data => setMainCats(data))
-        .catch(e => setError('Failed to load categories'));
+        .catch(e => setError('Failed to load folders'));
     }
     setError('');
     setNewCat('');

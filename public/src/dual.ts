@@ -67,7 +67,11 @@ export function renderRight() {
     // Fallback or fetch
     vids = _dualTagVids;
   } else {
-    vids = allVideos.value.filter(v => v.category === state.cat || v.catPath === state.cat);
+    const cl = (state.cat || '').toLowerCase().replace(/\\/g, '/');
+    vids = allVideos.value.filter(v => {
+      const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+      return vp === cl || vp.startsWith(cl + '/') || v.category === state.cat;
+    });
   }
 
   if (!vids.length) {

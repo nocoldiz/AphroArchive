@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+﻿import { useState, useEffect, useRef } from 'preact/hooks';
 import { tagModalState } from '../../store';
 
 export const TagModal = () => {
@@ -14,15 +14,15 @@ export const TagModal = () => {
       loadSuggestions();
       if (inputRef.current) inputRef.current.focus();
     }
-  }, [state.visible, state.vidId, state.bmUrl]);
+  }, [state.visible, state.vidId, state.linkUrl]);
 
   const loadTags = async () => {
     if (state.vidId) {
       const r = await fetch(`/api/videos/${state.vidId}/tags`);
       const data = await r.json();
       setTags(data.tags || []);
-    } else if (state.bmUrl) {
-      // Handle bookmark tags if needed, or assume empty for now
+    } else if (state.linkUrl) {
+      // Handle link tags if needed, or assume empty for now
       setTags([]);
     }
   };
@@ -34,7 +34,7 @@ export const TagModal = () => {
   };
 
   const handleClose = () => {
-    tagModalState.value = { visible: false, vidId: null, bmUrl: null };
+    tagModalState.value = { visible: false, vidId: null, linkUrl: null };
     setQuery('');
   };
 
@@ -147,9 +147,9 @@ export const TagModal = () => {
 
 if (typeof window !== 'undefined') {
   (window as any).openTagModal = (vidId: string) => {
-    tagModalState.value = { visible: true, vidId, bmUrl: null };
+    tagModalState.value = { visible: true, vidId, linkUrl: null };
   };
   (window as any).closeTagModal = () => {
-    tagModalState.value = { visible: false, vidId: null, bmUrl: null };
+    tagModalState.value = { visible: false, vidId: null, linkUrl: null };
   };
 }

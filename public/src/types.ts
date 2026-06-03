@@ -1,4 +1,4 @@
-export interface Video {
+﻿export interface Video {
   id: string;
   name: string;
   path: string;
@@ -18,10 +18,12 @@ export interface Video {
   fav?: boolean;
   chapters?: any[];
   isExternal?: boolean;
-  isBookmark?: boolean;
+  isLink?: boolean;
   embedUrl?: string;
-  bookmarkUrl?: string;
+  linkUrl?: string;
   img?: string;
+  hasVideo?: boolean;
+  hasEmbed?: boolean;
 }
 
 export interface Category {
@@ -59,6 +61,12 @@ export interface AppPrefs {
   vaultSelfDestruct?: boolean;
   hiddenTags?: string[];
   sourceFolders?: string[];
+  feedFolders?: string[];
+  privateFeedFolders?: string[];
+  videosDir?: string;
+  videosDirExists?: boolean;
+  comfyuiPath?: string;
+  llamaModelUri?: string;
 }
 export interface ThumbnailGroup {
   id: string;
@@ -90,6 +98,7 @@ export interface AudioFile {
 export interface PhotoFile {
   id: string;
   filename: string;
+  folder: string;
   size: number;
   sizeF: string;
   date: number;

@@ -1,3 +1,21 @@
+﻿
+in imagegen: move wildcards inpsection ut in  prompt generator in a right column of the modal,, prompt generation modal should have only the builder view.
+Make it possible to write custom data in dropdowns instead of choosing the options, pin button should be grayed out when a dropdown is not pinned
+
+
+
+
+Fix that in browse/folders i can see disabled folders for the current users that are hidden in sidebar but visible here
+
+
+
+add button in database/website to add new websites based on saved links in DB, adding missing ones.
+Show a confirmation modal where you can select which websites will be  created
+
+
+Add possibility to remove users
+Make sure that the last user logged is loaded next time the app start
+
 # AphroArchive — TODO & Roadmap
 
 ## Security (Fix First)
@@ -92,7 +110,7 @@
 - [ ] **Date range filter** — Filter videos added/modified between two dates.
 - [ ] **Duration filter** — Filter by short/medium/long (e.g., <5min, 5-30min, 30min+).
 - [ ] **Unwatched filter** — Show only videos not yet in watch history.
-- [ ] **Saved searches** — Bookmark a filter/query combo and recall it with one click.
+- [ ] **Saved searches** — Link a filter/query combo and recall it with one click.
 - [ ] **Recent searches** — Dropdown of last 10 search terms when clicking the search bar.
 - [ ] **Search within actors/studios pages** — The actor and studio detail pages have no search; hard to find a video when an actor has 100+ entries.
 

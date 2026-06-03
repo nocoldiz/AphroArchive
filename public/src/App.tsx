@@ -1,5 +1,5 @@
 import { useEffect } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, loadPrefs, currentView, presetPickerState, sortMode, isShuffle, showConnectModal } from './store';
+import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { ConnectModal } from './components/modals/ConnectModal';
@@ -10,6 +10,18 @@ export function App() {
     loadVideos();
     loadCategories();
     loadPrefs();
+
+    // Restore vault unlock state and auto-navigate if we're in the Vault profile
+    fetch('/api/vault/status')
+      .then(r => r.json())
+      .then(s => { isVaultUnlocked.value = !!s.unlocked; })
+      .catch(() => {});
+
+    loadProfiles().then(() => {
+      if (activeProfile.value === 'Vault') {
+        currentView.value = 'vault';
+      }
+    });
     
     // Load theme
     const saved = localStorage.getItem('theme') || '';
@@ -82,6 +94,117 @@ export function App() {
         }
       })
       .catch(e => console.error('Failed to check presets', e));
+    // 6. Panic Key/Mouse listener
+    const triggerPanic = () => {
+      // Hide everything and stop all media immediately, then shut down the server.
+      try {
+        document.body.style.background = '#fff';
+        document.body.style.color = '#fff';
+        document.body.style.overflow = 'hidden';
+        document.body.innerHTML = '';
+      } catch (err) {
+        console.error('Failed to hide page before panic:', err);
+      }
+      document.querySelectorAll('audio, video').forEach((media) => {
+        try {
+          media.pause();
+          if ((media as HTMLMediaElement).src) {
+            (media as HTMLMediaElement).src = '';
+          }
+          media.removeAttribute('src');
+          (media as HTMLMediaElement).load();
+        } catch (_) {}
+      });
+
+      // Send panic to server — fire & forget
+      fetch('/api/panic', { method: 'POST' }).catch(() => {});
+
+      // Close the tab/window after a short delay
+      setTimeout(() => {
+        window.close();
+      }, 200);
+    };
+
+    // Parse panic keys (stored as JSON array in localStorage)
+    const getPanicKeys = (): string[] => {
+      try {
+        const keys = localStorage.getItem('panicKeys');
+        return keys ? JSON.parse(keys) : [];
+      } catch {
+        // Fallback to single key for backward compatibility
+        const single = localStorage.getItem('panicKey');
+        return single ? [single] : [];
+      }
+    };
+
+    // Check if event matches any panic key
+    const checkPanicMatch = (e: { key?: string; code?: string; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; metaKey?: boolean; button?: number }) => {
+      const panicKeys = getPanicKeys();
+      if (panicKeys.length === 0) return false;
+      
+      return panicKeys.some(panicKey => {
+        const keys = panicKey.split('+');
+        let match = true;
+        let keyFound = false;
+        
+        for (const k of keys) {
+          const kt = k.trim().toLowerCase();
+          if (kt === 'ctrl') { if (!e.ctrlKey) match = false; }
+          else if (kt === 'shift') { if (!e.shiftKey) match = false; }
+          else if (kt === 'alt') { if (!e.altKey) match = false; }
+          else if (kt === 'meta' || kt === 'win' || kt === 'cmd') { if (!e.metaKey) match = false; }
+          else if (kt.startsWith('mouse')) {
+            // e.g. "Mouse3" = middle button, "Mouse4" = back button, "Mouse5" = forward button
+            keyFound = true;
+            // Case-insensitive extract of button number
+            const btnStr = kt.replace(/^mouse/i, '');
+            const btnNum = parseInt(btnStr, 10);
+            if (isNaN(btnNum) || e.button !== btnNum) match = false;
+          }
+          else {
+            keyFound = true;
+            const keyStr = (e.key || '').toLowerCase();
+            const codeStr = (e.code || '').toLowerCase();
+            if (keyStr !== kt && codeStr !== kt) match = false;
+          }
+        }
+        // Must find at least one actual key/mouse in the string
+        if (!keyFound) return false;
+        return match;
+      });
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger panic when user is typing in an input/textarea/contenteditable
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) return;
+      // Don't trigger while the panic-capture input is focused (user is setting a new key)
+      if (document.activeElement?.id === 'panic-key-capture') return;
+      if (checkPanicMatch(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerPanic();
+      }
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // Check if any stored panic key is a mouse button
+      const panicKeys = getPanicKeys();
+      const hasMouse = panicKeys.some(k => k.toLowerCase().startsWith('mouse'));
+      if (!hasMouse) return;
+      if (checkPanicMatch(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerPanic();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
   }, []);
 
   return (

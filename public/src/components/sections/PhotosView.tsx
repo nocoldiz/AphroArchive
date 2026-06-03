@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
-import { contextMenuState } from '../../store';
+import { contextMenuState, currentPhotoFolder } from '../../store';
 import { PhotoFile } from '../../types';
 
 export const PhotosView = () => {
@@ -32,20 +32,31 @@ export const PhotosView = () => {
       });
   }, []);
 
+  const activeFolder = currentPhotoFolder.value;
+
   const getSortedFilteredPhotos = () => {
     let files = [...photos];
+
+    if (activeFolder) {
+      const fl = activeFolder.toLowerCase();
+      files = files.filter(f => {
+        const folder = (f.folder || '').toLowerCase();
+        return folder === fl || folder.startsWith(fl + '/');
+      });
+    }
+
     if (sort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
     else if (sort === 'size') files.sort((a, b) => b.size - a.size);
     else files.sort((a, b) => b.date - a.date);
-    
+
     if (search) {
       const q = search.toLowerCase();
       files = files.filter(f => f.filename.toLowerCase().includes(q));
     }
-    
+
     if (aiFilter === 'ai') files = files.filter(f => f.isAi);
     else if (aiFilter === 'normal') files = files.filter(f => !f.isAi);
-    
+
     return files;
   };
 

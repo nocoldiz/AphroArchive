@@ -1,0 +1,14 @@
+# AphroArchive Image Generation
+# GPU (NVIDIA):  pip install torch --index-url https://download.pytorch.org/whl/cu121
+# CPU only:      pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Then:          pip install -r requirements.txt
+
+torch>=2.1.0
+diffusers>=0.30.0
+transformers>=4.40.0
+accelerate>=0.27.0
+safetensors>=0.4.0
+Pillow>=10.0.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+# xformers>=0.0.23  # optional — large VRAM saving on NVIDIA

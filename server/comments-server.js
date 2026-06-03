@@ -8,8 +8,10 @@ const { loadPrefs, loadComments, saveComments, clearAllComments: dbClearAllComme
 
 const fs   = require('fs');
 const path = require('path');
-const MODELS_DIR = path.join(process.cwd(), 'models');
-const MODEL_FILE = path.join(MODELS_DIR, 'llama-3.2-1b-instruct.gguf');
+
+const MODELS_DIR        = path.join(process.cwd(), 'models');
+const MODEL_FILENAME    = 'llama-3.2-1b-instruct.gguf';
+const DEFAULT_MODEL_URI = 'hf:bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M';
 
 let getLlama = null;
 let LlamaChatSession = null;
@@ -18,11 +20,38 @@ let model = null;
 let ctx = null;
 let modelReady = false;
 
-// ── Model lifecycle ────────────────────────────────────────────────────────────
+// ── Download state ─────────────────────────────────────────────────────────
+
+let dlActive = false;
+let dlPct    = 0;
+let dlDone   = 0;
+let dlTotal  = 0;
+let dlError  = null;
+let dlAbort  = null;
+
+// ── Model path resolution ──────────────────────────────────────────────────
+
+async function _resolveModelPath() {
+  const { resolveModelFile } = await import('node-llama-cpp');
+  const opts = { download: false };
+  // Priority 1: local ./models subfolder if it exists
+  if (fs.existsSync(MODELS_DIR)) {
+    try {
+      return await resolveModelFile(MODEL_FILENAME, { ...opts, directory: MODELS_DIR });
+    } catch {}
+  }
+  // Priority 2: node-llama-cpp's global models directory (~/.node-llama-cpp/models)
+  try {
+    return await resolveModelFile(MODEL_FILENAME, opts);
+  } catch {}
+  return null;
+}
+
+// ── Model lifecycle ────────────────────────────────────────────────────────
+
 async function initCommentsModel() {
   const prefs = loadPrefs();
   if (!prefs.aiCommentsEnabled) return;
-  if (!fs.existsSync(MODEL_FILE)) { console.warn('[comments] Model not found:', MODEL_FILE); return; }
   try {
     const nodeLlama = await import('node-llama-cpp');
     getLlama = nodeLlama.getLlama;
@@ -30,22 +59,86 @@ async function initCommentsModel() {
   } catch (e) {
     console.warn('[comments] node-llama-cpp not installed:', e.message); return;
   }
+  const modelPath = await _resolveModelPath();
+  if (!modelPath) { console.warn('[comments] Model not found in', MODELS_DIR, 'or node-llama-cpp global dir'); return; }
   try {
     fs.mkdirSync(MODELS_DIR, { recursive: true });
     llama = await getLlama();
-    model = await llama.loadModel({ modelPath: MODEL_FILE });
-    ctx = await model.createContext();
+    model = await llama.loadModel({ modelPath });
+    ctx   = await model.createContext();
     modelReady = true;
-    console.log('[comments] Model loaded OK');
+    console.log('[comments] Model loaded OK:', path.basename(modelPath));
   } catch (e) {
     modelReady = false;
     console.error('[comments] Failed to load model:', e.message);
   }
 }
+
 const isModelReady = () => modelReady;
 async function reinitIfNeeded() { if (!modelReady) await initCommentsModel(); }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Model download ─────────────────────────────────────────────────────────
+
+async function _runDownload() {
+  const prefs = loadPrefs();
+  const modelUri = (prefs.llamaModelUri || '').trim() || DEFAULT_MODEL_URI;
+  try {
+    const { createModelDownloader } = await import('node-llama-cpp');
+    fs.mkdirSync(MODELS_DIR, { recursive: true });
+    const downloader = await createModelDownloader({
+      modelUri,
+      dirPath: MODELS_DIR,
+      fileName: MODEL_FILENAME,
+      showCliProgress: false,
+      onProgress: ({ totalSize, downloadedSize }) => {
+        dlDone  = downloadedSize;
+        dlTotal = totalSize;
+        dlPct   = totalSize > 0 ? Math.round(downloadedSize / totalSize * 100) : 0;
+      },
+    });
+    dlAbort = new AbortController();
+    await downloader.download({ signal: dlAbort.signal });
+    dlPct = 100; dlError = null;
+    console.log('[comments] Model downloaded to', path.join(MODELS_DIR, MODEL_FILENAME));
+    modelReady = false;
+    await initCommentsModel();
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      dlError = e.message;
+      console.error('[comments] Download failed:', e.message);
+    }
+  } finally {
+    dlActive = false; dlAbort = null;
+  }
+}
+
+function apiDownloadModel(req, res) {
+  if (dlActive) return json(res, { error: 'Download already in progress' }, 409);
+  dlActive = true; dlPct = 0; dlDone = 0; dlTotal = 0; dlError = null;
+  _runDownload().catch(() => {});
+  json(res, { ok: true });
+}
+
+function apiCancelDownload(req, res) {
+  if (dlAbort) { try { dlAbort.abort(); } catch {} }
+  dlActive = false;
+  json(res, { ok: true });
+}
+
+function apiModelStatus(req, res) {
+  const localFile = path.join(MODELS_DIR, MODEL_FILENAME);
+  json(res, {
+    ready:      modelReady,
+    fileExists: fs.existsSync(localFile),
+    filePath:   localFile,
+    modelName:  MODEL_FILENAME,
+    downloading: dlActive,
+    dlPct, dlDone, dlTotal, dlError,
+  });
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 const _ADJS = ['Curious', 'Sneaky', 'Bold', 'Gentle', 'Witty', 'Calm', 'Fuzzy', 'Quick', 'Silent', 'Clever', 'Crispy', 'Spicy', 'Lucky', 'Sassy', 'Zesty'];
 const _NOUNS = ['Otter', 'Falcon', 'Panda', 'Wolf', 'Raven', 'Tiger', 'Fox', 'Lynx', 'Elk', 'Bear', 'Gecko', 'Hippo', 'Lemur', 'Mink', 'Newt'];
 function _rndUser() {
@@ -53,28 +146,23 @@ function _rndUser() {
 }
 function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
-// Deterministic hash — MUST match _hashId() in reddit.html and _hash() in comments.js
 function _hashId(id) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
-// Seeded count: 4–30 comments, same formula as client card estimate
 function _seededCount(videoId) { return 4 + (_hashId(videoId) % 27); }
 
-// Seeded LCG — assigns reply structure deterministically
 function _seededRng(videoId) {
   let s = (_hashId(videoId) >>> 0) || 1;
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
 
-// Wrap flat texts into structured comment objects, some as replies
 function _buildComments(texts, videoId) {
   const rng = _seededRng(videoId);
   const out = [];
   for (let i = 0; i < texts.length; i++) {
     let parentId = null;
-    // From 3rd comment onwards, ~35% chance of replying to a random earlier top-level
     if (i >= 3 && rng() < 0.35) {
       const topLevel = out.filter(c => !c.parentId);
       if (topLevel.length > 0)
@@ -95,7 +183,6 @@ function _buildComments(texts, videoId) {
 function loadCommentFile(videoId) {
   const data = loadComments(videoId);
   if (data === null) return null;
-  // Migrate old format (plain string array) to structured
   if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'string') {
     const migrated = data.map(text => ({
       id: 'ai_' + _uid(),
@@ -115,7 +202,8 @@ function saveCommentFile(videoId, comments) {
   saveComments(videoId, comments);
 }
 
-// ── AI text generation ────────────────────────────────────────────────────────
+// ── AI text generation ─────────────────────────────────────────────────────
+
 async function _generateCommentTexts(videoName, count) {
   const sequence = ctx.getSequence();
   try {
@@ -156,6 +244,7 @@ async function _generateReplyText(videoName, userComment) {
 }
 
 // ── API: GET /api/comments/:id?name=... ───────────────────────────────────────
+
 async function apiGetComments(req, res, videoId) {
   try {
     const urlObj = new URL('http://x' + req.url);
@@ -164,7 +253,6 @@ async function apiGetComments(req, res, videoId) {
     let comments = loadCommentFile(videoId);
 
     if (comments === null) {
-      // Not yet generated — attempt AI generation
       const prefs = loadPrefs();
       if (prefs.aiCommentsEnabled && isModelReady()) {
         await reinitIfNeeded();
@@ -191,7 +279,8 @@ async function apiGetComments(req, res, videoId) {
   }
 }
 
-// ── API: POST /api/comments/:id/add ──────────────────────────────────────────
+// ── API: POST /api/comments/:id/add ─────────────────────────────────────────
+
 async function apiAddComment(req, res, videoId) {
   try {
     const { videoName, text, parentId } = await readBody(req);
@@ -239,12 +328,12 @@ async function apiAddComment(req, res, videoId) {
   }
 }
 
-// ── Legacy endpoints (kept for backward compat) ───────────────────────────────
+// ── Legacy endpoints ───────────────────────────────────────────────────────
+
 async function apiGenerateComments(req, res) {
   const body = await readBody(req);
   const { videoId, videoName } = body;
   if (!videoId || !videoName) return json(res, { error: 'Missing params' }, 400);
-  // Delegate to new GET handler by synthesising a mock req
   const mockReq = { url: '/api/comments/' + encodeURIComponent(videoId) + '?name=' + encodeURIComponent(videoName) };
   const comments = [];
   const mockRes = {
@@ -253,7 +342,6 @@ async function apiGenerateComments(req, res) {
     }
   };
   await apiGetComments(mockReq, mockRes, videoId);
-  // Return in old format { comments: [text, ...] }
   return json(res, { comments: comments.map(c => c.text || c) });
 }
 
@@ -285,5 +373,6 @@ function apiClearAllComments(req, res) {
 module.exports = {
   initCommentsModel, isModelReady, reinitIfNeeded,
   apiGetComments, apiAddComment,
-  apiGenerateComments, apiReplyToComment, apiClearAllComments
+  apiGenerateComments, apiReplyToComment, apiClearAllComments,
+  apiModelStatus, apiDownloadModel, apiCancelDownload,
 };

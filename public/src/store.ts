@@ -1,4 +1,4 @@
-import { signal, computed } from '@preact/signals';
+﻿import { signal, computed } from '@preact/signals';
 import { Video, Category, Actor, Studio, AppPrefs, ThumbnailGroup } from './types';
 import * as api from './api';
 
@@ -34,11 +34,11 @@ export const contextMenuState = signal<{
 export const tagModalState = signal<{
   visible: boolean;
   vidId: string | null;
-  bmUrl: string | null;
+  linkUrl: string | null;
 }>({
   visible: false,
   vidId: null,
-  bmUrl: null
+  linkUrl: null
 });
 
 export const actorModalState = signal<{
@@ -65,7 +65,7 @@ export const vaultZipModalState = signal<{
   ids: []
 });
 
-export const bookmarkIframeModalState = signal<{
+export const linkIframeModalState = signal<{
   visible: boolean;
   url: string;
   title: string;
@@ -78,24 +78,24 @@ export const bookmarkIframeModalState = signal<{
 export const renameModalState = signal<{
   visible: boolean;
   vidId: string | null;
-  bmUrl: string | null;
+  linkUrl: string | null;
   currentName: string;
 }>({
   visible: false,
   vidId: null,
-  bmUrl: null,
+  linkUrl: null,
   currentName: ''
 });
 
 export const moveModalState = signal<{
   visible: boolean;
   vidIds: string[];
-  bmUrl: string | null;
+  linkUrl: string | null;
   currentCategory: string;
 }>({
   visible: false,
   vidIds: [],
-  bmUrl: null,
+  linkUrl: null,
   currentCategory: ''
 });
 
@@ -107,13 +107,17 @@ export const presetPickerState = signal<{
   mergeMode: false
 });
 
+export const importModalState = signal<{ visible: boolean }>({ visible: false });
+
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
+export const currentTagTerms = signal<string[]>([]);
+export const currentPhotoFolder = signal<string>('');
 export const currentActor = signal<string | null>(null);
 export const currentStudio = signal<string | null>(null);
-export const bookmarkVidIds = signal<Set<string>>(new Set());
+export const linkVidIds = signal<Set<string>>(new Set());
 
-export function rebuildBookmarkVidIds(items: any[]) {
+export function rebuildLinkVidIds(items: any[]) {
   const set = new Set<string>();
   const vids = (window as any).V || []; // Fallback to global V if videos signal is not populated yet
   for (const v of vids) {
@@ -124,7 +128,7 @@ export function rebuildBookmarkVidIds(items: any[]) {
       }
     }
   }
-  bookmarkVidIds.value = set;
+  linkVidIds.value = set;
 }
 
 // Bridge for legacy JS
@@ -164,6 +168,7 @@ export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true
 export const profiles = signal<string[]>(['default']);
 export const activeProfile = signal<string>('default');
 export const profileModalState = signal<{ visible: boolean }>({ visible: false });
+export const dbPendingOpen = signal<{ tab: string; action: 'add' } | null>(null);
 export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
 export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
@@ -218,13 +223,13 @@ Object.defineProperty(window, 'vaultMode', { get() { return vaultMode.value; }, 
 Object.defineProperty(window, 'videoSelMode', { get() { return videoSelMode.value; }, set(v) { videoSelMode.value = v; } });
 
 (window as any).openRen = (id: string, name: string) => {
-  renameModalState.value = { visible: true, vidId: id, bmUrl: null, currentName: name };
+  renameModalState.value = { visible: true, vidId: id, linkUrl: null, currentName: name };
 };
 (window as any).openMov = (id: string, name: string, curCatPath: string) => {
-  moveModalState.value = { visible: true, vidIds: [id], bmUrl: null, currentCategory: curCatPath };
+  moveModalState.value = { visible: true, vidIds: [id], linkUrl: null, currentCategory: curCatPath };
 };
 (window as any).openBulkMove = (ids: string[]) => {
-  moveModalState.value = { visible: true, vidIds: ids, bmUrl: null, currentCategory: '' };
+  moveModalState.value = { visible: true, vidIds: ids, linkUrl: null, currentCategory: '' };
 };
 
 (window as any).openPresetPickerManual = () => {
@@ -305,12 +310,12 @@ w.zapNextVid = null;
 w.zapNextTime = 0;
 w.activePlayer = 'video-player';
 
-Object.defineProperty(w, 'bookmarkVidIds', {
-  get() { return bookmarkVidIds.value; },
-  set(v) { bookmarkVidIds.value = v; }
+Object.defineProperty(w, 'linkVidIds', {
+  get() { return linkVidIds.value; },
+  set(v) { linkVidIds.value = v; }
 });
 
-w.bmMatchedUrls = new Set();
+w.linkMatchedUrls = new Set();
 w.collectionsMode = false;
 w.curCollection = null;
 w.settingsMode = false;
@@ -327,14 +332,14 @@ w.mosTileCount = 6;
 w.mosHoveredIdx = -1;
 w.mosTilesState = [];
 w.playlistSkipped = new Set();
-w.bmThumbObs = null;
+w.linkThumbObs = null;
 w.acTerms = [];
-w._bfCats = [];
-w._bfItems = [];
-w._bfMatchedCount = 0;
-w._bfVisible = [];
-w._bfKnownTerms = [];
-w._bfViewMode = 'list';
+w._lfCats = [];
+w._lfItems = [];
+w._lfMatchedCount = 0;
+w._lfVisible = [];
+w._lfKnownTerms = [];
+w._lfViewMode = 'list';
 w.dlPoller = null;
 w.cvTargetId = null;
 w.promptsMode = false;
@@ -358,13 +363,28 @@ export const filteredVideos = computed(() => {
     }
     
     if (currentCategory.value === 'uncategorized') {
-      list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks'));
+      list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isLink && v.catPath === 'Links'));
     } else if (currentCategory.value) {
-      list = list.filter(v => v.catPath === currentCategory.value || v.category === currentCategory.value);
+      const cl = currentCategory.value.toLowerCase().replace(/\\/g, '/');
+      list = list.filter(v => {
+        const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+        return vp === cl || vp.startsWith(cl + '/') || v.category === currentCategory.value;
+      });
     }
 
     if (currentTag.value) {
-      list = list.filter(v => v.tags && v.tags.includes(currentTag.value!));
+      const tagLo = currentTag.value.toLowerCase();
+      const terms = currentTagTerms.value;
+      list = list.filter(v => {
+        if (v.tags && (v.tags as string[]).some(t => t.toLowerCase() === tagLo)) return true;
+        if (terms.length > 0) {
+          const name = (v.name || '').toLowerCase();
+          return terms.some(t =>
+            new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(name)
+          );
+        }
+        return false;
+      });
     }
 
     if (currentView.value === 'favourites' || favFilter.value) {
@@ -382,9 +402,9 @@ export const filteredVideos = computed(() => {
   }
 
   if (sourceFilter.value === 'local') {
-    list = list.filter(v => !v.isBookmark);
+    list = list.filter(v => !v.isLink);
   } else if (sourceFilter.value === 'remote') {
-    list = list.filter(v => !!v.isBookmark);
+    list = list.filter(v => !!v.isLink);
   }
 
   // Apply sorting or shuffle
@@ -406,9 +426,14 @@ export const filteredVideos = computed(() => {
 });
 
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
-export function matchBookmarkCat(title: string, cats: any[], explicitCategory?: string): { catPath: string; category: string } {
+export function matchLinkCat(title: string, cats: any[], explicitCategory?: string): { catPath: string; category: string } {
   if (explicitCategory) {
-    const found = cats.find((c: any) => c.path === explicitCategory || c.name === explicitCategory || c.path === explicitCategory.replace(/\\/g, '/'));
+    const found = cats.find((c: any) =>
+      c.path === explicitCategory ||
+      c.name === explicitCategory ||
+      (c.displayName && c.displayName === explicitCategory) ||
+      c.path === explicitCategory.replace(/\\/g, '/')
+    );
     if (found) {
       return { catPath: found.path, category: found.name };
     }
@@ -416,18 +441,18 @@ export function matchBookmarkCat(title: string, cats: any[], explicitCategory?: 
 
   const norm = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   for (const cat of cats) {
-    if (cat.path === 'Bookmarks') continue;
+    if (cat.path === 'Links') continue;
     const key = cat.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     if (key && norm.includes(key)) return { catPath: cat.path, category: cat.name };
   }
-  return { catPath: 'Bookmarks', category: 'Bookmarks' };
+  return { catPath: '', category: '' };
 }
 
 export async function loadVideos() {
   isLoadingVideos.value = true;
   const [res, bRes, cRes] = await Promise.all([
     fetch('/api/videos'),
-    fetch('/api/bookmarks/cache?limit=0').catch(() => null),
+    fetch('/api/links/cache?limit=0').catch(() => null),
     fetch('/api/categories').catch(() => null),
   ]);
   const data = await res.json();
@@ -435,80 +460,87 @@ export async function loadVideos() {
   const cats = cRes ? await cRes.json().catch(() => []) : [];
   if (Array.isArray(cats)) categories.value = cats;
 
-  let bookmarksData: any[] = [];
+  let linksData: any[] = [];
   try {
     if (bRes) {
       const bData = await bRes.json();
-      bookmarksData = bData.items || [];
+      linksData = bData.items || [];
     }
   } catch (e) {}
 
-  const bookmarkVideos = bookmarksData
-    .filter((b: any) => b.scrapedVideoUrl || b.embedUrl)
+  // Build map: localVideoId → original page URL for links that were downloaded
+  const downloadedLinkMap = new Map<string, string>();
+  for (const b of linksData) {
+    if (b.downloaded && b.localVideoId && b.url) {
+      downloadedLinkMap.set(b.localVideoId, b.url);
+    }
+  }
+
+  const linkVideos = linksData
+    .filter((b: any) => b.url && !b.downloaded)
     .map((b: any) => {
-      const { catPath, category } = matchBookmarkCat(b.title, cats, b.category);
+      const { catPath, category } = matchLinkCat(b.title, cats, b.category);
       return {
         id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-        name: b.title,
+        name: b.title || b.url,
         path: b.scrapedVideoUrl || '',
         relPath: b.url,
         catPath,
         category,
-        isBookmark: true,
+        isLink: true,
         isExternal: true,
         embedUrl: b.embedUrl,
-        bookmarkUrl: b.url,
+        linkUrl: b.url,
         img: b.img,
+        tags: b.tags || [],
         hasVideo: !!b.scrapedVideoUrl,
+        hasEmbed: !!b.embedUrl,
         size: 0,
         duration: 0,
-        mtime: Date.now()
+        mtime: b.addedAt || Date.now()
       };
     });
 
-  const combined = [...data, ...bookmarkVideos];
+  // Annotate local videos that came from a downloaded link with the original page URL
+  const localVideos = downloadedLinkMap.size > 0
+    ? (data as any[]).map((v: any) => {
+        const origUrl = downloadedLinkMap.get(v.id);
+        return origUrl ? { ...v, linkUrl: origUrl } : v;
+      })
+    : data;
+
+  const combined = [...localVideos, ...linkVideos];
 
   allVideos.value = combined;
   videos.value = combined;
   isLoadingVideos.value = false;
 
-  // Recompute category counts from combined list (local + bookmark videos)
+  // Recompute category counts from combined list (local + link videos)
   if (Array.isArray(cats) && cats.length > 0) {
     const countMap = new Map<string, number>();
+    let uncategorizedCount = 0;
     for (const v of combined) {
-      if (!v.catPath) continue;
-      const parts = (v.catPath as string).split('/');
+      const cp = (v.catPath as string) || '';
+      if (!cp) {
+        uncategorizedCount++;
+        continue;
+      }
+      const parts = cp.split('/');
       let cur = '';
       for (const p of parts) {
         cur = cur ? cur + '/' + p : p;
         countMap.set(cur, (countMap.get(cur) || 0) + 1);
       }
     }
-    categories.value = cats.map((c: any) => ({ ...c, count: countMap.get(c.path) || 0 }));
+    categories.value = cats.map((c: any) => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (countMap.get(c.path) || 0) }));
   }
   syncUrlToState();
 
-  // If the videos folder or configured path folders are missing/empty, show bookmarks
-  let shouldShowBookmarks = false;
-  if (data.length === 0) {
-    shouldShowBookmarks = true;
-  }
-  try {
-    let prefs = appPrefs.value;
-    if (!prefs || Object.keys(prefs).length === 0) {
-      const pRes = await fetch('/api/settings/prefs');
-      prefs = await pRes.json();
-      appPrefs.value = prefs;
-    }
-    if (prefs.videosDirExists === false || (prefs.missingSourceFolders && prefs.missingSourceFolders.length > 0)) {
-      shouldShowBookmarks = true;
-    }
-  } catch (e) {}
-
-  if (shouldShowBookmarks) {
+  // Only redirect to links if no videos found from any source (local + external + links)
+  if (data.length === 0 && linkVideos.length === 0) {
     const cur = currentView.value;
     if (cur === 'hub' || cur === 'home' || cur === 'browse' || cur === '') {
-      currentView.value = 'bookmarks';
+      currentView.value = 'links';
     }
   }
 }
@@ -575,7 +607,7 @@ w.goHome = () => {
   }
   currentView.value = 'hub';
   currentCategory.value = '';
-  currentTag.value = null;
+  currentTag.value = null; currentTagTerms.value = [];
   searchQuery.value = '';
   if (location.pathname !== '/') history.pushState(null, '', '/');
   if (w.refresh) w.refresh();
@@ -638,7 +670,7 @@ export function syncUrlToState() {
     currentView.value = 'hub';
     currentVideo.value = null;
     currentCategory.value = '';
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     return;
   }
   
@@ -654,7 +686,7 @@ export function syncUrlToState() {
   } else if ((m = p.match(/^\/cat\/([^/]+)$/))) {
     currentView.value = 'browse';
     currentCategory.value = decodeURIComponent(m[1]);
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else if ((m = p.match(/^\/tag\/([^/]+)$/))) {
     currentView.value = 'browse';
@@ -665,13 +697,13 @@ export function syncUrlToState() {
     currentView.value = 'actors';
     currentActor.value = decodeURIComponent(m[1]);
     currentCategory.value = '';
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else if ((m = p.match(/^\/studio\/([^/]+)$/))) {
     currentView.value = 'studios';
     currentStudio.value = decodeURIComponent(m[1]);
     currentCategory.value = '';
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else {
     // Other views
@@ -679,7 +711,7 @@ export function syncUrlToState() {
     currentView.value = view;
     currentVideo.value = null;
     currentCategory.value = '';
-    currentTag.value = null;
+    currentTag.value = null; currentTagTerms.value = [];
   }
 }
 
@@ -753,7 +785,9 @@ w.filterVideosCat = (catFilter: string) => {
   if (!catFilter) return w._applySort(w.favFilter ? w._allVideos.filter((v: any) => v.fav) : w._allVideos);
   return w._applySort(w._allVideos.filter((v: any) => {
     if (w.favFilter && !v.fav) return false;
-    if (catFilter === 'uncategorized' || catFilter === '__uncategorized__' || catFilter === '') return !v.catPath || v.catPath === '' || (v.isBookmark && v.catPath === 'Bookmarks');
+    if (w.srcFilter === 'remote' && !v.isLink) return false;
+    if (w.srcFilter === 'local' && v.isLink) return false;
+    if (catFilter === 'uncategorized' || catFilter === '__uncategorized__' || catFilter === '') return !v.catPath || v.catPath === '' || (v.isLink && v.catPath === 'Links');
     const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
     const cl = catFilter.toLowerCase().replace(/\\/g, '/');
     return vp === cl || vp.startsWith(cl + '/') || v.category === catFilter;
@@ -768,6 +802,8 @@ w.filterVideosByTag = (terms: string[]) => {
   };
   return w._applySort(w._allVideos.filter((v: any) => {
     if (w.favFilter && !v.fav) return false;
+    if (w.srcFilter === 'remote' && !v.isLink) return false;
+    if (w.srcFilter === 'local' && v.isLink) return false;
     const vTagsLo = (v.tags || []).map((t: any) => t.toLowerCase());
     return vTagsLo.some((t: string) => termsLo.includes(t)) || terms.some(t => wordMatch(v.name, t));
   }));
@@ -788,7 +824,7 @@ w.refresh = async (full = false) => {
   if (w.studioMode) { closeView('studios-view', 'studioMode'); closeView('studio-detail-view', 'studioMode'); closeView('studio-sidebar', 'studioMode'); }
   if (w.actorMode) { closeView('actors-view', 'actorMode'); closeView('actor-detail-view', 'actorMode'); closeView('actor-sidebar', 'actorMode'); }
   
-  currentTag.value = null;
+  currentTag.value = null; currentTagTerms.value = [];
   
   const bv = document.getElementById('browse-view');
   if (bv) bv.classList.remove('off');
@@ -821,8 +857,8 @@ w.openStudio = (name: string) => {
 };
 
 w.showImportFavs = () => {
-  currentView.value = 'bookmarks';
-  history.pushState(null, '', '/bookmarks');
+  currentView.value = 'links';
+  history.pushState(null, '', '/links');
 };
 
 w.openVid = (id: string) => {

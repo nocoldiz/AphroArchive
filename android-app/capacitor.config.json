@@ -1,0 +1,12 @@
+{
+  "appId": "com.aphroarchive.app",
+  "appName": "AphroArchive",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "cleartext": true,
+    "allowNavigation": ["*"]
+  }
+}

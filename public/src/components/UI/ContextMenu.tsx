@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, vaultUnlockModalState } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -6,13 +6,10 @@ export const ContextMenu = () => {
   const { visible, x, y, type, data } = state;
 
   const [showUnlockModal, setShowUnlockModal] = useState(false);
-  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
+  const [showVaultUnlockModal, setShowVaultUnlockModal] = useState(false);
 
   const [targetProfile, setTargetProfile] = useState('default');
-  const [progressTitle, setProgressTitle] = useState('');
-  const [progressDesc, setProgressDesc] = useState('');
-  const [progressCur, setProgressCur] = useState(0);
-  const [progressTotal, setProgressTotal] = useState(0);
 
   const closeMenu = () => {
     contextMenuState.value = { ...state, visible: false };
@@ -30,7 +27,7 @@ export const ContextMenu = () => {
     };
   }, [visible]);
 
-  if (!visible) return null;
+  if (!visible && !showEncryptConfirm && !showUnlockModal) return null;
 
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -82,28 +79,19 @@ export const ContextMenu = () => {
 
   const handleHide = async () => {
     try {
-      const res = await fetch('/api/all-categories');
-      const d = await res.json();
-      let enabled = d.enabled || [];
-      const allCats = d.categories || [];
-      
-      if (enabled.length === 0) {
-        // If empty, all are enabled. So we populate with all paths.
-        enabled = allCats.map((c: any) => c.path);
-      }
-      
-      // Remove current category path
-      const updated = enabled.filter((p: string) => p !== data.path);
-      
-      const r = await fetch('/api/enabled-categories', {
+      const r = await fetch('/api/categories/hide', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paths: updated })
+        body: JSON.stringify({ name: data.path })
       });
 
       if (r.ok) {
         toast(`Category "${data.name}" hidden`);
-        refresh();
+        closeMenu();
+        await loadVideos();
+        const tagRes = await fetch('/api/tags');
+        const tagData = await tagRes.json();
+        (window as any)._sidebarSetTags?.(tagData);
       } else {
         toast('Hide failed');
       }
@@ -179,114 +167,75 @@ export const ContextMenu = () => {
     contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
 
-  const handleEncrypt = () => {
-    if (!isVaultUnlocked.value) {
-      toast('Unlock Vault profile first');
-      return;
+  const checkVaultAndPrompt = async (action: () => void): Promise<void> => {
+    try {
+      const res = await fetch('/api/vault/status');
+      const status = await res.json();
+      if (!status.configured) {
+        toast('Vault not configured. Set it up first from the Vault view.');
+        return;
+      }
+      if (!status.unlocked) {
+        // Open the vault unlock modal; after unlock it will update isVaultUnlocked signal
+        vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: null };
+        // Poll until unlocked, then proceed
+        const checkInterval = setInterval(async () => {
+          const r2 = await fetch('/api/vault/status');
+          const s2 = await r2.json();
+          if (s2.unlocked) {
+            clearInterval(checkInterval);
+            isVaultUnlocked.value = true;
+            action();
+          }
+        }, 500);
+        return;
+      }
+      action();
+    } catch {
+      toast('Failed to check vault status');
     }
-    if (!confirm(`Encrypt category "${data.name}" and move to Vault?`)) return;
-    execEncrypt();
   };
 
-  const handleUnlock = () => {
-    if (!isVaultUnlocked.value) {
-      toast('Unlock Vault profile first');
-      return;
-    }
-    setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
-    setShowUnlockModal(true);
+  const handleEncrypt = async () => {
+    checkVaultAndPrompt(() => {
+      setShowEncryptConfirm(true);
+      closeMenu();
+    });
+  };
+
+  const handleUnlock = async () => {
+    checkVaultAndPrompt(async () => {
+      setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
+      setShowUnlockModal(true);
+    });
   };
 
   const execEncrypt = async () => {
-    setProgressTitle('Encrypting Category');
-    setProgressDesc(`Moving files in ${data.path} to Vault...`);
-    setProgressCur(0);
-    setProgressTotal(0);
-    setShowProgressModal(true);
-
     const r = await fetch('/api/categories/encrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path })
     });
-
-    if (r.ok) {
-      const reader = r.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop()!;
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const msg = JSON.parse(line);
-            if (msg.total) {
-              setProgressCur(msg.cur);
-              setProgressTotal(msg.total);
-            }
-            if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
-          } catch (e) { }
-        }
-      }
-
-      setProgressTitle('Complete');
-      setProgressDesc('Category encryption finished successfully.');
-      refresh();
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      toast('Encryption failed: ' + (err.error || 'Unknown error'));
     } else {
-      const err = await r.json();
-      toast('Action failed: ' + (err.error || 'Unknown error'));
-      setShowProgressModal(false);
+      toast('Encrypting — track progress in the sync drawer');
     }
   };
 
   const execUnlock = async () => {
     setShowUnlockModal(false);
-    setProgressTitle('Restoring Category');
-    setProgressDesc(`Decrypting files to profile "${targetProfile}"...`);
-    setProgressCur(0);
-    setProgressTotal(0);
-    setShowProgressModal(true);
-
     const r = await fetch('/api/categories/decrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path, targetProfile })
     });
-
-    if (r.ok) {
-      const reader = r.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop()!;
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const msg = JSON.parse(line);
-            if (msg.total) {
-              setProgressCur(msg.cur);
-              setProgressTotal(msg.total);
-            }
-            if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
-          } catch (e) { }
-        }
-      }
-      setProgressTitle('Complete');
-      setProgressDesc('Category restored successfully.');
-      refresh();
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      toast('Decrypt failed: ' + (err.error || 'Unknown error'));
     } else {
-      const err = await r.json();
-      toast('Action failed: ' + (err.error || 'Unknown error'));
-      setShowProgressModal(false);
+      toast('Decrypting — track progress in the sync drawer');
     }
   };
 
@@ -302,10 +251,11 @@ export const ContextMenu = () => {
 
   return (
     <>
-      <div id="context-menu" style={{
-        display: 'block',
-        left: `${posX}px`,
-        top: `${posY}px`,
+      {visible && (
+        <div id="context-menu" style={{
+          display: 'block',
+          left: `${posX}px`,
+          top: `${posY}px`,
         position: 'absolute',
         background: 'var(--bg2)',
         border: '1px solid var(--brd)',
@@ -356,7 +306,7 @@ export const ContextMenu = () => {
               showAddToCollectionModal.value = true;
             }} />
             <ContextItem label="Tags" icon="tag" onClick={() => {
-              tagModalState.value = { visible: true, vidId: data.id, bmUrl: null };
+              tagModalState.value = { visible: true, vidId: data.id, linkUrl: null };
             }} />
             <ContextItem label="Actors" icon="user" onClick={() => {
               actorModalState.value = { visible: true, vidId: data.id };
@@ -408,6 +358,7 @@ export const ContextMenu = () => {
           </>
         )}
       </div>
+      )}
 
       {showUnlockModal && (
         <div className="modal on" style={{ display: 'flex' }}>
@@ -436,30 +387,27 @@ export const ContextMenu = () => {
         </div>
       )}
 
-      {showProgressModal && (
+      {showEncryptConfirm && (
         <div className="modal on" style={{ display: 'flex' }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h2>{progressTitle}</h2>
+              <h2>Encrypt Category</h2>
             </div>
             <div className="modal-body">
-              <p>{progressDesc}</p>
-              <div style={{ background: 'var(--bg3)', height: '10px', borderRadius: '5px', overflow: 'hidden', marginBottom: '10px' }}>
-                <div style={{ background: 'var(--accent)', height: '100%', width: `${progressTotal ? (progressCur / progressTotal) * 100 : 0}%` }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                <span>{progressCur} / {progressTotal}</span>
-                <span>{progressTotal ? Math.floor((progressCur / progressTotal) * 100) : 0}%</span>
-              </div>
+              <p>Encrypt category "{data.name}" and move it to Vault?</p>
+              <p>This will encrypt all files inside and move them into the vault.</p>
             </div>
             <div className="modal-footer">
-              {progressTitle === 'Complete' && (
-                <button class="modal-btn" onClick={() => setShowProgressModal(false)}>Close</button>
-              )}
+              <button class="modal-btn modal-btn--primary" onClick={() => {
+                setShowEncryptConfirm(false);
+                execEncrypt();
+              }}>Encrypt</button>
+              <button class="modal-btn" onClick={() => setShowEncryptConfirm(false)}>Cancel</button>
             </div>
           </div>
         </div>
       )}
+
     </>
   );
 };
