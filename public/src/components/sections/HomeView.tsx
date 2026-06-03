@@ -1,4 +1,4 @@
-﻿import { currentView, currentCategory } from '../../store';
+﻿import { currentView, currentCategory, showConnectModal } from '../../store';
 
 export const HomeView = () => {
   const callLegacy = (fnName: string, ...args: any[]) => {
@@ -307,7 +307,7 @@ export const HomeView = () => {
           </div>
         </div>
 
-        <div className="home-card" onClick={() => callLegacy('showConnect')}>
+        <div className="home-card" onClick={() => showConnectModal.value = true}>
           <div className="home-card-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M5 12.55a11 11 0 0 1 14.08 0" />

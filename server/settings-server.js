@@ -56,6 +56,8 @@ async function apiSavePrefs(req, res) {
   if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   if ('vaultSelfDestruct' in body) prefs.vaultSelfDestruct = !!body.vaultSelfDestruct;
   if ('anthropicApiKey' in body) prefs.anthropicApiKey = String(body.anthropicApiKey || '').trim();
+  if ('openrouterApiKey' in body) prefs.openrouterApiKey = String(body.openrouterApiKey || '').trim();
+  if ('openrouterModel' in body) prefs.openrouterModel = String(body.openrouterModel || '').trim();
   if ('visionProvider' in body) prefs.visionProvider = body.visionProvider === 'claude' ? 'claude' : 'ollama';
   if ('ollamaUrl' in body) prefs.ollamaUrl = String(body.ollamaUrl || '').trim();
   if ('ollamaVisionModel' in body) prefs.ollamaVisionModel = String(body.ollamaVisionModel || '').trim();

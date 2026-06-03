@@ -36,6 +36,7 @@ import { ActorScraperView } from '../sections/ActorScraperView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
 import { ImageGenView } from '../sections/ImageGenView';
+import { AssistantView } from '../sections/AssistantView';
 import { useEffect } from 'preact/hooks';
 
 export const MainContent = () => {
@@ -112,6 +113,7 @@ export const MainContent = () => {
     if (view === 'player') return <PlayerView />;
     if (view === 'mosaic')   return <MosaicView />;
     if (view === 'imagegen') return <ImageGenView />;
+    if (view === 'assistant') return <AssistantView />;
     return <BrowseView />;
   };
 

@@ -2,6 +2,7 @@ import { appPrefs, updatePrefs, loadVideos } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { PERSONALITIES, Personality } from '../../personalities';
 import { JSX } from 'preact';
+import { ensureQRCode } from '../../utils';
 
 declare global {
   interface Window {
@@ -56,6 +57,8 @@ export const SettingsView = () => {
   const [connectIdx, setConnectIdx] = useState(0);
   const [netEnabled, setNetEnabled] = useState(!!prefs.networkEnabled);
 
+  const [verifyStatus, setVerifyStatus] = useState<Record<number, { ok?: boolean; error?: string; checking?: boolean }>>({});
+
   const [genRunning, setGenRunning] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
   const [genStatus, setGenStatus] = useState('');
@@ -78,6 +81,33 @@ export const SettingsView = () => {
   const sseRef = useRef<EventSource | null>(null);
 
   const qrRef = useRef<HTMLCanvasElement>(null);
+
+  const verifyUrl = async (idx: number, url: string) => {
+    setVerifyStatus(prev => ({ ...prev, [idx]: { checking: true } }));
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(url + '/api/ping', { signal: controller.signal });
+      clearTimeout(tid);
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data && data.ok) {
+          setVerifyStatus(prev => ({ ...prev, [idx]: { ok: true } }));
+          return;
+        }
+      }
+      if (res.status === 403) {
+        const txt = await res.text().catch(() => '');
+        const msg = txt.includes('Network access is disabled') ? 'Network access disabled' : 'Forbidden';
+        setVerifyStatus(prev => ({ ...prev, [idx]: { ok: false, error: msg } }));
+        return;
+      }
+      setVerifyStatus(prev => ({ ...prev, [idx]: { ok: false, error: 'HTTP ' + res.status } }));
+    } catch (e: any) {
+      const msg = e?.name === 'AbortError' ? 'Timeout' : 'Unreachable';
+      setVerifyStatus(prev => ({ ...prev, [idx]: { ok: false, error: msg } }));
+    }
+  };
 
   useEffect(() => {
     // Subscribe to gen-thumbs status on mount to catch running processes
@@ -173,20 +203,33 @@ export const SettingsView = () => {
         .then(r => r.json())
         .then(data => {
           if (data.url) {
-            setConnectUrls(data.all && data.all.length ? data.all : [{ url: data.url, name: 'Network', ip: data.ip }]);
+            const list = data.all && data.all.length ? data.all : [{ url: data.url, name: 'Network', ip: data.ip }];
+            setConnectUrls(list);
+            setVerifyStatus({});
+            list.forEach((u, i) => verifyUrl(i, u.url));
           }
         })
         .catch(() => { });
+    } else {
+      setConnectUrls([]);
+      setVerifyStatus({});
     }
   }, [prefs.networkEnabled]);
 
   useEffect(() => {
-    if (qrRef.current && connectUrls.length > 0) {
-       const url = connectUrls[connectIdx]?.url;
-       if (url && window.QRCode) {
-         window.QRCode.toCanvas(qrRef.current, url, { width: 220, margin: 2, color: { dark: '#000', light: '#fff' } });
-       }
-    }
+    (async () => {
+      if (!qrRef.current || connectUrls.length === 0) return;
+      const url = connectUrls[connectIdx]?.url;
+      if (!url) return;
+      try {
+        await ensureQRCode();
+        if (window.QRCode && qrRef.current) {
+          window.QRCode.toCanvas(qrRef.current, url, { width: 220, margin: 2, color: { dark: '#000', light: '#fff' } });
+        }
+      } catch (e) {
+        console.warn('QR code generation failed:', e);
+      }
+    })();
   }, [connectUrls, connectIdx]);
 
   const applyPersonality = (p: Personality) => {
@@ -937,8 +980,26 @@ export const SettingsView = () => {
                   </button>
                 ))}
               </div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--tx2)' }}>{connectUrls[connectIdx]?.url}</div>
-              <canvas ref={qrRef} style={{ background: '#fff', padding: '10px', borderRadius: '8px' }} />
+              <div style={{ fontSize: '0.82rem', color: 'var(--tx2)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {connectUrls[connectIdx]?.url}
+                <button
+                  onClick={() => {
+                    const u = connectUrls[connectIdx];
+                    if (u) verifyUrl(connectIdx, u.url);
+                  }}
+                  title="Re-verify reachability"
+                  style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', fontSize: '0.7rem', padding: '1px 5px', borderRadius: '4px', cursor: 'pointer' }}
+                >↻</button>
+              </div>
+              {(() => {
+                const st = verifyStatus[connectIdx];
+                if (!st) return null;
+                if (st.checking) return <div style={{ fontSize: '0.7rem', color: 'var(--tx3)' }}>Verifying URL reachability…</div>;
+                if (st.ok) return <div style={{ fontSize: '0.7rem', color: '#4ade80' }}>✓ Verified reachable (remote devices should be able to connect)</div>;
+                if (st.error) return <div style={{ fontSize: '0.7rem', color: '#f87171' }}>✗ {st.error} — the URL may be incorrect for remote devices</div>;
+                return null;
+              })()}
+              <canvas ref={qrRef} style={{ background: '#fff', padding: '10px', borderRadius: '8px', marginTop: '6px' }} />
             </div>
           )}
         </div>

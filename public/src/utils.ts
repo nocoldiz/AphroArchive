@@ -103,3 +103,17 @@ export function hsh(s: string): number {
   }
   return h;
 }
+
+/** Dynamically load the vendored qrcode.min.js if window.QRCode is not present */
+export async function ensureQRCode(): Promise<void> {
+  const w = window as any;
+  if (w.QRCode) return;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/qrcode.min.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load QRCode library'));
+    document.head.appendChild(script);
+  });
+}

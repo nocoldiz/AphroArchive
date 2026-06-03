@@ -48,6 +48,7 @@ const duplicates = require('./server/duplicates-server');
 const { startBackgroundWorker } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
 const imagegen    = require('./server/imagegen-server');
+const assistant   = require('./server/assistant-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -373,6 +374,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Vision ───────────────────────────────────────────────────────────
   if (p === '/api/vision/describe' && req.method === 'POST') return vision.apiVisionDescribe(req, res);
+  if (p === '/api/assistant/chat'  && req.method === 'POST') return assistant.apiAssistantChat(req, res);
 
   // ── Prompts ──────────────────────────────────────────────────────────
   if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);
@@ -433,6 +435,12 @@ const server = http.createServer(async (req, res) => {
       url: best ? `http://${best.ip}:${PORT}` : null,
       all: ips.map(e => ({ ip: e.ip, name: e.name, url: `http://${e.ip}:${PORT}` })),
     });
+  }
+
+  // ── Ping / connect verification (lightweight status) ─────────────────
+  if (p === '/api/ping' && req.method === 'GET') {
+    const prefs = loadPrefs();
+    return json(res, { ok: true, app: 'AphroArchive', networkEnabled: !!prefs.networkEnabled });
   }
 
   // ── Static / SPA ─────────────────────────────────────────────────────
