@@ -101,9 +101,14 @@ function ensureSchema(database) {
       category TEXT,
       img TEXT,
       scraped_video_url TEXT,
+      has_video INTEGER DEFAULT 0,
       embed_url TEXT,
+      has_embed INTEGER DEFAULT 0,
       added_at INTEGER,
-      tags TEXT
+      tags TEXT,
+      downloaded INTEGER DEFAULT 0,
+      local_video_id TEXT,
+      fav INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS og_thumbs (
@@ -202,6 +207,9 @@ function ensureSchema(database) {
   try { database.exec('ALTER TABLE links ADD COLUMN tags TEXT'); } catch {}
   try { database.exec('ALTER TABLE links ADD COLUMN downloaded INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE links ADD COLUMN local_video_id TEXT'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN has_video INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN has_embed INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN fav INTEGER DEFAULT 0'); } catch {}
 }
 
 function switchProfile(profileName) {
@@ -904,44 +912,83 @@ function saveOgThumbCache(map) {
 
 // ── Links cache ──────────────────────────────────────────────────
 
+function _rowToLink(r) {
+  return {
+    url: r.url,
+    title: r.title,
+    category: r.category,
+    img: r.img,
+    scrapedVideoUrl: r.scraped_video_url,
+    hasVideo: !!r.has_video,
+    embedUrl: r.embed_url,
+    hasEmbed: !!r.has_embed,
+    addedAt: r.added_at,
+    tags: r.tags ? JSON.parse(r.tags) : [],
+    downloaded: !!r.downloaded,
+    localVideoId: r.local_video_id || null,
+    fav: !!r.fav,
+  };
+}
+
+function _linkParams(it) {
+  return [
+    it.url,
+    it.title ?? null,
+    it.category ?? null,
+    it.img ?? null,
+    it.scrapedVideoUrl ?? null,
+    it.hasVideo ? 1 : 0,
+    it.embedUrl ?? null,
+    it.hasEmbed ? 1 : 0,
+    it.addedAt ?? Date.now(),
+    Array.isArray(it.tags) && it.tags.length ? JSON.stringify(it.tags) : null,
+    it.downloaded ? 1 : 0,
+    it.localVideoId ?? null,
+    it.fav ? 1 : 0,
+  ];
+}
+
+const _LINK_COLS = 'url, title, category, img, scraped_video_url, has_video, embed_url, has_embed, added_at, tags, downloaded, local_video_id, fav';
+const _LINK_PLACEHOLDERS = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+
 function loadLinksCache() {
   try {
-    const rows = db.prepare('SELECT url, title, category, img, scraped_video_url, embed_url, added_at, tags, downloaded, local_video_id FROM links').all();
-    const items = rows.map(r => ({
-      url: r.url,
-      title: r.title,
-      category: r.category,
-      img: r.img,
-      scrapedVideoUrl: r.scraped_video_url,
-      embedUrl: r.embed_url,
-      addedAt: r.added_at,
-      tags: r.tags ? JSON.parse(r.tags) : [],
-      downloaded: !!r.downloaded,
-      localVideoId: r.local_video_id || null,
-    }));
-    return { items };
+    const rows = db.prepare(`SELECT ${_LINK_COLS} FROM links`).all();
+    return { items: rows.map(_rowToLink) };
   } catch (e) {
     console.error('Failed to load links cache from SQLite:', e);
     return { items: [] };
   }
 }
 
+// Upsert a single link into the current user's DB.
+function upsertLink(it) {
+  if (!it || !it.url) return;
+  try {
+    db.prepare(`INSERT OR REPLACE INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`).run(_linkParams(it));
+  } catch (e) { console.error('Failed to upsert link:', e); }
+}
+
+// Delete a single link by URL from the current user's DB.
+function deleteLink(url) {
+  if (!url) return;
+  try {
+    db.prepare('DELETE FROM links WHERE url = ?').run(url);
+  } catch (e) { console.error('Failed to delete link:', e); }
+}
+
+// Bulk replace — only use for full imports (JSON import, browser favs import).
+// For scraping or individual edits, prefer upsertLink.
 function saveLinksCache(data) {
   const raw = (data && Array.isArray(data.items)) ? data.items : [];
-  // Deduplicate by URL — last write wins (most recent metadata)
   const byUrl = new Map();
   for (const it of raw) if (it.url) byUrl.set(it.url, it);
   const items = [...byUrl.values()];
   try {
     db.transaction(() => {
       db.prepare('DELETE FROM links').run();
-      const ins = db.prepare('INSERT INTO links (url, title, category, img, scraped_video_url, embed_url, added_at, tags, downloaded, local_video_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const it of items) {
-        const tagsJson = Array.isArray(it.tags) && it.tags.length ? JSON.stringify(it.tags) : null;
-        ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null,
-          it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now(), tagsJson,
-          it.downloaded ? 1 : 0, it.localVideoId ?? null);
-      }
+      const ins = db.prepare(`INSERT INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`);
+      for (const it of items) ins.run(_linkParams(it));
     })();
   } catch (e) { console.error('Failed to save links cache to SQLite:', e); }
 }
@@ -1376,7 +1423,7 @@ module.exports = {
   loadWebsites, saveWebsites,
   loadStarredSites, saveStarredSites,
   loadOgThumbCache, saveOgThumbCache,
-  loadLinksCache, saveLinksCache,
+  loadLinksCache, saveLinksCache, upsertLink, deleteLink,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
   loadActors, saveActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,

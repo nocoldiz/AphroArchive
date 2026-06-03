@@ -8,13 +8,8 @@ export const ContextMenu = () => {
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
   const [showVaultUnlockModal, setShowVaultUnlockModal] = useState(false);
-  const [showProgressModal, setShowProgressModal] = useState(false);
 
   const [targetProfile, setTargetProfile] = useState('default');
-  const [progressTitle, setProgressTitle] = useState('');
-  const [progressDesc, setProgressDesc] = useState('');
-  const [progressCur, setProgressCur] = useState(0);
-  const [progressTotal, setProgressTotal] = useState(0);
 
   const closeMenu = () => {
     contextMenuState.value = { ...state, visible: false };
@@ -32,7 +27,7 @@ export const ContextMenu = () => {
     };
   }, [visible]);
 
-  if (!visible && !showEncryptConfirm && !showUnlockModal && !showProgressModal) return null;
+  if (!visible && !showEncryptConfirm && !showUnlockModal) return null;
 
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -216,95 +211,31 @@ export const ContextMenu = () => {
   };
 
   const execEncrypt = async () => {
-    setProgressTitle('Encrypting Category');
-    setProgressDesc(`Moving files in ${data.path} to Vault...`);
-    setProgressCur(0);
-    setProgressTotal(0);
-    setShowProgressModal(true);
-
     const r = await fetch('/api/categories/encrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path })
     });
-
-    if (r.ok) {
-      const reader = r.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop()!;
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const msg = JSON.parse(line);
-            if (msg.total) {
-              setProgressCur(msg.cur);
-              setProgressTotal(msg.total);
-            }
-            if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
-          } catch (e) { }
-        }
-      }
-
-      setProgressTitle('Complete');
-      setProgressDesc('Category encryption finished successfully.');
-      refresh();
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      toast('Encryption failed: ' + (err.error || 'Unknown error'));
     } else {
-      const err = await r.json();
-      toast('Action failed: ' + (err.error || 'Unknown error'));
-      setShowProgressModal(false);
+      toast('Encrypting — track progress in the sync drawer');
     }
   };
 
   const execUnlock = async () => {
     setShowUnlockModal(false);
-    setProgressTitle('Restoring Category');
-    setProgressDesc(`Decrypting files to profile "${targetProfile}"...`);
-    setProgressCur(0);
-    setProgressTotal(0);
-    setShowProgressModal(true);
-
     const r = await fetch('/api/categories/decrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path, targetProfile })
     });
-
-    if (r.ok) {
-      const reader = r.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop()!;
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const msg = JSON.parse(line);
-            if (msg.total) {
-              setProgressCur(msg.cur);
-              setProgressTotal(msg.total);
-            }
-            if (msg.error) { toast('Error: ' + msg.error); setShowProgressModal(false); return; }
-          } catch (e) { }
-        }
-      }
-      setProgressTitle('Complete');
-      setProgressDesc('Category restored successfully.');
-      refresh();
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      toast('Decrypt failed: ' + (err.error || 'Unknown error'));
     } else {
-      const err = await r.json();
-      toast('Action failed: ' + (err.error || 'Unknown error'));
-      setShowProgressModal(false);
+      toast('Decrypting — track progress in the sync drawer');
     }
   };
 
@@ -477,30 +408,6 @@ export const ContextMenu = () => {
         </div>
       )}
 
-      {showProgressModal && (
-        <div className="modal on" style={{ display: 'flex' }}>
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2>{progressTitle}</h2>
-            </div>
-            <div className="modal-body">
-              <p>{progressDesc}</p>
-              <div style={{ background: 'var(--bg3)', height: '10px', borderRadius: '5px', overflow: 'hidden', marginBottom: '10px' }}>
-                <div style={{ background: 'var(--accent)', height: '100%', width: `${progressTotal ? (progressCur / progressTotal) * 100 : 0}%` }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                <span>{progressCur} / {progressTotal}</span>
-                <span>{progressTotal ? Math.floor((progressCur / progressTotal) * 100) : 0}%</span>
-              </div>
-            </div>
-            <div className="modal-footer">
-              {progressTitle === 'Complete' && (
-                <button class="modal-btn" onClick={() => setShowProgressModal(false)}>Close</button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

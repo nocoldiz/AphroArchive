@@ -12,7 +12,7 @@ const os    = require('os');
 const url   = require('url');
 const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
 const { json, readBody, serveStatic }   = require('./helpers-server');
-const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories, loadAllVideoTags } = require('./db-server');
+const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories, loadAllVideoTags } = require('./db-server');
 const { wordMatchAny, wordMatch } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
@@ -450,12 +450,12 @@ function startScrapingWorker({ reset = false } = {}) {
 
   if (reset) {
     for (const item of allItems) {
-      delete item.scrapedVideoUrl;
-      delete item.hasVideo;
-      delete item.embedUrl;
-      delete item.hasEmbed;
+      item.scrapedVideoUrl = null;
+      item.hasVideo = false;
+      item.embedUrl = null;
+      item.hasEmbed = false;
+      upsertLink(item);
     }
-    saveLinksCache(cache);
     console.log('[scrape] reset — cleared scraped data from', allItems.length, 'links');
   }
 
@@ -515,24 +515,15 @@ function startScrapingWorker({ reset = false } = {}) {
           }
         }
 
+        // Persist scraped data for this item immediately — no full-replace
+        upsertLink(item);
         _scrapeJob.done++;
       } catch (e) {
         console.error('[scrape]   error:', item.url, e.message);
         _scrapeJob.failed++;
       }
-
-      const currentCache = loadLinksCache();
-      const currentItems = currentCache.items || [];
-      const currentItem = currentItems.find(it => it.url === item.url);
-      if (currentItem) {
-        if (item.scrapedVideoUrl) currentItem.scrapedVideoUrl = item.scrapedVideoUrl;
-        if (item.hasVideo) currentItem.hasVideo = item.hasVideo;
-        if (item.embedUrl) currentItem.embedUrl = item.embedUrl;
-        if (item.hasEmbed) currentItem.hasEmbed = item.hasEmbed;
-        if (item.img) currentItem.img = item.img;
-        saveLinksCache(currentCache);
-      }
     }
+    // Auto-categorise any remaining un-tagged items at the end
     const finalCache = loadLinksCache();
     autoCategorizeLinks(finalCache.items || []);
     saveLinksCache(finalCache);
@@ -907,12 +898,72 @@ async function apiImportLinks(req, res) {
   }
 
   if (newItems.length) {
-    const merged = [...(cache.items || []), ...newItems];
-    autoCategorizeLinks(merged);
-    saveLinksCache({ items: merged });
+    autoCategorizeLinks(newItems);
+    for (const it of newItems) upsertLink(it);
   }
 
   json(res, { ok: true, added, skipped });
+}
+
+// ── Export / Import JSON ─────────────────────────────────────────────
+
+function apiExportLinksJson(req, res) {
+  const cache = loadLinksCache();
+  const items = cache.items || [];
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    count: items.length,
+    items,
+  };
+  const filename = `aphroarchive-links-${new Date().toISOString().slice(0, 10)}.json`;
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${filename}"`,
+  });
+  res.end(JSON.stringify(payload, null, 2));
+}
+
+async function apiImportLinksJson(req, res) {
+  const body = await readBody(req);
+
+  // Accept: full export format, { items: [...] }, or plain array
+  let incoming = [];
+  if (Array.isArray(body)) {
+    incoming = body;
+  } else if (Array.isArray(body.items)) {
+    incoming = body.items;
+  } else {
+    return json(res, { error: 'Invalid format: expected { items: [...] } or an array' }, 400);
+  }
+
+  const cache    = loadLinksCache();
+  const existingUrls = new Set((cache.items || []).map(it => it.url));
+
+  let added = 0, skipped = 0;
+  const VALID_FIELDS = ['url','title','category','img','scrapedVideoUrl','hasVideo','embedUrl','hasEmbed','addedAt','tags','downloaded','localVideoId','fav'];
+
+  for (const item of incoming) {
+    if (!item.url || typeof item.url !== 'string') continue;
+
+    // Sanitise: only allow known fields
+    const clean = {};
+    for (const f of VALID_FIELDS) if (item[f] !== undefined) clean[f] = item[f];
+    if (!clean.url) continue;
+
+    if (existingUrls.has(clean.url)) {
+      skipped++;
+    } else {
+      clean.addedAt = clean.addedAt || Date.now();
+      clean.tags    = Array.isArray(clean.tags) ? clean.tags : [];
+      upsertLink(clean);
+      existingUrls.add(clean.url);
+      added++;
+    }
+  }
+
+  const total = existingUrls.size;
+  json(res, { ok: true, added, skipped, total });
 }
 
 module.exports = {
@@ -930,4 +981,5 @@ module.exports = {
   apiStartScraping,
   apiRescrapeAll,
   apiImportLinks,
+  apiExportLinksJson, apiImportLinksJson,
 };

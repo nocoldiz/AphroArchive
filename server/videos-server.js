@@ -56,11 +56,170 @@ let _encryptionProgress = {
   error: '',
   ok: false,
 };
+let _encryptionCancel = false;
 function updateEncryptionProgress(partial) {
   _encryptionProgress = { ..._encryptionProgress, ...partial };
 }
 function getEncryptionProgress() {
   return { ..._encryptionProgress };
+}
+
+// Run encryption in background to avoid tying work to an HTTP response
+async function runEncryptCategory(catPath) {
+  if (_encryptionProgress.running) return false;
+  _encryptionCancel = false;
+  const { isUnlocked, encryptLocalFileToVault, getVaultKey } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
+
+  if (!loadVaultConfig()) {
+    updateEncryptionProgress({ error: 'Master vault password is not set', running: false });
+    return false;
+  }
+  if (!isUnlocked()) {
+    updateEncryptionProgress({ error: 'Vault is locked. Unlock it first', running: false });
+    return false;
+  }
+
+  try {
+    const ck = getCatKey(catPath);
+    const videos = (await cachedScan()).filter(v => {
+      const vk = getCatKey(v.catPath);
+      return vk === ck || vk.startsWith(ck + '/');
+    });
+
+    const total = videos.filter(v => !v.encrypted).length;
+    let encryptedCount = 0;
+
+    updateEncryptionProgress({ running: true, type: 'encrypt', category: catPath, total, done: 0, current: '', error: '', ok: false });
+
+    const meta = loadVideoMeta();
+    const vaultKey = getVaultKey();
+
+    for (const v of videos) {
+      if (_encryptionCancel) {
+        updateEncryptionProgress({ error: 'Cancelled', running: false });
+        return false;
+      }
+      if (v.encrypted) continue;
+      const full = path.join(VIDEOS_DIR, v.rel);
+      if (!fs.existsSync(full)) continue;
+
+      const videoMeta = meta[v.id] || null;
+      const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
+      if (!vaultId) {
+        console.error(`[ENC] Failed to encrypt ${v.name}`);
+        continue;
+      }
+
+      encryptedCount++;
+      console.log(`[ENC] ${v.name} (${encryptedCount}/${total}, ${total - encryptedCount} left)`);
+      const oldThumb = path.join(THUMBS_DIR, v.id);
+      const newThumb = path.join(THUMBS_DIR, vaultId);
+
+      if (fs.existsSync(oldThumb)) {
+        if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
+        fs.renameSync(oldThumb, newThumb);
+        const tFiles = fs.readdirSync(newThumb);
+        for (const tf of tFiles) {
+          if (tf.endsWith('.jpg')) {
+             await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
+          }
+        }
+      }
+
+      updateEncryptionProgress({ done: encryptedCount, current: v.name });
+    }
+
+    invalidateScanCache();
+    updateEncryptionProgress({ ok: true, running: false });
+    return true;
+  } catch (e) {
+    console.error('[runEncryptCategory] error:', e);
+    updateEncryptionProgress({ error: e.message || String(e), running: false });
+    return false;
+  }
+}
+
+// Run decryption in background
+async function runDecryptCategory(catPath, targetProfile) {
+  if (_encryptionProgress.running) return false;
+  _encryptionCancel = false;
+  const { isUnlocked, getVaultKey } = require('./vault-server');
+  const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
+
+  if (!isUnlocked()) {
+    updateEncryptionProgress({ error: 'Vault is locked. Unlock it first', running: false });
+    return false;
+  }
+
+  try {
+    const meta = loadVaultMeta();
+    const itemsToDecrypt = [];
+    for (const [id, item] of Object.entries(meta)) {
+      if (item.category === catPath && item.type !== 'folder') itemsToDecrypt.push({ id, ...item });
+    }
+
+    if (itemsToDecrypt.length === 0) {
+      updateEncryptionProgress({ error: 'No files found in this category in the vault', running: false });
+      return false;
+    }
+
+    updateEncryptionProgress({ running: true, type: 'decrypt', category: catPath, total: itemsToDecrypt.length, done: 0, current: '', error: '', ok: false });
+
+    const total = itemsToDecrypt.length;
+    let doneCount = 0;
+    const vaultKey = getVaultKey();
+    const originalProfile = getCurrentProfile();
+
+    for (const item of itemsToDecrypt) {
+      if (_encryptionCancel) {
+        updateEncryptionProgress({ error: 'Cancelled', running: false });
+        return false;
+      }
+      const encPath = path.join(VAULT_DIR, item.id + '.enc');
+      if (!fs.existsSync(encPath)) continue;
+      const targetDir = path.join(VIDEOS_DIR, item.category);
+      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+      const targetFilePath = path.join(targetDir, item.originalName || item.name + (item.ext || '.mp4'));
+      await decryptFile(encPath, targetFilePath, vaultKey);
+      doneCount++;
+      console.log(`[DEC] ${item.originalName || item.name} (${doneCount}/${total}, ${total - doneCount} left)`);
+
+      const newRel = path.relative(VIDEOS_DIR, targetFilePath).replace(/\\/g, '/');
+      const newId = toId(newRel);
+
+      if (item.videoMeta) {
+        switchProfile(targetProfile);
+        setVideoMetaFields(newId, item.videoMeta);
+        switchProfile(originalProfile);
+      }
+
+      const oldThumb = path.join(THUMBS_DIR, item.id);
+      const newThumb = path.join(THUMBS_DIR, newId);
+      if (fs.existsSync(oldThumb)) {
+        if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
+        fs.renameSync(oldThumb, newThumb);
+        const tFiles = fs.readdirSync(newThumb);
+        for (const tf of tFiles) {
+          if (tf.endsWith('.jpg')) {
+             await decryptThumbnailInPlace(path.join(newThumb, tf), vaultKey);
+          }
+        }
+      }
+
+      delete meta[item.id];
+      updateEncryptionProgress({ done: doneCount, current: item.originalName || item.name });
+    }
+
+    saveVaultMeta(meta);
+    invalidateScanCache();
+    updateEncryptionProgress({ ok: true, running: false });
+    return true;
+  } catch (e) {
+    console.error('[runDecryptCategory] error:', e);
+    updateEncryptionProgress({ error: e.message || String(e), running: false });
+    return false;
+  }
 }
 
 function invalidateScanCache() {
@@ -1769,72 +1928,14 @@ async function apiEncryptCategory(req, res) {
   const dir = path.join(VIDEOS_DIR, catPath);
   if (!fs.existsSync(dir)) return json(res, { error: 'Category not found' }, 404);
   
+  // Start background encryption task and return immediately. Progress is available via /api/encryption/status
   try {
-    const ck = getCatKey(catPath);
-    const videos = (await cachedScan()).filter(v => {
-      const vk = getCatKey(v.catPath);
-      return vk === ck || vk.startsWith(ck + '/');
-    });
-
-    const total = videos.filter(v => !v.encrypted).length;
-    let encryptedCount = 0;
-
-    updateEncryptionProgress({ running: true, type: 'encrypt', category: catPath, total, done: 0, current: '', error: '', ok: false });
-
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' });
-    const sendProgress = (obj) => {
-      res.write(JSON.stringify(obj) + '\n');
-      if (obj.cur !== undefined) updateEncryptionProgress({ done: obj.cur, current: obj.file || '' });
-      if (obj.error) updateEncryptionProgress({ error: obj.error, running: false });
-      if (obj.ok) updateEncryptionProgress({ running: false, ok: true });
-    };
-    const meta = loadVideoMeta();
-    const vaultKey = getVaultKey();
-
-    for (const v of videos) {
-      if (v.encrypted) continue;
-      
-      const full = path.join(VIDEOS_DIR, v.rel);
-      if (!fs.existsSync(full)) continue;
-
-      const videoMeta = meta[v.id] || null;
-      
-      // Encrypt to vault and get new ID
-      const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
-      
-      if (!vaultId) {
-        console.error(`[ENC] Failed to encrypt ${v.name}`);
-        continue;
-      }
-
-      encryptedCount++;
-      console.log(`[ENC] ${v.name} (${encryptedCount}/${total}, ${total - encryptedCount} left)`);
-      const oldThumb = path.join(THUMBS_DIR, v.id);
-      const newThumb = path.join(THUMBS_DIR, vaultId);
-      
-      if (fs.existsSync(oldThumb)) {
-        if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
-        fs.renameSync(oldThumb, newThumb);
-        // Also encrypt the jpg files in thumbnails using the vault key!
-        const tFiles = fs.readdirSync(newThumb);
-        for (const tf of tFiles) {
-          if (tf.endsWith('.jpg')) {
-             await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
-          }
-        }
-      }
-      sendProgress({ cur: encryptedCount, total, file: v.name });
-    }
-    
-    invalidateScanCache();
-    sendProgress({ ok: true, count: encryptedCount });
-    res.end();
-  } catch (e) { 
-    if (!res.headersSent) json(res, { error: e.message }, 500);
-    else {
-      res.write(JSON.stringify({ error: e.message }) + '\n');
-      res.end();
-    }
+    if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
+    // Kick off background job
+    runEncryptCategory(catPath).catch(err => console.error('[apiEncryptCategory] background error:', err));
+    json(res, { ok: true });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
   }
 }
 
@@ -1986,85 +2087,13 @@ async function apiDecryptCategory(req, res) {
     return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
   }
   
+  // Start background decryption task and return immediately
   try {
-    const meta = loadVaultMeta();
-    const itemsToDecrypt = [];
-    
-    for (const [id, item] of Object.entries(meta)) {
-      if (item.category === catPath && item.type !== 'folder') {
-        itemsToDecrypt.push({ id, ...item });
-      }
-    }
-    
-    if (itemsToDecrypt.length === 0) {
-      return json(res, { error: 'No files found in this category in the vault' }, 404);
-    }
-    
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' });
-    const sendProgress = (obj) => res.write(JSON.stringify(obj) + '\n');
-    
-    const total = itemsToDecrypt.length;
-    let doneCount = 0;
-    const vaultKey = getVaultKey();
-    const originalProfile = getCurrentProfile();
-
-    for (const item of itemsToDecrypt) {
-      const encPath = path.join(VAULT_DIR, item.id + '.enc');
-      if (!fs.existsSync(encPath)) continue;
-      
-      const targetDir = path.join(VIDEOS_DIR, item.category);
-      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-      
-      const targetFilePath = path.join(targetDir, item.originalName || item.name + (item.ext || '.mp4'));
-      
-      // Decrypt file
-      await decryptFile(encPath, targetFilePath, vaultKey);
-      
-      doneCount++;
-      console.log(`[DEC] ${item.originalName || item.name} (${doneCount}/${total}, ${total - doneCount} left)`);
-      
-      // Restore metadata to target profile
-      const newRel = path.relative(VIDEOS_DIR, targetFilePath).replace(/\\/g, '/');
-      const newId = toId(newRel);
-      
-      if (item.videoMeta) {
-        switchProfile(targetProfile);
-        setVideoMetaFields(newId, item.videoMeta);
-        switchProfile(originalProfile); // Switch back
-      }
-      
-      // Handle thumbnails
-      const oldThumb = path.join(THUMBS_DIR, item.id);
-      const newThumb = path.join(THUMBS_DIR, newId);
-      
-      if (fs.existsSync(oldThumb)) {
-        if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
-        fs.renameSync(oldThumb, newThumb);
-        // Decrypt thumbnails
-        const tFiles = fs.readdirSync(newThumb);
-        for (const tf of tFiles) {
-          if (tf.endsWith('.jpg')) {
-             await decryptThumbnailInPlace(path.join(newThumb, tf), vaultKey);
-          }
-        }
-      }
-      
-      // Remove from vault meta
-      delete meta[item.id];
-      
-      sendProgress({ cur: doneCount, total, file: item.originalName || item.name });
-    }
-    
-    saveVaultMeta(meta);
-    invalidateScanCache();
-    sendProgress({ ok: true });
-    res.end();
-  } catch (e) { 
-    if (!res.headersSent) json(res, { error: e.message }, 500);
-    else {
-      res.write(JSON.stringify({ error: e.message }) + '\n');
-      res.end();
-    }
+    if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
+    runDecryptCategory(catPath, targetProfile).catch(err => console.error('[apiDecryptCategory] background error:', err));
+    json(res, { ok: true });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
   }
 }
 
@@ -2220,9 +2249,8 @@ async function apiAutoCategorizeUncategorized(req, res) {
   // Also auto-categorize uncategorized links
   let categorizedLinks = 0;
   try {
-    const { loadLinksCache, saveLinksCache } = require('./db-server');
-    const cache = loadLinksCache();
-    const items = cache.items || [];
+    const { loadLinksCache, upsertLink } = require('./db-server');
+    const items = loadLinksCache().items || [];
     const VIRTUAL = new Set(['', 'links', 'uncategorized']);
     for (const item of items) {
       if (item.category && !VIRTUAL.has(item.category.toLowerCase())) continue;
@@ -2230,12 +2258,12 @@ async function apiAutoCategorizeUncategorized(req, res) {
       for (const cat of cats) {
         if (wordMatchAny(text, cat.terms)) {
           item.category = cat.displayName || cat.name;
+          upsertLink(item);
           categorizedLinks++;
           break;
         }
       }
     }
-    saveLinksCache({ items });
   } catch (e) {
     errors.push('links: ' + e.message);
   }
@@ -2286,20 +2314,18 @@ async function apiRecategorizeAll(req, res) {
 
   let categorizedLinks = 0;
   try {
-    const { loadLinksCache, saveLinksCache } = require('./db-server');
-    const cache = loadLinksCache();
-    const items = cache.items || [];
+    const { loadLinksCache, upsertLink } = require('./db-server');
+    const items = loadLinksCache().items || [];
     for (const item of items) {
       const text = (item.title || '') + ' ' + (item.url || '');
       for (const cat of cats) {
         if (wordMatchAny(text, cat.terms)) {
           const newCat = cat.displayName || cat.name;
-          if (item.category !== newCat) { item.category = newCat; categorizedLinks++; }
+          if (item.category !== newCat) { item.category = newCat; upsertLink(item); categorizedLinks++; }
           break;
         }
       }
     }
-    saveLinksCache({ items });
   } catch (e) { errors.push('links: ' + e.message); }
 
   invalidateScanCache();
@@ -2498,15 +2524,12 @@ async function apiCategorizeExecute(req, res) {
 
   if (linkMoves.length > 0) {
     try {
-      const { loadLinksCache, saveLinksCache } = require('./db-server');
-      const cache = loadLinksCache();
-      const items = cache.items || [];
-      const byUrl = new Map(items.map(i => [i.url, i]));
+      const { loadLinksCache, upsertLink } = require('./db-server');
+      const byUrl = new Map(loadLinksCache().items.map(i => [i.url, i]));
       for (const move of linkMoves) {
         const item = byUrl.get(move.url);
-        if (item && move.newCategory) { item.category = move.newCategory; movedLinks++; }
+        if (item && move.newCategory) { item.category = move.newCategory; upsertLink(item); movedLinks++; }
       }
-      saveLinksCache({ items });
     } catch (e) { errors.push('links: ' + e.message); }
   }
 
@@ -2516,6 +2539,14 @@ async function apiCategorizeExecute(req, res) {
 
 function apiEncryptionStatus(req, res) {
   json(res, getEncryptionProgress());
+}
+
+async function apiEncryptionStop(req, res) {
+  if (!_encryptionProgress.running) return json(res, { ok: true, message: 'No job running' });
+  _encryptionCancel = true;
+  updateEncryptionProgress({ current: 'Stopping...', error: '', });
+  console.log('[ENC] stop requested');
+  json(res, { ok: true });
 }
 
 module.exports = {
@@ -2538,5 +2569,5 @@ module.exports = {
   apiEncryptVideo, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey,
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
   apiCategorizePlan, apiCategorizeExecute,
-  apiEncryptionStatus, getEncryptionProgress,
+  apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress,
 };

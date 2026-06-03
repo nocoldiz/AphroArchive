@@ -1,0 +1,12 @@
+# Lighting wildcards
+# Use in prompt as: __lighting__
+golden hour lighting
+studio lighting
+dramatic side lighting
+soft diffused light
+neon lights
+candlelight
+moonlight
+volumetric lighting
+rim lighting
+chiaroscuro

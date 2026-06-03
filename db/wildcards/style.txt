@@ -1,0 +1,12 @@
+# Art style wildcards — one style per line
+# Use in prompt as: __style__
+photorealistic
+oil painting
+watercolor
+digital art
+anime style
+pencil sketch
+cinematic
+impressionist
+concept art
+hyper detailed

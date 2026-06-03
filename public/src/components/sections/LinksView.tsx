@@ -432,13 +432,53 @@ export const LinksView = () => {
   const total = items.length;
   const pct = total ? Math.round((matchedCount / total) * 100) : 0;
 
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const exportLinksJson = async () => {
+    const r = await fetch('/api/links/export');
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aphroarchive-links-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const onImportFileChange = async (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    (e.target as HTMLInputElement).value = '';
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const r = await fetch('/api/links/import-json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const d = await r.json();
+      if (d.error) { alert('Import error: ' + d.error); return; }
+      const w = window as any;
+      if (w.toast) w.toast(`Imported: +${d.added} new · ${d.skipped} skipped · ${d.total} total`);
+      await loadLinks();
+    } catch (err: any) {
+      alert('Failed to parse JSON: ' + err.message);
+    }
+  };
+
   return (
     <div class="import-favs-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Links</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button class="btn" onClick={() => importFavs('chrome')}>Import Chrome</button>
           <button class="btn" onClick={() => importFavs('firefox')}>Import Firefox</button>
+          <button class="btn" onClick={exportLinksJson} title={`Export all ${items.length} links as JSON`}>Export JSON</button>
+          <button class="btn" onClick={() => importFileRef.current?.click()} title="Import links from JSON file">Import JSON</button>
+          <input ref={importFileRef as any} type="file" accept=".json,application/json" aria-label="Import links from JSON file" style={{ display: 'none' }} onChange={onImportFileChange as any} />
           <button class="btn" onClick={clearAll}>Clear All</button>
           <button class="btn" onClick={saveToDb}>Save to DB</button>
           <button class="btn" onClick={startScraping}>Start Scraping</button>

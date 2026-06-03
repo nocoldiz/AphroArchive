@@ -94,8 +94,8 @@ export const VaultUnlockModal = () => {
   const isSetup = !status.configured;
 
   return (
-    <div className="modal on" style={{ display: 'flex' }}>
-      <div className="modal-content" style={{ width: '420px' }}>
+    <div className="modal-overlay on">
+      <div className="modal-dialog">
         <div className="modal-header">
           <h2>{isSetup ? 'Create Vault' : 'Vault Locked'}</h2>
         </div>

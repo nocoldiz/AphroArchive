@@ -113,6 +113,7 @@ export const SyncManager = () => {
     running: false, type: '', category: '', total: 0, done: 0, current: '',
   });
   const wrapRef = useRef<HTMLDivElement>(null);
+  const prevEncRunning = useRef(false);
 
   useEffect(() => {
     const poll = async () => {
@@ -129,6 +130,18 @@ export const SyncManager = () => {
         setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt });
         if (encRes.ok) {
           const enc = await encRes.json();
+          // Detect transition from running → done
+          if (prevEncRunning.current && !enc.running) {
+            if (enc.ok) {
+              const w = window as any;
+              if (w.toast) w.toast('Encryption complete');
+              loadVideos();
+            } else if (enc.error) {
+              const w = window as any;
+              if (w.toast) w.toast('Encryption error: ' + enc.error);
+            }
+          }
+          prevEncRunning.current = enc.running;
           setEncProgress(enc);
         }
       } catch {}
@@ -347,11 +360,18 @@ export const SyncManager = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                   <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>{iconLock}</span>
                   <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>
-                    {encProgress.type === 'encrypt' ? 'Encrypt' : 'Decrypt'} ({encProgress.category})
+                    {encProgress.type === 'encrypt' ? 'Encrypting' : 'Decrypting'} ({encProgress.category})
                   </span>
                   <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
                     {encProgress.total > 0 ? `${encProgress.done}/${encProgress.total}` : '…'}
                   </span>
+                  <button
+                    onClick={() => fetch('/api/encryption/stop', { method: 'POST' }).catch(() => {})}
+                    title="Stop"
+                    style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
+                  >
+                    Stop
+                  </button>
                 </div>
                 {encProgress.total > 0 && <ProgressBar done={encProgress.done} total={encProgress.total} />}
                 {encProgress.current && (

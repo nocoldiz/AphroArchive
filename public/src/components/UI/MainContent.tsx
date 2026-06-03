@@ -35,6 +35,7 @@ import { DownloadQueueView } from '../sections/DownloadQueueView';
 import { ActorScraperView } from '../sections/ActorScraperView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
+import { ImageGenView } from '../sections/ImageGenView';
 import { useEffect } from 'preact/hooks';
 
 export const MainContent = () => {
@@ -109,7 +110,8 @@ export const MainContent = () => {
     if (view === 'vault') return <VaultView />;
     if (view === 'prompts') return <PromptsView />;
     if (view === 'player') return <PlayerView />;
-    if (view === 'mosaic') return <MosaicView />;
+    if (view === 'mosaic')   return <MosaicView />;
+    if (view === 'imagegen') return <ImageGenView />;
     return <BrowseView />;
   };
 

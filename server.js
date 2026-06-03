@@ -47,6 +47,7 @@ const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
 const { startBackgroundWorker } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
+const imagegen    = require('./server/imagegen-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -166,6 +167,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/categories/encrypt-all' && req.method === 'POST') return videos.apiEncryptAllCategories(req, res);
   if (p === '/api/categories/compress' && req.method === 'POST') return videos.apiCompressCategory(req, res);
   if (p === '/api/encryption/status' && req.method === 'GET') return videos.apiEncryptionStatus(req, res);
+  if (p === '/api/encryption/stop' && req.method === 'POST') return videos.apiEncryptionStop(req, res);
 
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetail(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
@@ -233,6 +235,23 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/bulk-download/status' && req.method === 'GET') return downloads.apiBulkDownloadStatus(req, res);
   if (p === '/api/bulk-download/stop' && req.method === 'POST') return downloads.apiBulkDownloadStop(req, res);
 
+  // ── Image Generation ──────────────────────────────────────────────────
+  if (p === '/api/imagegen/config'        && req.method === 'GET')  return imagegen.apiGetConfig(req, res);
+  if (p === '/api/imagegen/config'        && req.method === 'PUT')  return imagegen.apiSetConfig(req, res);
+  if (p === '/api/imagegen/assets'        && req.method === 'GET')  return imagegen.apiGetAssets(req, res);
+  if (p === '/api/imagegen/status'        && req.method === 'GET')  return imagegen.apiGetStatus(req, res);
+  if (p === '/api/imagegen/generate'      && req.method === 'POST') return imagegen.apiGenerate(req, res);
+  if (p === '/api/imagegen/cancel'        && req.method === 'POST') return imagegen.apiCancel(req, res);
+  if (p === '/api/imagegen/engine/start'  && req.method === 'POST') return imagegen.apiStartEngine(req, res);
+  if (p === '/api/imagegen/engine/stop'   && req.method === 'POST') return imagegen.apiStopEngine(req, res);
+  if (p === '/api/imagegen/gallery'       && req.method === 'GET')  return imagegen.apiGallery(req, res);
+  if (p === '/api/imagegen/progress'      && req.method === 'GET')  return imagegen.apiProgress(req, res);
+  if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'GET')    return imagegen.apiGetWildcard(req, res, m[1]);
+  if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'PUT')    return imagegen.apiSaveWildcard(req, res, m[1]);
+  if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'DELETE') return imagegen.apiDeleteWildcard(req, res, m[1]);
+  if ((m = p.match(/^\/api\/imagegen\/image\/([^/]+)$/))     && req.method === 'GET')    return imagegen.apiServeImage(req, res, m[1]);
+  if ((m = p.match(/^\/api\/imagegen\/image\/([^/]+)$/))     && req.method === 'DELETE') return imagegen.apiDeleteImage(req, res, m[1]);
+
   // ── Links / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
   if (p === '/api/links/save-to-db' && req.method === 'POST') {
@@ -268,6 +287,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/links/cache' && req.method === 'GET') return links.apiGetLinksCache(req, res);
   if (p === '/api/links/cache' && req.method === 'POST') return links.apiSaveLinksCache(req, res);
   if (p === '/api/links/import-urls' && req.method === 'POST') return links.apiImportLinks(req, res);
+  if (p === '/api/links/export'      && req.method === 'GET')  return links.apiExportLinksJson(req, res);
+  if (p === '/api/links/import-json' && req.method === 'POST') return links.apiImportLinksJson(req, res);
   if (p === '/api/browser-favs' && req.method === 'GET') return links.apiBrowserFavs(req, res);
   if (p === '/api/browser-favs/file' && req.method === 'POST') return links.apiBrowserFavsFile(req, res);
 
