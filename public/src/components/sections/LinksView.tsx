@@ -111,6 +111,224 @@ function matchTitleToCategory(title: string, cats: ActiveCat[]): string | null {
   return null;
 }
 
+interface BmPickerProps {
+  browser: 'chrome' | 'firefox';
+  existingUrls: Set<string>;
+  onImport: (items: { title: string; url: string }[]) => void;
+  onClose: () => void;
+}
+
+const tagWordMatch = (title: string, term: string) =>
+  new RegExp('(?:^|[^a-z0-9])' + term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(title.toLowerCase());
+
+const matchedTagName = (title: string, tagGroups: { displayName: string; terms: string[] }[]): string | null => {
+  for (const g of tagGroups) {
+    if (g.terms.some(t => tagWordMatch(title, t))) return g.displayName;
+  }
+  return null;
+};
+
+const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPickerProps) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [bookmarks, setBookmarks] = useState<{ title: string; url: string }[]>([]);
+  const [tagGroups, setTagGroups] = useState<{ displayName: string; terms: string[] }[]>([]);
+  const [tagMatched, setTagMatched] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState('');
+  const [sort, setSort] = useState<{ col: 'title' | 'domain'; dir: 'asc' | 'desc' }>({ col: 'title', dir: 'asc' });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const [bmRes, tagsRes] = await Promise.all([
+          fetch(`/api/browser-favs?browser=${browser}&all=true`).then(r => r.json()),
+          fetch('/api/db-tags').then(r => r.json()).catch(() => []),
+        ]);
+        if (bmRes.error) { setError(bmRes.error); setLoading(false); return; }
+        const groups: { displayName: string; terms: string[] }[] = Array.isArray(tagsRes) ? tagsRes : [];
+        const fresh: { title: string; url: string }[] = (bmRes.items || []).filter((b: any) => b.url && !existingUrls.has(b.url));
+        const matched = new Set(fresh.filter(b => matchedTagName(b.title, groups) !== null).map(b => b.url));
+        setTagGroups(groups);
+        setTagMatched(matched);
+        setBookmarks(fresh);
+        setSelected(new Set(matched));
+      } catch (e: any) { setError(e.message); }
+      setLoading(false);
+    })();
+  }, [browser]);
+
+  const domainOf = (url: string) => { try { return new URL(url).hostname; } catch { return url; } };
+
+  const term = filter.trim().toLowerCase();
+  const filtered = term
+    ? bookmarks.filter(b => b.title.toLowerCase().includes(term) || b.url.toLowerCase().includes(term))
+    : bookmarks;
+
+  // Tag-matched rows always come first, then secondary sort by column
+  const sorted = [...filtered].sort((a, b) => {
+    const aTag = tagMatched.has(a.url);
+    const bTag = tagMatched.has(b.url);
+    if (aTag !== bTag) return aTag ? -1 : 1;
+    const av = (sort.col === 'title' ? a.title : domainOf(a.url)).toLowerCase();
+    const bv = (sort.col === 'title' ? b.title : domainOf(b.url)).toLowerCase();
+    return sort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+
+  const toggleSort = (col: 'title' | 'domain') =>
+    setSort(prev => ({ col, dir: prev.col === col && prev.dir === 'asc' ? 'desc' : 'asc' }));
+
+  const toggleRow = (url: string) =>
+    setSelected(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n; });
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every(b => selected.has(b.url));
+
+  const toggleAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelected(prev => { const n = new Set(prev); sorted.forEach(b => n.delete(b.url)); return n; });
+    } else {
+      setSelected(prev => new Set([...prev, ...sorted.map(b => b.url)]));
+    }
+  };
+
+  const arrow = (col: 'title' | 'domain') =>
+    sort.col !== col ? ' ↕' : sort.dir === 'asc' ? ' ↑' : ' ↓';
+
+  const thStyle = (col: 'title' | 'domain'): any => ({
+    padding: '8px 12px', textAlign: 'left', cursor: 'pointer',
+    borderBottom: '1px solid var(--brd)', userSelect: 'none',
+    color: sort.col === col ? 'var(--ac)' : 'var(--tx2)', whiteSpace: 'nowrap',
+  });
+
+  const tagMatchCount = filtered.filter(b => tagMatched.has(b.url)).length;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+      onClick={(e: any) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(900px,100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+
+        {/* Header */}
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          <span style={{ fontWeight: 700, fontSize: '15px', flex: 1 }}>
+            Import All {browser === 'chrome' ? 'Chrome' : 'Firefox'} Bookmarks
+          </span>
+          {!loading && !error && (
+            <span style={{ fontSize: '12px', color: 'var(--tx3)' }}>
+              {bookmarks.length} available
+              {tagMatchCount > 0 && <span style={{ color: 'var(--ac)', marginLeft: '6px' }}>· {tagMatchCount} tag match{tagMatchCount !== 1 ? 'es' : ''}</span>}
+              <span style={{ marginLeft: '6px' }}>· {selected.size} selected</span>
+            </span>
+          )}
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px 6px' }}>✕</button>
+        </div>
+
+        {/* Filter + bulk select */}
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--brd)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+          <input
+            type="text"
+            placeholder="Filter by title or URL…"
+            aria-label="Filter bookmarks"
+            value={filter}
+            onInput={(e: any) => setFilter(e.target.value)}
+            autoFocus
+            style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px 10px', fontSize: '13px' }}
+          />
+          <button
+            onClick={() => setSelected(new Set(sorted.map(b => b.url)))}
+            style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
+          >
+            Select all ({sorted.length})
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
+          >
+            Deselect all
+          </button>
+        </div>
+
+        {/* Table */}
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)' }}>Loading bookmarks…</div>
+          ) : error ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#e53935', fontSize: '13px' }}>{error}</div>
+          ) : sorted.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
+              {bookmarks.length === 0
+                ? 'No new bookmarks found — all are already imported'
+                : 'No bookmarks match the filter'}
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg3)', position: 'sticky', top: 0, zIndex: 1 }}>
+                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--brd)', width: '36px' }}>
+                    <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} title="Toggle all visible" />
+                  </th>
+                  <th style={thStyle('title')} onClick={() => toggleSort('title')}>Title{arrow('title')}</th>
+                  <th style={{ ...thStyle('domain'), width: '200px' }} onClick={() => toggleSort('domain')}>Domain{arrow('domain')}</th>
+                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--brd)', width: '90px', color: 'var(--tx2)', fontSize: '11px', fontWeight: 500 }}>Tag match</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((b, i) => {
+                  const isSelected = selected.has(b.url);
+                  const tag = matchedTagName(b.title, tagGroups);
+                  return (
+                    <tr
+                      key={b.url}
+                      onClick={() => toggleRow(b.url)}
+                      style={{ cursor: 'pointer', background: isSelected ? 'var(--acg)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}
+                    >
+                      <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)' }} onClick={(e: any) => e.stopPropagation()}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleRow(b.url)} />
+                      </td>
+                      <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '460px' }} title={b.url}>
+                        {b.title || '(no title)'}
+                      </td>
+                      <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)', color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <img src={`https://www.google.com/s2/favicons?sz=14&domain_url=${encodeURIComponent(b.url)}`} width="14" height="14" alt="" style={{ flexShrink: 0 }} />
+                          {domainOf(b.url)}
+                        </div>
+                      </td>
+                      <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)' }}>
+                        {tag && (
+                          <span style={{ fontSize: '11px', background: 'var(--acg)', color: 'var(--ac)', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap', border: '1px solid var(--ac)', opacity: 0.85 }}>
+                            {tag}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, background: 'var(--bg3)' }}>
+          <span style={{ fontSize: '13px', color: 'var(--tx2)', flex: 1 }}>
+            {selected.size > 0 ? `${selected.size} bookmark${selected.size !== 1 ? 's' : ''} selected` : 'No bookmarks selected'}
+          </span>
+          <button onClick={onClose} style={{ padding: '7px 16px', background: 'var(--bg2)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+          <button
+            onClick={() => onImport(bookmarks.filter(b => selected.has(b.url)))}
+            disabled={selected.size === 0}
+            style={{ padding: '7px 16px', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: selected.size > 0 ? 'pointer' : 'not-allowed', opacity: selected.size > 0 ? 1 : 0.45 }}
+          >
+            Import {selected.size > 0 ? `${selected.size} Bookmark${selected.size !== 1 ? 's' : ''}` : 'Selected'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const LinksView = () => {
   const [items, setItems] = useState<LinkItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<LinkItem[]>([]);
@@ -123,6 +341,9 @@ export const LinksView = () => {
   const [loading, setLoading] = useState(true);
   const [websites, setWebsites] = useState<any[]>([]);
   const [selectedWebsite, setSelectedWebsite] = useState<string>('');
+
+  const [bmPickerBrowser, setBmPickerBrowser] = useState<'chrome' | 'firefox' | null>(null);
+  const [importMenuOpen, setImportMenuOpen] = useState<'chrome' | 'firefox' | null>(null);
 
   const dlPollerRef = useRef<any>(null);
   const [scrapeJob, setScrapeJob] = useState<{ running: boolean, total: number, done: number, failed: number, current: string } | null>(null);
@@ -292,6 +513,28 @@ export const LinksView = () => {
       }
     } catch { }
     setLoading(false);
+  };
+
+  const handlePickerImport = async (picked: { title: string; url: string }[]) => {
+    setBmPickerBrowser(null);
+    if (!picked.length) return;
+    const existingUrls = new Set(items.map(it => it.url));
+    const newItems = [...items];
+    for (const bm of picked) {
+      if (!existingUrls.has(bm.url)) {
+        newItems.push({ url: bm.url, title: bm.title || bm.url });
+        existingUrls.add(bm.url);
+      }
+    }
+    setItems(newItems);
+    updateMatches(newItems);
+    await fetch('/api/links/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: newItems }),
+    });
+    const w = window as any;
+    if (w.toast) w.toast(`Imported ${picked.length} bookmark${picked.length !== 1 ? 's' : ''}`);
   };
 
   const clearAll = async () => {
@@ -512,9 +755,34 @@ export const LinksView = () => {
     <div class="import-favs-view on" style={{ padding: '20px' }}>
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Links</h1>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button class="btn" onClick={() => importFavs('chrome')}>Import Chrome</button>
-          <button class="btn" onClick={() => importFavs('firefox')}>Import Firefox</button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {importMenuOpen && <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setImportMenuOpen(null)} />}
+
+          {(['chrome', 'firefox'] as const).map(browser => (
+            <div key={browser} style={{ position: 'relative' }}>
+              <button type="button" class="btn" onClick={() => setImportMenuOpen(v => v === browser ? null : browser)}>
+                {browser === 'chrome' ? 'Chrome' : 'Firefox'} ▾
+              </button>
+              {importMenuOpen === browser && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px', zIndex: 200, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', minWidth: '220px', overflow: 'hidden' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setImportMenuOpen(null); importFavs(browser); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', color: 'var(--tx)', cursor: 'pointer', fontSize: '13px' }}
+                  >
+                    Import Websites Bookmarks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setImportMenuOpen(null); setBmPickerBrowser(browser); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', borderTop: '1px solid var(--brd)', borderLeft: 'none', borderRight: 'none', borderBottom: 'none', color: 'var(--tx)', cursor: 'pointer', fontSize: '13px' }}
+                  >
+                    Import All Bookmarks…
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
           <button class="btn" onClick={exportLinksJson} title={`Export all ${items.length} links as JSON`}>Export JSON</button>
           <button class="btn" onClick={() => importFileRef.current?.click()} title="Import links from JSON file">Import JSON</button>
           <input ref={importFileRef as any} type="file" accept=".json,application/json" aria-label="Import links from JSON file" style={{ display: 'none' }} onChange={onImportFileChange as any} />
@@ -660,6 +928,15 @@ export const LinksView = () => {
             ))}
           </div>
         </div>
+      )}
+
+      {bmPickerBrowser && (
+        <BookmarkPickerModal
+          browser={bmPickerBrowser}
+          existingUrls={new Set(items.map(it => it.url))}
+          onImport={handlePickerImport}
+          onClose={() => setBmPickerBrowser(null)}
+        />
       )}
     </div>
   );

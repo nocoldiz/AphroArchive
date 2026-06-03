@@ -1649,10 +1649,6 @@ input {
 
 /* ── Responsive ── */
 @media(max-width:860px) {
-  .side {
-    display: none
-  }
-
   .topbar {
     padding: 8px 12px
   }
@@ -1673,6 +1669,14 @@ input {
   }
 
   .tb-acts .hsm {
+    display: none
+  }
+
+  #dualBtn, #mosBtn, #zapBtn, #panBtn, #igBtn, #rdBtn {
+    display: none
+  }
+
+  .logo-text {
     display: none
   }
 }
@@ -7234,15 +7238,16 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   z-index: 999;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 860px) {
   .burger-btn {
     display: flex;
   }
 
   .side {
+    display: flex !important;
     position: fixed !important;
     top: 53px;
-    left: -240px; /* Hide sidebar */
+    left: -240px;
     width: 240px !important;
     height: calc(100vh - 53px);
     z-index: 1000;
@@ -7258,5 +7263,38 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   .main-content {
     margin-left: 0 !important;
     width: 100% !important;
+  }
+}
+
+/* ── ImageGen responsive columns ── */
+.imagegen-cols {
+  grid-template-columns: 1fr 1fr;
+}
+
+.imagegen-builder-2col {
+  grid-template-columns: 1fr 1fr;
+}
+
+.imagegen-photo-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media(max-width:700px) {
+  .imagegen-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .imagegen-builder-2col {
+    grid-template-columns: 1fr;
+  }
+
+  .imagegen-photo-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media(max-width:420px) {
+  .imagegen-photo-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -770,7 +770,7 @@ function getFirefoxLinkPaths() {
   if (!fs.existsSync(profilesRoot)) return [];
   const results = [];
   for (const profileDir of fs.readdirSync(profilesRoot)) {
-    const backupsDir = path.join(profilesRoot, profileDir, 'linkbackups');
+    const backupsDir = path.join(profilesRoot, profileDir, 'bookmarkbackups');
     if (!fs.existsSync(backupsDir)) continue;
     const files = fs.readdirSync(backupsDir)
       .filter(f => f.endsWith('.jsonlz4') || f.endsWith('.json'))
@@ -783,38 +783,43 @@ function getFirefoxLinkPaths() {
 
 function apiBrowserFavs(req, res) {
   try {
-    const urlObj    = new URL(req.url, 'http://localhost');
-    const qs        = urlObj.searchParams;
-    const browser   = qs.get('browser') || 'chrome';
-    const whitelist = loadWhitelist();
-    if (!whitelist.length) return json(res, { whitelist_empty: true, items: [] });
+    const urlObj  = new URL(req.url, 'http://localhost');
+    const qs      = urlObj.searchParams;
+    const browser = qs.get('browser') || 'chrome';
+    const all     = qs.get('all') === 'true';
 
-    const all = [];
+    const items = [];
     if (browser === 'chrome') {
       const paths = getChromeLinkPaths();
-      if (!paths.length) return json(res, { error: 'Chrome/Edge links file not found. Make sure Chrome or Edge is installed and has been opened at least once.', items: [] }, 404);
+      if (!paths.length) return json(res, { error: 'Chrome/Edge bookmarks file not found. Make sure Chrome or Edge is installed and has been opened at least once.', items: [] }, 404);
       for (const p of paths) {
         try {
           const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
           for (const root of Object.values(data.roots || {})) {
-            if (root && typeof root === 'object') extractChromeLinks(root, all);
+            if (root && typeof root === 'object') extractChromeLinks(root, items);
           }
-        } catch (e) { console.error('Links read error:', p, e.message); }
+        } catch (e) { console.error('Bookmarks read error:', p, e.message); }
       }
     } else if (browser === 'firefox') {
       const paths = getFirefoxLinkPaths();
-      if (!paths.length) return json(res, { error: 'Firefox link backups not found. Make sure Firefox is installed and has been opened at least once.', items: [] }, 404);
+      if (!paths.length) return json(res, { error: 'Firefox bookmark backups not found. Make sure Firefox is installed and has been opened at least once.', items: [] }, 404);
       for (const p of paths) {
         try {
           const data = p.endsWith('.jsonlz4') ? readMozlz4(p) : JSON.parse(fs.readFileSync(p, 'utf-8'));
-          extractFirefoxLinks(data, all);
-        } catch (e) { console.error('Firefox links read error:', p, e.message); }
+          extractFirefoxLinks(data, items);
+        } catch (e) { console.error('Firefox bookmarks read error:', p, e.message); }
       }
     } else {
       return json(res, { error: 'Unknown browser' }, 400);
     }
 
-    json(res, { items: all.filter(b => matchesWhitelist(b.url, whitelist)) });
+    if (all) {
+      return json(res, { items });
+    }
+
+    const whitelist = loadWhitelist();
+    if (!whitelist.length) return json(res, { whitelist_empty: true, items: [] });
+    json(res, { items: items.filter(b => matchesWhitelist(b.url, whitelist)) });
   } catch (e) {
     console.error('apiBrowserFavs error:', e);
     json(res, { error: e.message, items: [] }, 500);

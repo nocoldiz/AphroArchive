@@ -41,7 +41,6 @@ interface GenParams {
   sampler:       string;
   seed:          number;
   batch:         number;
-  combinatorial: boolean;
 }
 
 interface GalleryImage { name: string; size: number; mtime: number; }
@@ -443,7 +442,7 @@ export const ImageGenView = () => {
     model: '', model_type: 'sd15', vae: '',
     prompt: '', negative: DEFAULT_NEGATIVE,
     width: 512, height: 768, steps: 20, cfg: 7.5,
-    sampler: 'euler', seed: -1, batch: 1, combinatorial: false,
+    sampler: 'euler', seed: -1, batch: 1,
   });
   const [selectedLoras, setSelectedLoras] = useState<LoraEntry[]>([]);
 
@@ -498,7 +497,7 @@ export const ImageGenView = () => {
   const [massGenLoading, setMassGenLoading] = useState(false);
   const evsRef = useRef<EventSource | null>(null);
 
-  const comboCount  = params.combinatorial ? countCombos(params.prompt) : 1;
+  const comboCount  = countCombos(params.prompt);
   const totalImages = comboCount * params.batch;
 
   // ── Load ────────────────────────────────────────────────────────
@@ -939,7 +938,7 @@ export const ImageGenView = () => {
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
         {/* Two-column grid for prompts + params */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', alignItems: 'start' }}>
+        <div className="imagegen-cols" style={{ display: 'grid', gap: '14px', alignItems: 'start' }}>
 
           {/* ── LEFT: Prompts + Generator + Wildcards ───────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -977,16 +976,12 @@ export const ImageGenView = () => {
                 style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', background: 'var(--bg2)', color: 'var(--tx)', border: `1px solid ${activeField === 'negative' ? 'var(--ac)' : 'var(--brd)'}`, borderRadius: '6px', padding: '7px 9px', fontSize: '13px', fontFamily: 'inherit', lineHeight: '1.5' }} />
             </div>
 
-            {/* Combinatorial toggle */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: 'var(--bg2)', borderRadius: '6px', border: '1px solid var(--brd)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', color: 'var(--tx2)', flex: 1 }}>
-                <input type="checkbox" checked={params.combinatorial} onChange={(e: any) => setParam('combinatorial', e.target.checked)} />
-                Combinatorial <code style={{ color: 'var(--ac)', fontSize: '11px' }}>{'{a|b|c}'}</code>
-              </label>
-              {params.combinatorial && comboCount > 1 && (
-                <span style={{ fontSize: '11px', color: '#ff9800', fontWeight: 600, whiteSpace: 'nowrap' }}>{comboCount} combos → {totalImages} imgs</span>
-              )}
-            </div>
+            {/* Combo count display */}
+            {comboCount > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: 'var(--bg2)', borderRadius: '6px', border: '1px solid var(--brd)' }}>
+                <span style={{ fontSize: '11px', color: '#ff9800', fontWeight: 600 }}>{comboCount} combos → {totalImages} imgs</span>
+              </div>
+            )}
 
             {/* Prompt Generator — opens modal */}
             <button onClick={() => setPromptGenOpen(true)}
@@ -1423,7 +1418,7 @@ export const ImageGenView = () => {
                   </div>
 
                   {/* Act/Pose + Background — 2 col */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="imagegen-builder-2col" style={{ display: 'grid', gap: '12px' }}>
                     <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 12px', background: 'var(--bg3)' }}>
                       <div style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, marginBottom: '8px' }}>🔥 Act + Pose</div>
                       {(['action','pose'] as const).map(cat => {
@@ -1485,7 +1480,7 @@ export const ImageGenView = () => {
                   {/* Photography / Lighting / Style / Quality */}
                   <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 12px', background: 'var(--bg3)' }}>
                     <div style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, marginBottom: '8px' }}>📷 Photography / Lighting / Style</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                    <div className="imagegen-photo-grid" style={{ display: 'grid', gap: '10px' }}>
                       {(['photography','lighting','style','quality'] as const).map(cat => {
                         const val = (builder as any)[cat] || '';
                         const opts = charOptions[cat] || [];

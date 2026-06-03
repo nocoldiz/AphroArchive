@@ -51,7 +51,7 @@ export const Topbar = () => {
           <rect width="28" height="28" rx="6" fill="#e84040" />
           <polygon points="11,7 11,21 22,14" fill="#fff" />
         </svg>
-        AphroArchive
+        <span className="logo-text">AphroArchive</span>
       </div>
       
       <div className="search-w">

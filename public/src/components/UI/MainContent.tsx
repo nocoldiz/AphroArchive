@@ -36,6 +36,7 @@ import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
 import { ImageGenView } from '../sections/ImageGenView';
 import { AssistantView } from '../sections/AssistantView';
+import { CategorizerView } from '../sections/CategorizerView';
 import { useEffect } from 'preact/hooks';
 
 export const MainContent = () => {
@@ -113,6 +114,7 @@ export const MainContent = () => {
     if (view === 'mosaic')   return <MosaicView />;
     if (view === 'imagegen') return <ImageGenView />;
     if (view === 'assistant') return <AssistantView />;
+    if (view === 'categorizer') return <CategorizerView />;
     return <BrowseView />;
   };
 
