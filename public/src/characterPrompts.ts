@@ -113,6 +113,21 @@ export function getModelSuffix(target: ModelTarget, isNsfw: boolean): string {
   return isNsfw ? ', detailed skin, erotic, sharp focus' : ', sharp focus, high quality';
 }
 
+// Graduated NSFW intensity tags driven by the new slider (0 = SFW/artistic ... 100 = absolute degenerate heavy fetish).
+// This is appended to prompts built from presets + dropdowns in the advanced builder.
+// Replaces the old binary NSFW checkbox for the prompt presets / builder flow.
+export function getNsfwIntensity(level: number): string {
+  if (level <= 10) return 'elegant pose, artistic composition, tasteful, soft lighting';
+  if (level <= 25) return 'sensual, alluring, teasing, pinup style, subtle eroticism';
+  if (level <= 40) return 'erotic, seductive, revealing, aroused body language';
+  if (level <= 55) return 'explicit nudity, detailed anatomy, sexual tension, wet skin';
+  if (level <= 70) return 'highly explicit, penetration, fluids, orgasm face, ahegao';
+  if (level <= 82) return 'depraved, cum play, light bondage, toys, heavy fetish gear';
+  if (level <= 92) return 'extreme fetish, bukkake, public use, mind break, rough, degradation';
+  // max degenerate
+  return 'utterly degenerate filth, absolute heavy fetish, extreme insertions, watersports, fisting, destroyed, no limits, full public toilet use, mind shattered';
+}
+
 // ── Fragment pools (used to build prompts) ───
 // These provide fallbacks + extra { | } choices. The main detail now comes from
 // resolving the __wildcard__ tokens against the existing curated db/wildcards/*.txt
@@ -358,7 +373,8 @@ export interface CharSpec {
 
 export interface BuilderState {
   target: ModelTarget;
-  nsfw: boolean;
+  nsfw: boolean;               // derived from nsfwLevel > 20 for model prefixes etc.
+  nsfwLevel: number;           // 0 (SFW / artistic) — 100 (absolute degenerate, heavy fetish). Replaces binary NSFW choice for presets.
   numChars: BuilderNumChars;
   chars: CharSpec[];           // length == numChars
   // Global scene / porn / photo
@@ -377,6 +393,7 @@ export interface BuilderState {
 export const DEFAULT_BUILDER: BuilderState = {
   target: 'ponyxl',
   nsfw: true,
+  nsfwLevel: 55,   // default: solid erotic / vanilla-explicit (user can slide to SFW or max degenerate)
   numChars: 1,
   chars: [{ gender: 'girl', age: '20', ethnicity: '', body: '', breasts: '', clothing: '' }],
   background: '',
@@ -463,16 +480,19 @@ export const HARDCODED_OPTION_ALIASES: Record<string, string> = {
   clothes: 'clothing',
 };
 
-// Presets for the prompt generator modal. Each preset sets numChars, chars[], background, action, pose, photography, lighting, style, quality etc.
-// Selecting one populates the dropdowns for quick scene setup (normal, gay, lesbian, fetishes, group, etc.).
+// Presets for the prompt generator modal (Builder tab).
+// Each preset is a *scene concept* (solo, couple, bondage pose, public dare, group vibe, etc.).
+// It populates the dropdowns (gender/age/body/clothing/action/pose/background etc).
+// The separate NSFW *slider* (0-100) then dials the final prompt from SFW/artistic all the way to
+// absolute degenerate heavy fetish. Presets are intentionally not pre-baked to one heat level anymore.
 export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { description?: string }> = {
   'straight-vanilla': {
-    description: 'Classic man + woman, missionary/vaginal, romantic',
+    description: 'Classic romantic couple — bedroom intimacy (slider controls heat)',
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'lingerie', expression: 'soft gentle smile, innocent' }],
     background: 'luxury modern bedroom, silk sheets',
     setting: 'luxury modern bedroom, silk sheets',
-    action: 'vaginal creampie, cum overflowing',
+    action: 'missionary',
     pose: 'missionary, legs folded to chest',
     photography: 'close-up',
     lighting: 'soft light, golden hour',
@@ -617,12 +637,12 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
   },
   // === Many additional presets (straight, lesbian, gay, futa, fetishes, public, etc.) ===
   'straight-creampie': {
-    description: 'Hetero vaginal creampie focus',
+    description: 'Hetero couple — intimate bedroom (slider dials to creampie/degen)',
     numChars: 1,
     chars: [{ gender: 'girl', age: '20', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'lingerie pulled to the side', expression: 'ecstatic orgasm, mouth open screaming' }],
     background: 'luxury modern bedroom, silk sheets',
     setting: 'luxury modern bedroom, silk sheets',
-    action: 'vaginal creampie, cum overflowing',
+    action: 'missionary',
     pose: 'missionary, legs folded to chest',
     photography: 'close-up',
     lighting: 'soft light, golden hour',
@@ -630,12 +650,12 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
     quality: 'masterpiece, best quality, highly detailed',
   },
   'straight-anal': {
-    description: 'Anal pounding, gape focus',
+    description: 'Anal focused couple scene (slider to gape/extreme)',
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'micro skirt hiked up, no panties', expression: 'crying from pleasure, mascara run' }],
     background: 'cheap motel, neon sign glow',
     setting: 'cheap motel, neon sign glow',
-    action: 'hard anal pounding, gaped',
+    action: 'doggy style',
     pose: 'doggy style, looking back over shoulder',
     photography: 'from behind',
     lighting: 'dramatic lighting',
@@ -836,12 +856,12 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
     quality: 'highly detailed',
   },
   'milf-seduction': {
-    description: 'Mature MILF seducing',
+    description: 'Mature / MILF seduction scene (slider controls how filthy)',
     numChars: 1,
     chars: [{ gender: 'girl', age: '35', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'thick and soft, wide hips, plush thighs', breasts: 'large breasts', clothing: 'lingerie', expression: 'seductive half lidded eyes, slight smile' }],
     background: 'luxury modern bedroom, silk sheets',
     setting: 'luxury modern bedroom, silk sheets',
-    action: 'vaginal creampie, cum overflowing',
+    action: 'cowgirl position',
     pose: 'cowgirl, leaning forward, tits hanging',
     photography: 'cowboy shot',
     lighting: 'soft light, golden hour',
@@ -849,12 +869,12 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
     quality: 'masterpiece, best quality, highly detailed',
   },
   'schoolgirl-uniform': {
-    description: 'School uniform fantasy (18+)',
+    description: 'School uniform (18+) fantasy — slider to full degen',
     numChars: 1,
     chars: [{ gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'blue eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'micro skirt hiked up, no panties', expression: 'blushing shy, biting lower lip' }],
     background: 'classroom desk after hours',
     setting: 'classroom desk after hours',
-    action: 'vaginal creampie, cum overflowing',
+    action: 'bent over',
     pose: 'bent over table or desk',
     photography: 'from behind',
     lighting: 'dim light',
@@ -878,7 +898,7 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
     quality: 'highly detailed',
   },
   'gloryhole-anon': {
-    description: 'Gloryhole anonymous use',
+    description: 'Anonymous gloryhole / public use concept (slider = how extreme)',
     numChars: 1,
     chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'proud of the mess on her face' }],
     background: 'public park at night',
@@ -919,6 +939,293 @@ export const PROMPT_PRESETS: Record<string, Partial<BuilderState> & { descriptio
     style: 'erotic comic book style',
     quality: 'intricate, highly detailed',
   },
+  // === Many additional SOLO prompts (numChars:1) for quick 1girl/1boy/1futa scenes ===
+  'solo-fingering-spread': {
+    description: 'Solo girl self-pleasure — spread / fingering (use slider for intensity)',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '21', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'desperate needy, pleading eyes' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'fingering her dripping pussy',
+    pose: 'legs spread wide, knees up, presenting',
+    photography: 'close-up',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality, highly detailed',
+  },
+  'solo-dildo-riding': {
+    description: 'Solo dildo riding / toy play',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'dildo riding',
+    pose: 'squatting, knees out, pussy exposed',
+    photography: 'low angle',
+    lighting: 'moody lighting, candle light',
+    style: 'cinematic, filmic color grade',
+    quality: 'masterpiece, best quality',
+  },
+  'solo-squirting-bed': {
+    description: 'Solo intense orgasm / squirting (slider to full degen ahegao)',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '20', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'medium hair', eyes: 'hazel eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'panties around one ankle', expression: 'shocked ahegao, eyes crossed' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'squirting orgasm mid fuck',
+    pose: 'spread eagle on bed',
+    photography: 'close-up',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed, sharp focus',
+  },
+  'solo-ahegao-mirror': {
+    description: 'Solo ahegao face in mirror',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'violet eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'shocked ahegao, eyes crossed' }],
+    background: 'modern bedroom',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'ahegao mid orgasm, body shaking',
+    pose: 'selfie angle, phone in hand, lewd pose',
+    photography: 'close-up',
+    lighting: 'diffuse lighting',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality',
+  },
+  'solo-shower-wet': {
+    description: 'Solo in steamy shower, water on skin',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '23', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'perky breasts', clothing: 'completely nude, bare skin', expression: 'seductive half lidded eyes, slight smile' }],
+    background: 'steamy shower, water running down body',
+    setting: 'steamy shower, water running down body',
+    action: 'fingering her dripping pussy',
+    pose: 'standing',
+    photography: 'close-up',
+    lighting: 'soft shaded',
+    style: 'cinematic, filmic color grade',
+    quality: 'highly detailed',
+  },
+  'solo-lingerie-tease': {
+    description: 'Solo lingerie tease / pulled aside',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '24', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'muscular female', breasts: 'medium breasts', clothing: 'lingerie pulled to the side', expression: 'playful wink and tongue tip' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'masturbating with huge dildo',
+    pose: 'butterfly sitting',
+    photography: 'cowboy shot',
+    lighting: 'soft light, golden hour',
+    style: 'glamour photography, vogue',
+    quality: 'best quality, ultra detailed',
+  },
+  'solo-ripped-tits': {
+    description: 'Ripped shirt, tits out solo',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'hazel eyes', body: 'perfect pornstar body, enhanced curves', breasts: 'huge breasts', clothing: 'shirt ripped open, tits out', expression: 'crying from pleasure, mascara run' }],
+    background: 'cheap motel, neon sign glow',
+    setting: 'cheap motel, neon sign glow',
+    action: 'squirting orgasm mid fuck',
+    pose: 'on back',
+    photography: 'close-up',
+    lighting: 'neon pastel',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality',
+  },
+  'solo-blindfold-gag': {
+    description: 'Blindfold + gag, rest naked solo',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '25', ethnicity: 'exotic middle eastern, olive skin, dark features', hair: 'long hair', eyes: 'brown eyes', body: 'voluptuous and curvy, massive assets', breasts: 'large breasts', clothing: 'blindfold and gag, rest naked', expression: 'tongue hanging out, drooling' }],
+    background: 'dark dungeon, chains, dim torch light',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'stimulation with toys',
+    pose: 'kneeling, back straight, hands on thighs',
+    photography: 'glamour shot',
+    lighting: 'dramatically lit, candle light',
+    style: 'erotic comic book style',
+    quality: 'intricate, highly detailed',
+  },
+  'solo-heels-only': {
+    description: 'Only heels left on, discarded clothes',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '21', ethnicity: 'indian beauty, warm brown, expressive eyes', hair: 'long hair', eyes: 'hazel eyes', body: 'body built for breeding, fertile hips, soft belly', breasts: 'huge breasts', clothing: 'still wearing heels only', expression: 'hungry for more, licking lips' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'fingering her dripping pussy',
+    pose: 'bent over',
+    photography: 'from behind',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed',
+  },
+  'solo-milf-thick': {
+    description: 'Mature thick MILF solo play',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '35', ethnicity: 'latina fire, caramel skin, thick curves', hair: 'long hair', eyes: 'brown eyes', body: 'thick and soft, wide hips, plush thighs', breasts: 'large breasts', clothing: 'lingerie', expression: 'satisfied afterglow, lazy smile' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'masturbating with huge dildo',
+    pose: 'on side',
+    photography: 'cowboy shot',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality, highly detailed',
+  },
+  'solo-chubby-jiggly': {
+    description: 'Chubby BBW solo jiggle play',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '28', ethnicity: 'ebony goddess, rich dark skin, full lips', hair: 'long hair', eyes: 'brown eyes', body: 'BBW, heavy and jiggly all over', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }],
+    background: 'cheap motel, neon sign glow',
+    setting: 'cheap motel, neon sign glow',
+    action: 'fingering her dripping pussy',
+    pose: 'spread legs',
+    photography: 'close-up',
+    lighting: 'moody lighting, candle light',
+    style: 'photorealistic, raw photo',
+    quality: 'best quality',
+  },
+  'solo-athletic-oiled': {
+    description: 'Athletic oiled body solo flex',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '24', ethnicity: 'tanned california surfer', hair: 'blonde hair', eyes: 'blue eyes', body: 'oiled shiny skin over thick curves', breasts: 'perky breasts', clothing: 'completely nude, bare skin', expression: 'confident dominant stare' }],
+    background: 'modern bedroom',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'masturbating with huge dildo',
+    pose: 'standing',
+    photography: 'low angle',
+    lighting: 'hard light',
+    style: 'glamour photography, vogue',
+    quality: 'best quality',
+  },
+  'solo-stealth-park': {
+    description: 'Stealth public masturbation in park',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'mixed race, unique golden tone', hair: 'long hair', eyes: 'green eyes', body: 'curvy', breasts: 'medium breasts', clothing: 'micro skirt hiked up, no panties', expression: 'nervous' }],
+    background: 'public park at night, risky',
+    setting: 'public park at night, risky',
+    action: 'stealth masturbation',
+    pose: 'sitting',
+    photography: 'close-up',
+    lighting: 'moonlight',
+    style: 'cinematic, filmic color grade',
+    quality: 'highly detailed',
+  },
+  'solo-exhibition-balcony': {
+    description: 'Solo exhibition on balcony at night',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '23', ethnicity: 'pale nordic, porcelain skin, light eyes', hair: 'long hair', eyes: 'blue eyes', body: 'slim and willowy, elegant proportions', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'playful wink and tongue tip' }],
+    background: 'penthouse balcony overlooking city',
+    setting: 'penthouse balcony overlooking city',
+    action: 'exhibitionism in public',
+    pose: 'standing',
+    photography: 'wide shot',
+    lighting: 'neon',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed',
+  },
+  'solo-classroom-desk': {
+    description: 'Solo after hours on classroom desk (18+)',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '19', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'blue eyes', body: 'petite and delicate, 5\'1, small frame', breasts: 'small breasts', clothing: 'micro skirt hiked up, no panties', expression: 'blushing shy, biting lower lip' }],
+    background: 'classroom desk after hours',
+    setting: 'classroom desk after hours',
+    action: 'fingering her dripping pussy',
+    pose: 'bent over table or desk',
+    photography: 'from behind',
+    lighting: 'dim light',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed',
+  },
+  'solo-male-bed': {
+    description: 'Solo male on bed, stroking',
+    numChars: 1,
+    chars: [{ gender: 'man', age: '25', ethnicity: 'caucasian', hair: 'short hair', eyes: 'blue eyes', body: 'athletic toned, visible abs, strong legs', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'ecstatic orgasm, mouth open screaming' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'masturbating with huge dildo',
+    pose: 'on back',
+    photography: 'close-up',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality, highly detailed',
+  },
+  'solo-male-shower': {
+    description: 'Solo male in steamy shower',
+    numChars: 1,
+    chars: [{ gender: 'man', age: '28', ethnicity: 'ebony', hair: 'short hair', eyes: 'brown eyes', body: 'muscular', breasts: 'flat chest', clothing: 'completely nude, bare skin', expression: 'satisfied afterglow, lazy smile' }],
+    background: 'steamy shower, water running down body',
+    setting: 'steamy shower, water running down body',
+    action: 'stimulation with toys',
+    pose: 'standing',
+    photography: 'close-up',
+    lighting: 'diffuse lighting',
+    style: 'cinematic, filmic color grade',
+    quality: 'highly detailed',
+  },
+  'solo-futa-huge-load': {
+    description: 'Solo futa with huge cock, self play',
+    numChars: 1,
+    chars: [{ gender: 'futanari', age: '23', ethnicity: 'mixed race, unique golden tone', hair: 'very long hair', eyes: 'violet-blue eyes', body: 'futanari build, feminine curves + package', breasts: 'huge breasts', clothing: 'completely nude, bare skin', expression: 'proud of the mess on her face' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'masturbating with huge dildo',
+    pose: 'on side',
+    photography: 'low angle',
+    lighting: 'soft bedroom lighting',
+    style: 'photorealistic, raw photo',
+    quality: 'masterpiece, best quality',
+  },
+  'solo-futa-standing': {
+    description: 'Standing futa solo, cum play',
+    numChars: 1,
+    chars: [{ gender: 'futanari', age: '24', ethnicity: 'japanese idol, flawless, cute yet lewd', hair: 'long hair', eyes: 'violet eyes', body: 'futanari build, feminine curves + package', breasts: 'large breasts', clothing: 'lingerie pulled to the side', expression: 'hungry for more, licking lips' }],
+    background: 'modern dungeon',
+    setting: 'dark dungeon, chains, dim torch light',
+    action: 'ahegao mid orgasm, body shaking',
+    pose: 'standing',
+    photography: 'full body',
+    lighting: 'hard light',
+    style: 'hentai, glossy anime',
+    quality: 'score_9, score_8_up aesthetic',
+  },
+  'solo-trans-fem': {
+    description: 'Trans woman solo sensual play',
+    numChars: 1,
+    chars: [{ gender: 'trans female', age: '26', ethnicity: 'exotic middle eastern, olive skin, dark features', hair: 'long hair', eyes: 'brown eyes', body: 'slim thick hourglass figure, tiny waist', breasts: 'medium breasts', clothing: 'completely nude, bare skin', expression: 'seductive half lidded eyes, slight smile' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'fingering her dripping pussy',
+    pose: 'on back',
+    photography: 'close-up',
+    lighting: 'soft light, golden hour',
+    style: 'photorealistic, raw photo',
+    quality: 'highly detailed, sharp focus',
+  },
+  'solo-yoga-flex': {
+    description: 'Flexible solo in deep yoga pose',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '20', ethnicity: 'asian beauty, smooth pale skin, dark hair', hair: 'long hair', eyes: 'green eyes', body: 'slim and willowy, elegant proportions', breasts: 'small breasts', clothing: 'completely nude, bare skin', expression: 'soft gentle smile, innocent' }],
+    background: 'luxury modern bedroom, silk sheets',
+    setting: 'luxury modern bedroom, silk sheets',
+    action: 'stimulation with toys',
+    pose: 'legs over head',
+    photography: 'close-up',
+    lighting: 'ambient lighting',
+    style: 'photorealistic, raw photo',
+    quality: 'intricate, highly detailed',
+  },
+  'solo-cyberpunk-alley': {
+    description: 'Risky solo in cyberpunk alley',
+    numChars: 1,
+    chars: [{ gender: 'girl', age: '22', ethnicity: 'russian model, sharp features, platinum', hair: 'short hair', eyes: 'gray eyes', body: 'lewd exaggerated proportions, tiny waist huge tits and ass', breasts: 'gigantic breasts', clothing: 'micro skirt hiked up, no panties', expression: 'crazy_eyes' }],
+    background: 'cyberpunk alley',
+    setting: 'cyberpunk alley',
+    action: 'stealth masturbation',
+    pose: 'squatting, knees out, pussy exposed',
+    photography: 'low angle',
+    lighting: 'neon',
+    style: 'cinematic, filmic color grade',
+    quality: 'highly detailed',
+  },
 };
 
 export function getNumSubjectsPhrase(n: BuilderNumChars, gender0?: string, gender1?: string): string {
@@ -951,10 +1258,14 @@ function joinParts(parts: (string | undefined | null)[]): string {
 }
 
 export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<string, string[]>): string {
-  const { target, nsfw, numChars, chars, background, setting, action, pose, photography, lighting, style, quality, useWildcardInspiration: useInsp } = state;
+  const { target, nsfw: oldNsfw = true, nsfwLevel = 55, numChars, chars, background, setting, action, pose, photography, lighting, style, quality, useWildcardInspiration: useInsp } = state;
 
-  const prefix = getModelPrefix(target, nsfw);
-  const suffix = getModelSuffix(target, nsfw);
+  // Slider (0-100) is the source of truth for "amount of NSFW". Derive binary for prefixes/suffixes.
+  const level = Math.max(0, Math.min(100, Math.round(nsfwLevel)));
+  const isNsfw = level > 20;
+
+  const prefix = getModelPrefix(target, isNsfw);
+  const suffix = getModelSuffix(target, isNsfw);
 
   const c0 = chars[0] || {};
   const c1 = chars[1] || {};
@@ -1019,11 +1330,14 @@ export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<
   // Assemble core subject line(s)
   const subjectsLine = charDescs.filter(Boolean).join(' and ');
 
-  // Main body pieces (nsfw aware)
+  // Main body pieces (now graduated by slider instead of binary)
   const bodyPieces: string[] = [];
-  if (nsfw) {
-    if (numChars === 1) bodyPieces.push('{nude|__clothing_state__|detailed anatomy}');
-    else bodyPieces.push('{interacting intimately|__sexual_act__}');
+  if (level > 25) {
+    if (numChars === 1) {
+      bodyPieces.push(level > 65 ? '{nude|__clothing_state__|detailed anatomy, wet, aroused}' : '{revealing|sheer|artistic nude}');
+    } else {
+      bodyPieces.push(level > 65 ? '{interacting intimately|__sexual_act__}' : 'intimate / sensual interaction');
+    }
   }
 
   const promptCore = joinParts([
@@ -1041,13 +1355,26 @@ export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<
 
   let full = `${prefix}${promptCore}${suffix}`.replace(/\s*,\s*,/g, ',').replace(/\s+/g, ' ').trim();
 
+  // === KEY: graduated NSFW amount from the slider (the whole point of the rework) ===
+  // This lets presets be "scene concepts" (vanilla solo, bondage pose, public daring, etc.)
+  // while the slider dials from SFW artistic all the way to absolute degenerate heavy fetish.
+  const intensity = getNsfwIntensity(level);
+  if (intensity) {
+    // insert before the model suffix so it participates in quality/style
+    if (suffix && full.endsWith(suffix)) {
+      full = full.slice(0, -suffix.length) + ', ' + intensity + suffix;
+    } else {
+      full += ', ' + intensity;
+    }
+  }
+
   // Extra inspiration wildcards for variety if flag set and room
   if (useInsp && !/(__|score_)/i.test(full)) {
     full += ', __lighting__, __style__';
   }
 
-  // Target specific tweaks
-  if (target === 'ponyxl' && nsfw && !full.includes('score_')) {
+  // Target specific tweaks (use computed isNsfw)
+  if (target === 'ponyxl' && isNsfw && !full.includes('score_')) {
     full = 'score_9, score_8_up, score_7_up, source_pony, ' + full;
   }
 
@@ -1114,6 +1441,8 @@ export function inspireRandomBuilder(current: BuilderState, pinned: Set<string> 
   const st: BuilderState = {
     ...current,
     chars: (current.chars || []).map(c => ({ ...c })),
+    nsfwLevel: current.nsfwLevel ?? 55,
+    nsfw: (current.nsfwLevel ?? 55) > 20,
   };
   let num = (st.numChars || 1) as BuilderNumChars;
   if (num < 1) num = 1;

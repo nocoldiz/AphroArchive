@@ -683,6 +683,11 @@ export const ImageGenView = () => {
         while (arr.length < patch.numChars) arr.push({});
         next.chars = arr.slice(0, patch.numChars);
       }
+      // ensure nsfwLevel always present (migration / old partials)
+      if (typeof next.nsfwLevel !== 'number') {
+        next.nsfwLevel = (typeof b.nsfwLevel === 'number' ? b.nsfwLevel : (next.nsfw ? 70 : 10));
+      }
+      next.nsfw = next.nsfwLevel > 20;
       return next;
     });
   };
@@ -755,7 +760,7 @@ export const ImageGenView = () => {
   };
 
   const clearBuilder = () => {
-    setBuilder({ ...DEFAULT_BUILDER });
+    setBuilder({ ...DEFAULT_BUILDER, nsfwLevel: 55, nsfw: true });
     setBuilderPreview('');
     setPinned(new Set());
   };
@@ -805,8 +810,21 @@ export const ImageGenView = () => {
     ['background', 'setting', 'action', 'pose', 'photography', 'lighting', 'style', 'quality'].forEach(k => {
       if ((p as any)[k] !== undefined) patch[k] = (p as any)[k];
     });
+
+    // Suggest a starting nsfwLevel based on preset name (rework: presets are concepts, slider is the heat control).
+    // User can immediately slide it to taste (artistic shibari at 20% or max degen at 100%).
+    if (patch.nsfwLevel == null) {
+      const k = presetKey.toLowerCase();
+      let suggested = 50;
+      if (/(bondage|latex|fetish|bukkake|gang|glory|watersport|public|exhibition|degen|extreme)/.test(k)) suggested = 82;
+      else if (/(anal|creampie|milf|school|strap|pegging|futa|huge)/.test(k)) suggested = 68;
+      else if (/(vanilla|solo|romantic|sensual)/.test(k)) suggested = 48;
+      patch.nsfwLevel = suggested;
+      patch.nsfw = suggested > 20;
+    }
+
     updateBuilder(patch);
-    // Auto compose preview
+    // Auto compose preview (slider change + fields will also live-update)
     setTimeout(() => {
       try { composeBuilderPrompt(false); } catch {}
     }, 50);
@@ -1247,10 +1265,28 @@ export const ImageGenView = () => {
                       style={{ background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '3px 6px', fontSize: '12px' }}>
                       {MODEL_TARGETS.map(t => <option key={t} value={t}>{getModelLabel(t)}</option>)}
                     </select>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: builder.nsfw ? '#ff69b4' : 'var(--tx2)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={builder.nsfw} onChange={(e: any) => { updateBuilder({ nsfw: e.target.checked }); setAdvNsfw(e.target.checked); }} />
-                      NSFW / porn
-                    </label>
+                    {/* Slider replaces old binary NSFW checkbox. Controls how much NSFW / degeneracy is injected into the composed prompt (0 = SFW artistic, 100 = absolute degenerate heavy fetish). Presets are now scene concepts; slider dials the filth level. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                      <span style={{ color: 'var(--tx3)' }}>NSFW</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={builder.nsfwLevel ?? 55}
+                        onChange={(e: any) => {
+                          const lvl = parseInt(e.target.value, 10) || 0;
+                          const isHot = lvl > 20;
+                          updateBuilder({ nsfwLevel: lvl, nsfw: isHot });
+                          setAdvNsfw(isHot);
+                        }}
+                        style={{ width: '110px', accentColor: (builder.nsfwLevel ?? 55) > 70 ? '#f66' : 'var(--ac)' }}
+                        title="0 = SFW / artistic  •  50 = vanilla erotic  •  100 = absolute degenerate heavy fetish"
+                      />
+                      <span style={{ minWidth: 52, fontSize: '10px', color: (builder.nsfwLevel ?? 55) > 80 ? '#f66' : (builder.nsfwLevel ?? 55) > 40 ? '#ff69b4' : 'var(--tx2)', fontWeight: 600 }}>
+                        {(builder.nsfwLevel ?? 55)}% { (builder.nsfwLevel ?? 55) <= 15 ? 'SFW' : (builder.nsfwLevel ?? 55) <= 35 ? 'tease' : (builder.nsfwLevel ?? 55) <= 55 ? 'erotic' : (builder.nsfwLevel ?? 55) <= 75 ? 'explicit' : (builder.nsfwLevel ?? 55) <= 88 ? 'fetish' : 'DEGEN' }
+                      </span>
+                    </div>
                     <span style={{ color: 'var(--tx3)', fontSize: '12px', marginLeft: '8px' }}>Characters</span>
                     {[1,2,3].map(n => (
                       <button key={n} onClick={() => setNumChars(n as BuilderNumChars)}
@@ -1263,9 +1299,9 @@ export const ImageGenView = () => {
                     <button onClick={clearBuilder} style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}>Clear</button>
                   </div>
 
-                  {/* Presets for quick porn scenes (normal/gay/fetish/etc) — populates all dropdowns */}
+                  {/* Presets are now neutral scene *concepts*. The NSFW slider above dials from SFW artistic to max degenerate heavy fetish in the final prompt. */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg3)', borderRadius: '6px', padding: '8px 12px', border: '1px solid var(--brd)' }}>
-                    <span style={{ color: 'var(--tx3)', fontSize: '12px', fontWeight: 600 }}>🎭 Preset Scene</span>
+                    <span style={{ color: 'var(--tx3)', fontSize: '12px', fontWeight: 600 }}>🎭 Scene Concept</span>
                     <select onChange={(e: any) => {
                       const v = e.target.value;
                       if (v === '__random__') {
@@ -1281,14 +1317,14 @@ export const ImageGenView = () => {
                       applyPreset(v);
                     }} defaultValue=""
                       style={{ flex: 1, background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}>
-                      <option value="">— Choose a porn scene preset (populates dropdowns) —</option>
+                      <option value="">— Choose a scene concept (populates fields; slider sets filth level) —</option>
                       <option value="__random__">— Random Preset —</option>
                       {Object.keys(PROMPT_PRESETS).map(key => {
                         const pr = PROMPT_PRESETS[key];
                         return <option key={key} value={key}>{key.replace(/-/g, ' ')} {pr.description ? '— ' + pr.description : ''}</option>;
                       })}
                     </select>
-                    <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>select to fill</span>
+                    <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>slider dials NSFW</span>
                   </div>
 
                   {/* Characters */}
