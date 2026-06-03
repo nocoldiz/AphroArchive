@@ -5,6 +5,7 @@ photos
 cache/
 pages
 node_modules/
+db/wildcards
 db/actors.json
 db/categories.json
 motherless_downloads/

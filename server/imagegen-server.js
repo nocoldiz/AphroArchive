@@ -409,9 +409,28 @@ function apiStartComfyui(req, res) {
   json(res, { ok: true });
 }
 
+// ── API: sync comfyui dirs ────────────────────────────────────────────
+
+function apiSyncComfyui(req, res) {
+  const { loadPrefs } = require('./db-server');
+  const comfyuiPath = (loadPrefs().comfyuiPath || '').trim();
+  if (!comfyuiPath) return json(res, { error: 'ComfyUI path not configured in Settings' }, 400);
+  applyComfyuiPath(comfyuiPath);
+  json(res, { ok: true, modelsDir: cfg.modelsDir, vaesDir: cfg.vaesDir, lorasDir: cfg.lorasDir });
+}
+
 // ── Init ──────────────────────────────────────────────────────────────
 
 loadCfg();
+
+// If dirs are still at defaults, try to sync from comfyuiPath pref
+try {
+  const { loadPrefs } = require('./db-server');
+  const comfyuiPath = (loadPrefs().comfyuiPath || '').trim();
+  if (comfyuiPath && cfg.modelsDir === DEFAULT_CFG.modelsDir) {
+    applyComfyuiPath(comfyuiPath);
+  }
+} catch {}
 
 module.exports = {
   apiGetConfig, apiSetConfig,
@@ -421,5 +440,5 @@ module.exports = {
   apiStartEngine, apiStopEngine,
   apiGallery, apiServeImage, apiDeleteImage,
   apiProgress,
-  applyComfyuiPath, apiStartComfyui,
+  applyComfyuiPath, apiStartComfyui, apiSyncComfyui,
 };

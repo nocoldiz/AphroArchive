@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { presetPickerState, activeProfile, dbPendingOpen } from '../../store';
+import { presetPickerState, activeProfile, dbPendingOpen, loadVideos } from '../../store';
 import { ActorScraperView } from './ActorScraperView';
 
 interface DbEntry {
@@ -171,6 +171,7 @@ export const DatabaseView = () => {
 
       const w = window as any;
       if (w.toast) w.toast('Folders visibility saved');
+      await loadVideos();
     } catch (e: any) {
       alert('Error: ' + e.message);
     }

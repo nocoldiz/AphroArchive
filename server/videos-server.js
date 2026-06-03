@@ -1427,10 +1427,11 @@ async function apiCategoriesOverview(req, res) {
 
   // Respect enabled folders for current profile/user (so browser does not show disabled folders)
   let catsForOverview = filteredCats;
+  let _enabledPathsOv = [];
   try {
     const dbmod = require('./db-server');
-    const enabledPaths = dbmod.loadEnabledCategories();
-    catsForOverview = filteredCats.filter(c => isCategoryEnabled(c.path, enabledPaths));
+    _enabledPathsOv = dbmod.loadEnabledCategories();
+    catsForOverview = filteredCats.filter(c => isCategoryEnabled(c.path, _enabledPathsOv));
   } catch (e) {
     console.error('[categories-overview] enabled filter error:', e.message);
   }
@@ -1477,12 +1478,12 @@ async function apiCategoriesOverview(req, res) {
 
   // Re-derive catsForOverview to include vault ghosts (they passed filtering already since they're new)
   const allCatsForOverview = [...catsForOverview];
+  const hidden2 = loadHidden();
   for (const [key, e] of catMap.entries()) {
     if (e._vaultEncrypted && !catsForOverview.some(c => c.path === key)) {
-      const hidden2 = loadHidden();
       const kLo = key.toLowerCase();
       const isHid = hidden2.some(t => { const tl = t.toLowerCase(); return kLo === tl || kLo.startsWith(tl + '/'); });
-      if (!isHid) allCatsForOverview.push(e);
+      if (!isHid && isCategoryEnabled(key, _enabledPathsOv)) allCatsForOverview.push(e);
     }
   }
 
@@ -1899,6 +1900,9 @@ async function apiDeleteCategory(req, res) {
   
   try {
     const writeRoot = getDefaultWriteRoot();
+    const resolvedVidDir = path.resolve(VIDEOS_DIR);
+    const moves = [];
+
     // 1. Move all videos in this folder to the root of the current default write path (making them uncategorized there)
     function moveRecursive(currentDir) {
       if (!fs.existsSync(currentDir)) return;
@@ -1916,16 +1920,42 @@ async function apiDeleteCategory(req, res) {
           while (fs.existsSync(dst)) {
             dst = path.join(writeRoot, `${base} (${counter++})${ext}`);
           }
+          const resolvedSrc = path.resolve(fullPath);
+          const oldRel = resolvedSrc.startsWith(resolvedVidDir)
+            ? path.relative(VIDEOS_DIR, fullPath).replace(/\\/g, '/')
+            : fullPath;
           fs.renameSync(fullPath, dst);
+          const resolvedDst = path.resolve(dst);
+          const newRel = resolvedDst.startsWith(resolvedVidDir)
+            ? path.relative(VIDEOS_DIR, dst).replace(/\\/g, '/')
+            : dst;
+          const oldId = toId(oldRel);
+          const newId = toId(newRel);
+          if (oldId !== newId) moves.push({ oldId, newId });
         }
       }
     }
-    
+
     moveRecursive(dir);
-    
+
+    // Migrate metadata and favourites for all moved videos
+    if (moves.length > 0) {
+      const meta = loadVideoMeta();
+      const favs = loadFavs();
+      let metaChanged = false;
+      let favsChanged = false;
+      for (const { oldId, newId } of moves) {
+        if (meta[oldId]) { meta[newId] = { ...meta[oldId], category: '' }; delete meta[oldId]; metaChanged = true; }
+        const fi = favs.indexOf(oldId);
+        if (fi !== -1) { favs[fi] = newId; favsChanged = true; }
+      }
+      if (metaChanged) saveVideoMeta(meta);
+      if (favsChanged) saveFavs(favs);
+    }
+
     // 2. Delete the folder
     fs.rmSync(dir, { recursive: true, force: true });
-    
+
     invalidateScanCache();
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }

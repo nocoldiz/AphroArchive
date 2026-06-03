@@ -45,7 +45,25 @@ async function apiAssistantChat(req, res) {
     },
   };
 
+  const send = (data) => { if (!res.writableEnded) res.write(data); };
+  const done  = ()     => { if (!res.writableEnded) { res.write('data: [DONE]\n\n'); res.end(); } };
+
   const r = https.request(reqOpts, (resp) => {
+    if (resp.statusCode !== 200) {
+      let body = '';
+      resp.on('data', c => body += c.toString());
+      resp.on('end', () => {
+        let msg = `OpenRouter error ${resp.statusCode}`;
+        try {
+          const d = JSON.parse(body);
+          msg = (typeof d.error === 'string' ? d.error : d.error?.message) || msg;
+        } catch {}
+        send(`data: ${JSON.stringify({ error: msg })}\n\n`);
+        done();
+      });
+      return;
+    }
+
     let buffer = '';
     resp.on('data', (chunk) => {
       buffer += chunk.toString();
@@ -55,37 +73,26 @@ async function apiAssistantChat(req, res) {
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const data = line.slice(6).trim();
-        if (data === '[DONE]') {
-          res.write('data: [DONE]\n\n');
-          res.end();
-          return;
-        }
+        if (data === '[DONE]') { done(); return; }
         try {
           const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content || '';
-          if (delta) res.write(`data: ${JSON.stringify({ delta })}\n\n`);
-          const finishReason = parsed.choices?.[0]?.finish_reason;
-          if (finishReason === 'stop') {
-            res.write('data: [DONE]\n\n');
-            res.end();
+          if (parsed.error) {
+            const msg = typeof parsed.error === 'string' ? parsed.error : (parsed.error.message || JSON.stringify(parsed.error));
+            send(`data: ${JSON.stringify({ error: msg })}\n\n`);
+            done();
+            return;
           }
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          if (delta) send(`data: ${JSON.stringify({ delta })}\n\n`);
+          if (parsed.choices?.[0]?.finish_reason === 'stop') { done(); return; }
         } catch {}
       }
     });
-    resp.on('end', () => {
-      res.write('data: [DONE]\n\n');
-      res.end();
-    });
-    resp.on('error', (e) => {
-      res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
-      res.end();
-    });
+    resp.on('end', done);
+    resp.on('error', (e) => { send(`data: ${JSON.stringify({ error: e.message })}\n\n`); done(); });
   });
 
-  r.on('error', (e) => {
-    res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
-    res.end();
-  });
+  r.on('error', (e) => { send(`data: ${JSON.stringify({ error: e.message })}\n\n`); done(); });
   r.write(payload);
   r.end();
 }

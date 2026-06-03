@@ -69,6 +69,12 @@ except ImportError:
 
 HAS_DEPS = not _missing
 
+try:
+    from diffusers import FluxPipeline
+    HAS_FLUX = True
+except ImportError:
+    HAS_FLUX = False
+
 SCHEDULERS: dict = {}
 if HAS_DEPS:
     SCHEDULERS = {
@@ -83,9 +89,10 @@ if HAS_DEPS:
 
 # ── Global state ──────────────────────────────────────────────────────
 
-pipeline    = None
-loaded_key  = None   # (model_path, model_type, vae_path)
-cancel_event = threading.Event()
+pipeline         = None
+loaded_key       = None   # (model_path, model_type, vae_path)
+loaded_model_type = 'sd15'
+cancel_event     = threading.Event()
 
 
 def get_device() -> str:
@@ -188,7 +195,7 @@ def count_combinations(prompt: str) -> int:
 # ── Model loading ─────────────────────────────────────────────────────
 
 def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> None:
-    global pipeline, loaded_key
+    global pipeline, loaded_key, loaded_model_type
 
     key = (model_path, model_type, vae_path)
     if loaded_key == key and pipeline is not None:
@@ -200,19 +207,29 @@ def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> No
     dtype  = get_dtype()
     kwargs: dict = {'torch_dtype': dtype}
 
-    if model_type != 'sdxl':
-        kwargs['safety_checker'] = None
-
-    if vae_path and os.path.exists(vae_path):
-        try:
-            vae = AutoencoderKL.from_single_file(vae_path, torch_dtype=dtype)
-            kwargs['vae'] = vae
-        except Exception as e:
-            send({'type': 'warning', 'message': f'VAE load failed: {e}'})
-
-    if model_type == 'sdxl':
+    if model_type == 'flux':
+        if not HAS_FLUX:
+            raise RuntimeError(
+                'Flux requires diffusers>=0.30: pip install -U diffusers transformers'
+            )
+        # Flux uses bfloat16; VAE is bundled
+        pipe = FluxPipeline.from_single_file(model_path, torch_dtype=torch.bfloat16)  # type: ignore[name-defined]
+    elif model_type in ('sdxl', 'pony'):
+        if vae_path and os.path.exists(vae_path):
+            try:
+                vae = AutoencoderKL.from_single_file(vae_path, torch_dtype=dtype)
+                kwargs['vae'] = vae
+            except Exception as e:
+                send({'type': 'warning', 'message': f'VAE load failed: {e}'})
         pipe = StableDiffusionXLPipeline.from_single_file(model_path, **kwargs)
     else:
+        kwargs['safety_checker'] = None
+        if vae_path and os.path.exists(vae_path):
+            try:
+                vae = AutoencoderKL.from_single_file(vae_path, torch_dtype=dtype)
+                kwargs['vae'] = vae
+            except Exception as e:
+                send({'type': 'warning', 'message': f'VAE load failed: {e}'})
         pipe = StableDiffusionPipeline.from_single_file(model_path, **kwargs)
 
     pipe = pipe.to(device)
@@ -222,8 +239,9 @@ def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> No
     except Exception:
         pass
 
-    pipeline  = pipe
-    loaded_key = key
+    pipeline         = pipe
+    loaded_key       = key
+    loaded_model_type = model_type
     send({'type': 'model_loaded', 'model': os.path.basename(model_path), 'device': device})
 
 
@@ -262,9 +280,6 @@ def _generate_one(
     """Generate images for one resolved prompt. Returns list of saved paths."""
     import torch
 
-    sched_cls = SCHEDULERS.get(sampler, EulerDiscreteScheduler)
-    pipeline.scheduler = sched_cls.from_config(pipeline.scheduler.config)
-
     generator = torch.Generator(device=get_device()).manual_seed(seed)
 
     def on_step(pipe, i, t, cb):
@@ -275,16 +290,31 @@ def _generate_one(
               'combo_idx': combo_idx, 'combo_total': combo_total})
         return cb
 
-    result = pipeline(
-        prompt=prompt_text,
-        negative_prompt=negative,
-        width=width, height=height,
-        num_inference_steps=steps,
-        guidance_scale=cfg,
-        num_images_per_prompt=batch,
-        generator=generator,
-        callback_on_step_end=on_step,
-    )
+    if loaded_model_type == 'flux':
+        # Flux: no negative prompt, uses max_sequence_length
+        result = pipeline(
+            prompt=prompt_text,
+            width=width, height=height,
+            num_inference_steps=steps,
+            guidance_scale=cfg,
+            num_images_per_prompt=batch,
+            generator=generator,
+            max_sequence_length=512,
+            callback_on_step_end=on_step,
+        )
+    else:
+        sched_cls = SCHEDULERS.get(sampler, EulerDiscreteScheduler)
+        pipeline.scheduler = sched_cls.from_config(pipeline.scheduler.config)
+        result = pipeline(
+            prompt=prompt_text,
+            negative_prompt=negative,
+            width=width, height=height,
+            num_inference_steps=steps,
+            guidance_scale=cfg,
+            num_images_per_prompt=batch,
+            generator=generator,
+            callback_on_step_end=on_step,
+        )
 
     if cancel_event.is_set():
         return []

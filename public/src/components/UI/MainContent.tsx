@@ -28,7 +28,6 @@ import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
 import { PlayerView } from '../sections/PlayerView';
 import { MosaicView } from '../sections/MosaicView';
-import { PromptsView } from '../sections/PromptsView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
 import { DownloadQueueView } from '../sections/DownloadQueueView';
@@ -109,7 +108,7 @@ export const MainContent = () => {
     if (view === 'audio') return <AudioView />;
     if (view === 'books') return <BooksView />;
     if (view === 'vault') return <VaultView />;
-    if (view === 'prompts') return <PromptsView />;
+    if (view === 'prompts') return <AssistantView />;
     if (view === 'player') return <PlayerView />;
     if (view === 'mosaic')   return <MosaicView />;
     if (view === 'imagegen') return <ImageGenView />;

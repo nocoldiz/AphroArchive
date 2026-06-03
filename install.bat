@@ -106,6 +106,61 @@ echo.
 
 
 
+:: ── 5. Image generation Python deps (full install only) ──────────────────────
+if "%INSTALL_MODE%"=="2" (
+    echo.
+    echo [5/7] Image generation ^(Python / diffusers^)...
+    python --version >nul 2>&1
+    if errorlevel 1 (
+        echo  [SKIP] Python not found — skipping image generation setup.
+        echo         Install Python 3.10+ and re-run this step manually:
+        echo           pip install -r imagegen\requirements.txt
+        goto :skip_imagegen
+    )
+
+    echo.
+    echo  Choose PyTorch variant for image generation:
+    echo.
+    echo    [1] NVIDIA GPU  ^(CUDA 12.1 — recommended if you have an NVIDIA card^)
+    echo    [2] CPU only    ^(slower, no GPU required^)
+    echo    [3] Skip        ^(install later manually^)
+    echo.
+    set /p TORCH_MODE="Enter choice (1, 2 or 3): "
+    if not defined TORCH_MODE set TORCH_MODE=3
+    echo.
+
+    if "!TORCH_MODE!"=="1" (
+        echo  Installing PyTorch with CUDA 12.1...
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+        if errorlevel 1 (
+            echo  [WARN] PyTorch CUDA install failed. Try CPU variant or install manually.
+            goto :skip_imagegen
+        )
+        echo  PyTorch ^(CUDA^)  OK
+    ) else if "!TORCH_MODE!"=="2" (
+        echo  Installing PyTorch CPU-only...
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        if errorlevel 1 (
+            echo  [WARN] PyTorch CPU install failed.
+            goto :skip_imagegen
+        )
+        echo  PyTorch ^(CPU^)  OK
+    ) else (
+        echo  Skipping PyTorch — run manually later.
+        goto :skip_imagegen
+    )
+
+    echo  Installing diffusers and image gen dependencies...
+    pip install -r imagegen\requirements.txt
+    if errorlevel 1 (
+        echo  [WARN] Some image gen packages failed to install.
+    ) else (
+        echo  Image gen deps  OK
+    )
+)
+:skip_imagegen
+echo.
+
 :: ── 7. ffmpeg + ffprobe ──────────────────────────────────────────────────────
 echo.
 echo [7/7] Checking ffmpeg...
