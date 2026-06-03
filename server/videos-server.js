@@ -982,7 +982,10 @@ async function apiVideoDetail(req, res, id) {
   }
   loadCategories().forEach(e => allTagSet.add(e.displayName));
 
-  const suggested = videos
+  const enabledPaths = loadEnabledCategories();
+  const visibleVideos = enabledPaths.length ? videos.filter(x => isCategoryEnabled(x.catPath, enabledPaths)) : videos;
+
+  const suggested = visibleVideos
     .filter(x => x.id !== v.id)
     .map(x => {
       let score      = 0;
@@ -1422,7 +1425,8 @@ async function apiCategoriesOverview(req, res) {
 
   const filteredCats = [...catMap.values()].filter(c => {
     const lo = c.path.toLowerCase();
-    return !hidden.some(t => { const tl = t.toLowerCase(); return lo === tl || lo.startsWith(tl + '/') || lo.startsWith(tl + '\\'); });
+    const parts = lo.split(/[/\\]/);
+    return !hidden.some(t => { const tl = t.toLowerCase(); return lo === tl || lo.startsWith(tl + '/') || lo.startsWith(tl + '\\') || parts.some(p => p === tl); });
   });
 
   // Respect enabled folders for current profile/user (so browser does not show disabled folders)
@@ -1437,11 +1441,15 @@ async function apiCategoriesOverview(req, res) {
   }
 
   // ── Tags ──
+  const videosForTags = videos.filter(v => {
+    if (hidden.length && isVideoHidden(v, hidden, meta[v.id]?.tags || [])) return false;
+    return isCategoryEnabled(v.catPath, _enabledPathsOv);
+  });
   const folderNames = new Set(
-    videos.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
+    videosForTags.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
   );
   const tagMap = new Map();
-  for (const v of videos) {
+  for (const v of videosForTags) {
     for (const tag of (meta[v.id]?.tags || [])) {
       const lo = tag.toLowerCase();
       if (folderNames.has(lo)) continue;
@@ -1637,7 +1645,9 @@ function apiTagSuggestions(req, res) {
 
 async function apiStudios(req, res) {
   const studios = loadStudios();
-  const videos  = await allVideos();
+  const allVids = await allVideos();
+  const enabledPaths = loadEnabledCategories();
+  const videos = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
   const meta    = loadVideoMeta();
   const result  = studios
     .map(e => ({
@@ -1657,7 +1667,9 @@ async function apiStudioVideos(req, res, studioName) {
   const studios = loadStudios();
   const entry   = studios.find(e => e.name.toLowerCase() === studioName.toLowerCase());
   if (!entry) return json(res, { error: 'Not found' }, 404);
-  const videos   = await allVideos();
+  const allVids   = await allVideos();
+  const enabledPaths = loadEnabledCategories();
+  const videos = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
   const meta     = loadVideoMeta();
   const favs     = loadFavs();
   const studioLo = entry.name.toLowerCase();
@@ -2055,8 +2067,17 @@ async function apiEncryptCategory(req, res) {
   }
   
   const dir = path.join(VIDEOS_DIR, catPath);
-  if (!fs.existsSync(dir)) return json(res, { error: 'Category not found' }, 404);
-  
+  if (!fs.existsSync(dir)) {
+    // Directory may not exist for virtual/root categories — check if any videos match
+    const ck = getCatKey(catPath);
+    const scanned = await cachedScan();
+    const hasVideos = scanned.some(v => {
+      const vk = getCatKey(v.catPath);
+      return vk === ck || vk.startsWith(ck + '/');
+    });
+    if (!hasVideos) return json(res, { error: 'Category not found' }, 404);
+  }
+
   // Start background encryption task and return immediately. Progress is available via /api/encryption/status
   try {
     if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);

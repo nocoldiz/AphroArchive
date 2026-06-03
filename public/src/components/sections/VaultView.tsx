@@ -35,6 +35,7 @@ export const VaultView = () => {
   const [status, setStatus] = useState<any>({});
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [saltMode, setSaltMode] = useState<'static' | 'random'>('static');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -185,7 +186,7 @@ export const VaultView = () => {
       const res = await fetch('/api/vault/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ password, useRandomSalt: saltMode === 'random' })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -193,6 +194,7 @@ export const VaultView = () => {
       } else {
         setPassword('');
         setConfirmPassword('');
+        setSaltMode('static');
         fetchStatus();
       }
     } catch (e: any) {
@@ -859,14 +861,48 @@ export const VaultView = () => {
           />
 
           {!status.configured && (
-            <input
-              type="password"
-              value={confirmPassword}
-              onInput={(e: any) => setConfirmPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
-              placeholder="Confirm Password"
-              style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
-            />
+            <>
+              <input
+                type="password"
+                value={confirmPassword}
+                onInput={(e: any) => setConfirmPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
+                placeholder="Confirm Password"
+                style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
+              />
+
+              {/* Salt mode selection */}
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--brd)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--tx2)' }}>Encryption Salt</div>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <input type="radio" name="saltMode" checked={saltMode === 'static'} onChange={() => setSaltMode('static')}
+                    style={{ marginTop: '2px', accentColor: 'var(--ac)', cursor: 'pointer' }} />
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--tx)' }}>
+                      Static salt <span style={{ fontWeight: 'normal', color: 'var(--ac)', fontSize: '0.75rem' }}>— Recommended</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '2px' }}>
+                      Uses a fixed salt ("AphroArchive"). Any installation with the same password can open this vault — great for backups and moving between machines.
+                    </div>
+                  </div>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <input type="radio" name="saltMode" checked={saltMode === 'random'} onChange={() => setSaltMode('random')}
+                    style={{ marginTop: '2px', accentColor: 'var(--ac)', cursor: 'pointer' }} />
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--tx)' }}>
+                      Random salt <span style={{ fontWeight: 'normal', color: '#f59e0b', fontSize: '0.75rem' }}>⚠ Portability limited</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '2px' }}>
+                      Generates a unique random salt per installation — slightly stronger against dictionary attacks.{' '}
+                      <strong style={{ color: '#f59e0b' }}>Cannot be opened on another machine</strong> without copying <code>cache/vault.json</code>.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </>
           )}
 
           {error && <div style={{ color: '#e84040', fontSize: '0.8rem' }}>{error}</div>}

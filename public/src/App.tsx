@@ -1,5 +1,5 @@
 import { useEffect } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, loadPrefs, currentView, presetPickerState, sortMode, isShuffle, showConnectModal } from './store';
+import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { ConnectModal } from './components/modals/ConnectModal';
@@ -10,6 +10,18 @@ export function App() {
     loadVideos();
     loadCategories();
     loadPrefs();
+
+    // Restore vault unlock state and auto-navigate if we're in the Vault profile
+    fetch('/api/vault/status')
+      .then(r => r.json())
+      .then(s => { isVaultUnlocked.value = !!s.unlocked; })
+      .catch(() => {});
+
+    loadProfiles().then(() => {
+      if (activeProfile.value === 'Vault') {
+        currentView.value = 'vault';
+      }
+    });
     
     // Load theme
     const saved = localStorage.getItem('theme') || '';

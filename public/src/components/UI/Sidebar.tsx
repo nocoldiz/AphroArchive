@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen } from '../../store';
+import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -73,11 +73,14 @@ export const Sidebar = () => {
   const [catsOpen, setCatsOpen] = useState(true);
   const [photoFolders, setPhotoFolders] = useState<{ path: string, name: string }[]>([]);
   const [photoFoldersOpen, setPhotoFoldersOpen] = useState(true);
+  const [vaultFolders, setVaultFolders] = useState<{ id: string, name: string }[]>([]);
+  const [vaultFoldersOpen, setVaultFoldersOpen] = useState(true);
+
+  const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
 
   const linkCount = allVideos.value.filter(v => (v as any).isLink).length;
 
   useEffect(() => {
-
     fetch('/api/db-tags')
       .then(r => r.json())
       .then((data: any[]) => setTagGroups(data.map(g => ({ displayName: g.displayName, terms: g.terms || [] }))))
@@ -89,14 +92,47 @@ export const Sidebar = () => {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!isVaultUnlocked.value) { setVaultFolders([]); return; }
+    fetch('/api/vault/files')
+      .then(r => r.json())
+      .then((items: any[]) => {
+        if (!Array.isArray(items)) return;
+        setVaultFolders(items.filter(f => f.type === 'folder').map(f => ({ id: f.id, name: f.name || f.originalName })));
+      })
+      .catch(() => {});
+  }, [isVaultUnlocked.value]);
+
 
 
   const setView = (view: string, legacyFn?: string) => {
+    // Leaving vault: restore previous profile
+    if (activeProfile.value === 'Vault' && view !== 'vault') {
+      const prev = localStorage.getItem('preVaultProfile') || 'default';
+      if (prev !== 'Vault') {
+        localStorage.removeItem('preVaultProfile');
+        switchProfile(prev); // triggers page reload — we're done here
+        return;
+      }
+    }
     currentView.value = view;
     isSidebarOpen.value = false;
     if (legacyFn && (window as any)[legacyFn]) {
       (window as any)[legacyFn]();
     }
+  };
+
+  const enterVault = () => {
+    if (activeProfile.value === 'Vault') {
+      // Already in vault profile — just switch to vault view
+      currentView.value = 'vault';
+      isSidebarOpen.value = false;
+      return;
+    }
+    // Save current profile so we can restore it when leaving
+    localStorage.setItem('preVaultProfile', activeProfile.value);
+    // switchProfile handles lock check and shows unlock modal if needed
+    switchProfile('Vault');
   };
 
   const selectCategory = (catName: string) => {
@@ -137,11 +173,14 @@ export const Sidebar = () => {
   }
   const displayCategories = categories.value
     .map(c => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (catCountMap.get(c.path) || 0) }))
+    .filter(c => {
+      // In vault mode show only fully-encrypted categories
+      if (inVaultMode) return !!c.encrypted;
+      return true;
+    })
     .sort((a, b) => {
-      // Keep Uncategorized at the top
       if (a.path === 'uncategorized') return -1;
       if (b.path === 'uncategorized') return 1;
-      // Sort the rest by name
       return a.name.localeCompare(b.name);
     });
 
@@ -200,9 +239,9 @@ export const Sidebar = () => {
         />
         <SidebarItem
           id="vault-sidebar"
-          label="Vault"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
-          onClick={() => setView('vault', 'showVault')}
+          label={isVaultUnlocked.value ? 'Vault ●' : 'Vault'}
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isVaultUnlocked.value ? 'var(--ac)' : 'currentColor'} strokeWidth={2} style={iconStyle}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
+          onClick={enterVault}
           isActive={currentView.value === 'vault'}
         />
         <SidebarItem
@@ -248,8 +287,8 @@ export const Sidebar = () => {
         />
       </div>
 
-      {/* Browse */}
-      <div className="side-sep"></div>
+      {/* Browse — hidden in vault mode */}
+      {!inVaultMode && <><div className="side-sep"></div>
       <SectionHeader label="Browse" id="sh3-browse" />
       <div className="side-section" id="browseSection">
         <SidebarItem
@@ -282,8 +321,10 @@ export const Sidebar = () => {
         />
       </div>
 
-      {/* Media */}
-      <div className="side-sep"></div>
+      </>}
+
+      {/* Media — hidden in vault mode */}
+      {!inVaultMode && <><div className="side-sep"></div>
       <SectionHeader label="Media" id="sh3-media" />
       <div className="side-section" id="mediaSection">
         <SidebarItem
@@ -346,8 +387,10 @@ export const Sidebar = () => {
         />
       </div>
 
-      {/* Web */}
-      <div className="side-sep"></div>
+      </>}
+
+      {/* Web — hidden in vault mode */}
+      {!inVaultMode && <><div className="side-sep"></div>
       <SectionHeader label="Web" id="sh3-web" />
       <div className="side-section" id="webSection">
         <SidebarItem
@@ -366,119 +409,155 @@ export const Sidebar = () => {
           isActive={currentView.value === 'search'}
         />
       </div>
+      </>}
 
-      {/* Categories & Tags */}
-      <div className="side-sep"></div>
-      <SectionHeader
-        label="Folders"
-        id="sh3-cats"
-        onClick={() => setCatsOpen(v => !v)}
-        action={
-          <button className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        }
-      />
-      <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
-        {displayCategories.map(c => {
-          let lockIcon = null;
-          if (c.partial) {
-            lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="3" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>;
-          } else if (c.encrypted) {
-            lockIcon = <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px', opacity: 0.7, verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
-          }
-          return (
-            <SidebarItem
-              key={c.name}
-              label={c.name}
-              icon={lockIcon}
-              badge={c.count}
-              onClick={() => selectCategory(c.path)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                if ((window as any).showContextMenu) {
-                  (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
-                }
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                e.currentTarget.classList.add('drop-over');
-              }}
-              onDragLeave={(e) => {
-                e.currentTarget.classList.remove('drop-over');
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.currentTarget.classList.remove('drop-over');
-                const id = e.dataTransfer.getData('text/plain');
-                if (!id) return;
-                fetch(`/api/videos/${id}/move`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ category: c.path })
-                })
-                .then(r => r.json())
-                .then(data => {
-                  if (data.ok) {
-                    // Refresh videos
-                    if ((window as any).loadVideos) (window as any).loadVideos();
-                  } else {
-                    alert(data.error || 'Move failed');
-                  }
-                })
-                .catch(err => console.error('Move failed', err));
-              }}
-              isActive={currentCategory.value === c.path}
-              indent
-            />
-          );
-        })}
-      </div>
-
-      <div className="side-sep" id="tags-sep"></div>
-      <SectionHeader
-        label="Tags"
-        id="sh3-tags"
-        onClick={() => setTagsOpen(v => !v)}
-        action={
-          <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'categories', action: 'add' }; }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        }
-      />
-      <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
-        {displayTags.map(t => (
-          <SidebarItem
-            key={t.name}
-            id={`tag-${t.name}`}
-            label={t.name}
-            badge={t.count}
-            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>}
-            onClick={() => {
-              currentCategory.value = '';
-              currentTag.value = t.name;
-              currentTagTerms.value = t.terms;
-              currentView.value = 'browse';
-              isSidebarOpen.value = false;
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              if ((window as any).showContextMenu) {
-                (window as any).showContextMenu(e, 'tag', { name: t.name });
-              }
-            }}
-            isActive={currentTag.value === t.name}
-            indent
+      {/* Vault folders — shown only when vault is open */}
+      {inVaultMode && vaultFolders.length > 0 && (
+        <>
+          <div className="side-sep"></div>
+          <SectionHeader
+            label="Vault Folders"
+            id="sh3-vault-folders"
+            onClick={() => setVaultFoldersOpen(v => !v)}
           />
-        ))}
-      </div>
+          <div className="side-section" id="vaultFoldersSection" style={{ display: vaultFoldersOpen ? 'block' : 'none' }}>
+            {vaultFolders.map(f => (
+              <SidebarItem
+                key={f.id}
+                label={f.name}
+                icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth={2} style={iconStyle}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+                onClick={() => { (window as any)._vaultSetFolder?.(f.id); }}
+                indent
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Categories — encrypted-only in vault mode */}
+      {(!inVaultMode || displayCategories.length > 0) && (
+        <>
+          <div className="side-sep"></div>
+          <SectionHeader
+            label={inVaultMode ? 'Encrypted Folders' : 'Folders'}
+            id="sh3-cats"
+            onClick={() => setCatsOpen(v => !v)}
+            action={!inVaultMode ? (
+              <button type="button" className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            ) : undefined}
+          />
+          <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
+            {displayCategories.map(c => {
+              const lockIcon = inVaultMode
+                ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2.5" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                : c.partial
+                  ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="3" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+                  : c.encrypted
+                    ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px', opacity: 0.7, verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    : null;
+              return (
+                <SidebarItem
+                  key={c.name}
+                  label={c.name}
+                  icon={lockIcon}
+                  badge={c.count}
+                  onClick={() => selectCategory(c.path)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if ((window as any).showContextMenu) {
+                      (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
+                    }
+                  }}
+                  onDragOver={!inVaultMode ? (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    e.currentTarget.classList.add('drop-over');
+                  } : undefined}
+                  onDragLeave={!inVaultMode ? (e) => {
+                    e.currentTarget.classList.remove('drop-over');
+                  } : undefined}
+                  onDrop={!inVaultMode ? (e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove('drop-over');
+                    const id = e.dataTransfer.getData('text/plain');
+                    if (!id) return;
+                    fetch(`/api/videos/${id}/move`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ category: c.path })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                      if (data.ok) {
+                        if ((window as any).loadVideos) (window as any).loadVideos();
+                      } else {
+                        alert(data.error || 'Move failed');
+                      }
+                    })
+                    .catch(err => console.error('Move failed', err));
+                  } : undefined}
+                  isActive={currentCategory.value === c.path}
+                  indent
+                />
+              );
+            })}
+            {inVaultMode && displayCategories.length === 0 && (
+              <div style={{ padding: '6px 16px', fontSize: '0.8rem', color: 'var(--tx3)' }}>No encrypted folders</div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Tags — hidden in vault mode */}
+      {!inVaultMode && (
+        <>
+          <div className="side-sep" id="tags-sep"></div>
+          <SectionHeader
+            label="Tags"
+            id="sh3-tags"
+            onClick={() => setTagsOpen(v => !v)}
+            action={
+              <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'categories', action: 'add' }; }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            }
+          />
+          <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
+            {displayTags.map(t => (
+              <SidebarItem
+                key={t.name}
+                id={`tag-${t.name}`}
+                label={t.name}
+                badge={t.count}
+                icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>}
+                onClick={() => {
+                  currentCategory.value = '';
+                  currentTag.value = t.name;
+                  currentTagTerms.value = t.terms;
+                  currentView.value = 'browse';
+                  isSidebarOpen.value = false;
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if ((window as any).showContextMenu) {
+                    (window as any).showContextMenu(e, 'tag', { name: t.name });
+                  }
+                }}
+                isActive={currentTag.value === t.name}
+                indent
+              />
+            ))}
+          </div>
+        </>
+      )}
       </div>
     </>
   );

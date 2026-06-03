@@ -3,6 +3,9 @@
 AphroArchive Local Image Generation Engine
 Communicates with Node.js via stdin/stdout JSON protocol.
 
+CLI args:
+  python imagegen.py --device auto|cpu|cuda|mps
+
 Stdin (one JSON per line):
   {"action":"generate", "model":"...", ...}
   {"action":"cancel"}
@@ -30,6 +33,7 @@ import time
 import threading
 import traceback
 import random as _random
+import argparse
 from pathlib import Path
 
 try:
@@ -98,12 +102,24 @@ if HAS_DEPS:
 pipeline         = None
 loaded_key       = None   # (model_path, model_type, vae_path)
 loaded_model_type = 'sd15'
+loaded_device    = None
 cancel_event     = threading.Event()
+
+FORCE_DEVICE: str | None = None  # set from CLI --device (cuda/mps/cpu) or None for auto
 
 
 def get_device() -> str:
     if not HAS_DEPS:
         return 'cpu'
+    forced = FORCE_DEVICE or os.environ.get('IMAGEGEN_DEVICE', '').strip().lower() or None
+    if forced:
+        if forced == 'cuda' and torch.cuda.is_available():
+            return 'cuda'
+        if forced == 'mps' and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            return 'mps'
+        if forced == 'cpu':
+            return 'cpu'
+        # requested unavailable GPU -> fall through to auto-detect below (warning sent at startup)
     if torch.cuda.is_available():
         return 'cuda'
     if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
@@ -114,6 +130,17 @@ def get_device() -> str:
 def get_dtype():
     device = get_device()
     return torch.float16 if device in ('cuda', 'mps') else torch.float32
+
+
+def parse_device_arg() -> str | None:
+    """Parse --device from argv (auto|cpu|cuda|mps). Returns the forced value or None for auto-detect."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--device', default='auto')
+    args, _ = parser.parse_known_args()
+    d = (getattr(args, 'device', 'auto') or 'auto').lower().strip()
+    if d in ('cuda', 'mps', 'cpu'):
+        return d
+    return None
 
 
 # ── Wildcard resolution ───────────────────────────────────────────────
@@ -261,6 +288,7 @@ def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> No
     pipeline         = pipe
     loaded_key       = key
     loaded_model_type = model_type
+    loaded_device    = device
     send({'type': 'model_loaded', 'model': os.path.basename(model_path), 'device': device})
 
 
@@ -299,7 +327,8 @@ def _generate_one(
     """Generate images for one resolved prompt. Returns list of saved paths."""
     import torch
 
-    generator = torch.Generator(device=get_device()).manual_seed(seed)
+    dev_for_gen = loaded_device or get_device()
+    generator = torch.Generator(device=dev_for_gen).manual_seed(seed)
 
     def on_step(pipe, i, t, cb):
         if cancel_event.is_set():
@@ -446,7 +475,14 @@ def main() -> None:
         )})
         sys.exit(1)
 
-    send({'type': 'ready', 'device': get_device()})
+    global FORCE_DEVICE
+    FORCE_DEVICE = parse_device_arg()
+
+    effective = get_device()
+    if FORCE_DEVICE and FORCE_DEVICE != effective:
+        send({'type': 'warning', 'message': f'Requested device "{FORCE_DEVICE}" unavailable, falling back to {effective}'})
+
+    send({'type': 'ready', 'device': effective})
 
     for raw in sys.stdin:
         raw = raw.strip()

@@ -9,10 +9,12 @@ Fix that in browse/folders i can see disabled folders for the current users that
 
 
 
+add button in database/website to add new websites based on saved links in DB, adding missing ones.
+Show a confirmation modal where you can select which websites will be  created
 
 
-
-
+Add possibility to remove users
+Make sure that the last user logged is loaded next time the app start
 
 # AphroArchive — TODO & Roadmap
 

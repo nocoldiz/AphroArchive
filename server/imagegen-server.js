@@ -25,6 +25,7 @@ const DEFAULT_CFG = {
   modelType:           'sd15',
   model:               '',
   vae:                 '',
+  device:              'auto',  // auto | cpu | cuda | mps  — prefers GPU when available
 };
 
 let cfg = { ...DEFAULT_CFG };
@@ -68,7 +69,9 @@ const log = (...args) => console.log('[imagegen]', ...args);
 function startEngine() {
   if (pyProc) return;
   log('Starting Python engine…');
-  pyProc = spawn(PYTHON_BIN, ['-u', PYTHON_SCRIPT], {
+  const devPref = (cfg.device || 'auto').toString().toLowerCase();
+  const pyArgs = ['-u', PYTHON_SCRIPT, '--device', (['cpu','cuda','mps'].includes(devPref) ? devPref : 'auto')];
+  pyProc = spawn(PYTHON_BIN, pyArgs, {
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
   });
 
@@ -252,7 +255,7 @@ function apiGetConfig(req, res) {
 
 async function apiSetConfig(req, res) {
   const body = await readBody(req);
-  const fields = ['modelsDir', 'diffusionModelsDir', 'vaesDir', 'lorasDir', 'wildcardsDir', 'outputDir', 'modelType', 'model', 'vae'];
+  const fields = ['modelsDir', 'diffusionModelsDir', 'vaesDir', 'lorasDir', 'wildcardsDir', 'outputDir', 'modelType', 'model', 'vae', 'device'];
   for (const f of fields) if (body[f] !== undefined) cfg[f] = body[f];
   saveCfg();
   json(res, { ok: true });

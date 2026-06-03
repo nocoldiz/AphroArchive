@@ -455,6 +455,7 @@ export const ImageGenView = () => {
   const [vaesDir,   setVaesDir]   = useState('');
   const [lorasDir,  setLorasDir]  = useState('');
   const [outputDir, setOutputDir] = useState('');
+  const [devicePref, setDevicePref] = useState<'auto'|'cpu'|'cuda'|'mps'>('auto');
 
   const [activeField, setActiveField] = useState<'prompt' | 'negative'>('prompt');
   const promptRef   = useRef<HTMLTextAreaElement>(null);
@@ -524,6 +525,7 @@ export const ImageGenView = () => {
       setVaesDir(cfgRes.vaesDir || '');
       setLorasDir(cfgRes.lorasDir || '');
       setOutputDir(cfgRes.outputDir || '');
+      setDevicePref((cfgRes.device || 'auto') as 'auto'|'cpu'|'cuda'|'mps');
       if (cfgRes.model) setParams(p => ({ ...p, model: cfgRes.model, model_type: cfgRes.modelType || 'sd15', vae: cfgRes.vae || '' }));
       setEngineRunning(cfgRes.engine?.running || false);
       setEngineReady(cfgRes.engine?.ready || false);
@@ -621,7 +623,7 @@ export const ImageGenView = () => {
   };
 
   const saveConfig = async () => {
-    await fetch('/api/imagegen/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelsDir, vaesDir, lorasDir, outputDir, model: params.model, vae: params.vae, modelType: params.model_type }) });
+    await fetch('/api/imagegen/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelsDir, vaesDir, lorasDir, outputDir, model: params.model, vae: params.vae, modelType: params.model_type, device: devicePref }) });
     await loadAll(); setConfigOpen(false);
   };
 
@@ -905,7 +907,7 @@ export const ImageGenView = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: STATUS_DOT[engineStatus.state] || 'var(--tx3)', flexShrink: 0, display: 'inline-block' }} />
           <span style={{ fontSize: '12px', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={engineStatus.message}>{engineStatus.message}</span>
-          {engineDevice && <span style={{ fontSize: '11px', color: 'var(--tx3)', flexShrink: 0 }}>{engineDevice}</span>}
+          {engineDevice && <span style={{ fontSize: '11px', color: 'var(--tx3)', flexShrink: 0 }}>{engineDevice}{devicePref && devicePref !== 'auto' ? ` (pref:${devicePref})` : ''}</span>}
         </div>
 
         {!engineRunning
@@ -937,6 +939,20 @@ export const ImageGenView = () => {
                 style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 7px', fontSize: '12px' }} />
             </div>
           ))}
+          <div>
+            <label style={{ color: 'var(--tx3)', display: 'block', marginBottom: '2px', fontSize: '11px' }}>Device (for image gen engine)</label>
+            <select
+              value={devicePref}
+              onChange={(e: any) => setDevicePref(e.target.value as 'auto'|'cpu'|'cuda'|'mps')}
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 7px', fontSize: '12px' }}
+            >
+              <option value="auto">Auto (GPU if available)</option>
+              <option value="cuda">CUDA (NVIDIA GPU)</option>
+              <option value="mps">MPS (Apple)</option>
+              <option value="cpu">CPU only</option>
+            </select>
+            <div style={{ fontSize: '10px', color: 'var(--tx3)', marginTop: '1px' }}>Change requires engine stop/start</div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
             <button onClick={saveConfig} style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '5px', padding: '6px 16px', cursor: 'pointer', fontSize: '12px', flex: 1 }}>Save &amp; Reload</button>
             {comfyuiPath && (
@@ -1472,7 +1488,7 @@ export const ImageGenView = () => {
                         return (
                           <div key={cat} style={{ marginBottom: '8px' }}>
                             <div style={{ fontSize: '11px', color: 'var(--tx3)', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              {cat === 'action' ? (builder.numChars > 0 ? 'Sexual act / porn type' : 'Scene action / event') : 'Pose / composition'}
+                              {cat === 'action' ? (builder.numChars > 0 ? 'Action' : 'Action') : 'Pose'}
                               <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat, false)} style={{ fontSize: '9px', padding: '0 3px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
                             </div>
