@@ -59,6 +59,8 @@ export const SettingsView = () => {
 
   const [verifyStatus, setVerifyStatus] = useState<Record<number, { ok?: boolean; error?: string; checking?: boolean }>>({});
 
+  const [comfyuiPath, setComfyuiPath] = useState(prefs.comfyuiPath || '');
+
   const [genRunning, setGenRunning] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
   const [genStatus, setGenStatus] = useState('');
@@ -1224,6 +1226,46 @@ export const SettingsView = () => {
               The bindings are stored only in your browser's localStorage.
             </div>
           </div>
+        </div>
+
+        {/* ── ComfyUI ──────────────────────────────────────────────────── */}
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <h3 style={{ margin: 0, fontSize: '14px' }}>ComfyUI</h3>
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--tx3)' }}>
+            Set your local ComfyUI install folder. Models, VAEs, and LoRAs will be auto-discovered from its standard directory layout.
+          </p>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <input
+              value={comfyuiPath}
+              onInput={(e: any) => setComfyuiPath(e.target.value)}
+              placeholder="e.g. C:\ComfyUI"
+              style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const r = await fetch('/api/browse-folders-native');
+                  const d = await r.json();
+                  if (d.path) setComfyuiPath(d.path);
+                  else if (d.error) alert(d.error);
+                } catch {}
+              }}
+              style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >Browse…</button>
+          </div>
+          <button
+            type="button"
+            onClick={() => updatePrefs({ comfyuiPath })}
+            style={{ alignSelf: 'flex-start', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '7px 18px', cursor: 'pointer', fontWeight: 600 }}
+          >Save</button>
+          {comfyuiPath && (
+            <div style={{ fontSize: '11px', color: 'var(--tx3)', lineHeight: '1.8' }}>
+              Models: <code>{comfyuiPath}/models/checkpoints</code><br />
+              VAEs: <code>{comfyuiPath}/models/vae</code><br />
+              LoRAs: <code>{comfyuiPath}/models/loras</code>
+            </div>
+          )}
         </div>
 
       </div>

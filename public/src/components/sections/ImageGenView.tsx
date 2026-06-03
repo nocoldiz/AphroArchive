@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
+import { appPrefs } from '../../store';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -47,6 +48,149 @@ const STATUS_DOT: Record<string, string> = {
   stopped: 'var(--tx3)', idle: '#4caf50', loading: '#ff9800',
   generating: 'var(--ac)', queued: '#2196f3', error: '#e53935',
 };
+
+// ── Prompt Generator: Static (non-AI wildcard) + AI templates ────────
+// Static templates use __wildcard__ from db/wildcards/ + model specific prefixes
+const PROMPT_TEMPLATES: Record<string, { label: string; template: string; desc: string }> = {
+  'ponyxl-default': {
+    label: 'PonyXL - Quality Portrait',
+    template: 'score_9, score_8_up, score_7_up, score_6_up, source_pony, __subject__, __clothing__, __pose__, __expression__, __lighting__, __style__, detailed face, sharp focus, high quality',
+    desc: 'PonyXL with score tags + wildcards'
+  },
+  'ponyxl-scene': {
+    label: 'PonyXL - Full Scene',
+    template: 'score_9, score_8_up, score_7_up, __subject__, __action__, __location__, __clothing__, __lighting__, __style__, intricate details, best quality',
+    desc: 'PonyXL scene with action/location'
+  },
+  'flux-cinematic': {
+    label: 'Flux - Cinematic',
+    template: 'cinematic still of __subject__, __setting__, __clothing__, dramatic __lighting__, __style__, highly detailed, photoreal, 8k, moody atmosphere',
+    desc: 'Natural language good for Flux'
+  },
+  'flux-creative': {
+    label: 'Flux - Creative',
+    template: '__subject__ in __setting__, wearing __clothing__, __pose__, beautiful __lighting__, artistic __style__, intricate, masterpiece',
+    desc: 'Flux creative/artistic'
+  },
+  'sdxl-real': {
+    label: 'SDXL - Photoreal',
+    template: 'photorealistic, raw photo, __subject__, __clothing__, __pose__, __lighting__, sharp focus, 8k uhd, film grain, __style__',
+    desc: 'Realistic SDXL/SD1.5 style'
+  },
+  'general-erotic': {
+    label: 'General - Erotic / NSFW',
+    template: 'beautiful __subject__, __body_type__, __clothing_state__, __act__, seductive __expression__, __setting__, __lighting__, detailed skin, erotic atmosphere, __style__',
+    desc: 'Porn-friendly base using wildcards'
+  },
+  'custom': {
+    label: 'Custom template (edit below)',
+    template: '__subject__, __clothing__, __pose__, __lighting__, __style__',
+    desc: 'Edit your own template with __wildcards__'
+  },
+};
+
+const AI_TARGETS = [
+  { id: 'ponyxl', label: 'PonyXL (score tags + detailed)' },
+  { id: 'flux', label: 'Flux (natural language)' },
+  { id: 'sd15', label: 'SD 1.5 / Realistic' },
+  { id: 'sdxl', label: 'SDXL' },
+  { id: 'general', label: 'General / Any' },
+];
+
+// Simple client-side wildcard resolver (mirrors imagegen.py logic)
+async function resolveStaticPrompt(
+  template: string,
+  cache: Map<string, string[]>
+): Promise<string> {
+  let prompt = template;
+  const pattern = /__([a-zA-Z0-9_\/\\-]+)__/g;
+
+  // Collect needed wildcards
+  const needed = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = pattern.exec(template)) !== null) {
+    needed.add(m[1]);
+  }
+
+  // Fetch missing full lines
+  for (const name of needed) {
+    if (!cache.has(name)) {
+      try {
+        const res = await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`);
+        const data = await res.json();
+        const lines: string[] = (data.lines || []).filter((l: string) => l && !l.startsWith('#'));
+        cache.set(name, lines.length ? lines : [name]);
+      } catch {
+        cache.set(name, [name]); // fallback keep token
+      }
+    }
+  }
+
+  // Resolve with limited nesting (like py)
+  for (let depth = 0; depth < 8; depth++) {
+    const before = prompt;
+    prompt = prompt.replace(pattern, (_match, name: string) => {
+      const options = cache.get(name) || [name];
+      if (options.length === 0) return name;
+      // simple random
+      return options[Math.floor(Math.random() * options.length)];
+    });
+    if (prompt === before) break;
+  }
+
+  return prompt.trim();
+}
+
+// Call the existing assistant for AI prompt gen (reuses openrouter key + current model)
+async function generateAIPrompt(idea: string, target: string, isNsfw: boolean): Promise<string> {
+  const system = `You are an expert prompt engineer specialized in creating high-quality, detailed prompts for text-to-image models.
+Target: ${target}.
+${target.includes('pony') ? 'Always start with quality tags like score_9, score_8_up, score_7_up, source_pony when appropriate.' : ''}
+${target.includes('flux') ? 'Write in natural, descriptive, cinematic language. Avoid heavy token lists.' : ''}
+${isNsfw ? 'The user wants explicit adult/porn content. Be direct, use anatomical terms, describe body, pose, act, expression, fluids, lighting in vivid detail.' : 'Keep tasteful unless user specifies otherwise.'}
+Output ONLY the final prompt text. No explanations, no quotes. Make it 40-120 tokens long, highly detailed, optimized for the target model. You may use __wildcard__ syntax if it fits naturally from known wildcards like __subject__, __lighting__ etc.`;
+
+  const userMsg = `Create a single excellent prompt for: ${idea || 'a beautiful scene'}.`;
+
+  const resp = await fetch('/api/assistant/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userMsg }
+      ],
+      model: undefined // let server use saved prefs
+    })
+  });
+
+  if (!resp.ok) throw new Error('Assistant request failed');
+
+  const reader = resp.body?.getReader();
+  if (!reader) throw new Error('No stream');
+
+  const decoder = new TextDecoder();
+  let full = '';
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') continue;
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.delta) full += parsed.delta;
+      } catch {}
+    }
+  }
+  return full.trim() || 'Failed to generate prompt.';
+}
 
 // ── Count combinatorial combinations ─────────────────────────────────
 
@@ -275,6 +419,8 @@ function WildcardsPanel({
 // ── Main view ─────────────────────────────────────────────────────────
 
 export const ImageGenView = () => {
+  const comfyuiPath = appPrefs.value.comfyuiPath || '';
+
   const [engineStatus, setEngineStatus] = useState<EngineStatus>({ state: 'stopped', step: 0, total: 0, pct: 0, message: 'Engine not started' });
   const [engineRunning, setEngineRunning] = useState(false);
   const [engineReady,   setEngineReady]   = useState(false);
@@ -307,6 +453,17 @@ export const ImageGenView = () => {
   const [activeField, setActiveField] = useState<'prompt' | 'negative'>('prompt');
   const promptRef   = useRef<HTMLTextAreaElement>(null);
   const negativeRef = useRef<HTMLTextAreaElement>(null);
+
+  // Prompt Generator (static non-AI wildcard + AI)
+  const [genMode, setGenMode] = useState<'static' | 'ai'>('static');
+  const [genTemplateKey, setGenTemplateKey] = useState<keyof typeof PROMPT_TEMPLATES>('ponyxl-default');
+  const [customTemplate, setCustomTemplate] = useState('');
+  const [genIdea, setGenIdea] = useState('');
+  const [genTarget, setGenTarget] = useState('ponyxl');
+  const [generatedPrompt, setGeneratedPrompt] = useState('');
+  const [genLoading, setGenLoading] = useState(false);
+  // cache for full wildcard lines (used by static resolver)
+  const wildcardFullCache = useRef(new Map<string, string[]>()).current;
 
   const [generating, setGenerating] = useState(false);
   const evsRef = useRef<EventSource | null>(null);
@@ -446,6 +603,52 @@ export const ImageGenView = () => {
   const removeLora    = (name: string) => setSelectedLoras(p => p.filter(l => l.name !== name));
   const setLoraStrength = (name: string, s: number) => setSelectedLoras(p => p.map(l => l.name === name ? { ...l, strength: s } : l));
 
+  // ── Prompt Generator actions (after set* for closure safety) ──────
+  const doStaticGenerate = async () => {
+    setGenLoading(true);
+    try {
+      const key = genTemplateKey as keyof typeof PROMPT_TEMPLATES;
+      let tpl = PROMPT_TEMPLATES[key]?.template || '';
+      if (key === 'custom') {
+        tpl = customTemplate.trim() || PROMPT_TEMPLATES['custom'].template;
+      }
+      const result = await resolveStaticPrompt(tpl, wildcardFullCache);
+      setGeneratedPrompt(result);
+    } catch (e) {
+      setGeneratedPrompt('Error generating static prompt: ' + (e as Error).message);
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const doAIGenerate = async () => {
+    if (!genIdea.trim() && !confirm('No idea entered — generate a random one?')) return;
+    setGenLoading(true);
+    try {
+      const idea = genIdea.trim() || 'a beautiful detailed scene';
+      const result = await generateAIPrompt(idea, genTarget, true /* default to allowing nsfw per project theme */);
+      setGeneratedPrompt(result);
+    } catch (e) {
+      setGeneratedPrompt('AI generation failed: ' + (e as Error).message + ' (check OpenRouter key in Settings or Assistant)');
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  const applyGenerated = (toField: 'prompt' | 'negative', mode: 'replace' | 'append') => {
+    if (!generatedPrompt) return;
+    const current = toField === 'prompt' ? params.prompt : params.negative;
+    const newVal = mode === 'replace' ? generatedPrompt : (current ? current + ', ' + generatedPrompt : generatedPrompt);
+    setParam(toField, newVal);
+    setActiveField(toField);
+  };
+
+  const copyGenerated = () => {
+    if (generatedPrompt) {
+      navigator.clipboard?.writeText(generatedPrompt);
+    }
+  };
+
   // Insert wildcard token into active field
   const insertWildcard = (token: string) => {
     if (activeField === 'prompt') {
@@ -519,6 +722,19 @@ export const ImageGenView = () => {
             ? <button onClick={startEngine} style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}>Start</button>
             : <button onClick={stopEngine} style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}>Stop</button>
           }
+          {comfyuiPath && (
+            <button
+              type="button"
+              onClick={async () => {
+                const r = await fetch('/api/imagegen/comfyui/start', { method: 'POST' });
+                const d = await r.json();
+                if (d.error) alert(d.error);
+                else if (!d.already) window.toast?.('ComfyUI started — open http://localhost:8188');
+              }}
+              title="Launch ComfyUI web UI"
+              style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: '11px' }}
+            >ComfyUI ▶</button>
+          )}
         </div>
 
         {/* Progress bar */}
@@ -585,6 +801,63 @@ export const ImageGenView = () => {
             </label>
             {params.combinatorial && comboCount > 1 && (
               <span style={{ fontSize: '11px', color: '#ff9800', fontWeight: 600, whiteSpace: 'nowrap' }}>{comboCount} combo{comboCount !== 1 ? 's' : ''} → {totalImages} img{totalImages !== 1 ? 's' : ''}</span>
+            )}
+          </div>
+
+          {/* ── Prompt Generator (static non-AI + AI) ───────────────── */}
+          <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', background: 'var(--bg3)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '5px 8px', background: 'var(--bg2)', borderBottom: '1px solid var(--brd)' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tx2)', flex: 1 }}>✨ Prompt Generator</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button onClick={() => setGenMode('static')} style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '3px', border: genMode==='static' ? '1px solid var(--ac)' : '1px solid var(--brd)', background: genMode==='static' ? 'var(--ac)' : 'transparent', color: genMode==='static' ? '#fff' : 'var(--tx2)', cursor: 'pointer' }}>Static</button>
+                <button onClick={() => setGenMode('ai')} style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '3px', border: genMode==='ai' ? '1px solid var(--ac)' : '1px solid var(--brd)', background: genMode==='ai' ? 'var(--ac)' : 'transparent', color: genMode==='ai' ? '#fff' : 'var(--tx2)', cursor: 'pointer' }}>AI</button>
+              </div>
+            </div>
+
+            {genMode === 'static' && (
+              <div style={{ padding: '6px 8px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <select value={genTemplateKey} onChange={(e: any) => setGenTemplateKey(e.target.value)} style={{ width: '100%', background: 'var(--bg)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '2px 4px', fontSize: '11px' }}>
+                  {Object.entries(PROMPT_TEMPLATES).map(([k, t]) => (
+                    <option key={k} value={k}>{t.label}</option>
+                  ))}
+                </select>
+                {genTemplateKey === 'custom' && (
+                  <textarea value={customTemplate} onInput={(e: any) => setCustomTemplate(e.target.value)} placeholder="Custom: __subject__, __lighting__ ..." rows={2} style={{ width: '100%', fontSize: '10px', fontFamily: 'monospace', background: 'var(--bg)', border: '1px solid var(--brd)', borderRadius: '3px', padding: '3px' }} />
+                )}
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button onClick={doStaticGenerate} disabled={genLoading} style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '3px 6px', fontSize: '11px', cursor: 'pointer' }}>{genLoading ? '...' : 'Generate Static (wildcards)'}</button>
+                  <button onClick={() => setGeneratedPrompt('')} style={{ background: 'var(--bg)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '3px 6px', fontSize: '11px' }}>Clear</button>
+                </div>
+              </div>
+            )}
+
+            {genMode === 'ai' && (
+              <div style={{ padding: '6px 8px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <input value={genIdea} onInput={(e: any) => setGenIdea(e.target.value)} placeholder="Idea: 'cyberpunk hacker girl in rain'" style={{ width: '100%', fontSize: '11px', background: 'var(--bg)', border: '1px solid var(--brd)', borderRadius: '3px', padding: '3px 4px' }} />
+                <select value={genTarget} onChange={(e: any) => setGenTarget(e.target.value)} style={{ width: '100%', background: 'var(--bg)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '2px 4px', fontSize: '11px' }}>
+                  {AI_TARGETS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button onClick={doAIGenerate} disabled={genLoading} style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '3px 6px', fontSize: '11px', cursor: 'pointer' }}>{genLoading ? 'Asking AI...' : 'Generate with AI'}</button>
+                  <button onClick={() => setGeneratedPrompt('')} style={{ background: 'var(--bg)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '3px 6px', fontSize: '11px' }}>Clear</button>
+                </div>
+                <div style={{ fontSize: '9px', color: 'var(--tx3)' }}>Uses your Assistant OpenRouter key + model prefs. Good for Pony/Flux/SD.</div>
+              </div>
+            )}
+
+            {generatedPrompt && (
+              <div style={{ borderTop: '1px solid var(--brd)', padding: '6px 8px', background: 'var(--bg)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--tx3)', marginBottom: '2px' }}>Generated:</div>
+                <div style={{ fontSize: '10px', fontFamily: 'monospace', background: 'var(--bg3)', padding: '4px', borderRadius: '3px', maxHeight: '60px', overflow: 'auto', whiteSpace: 'pre-wrap', border: '1px solid var(--brd)' }}>
+                  {generatedPrompt}
+                </div>
+                <div style={{ display: 'flex', gap: '3px', marginTop: '4px', flexWrap: 'wrap' }}>
+                  <button onClick={() => applyGenerated('prompt', 'replace')} style={{ fontSize: '9px', padding: '1px 5px', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>→ Pos</button>
+                  <button onClick={() => applyGenerated('prompt', 'append')} style={{ fontSize: '9px', padding: '1px 5px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '3px', cursor: 'pointer' }}>Append Pos</button>
+                  <button onClick={() => applyGenerated('negative', 'replace')} style={{ fontSize: '9px', padding: '1px 5px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '3px', cursor: 'pointer' }}>→ Neg</button>
+                  <button onClick={copyGenerated} style={{ fontSize: '9px', padding: '1px 5px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '3px', cursor: 'pointer' }}>Copy</button>
+                </div>
+              </div>
             )}
           </div>
 

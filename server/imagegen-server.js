@@ -379,6 +379,36 @@ function apiProgress(req, res) {
   req.on('close', () => progressListeners.delete(send));
 }
 
+// ── ComfyUI integration ───────────────────────────────────────────────
+
+function applyComfyuiPath(comfyuiPath) {
+  if (comfyuiPath) {
+    cfg.modelsDir = path.join(comfyuiPath, 'models', 'checkpoints');
+    cfg.vaesDir   = path.join(comfyuiPath, 'models', 'vae');
+    cfg.lorasDir  = path.join(comfyuiPath, 'models', 'loras');
+  } else {
+    cfg.modelsDir = DEFAULT_CFG.modelsDir;
+    cfg.vaesDir   = DEFAULT_CFG.vaesDir;
+    cfg.lorasDir  = DEFAULT_CFG.lorasDir;
+  }
+  saveCfg();
+}
+
+let comfyProc = null;
+
+function apiStartComfyui(req, res) {
+  const { loadPrefs } = require('./db-server');
+  const comfyuiPath = (loadPrefs().comfyuiPath || '').trim();
+  if (!comfyuiPath) return json(res, { error: 'ComfyUI path not configured in Settings' }, 400);
+  if (!fs.existsSync(path.join(comfyuiPath, 'main.py')))
+    return json(res, { error: 'main.py not found at the specified ComfyUI path' }, 400);
+  if (comfyProc) return json(res, { ok: true, already: true });
+  comfyProc = spawn(PYTHON_BIN, ['main.py'], { cwd: comfyuiPath, detached: true, stdio: 'ignore' });
+  comfyProc.unref();
+  comfyProc.on('exit', () => { comfyProc = null; });
+  json(res, { ok: true });
+}
+
 // ── Init ──────────────────────────────────────────────────────────────
 
 loadCfg();
@@ -391,4 +421,5 @@ module.exports = {
   apiStartEngine, apiStopEngine,
   apiGallery, apiServeImage, apiDeleteImage,
   apiProgress,
+  applyComfyuiPath, apiStartComfyui,
 };

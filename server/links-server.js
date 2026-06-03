@@ -562,6 +562,16 @@ function apiGetLinksCache(req, res) {
   const cache = loadLinksCache();
   let items = cache.items || [];
 
+  const enabledPaths = loadEnabledCategories();
+  if (enabledPaths.length > 0) {
+    const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
+    items = items.filter(item => {
+      if (!item.category) return true;
+      const catLo = item.category.toLowerCase();
+      return enabledSet.size === 0 || Array.from(enabledSet).some(ep => catLo === ep || catLo.startsWith(ep + '/'));
+    });
+  }
+
   if (query) {
     const term = query.toLowerCase();
     items = items.filter(item =>

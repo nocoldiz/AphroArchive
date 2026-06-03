@@ -65,6 +65,7 @@ export interface AppPrefs {
   privateFeedFolders?: string[];
   videosDir?: string;
   videosDirExists?: boolean;
+  comfyuiPath?: string;
 }
 export interface ThumbnailGroup {
   id: string;

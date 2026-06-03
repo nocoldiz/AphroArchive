@@ -31,11 +31,24 @@ const {
   loadRatings,
   loadLinksCache,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
+  loadEnabledCategories,
 } = require('./db-server');
 
 // ── Video scan cache ─────────────────────────────────────────────────
 function getCatKey(p) {
   return (p || '').replace(/\\/g, '/').toLowerCase();
+}
+
+function getVaultCategoryPaths() {
+  try {
+    const { loadVaultMeta } = require('./db-server');
+    const meta = loadVaultMeta();
+    const cats = new Set();
+    for (const item of Object.values(meta)) {
+      if (item.category && item.type !== 'folder') cats.add(item.category);
+    }
+    return cats;
+  } catch { return new Set(); }
 }
 
 function isHiddenFolderName(name) {
@@ -559,12 +572,15 @@ async function apiVideos(req, res, params) {
   const favs        = loadFavs();
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
-  let list = videos.map(v => {
-    const cached   = thumbsCache[v.id];
-    const duration = cached?.duration || null;
-    const vMeta    = meta[v.id] || {};
-    return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: vMeta.tags || v.tags || [], chapters: vMeta.chapters || [] };
-  });
+  const enabledPaths = loadEnabledCategories();
+  let list = videos
+    .filter(v => isCategoryEnabled(v.catPath, enabledPaths))
+    .map(v => {
+      const cached   = thumbsCache[v.id];
+      const duration = cached?.duration || null;
+      const vMeta    = meta[v.id] || {};
+      return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: vMeta.tags || v.tags || [], chapters: vMeta.chapters || [] };
+    });
   const q    = params.get('q');
   const cat  = params.get('category');
   const sort = params.get('sort') || 'date';
@@ -762,6 +778,8 @@ async function apiCategories(req, res) {
     toRemove.forEach(k => catMap.delete(k));
   }
 
+  const vaultCats = getVaultCategoryPaths();
+
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
     const parts = key.split('/');
@@ -774,7 +792,8 @@ async function apiCategories(req, res) {
 
     const isLinks = key === 'Links';
     const full = path.join(VIDEOS_DIR, entry.path);
-    const isConfigured = !isLinks && fs.existsSync(path.join(full, '.cat-enc-config.json'));
+    const hasCatConfig = !isLinks && fs.existsSync(path.join(full, '.cat-enc-config.json'));
+    const isConfigured = hasCatConfig || (!isLinks && vaultCats.has(entry.path));
 
     cats.push({
       name: entry.name,
@@ -1438,18 +1457,46 @@ async function apiCategoriesOverview(req, res) {
     }
   }
 
-  const result = [...catsForOverview, ...tagMap.values()].map(e => {
+  // Add ghost entries for vault-encrypted categories (all videos moved to vault, none in scan)
+  const vaultCatsOv = getVaultCategoryPaths();
+  for (const catPath of vaultCatsOv) {
+    if (!catMap.has(catPath)) {
+      catMap.set(catPath, {
+        type: 'cat',
+        name: catPath.replace(/\//g, ' / '),
+        path: catPath,
+        count: 0,
+        ids: [],
+        duration: 0,
+        _vaultEncrypted: true
+      });
+    } else {
+      catMap.get(catPath)._hasVaultItems = true;
+    }
+  }
+
+  // Re-derive catsForOverview to include vault ghosts (they passed filtering already since they're new)
+  const allCatsForOverview = [...catsForOverview];
+  for (const [key, e] of catMap.entries()) {
+    if (e._vaultEncrypted && !catsForOverview.some(c => c.path === key)) {
+      const hidden2 = loadHidden();
+      const kLo = key.toLowerCase();
+      const isHid = hidden2.some(t => { const tl = t.toLowerCase(); return kLo === tl || kLo.startsWith(tl + '/'); });
+      if (!isHid) allCatsForOverview.push(e);
+    }
+  }
+
+  const result = [...allCatsForOverview, ...tagMap.values()].map(e => {
     const isLinks = e.name === 'Links';
-    const thumbId = e.thumbId || (e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null);
+    const thumbId = e.thumbId || (e.ids && e.ids.length ? e.ids[Math.floor(Math.random() * e.ids.length)] : null);
     let encrypted = false;
     let partial = false;
     if (e.type === 'cat' && !isLinks) {
       const full = path.join(VIDEOS_DIR, e.path);
-      encrypted = fs.existsSync(path.join(full, '.cat-enc-config.json'));
+      const hasCatConfig = fs.existsSync(path.join(full, '.cat-enc-config.json'));
+      encrypted = hasCatConfig || !!e._vaultEncrypted || !!e._hasVaultItems;
       if (encrypted) {
-        // Check if any videos in this specific folder are NOT encrypted
-        const hasUnencrypted = unencryptedCats.has(getCatKey(e.path));
-        partial = hasUnencrypted;
+        partial = unencryptedCats.has(getCatKey(e.path));
       }
     }
     const unlocked = isLinks ? true : isUnlocked(e.path || '');
@@ -1460,7 +1507,9 @@ async function apiCategoriesOverview(req, res) {
 
 async function apiTags(req, res) {
   const meta    = loadVideoMeta();
-  const videos  = await allVideos();
+  const enabledPaths = loadEnabledCategories();
+  const allVids = await allVideos();
+  const videos  = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
   const folderNames = new Set(
     videos.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
   );
@@ -1479,10 +1528,12 @@ async function apiTags(req, res) {
 
 async function apiTagVideos(req, res, tagName) {
   const meta   = loadVideoMeta();
-  const videos = await allVideos();
+  const enabledPaths = loadEnabledCategories();
+  const allVids = await allVideos();
+  const videos = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
   const favs   = loadFavs();
   const tagLo  = tagName.toLowerCase();
-  
+
   const parsed = require('url').parse(req.url, true);
   const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
 
@@ -1510,7 +1561,9 @@ function _catForName(name) {
 async function apiDbTags(req, res) {
   const cats   = loadCategories();
   const meta   = loadVideoMeta();
-  const videos = await allVideos();
+  const enabledPaths = loadEnabledCategories();
+  const allVids = await allVideos();
+  const videos = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
   const result = cats
     .map(cat => {
       const termsLo = cat.terms.map(t => t.toLowerCase());
@@ -1529,7 +1582,9 @@ async function apiDbTagVideos(req, res, name) {
   const cat = _catForName(name);
   if (!cat) return json(res, { error: 'Not found' }, 404);
   const meta    = loadVideoMeta();
-  const videos  = await allVideos();
+  const enabledPaths = loadEnabledCategories();
+  const allVids = await allVideos();
+  const videos  = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
   const favs    = loadFavs();
   const termsLo = cat.terms.map(t => t.toLowerCase());
 

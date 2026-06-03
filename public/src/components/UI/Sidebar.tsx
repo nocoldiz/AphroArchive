@@ -68,18 +68,15 @@ export const Sidebar = () => {
   }, [isOpen]);
   if (view === 'reddit') return null;
 
-  const [linkCount, setLinkCount] = useState(0);
   const [tagGroups, setTagGroups] = useState<{ displayName: string, terms: string[] }[]>([]);
   const [tagsOpen, setTagsOpen] = useState(true);
   const [catsOpen, setCatsOpen] = useState(true);
   const [photoFolders, setPhotoFolders] = useState<{ path: string, name: string }[]>([]);
   const [photoFoldersOpen, setPhotoFoldersOpen] = useState(true);
 
+  const linkCount = allVideos.value.filter(v => (v as any).isLink).length;
+
   useEffect(() => {
-    fetch('/api/links/cache')
-      .then(r => r.json())
-      .then(d => setLinkCount(d.total || (d.items ? d.items.length : 0)))
-      .catch(() => {});
 
     fetch('/api/db-tags')
       .then(r => r.json())

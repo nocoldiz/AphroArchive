@@ -90,6 +90,17 @@ async function apiSavePrefs(req, res) {
       feedFoldersChanged = true;
     }
   }
+  // New assistant prefs (nsfw switch, jailbreak/system prompt mode, story genre) for AssistantView.tsx
+  if ('assistantNsfw' in body) prefs.assistantNsfw = !!body.assistantNsfw;
+  if ('assistantSystemMode' in body) prefs.assistantSystemMode = String(body.assistantSystemMode || 'default');
+  if ('assistantStoryGenre' in body) prefs.assistantStoryGenre = String(body.assistantStoryGenre || 'Any');
+  if ('comfyuiPath' in body) {
+    prefs.comfyuiPath = String(body.comfyuiPath || '').trim();
+    try {
+      const imagegen = require('./imagegen-server');
+      imagegen.applyComfyuiPath(prefs.comfyuiPath);
+    } catch {}
+  }
   savePrefs(prefs);
   if (feedFoldersChanged) {
     try {

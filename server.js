@@ -252,6 +252,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'DELETE') return imagegen.apiDeleteWildcard(req, res, m[1]);
   if ((m = p.match(/^\/api\/imagegen\/image\/([^/]+)$/))     && req.method === 'GET')    return imagegen.apiServeImage(req, res, m[1]);
   if ((m = p.match(/^\/api\/imagegen\/image\/([^/]+)$/))     && req.method === 'DELETE') return imagegen.apiDeleteImage(req, res, m[1]);
+  if (p === '/api/imagegen/comfyui/start'                    && req.method === 'POST')   return imagegen.apiStartComfyui(req, res);
 
   // ── Links / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
