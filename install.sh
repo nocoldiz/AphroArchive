@@ -91,11 +91,36 @@ npm install
 ok "npm install done"
 
 
-# ── 4. Python dependencies ────────────────────────────────────────────────────
-sep 4 "Installing Python dependencies"
+# ── 4. Image generation Python dependencies ───────────────────────────────────
+sep 4 "Image generation (Python / diffusers)"
 $PYTHON -m pip install --upgrade pip --quiet
-$PYTHON -m pip install -r requirements.txt
-ok "Python deps installed (selenium)"
+
+echo ""
+echo "  Choose PyTorch variant for image generation:"
+echo ""
+echo "    [1] NVIDIA GPU  (CUDA 12.1 — recommended if you have an NVIDIA card)"
+echo "    [2] CPU only    (slower, no GPU required)"
+echo "    [3] Skip        (install later manually)"
+echo ""
+read -r -p "  Enter choice (1, 2 or 3) [3]: " TORCH_MODE
+TORCH_MODE="${TORCH_MODE:-3}"
+echo ""
+
+if [[ "$TORCH_MODE" == "1" ]]; then
+    $PYTHON -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    ok "PyTorch (CUDA) installed"
+elif [[ "$TORCH_MODE" == "2" ]]; then
+    $PYTHON -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    ok "PyTorch (CPU) installed"
+else
+    warn "Skipping PyTorch — run manually later:"
+    warn "  pip install torch --index-url https://download.pytorch.org/whl/cu121"
+fi
+
+if [[ "$TORCH_MODE" != "3" ]]; then
+    $PYTHON -m pip install -r imagegen/requirements.txt
+    ok "Image gen deps installed (diffusers, gguf, etc.)"
+fi
 
 
 # ── 5. yt-dlp ─────────────────────────────────────────────────────────────────

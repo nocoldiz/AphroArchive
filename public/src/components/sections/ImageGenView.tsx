@@ -225,7 +225,7 @@ function Slider({ label, value, min, max, step = 1, unit = '', onChange }: {
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--tx2)', marginBottom: '2px' }}>
         <span>{label}</span><b style={{ color: 'var(--tx)' }}>{value}{unit}</b>
       </div>
-      <input type="range" min={min} max={max} step={step} value={value}
+      <input type="range" min={min} max={max} step={step} value={value} title={label}
         onInput={(e: any) => onChange(parseFloat(e.target.value))}
         style={{ width: '100%', accentColor: 'var(--ac)', cursor: 'pointer' }} />
     </div>
@@ -254,7 +254,7 @@ function WildcardEditor({ name, onClose, onSaved }: { name: string; onClose: () 
           <span style={{ fontWeight: 700, fontSize: '14px', flex: 1 }}>Edit wildcard: <code style={{ color: 'var(--ac)' }}>{name}</code></span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '16px' }}>✕</button>
         </div>
-        <textarea value={content} onInput={(e: any) => setContent(e.target.value)} rows={14} spellcheck={false}
+        <textarea value={content} onInput={(e: any) => setContent(e.target.value)} rows={14} spellcheck={false} title="Wildcard content"
           style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', fontSize: '13px', fontFamily: 'monospace', lineHeight: '1.5' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{lineCount} option{lineCount !== 1 ? 's' : ''}</span>
@@ -1075,6 +1075,7 @@ export const ImageGenView = () => {
             <select
               value={devicePref}
               onChange={(e: any) => setDevicePref(e.target.value as 'auto'|'cpu'|'cuda'|'mps')}
+              title="Device"
               style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 7px', fontSize: '12px' }}
             >
               <option value="auto">Auto (GPU if available)</option>
@@ -1275,7 +1276,7 @@ export const ImageGenView = () => {
             {/* Model */}
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px', fontWeight: 600 }}>Model</label>
-              <select value={params.model} onChange={(e: any) => selectModel(e.target.value)}
+              <select value={params.model} onChange={(e: any) => selectModel(e.target.value)} title="Model"
                 style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }}>
                 <option value="">— select model —</option>
                 {models.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
@@ -1293,7 +1294,7 @@ export const ImageGenView = () => {
             {/* VAE */}
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>VAE (optional)</label>
-              <select value={params.vae} onChange={(e: any) => setParam('vae', e.target.value)}
+              <select value={params.vae} onChange={(e: any) => setParam('vae', e.target.value)} title="VAE"
                 style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }}>
                 <option value="">— built-in —</option>
                 {vaes.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
@@ -1315,7 +1316,7 @@ export const ImageGenView = () => {
                 {(['width', 'height'] as const).map(k => (
                   <div key={k} style={{ flex: 1 }}>
                     <label style={{ fontSize: '11px', color: 'var(--tx3)', display: 'block', marginBottom: '2px' }}>{k}</label>
-                    <input type="number" min={64} max={2048} step={64} value={params[k]}
+                    <input type="number" min={64} max={2048} step={64} value={params[k]} title={k}
                       onInput={(e: any) => setParam(k, parseInt(e.target.value) || 512)}
                       style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 6px', fontSize: '13px', textAlign: 'center' }} />
                   </div>
@@ -1346,7 +1347,7 @@ export const ImageGenView = () => {
             {/* Sampler */}
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>Sampler</label>
-              <select value={params.sampler} onChange={(e: any) => setParam('sampler', e.target.value)}
+              <select value={params.sampler} onChange={(e: any) => setParam('sampler', e.target.value)} title="Sampler"
                 style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }}>
                 {SAMPLERS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -1356,7 +1357,7 @@ export const ImageGenView = () => {
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>Seed</label>
               <div style={{ display: 'flex', gap: '6px' }}>
-                <input type="number" value={params.seed} onInput={(e: any) => setParam('seed', parseInt(e.target.value))}
+                <input type="number" value={params.seed} title="Seed" onInput={(e: any) => setParam('seed', parseInt(e.target.value))}
                   style={{ flex: 1, background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }} />
                 <button onClick={() => setParam('seed', -1)} title="Random"
                   style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '5px 10px', fontSize: '13px', cursor: 'pointer' }}>🎲</button>
@@ -1368,7 +1369,7 @@ export const ImageGenView = () => {
             {loras.length > 0 && (
               <div>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>LoRAs</label>
-                <select onChange={(e: any) => { addLora(e.target.value); e.target.value = ''; }}
+                <select onChange={(e: any) => { addLora(e.target.value); e.target.value = ''; }} title="Add LoRA"
                   style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', marginBottom: '5px' }}>
                   <option value="">+ Add LoRA…</option>
                   {loras.filter(l => !selectedLoras.find(s => s.name === l.name)).map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
@@ -1376,7 +1377,7 @@ export const ImageGenView = () => {
                 {selectedLoras.map(l => (
                   <div key={l.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                     <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
-                    <input type="range" min={0} max={1} step={0.05} value={l.strength} onInput={(e: any) => setLoraStrength(l.name, parseFloat(e.target.value))} style={{ width: '70px', accentColor: 'var(--ac)' }} />
+                    <input type="range" min={0} max={1} step={0.05} value={l.strength} title={`${l.name} strength`} onInput={(e: any) => setLoraStrength(l.name, parseFloat(e.target.value))} style={{ width: '70px', accentColor: 'var(--ac)' }} />
                     <span style={{ fontSize: '11px', color: 'var(--tx3)', width: '28px' }}>{l.strength.toFixed(2)}</span>
                     <button onClick={() => removeLora(l.name)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '13px' }}>✕</button>
                   </div>
@@ -1504,7 +1505,7 @@ export const ImageGenView = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px', fontWeight: 600 }}>Template</label>
-                    <select value={genTemplateKey} onChange={(e: any) => setGenTemplateKey(e.target.value)}
+                    <select value={genTemplateKey} onChange={(e: any) => setGenTemplateKey(e.target.value)} title="Template"
                       style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '6px 8px', fontSize: '13px' }}>
                       {Object.entries(PROMPT_TEMPLATES).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
                     </select>
@@ -1530,7 +1531,7 @@ export const ImageGenView = () => {
                   {/* Global bar */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', padding: '8px 12px', background: 'var(--bg3)', borderRadius: '6px', border: '1px solid var(--brd)' }}>
                     <span style={{ color: 'var(--tx3)', fontSize: '12px' }}>Target</span>
-                    <select value={builder.target} onChange={(e: any) => { const t = e.target.value as ModelTarget; updateBuilder({ target: t }); setAdvTarget(t); }}
+                    <select value={builder.target} onChange={(e: any) => { const t = e.target.value as ModelTarget; updateBuilder({ target: t }); setAdvTarget(t); }} title="Target"
                       style={{ background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '3px 6px', fontSize: '12px' }}>
                       {MODEL_TARGETS.map(t => <option key={t} value={t}>{getModelLabel(t)}</option>)}
                     </select>
@@ -1664,7 +1665,7 @@ export const ImageGenView = () => {
                                   {pinBtn}
                                   {randBtn}
                                 </div>
-                                <select value={cur} onChange={(e: any) => {
+                                <select value={cur} title={label} onChange={(e: any) => {
                                   const v = e.target.value;
                                   if (v === '__random__') {
                                     randomizeOneCategory(cat, true, i);
@@ -1718,7 +1719,7 @@ export const ImageGenView = () => {
                               <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat, false)} style={{ fontSize: '9px', padding: '0 3px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>{
+                            <select value={val} title={cat} onChange={(e:any)=>{
                               const v = e.target.value;
                               if (v === '__random__') { randomizeOneCategory(cat, false); return; }
                               updateBuilder({ [cat]: v } as any);
@@ -1746,7 +1747,7 @@ export const ImageGenView = () => {
                               <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat, false)} style={{ fontSize: '9px', padding: '0 3px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>{
+                            <select value={val} title={cat} onChange={(e:any)=>{
                               const v = e.target.value;
                               if (v === '__random__') { randomizeOneCategory(cat, false); return; }
                               updateBuilder({ [cat]: v } as any);
@@ -1778,7 +1779,7 @@ export const ImageGenView = () => {
                               <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize:'9px', padding:'0 1px', background:'none', border:'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor:'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat,false)} style={{ fontSize:'9px', padding:'0 2px', background:'none', border:'none', color:'var(--ac)', cursor:'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>{
+                            <select value={val} title={cat} onChange={(e:any)=>{
                               const v = e.target.value;
                               if (v === '__random__') { randomizeOneCategory(cat, false); return; }
                               updateBuilder({ [cat]: v } as any);
@@ -1852,7 +1853,7 @@ export const ImageGenView = () => {
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <label style={{ fontSize: '13px', color: 'var(--tx2)', whiteSpace: 'nowrap' }}>Generate</label>
-                <input type="number" min={1} max={100} value={massGenCount}
+                <input type="number" min={1} max={100} value={massGenCount} title="Number of prompts"
                   onInput={(e: any) => setMassGenCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 10)))}
                   style={{ width: '70px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '5px 8px', fontSize: '13px', textAlign: 'center' }} />
                 <label style={{ fontSize: '13px', color: 'var(--tx2)' }}>prompts</label>

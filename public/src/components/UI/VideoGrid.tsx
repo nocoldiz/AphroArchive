@@ -292,6 +292,23 @@ export const VideoSelBar = () => {
   const linkVids = selectedVids.filter(v => v.isLink);
   const hasLinks = linkVids.length > 0;
 
+  const deleteSelected = async () => {
+    if (!confirm(`Delete ${count} video${count !== 1 ? 's' : ''} from disk?\nThis action cannot be undone.`)) return;
+    const ids = [...selectedVideoIds.value];
+    let deleted = 0;
+    for (const id of ids) {
+      try {
+        const r = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+        if (r.ok) deleted++;
+      } catch {}
+    }
+    videos.value = videos.value.filter(v => !selectedVideoIds.value.has(v.id));
+    allVideos.value = allVideos.value.filter(v => !selectedVideoIds.value.has(v.id));
+    selectedVideoIds.value = new Set();
+    videoSelMode.value = false;
+    if ((window as any).toast) (window as any).toast(`Deleted ${deleted} video${deleted !== 1 ? 's' : ''}`);
+  };
+
   const downloadSelected = async () => {
     if (!linkVids.length) return;
 
@@ -348,8 +365,20 @@ export const VideoSelBar = () => {
     }}>
       <span id="videoSelCount" style={{ fontWeight: 'bold' }}>{count} video{count !== 1 ? 's' : ''} selected</span>
       
+      <button
+        onClick={deleteSelected}
+        style={{ background: '#c0392b', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+          <path d="M10 11v6M14 11v6" />
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+        </svg>
+        Delete ({count})
+      </button>
       {hasLinks && (
-        <button 
+        <button
           onClick={downloadSelected}
           style={{ background: '#ff7300', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
         >

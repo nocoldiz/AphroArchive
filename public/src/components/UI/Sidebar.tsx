@@ -320,7 +320,21 @@ export const Sidebar = () => {
           isActive={currentView.value === 'chapters'}
         />
       </div>
-
+        <SidebarItem
+          id="import-favs-sidebar"
+          label="Links"
+          badge={linkCount > 0 ? linkCount : undefined}
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>}
+          onClick={() => setView('links', 'showImportFavs')}
+          isActive={currentView.value === 'links'}
+        />
+        <SidebarItem
+          id="search-sites-sidebar"
+          label="Search"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></svg>}
+          onClick={() => setView('search', 'showSearchSites')}
+          isActive={currentView.value === 'search'}
+        />
       </>}
 
       {/* Media — hidden in vault mode */}
@@ -389,27 +403,7 @@ export const Sidebar = () => {
 
       </>}
 
-      {/* Web — hidden in vault mode */}
-      {!inVaultMode && <><div className="side-sep"></div>
-      <SectionHeader label="Web" id="sh3-web" />
-      <div className="side-section" id="webSection">
-        <SidebarItem
-          id="import-favs-sidebar"
-          label="Links"
-          badge={linkCount > 0 ? linkCount : undefined}
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>}
-          onClick={() => setView('links', 'showImportFavs')}
-          isActive={currentView.value === 'links'}
-        />
-        <SidebarItem
-          id="search-sites-sidebar"
-          label="Search"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></svg>}
-          onClick={() => setView('search', 'showSearchSites')}
-          isActive={currentView.value === 'search'}
-        />
-      </div>
-      </>}
+
 
       {/* Vault folders — shown only when vault is open */}
       {inVaultMode && vaultFolders.length > 0 && (

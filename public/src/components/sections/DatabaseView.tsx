@@ -19,7 +19,7 @@ export const DatabaseView = () => {
   const [formData, setFormData] = useState<any>({});
 
   const [folders, setFolders] = useState<{name: string, path: string, isExternal?: boolean}[]>([]);
-  const [enabledFolders, setEnabledFolders] = useState<Set<string>>(new Set());
+  const [enabledFolders, setEnabledFolders] = useState<Set<string> | null>(null);
   const [sourceFolders, setSourceFolders] = useState<string[]>([]);
   const [defaultRoot, setDefaultRoot] = useState<string>('');
   const [newSourceFolder, setNewSourceFolder] = useState('');
@@ -74,7 +74,8 @@ export const DatabaseView = () => {
         const prefsData = await prefsRes.json();
         const actualPaths = new Set((foldersData.categories as any[]).map(f => f.path));
         setFolders(foldersData.categories);
-        setEnabledFolders(new Set((foldersData.enabled as string[]).filter(p => actualPaths.has(p))));
+        const enabledArr = (foldersData.enabled as string[]).filter(p => actualPaths.has(p));
+        setEnabledFolders(enabledArr.length === 0 ? null : new Set(enabledArr));
         setSourceFolders(prefsData.sourceFolders || []);
         setDefaultRoot(prefsData.defaultRoot || prefsData.defaultPath || prefsData.defaultWriteRoot || '');
       } catch (e) {
@@ -170,7 +171,7 @@ export const DatabaseView = () => {
       const res = await fetch('/api/enabled-categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paths: Array.from(enabledFolders) }),
+        body: JSON.stringify({ paths: enabledFolders === null ? [] : Array.from(enabledFolders) }),
       });
       if (!res.ok) throw new Error('Server error');
 
@@ -442,12 +443,15 @@ export const DatabaseView = () => {
           {/* Category visibility */}
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
-              {enabledFolders.size === 0
+              {enabledFolders === null
                 ? 'All folders visible (none explicitly enabled)'
-                : `${folders.filter(f => enabledFolders.has(f.path)).length} of ${folders.length} folders enabled`}
+                : enabledFolders.size === 0
+                  ? 'No folders selected'
+                  : `${folders.filter(f => enabledFolders.has(f.path)).length} of ${folders.length} folders enabled`}
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button type="button" className="modal-btn" onClick={() => setEnabledFolders(new Set())}>Enable All</button>
+              <button type="button" className="modal-btn" onClick={() => setEnabledFolders(null)}>Enable All</button>
+              <button type="button" className="modal-btn" onClick={() => setEnabledFolders(new Set())}>Deselect All</button>
               <button type="button" className="modal-btn modal-btn--primary" onClick={handleSaveFolders}>Save</button>
             </div>
           </div>
@@ -462,15 +466,11 @@ export const DatabaseView = () => {
                   <input
                     type="checkbox"
                     title={`Enable folder ${f.name}`}
-                    checked={enabledFolders.size === 0 || enabledFolders.has(f.path)}
+                    checked={enabledFolders === null || enabledFolders.has(f.path)}
                     onChange={(e: any) => {
-                      const next = new Set(enabledFolders);
-                      if (enabledFolders.size === 0) {
-                        folders.forEach(fold => { if (fold.path !== f.path) next.add(fold.path); });
-                      } else {
-                        if (e.target.checked) next.add(f.path);
-                        else next.delete(f.path);
-                      }
+                      const next = new Set(enabledFolders === null ? folders.map(fold => fold.path) : enabledFolders);
+                      if (e.target.checked) next.add(f.path);
+                      else next.delete(f.path);
                       setEnabledFolders(next);
                     }}
                   />

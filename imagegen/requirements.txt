@@ -8,6 +8,7 @@ diffusers>=0.30.0
 transformers>=4.40.0
 accelerate>=0.27.0
 safetensors>=0.4.0
+gguf>=0.10.0
 Pillow>=10.0.0
 sentencepiece>=0.1.99
 protobuf>=3.20.0
