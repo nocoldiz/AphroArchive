@@ -1,5 +1,5 @@
 import { useState, useRef } from 'preact/hooks';
-import { importModalState, currentView, currentCategory } from '../../store';
+import { importModalState, currentView, currentCategory, isVaultUnlocked, activeProfile } from '../../store';
 
 type Tab = 'links' | 'folder';
 
@@ -32,6 +32,7 @@ export const ImportModal = () => {
   const cat = currentCategory.value;
   const destCategory = VIDEO_VIEWS.has(view) && cat ? cat : '';
   const destLabel = destCategory || 'Uncategorized';
+  const inVaultMode = isVaultUnlocked.value && activeProfile.value === 'Vault';
 
   // ── Links tab ──────────────────────────────────────────────────────
 
@@ -43,7 +44,8 @@ export const ImportModal = () => {
     setImporting(true);
     setLinkResult(null);
     try {
-      const r = await fetch('/api/links/import-urls', {
+      const endpoint = inVaultMode ? '/api/vault/import-links' : '/api/links/import-urls';
+      const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls }),
@@ -53,7 +55,7 @@ export const ImportModal = () => {
         setLinkResult({ added: d.added, skipped: d.skipped });
         setLinkText('');
         const w = window as any;
-        if (w.toast) w.toast(`Saved ${d.added} link(s) to Web/Links`);
+        if (w.toast) w.toast(inVaultMode ? `Saved ${d.added} link(s) to Vault` : `Saved ${d.added} link(s) to Web/Links`);
       }
     } catch {}
     setImporting(false);
@@ -81,22 +83,26 @@ export const ImportModal = () => {
     for (let i = 0; i < folderFiles.length; i++) {
       const file = folderFiles[i];
       try {
-        await fetch('/api/import', {
-          method: 'POST',
-          headers: {
-            'x-filename': encodeURIComponent(file.name),
-            'x-category': destCategory,
-          },
-          body: file,
-        });
+        if (inVaultMode) {
+          const form = new FormData();
+          form.append('file', file, file.name);
+          await fetch('/api/vault/add', { method: 'POST', body: file,
+            headers: { 'x-filename': encodeURIComponent(file.name) } });
+        } else {
+          await fetch('/api/import', {
+            method: 'POST',
+            headers: { 'x-filename': encodeURIComponent(file.name), 'x-category': destCategory },
+            body: file,
+          });
+        }
         ok++;
       } catch {}
       setFolderProgress({ done: i + 1, total: folderFiles.length });
     }
     setImporting(false);
     const w = window as any;
-    if (w.toast) w.toast(`Imported ${ok} video(s) → ${destLabel}`);
-    if (w.refresh) w.refresh(true);
+    if (w.toast) w.toast(inVaultMode ? `Encrypted ${ok} file(s) to Vault` : `Imported ${ok} video(s) → ${destLabel}`);
+    if (!inVaultMode && w.refresh) w.refresh(true);
     close();
   };
 
@@ -159,7 +165,9 @@ export const ImportModal = () => {
           {tab === 'links' ? (
             <>
               <p style={{ margin: '0 0 10px', fontSize: '0.78rem', color: 'var(--tx3)', lineHeight: 1.5 }}>
-                Paste URLs one per line. Each will be saved to <strong style={{ color: 'var(--tx)' }}>Web / Links</strong>, auto-categorized and tagged by matching the URL against known tags and categories.
+                Paste URLs one per line. Each will be saved to{' '}
+                <strong style={{ color: 'var(--tx)' }}>{inVaultMode ? 'Vault Links' : 'Web / Links'}</strong>
+                {inVaultMode ? ' — visible only inside the Vault.' : ', auto-categorized and tagged by matching the URL against known tags and categories.'}
               </p>
               <textarea
                 value={linkText}

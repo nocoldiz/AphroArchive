@@ -197,6 +197,7 @@ async function apiSwitchProfile(req, res) {
   }
   
   db.switchProfile(profile);
+  saveLastProfile(profile);
   json(res, { ok: true, current: profile });
 }
 
@@ -223,28 +224,84 @@ async function apiRenameProfile(req, res) {
   const body = await readBody(req);
   const { oldName, newName } = body;
   if (!oldName || !newName) return json(res, { error: 'Old and new names required' }, 400);
-  
+
   const db = require('./db-server');
   const current = db.getCurrentProfile();
-  
+
   const oldPath = path.join(__dirname, `../db/aphroarchive_${oldName}.db`);
   const newPath = path.join(__dirname, `../db/aphroarchive_${newName}.db`);
-  
-  const fs = require('fs');
+
   if (!fs.existsSync(oldPath)) return json(res, { error: 'Profile not found' }, 404);
   if (fs.existsSync(newPath)) return json(res, { error: 'New name already exists' }, 400);
-  
+
   if (current === oldName) {
     db.closeDb();
   }
-  
+
   fs.renameSync(oldPath, newPath);
-  
+
   if (current === oldName) {
     db.switchProfile(newName);
+    saveLastProfile(newName);
   }
-  
+
   json(res, { ok: true, current: current === oldName ? newName : current });
 }
 
-module.exports = { apiGetPresets, apiApplyPreset, isDbInitialized, apiGetProfiles, apiSwitchProfile, apiCreateProfile, apiRenameProfile };
+async function apiDeleteProfile(req, res) {
+  const body = await readBody(req);
+  const { name } = body;
+  if (!name) return json(res, { error: 'Name required' }, 400);
+  if (name === 'Vault') return json(res, { error: 'Cannot delete Vault profile' }, 400);
+
+  const db = require('./db-server');
+  if (db.getCurrentProfile() === name) return json(res, { error: 'Cannot delete the active profile — switch first' }, 400);
+
+  const dbPath = path.join(__dirname, `../db/aphroarchive_${name}.db`);
+  if (!fs.existsSync(dbPath)) return json(res, { error: 'Profile not found' }, 404);
+
+  try { fs.unlinkSync(dbPath); } catch (e) { return json(res, { error: e.message }, 500); }
+  json(res, { ok: true });
+}
+
+async function apiCloneProfile(req, res) {
+  const body = await readBody(req);
+  const { sourceName, newName } = body;
+  if (!sourceName || !newName) return json(res, { error: 'sourceName and newName required' }, 400);
+  if (newName === 'Vault') return json(res, { error: 'Reserved name' }, 400);
+
+  const srcPath = path.join(__dirname, `../db/aphroarchive_${sourceName}.db`);
+  const dstPath = path.join(__dirname, `../db/aphroarchive_${newName}.db`);
+
+  if (!fs.existsSync(srcPath)) return json(res, { error: 'Source profile not found' }, 404);
+  if (fs.existsSync(dstPath)) return json(res, { error: 'Name already in use' }, 400);
+
+  try {
+    fs.copyFileSync(srcPath, dstPath);
+    // Open the new DB and clear per-user data (videos, links, history, favs)
+    const Database = require('better-sqlite3');
+    const newDb = new Database(dstPath);
+    newDb.exec(`DELETE FROM videos; DELETE FROM links; DELETE FROM history; DELETE FROM favs;`);
+    newDb.close();
+  } catch (e) {
+    try { fs.unlinkSync(dstPath); } catch {}
+    return json(res, { error: e.message }, 500);
+  }
+  json(res, { ok: true });
+}
+
+const LAST_PROFILE_FILE = path.join(__dirname, '../db/last-profile.txt');
+
+function saveLastProfile(name) {
+  try { fs.writeFileSync(LAST_PROFILE_FILE, name, 'utf-8'); } catch {}
+}
+
+function loadLastProfile() {
+  try {
+    const name = fs.readFileSync(LAST_PROFILE_FILE, 'utf-8').trim();
+    const dbPath = path.join(__dirname, `../db/aphroarchive_${name}.db`);
+    return name && fs.existsSync(dbPath) ? name : null;
+  } catch { return null; }
+}
+
+module.exports = { apiGetPresets, apiApplyPreset, isDbInitialized, apiGetProfiles, apiSwitchProfile, apiCreateProfile, apiRenameProfile, apiDeleteProfile, apiCloneProfile, loadLastProfile, saveLastProfile };

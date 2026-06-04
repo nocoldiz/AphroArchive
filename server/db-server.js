@@ -210,6 +210,7 @@ function ensureSchema(database) {
   try { database.exec('ALTER TABLE links ADD COLUMN has_video INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE links ADD COLUMN has_embed INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE links ADD COLUMN fav INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN vault INTEGER DEFAULT 0'); } catch {}
 }
 
 function switchProfile(profileName) {
@@ -234,8 +235,17 @@ function switchProfile(profileName) {
   return db;
 }
 
-// Initialize with default profile
-switchProfile('default');
+// Initialize with last active profile (or default)
+{
+  let startProfile = 'default';
+  try {
+    const _lastFile = require('path').join(__dirname, '../db/last-profile.txt');
+    const _name = require('fs').readFileSync(_lastFile, 'utf-8').trim();
+    const _dbPath = require('path').join(__dirname, `../db/aphroarchive_${_name}.db`);
+    if (_name && _name !== 'Vault' && require('fs').existsSync(_dbPath)) startProfile = _name;
+  } catch {}
+  switchProfile(startProfile);
+}
 
 // Migration from JSON to SQLite
 const videoCount = db.prepare('SELECT COUNT(*) as count FROM videos').get().count;
@@ -968,6 +978,7 @@ function _rowToLink(r) {
     downloaded: !!r.downloaded,
     localVideoId: r.local_video_id || null,
     fav: !!r.fav,
+    vault: !!r.vault,
   };
 }
 
@@ -986,19 +997,30 @@ function _linkParams(it) {
     it.downloaded ? 1 : 0,
     it.localVideoId ?? null,
     it.fav ? 1 : 0,
+    it.vault ? 1 : 0,
   ];
 }
 
-const _LINK_COLS = 'url, title, category, img, scraped_video_url, has_video, embed_url, has_embed, added_at, tags, downloaded, local_video_id, fav';
-const _LINK_PLACEHOLDERS = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+const _LINK_COLS = 'url, title, category, img, scraped_video_url, has_video, embed_url, has_embed, added_at, tags, downloaded, local_video_id, fav, vault';
+const _LINK_PLACEHOLDERS = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
 
 function loadLinksCache() {
   try {
-    const rows = db.prepare(`SELECT ${_LINK_COLS} FROM links`).all();
+    const rows = db.prepare(`SELECT ${_LINK_COLS} FROM links WHERE vault = 0 OR vault IS NULL`).all();
     return { items: rows.map(_rowToLink) };
   } catch (e) {
     console.error('Failed to load links cache from SQLite:', e);
     return { items: [] };
+  }
+}
+
+function loadVaultLinks() {
+  try {
+    const rows = db.prepare(`SELECT ${_LINK_COLS} FROM links WHERE vault = 1`).all();
+    return rows.map(_rowToLink);
+  } catch (e) {
+    console.error('Failed to load vault links from SQLite:', e);
+    return [];
   }
 }
 
@@ -1483,7 +1505,7 @@ module.exports = {
   loadWebsites, saveWebsites,
   loadStarredSites, saveStarredSites,
   loadOgThumbCache, saveOgThumbCache,
-  loadLinksCache, saveLinksCache, upsertLink, deleteLink,
+  loadLinksCache, loadVaultLinks, saveLinksCache, upsertLink, deleteLink,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
   loadActors, saveActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,

@@ -627,6 +627,42 @@ function apiRescrapeAll(_req, res) {
 
 // ── Websites ──────────────────────────────────────────────────────────
 
+async function apiWebsitesFromLinks(req, res) {
+  const links = loadLinksCache().items || [];
+  const existing = loadWebsites();
+  const existingHosts = new Set(existing.map(s => { try { return new URL(s.url).hostname.replace(/^www\./, ''); } catch { return s.url; } }));
+
+  const seen = new Set();
+  const candidates = [];
+  for (const lnk of links) {
+    if (!lnk.url) continue;
+    try {
+      const u = new URL(lnk.url);
+      const host = u.hostname.replace(/^www\./, '');
+      if (seen.has(host) || existingHosts.has(host)) continue;
+      seen.add(host);
+      candidates.push({ name: u.hostname, url: u.origin });
+    } catch {}
+  }
+  candidates.sort((a, b) => a.name.localeCompare(b.name));
+  json(res, candidates);
+}
+
+async function apiWebsitesBulkAdd(req, res) {
+  const body = await readBody(req);
+  const items = Array.isArray(body.items) ? body.items : [];
+  if (!items.length) return json(res, { error: 'items array required' }, 400);
+  const sites = loadWebsites();
+  let added = 0;
+  for (const it of items) {
+    if (!it.url) continue;
+    sites.push({ name: it.name || it.url, url: it.url, searchURL: '', scrapeMethod: '', tags: [], description: '' });
+    added++;
+  }
+  saveWebsites(sites);
+  json(res, { ok: true, added });
+}
+
 async function apiWebsiteAdd(req, res) {
   const body = await readBody(req);
   if (!body.url) return json(res, { error: 'url required' }, 400);
@@ -1010,7 +1046,7 @@ async function apiLinkMove(req, res) {
 module.exports = {
   apiOgThumb,
   apiGetLinksCache, apiSaveLinksCache,
-  apiWebsiteAdd, apiWebsiteDelete, apiWebsiteUpdate,
+  apiWebsiteAdd, apiWebsiteDelete, apiWebsiteUpdate, apiWebsitesFromLinks, apiWebsitesBulkAdd,
   apiScrape,
   apiBrowserFavs, apiBrowserFavsFile,
   apiLinkThumbImg,

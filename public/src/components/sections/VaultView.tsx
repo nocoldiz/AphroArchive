@@ -56,6 +56,9 @@ export const VaultView = () => {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [blobUrl, setBlobUrl] = useState('');
 
+  // Vault links
+  const [vaultLinks, setVaultLinks] = useState<any[]>([]);
+
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -124,11 +127,13 @@ export const VaultView = () => {
 
   const loadVaultFiles = async () => {
     try {
-      const [items, favs, cats] = await Promise.all([
+      const [items, favs, cats, vLinks] = await Promise.all([
         fetch('/api/vault/files').then(r => r.json()),
         fetch('/api/vault/favs').then(r => r.json()).catch(() => []),
         fetch('/api/db/categories').then(r => r.json()).catch(() => ({})),
+        fetch('/api/vault/links').then(r => r.json()).catch(() => []),
       ]);
+      if (Array.isArray(vLinks)) setVaultLinks(vLinks);
 
       if (items.error) return;
 
@@ -201,6 +206,21 @@ export const VaultView = () => {
       setError(e.message || 'Failed to setup');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDecryptFile = async (id: string, name: string) => {
+    if (!confirm(`Decrypt "${name}" and restore to its original category?`)) return;
+    const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' });
+    if (res.ok) {
+      setFiles(prev => prev.filter(f => f.id !== id));
+      const w = window as any;
+      if (w.toast) w.toast('File restored to original folder');
+      if (w.loadVideos) w.loadVideos();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      const w = window as any;
+      if (w.toast) w.toast('Restore failed: ' + (err.error || 'Unknown error'));
     }
   };
 
@@ -793,6 +813,13 @@ export const VaultView = () => {
                         👁️
                       </button>
                       <button
+                        onClick={(e) => { e.stopPropagation(); handleDecryptFile(f.id, f.name || f.originalName || f.id); }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
+                        title="Decrypt & restore"
+                      >
+                        🔓
+                      </button>
+                      <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteFile(f.id); }}
                         style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
                         title="Delete"
@@ -817,6 +844,33 @@ export const VaultView = () => {
         {filteredFiles.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx2)' }}>
             No files found.
+          </div>
+        )}
+
+        {/* Vault Links */}
+        {vaultLinks.length > 0 && (
+          <div style={{ marginTop: '32px' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: '1rem', color: 'var(--tx2)' }}>Links ({vaultLinks.length})</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {vaultLinks.map((lnk: any) => (
+                <div key={lnk.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg3)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--brd)' }}>
+                  {lnk.img && <img src={lnk.img} alt="" style={{ width: '48px', height: '36px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lnk.title || lnk.url}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lnk.url}</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const r = await fetch('/api/vault/restore-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: lnk.url }) });
+                      if (r.ok) setVaultLinks(prev => prev.filter(l => l.url !== lnk.url));
+                    }}
+                    style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '4px 8px', fontSize: '0.72rem', cursor: 'pointer', flexShrink: 0 }}
+                    title="Restore to Links"
+                    type="button"
+                  >🔓 Restore</button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

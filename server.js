@@ -19,7 +19,7 @@ const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, C
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
 const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites } = require('./server/db-server');
-const { initVideoMeta, invalidateScanCache } = require('./server/videos-server');
+const { initVideoMeta } = require('./server/videos-server');
 const { getLocalIPs, getLocalIP } = require('./server/config-server');
 
 // ── Modules ──────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ ensureDirSync(cfg.LINK_THUMBS_DIR);
 ensureDirSync(path.dirname(BM_CACHE_FILE));
 ensureDirSync(path.join(process.cwd(), 'models'));
 
-(async () => { await comments.initCommentsModel(); })();
+// Model loading is deferred — initiated on first use via reinitIfNeeded()
 
 // ── Seed default category folders ────────────────────────────────────
 
@@ -113,6 +113,8 @@ function isLocalhost(req) {
 }
 
 // ── HTTP server ───────────────────────────────────────────────────────
+
+let _serverReady = false;
 
 const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, `http://localhost:${PORT}`);
@@ -255,6 +257,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/imagegen\/image\/([^/]+)$/))     && req.method === 'DELETE') return imagegen.apiDeleteImage(req, res, m[1]);
   if (p === '/api/imagegen/comfyui/start'                    && req.method === 'POST')   return imagegen.apiStartComfyui(req, res);
   if (p === '/api/imagegen/comfyui/sync'                     && req.method === 'POST')   return imagegen.apiSyncComfyui(req, res);
+  if (p === '/api/imagegen/upload'                           && req.method === 'POST')   return imagegen.apiUploadImage(req, res);
+  if (p === '/api/imagegen/encrypt-generated'                && req.method === 'POST')   return imagegen.apiEncryptGenerated(req, res);
 
   // ── Links / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
@@ -274,6 +278,8 @@ const server = http.createServer(async (req, res) => {
     return json(res, { starred: idx < 0, urls: starred });
   }
   if (p === '/api/websites' && req.method === 'POST') return links.apiWebsiteAdd(req, res);
+  if (p === '/api/websites/from-links' && req.method === 'GET') return links.apiWebsitesFromLinks(req, res);
+  if (p === '/api/websites/bulk-add' && req.method === 'POST') return links.apiWebsitesBulkAdd(req, res);
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'DELETE') return links.apiWebsiteDelete(req, res, parseInt(m[1]));
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'PUT') return links.apiWebsiteUpdate(req, res, parseInt(m[1]));
   if (p === '/api/scrape' && req.method === 'GET') return links.apiScrape(req, res);
@@ -324,6 +330,11 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/text\/([^/]+)$/)) && req.method === 'PUT') return vault.apiVaultUpdateTextFile(req, res, m[1]);
   if (p === '/api/vault/import-drop' && req.method === 'POST') return vault.apiVaultImportDrop(req, res);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/restore$/)) && req.method === 'POST') return vault.apiVaultRestoreFile(req, res, m[1]);
+  if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/restore-to-origin$/)) && req.method === 'POST') return vault.apiVaultRestoreToOrigin(req, res, m[1]);
+  if (p === '/api/vault/links' && req.method === 'GET') return vault.apiVaultGetLinks(req, res);
+  if (p === '/api/vault/import-links' && req.method === 'POST') return vault.apiVaultImportLinks(req, res);
+  if (p === '/api/vault/move-links' && req.method === 'POST') return vault.apiVaultMoveLinks(req, res);
+  if (p === '/api/vault/restore-link' && req.method === 'POST') return vault.apiVaultRestoreLink(req, res);
 
   // ── Presets ──────────────────────────────────────────────────────────
   if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
@@ -334,6 +345,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/profiles/switch' && req.method === 'POST') return profiles.apiSwitchProfile(req, res);
   if (p === '/api/profiles/create' && req.method === 'POST') return profiles.apiCreateProfile(req, res);
   if (p === '/api/profiles/rename' && req.method === 'POST') return profiles.apiRenameProfile(req, res);
+  if (p === '/api/profiles/delete' && req.method === 'POST') return profiles.apiDeleteProfile(req, res);
+  if (p === '/api/profiles/clone' && req.method === 'POST') return profiles.apiCloneProfile(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
   if (p === '/api/db/category-tags' && req.method === 'GET') return database.apiGetCategoryTags(req, res);
@@ -450,6 +463,17 @@ const server = http.createServer(async (req, res) => {
     return json(res, { ok: true, app: 'AphroArchive', networkEnabled: !!prefs.networkEnabled });
   }
 
+  // ── Ready signal from frontend — deferred heavy work ─────────────────
+  if (p === '/api/ready' && req.method === 'POST') {
+    json(res, { ok: true });
+    if (!_serverReady) {
+      _serverReady = true;
+      initVideoMeta().catch(() => {});
+      startBackgroundWorker();
+    }
+    return;
+  }
+
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
   const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
@@ -459,11 +483,8 @@ const server = http.createServer(async (req, res) => {
 
 // ── Listen ───────────────────────────────────────────────────────────
 
-server.listen(PORT, async () => {
+server.listen(PORT, () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
-  invalidateScanCache(); // force fresh filesystem scan on every startup
-  await initVideoMeta();
-  startBackgroundWorker();
   feedWatcher.startWatchers(loadPrefs());
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);

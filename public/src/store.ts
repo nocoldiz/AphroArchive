@@ -109,6 +109,11 @@ export const presetPickerState = signal<{
 
 export const importModalState = signal<{ visible: boolean }>({ visible: false });
 
+export const imagegenInputState = signal<{
+  imageUrl: string;
+  imagePath: string;
+} | null>(null);
+
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentTagTerms = signal<string[]>([]);

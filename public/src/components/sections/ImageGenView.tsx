@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
-import { appPrefs } from '../../store';
+import { appPrefs, imagegenInputState, activeProfile } from '../../store';
 import {
   PROMPT_TEMPLATES,
   MODEL_TARGETS,
@@ -47,6 +47,7 @@ interface GenParams {
 }
 
 interface GalleryImage { name: string; size: number; mtime: number; }
+interface InputImage { url: string; serverPath: string; name: string; }
 
 interface EngineStatus {
   state: 'stopped' | 'idle' | 'loading' | 'generating' | 'queued' | 'error';
@@ -65,6 +66,13 @@ const SIZE_PRESETS = [
   { label: '1024×1024',w: 1024, h: 1024 },
   { label: '1024×1536',w: 1024, h: 1536 },
   { label: '1152×896', w: 1152, h: 896  },
+];
+const SPEED_PRESETS = [
+  { label: 'Ultra Fast',   steps: 4,  cfg: 1.0, sampler: 'lcm' },
+  { label: 'Fast',         steps: 8,  cfg: 2.0, sampler: 'lcm' },
+  { label: 'Balanced',     steps: 20, cfg: 7.0, sampler: 'euler' },
+  { label: 'Quality',      steps: 30, cfg: 8.0, sampler: 'dpm++_2m' },
+  { label: 'High Quality', steps: 40, cfg: 9.0, sampler: 'dpm++_sde' },
 ];
 const DEFAULT_NEGATIVE = 'lowres, bad anatomy, bad hands, text, error, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, blurry';
 const STATUS_DOT: Record<string, string> = {
@@ -495,6 +503,14 @@ export const ImageGenView = () => {
 
   const [generating, setGenerating] = useState(false);
   const [promptGenOpen, setPromptGenOpen] = useState(false);
+
+  // ── Img2img / input image state ──────────────────────────────────
+  const [inputImages, setInputImages]   = useState<InputImage[]>([]);
+  const [imgMode, setImgMode]           = useState<'txt2img' | 'img2img'>('txt2img');
+  const [imgStrength, setImgStrength]   = useState(0.65);
+  const [imgPanelOpen, setImgPanelOpen] = useState(false);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [massGenOpen, setMassGenOpen] = useState(false);
   const [massGenCount, setMassGenCount] = useState(10);
   const [massGenResults, setMassGenResults] = useState<string[]>([]);
@@ -536,6 +552,42 @@ export const ImageGenView = () => {
 
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { if (comfyuiPath) loadAll(); }, [comfyuiPath]);
+
+  // Consume imagegenInputState set by ContextMenu or PlayerView
+  useEffect(() => {
+    const pending = imagegenInputState.value;
+    if (!pending) return;
+    imagegenInputState.value = null;
+
+    const { imageUrl, imagePath } = pending;
+    if (imagePath) {
+      // Already has a server path (from frame capture)
+      const name = imagePath.split(/[\\/]/).pop() || 'input.jpg';
+      setInputImages([{ url: imageUrl, serverPath: imagePath, name }]);
+      setImgMode('img2img');
+      setImgPanelOpen(true);
+    } else if (imageUrl) {
+      // Photo from context menu — fetch and upload
+      (async () => {
+        try {
+          const blob = await fetch(imageUrl).then(r => r.blob());
+          const ext = blob.type.includes('png') ? '.png' : '.jpg';
+          const fname = 'photo' + ext;
+          const r = await fetch('/api/imagegen/upload', {
+            method: 'POST',
+            headers: { 'x-filename': fname, 'Content-Type': blob.type },
+            body: blob,
+          });
+          const d = await r.json();
+          if (d.ok) {
+            setInputImages([{ url: URL.createObjectURL(blob), serverPath: d.path, name: d.name }]);
+            setImgMode('img2img');
+            setImgPanelOpen(true);
+          }
+        } catch { /* best-effort */ }
+      })();
+    }
+  }, []);
 
   // Preload character editor options on startup so selects are ready in prompt builder
   useEffect(() => {
@@ -591,7 +643,20 @@ export const ImageGenView = () => {
       case 'done':
         setGenerating(false);
         setEngineStatus({ state: 'idle', step: 0, total: 0, pct: 100, message: `Done in ${msg.elapsed}s — ${msg.count} image(s)` });
-        fetch('/api/imagegen/gallery').then(r => r.json()).then(d => { setGallery(d); setDrawerOpen(true); }).catch(() => {});
+        if (activeProfile.value === 'Vault' && msg.paths?.length) {
+          // Auto-encrypt into vault when vault profile is active
+          Promise.all((msg.paths as string[]).map(p =>
+            fetch('/api/imagegen/encrypt-generated', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename: p.split(/[\\/]/).pop() }),
+            }).catch(() => {})
+          )).then(() => {
+            fetch('/api/imagegen/gallery').then(r => r.json()).then(d => { setGallery(d); setDrawerOpen(true); }).catch(() => {});
+          });
+        } else {
+          fetch('/api/imagegen/gallery').then(r => r.json()).then(d => { setGallery(d); setDrawerOpen(true); }).catch(() => {});
+        }
         break;
       case 'cancelled':
         setGenerating(false);
@@ -610,16 +675,43 @@ export const ImageGenView = () => {
   const stopEngine  = () => fetch('/api/imagegen/engine/stop',  { method: 'POST' });
   const cancel      = () => fetch('/api/imagegen/cancel',        { method: 'POST' });
 
+  const buildGenerateBody = (imagePath = '') => ({
+    ...params,
+    loras: selectedLoras.map(l => l.name),
+    lora_strengths: selectedLoras.map(l => l.strength),
+    mode: (imagePath || (imgMode === 'img2img' && inputImages.length > 0)) ? 'img2img' : 'txt2img',
+    image_path: imagePath || (imgMode === 'img2img' && inputImages.length > 0 ? inputImages[0].serverPath : ''),
+    strength: imgStrength,
+  });
+
   const generate = async () => {
     if (!params.model)        { alert('Select a model first'); return; }
     if (!params.prompt.trim()){ alert('Enter a prompt');        return; }
     if (!engineRunning) await startEngine();
-    const body = { ...params, loras: selectedLoras.map(l => l.name), lora_strengths: selectedLoras.map(l => l.strength) };
+    const body = buildGenerateBody();
     const r = await fetch('/api/imagegen/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     if (d.error) { alert(d.error); return; }
     setGenerating(true);
     setEngineStatus(s => ({ ...s, state: 'queued', message: 'Queued…' }));
+  };
+
+  // Generate with same prompt for each input image (batch mode)
+  const generateBatch = async () => {
+    if (!params.model)        { alert('Select a model first'); return; }
+    if (!params.prompt.trim()){ alert('Enter a prompt');        return; }
+    if (inputImages.length === 0) { alert('Load at least one image'); return; }
+    if (!engineRunning) await startEngine();
+    setBatchRunning(true);
+    for (const img of inputImages) {
+      const body = buildGenerateBody(img.serverPath);
+      const r = await fetch('/api/imagegen/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (d.error) { alert(`Batch error: ${d.error}`); break; }
+    }
+    setGenerating(true);
+    setEngineStatus(s => ({ ...s, state: 'queued', message: `Batch: ${inputImages.length} images queued…` }));
+    setBatchRunning(false);
   };
 
   const saveConfig = async () => {
@@ -875,6 +967,45 @@ export const ImageGenView = () => {
     else insertAtCursor(negativeRef as any, params.negative, example, v => setParam('negative', v));
   };
 
+  const uploadFiles = async (files: FileList | File[]) => {
+    const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!arr.length) return;
+    const results: InputImage[] = [];
+    for (const file of arr) {
+      try {
+        const r = await fetch('/api/imagegen/upload', {
+          method: 'POST',
+          headers: { 'x-filename': file.name, 'Content-Type': file.type },
+          body: file,
+        });
+        const d = await r.json();
+        if (d.ok) results.push({ url: URL.createObjectURL(file), serverPath: d.path, name: file.name });
+      } catch { /* skip failed */ }
+    }
+    if (results.length) {
+      setInputImages(prev => [...prev, ...results]);
+      setImgMode('img2img');
+    }
+  };
+
+  const onFileInputChange = (e: any) => {
+    if (e.target.files?.length) uploadFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const onDropZone = (e: any) => {
+    e.preventDefault();
+    if (e.dataTransfer?.files?.length) uploadFiles(e.dataTransfer.files);
+  };
+
+  const removeInputImage = (idx: number) => {
+    setInputImages(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      if (next.length === 0) setImgMode('txt2img');
+      return next;
+    });
+  };
+
   const deleteImage = (name: string) => {
     fetch(`/api/imagegen/image/${encodeURIComponent(name)}`, { method: 'DELETE' }).then(() => setGallery(p => p.filter(i => i.name !== name)));
   };
@@ -984,6 +1115,77 @@ export const ImageGenView = () => {
 
           {/* ── LEFT: Prompts + Generator + Wildcards ───────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+            {/* ── Input Image (img2img) panel ─────────────────── */}
+            <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
+              <button onClick={() => setImgPanelOpen(v => !v)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 10px', background: inputImages.length > 0 ? 'rgba(var(--ac-rgb,83,139,255),0.12)' : 'var(--bg2)', border: 'none', cursor: 'pointer' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: inputImages.length > 0 ? 'var(--ac)' : 'var(--tx2)', flex: 1 }}>
+                  🖼 Input Image{inputImages.length > 1 ? ` (${inputImages.length})` : inputImages.length === 1 ? ' (1)' : ''}
+                  {imgMode === 'img2img' && inputImages.length > 0 && <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--ac)' }}>img2img</span>}
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{imgPanelOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {imgPanelOpen && (
+                <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Mode toggle */}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {(['txt2img', 'img2img'] as const).map(m => (
+                      <button key={m} onClick={() => setImgMode(m)}
+                        style={{ flex: 1, padding: '4px', fontSize: '12px', fontWeight: 600, borderRadius: '4px', border: imgMode === m ? '1px solid var(--ac)' : '1px solid var(--brd)', background: imgMode === m ? 'var(--ac)' : 'var(--bg2)', color: imgMode === m ? '#fff' : 'var(--tx2)', cursor: 'pointer' }}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+
+                  {imgMode === 'img2img' && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--tx2)', marginBottom: '2px' }}>
+                        <span>Denoising strength</span>
+                        <b style={{ color: 'var(--tx)' }}>{imgStrength.toFixed(2)}</b>
+                      </div>
+                      <input type="range" min={0.01} max={1} step={0.01} value={imgStrength} title="Denoising strength"
+                        onInput={(e: any) => setImgStrength(parseFloat(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--ac)' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--tx3)' }}>
+                        <span>subtle</span><span>full regen</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Drop zone */}
+                  <div
+                    onDragOver={(e: any) => e.preventDefault()}
+                    onDrop={onDropZone}
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ border: '2px dashed var(--brd)', borderRadius: '6px', padding: '12px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg3)', fontSize: '12px', color: 'var(--tx3)' }}>
+                    Drop images here or click to browse<br />
+                    <span style={{ fontSize: '10px' }}>Multiple images = batch generation (same prompt for each)</span>
+                  </div>
+                  <input ref={fileInputRef as any} type="file" accept="image/*" multiple title="Select images" style={{ display: 'none' }} onChange={onFileInputChange} />
+
+                  {/* Loaded images */}
+                  {inputImages.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {inputImages.map((img, idx) => (
+                        <div key={idx} style={{ position: 'relative', width: '72px', height: '72px', borderRadius: '5px', overflow: 'hidden', border: '2px solid var(--brd)', flexShrink: 0 }}>
+                          <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <button onClick={() => removeInputImage(idx)}
+                            style={{ position: 'absolute', top: '1px', right: '1px', background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', borderRadius: '3px', width: '16px', height: '16px', fontSize: '10px', cursor: 'pointer', lineHeight: '1', padding: '0' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {inputImages.length > 1 && (
+                    <div style={{ fontSize: '11px', color: 'var(--ac)', background: 'rgba(var(--ac-rgb,83,139,255),0.1)', borderRadius: '4px', padding: '5px 8px', border: '1px solid var(--ac)' }}>
+                      {inputImages.length} images loaded — use <b>Batch Generate</b> to run the same prompt on each
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Positive prompt */}
             <div>
@@ -1121,6 +1323,22 @@ export const ImageGenView = () => {
               </div>
             </div>
 
+            {/* Speed/Quality presets */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px' }}>Speed / Quality Preset</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px' }}>
+                {SPEED_PRESETS.map(p => {
+                  const isActive = params.steps === p.steps && params.cfg === p.cfg && params.sampler === p.sampler;
+                  return (
+                    <button key={p.label} onClick={() => setParams(prev => ({ ...prev, steps: p.steps, cfg: p.cfg, sampler: p.sampler }))}
+                      style={{ background: isActive ? 'var(--ac)' : 'var(--bg2)', color: isActive ? '#fff' : 'var(--tx2)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '3px 7px', fontSize: '11px', cursor: 'pointer' }}>
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <Slider label="Steps" value={params.steps} min={1} max={100} onChange={v => setParam('steps', v)} />
             <Slider label="CFG Scale" value={params.cfg} min={1} max={20} step={0.5} onChange={v => setParam('cfg', v)} />
             <Slider label="Batch" value={params.batch} min={1} max={8} onChange={v => setParam('batch', v)} />
@@ -1169,16 +1387,24 @@ export const ImageGenView = () => {
         </div>
 
         {/* ── Generate button ──────────────────────────────────────── */}
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           {isWorking ? (
             <button onClick={cancel} style={{ flex: 1, background: '#c44', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
               ⏹ Cancel
             </button>
           ) : (
-            <button onClick={generate} disabled={!params.model}
-              style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', opacity: !params.model ? 0.5 : 1 }}>
-              ✦ Generate {totalImages > 1 ? `(${totalImages} images)` : ''}
-            </button>
+            <>
+              <button onClick={generate} disabled={!params.model}
+                style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', opacity: !params.model ? 0.5 : 1 }}>
+                ✦ {imgMode === 'img2img' && inputImages.length > 0 ? 'Img2Img' : 'Generate'} {totalImages > 1 ? `(${totalImages} images)` : ''}
+              </button>
+              {inputImages.length > 1 && (
+                <button onClick={generateBatch} disabled={!params.model || batchRunning}
+                  style={{ background: '#9333ea', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', opacity: (!params.model || batchRunning) ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                  ⚡ Batch ({inputImages.length}×)
+                </button>
+              )}
+            </>
           )}
 
           {/* Gallery drawer trigger */}

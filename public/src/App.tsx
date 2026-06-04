@@ -7,6 +7,9 @@ import { DropOverlay } from './components/UI/DropOverlay';
 
 export function App() {
   useEffect(() => {
+    // Signal server that the page is loaded — triggers deferred heavy work
+    fetch('/api/ready', { method: 'POST' }).catch(() => {});
+
     loadVideos();
     loadCategories();
     loadPrefs();
@@ -85,7 +88,7 @@ export function App() {
       .then(text => {
         try {
           const data = JSON.parse(text); // Parse JSON manually
-          if (data.needed) {
+          if (data.needed && activeProfile.value !== 'Vault') {
             presetPickerState.value = { visible: true, mergeMode: false };
           }
         } catch (e) {

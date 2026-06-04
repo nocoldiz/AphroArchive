@@ -1,4 +1,4 @@
-﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat } from '../../store';
+﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, imagegenInputState } from '../../store';
 import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
@@ -222,6 +222,34 @@ export const PlayerView = () => {
     }
   };
 
+  const sendFrameToImagegen = async () => {
+    const vid = videoRef.current;
+    if (!vid) { (window as any).toast?.('Video not loaded'); return; }
+    const canvas = document.createElement('canvas');
+    canvas.width = vid.videoWidth || 512;
+    canvas.height = vid.videoHeight || 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(vid, 0, 0);
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      try {
+        const r = await fetch('/api/imagegen/upload', {
+          method: 'POST',
+          headers: { 'x-filename': 'frame.jpg', 'Content-Type': 'image/jpeg' },
+          body: blob,
+        });
+        const d = await r.json();
+        if (d.ok) {
+          imagegenInputState.value = { imageUrl: URL.createObjectURL(blob), imagePath: d.path };
+          currentView.value = 'imagegen';
+        } else {
+          (window as any).toast?.('Upload failed');
+        }
+      } catch { (window as any).toast?.('Upload failed'); }
+    }, 'image/jpeg', 0.92);
+  };
+
   const handleEncrypt = async () => {
     if (!video) return;
     if (!confirm(`Encrypt video "${video.name}" and move to Vault?`)) return;
@@ -413,6 +441,16 @@ export const PlayerView = () => {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 <span>Encrypt</span>
               </button>
+
+              {!video.isLink && (
+                <button onClick={sendFrameToImagegen} title="Capture current frame and open in Image Gen" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  <span>Frame → Image Gen</span>
+                </button>
+              )}
 
               <button onClick={async () => {
                 if (!confirm(`Delete video "${video.name}" from disk?\nThis action cannot be undone.`)) return;

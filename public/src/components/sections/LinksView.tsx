@@ -21,7 +21,7 @@ interface LinkCardProps {
   onUpdate: (url: string, updates: Partial<LinkItem>) => void;
 }
 
-const LinkCard = ({ item, onRemove, onToggleStar }: LinkCardProps) => {
+const LinkCard = ({ item, onRemove, onToggleStar, onVault }: LinkCardProps & { onVault?: (url: string) => void }) => {
   const hostname = new URL(item.url).hostname;
   const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
 
@@ -69,10 +69,19 @@ const LinkCard = ({ item, onRemove, onToggleStar }: LinkCardProps) => {
           </svg>
         </button>
 
+        {/* Vault Button */}
+        {onVault && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onVault(item.url); }}
+            style={{ position: 'absolute', top: '10px', right: '66px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}
+            title="Move to Vault"
+          >🔒</button>
+        )}
         {/* Remove Button */}
-        <button 
-          class="bf-card-rm" 
-          onClick={(e) => { e.stopPropagation(); onRemove(item.url); }} 
+        <button
+          class="bf-card-rm"
+          onClick={(e) => { e.stopPropagation(); onRemove(item.url); }}
           style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           ×
@@ -618,6 +627,36 @@ export const LinksView = () => {
     });
   };
 
+  const moveSelectedToVault = async () => {
+    const checkboxes = document.querySelectorAll('.bf-chk:checked') as NodeListOf<HTMLInputElement>;
+    const urls = Array.from(checkboxes).map(el => el.value);
+    if (!urls.length) { alert('Select at least one link'); return; }
+    const r = await fetch('/api/vault/move-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    if (r.ok) {
+      setItems(prev => prev.filter(it => !urls.includes(it.url)));
+      checkboxes.forEach(cb => { cb.checked = false; });
+      const w = window as any;
+      if (w.toast) w.toast(`${urls.length} link(s) moved to Vault`);
+    }
+  };
+
+  const moveLinkToVault = async (url: string) => {
+    const r = await fetch('/api/vault/move-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [url] }),
+    });
+    if (r.ok) {
+      setItems(prev => prev.filter(it => it.url !== url));
+      const w = window as any;
+      if (w.toast) w.toast('Link moved to Vault');
+    }
+  };
+
   const downloadSelected = async () => {
     const checkboxes = document.querySelectorAll('.bf-chk:checked') as NodeListOf<HTMLInputElement>;
     const urls = Array.from(checkboxes).map(el => el.value);
@@ -830,6 +869,7 @@ export const LinksView = () => {
           <button className="sort-btn" onClick={copyAllVisible}>Copy URLs</button>
           <button className="sort-btn" onClick={openAllVisible}>Open All</button>
           <button className="sort-btn" onClick={downloadSelected}>Download Selected</button>
+          <button className="sort-btn" onClick={moveSelectedToVault} title="Move selected links to Vault">🔒 Vault Selected</button>
         </SectionControls>
 
       <div class="bf-stats" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -857,7 +897,7 @@ export const LinksView = () => {
         <div class="empty-state">No links found</div>
       ) : (() => {
         const renderCard = (item: LinkItem) => (
-          <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} />
+          <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} />
         );
         const renderRow = (item: LinkItem) => (
           <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>

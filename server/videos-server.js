@@ -167,6 +167,20 @@ async function runEncryptCategory(catPath) {
       updateEncryptionProgress({ done: encryptedCount, current: v.name });
     }
 
+    // Also vault-flag any links associated with this category
+    try {
+      const { loadLinksCache: llc, upsertLink: ul } = require('./db-server');
+      const ck = getCatKey(catPath);
+      const allLinks = llc().items || [];
+      for (const lnk of allLinks) {
+        const lcat = lnk.category || '';
+        const lck = getCatKey(lcat);
+        if (lck === ck || lck.startsWith(ck + '/')) {
+          ul({ ...lnk, vault: 1 });
+        }
+      }
+    } catch (linkErr) { console.error('[runEncryptCategory] link vault error:', linkErr.message); }
+
     invalidateScanCache();
     updateEncryptionProgress({ ok: true, running: false });
     return true;
@@ -2116,14 +2130,29 @@ async function apiEncryptVideo(req, res, id) {
 
   try {
     const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
-    
+
     if (!vaultId) {
       return json(res, { error: 'Encryption failed' }, 500);
     }
 
+    // Assign vault file to a vault folder matching the video's top-level category
+    if (v.catPath) {
+      const { loadVaultMeta: lvm, saveVaultMeta: svm } = require('./db-server');
+      const vaultMeta = lvm();
+      const folderName = v.catPath.split(/[/\\]/)[0];
+      const existingFolder = Object.entries(vaultMeta).find(([, m]) => m.type === 'folder' && m.name.toLowerCase() === folderName.toLowerCase());
+      let folderId = existingFolder ? existingFolder[0] : null;
+      if (!folderId) {
+        folderId = require('crypto').randomBytes(16).toString('hex');
+        vaultMeta[folderId] = { type: 'folder', name: folderName, id: folderId };
+      }
+      if (vaultMeta[vaultId]) vaultMeta[vaultId].folder = folderId;
+      svm(vaultMeta);
+    }
+
     const oldThumb = path.join(THUMBS_DIR, v.id);
     const newThumb = path.join(THUMBS_DIR, vaultId);
-    
+
     if (fs.existsSync(oldThumb)) {
       if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
       fs.renameSync(oldThumb, newThumb);

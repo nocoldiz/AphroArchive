@@ -382,6 +382,9 @@ async function apiGenerate(req, res) {
     lora_strengths: body.lora_strengths || loraFiles.map(() => 1.0),
     wildcards_dir:  cfg.wildcardsDir,
     combinatorial:  !!body.combinatorial,
+    mode:           body.mode || 'txt2img',
+    image_path:     body.image_path || '',
+    strength:       body.strength != null ? body.strength : 0.75,
   };
 
   if (!pyProc) startEngine();
@@ -396,10 +399,59 @@ async function apiGenerate(req, res) {
   json(res, { ok: true, jobId, queuePosition: jobQueue.length, estimatedImages: combos * params.batch });
 }
 
+// ── API: upload reference image ───────────────────────────────────────
+
+async function apiUploadImage(req, res) {
+  const uploadsDir = path.join(cfg.outputDir, 'uploads');
+  try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch {}
+  const ext = path.extname(req.headers['x-filename'] || 'image.png').toLowerCase() || '.png';
+  const safeName = 'upload_' + Date.now() + ext;
+  const destPath = path.join(uploadsDir, safeName);
+  const out = fs.createWriteStream(destPath);
+  await new Promise((resolve, reject) => {
+    req.pipe(out);
+    out.on('finish', resolve);
+    out.on('error', reject);
+    req.on('error', reject);
+  });
+  json(res, { ok: true, path: destPath, name: safeName });
+}
+
+// ── API: encrypt generated image into vault ───────────────────────────
+
+async function apiEncryptGenerated(req, res) {
+  const { apiVaultAdd } = require('./vault-server');
+  const body = await readBody(req);
+  const filename = body.filename;
+  if (!filename) return json(res, { error: 'No filename' }, 400);
+  const fp = path.join(cfg.outputDir, path.basename(filename));
+  if (!fs.existsSync(fp)) return json(res, { error: 'File not found' }, 404);
+
+  // Stream the file into vault encryption endpoint logic directly
+  const fileData = fs.readFileSync(fp);
+  const vaultRes = {
+    _status: 200, _headers: {}, _body: null,
+    writeHead(code) { this._status = code; },
+    end(data) { try { this._body = JSON.parse(data); } catch { this._body = data; } },
+    write() {},
+  };
+  // Create a fake request with the file data
+  const fakeReq = require('stream').Readable.from([fileData]);
+  fakeReq.headers = { 'x-filename': path.basename(filename) };
+  await apiVaultAdd(fakeReq, vaultRes);
+
+  if (vaultRes._status === 200 || vaultRes._body?.ok) {
+    try { fs.unlinkSync(fp); } catch {}
+    return json(res, { ok: true, vaultId: vaultRes._body?.id });
+  }
+  json(res, { error: vaultRes._body?.error || 'Vault add failed' }, vaultRes._status || 500);
+}
+
 // ── API: gallery ──────────────────────────────────────────────────────
 
 function apiGallery(req, res) {
   const files = scanFiles(cfg.outputDir, IMG_EXTS)
+    .filter(f => !f.name.startsWith('uploads/'))
     .sort((a, b) => b.mtime - a.mtime)
     .slice(0, 400);
   json(res, files);
@@ -513,4 +565,5 @@ module.exports = {
   apiGallery, apiServeImage, apiDeleteImage,
   apiProgress,
   applyComfyuiPath, apiStartComfyui, apiSyncComfyui,
+  apiUploadImage, apiEncryptGenerated,
 };

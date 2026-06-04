@@ -27,6 +27,11 @@ export const DatabaseView = () => {
   const [autoCatResult, setAutoCatResult] = useState<{movedVideos: number, categorizedLinks: number, errors: string[]} | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
+  // Website-from-links
+  const [linkSitesCandidates, setLinkSitesCandidates] = useState<{name: string, url: string}[]>([]);
+  const [linkSitesSelected, setLinkSitesSelected] = useState<Set<string>>(new Set());
+  const [linkSitesOpen, setLinkSitesOpen] = useState(false);
+
   const tabs = [
     { id: 'folders', name: 'Folders' },
     { id: 'actors', name: 'Actors' },
@@ -274,6 +279,34 @@ export const DatabaseView = () => {
     }
   };
 
+  const openLinkSites = async () => {
+    const r = await fetch('/api/websites/from-links');
+    if (!r.ok) return;
+    const candidates = await r.json();
+    setLinkSitesCandidates(candidates);
+    setLinkSitesSelected(new Set(candidates.map((c: any) => c.url)));
+    setLinkSitesOpen(true);
+  };
+
+  const confirmLinkSites = async () => {
+    const items = linkSitesCandidates.filter(c => linkSitesSelected.has(c.url));
+    if (!items.length) { setLinkSitesOpen(false); return; }
+    const r = await fetch('/api/websites/bulk-add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    setLinkSitesOpen(false);
+    const w = window as any;
+    if (r.ok) {
+      const d = await r.json();
+      if (w.toast) w.toast(`Added ${d.added} website(s)`);
+      loadTab('websites');
+    } else {
+      if (w.toast) w.toast('Failed to add websites');
+    }
+  };
+
   const handleAutoCategorize = async () => {
     setAutoCatRunning(true);
     setAutoCatResult(null);
@@ -322,6 +355,9 @@ export const DatabaseView = () => {
           <button className="modal-btn" onClick={handleReset} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Reset to Preset</button>
           {activeTab === 'actors' && (
             <button className="modal-btn" onClick={() => setScraperModalOpen(true)} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Scrape Actor Data</button>
+          )}
+          {activeTab === 'websites' && (
+            <button className="modal-btn" onClick={openLinkSites} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Add from Saved Links…</button>
           )}
           <button className="modal-btn" onClick={handleExportJson} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Export JSON</button>
           <button className="modal-btn" onClick={() => importFileRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import JSON</button>
@@ -425,6 +461,7 @@ export const DatabaseView = () => {
                 <label key={f.path} style={{ background: 'var(--bg2)', padding: '12px', borderRadius: '8px', border: `1px solid ${f.isExternal ? 'var(--ac)' : 'var(--brd)'}`, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
+                    title={`Enable folder ${f.name}`}
                     checked={enabledFolders.size === 0 || enabledFolders.has(f.path)}
                     onChange={(e: any) => {
                       const next = new Set(enabledFolders);
@@ -586,6 +623,54 @@ export const DatabaseView = () => {
           <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '900px', maxWidth: '95%', maxHeight: '90%', overflowY: 'auto', position: 'relative' }}>
             <button onClick={() => setScraperModalOpen(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
             <ActorScraperView />
+          </div>
+        </div>
+      )}
+
+      {/* Add Websites from Links Modal */}
+      {linkSitesOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '480px', maxWidth: '95%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>Add websites from saved links</h3>
+              <button type="button" onClick={() => setLinkSitesOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.3rem' }}>&times;</button>
+            </div>
+            {linkSitesCandidates.length === 0 ? (
+              <p style={{ color: 'var(--tx3)', margin: 0 }}>No new websites found — all domains from saved links are already in your list.</p>
+            ) : (
+              <>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--tx2)' }}>Select the websites to add ({linkSitesSelected.size} of {linkSitesCandidates.length} selected):</p>
+                <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--tx3)', cursor: 'pointer', paddingBottom: '6px', borderBottom: '1px solid var(--brd)' }}>
+                    <input type="checkbox" title="Select all websites"
+                      checked={linkSitesSelected.size === linkSitesCandidates.length}
+                      onChange={() => {
+                        if (linkSitesSelected.size === linkSitesCandidates.length) setLinkSitesSelected(new Set());
+                        else setLinkSitesSelected(new Set(linkSitesCandidates.map(c => c.url)));
+                      }}
+                    /> Select all
+                  </label>
+                  {linkSitesCandidates.map(c => (
+                    <label key={c.url} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                      <input type="checkbox" title={`Select ${c.name}`}
+                        checked={linkSitesSelected.has(c.url)}
+                        onChange={() => setLinkSitesSelected(prev => {
+                          const next = new Set(prev);
+                          next.has(c.url) ? next.delete(c.url) : next.add(c.url);
+                          return next;
+                        })}
+                      />
+                      <span style={{ flex: 1 }}>{c.name}</span>
+                      <span style={{ color: 'var(--tx3)', fontSize: '0.75rem' }}>{c.url}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setLinkSitesOpen(false)} className="modal-btn">Cancel</button>
+                  <button type="button" onClick={confirmLinkSites} disabled={linkSitesSelected.size === 0} className="modal-btn modal-btn--primary">Add {linkSitesSelected.size} website{linkSitesSelected.size !== 1 ? 's' : ''}</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
