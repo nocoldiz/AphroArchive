@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { PERSONALITIES, Personality } from '../../personalities';
 import { JSX } from 'preact';
 import { ensureQRCode } from '../../utils';
+import { CategorizeModal, PlanItem, Move } from '../UI/CategorizeModal';
 
 declare global {
   interface Window {
@@ -17,6 +18,21 @@ interface ConnectUrl {
   url: string;
   name: string;
   ip: string;
+}
+
+interface ScraperStatus {
+  running: boolean;
+  done?: number;
+  total?: number;
+  current?: string;
+}
+
+interface CatModalState {
+  mode: 'uncategorized' | 'all';
+  uncategorized: PlanItem[];
+  categorized: PlanItem[];
+  categories: string[];
+  confirming: boolean;
 }
 
 const THEMES = [
@@ -44,17 +60,17 @@ const THEMES = [
 ];
 
 const TABS = [
+  { id: 'folders',    label: 'Folders' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'ai',         label: 'AI' },
-  { id: 'folders',    label: 'Folders' },
-  { id: 'system',     label: 'System' },
+  { id: 'cache',      label: 'Cache' },
   { id: 'security',   label: 'Security' },
 ];
 
 export const SettingsView = () => {
   const prefs = appPrefs.value;
 
-  const [activeTab, setActiveTab] = useState('appearance');
+  const [activeTab, setActiveTab] = useState('folders');
 
   const [commentPrompt, setCommentPrompt] = useState(prefs.aiCommentMasterPrompt || '');
   const [replyPrompt, setReplyPrompt] = useState(prefs.aiReplyMasterPrompt || '');
@@ -86,11 +102,36 @@ export const SettingsView = () => {
   const abortAiRef = useRef(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'default');
+  const [currentTheme, setCurrentTheme] = useState(prefs.theme || localStorage.getItem('theme') || 'default');
+
+  useEffect(() => {
+    if (prefs.theme) setCurrentTheme(prefs.theme);
+  }, [prefs.theme]);
 
   const [modelStatus, setModelStatus] = useState<{ ready: boolean; fileExists: boolean; modelName: string; downloading: boolean; dlPct: number; dlDone: number; dlTotal: number; dlError: string | null } | null>(null);
   const [llamaModelUri, setLlamaModelUri] = useState(prefs.llamaModelUri || '');
   const modelPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [openrouterKey, setOpenrouterKey] = useState(prefs.openrouterApiKey || '');
+  const [openrouterKeySaved, setOpenrouterKeySaved] = useState(false);
+
+  interface ScannedModel { name: string; path: string; size: number; }
+  interface ScannedModels {
+    llm: ScannedModel[];
+    comfyui: { checkpoints: ScannedModel[]; loras: ScannedModel[]; vaes: ScannedModel[]; embeddings: ScannedModel[]; unet: ScannedModel[]; gguf: ScannedModel[] };
+  }
+  const [scannedModels, setScannedModels] = useState<ScannedModels | null>(null);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
+  const [scrapers, setScrapers] = useState<{ bmMeta: ScraperStatus; bmThumbs: ScraperStatus }>({
+    bmMeta: { running: false }, bmThumbs: { running: false },
+  });
+  const [rescanning, setRescanning] = useState(false);
+  const [autoCatLoading, setAutoCatLoading] = useState(false);
+  const [recatAllLoading, setRecatAllLoading] = useState(false);
+  const [autoCatResult, setAutoCatResult] = useState<string | undefined>();
+  const [recatAllResult, setRecatAllResult] = useState<string | undefined>();
+  const [catModal, setCatModal] = useState<CatModalState | null>(null);
 
   const sseRef = useRef<EventSource | null>(null);
   const qrRef = useRef<HTMLCanvasElement>(null);
@@ -171,7 +212,65 @@ export const SettingsView = () => {
     setAnthropicKey(prefs.anthropicApiKey || '');
     setNetEnabled(!!prefs.networkEnabled);
     setLlamaModelUri(prefs.llamaModelUri || '');
+    setOpenrouterKey(prefs.openrouterApiKey || '');
   }, [prefs]);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const [bmMetaRes, bmThRes] = await Promise.all([
+          fetch('/api/links/scrape-status'),
+          fetch('/api/links/thumb-status'),
+        ]);
+        const bm = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
+        const bt = bmThRes.ok ? await bmThRes.json() : { running: false };
+        setScrapers({ bmMeta: bm, bmThumbs: bt });
+      } catch {}
+    };
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => clearInterval(id);
+  }, []);
+
+  const scraperAction = (url: string, method = 'POST') => fetch(url, { method }).catch(() => {});
+
+  const openCategorizeModal = async (mode: 'uncategorized' | 'all') => {
+    const setLoading = mode === 'all' ? setRecatAllLoading : setAutoCatLoading;
+    setLoading(true);
+    try {
+      const r = await fetch('/api/videos/categorize-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+      const { uncategorized, categorized, categories } = await r.json();
+      setCatModal({ mode, uncategorized: uncategorized || [], categorized: categorized || [], categories, confirming: false });
+    } catch {
+      if (mode === 'all') setRecatAllResult('error'); else setAutoCatResult('error');
+    } finally { setLoading(false); }
+  };
+
+  const handleCatConfirm = async (moves: Move[]) => {
+    if (!catModal) return;
+    setCatModal(m => m ? { ...m, confirming: true } : null);
+    try {
+      const r = await fetch('/api/videos/categorize-execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ moves }) });
+      const d = await r.json();
+      const result = `${d.movedVideos} videos, ${d.movedLinks} links`;
+      if (catModal.mode === 'all') setRecatAllResult(result); else setAutoCatResult(result);
+      await loadVideos();
+    } catch {
+      if (catModal.mode === 'all') setRecatAllResult('error'); else setAutoCatResult('error');
+    } finally { setCatModal(null); }
+  };
+
+  const saveOpenrouterKey = async () => {
+    await updatePrefs({ openrouterApiKey: openrouterKey.trim() });
+    setOpenrouterKeySaved(true);
+    if (window.toast) window.toast('OpenRouter API key saved');
+    setTimeout(() => setOpenrouterKeySaved(false), 3000);
+  };
+
+  const scanModels = () => {
+    setModelsLoading(true);
+    fetch('/api/models/scan').then(r => r.json()).then(d => { setScannedModels(d); setModelsLoading(false); }).catch(() => setModelsLoading(false));
+  };
 
   const fetchModelStatus = () => {
     fetch('/api/comments/model/status').then(r => r.json()).then(d => setModelStatus(d)).catch(() => {});
@@ -314,6 +413,7 @@ export const SettingsView = () => {
   const cardH: JSX.CSSProperties = { margin: '0 0 20px', color: 'var(--ac)' };
 
   return (
+    <>
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', color: 'var(--tx)' }}>
 
       {/* ── Tab bar ─────────────────────────────────────────────────── */}
@@ -342,7 +442,7 @@ export const SettingsView = () => {
                 const isSelected = currentTheme === theme.id;
                 const bgStyle = theme.id === 'rainbow' ? { background: theme.ac } : { background: `linear-gradient(135deg, ${theme.bg}, ${theme.ac})` };
                 return (
-                  <div key={theme.id} onClick={() => { setCurrentTheme(theme.id); document.documentElement.setAttribute('data-theme', theme.id); localStorage.setItem('theme', theme.id); }}
+                  <div key={theme.id} onClick={() => { setCurrentTheme(theme.id); document.documentElement.setAttribute('data-theme', theme.id); localStorage.setItem('theme', theme.id); updatePrefs({ theme: theme.id }); }}
                     style={{ display: 'flex', alignItems: 'center', padding: '12px', background: 'var(--bg3)', border: isSelected ? '2px solid var(--ac)' : '1px solid var(--brd)', borderRadius: '8px', cursor: 'pointer', transition: 'border-color 0.2s' }}>
                     <div style={{ width: '24px', height: '24px', borderRadius: '4px', marginRight: '12px', flexShrink: 0, ...bgStyle }} />
                     <span style={{ flex: 1, fontSize: '14px', color: 'var(--tx)' }}>{theme.name}</span>
@@ -360,6 +460,47 @@ export const SettingsView = () => {
 
         {/* ══ AI ══════════════════════════════════════════════════════ */}
         {activeTab === 'ai' && <>
+
+          {/* OpenRouter API Key */}
+          <div style={card}>
+            <h3 style={cardH}>OpenRouter API Key</h3>
+            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Used by Chat Assistant and AI Comments when their provider is set to OpenRouter. Get a free key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ac)' }}>openrouter.ai/keys</a>.</p>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type="password"
+                value={openrouterKey}
+                onInput={(e) => { setOpenrouterKey((e.target as HTMLInputElement).value); setOpenrouterKeySaved(false); }}
+                placeholder="sk-or-..."
+                style={{ ...inp, flex: 1, width: 'auto', border: `1px solid ${openrouterKeySaved ? '#4caf50' : 'var(--brd)'}` }}
+              />
+              <button type="button" class="modal-btn modal-btn--primary" onClick={saveOpenrouterKey} style={{ whiteSpace: 'nowrap' }}>
+                {openrouterKeySaved ? 'Saved ✓' : 'Save Key'}
+              </button>
+            </div>
+          </div>
+
+          {/* AI Provider configuration */}
+          <div style={card}>
+            <h3 style={cardH}>AI Providers</h3>
+            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Choose which backend each AI feature uses. Local requires a GGUF model in the <code style={{ fontSize: '11px' }}>models/</code> folder; OpenRouter requires an API key above.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={fieldRow}>
+                <label style={label}>Chat Assistant</label>
+                <select title="Chat Assistant AI provider" value={prefs.assistantProvider || 'openrouter'} onChange={(e) => updatePrefs({ assistantProvider: (e.target as HTMLSelectElement).value as any })} style={{ ...inp }}>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="local">Local GGUF</option>
+                </select>
+              </div>
+              <div style={fieldRow}>
+                <label style={label}>AI Comments</label>
+                <select title="AI Comments provider" value={prefs.commentsProvider || 'local'} onChange={(e) => updatePrefs({ commentsProvider: (e.target as HTMLSelectElement).value as any })} style={{ ...inp }}>
+                  <option value="local">Local GGUF</option>
+                  <option value="openrouter">OpenRouter</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* AI Comments */}
           <div style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -425,6 +566,9 @@ export const SettingsView = () => {
           {/* Vision Provider */}
           <div style={card}>
             <h3 style={cardH}>Vision Provider</h3>
+            <div style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px', padding: '8px 10px', background: 'var(--bg3)', borderRadius: '5px', border: '1px solid var(--brd)' }}>
+              Vision requires a <strong>multimodal</strong> model (one that can analyze images). Your <code style={{ fontSize: '11px' }}>text_encoders/</code> and <code style={{ fontSize: '11px' }}>clip/</code> models are text-only and cannot be used for vision — they are Flux image-generation helpers. For local vision use Ollama with a model like <code style={{ fontSize: '11px' }}>minicpm-v</code>, <code style={{ fontSize: '11px' }}>llava</code>, or <code style={{ fontSize: '11px' }}>qwen2-vl</code> (note: Qwen2-VL ≠ Qwen3).
+            </div>
             <div style={fieldRow}>
               <label style={label}>Provider</label>
               <select value={prefs.visionProvider || 'ollama'} onChange={(e) => updatePrefs({ visionProvider: (e.target as HTMLSelectElement).value })} style={{ ...inp }}>
@@ -449,6 +593,63 @@ export const SettingsView = () => {
               </div>
               <button class="modal-btn modal-btn--primary" onClick={handleSaveAnthropic} style={{ width: '100%' }}>Save API Key</button>
             </>}
+          </div>
+
+          {/* Models Library */}
+          <div style={card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, color: 'var(--ac)' }}>Models Library</h3>
+              <button type="button" class="modal-btn modal-btn--secondary" onClick={scanModels} disabled={modelsLoading} style={{ fontSize: '12px' }}>
+                {modelsLoading ? 'Scanning…' : 'Scan Models'}
+              </button>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>
+              Lists GGUF models from <code style={{ fontSize: '11px' }}>models/</code> and safetensor/GGUF models from your ComfyUI folder.
+            </p>
+
+            {!scannedModels && !modelsLoading && (
+              <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px', padding: '20px 0' }}>Click "Scan Models" to discover installed models.</div>
+            )}
+
+            {scannedModels && (() => {
+              const fmtSize = (b: number) => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : (b / 1048576).toFixed(0) + ' MB';
+              const ModelRow = ({ m }: { m: { name: string; path: string; size: number } }) => (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderRadius: '4px', background: 'var(--bg)', marginBottom: '4px', fontSize: '12px' }}>
+                  <span style={{ color: 'var(--tx)', wordBreak: 'break-all', flex: 1 }}>{m.name}</span>
+                  <span style={{ color: 'var(--tx3)', whiteSpace: 'nowrap', marginLeft: '12px' }}>{fmtSize(m.size)}</span>
+                </div>
+              );
+              const Section = ({ title, items, accent }: { title: string; items: typeof scannedModels.llm; accent?: boolean }) => items.length > 0 ? (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: accent ? 'var(--ac)' : 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>{title} <span style={{ fontWeight: 400 }}>({items.length})</span></div>
+                  {items.map((m, i) => <ModelRow key={i} m={m} />)}
+                </div>
+              ) : null;
+
+              return (
+                <div>
+                  {/* Local LLM */}
+                  <Section title="Local GGUF (LLM)" items={scannedModels.llm} accent />
+                  {/* ComfyUI */}
+                  {Object.values(scannedModels.comfyui).some(a => a.length > 0) && (
+                    <div style={{ marginTop: '8px', paddingTop: '12px', borderTop: '1px solid var(--brd)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>ComfyUI</div>
+                      <Section title="Checkpoints" items={scannedModels.comfyui.checkpoints} />
+                      <Section title="UNet / Transformers" items={scannedModels.comfyui.unet} />
+                      <Section title="Text Encoders (T5 / Qwen)" items={(scannedModels.comfyui as any).text_encoders || []} />
+                      <Section title="CLIP Encoders" items={(scannedModels.comfyui as any).clip || []} />
+                      <Section title="LoRAs" items={scannedModels.comfyui.loras} />
+                      <Section title="VAEs" items={scannedModels.comfyui.vaes} />
+                      <Section title="Embeddings" items={scannedModels.comfyui.embeddings} />
+                      <Section title="GGUF (other)" items={scannedModels.comfyui.gguf} />
+                    </div>
+                  )}
+                  {scannedModels.llm.length === 0 && Object.values(scannedModels.comfyui).every(a => a.length === 0) && (
+                    <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px', padding: '12px 0' }}>No models found. Place GGUF files in <code style={{ fontSize: '11px' }}>models/</code> or set your ComfyUI path.</div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </>}
 
@@ -555,43 +756,9 @@ export const SettingsView = () => {
             </div>
           </div>
 
-          {/* Hidden Tags */}
+          {/* ComfyUI Path */}
           <div style={card}>
-            <h3 style={{ ...cardH, marginBottom: '6px' }}>Hidden Tags</h3>
-            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '12px' }}>Type a tag and press Enter to hide it from the library.</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px', minHeight: '45px', alignItems: 'center' }}>
-              {(prefs.hiddenTags || []).map((tag: string, idx: number) => (
-                <div key={idx} style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem' }}>
-                  <span>{tag}</span>
-                  <button onClick={() => { const current = prefs.hiddenTags || []; updatePrefs({ hiddenTags: current.filter((_: any, i: number) => i !== idx) }); }} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: 0, fontSize: '1rem', lineHeight: 1, display: 'flex', alignItems: 'center' }}>×</button>
-                </div>
-              ))}
-              <input type="text" placeholder="Type and press Enter…" style={{ flex: 1, background: 'none', border: 'none', color: 'var(--tx)', outline: 'none', minWidth: '150px', padding: '4px' }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const t = e.target as HTMLInputElement; const val = t.value.trim(); const current = prefs.hiddenTags || []; if (val && !current.includes(val)) { updatePrefs({ hiddenTags: [...current, val] }); t.value = ''; } } }} />
-            </div>
-          </div>
-        </>}
-
-        {/* ══ System ══════════════════════════════════════════════════ */}
-        {activeTab === 'system' && <>
-          {/* Thumbnails */}
-          <div style={card}>
-            <h3 style={{ ...cardH, marginBottom: '8px' }}>Thumbnails</h3>
-            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Pre-generate thumbnails for all videos in batch.</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <button className={`modal-btn ${genRunning ? '' : 'modal-btn--primary'}`} onClick={toggleGenThumbs} style={{ minWidth: '120px' }}>
-                {genRunning ? 'Stop' : 'Generate All'}
-              </button>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.85rem', color: 'var(--tx)', marginBottom: '4px' }}>{genStatus}</div>
-                {genRunning && <div style={{ width: '100%', height: '4px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden' }}><div style={{ width: `${genProgress}%`, height: '100%', background: 'var(--ac)', transition: 'width 0.3s' }} /></div>}
-              </div>
-            </div>
-          </div>
-
-          {/* ComfyUI */}
-          <div style={card}>
-            <h3 style={{ ...cardH, marginBottom: '8px' }}>ComfyUI</h3>
+            <h3 style={{ ...cardH, marginBottom: '8px' }}>ComfyUI Folder</h3>
             <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>
               Set your local ComfyUI install folder. Models, VAEs, and LoRAs will be auto-discovered from its standard directory layout.
             </p>
@@ -610,43 +777,137 @@ export const SettingsView = () => {
               </div>
             )}
           </div>
-
-          {/* Network Access (main device only) */}
-          {isMainDevice && (
-            <div style={card}>
-              <h3 style={cardH}>Network Access</h3>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>{netEnabled ? 'Enabled' : 'Disabled'}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--tx3)' }}>{netEnabled ? 'Other devices on the network can connect' : 'Server only accepts connections from this machine'}</div>
-                </div>
-                <button class={`modal-btn ${netEnabled ? 'modal-btn--primary' : ''}`} onClick={toggleNetwork}>{netEnabled ? 'Disable' : 'Enable'}</button>
-              </div>
-              {netEnabled && connectUrls.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    {connectUrls.map((e, i) => (
-                      <button key={i} onClick={() => setConnectIdx(i)} style={{ padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', border: '1px solid var(--brd)', background: i === connectIdx ? 'var(--ac)' : 'var(--bg3)', color: i === connectIdx ? '#fff' : 'var(--tx2)' }}>{e.name}</button>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--tx2)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {connectUrls[connectIdx]?.url}
-                    <button onClick={() => { const u = connectUrls[connectIdx]; if (u) verifyUrl(connectIdx, u.url); }} title="Re-verify reachability" style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', fontSize: '0.7rem', padding: '1px 5px', borderRadius: '4px', cursor: 'pointer' }}>↻</button>
-                  </div>
-                  {(() => {
-                    const st = verifyStatus[connectIdx];
-                    if (!st) return null;
-                    if (st.checking) return <div style={{ fontSize: '0.7rem', color: 'var(--tx3)' }}>Verifying URL reachability…</div>;
-                    if (st.ok) return <div style={{ fontSize: '0.7rem', color: '#4ade80' }}>✓ Verified reachable (remote devices should be able to connect)</div>;
-                    if (st.error) return <div style={{ fontSize: '0.7rem', color: '#f87171' }}>✗ {st.error} — the URL may be incorrect for remote devices</div>;
-                    return null;
-                  })()}
-                  <canvas ref={qrRef} style={{ background: '#fff', padding: '10px', borderRadius: '8px', marginTop: '6px' }} />
-                </div>
-              )}
-            </div>
-          )}
         </>}
+
+        {/* ══ Cache ═══════════════════════════════════════════════════ */}
+        {activeTab === 'cache' && (() => {
+          const rowStyle: JSX.CSSProperties = { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0', borderBottom: '1px solid var(--brd)' };
+          const lastRowStyle: JSX.CSSProperties = { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0' };
+          const btnSm = (color = 'var(--ac)'): JSX.CSSProperties => ({ background: color, color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' as const });
+          const btnOutline: JSX.CSSProperties = { background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' };
+          const lbl: JSX.CSSProperties = { flex: 1, fontSize: '13px', fontWeight: 500 };
+          const progBar = (pct: number) => (
+            <div style={{ height: '3px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden', marginTop: '3px' }}>
+              <div style={{ width: `${pct}%`, height: '100%', background: 'var(--ac)', transition: 'width 0.4s' }} />
+            </div>
+          );
+
+          return <>
+            {/* Sync & Background Tasks */}
+            <div style={card}>
+              <h3 style={{ ...cardH, marginBottom: '16px' }}>Sync &amp; Background Tasks</h3>
+
+              {/* Video Thumbnails */}
+              <div>
+                <div style={rowStyle}>
+                  <span style={lbl}>Video Thumbnails</span>
+                  {genRunning ? (
+                    <>
+                      <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{genStatus}</span>
+                      <button style={btnSm('var(--bg3)')} onClick={toggleGenThumbs} title="Stop">Stop</button>
+                    </>
+                  ) : (
+                    <button style={btnSm()} onClick={toggleGenThumbs}>Generate All</button>
+                  )}
+                </div>
+                {genRunning && genProgress > 0 && progBar(genProgress)}
+              </div>
+
+              {/* Link Metadata */}
+              <div style={rowStyle}>
+                <span style={lbl}>Link Metadata</span>
+                {scrapers.bmMeta.running ? (
+                  <>
+                    <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>
+                      {scrapers.bmMeta.total ? `${scrapers.bmMeta.done}/${scrapers.bmMeta.total}` : 'running…'}
+                    </span>
+                    <button style={btnSm('var(--bg3)')} onClick={() => scraperAction('/api/links/stop-scraping')}>Stop</button>
+                  </>
+                ) : (
+                  <>
+                    <button style={btnOutline} onClick={() => scraperAction('/api/links/rescrape-all')}>Rescrape all</button>
+                    <button style={btnSm()} onClick={() => scraperAction('/api/links/start-scraping')}>Start</button>
+                  </>
+                )}
+              </div>
+
+              {/* Link Thumbnails */}
+              <div style={rowStyle}>
+                <span style={lbl}>Link Thumbnails</span>
+                {scrapers.bmThumbs.running ? (
+                  <>
+                    <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>
+                      {scrapers.bmThumbs.total ? `${scrapers.bmThumbs.done}/${scrapers.bmThumbs.total}` : 'running…'}
+                    </span>
+                    <button style={btnSm('var(--bg3)')} onClick={() => scraperAction('/api/links/stop-generating')}>Stop</button>
+                  </>
+                ) : (
+                  <button style={btnSm()} onClick={() => scraperAction('/api/links/generate-all')}>Start</button>
+                )}
+              </div>
+
+              {/* Auto Categorize */}
+              <div style={rowStyle}>
+                <span style={lbl}>Auto Categorize</span>
+                {autoCatResult && <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{autoCatResult}</span>}
+                <button style={btnSm(autoCatLoading ? 'var(--bg3)' : undefined)} disabled={autoCatLoading}
+                  onClick={() => openCategorizeModal('uncategorized')}>
+                  {autoCatLoading ? 'Loading…' : 'Run'}
+                </button>
+              </div>
+
+              {/* Recategorize All */}
+              <div style={rowStyle}>
+                <span style={lbl}>Recategorize All</span>
+                {recatAllResult && <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{recatAllResult}</span>}
+                <button style={btnSm(recatAllLoading ? 'var(--bg3)' : '#c07800')} disabled={recatAllLoading}
+                  onClick={() => openCategorizeModal('all')}>
+                  {recatAllLoading ? 'Loading…' : 'Run'}
+                </button>
+              </div>
+
+              {/* Actor Data */}
+              <div style={rowStyle}>
+                <span style={lbl}>Actor Data</span>
+                <button style={btnSm()} onClick={() => scraperAction('/api/actors/scrape-missing')}>Scrape missing</button>
+              </div>
+
+              {/* Local Videos */}
+              <div style={lastRowStyle}>
+                <span style={lbl}>Local Videos</span>
+                <button style={btnSm(rescanning ? 'var(--bg3)' : undefined)} disabled={rescanning}
+                  onClick={async () => {
+                    setRescanning(true);
+                    try { await fetch('/api/videos/rescan', { method: 'POST' }); await loadVideos(); if (window.toast) window.toast('Rescan complete'); } catch {}
+                    setRescanning(false);
+                  }}>
+                  {rescanning ? 'Scanning…' : 'Rescan'}
+                </button>
+              </div>
+            </div>
+
+            {/* Clear Data */}
+            <div style={card}>
+              <h3 style={{ ...cardH, marginBottom: '6px' }}>Clear Data</h3>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Permanently remove cached or stored data. These actions cannot be undone.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {([
+                  { label: 'All Thumbnails', desc: 'Deletes thumbnail images and cache entries', action: async () => { if (!confirm('Delete all thumbnails?')) return; await fetch('/api/thumbs/clear', { method: 'POST' }); if (window.toast) window.toast('Thumbnails cleared'); } },
+                  { label: 'All Favourites', desc: 'Removes all videos from your favourites list', action: async () => { if (!confirm('Clear all favourites?')) return; await fetch('/api/favourites', { method: 'DELETE' }); if (window.toast) window.toast('Favourites cleared'); } },
+                  { label: 'Recently Watched', desc: 'Clears the watch history', action: async () => { if (!confirm('Clear watch history?')) return; await fetch('/api/history', { method: 'DELETE' }); if (window.toast) window.toast('History cleared'); } },
+                ] as { label: string; desc: string; action: () => Promise<void> }[]).map(item => (
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', background: 'var(--bg3)', borderRadius: '6px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 500 }}>{item.label}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px' }}>{item.desc}</div>
+                    </div>
+                    <button style={{ ...btnSm('#c0392b'), padding: '5px 12px' }} onClick={item.action}>Clear</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>;
+        })()}
 
         {/* ══ Security ════════════════════════════════════════════════ */}
         {activeTab === 'security' && <>
@@ -772,9 +1033,58 @@ export const SettingsView = () => {
               </div>
             </div>
           </div>
+
+          {/* Network Access (main device only) */}
+          {isMainDevice && (
+            <div style={card}>
+              <h3 style={cardH}>Network Access</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>{netEnabled ? 'Enabled' : 'Disabled'}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--tx3)' }}>{netEnabled ? 'Other devices on the network can connect' : 'Server only accepts connections from this machine'}</div>
+                </div>
+                <button class={`modal-btn ${netEnabled ? 'modal-btn--primary' : ''}`} onClick={toggleNetwork}>{netEnabled ? 'Disable' : 'Enable'}</button>
+              </div>
+              {netEnabled && connectUrls.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    {connectUrls.map((e, i) => (
+                      <button key={i} onClick={() => setConnectIdx(i)} style={{ padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', border: '1px solid var(--brd)', background: i === connectIdx ? 'var(--ac)' : 'var(--bg3)', color: i === connectIdx ? '#fff' : 'var(--tx2)' }}>{e.name}</button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--tx2)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {connectUrls[connectIdx]?.url}
+                    <button onClick={() => { const u = connectUrls[connectIdx]; if (u) verifyUrl(connectIdx, u.url); }} title="Re-verify reachability" style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', fontSize: '0.7rem', padding: '1px 5px', borderRadius: '4px', cursor: 'pointer' }}>↻</button>
+                  </div>
+                  {(() => {
+                    const st = verifyStatus[connectIdx];
+                    if (!st) return null;
+                    if (st.checking) return <div style={{ fontSize: '0.7rem', color: 'var(--tx3)' }}>Verifying URL reachability…</div>;
+                    if (st.ok) return <div style={{ fontSize: '0.7rem', color: '#4ade80' }}>✓ Verified reachable (remote devices should be able to connect)</div>;
+                    if (st.error) return <div style={{ fontSize: '0.7rem', color: '#f87171' }}>✗ {st.error} — the URL may be incorrect for remote devices</div>;
+                    return null;
+                  })()}
+                  <canvas ref={qrRef} style={{ background: '#fff', padding: '10px', borderRadius: '8px', marginTop: '6px' }} />
+                </div>
+              )}
+            </div>
+          )}
         </>}
 
       </div>
     </div>
+
+    {catModal && (
+      <CategorizeModal
+        mode={catModal.mode}
+        uncategorized={catModal.uncategorized}
+        categorized={catModal.categorized}
+        categories={catModal.categories}
+        confirming={catModal.confirming}
+        onConfirm={handleCatConfirm}
+        onCancel={() => setCatModal(null)}
+      />
+    )}
+    </>
   );
 };

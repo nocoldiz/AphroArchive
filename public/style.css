@@ -73,8 +73,10 @@ input {
 
 /* ── Topbar ── */
 .topbar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
   display: flex;
   align-items: center;
@@ -238,7 +240,8 @@ input {
 /* ── Layout ── */
 .wrap {
   display: flex;
-  min-height: calc(100vh - 53px)
+  min-height: calc(100vh - 53px);
+  margin-top: 53px
 }
 
 .side {

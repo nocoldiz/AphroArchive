@@ -1310,6 +1310,23 @@ function apiClearHistory(req, res) {
   json(res, { ok: true });
 }
 
+function apiClearFavourites(req, res) {
+  saveFavs([]);
+  json(res, { ok: true });
+}
+
+function apiClearThumbs(req, res) {
+  saveThumbsCache({});
+  try {
+    if (fs.existsSync(THUMBS_DIR)) {
+      for (const f of fs.readdirSync(THUMBS_DIR)) {
+        try { fs.unlinkSync(path.join(THUMBS_DIR, f)); } catch {}
+      }
+    }
+  } catch {}
+  json(res, { ok: true });
+}
+
 async function apiSetRating(req, res, id) {
   const body  = await readBody(req);
   const stars = parseInt(body.stars, 10);
@@ -2771,7 +2788,7 @@ module.exports = {
   apiGetAllCategories, apiSetEnabledCategories,
   apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
-  apiAddHistory, apiGetHistory, apiClearHistory,
+  apiAddHistory, apiGetHistory, apiClearHistory, apiClearFavourites, apiClearThumbs,
   apiSetRating, apiDeleteRating,
   apiUpdateVideoMeta, apiOpenFolder, apiOpenCategoryFolder, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,

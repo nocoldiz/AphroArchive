@@ -15,6 +15,8 @@ import {
   BUILDER_CATEGORY_WILDCARDS,
   AGE_PRESETS,
   buildPromptFromBuilder,
+} from '../../characterPrompts';
+import {
   inspireRandomBuilder,
   pickRandomForCategory,
   HARDCODED_OPTIONS,
@@ -23,7 +25,7 @@ import {
   isNsfwPhrase,
   SFW_THRESHOLD,
   sanitizeBuilderStateForLevel,
-} from '../../characterPrompts';
+} from '../../nsfwCharacterPrompts';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -35,6 +37,8 @@ interface GenParams {
   model:         string;
   model_type:    'sd15' | 'sdxl' | 'pony' | 'flux';
   vae:           string;
+  textEncoder:   string;
+  clipEncoder:   string;
   prompt:        string;
   negative:      string;
   width:         number;
@@ -441,16 +445,18 @@ export const ImageGenView = () => {
   const [engineDevice,  setEngineDevice]  = useState('');
   const [queueLength,   setQueueLength]   = useState(0);
 
-  const [models,    setModels]    = useState<AssetFile[]>([]);
-  const [vaes,      setVaes]      = useState<AssetFile[]>([]);
-  const [loras,     setLoras]     = useState<AssetFile[]>([]);
-  const [wildcards, setWildcards] = useState<WildcardFile[]>([]);
+  const [models,       setModels]       = useState<AssetFile[]>([]);
+  const [vaes,         setVaes]         = useState<AssetFile[]>([]);
+  const [loras,        setLoras]        = useState<AssetFile[]>([]);
+  const [wildcards,    setWildcards]    = useState<WildcardFile[]>([]);
+  const [textEncoders, setTextEncoders] = useState<AssetFile[]>([]);
+  const [clips,        setClips]        = useState<AssetFile[]>([]);
   const [gallery,   setGallery]   = useState<GalleryImage[]>([]);
   const [lightbox,  setLightbox]  = useState<GalleryImage | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [params, setParams] = useState<GenParams>({
-    model: '', model_type: 'sd15', vae: '',
+    model: '', model_type: 'sd15', vae: '', textEncoder: '', clipEncoder: '',
     prompt: '', negative: DEFAULT_NEGATIVE,
     width: 512, height: 768, steps: 20, cfg: 7.5,
     sampler: 'euler', seed: -1, batch: 1,
@@ -469,7 +475,7 @@ export const ImageGenView = () => {
   const promptRef   = useRef<HTMLTextAreaElement>(null);
   const negativeRef = useRef<HTMLTextAreaElement>(null);
 
-  const [genMode, setGenMode] = useState<'static' | 'advanced'>('static');
+  const [genMode, setGenMode] = useState<'static' | 'advanced'>('advanced');
   const [genTemplateKey, setGenTemplateKey] = useState<keyof typeof PROMPT_TEMPLATES>('ponyxl-default');
   const [customTemplate, setCustomTemplate] = useState('');
   const [generatedPrompt, setGeneratedPrompt] = useState('');
@@ -536,13 +542,15 @@ export const ImageGenView = () => {
       setVaes(assetsRes.vaes || []);
       setLoras(assetsRes.loras || []);
       setWildcards(assetsRes.wildcards || []);
+      setTextEncoders(assetsRes.textEncoders || []);
+      setClips(assetsRes.clips || []);
       setGallery(galleryRes || []);
       setModelsDir(cfgRes.modelsDir || '');
       setVaesDir(cfgRes.vaesDir || '');
       setLorasDir(cfgRes.lorasDir || '');
       setOutputDir(cfgRes.outputDir || '');
       setDevicePref((cfgRes.device || 'auto') as 'auto'|'cpu'|'cuda'|'mps');
-      if (cfgRes.model) setParams(p => ({ ...p, model: cfgRes.model, model_type: cfgRes.modelType || 'sd15', vae: cfgRes.vae || '' }));
+      if (cfgRes.model) setParams(p => ({ ...p, model: cfgRes.model, model_type: cfgRes.modelType || 'sd15', vae: cfgRes.vae || '', textEncoder: cfgRes.textEncoder || '', clipEncoder: cfgRes.clipEncoder || '' }));
       setEngineRunning(cfgRes.engine?.running || false);
       setEngineReady(cfgRes.engine?.ready || false);
       setEngineDevice(cfgRes.engine?.device || '');
@@ -715,7 +723,7 @@ export const ImageGenView = () => {
   };
 
   const saveConfig = async () => {
-    await fetch('/api/imagegen/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelsDir, vaesDir, lorasDir, outputDir, model: params.model, vae: params.vae, modelType: params.model_type, device: devicePref }) });
+    await fetch('/api/imagegen/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelsDir, vaesDir, lorasDir, outputDir, model: params.model, vae: params.vae, textEncoder: params.textEncoder, clipEncoder: params.clipEncoder, modelType: params.model_type, device: devicePref }) });
     await loadAll(); setConfigOpen(false);
   };
 
@@ -1239,7 +1247,6 @@ export const ImageGenView = () => {
               style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '9px 13px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '6px', cursor: 'pointer', textAlign: 'left' }}>
               <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tx2)', flex: 1 }}>✨ Prompt Generator</span>
               {generatedPrompt && <span style={{ fontSize: '10px', color: 'var(--ac)' }}>prompt ready</span>}
-              <span style={{ fontSize: '11px', color: 'var(--tx3)', textTransform: 'capitalize' }}>{genMode}</span>
               <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>open →</span>
             </button>
             {generatedPrompt && (
@@ -1255,19 +1262,6 @@ export const ImageGenView = () => {
                 </div>
               </div>
             )}
-            {/* Wildcards panel */}
-            <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
-              <button onClick={() => setWildcardsOpen(v => !v)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 10px', background: 'var(--bg2)', border: 'none', cursor: 'pointer' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--tx2)', flex: 1 }}>🃏 Wildcards ({wildcards.length})</span>
-                <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{wildcardsOpen ? '▲' : '▼'}</span>
-              </button>
-              {wildcardsOpen && (
-                <div style={{ padding: '8px 10px' }}>
-                  <WildcardsPanel wildcards={wildcards} onRefresh={reloadWildcards} onInsert={insertWildcard} activeField={activeField} />
-                </div>
-              )}
-            </div>
           </div>
 
           {/* ── RIGHT: Model + Params ────────────────────────────── */}
@@ -1300,6 +1294,41 @@ export const ImageGenView = () => {
                 {vaes.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
               </select>
             </div>
+
+            {/* Flux text encoders — shown only when model_type is flux */}
+            {params.model_type === 'flux' && (clips.length > 0 || textEncoders.length > 0) && (
+              <div style={{ borderTop: '1px solid var(--brd)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--ac)', fontWeight: 600, marginBottom: '2px' }}>Flux Text Encoders (optional)</div>
+                <div style={{ fontSize: '11px', color: 'var(--tx3)', marginBottom: '4px' }}>
+                  CLIP-L and T5/Qwen text encoders override the ones bundled in the model file. Leave blank to use embedded encoders.
+                  {params.model.toLowerCase().includes('unet/') && params.model.toLowerCase().endsWith('.gguf') && (
+                    <span style={{ color: '#ff9800', display: 'block', marginTop: '3px' }}>
+                      Note: unet-only GGUF models require img2img mode to be disabled — txt2img only.
+                    </span>
+                  )}
+                </div>
+                {clips.length > 0 && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '3px' }}>CLIP-L (text encoder 1)</label>
+                    <select value={params.clipEncoder} onChange={(e: any) => setParam('clipEncoder', e.target.value)} title="CLIP encoder"
+                      style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px 7px', fontSize: '12px' }}>
+                      <option value="">— use embedded —</option>
+                      {clips.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                )}
+                {textEncoders.length > 0 && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '3px' }}>T5 / Qwen text encoder (text encoder 2)</label>
+                    <select value={params.textEncoder} onChange={(e: any) => setParam('textEncoder', e.target.value)} title="Text encoder 2"
+                      style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px 7px', fontSize: '12px' }}>
+                      <option value="">— use embedded —</option>
+                      {textEncoders.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Size presets */}
             <div>
@@ -1476,19 +1505,11 @@ export const ImageGenView = () => {
       {promptGenOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
           onClick={(e: any) => { if (e.target === e.currentTarget) setPromptGenOpen(false); }}>
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(960px, 98vw)', maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(1320px, 98vw)', maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
 
             {/* Header */}
             <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-              <span style={{ fontWeight: 700, fontSize: '15px', flex: 1 }}>✨ Prompt Generator</span>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                {(['static', 'advanced'] as const).map(m => (
-                  <button key={m} onClick={() => setGenMode(m)}
-                    style={{ fontSize: '12px', padding: '4px 12px', borderRadius: '5px', border: genMode === m ? '1px solid var(--ac)' : '1px solid var(--brd)', background: genMode === m ? 'var(--ac)' : 'transparent', color: genMode === m ? '#fff' : 'var(--tx2)', cursor: 'pointer', textTransform: 'capitalize' }}>
-                    {m === 'static' ? 'Template' : 'Builder'}
-                  </button>
-                ))}
-              </div>
+              <span style={{ fontWeight: 700, fontSize: '15px', flex: 1 }}>✨ Prompt Builder</span>
               <button onClick={() => setMassGenOpen(true)}
                 style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '4px 12px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
                 📋 Mass Generate
@@ -1497,35 +1518,11 @@ export const ImageGenView = () => {
                 style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px 4px' }}>✕</button>
             </div>
 
-            {/* Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Body — builder left, wildcards right */}
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-              {/* ── Template mode ── */}
-              {genMode === 'static' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px', fontWeight: 600 }}>Template</label>
-                    <select value={genTemplateKey} onChange={(e: any) => setGenTemplateKey(e.target.value)} title="Template"
-                      style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '6px 8px', fontSize: '13px' }}>
-                      {Object.entries(PROMPT_TEMPLATES).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
-                    </select>
-                  </div>
-                  {genTemplateKey === 'custom' && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px' }}>Custom template</label>
-                      <textarea value={customTemplate} onInput={(e: any) => setCustomTemplate(e.target.value)} placeholder="Custom: __subject__, __lighting__ ..." rows={4}
-                        style={{ width: '100%', boxSizing: 'border-box', fontSize: '13px', fontFamily: 'monospace', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '8px', resize: 'vertical', color: 'var(--tx)' }} />
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={doStaticGenerate} disabled={genLoading} style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '5px', padding: '8px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>{genLoading ? '…' : 'Generate (resolve wildcards)'}</button>
-                    <button onClick={() => setGeneratedPrompt('')} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '8px 14px', fontSize: '13px', cursor: 'pointer' }}>Clear</button>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Advanced builder mode ── */}
-              {genMode === 'advanced' && (
+              {/* ── Builder ── */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
                   {/* Global bar */}
@@ -1816,7 +1813,13 @@ export const ImageGenView = () => {
                     </div>
                   </details>
                 </div>
-              )}
+              </div>
+
+              {/* ── Wildcards panel (right column) ── */}
+              <div style={{ width: '280px', flexShrink: 0, overflowY: 'auto', padding: '12px 14px', borderLeft: '1px solid var(--brd)', background: 'var(--bg3)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--tx2)', paddingBottom: '6px', borderBottom: '1px solid var(--brd)' }}>🃏 Wildcards ({wildcards.length})</div>
+                <WildcardsPanel wildcards={wildcards} onRefresh={reloadWildcards} onInsert={insertWildcard} activeField={activeField} />
+              </div>
             </div>
 
             {/* Footer — generated prompt */}

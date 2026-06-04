@@ -155,10 +155,19 @@ if (typeof window !== 'undefined') {
 
 export const cardSize = signal<number>(parseInt(localStorage.getItem('cardSize') || '270', 10));
 
+let _prefsLoaded = false;
+let _cardSizeTimer: ReturnType<typeof setTimeout> | null = null;
+
 if (typeof document !== 'undefined') {
   cardSize.subscribe(w => {
     document.documentElement.style.setProperty('--card-min', w + 'px');
     localStorage.setItem('cardSize', w.toString());
+    if (_prefsLoaded) {
+      if (_cardSizeTimer) clearTimeout(_cardSizeTimer);
+      _cardSizeTimer = setTimeout(() => {
+        fetch('/api/settings/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardSize: w }) }).catch(() => {});
+      }, 800);
+    }
   });
 }
 export const isLoadingVideos = signal<boolean>(false);
@@ -208,6 +217,9 @@ if (typeof document !== 'undefined') {
     const mediaElements = document.querySelectorAll('video, audio');
     mediaElements.forEach((el: any) => el.muted = muted);
     localStorage.setItem('isMuted', muted ? 'true' : 'false');
+    if (_prefsLoaded) {
+      fetch('/api/settings/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isMuted: muted }) }).catch(() => {});
+    }
   });
 }
 
@@ -560,6 +572,18 @@ export async function loadPrefs() {
   const res = await fetch('/api/settings/prefs');
   const data = await res.json();
   appPrefs.value = data;
+  // Apply per-profile UI settings stored in prefs
+  if (data.theme) {
+    document.documentElement.setAttribute('data-theme', data.theme);
+    localStorage.setItem('theme', data.theme);
+  }
+  if (data.cardSize && data.cardSize !== cardSize.value) cardSize.value = data.cardSize;
+  if (data.isMuted !== undefined && data.isMuted !== isMuted.value) isMuted.value = !!data.isMuted;
+  if (data.thumbBlurMode && data.thumbBlurMode !== thumbBlurMode.value) {
+    thumbBlurMode.value = data.thumbBlurMode;
+    localStorage.setItem('thumbBlurMode', data.thumbBlurMode);
+  }
+  _prefsLoaded = true;
 }
 
 export async function updatePrefs(updates: Partial<AppPrefs>) {

@@ -26,6 +26,16 @@ export const DatabaseView = () => {
   const [autoCatRunning, setAutoCatRunning] = useState(false);
   const [autoCatResult, setAutoCatResult] = useState<{movedVideos: number, categorizedLinks: number, errors: string[]} | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const importAllRef = useRef<HTMLInputElement>(null);
+  const importWcRef = useRef<HTMLInputElement>(null);
+
+  // Wildcards tab state
+  const [wcList, setWcList] = useState<{name: string, count: number, preview: string[]}[]>([]);
+  const [wcExpanded, setWcExpanded] = useState<string | null>(null);
+  const [wcEditContent, setWcEditContent] = useState<string>('');
+  const [wcEditSaving, setWcEditSaving] = useState(false);
+  const [wcNewName, setWcNewName] = useState('');
+  const [wcCreating, setWcCreating] = useState(false);
 
   // Website-from-links
   const [linkSitesCandidates, setLinkSitesCandidates] = useState<{name: string, url: string}[]>([]);
@@ -38,6 +48,7 @@ export const DatabaseView = () => {
     { id: 'categories', name: 'Tags' },
     { id: 'studios', name: 'Studios' },
     { id: 'websites', name: 'Websites' },
+    { id: 'wildcards', name: 'Wildcards' },
     { id: 'duplicates', name: 'Duplicates' }
   ];
 
@@ -61,6 +72,19 @@ export const DatabaseView = () => {
   const loadTab = async (tab: string) => {
     if (tab === 'duplicates') {
       setEntries([]);
+      return;
+    }
+    if (tab === 'wildcards') {
+      setLoading(true);
+      try {
+        const r = await fetch('/api/imagegen/assets');
+        const d = await r.json();
+        setWcList(d.wildcards || []);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
     if (tab === 'folders') {
@@ -254,6 +278,45 @@ export const DatabaseView = () => {
     a.click();
   };
 
+  const handleExportAll = async () => {
+    const tabs = ['actors', 'categories', 'studios', 'websites'];
+    const results = await Promise.all(tabs.map(t => fetch(`/api/db/${t}/export`).then(r => r.json())));
+    const combined = Object.fromEntries(tabs.map((t, i) => [t, results[i]]));
+    const blob = new Blob([JSON.stringify(combined, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'db-export.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const handleImportAll = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    let data: any;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      alert('Invalid JSON file');
+      return;
+    }
+    const knownTabs = ['actors', 'categories', 'studios', 'websites'];
+    const toImport = knownTabs.filter(t => data[t]);
+    if (!toImport.length) { alert('No recognizable sections found (expected actors/categories/studios/websites)'); return; }
+    const results = await Promise.all(
+      toImport.map(t => fetch(`/api/db/${t}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data[t]),
+      }).then(r => r.ok ? r.json() : null))
+    );
+    const total = results.reduce((s, r) => s + (r?.count ?? 0), 0);
+    const w = window as any;
+    if (w.toast) w.toast(`Imported ${total} entries across ${toImport.join(', ')}`);
+    loadTab(activeTab);
+  };
+
   const handleImportJson = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -275,6 +338,83 @@ export const DatabaseView = () => {
       const d = await r.json();
       if (w.toast) w.toast(`Imported ${d.count} entries`);
       loadTab(activeTab);
+    } else {
+      if (w.toast) w.toast('Import failed');
+    }
+  };
+
+  // ── Wildcard handlers ────────────────────────────────────────────────
+
+  const handleWcEdit = async (name: string) => {
+    if (wcExpanded === name) { setWcExpanded(null); return; }
+    const r = await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`);
+    const d = await r.json();
+    setWcEditContent(d.content || '');
+    setWcExpanded(name);
+  };
+
+  const handleWcSave = async (name: string) => {
+    setWcEditSaving(true);
+    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: wcEditContent }),
+    });
+    setWcEditSaving(false);
+    setWcExpanded(null);
+    loadTab('wildcards');
+    const w = window as any;
+    if (w.toast) w.toast('Saved');
+  };
+
+  const handleWcDelete = async (name: string) => {
+    if (!confirm(`Delete wildcard "${name}"?`)) return;
+    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    loadTab('wildcards');
+    const w = window as any;
+    if (w.toast) w.toast('Deleted');
+  };
+
+  const handleWcCreate = async () => {
+    const safe = wcNewName.trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
+    if (!safe) return;
+    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(safe)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: `# ${safe} wildcard\n` }),
+    });
+    setWcNewName(''); setWcCreating(false);
+    loadTab('wildcards');
+    handleWcEdit(safe);
+  };
+
+  const handleWcExportAll = async () => {
+    const r = await fetch('/api/imagegen/wildcards-export');
+    const data = await r.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'wildcards-export.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const handleWcImportAll = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    let data: any;
+    try { data = JSON.parse(await file.text()); } catch { alert('Invalid JSON file'); return; }
+    const r = await fetch('/api/imagegen/wildcards-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const w = window as any;
+    if (r.ok) {
+      const d = await r.json();
+      if (w.toast) w.toast(`${d.created} created, ${d.updated} updated`);
+      loadTab('wildcards');
     } else {
       if (w.toast) w.toast('Import failed');
     }
@@ -327,15 +467,15 @@ export const DatabaseView = () => {
     <div id="database-view" className="database-view on" style={{ padding: '24px' }}>
       <h2 style={{ marginBottom: '24px', color: 'var(--ac)' }}>Database Management</h2>
       
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--brd)', paddingBottom: '10px' }}>
+      {/* Tabs + global DB buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--brd)', paddingBottom: '10px' }}>
         {tabs.map(t => (
-          <button 
-            key={t.id} 
+          <button
+            key={t.id}
             className={`db-tab ${activeTab === t.id ? 'on' : ''}`}
             onClick={() => setActiveTab(t.id)}
-            style={{ 
-              padding: '8px 16px', 
+            style={{
+              padding: '8px 16px',
               background: activeTab === t.id ? 'var(--ac)' : 'transparent',
               color: activeTab === t.id ? '#fff' : 'var(--tx2)',
               border: 'none',
@@ -346,10 +486,15 @@ export const DatabaseView = () => {
             {t.name}
           </button>
         ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+          <input ref={importAllRef} type="file" accept=".json" title="Import full DB" style={{ display: 'none' }} onChange={handleImportAll} />
+          <button className="modal-btn" onClick={handleExportAll} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Export DB</button>
+          <button className="modal-btn" onClick={() => importAllRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Import DB</button>
+        </div>
       </div>
 
       {/* Action Bar */}
-      {activeTab !== 'duplicates' && activeTab !== 'folders' && (
+      {activeTab !== 'duplicates' && activeTab !== 'folders' && activeTab !== 'wildcards' && (
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
           <input ref={importFileRef} type="file" accept=".json" title="Import JSON" style={{ display: 'none' }} onChange={handleImportJson} />
           <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: false }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset as Profile</button>
@@ -369,6 +514,81 @@ export const DatabaseView = () => {
       {/* Grid */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading…</div>
+      ) : activeTab === 'wildcards' ? (
+        <div>
+          {/* Wildcards toolbar */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--tx3)', flex: 1 }}>{wcList.length} wildcard{wcList.length !== 1 ? 's' : ''} in <code>db/wildcards/</code></span>
+            <button className="modal-btn" onClick={() => setWcCreating(v => !v)} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>+ New</button>
+            <input ref={importWcRef} type="file" accept=".json" title="Import wildcards JSON" style={{ display: 'none' }} onChange={handleWcImportAll} />
+            <button className="modal-btn" onClick={handleWcExportAll} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Export All</button>
+            <button className="modal-btn" onClick={() => importWcRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Import All</button>
+          </div>
+
+          {/* New wildcard form */}
+          {wcCreating && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center' }}>
+              <input
+                value={wcNewName} autoFocus
+                onInput={(e: any) => setWcNewName(e.target.value)}
+                onKeyDown={(e: any) => e.key === 'Enter' && handleWcCreate()}
+                placeholder="wildcard_name (letters, digits, _-)"
+                style={{ flex: 1, padding: '7px 10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+              />
+              <button className="modal-btn modal-btn--primary" onClick={handleWcCreate}>Create</button>
+              <button className="modal-btn" onClick={() => { setWcCreating(false); setWcNewName(''); }}>Cancel</button>
+            </div>
+          )}
+
+          {/* Wildcards table */}
+          {wcList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>No wildcard files found in <code>db/wildcards/</code>.</div>
+          ) : (
+            <div style={{ border: '1px solid var(--brd)', borderRadius: '8px', overflow: 'hidden' }}>
+              {/* Header row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 120px', gap: '0', background: 'var(--bg3)', padding: '8px 14px', borderBottom: '1px solid var(--brd)', fontSize: '0.75rem', color: 'var(--tx3)', fontWeight: 600 }}>
+                <span>Name</span>
+                <span style={{ textAlign: 'center' }}>Options</span>
+                <span style={{ textAlign: 'right' }}>Actions</span>
+              </div>
+              {wcList.map((wc, idx) => (
+                <div key={wc.name} style={{ borderBottom: idx < wcList.length - 1 ? '1px solid var(--brd)' : 'none' }}>
+                  {/* Row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 120px', alignItems: 'center', padding: '8px 14px', background: wcExpanded === wc.name ? 'var(--bg2)' : 'transparent' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--tx)' }}>__{wc.name}__</span>
+                    <span style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--tx3)' }}>{wc.count}</span>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                      <button onClick={() => handleWcEdit(wc.name)} style={{ background: 'none', border: '1px solid var(--brd)', color: wcExpanded === wc.name ? 'var(--ac)' : 'var(--tx3)', borderRadius: '4px', padding: '2px 10px', cursor: 'pointer', fontSize: '0.78rem' }}>{wcExpanded === wc.name ? 'Close' : 'Edit'}</button>
+                      <button onClick={() => handleWcDelete(wc.name)} style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>✕</button>
+                    </div>
+                  </div>
+                  {/* Inline editor */}
+                  {wcExpanded === wc.name && (
+                    <div style={{ padding: '0 14px 12px', background: 'var(--bg2)', borderTop: '1px solid var(--brd)' }}>
+                      <textarea
+                        value={wcEditContent}
+                        onInput={(e: any) => setWcEditContent(e.target.value)}
+                        rows={10}
+                        spellcheck={false}
+                        title={`Edit wildcard: ${wc.name}`}
+                        style={{ width: '100%', boxSizing: 'border-box', marginTop: '10px', resize: 'vertical', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px', fontFamily: 'monospace', lineHeight: '1.5' }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>
+                          {wcEditContent.split('\n').filter(l => l.trim() && !l.startsWith('#')).length} options
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button className="modal-btn" onClick={() => setWcExpanded(null)}>Cancel</button>
+                          <button className="modal-btn modal-btn--primary" onClick={() => handleWcSave(wc.name)} disabled={wcEditSaving}>{wcEditSaving ? 'Saving…' : 'Save'}</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : activeTab === 'folders' ? (
         <div>
           {/* Source Folders Management */}

@@ -18,6 +18,9 @@ const CONFIG_FILE = path.join(LINK_DIR, 'imagegen-config.json');
 const DEFAULT_CFG = {
   modelsDir:           path.join(LINK_DIR, 'imagegen', 'models'),
   diffusionModelsDir:  '',
+  unetModelsDir:       '',   // unet/ standalone transformer models (GGUF or safetensors)
+  textEncodersDir:     '',   // text_encoders/ for Flux (T5 / Qwen3 GGUF)
+  clipDir:             '',   // clip/ for Flux (CLIP-L safetensors)
   vaesDir:             path.join(LINK_DIR, 'imagegen', 'vaes'),
   lorasDir:            path.join(LINK_DIR, 'imagegen', 'loras'),
   wildcardsDir:        path.join(DB_DIR, 'wildcards'),
@@ -25,6 +28,8 @@ const DEFAULT_CFG = {
   modelType:           'sd15',
   model:               '',
   vae:                 '',
+  textEncoder:         '',   // selected text encoder filename (for Flux)
+  clipEncoder:         '',   // selected CLIP encoder filename (for Flux)
   device:              'auto',  // auto | cpu | cuda | mps  — prefers GPU when available
 };
 
@@ -255,7 +260,11 @@ function apiGetConfig(req, res) {
 
 async function apiSetConfig(req, res) {
   const body = await readBody(req);
-  const fields = ['modelsDir', 'diffusionModelsDir', 'vaesDir', 'lorasDir', 'wildcardsDir', 'outputDir', 'modelType', 'model', 'vae', 'device'];
+  const fields = [
+    'modelsDir', 'diffusionModelsDir', 'unetModelsDir', 'textEncodersDir', 'clipDir',
+    'vaesDir', 'lorasDir', 'wildcardsDir', 'outputDir',
+    'modelType', 'model', 'vae', 'textEncoder', 'clipEncoder', 'device',
+  ];
   for (const f of fields) if (body[f] !== undefined) cfg[f] = body[f];
   saveCfg();
   json(res, { ok: true });
@@ -281,15 +290,20 @@ function apiGetAssets(req, res) {
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch {}
 
-  const checkpointModels  = scanFiles(cfg.modelsDir, MODEL_EXTS);
-  const diffusionModels   = cfg.diffusionModelsDir
+  const checkpointModels = scanFiles(cfg.modelsDir, MODEL_EXTS);
+  const diffusionModels  = cfg.diffusionModelsDir
     ? scanFiles(cfg.diffusionModelsDir, MODEL_EXTS).map(m => ({ ...m, name: `diffusion_models/${m.name}` }))
+    : [];
+  const unetModels       = cfg.unetModelsDir
+    ? scanFiles(cfg.unetModelsDir, MODEL_EXTS).map(m => ({ ...m, name: `unet/${m.name}` }))
     : [];
 
   json(res, {
-    models:    [...checkpointModels, ...diffusionModels],
-    vaes:      scanFiles(cfg.vaesDir,   MODEL_EXTS),
-    loras:     scanFiles(cfg.lorasDir,  MODEL_EXTS),
+    models:       [...checkpointModels, ...diffusionModels, ...unetModels],
+    vaes:         scanFiles(cfg.vaesDir,  MODEL_EXTS),
+    loras:        scanFiles(cfg.lorasDir, MODEL_EXTS),
+    textEncoders: cfg.textEncodersDir ? scanFiles(cfg.textEncodersDir, MODEL_EXTS) : [],
+    clips:        cfg.clipDir         ? scanFiles(cfg.clipDir,         MODEL_EXTS) : [],
     wildcards,
   });
 }
@@ -321,6 +335,37 @@ function apiDeleteWildcard(req, res, name) {
   const fp = path.join(cfg.wildcardsDir, path.basename(name) + '.txt');
   try { fs.unlinkSync(fp); } catch {}
   json(res, { ok: true });
+}
+
+function apiExportAllWildcards(req, res) {
+  const result = {};
+  try {
+    fs.mkdirSync(cfg.wildcardsDir, { recursive: true });
+    fs.readdirSync(cfg.wildcardsDir)
+      .filter(f => f.toLowerCase().endsWith('.txt'))
+      .forEach(f => {
+        const name = path.basename(f, '.txt');
+        try { result[name] = fs.readFileSync(path.join(cfg.wildcardsDir, f), 'utf-8'); } catch {}
+      });
+  } catch {}
+  json(res, result);
+}
+
+async function apiImportAllWildcards(req, res) {
+  const body = await readBody(req);
+  let created = 0, updated = 0;
+  try {
+    fs.mkdirSync(cfg.wildcardsDir, { recursive: true });
+    for (const [name, content] of Object.entries(body)) {
+      const safeName = String(name).replace(/[^a-zA-Z0-9_\-]/g, '_');
+      if (!safeName) continue;
+      const fp = path.join(cfg.wildcardsDir, safeName + '.txt');
+      const exists = fs.existsSync(fp);
+      fs.writeFileSync(fp, String(content), 'utf-8');
+      exists ? updated++ : created++;
+    }
+  } catch (e) { return json(res, { error: e.message }, 500); }
+  json(res, { ok: true, created, updated });
 }
 
 // ── API: status + engine control ──────────────────────────────────────
@@ -362,6 +407,16 @@ async function apiGenerate(req, res) {
   const vaePath   = body.vae ? (path.isAbsolute(body.vae) ? body.vae : path.join(cfg.vaesDir, body.vae)) : null;
   const loraFiles = (body.loras || []).map(l => path.isAbsolute(l) ? l : path.join(cfg.lorasDir, l));
 
+  // Text encoder / CLIP for Flux models (optional)
+  const _teFile   = body.textEncoder || cfg.textEncoder || '';
+  const _clipFile = body.clipEncoder || cfg.clipEncoder || '';
+  const textEncoderPath = _teFile && cfg.textEncodersDir
+    ? (path.isAbsolute(_teFile) ? _teFile : path.join(cfg.textEncodersDir, _teFile))
+    : null;
+  const clipPath = _clipFile && cfg.clipDir
+    ? (path.isAbsolute(_clipFile) ? _clipFile : path.join(cfg.clipDir, _clipFile))
+    : null;
+
   fs.mkdirSync(cfg.outputDir, { recursive: true });
 
   const params = {
@@ -382,9 +437,11 @@ async function apiGenerate(req, res) {
     lora_strengths: body.lora_strengths || loraFiles.map(() => 1.0),
     wildcards_dir:  cfg.wildcardsDir,
     combinatorial:  !!body.combinatorial,
-    mode:           body.mode || 'txt2img',
-    image_path:     body.image_path || '',
-    strength:       body.strength != null ? body.strength : 0.75,
+    mode:               body.mode || 'txt2img',
+    image_path:         body.image_path || '',
+    strength:           body.strength != null ? body.strength : 0.75,
+    text_encoder_path:  textEncoderPath || '',
+    clip_path:          clipPath || '',
   };
 
   if (!pyProc) startEngine();
@@ -505,6 +562,9 @@ function applyComfyuiPath(comfyuiPath) {
   if (comfyuiPath) {
     cfg.modelsDir          = path.join(comfyuiPath, 'models', 'checkpoints');
     cfg.diffusionModelsDir = path.join(comfyuiPath, 'models', 'diffusion_models');
+    cfg.unetModelsDir      = path.join(comfyuiPath, 'models', 'unet');
+    cfg.textEncodersDir    = path.join(comfyuiPath, 'models', 'text_encoders');
+    cfg.clipDir            = path.join(comfyuiPath, 'models', 'clip');
     cfg.vaesDir            = path.join(comfyuiPath, 'models', 'vae');
     cfg.lorasDir           = path.join(comfyuiPath, 'models', 'loras');
     for (const dir of COMFYUI_MODEL_DIRS) {
@@ -559,7 +619,7 @@ try {
 module.exports = {
   apiGetConfig, apiSetConfig,
   apiGetAssets, apiGetStatus,
-  apiGetWildcard, apiSaveWildcard, apiDeleteWildcard,
+  apiGetWildcard, apiSaveWildcard, apiDeleteWildcard, apiExportAllWildcards, apiImportAllWildcards,
   apiGenerate, apiCancel,
   apiStartEngine, apiStopEngine,
   apiGallery, apiServeImage, apiDeleteImage,

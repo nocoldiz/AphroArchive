@@ -58,26 +58,64 @@ export const CategorizerView = () => {
   const inSearch  = (s: Side) => getSearch(s).trim() !== '';
   const lastClick = (s: Side) => s === 'left' ? lastClickL : lastClickR;
 
+  // ── Fuzzy match: all chars in query appear in order in the target ──
+  const fuzzyMatch = (target: string, query: string): boolean => {
+    target = target.toLowerCase();
+    query = query.toLowerCase();
+    let ti = 0;
+    for (let qi = 0; qi < query.length; qi++) {
+      const ch = query[qi];
+      if (ch === ' ') continue; // skip spaces
+      ti = target.indexOf(ch, ti);
+      if (ti === -1) return false;
+      ti++;
+    }
+    return true;
+  };
+
+  // Return the set of video ids currently visible in the opposite panel
+  const otherPanelIds = (s: Side): Set<string> => {
+    const other: Side = s === 'left' ? 'right' : 'left';
+    const otherVids = panelVideosRaw(other);
+    return new Set(otherVids.map(v => v.id));
+  };
+
   const applySource = (vids: Video[], src: Source) => {
     if (src === 'local')  return vids.filter(v => !v.isLink);
     if (src === 'remote') return vids.filter(v =>  v.isLink);
     return vids;
   };
 
-  const panelVideos = (s: Side): Video[] => {
+  const panelVideosRaw = (s: Side): Video[] => {
     const q = getSearch(s).trim().toLowerCase();
-    let result: Video[];
     if (q) {
-      result = allVids.filter(v =>
-        v.name.toLowerCase().includes(q) ||
-        (v.catPath  || '').toLowerCase().includes(q) ||
-        (v.category || '').toLowerCase().includes(q)
+      return allVids.filter(v =>
+        fuzzyMatch(v.name, q) ||
+        fuzzyMatch(v.catPath  || '', q) ||
+        fuzzyMatch(v.category || '', q)
       );
-    } else {
-      const cat = getCat(s);
-      result = allVids.filter(v => (v.catPath || '') === cat);
     }
-    return applySource(result, getSource(s));
+    const cat = getCat(s);
+    if (!cat) return [];
+    return allVids.filter(v => (v.catPath || '') === cat);
+  };
+
+  const panelVideos = (s: Side): Video[] => {
+    const result = panelVideosRaw(s);
+    const filtered = applySource(result, getSource(s));
+    // When searching, exclude videos already visible in the other panel
+    const q = getSearch(s).trim();
+    if (q) {
+      const otherIds = otherPanelIds(s);
+      return filtered.filter(v => !otherIds.has(v.id));
+    }
+    // When a category is selected, also exclude videos already in the other panel
+    // to avoid moving a video into its current folder
+    if (getCat(s)) {
+      const otherIds = otherPanelIds(s);
+      return filtered.filter(v => !otherIds.has(v.id));
+    }
+    return filtered;
   };
 
   const pickCat = (s: Side, path: string) => {
@@ -126,7 +164,22 @@ export const CategorizerView = () => {
     }
   };
 
-  const canDrop = (targetSide: Side) => !inSearch(targetSide);
+  const canDrop = (targetSide: Side) => {
+    if (inSearch(targetSide)) return false;
+    // Don't allow drop if all dragged items are already in the target folder
+    const { ids, from } = dragRef.current;
+    if (ids.length && from !== targetSide) {
+      const targetCat = getCat(targetSide);
+      if (targetCat) {
+        const allSame = ids.every(id => {
+          const v = allVids.find(v => v.id === id);
+          return v && (v.catPath || '') === targetCat;
+        });
+        if (allSame) return false;
+      }
+    }
+    return true;
+  };
 
   const onDrop = async (targetSide: Side) => {
     dragCtrL.current = 0;
@@ -136,6 +189,18 @@ export const CategorizerView = () => {
     if (!ids.length || from === targetSide || !canDrop(targetSide)) return;
 
     const targetCat = getCat(targetSide);
+
+    // Guard: skip if all items are already in the target category
+    if (targetCat) {
+      const allAlreadyThere = ids.every(id => {
+        const v = allVids.find(v => v.id === id);
+        return v && (v.catPath || '') === targetCat;
+      });
+      if (allAlreadyThere) {
+        setMoving(false);
+        return;
+      }
+    }
     setMoving(true);
 
     // Split into local videos and links

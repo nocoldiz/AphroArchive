@@ -234,10 +234,17 @@ def count_combinations(prompt: str) -> int:
 
 # ── Model loading ─────────────────────────────────────────────────────
 
-def _load_pipeline(model_path: str, model_type: str, vae_path: str | None, mode: str = 'txt2img') -> None:
+def _load_pipeline(
+    model_path: str,
+    model_type: str,
+    vae_path: str | None,
+    mode: str = 'txt2img',
+    clip_path: str = '',
+    text_encoder_path: str = '',
+) -> None:
     global pipeline, loaded_key, loaded_model_type, loaded_device
 
-    key = (model_path, model_type, vae_path, mode)
+    key = (model_path, model_type, vae_path, mode, clip_path, text_encoder_path)
     if loaded_key == key and pipeline is not None:
         return
 
@@ -292,6 +299,32 @@ def _load_pipeline(model_path: str, model_type: str, vae_path: str | None, mode:
         flux_kwargs: dict = {'torch_dtype': bf16}
         if is_gguf:
             flux_kwargs['quantization_config'] = GGUFQuantizationConfig(compute_dtype=bf16)
+
+        # Optional: load separate CLIP-L and text encoder (T5 / Qwen3-GGUF) for Flux
+        has_clip = clip_path and os.path.exists(clip_path)
+        has_te   = text_encoder_path and os.path.exists(text_encoder_path)
+        if has_clip or has_te:
+            try:
+                if has_clip:
+                    from transformers import CLIPTextModel  # type: ignore[import]
+                    send({'type': 'loading', 'model': f'Loading CLIP-L: {os.path.basename(clip_path)}'})
+                    flux_kwargs['text_encoder'] = CLIPTextModel.from_single_file(
+                        clip_path, torch_dtype=bf16
+                    )
+                if has_te:
+                    from transformers import T5EncoderModel  # type: ignore[import]
+                    te_kw: dict = {'torch_dtype': bf16}
+                    if text_encoder_path.lower().endswith('.gguf') and HAS_GGUF:
+                        te_kw['quantization_config'] = GGUFQuantizationConfig(compute_dtype=bf16)
+                    send({'type': 'loading', 'model': f'Loading text encoder: {os.path.basename(text_encoder_path)}'})
+                    flux_kwargs['text_encoder_2'] = T5EncoderModel.from_single_file(
+                        text_encoder_path, **te_kw
+                    )
+            except Exception as e:
+                send({'type': 'warning', 'message': f'Text encoder override failed ({e}), using model-embedded encoders'})
+                flux_kwargs.pop('text_encoder', None)
+                flux_kwargs.pop('text_encoder_2', None)
+
         pipe = FluxPipeline.from_single_file(model_path, **flux_kwargs)  # type: ignore[name-defined]
     elif model_type in ('sdxl', 'pony'):
         if is_gguf:
@@ -485,9 +518,11 @@ def _generate(job: dict) -> None:
     lora_str      = job.get('lora_strengths', [1.0] * len(loras))
     wildcards_dir = job.get('wildcards_dir', '')
     combinatorial = bool(job.get('combinatorial', False))
-    mode          = job.get('mode', 'txt2img')
-    image_path    = job.get('image_path', '') or ''
-    strength      = max(0.01, min(1.0, float(job.get('strength', 0.75))))
+    mode               = job.get('mode', 'txt2img')
+    image_path         = job.get('image_path', '') or ''
+    strength           = max(0.01, min(1.0, float(job.get('strength', 0.75))))
+    clip_path          = job.get('clip_path', '') or ''
+    text_encoder_path  = job.get('text_encoder_path', '') or ''
 
     if seed < 0:
         seed = _random.randint(0, 2**32 - 1)
@@ -501,7 +536,7 @@ def _generate(job: dict) -> None:
             send({'type': 'warning', 'message': f'Could not load input image: {e}'})
             mode = 'txt2img'
 
-    _load_pipeline(model_path, model_type, vae_path, mode)
+    _load_pipeline(model_path, model_type, vae_path, mode, clip_path, text_encoder_path)
     if cancel_event.is_set():
         send({'type': 'cancelled'})
         return

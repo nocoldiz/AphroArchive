@@ -95,6 +95,10 @@ async function apiSavePrefs(req, res) {
   if ('assistantSystemMode' in body) prefs.assistantSystemMode = String(body.assistantSystemMode || 'default');
   if ('assistantStoryGenre' in body) prefs.assistantStoryGenre = String(body.assistantStoryGenre || 'Any');
   if ('llamaModelUri' in body) prefs.llamaModelUri = String(body.llamaModelUri || '').trim();
+  if ('theme' in body) prefs.theme = String(body.theme || '').trim();
+  if ('cardSize' in body && !isNaN(parseInt(body.cardSize, 10))) prefs.cardSize = parseInt(body.cardSize, 10);
+  if ('isMuted' in body) prefs.isMuted = !!body.isMuted;
+  if ('thumbBlurMode' in body) prefs.thumbBlurMode = String(body.thumbBlurMode || 'show').trim();
   if ('comfyuiPath' in body) {
     prefs.comfyuiPath = String(body.comfyuiPath || '').trim();
     try {

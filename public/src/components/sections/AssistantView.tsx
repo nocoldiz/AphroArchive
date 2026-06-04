@@ -84,10 +84,15 @@ function Bubble({ msg, onUseAsPrompt }: { msg: Message; onUseAsPrompt: (text: st
 
 // ── Main view ─────────────────────────────────────────────────────────
 
+interface LocalModel { name: string; path: string; size: number; }
+
 export const AssistantView = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [model, setModel] = useState(MODELS[0].id);
+  // Session model: 'openrouter' sentinel or a local GGUF path
+  const [sessionModel, setSessionModel] = useState<string>('openrouter');
+  const [openrouterModel, setOpenrouterModel] = useState(MODELS[0].id);
+  const [localModels, setLocalModels] = useState<LocalModel[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [apiKeySaved, setApiKeySaved] = useState(false);
@@ -118,20 +123,23 @@ export const AssistantView = () => {
       } else {
         setShowSettings(true);
       }
-      if (p.openrouterModel) setModel(p.openrouterModel);
-      // Load any saved nsfw/jailbreak prefs if present (from assistant_config style)
+      if (p.openrouterModel) setOpenrouterModel(p.openrouterModel);
       if (typeof p.assistantNsfw === 'boolean') setNsfwEnabled(p.assistantNsfw);
       if (p.assistantSystemMode) setSystemMode(p.assistantSystemMode);
       if (p.assistantStoryGenre) setStoryGenre(p.assistantStoryGenre);
     }).catch(() => {});
 
-    // Load available ComfyUI workflows for "Generate Image" (missing feature from assistant.py)
+    // Load local GGUF models for the session model picker
+    fetch('/api/models/scan').then(r => r.json()).then((d: any) => {
+      if (Array.isArray(d.llm)) setLocalModels(d.llm);
+    }).catch(() => {});
+
     fetch('/api/comfyui/workflows').then(r => r.json()).then((d: any) => {
       const raw = Array.isArray(d) ? d : (d.workflows || []);
       const list = raw.map((x: any) => (typeof x === 'string' ? x : (x.name || x.file || ''))).filter(Boolean);
       setWorkflows(list);
       if (list.length && !list.includes(selectedWorkflow)) setSelectedWorkflow(list[0]);
-    }).catch(() => { /* no comfy or none configured is ok */ });
+    }).catch(() => {});
     fetch('/api/prompts').then(r => r.json()).then(data => setSavedPrompts(data || [])).catch(() => {});
   }, []);
 
@@ -143,12 +151,15 @@ export const AssistantView = () => {
     await fetch('/api/settings/prefs', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ openrouterApiKey: apiKey.trim(), openrouterModel: model }),
+      body: JSON.stringify({ openrouterApiKey: apiKey.trim(), openrouterModel }),
     });
     setApiKeySaved(true);
     setShowSettings(false);
     if ((window as any).toast) (window as any).toast('API key saved');
   };
+
+  // Resolve which model id/path to send to the server for this session
+  const resolvedModel = sessionModel === 'openrouter' ? openrouterModel : sessionModel;
 
   const buildLibContext = useCallback(async () => {
     try {
@@ -211,7 +222,7 @@ export const AssistantView = () => {
       const resp = await fetch('/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, model }),
+        body: JSON.stringify({ messages: apiMessages, model: resolvedModel }),
       });
 
       if (!resp.ok) {
@@ -268,7 +279,7 @@ export const AssistantView = () => {
     } finally {
       setStreaming(false);
     }
-  }, [input, messages, model, streaming, includeLibCtx, libSummary, buildLibContext, getActiveSystemPrompt]);
+  }, [input, messages, resolvedModel, streaming, includeLibCtx, libSummary, buildLibContext, getActiveSystemPrompt]);
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -429,16 +440,19 @@ export const AssistantView = () => {
         </svg>
         <span style={{ fontWeight: 700, fontSize: '14px', flex: 1 }}>Assistant 🔥</span>
 
-        {/* Model + censorship scores (ported from py categories) */}
+        {/* Session model picker: local GGUF files or OpenRouter */}
         <select
-          value={model}
-          onChange={(e: any) => {
-            setModel(e.target.value);
-            fetch('/api/settings/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouterModel: e.target.value }) }).catch(() => {});
-          }}
+          value={sessionModel}
+          onChange={(e: any) => setSessionModel(e.target.value)}
+          title="Model for this session (local GGUF or OpenRouter via Settings)"
           style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '3px 7px', fontSize: '11px', maxWidth: '230px' }}
         >
-          {MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          <option value="openrouter">OpenRouter (configured in Settings)</option>
+          {localModels.length > 0 && <option disabled>── Local GGUF ──</option>}
+          {localModels.map(m => (
+            <option key={m.path} value={m.path}>{m.name}</option>
+          ))}
+          {localModels.length === 0 && <option disabled>No local models found</option>}
         </select>
 
         {/* Jailbreak / System prompt selector (hardcoded methods) */}

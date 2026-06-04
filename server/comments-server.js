@@ -3,6 +3,7 @@
 //  comments-server.js — AI comment generation + persistence
 // ═══════════════════════════════════════════════════════════════════
 
+const https = require('https');
 const { json, readBody } = require('./helpers-server');
 const { loadPrefs, loadComments, saveComments, clearAllComments: dbClearAllComments } = require('./db-server');
 
@@ -204,18 +205,66 @@ function saveCommentFile(videoId, comments) {
 
 // ── AI text generation ─────────────────────────────────────────────────────
 
+async function _openRouterComplete(prompt, prefs) {
+  const apiKey = prefs.openrouterApiKey;
+  if (!apiKey) throw new Error('OpenRouter API key not configured');
+  const model  = prefs.openrouterModel || 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free';
+  const payload = JSON.stringify({
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.9,
+    max_tokens: 600,
+    stream: false,
+  });
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'openrouter.ai',
+      path:     '/api/v1/chat/completions',
+      method:   'POST',
+      headers:  {
+        'Content-Type':   'application/json',
+        'Authorization':  `Bearer ${apiKey}`,
+        'HTTP-Referer':   'localhost',
+        'X-Title':        'AphroArchive',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    }, (resp) => {
+      let buf = '';
+      resp.on('data', c => buf += c.toString());
+      resp.on('end', () => {
+        try {
+          const d = JSON.parse(buf);
+          if (d.error) return reject(new Error(typeof d.error === 'string' ? d.error : (d.error.message || JSON.stringify(d.error))));
+          resolve(d.choices?.[0]?.message?.content || '');
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
 async function _generateCommentTexts(videoName, count) {
+  const prefs = loadPrefs();
+  const prompt = (prefs.aiCommentMasterPrompt && prefs.aiCommentMasterPrompt.trim())
+    ? prefs.aiCommentMasterPrompt.replace(/\{count\}/g, count.toString()).replace(/\{videoName\}/g, videoName.replace(/"/g, '\\"').replace(/\n/g, ' '))
+    : 'Generate exactly ' + count + ' realistic, casual internet comments that real users would post under a video titled "' +
+    videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') + '".\n\n' +
+    'Vary them: mix of very short reactions, detailed praise, funny one-liners, and relatable observations. Make them feel like real different people.\n\n' +
+    'Return ONLY a valid JSON array of exactly ' + count + ' strings: ["comment 1", "comment 2", ...]\n' +
+    'No explanation, no markdown — just the raw JSON array.';
+
+  if ((prefs.commentsProvider || 'local') === 'openrouter') {
+    const raw    = await _openRouterComplete(prompt, prefs);
+    const parsed = JSON.parse(raw.trim());
+    if (!Array.isArray(parsed)) throw new Error('not array');
+    return parsed.filter(c => typeof c === 'string' && c.trim()).slice(0, count);
+  }
+
   const sequence = ctx.getSequence();
   try {
     const session = new LlamaChatSession({ contextSequence: sequence });
-    const prefs = loadPrefs();
-    const prompt = (prefs.aiCommentMasterPrompt && prefs.aiCommentMasterPrompt.trim())
-      ? prefs.aiCommentMasterPrompt.replace(/\{count\}/g, count.toString()).replace(/\{videoName\}/g, videoName.replace(/"/g, '\\"').replace(/\n/g, ' '))
-      : 'Generate exactly ' + count + ' realistic, casual internet comments that real users would post under a video titled "' +
-      videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') + '".\n\n' +
-      'Vary them: mix of very short reactions, detailed praise, funny one-liners, and relatable observations. Make them feel like real different people.\n\n' +
-      'Return ONLY a valid JSON array of exactly ' + count + ' strings: ["comment 1", "comment 2", ...]\n' +
-      'No explanation, no markdown — just the raw JSON array.';
     const raw = await session.prompt(prompt);
     const parsed = JSON.parse(raw.trim());
     if (!Array.isArray(parsed)) throw new Error('not array');
@@ -227,15 +276,21 @@ async function _generateCommentTexts(videoName, count) {
 }
 
 async function _generateReplyText(videoName, userComment) {
+  const prefs = loadPrefs();
+  const prompt = (prefs.aiReplyMasterPrompt && prefs.aiReplyMasterPrompt.trim())
+    ? prefs.aiReplyMasterPrompt.replace(/\{userComment\}/g, userComment.replace(/"/g, '\\"')).replace(/\{videoName\}/g, videoName.replace(/"/g, '\\"').replace(/\n/g, ' '))
+    : 'A user commented "' + userComment.replace(/"/g, '\\"') + '" on a video titled "' +
+    videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') + '". ' +
+    'Write a short, casual 1-2 sentence reply. Return ONLY the reply text.';
+
+  if ((prefs.commentsProvider || 'local') === 'openrouter') {
+    const raw = await _openRouterComplete(prompt, prefs);
+    return raw.trim().replace(/^["']|["']$/g, '');
+  }
+
   const sequence = ctx.getSequence();
   try {
     const session = new LlamaChatSession({ contextSequence: sequence });
-    const prefs = loadPrefs();
-    const prompt = (prefs.aiReplyMasterPrompt && prefs.aiReplyMasterPrompt.trim())
-      ? prefs.aiReplyMasterPrompt.replace(/\{userComment\}/g, userComment.replace(/"/g, '\\"')).replace(/\{videoName\}/g, videoName.replace(/"/g, '\\"').replace(/\n/g, ' '))
-      : 'A user commented "' + userComment.replace(/"/g, '\\"') + '" on a video titled "' +
-      videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') + '". ' +
-      'Write a short, casual 1-2 sentence reply. Return ONLY the reply text.';
     const raw = await session.prompt(prompt);
     return raw.trim().replace(/^["']|["']$/g, '');
   } finally {
@@ -254,8 +309,13 @@ async function apiGetComments(req, res, videoId) {
 
     if (comments === null) {
       const prefs = loadPrefs();
-      if (prefs.aiCommentsEnabled && isModelReady()) {
-        await reinitIfNeeded();
+      const provider = prefs.commentsProvider || 'local';
+      const canGenerate = prefs.aiCommentsEnabled && (
+        (provider === 'local' && isModelReady()) ||
+        (provider === 'openrouter' && prefs.openrouterApiKey)
+      );
+      if (canGenerate) {
+        if (provider === 'local') await reinitIfNeeded();
         const count = _seededCount(videoId);
         try {
           const texts = await _generateCommentTexts(videoName, count);
@@ -300,8 +360,13 @@ async function apiAddComment(req, res, videoId) {
 
     let aiReply = null;
     const prefs = loadPrefs();
-    if (prefs.aiCommentsEnabled && videoName && isModelReady()) {
-      await reinitIfNeeded();
+    const provider = prefs.commentsProvider || 'local';
+    const canReply = prefs.aiCommentsEnabled && videoName && (
+      (provider === 'local' && isModelReady()) ||
+      (provider === 'openrouter' && prefs.openrouterApiKey)
+    );
+    if (canReply) {
+      if (provider === 'local') await reinitIfNeeded();
       try {
         const replyText = await _generateReplyText(videoName, text);
         if (replyText) {
@@ -351,8 +416,13 @@ async function apiReplyToComment(req, res) {
   if (!videoId || !videoName || !userComment) return json(res, { error: 'Missing params' }, 400);
   const prefs = loadPrefs();
   if (!prefs.aiCommentsEnabled) return json(res, { error: 'AI comments disabled' }, 400);
-  if (!isModelReady()) return json(res, { error: 'Model not ready' }, 503);
-  await reinitIfNeeded();
+  const provider = prefs.commentsProvider || 'local';
+  if (provider === 'local') {
+    if (!isModelReady()) return json(res, { error: 'Model not ready' }, 503);
+    await reinitIfNeeded();
+  } else if (!prefs.openrouterApiKey) {
+    return json(res, { error: 'OpenRouter API key not configured' }, 503);
+  }
   try {
     const reply = await _generateReplyText(videoName, userComment);
     return json(res, { reply });

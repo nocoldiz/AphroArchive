@@ -152,8 +152,10 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);
   if (p === '/api/open-category-folder' && req.method === 'POST') return videos.apiOpenCategoryFolder(req, res);
   if (p === '/api/favourites' && req.method === 'GET') return videos.apiFavourites(req, res);
+  if (p === '/api/favourites' && req.method === 'DELETE') return videos.apiClearFavourites(req, res);
   if (p === '/api/history' && req.method === 'GET') return videos.apiGetHistory(req, res);
   if (p === '/api/history' && req.method === 'DELETE') return videos.apiClearHistory(req, res);
+  if (p === '/api/thumbs/clear' && req.method === 'POST') return videos.apiClearThumbs(req, res);
   if (p === '/api/duplicates' && req.method === 'GET') return videos.apiDuplicates(req, res);
   if (p === '/api/duplicates/scan' && req.method === 'POST') return duplicates.apiDuplicatesScan(req, res, await videos.cachedScan());
   if (p === '/api/duplicates/stop' && req.method === 'POST') return duplicates.apiDuplicatesStop(req, res);
@@ -250,6 +252,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/imagegen/engine/stop'   && req.method === 'POST') return imagegen.apiStopEngine(req, res);
   if (p === '/api/imagegen/gallery'       && req.method === 'GET')  return imagegen.apiGallery(req, res);
   if (p === '/api/imagegen/progress'      && req.method === 'GET')  return imagegen.apiProgress(req, res);
+  if (p === '/api/imagegen/wildcards-export'                                             && req.method === 'GET')    return imagegen.apiExportAllWildcards(req, res);
+  if (p === '/api/imagegen/wildcards-import'                                             && req.method === 'POST')   return imagegen.apiImportAllWildcards(req, res);
   if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'GET')    return imagegen.apiGetWildcard(req, res, m[1]);
   if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'PUT')    return imagegen.apiSaveWildcard(req, res, m[1]);
   if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'DELETE') return imagegen.apiDeleteWildcard(req, res, m[1]);
@@ -392,6 +396,7 @@ const server = http.createServer(async (req, res) => {
   // ── Vision ───────────────────────────────────────────────────────────
   if (p === '/api/vision/describe' && req.method === 'POST') return vision.apiVisionDescribe(req, res);
   if (p === '/api/assistant/chat'  && req.method === 'POST') return assistant.apiAssistantChat(req, res);
+  if (p === '/api/models/scan'     && req.method === 'GET')  return assistant.apiScanModels(req, res);
 
   // ── Prompts ──────────────────────────────────────────────────────────
   if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);
