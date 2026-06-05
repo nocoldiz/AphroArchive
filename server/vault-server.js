@@ -718,7 +718,7 @@ async function apiVaultChangePassword(req, res) {
       }
     }
 
-    // Re-encrypt the special encrypted-JSON files (_vault_favs.enc)
+    // Re-encrypt the special encrypted-JSON files (_vault_favs.enc, _vault_links.enc)
     if (fs.existsSync(VAULT_DIR)) {
       const specials = fs.readdirSync(VAULT_DIR).filter(f => f.startsWith('_') && f.endsWith('.enc'));
       for (const file of specials) {
@@ -726,9 +726,14 @@ async function apiVaultChangePassword(req, res) {
       }
     }
 
+    // Re-encrypt prompts and comments stored in the Vault SQLite database
+    const { reEncryptVaultSqlite } = require('./db-server');
+    reEncryptVaultSqlite(oldKey, newKey);
+
     // Save new config
     saveVaultConfig({ salt: newSalt, verifyHash: newHash, useRandomSalt: !keepStatic });
     vaultKey = newKey;
+    setVaultKey(newKey);
     resetVaultTimer();
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -1156,13 +1161,40 @@ async function apiVaultRestoreToOrigin(req, res, id) {
   }
 }
 
-// ── Vault links ───────────────────────────────────────────────────────
+// ── Vault links (encrypted file) ──────────────────────────────────────
+// Links are stored in _vault_links.enc so URLs and titles are encrypted
+// at rest. On password change, this file is re-encrypted automatically
+// by apiVaultChangePassword (it matches the _*.enc pattern).
+
+const VAULT_LINKS_FILE = path.join(VAULT_DIR, '_vault_links.enc');
+
+function _loadVaultLinksEnc() {
+  if (!fs.existsSync(VAULT_LINKS_FILE)) return [];
+  try {
+    const raw = fs.readFileSync(VAULT_LINKS_FILE);
+    const iv  = raw.slice(0, 12);
+    const tag = raw.slice(raw.length - 16);
+    const enc = raw.slice(12, raw.length - 16);
+    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    return JSON.parse(Buffer.concat([dec.update(enc), dec.final()]).toString('utf8'));
+  } catch { return []; }
+}
+
+function _saveVaultLinksEnc(links) {
+  if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
+  const iv     = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+  const plain  = Buffer.from(JSON.stringify(links), 'utf8');
+  const enc    = Buffer.concat([cipher.update(plain), cipher.final()]);
+  const tag    = cipher.getAuthTag();
+  fs.writeFileSync(VAULT_LINKS_FILE, Buffer.concat([iv, enc, tag]));
+}
 
 async function apiVaultGetLinks(req, res) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   resetVaultTimer();
-  const { loadVaultLinks } = require('./db-server');
-  json(res, loadVaultLinks());
+  json(res, _loadVaultLinksEnc());
 }
 
 async function apiVaultImportLinks(req, res) {
@@ -1171,15 +1203,17 @@ async function apiVaultImportLinks(req, res) {
   const body = await readBody(req);
   const urls = Array.isArray(body.urls) ? body.urls.filter(u => u && typeof u === 'string') : [];
   if (!urls.length) return json(res, { error: 'No URLs provided' }, 400);
-  const { upsertLink } = require('./db-server');
-  let added = 0, skipped = 0;
+  const links = _loadVaultLinksEnc();
+  const seen  = new Set(links.map(l => l.url));
+  let added = 0;
   for (const url of urls) {
-    try {
-      upsertLink({ url, title: url, vault: 1, addedAt: Date.now() });
-      added++;
-    } catch { skipped++; }
+    if (seen.has(url)) continue;
+    seen.add(url);
+    links.push({ url, title: url, addedAt: Date.now() });
+    added++;
   }
-  json(res, { ok: true, added, skipped });
+  _saveVaultLinksEnc(links);
+  json(res, { ok: true, added, skipped: urls.length - added });
 }
 
 async function apiVaultMoveLinks(req, res) {
@@ -1188,19 +1222,21 @@ async function apiVaultMoveLinks(req, res) {
   const body = await readBody(req);
   const urls = Array.isArray(body.urls) ? body.urls : [];
   if (!urls.length) return json(res, { error: 'No URLs provided' }, 400);
-  const { loadLinksCache, upsertLink } = require('./db-server');
-  const all = loadLinksCache().items || [];
+  const { loadLinksCache, deleteLink } = require('./db-server');
+  const all   = loadLinksCache().items || [];
+  const links = _loadVaultLinksEnc();
+  const seen  = new Set(links.map(l => l.url));
   let moved = 0;
   for (const url of urls) {
     const existing = all.find(l => l.url === url);
-    if (existing) {
-      upsertLink({ ...existing, vault: 1 });
-      moved++;
-    } else {
-      upsertLink({ url, title: url, vault: 1, addedAt: Date.now() });
-      moved++;
+    if (!seen.has(url)) {
+      seen.add(url);
+      links.push(existing ? { ...existing, vault: undefined } : { url, title: url, addedAt: Date.now() });
     }
+    deleteLink(url);
+    moved++;
   }
+  _saveVaultLinksEnc(links);
   json(res, { ok: true, moved });
 }
 
@@ -1210,11 +1246,13 @@ async function apiVaultRestoreLink(req, res) {
   const body = await readBody(req);
   const { url } = body;
   if (!url) return json(res, { error: 'URL required' }, 400);
-  const { loadVaultLinks, upsertLink } = require('./db-server');
-  const links = loadVaultLinks();
-  const existing = links.find(l => l.url === url);
-  if (!existing) return json(res, { error: 'Not found in vault links' }, 404);
-  upsertLink({ ...existing, vault: 0 });
+  const links    = _loadVaultLinksEnc();
+  const idx      = links.findIndex(l => l.url === url);
+  if (idx < 0) return json(res, { error: 'Not found in vault links' }, 404);
+  const [link]   = links.splice(idx, 1);
+  _saveVaultLinksEnc(links);
+  const { upsertLink } = require('./db-server');
+  upsertLink({ ...link, vault: 0 });
   json(res, { ok: true });
 }
 

@@ -17,6 +17,7 @@ const {
   BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
   BOOKS_META_FILE, AUDIO_META_FILE,
   LINK_DIR,
+  VAULT_DIR,
 } = require('./config-server');
 
 const { DatabaseSync } = require('node:sqlite');
@@ -1124,14 +1125,17 @@ function loadComments(videoId) {
   try {
     const row = db.prepare('SELECT data FROM comments WHERE video_id = ?').get(videoId);
     if (!row) return null;
-    return JSON.parse(row.data);
+    const raw = _isVaultEncryptActive() ? _tryDecrypt(row.data) : row.data;
+    return JSON.parse(raw);
   } catch (e) { console.error('Failed to load comments:', e); return null; }
 }
 
 function saveComments(videoId, arr) {
   try {
+    const vault = _isVaultEncryptActive();
+    const data = vault ? _encryptString(JSON.stringify(arr), _vaultKey) : JSON.stringify(arr);
     db.prepare('INSERT INTO comments (video_id, data) VALUES (?, ?) ON CONFLICT(video_id) DO UPDATE SET data=excluded.data')
-      .run(videoId, JSON.stringify(arr));
+      .run(videoId, data);
   } catch (e) { console.error('Failed to save comments:', e); }
 }
 
@@ -1169,17 +1173,34 @@ function saveVisualHashes(hashes) {
 
 // ── Prompts ───────────────────────────────────────────────────────────
 
+function _isVaultEncryptActive() {
+  return currentProfile === 'Vault' && !!_vaultKey;
+}
+
+function _tryDecrypt(str) {
+  if (!_vaultKey || !str) return str;
+  try { return _decryptString(str, _vaultKey); } catch { return str; }
+}
+
 function loadPrompts() {
   try {
     const rows = db.prepare('SELECT id, text, sites, created_at FROM prompts ORDER BY created_at DESC').all();
-    return rows.map(r => ({ id: r.id, text: r.text, sites: JSON.parse(r.sites || '[]'), createdAt: r.created_at }));
+    const vault = _isVaultEncryptActive();
+    return rows.map(r => {
+      const text  = vault ? _tryDecrypt(r.text)  : r.text;
+      const sites = vault ? _tryDecrypt(r.sites) : (r.sites || '[]');
+      return { id: r.id, text, sites: JSON.parse(sites || '[]'), createdAt: r.created_at };
+    });
   } catch (e) { console.error('Failed to load prompts:', e); return []; }
 }
 
 function savePrompt(prompt) {
   try {
+    const vault = _isVaultEncryptActive();
+    const text  = vault ? _encryptString(prompt.text,                    _vaultKey) : prompt.text;
+    const sites = vault ? _encryptString(JSON.stringify(prompt.sites || []), _vaultKey) : JSON.stringify(prompt.sites || []);
     db.prepare('INSERT INTO prompts (id, text, sites, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET text=excluded.text, sites=excluded.sites')
-      .run(prompt.id, prompt.text, JSON.stringify(prompt.sites || []), prompt.createdAt || Date.now());
+      .run(prompt.id, text, sites, prompt.createdAt || Date.now());
   } catch (e) { console.error('Failed to save prompt:', e); }
 }
 
@@ -1187,11 +1208,46 @@ function updatePrompt(id, fields) {
   try {
     const row = db.prepare('SELECT text, sites FROM prompts WHERE id = ?').get(id);
     if (!row) return false;
-    const text = fields.text !== undefined ? fields.text : row.text;
-    const sites = fields.sites !== undefined ? JSON.stringify(fields.sites) : row.sites;
-    db.prepare('UPDATE prompts SET text = ?, sites = ? WHERE id = ?').run(text, sites, id);
+    const vault = _isVaultEncryptActive();
+    let newText, newSites;
+    if (fields.text !== undefined) {
+      newText = vault ? _encryptString(fields.text, _vaultKey) : fields.text;
+    } else {
+      newText = row.text; // already in correct form (encrypted or plain)
+    }
+    if (fields.sites !== undefined) {
+      newSites = vault ? _encryptString(JSON.stringify(fields.sites), _vaultKey) : JSON.stringify(fields.sites);
+    } else {
+      newSites = row.sites; // already in correct form
+    }
+    db.prepare('UPDATE prompts SET text = ?, sites = ? WHERE id = ?').run(newText, newSites, id);
     return true;
   } catch (e) { console.error('Failed to update prompt:', e); return false; }
+}
+
+// Re-encrypts all prompts and comments in the current DB from oldKey → newKey.
+// Called by vault-server.js during password change.
+function reEncryptVaultSqlite(oldKey, newKey) {
+  try {
+    const rows = db.prepare('SELECT id, text, sites FROM prompts').all();
+    const upd  = db.prepare('UPDATE prompts SET text = ?, sites = ? WHERE id = ?');
+    for (const row of rows) {
+      let text = row.text, sites = row.sites || '[]';
+      try { text  = _decryptString(row.text,  oldKey); } catch {}
+      try { sites = _decryptString(row.sites,  oldKey); } catch {}
+      upd.run(_encryptString(text, newKey), _encryptString(sites, newKey), row.id);
+    }
+  } catch (e) { console.error('[vault] re-encrypt prompts failed:', e); }
+
+  try {
+    const rows = db.prepare('SELECT video_id, data FROM comments').all();
+    const upd  = db.prepare('UPDATE comments SET data = ? WHERE video_id = ?');
+    for (const row of rows) {
+      let data = row.data;
+      try { data = _decryptString(row.data, oldKey); } catch {}
+      upd.run(_encryptString(data, newKey), row.video_id);
+    }
+  } catch (e) { console.error('[vault] re-encrypt comments failed:', e); }
 }
 
 function deletePrompt(id) {
@@ -1516,7 +1572,7 @@ module.exports = {
   loadEnabledCategories, saveEnabledCategories,
   loadComments, saveComments, clearAllComments,
   loadVisualHashes, setVisualHash, saveVisualHashes,
-  loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts,
+  loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   switchProfile, getCurrentProfile: () => currentProfile,

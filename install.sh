@@ -12,7 +12,7 @@ NC='\033[0m'
 ok()   { echo -e "  ${GREEN}✔${NC}  $*"; }
 warn() { echo -e "  ${YELLOW}⚠${NC}  $*"; }
 err()  { echo -e "  ${RED}✖${NC}  $*"; }
-sep()  { echo -e "\n${BOLD}[$1/7] $2${NC}"; }
+sep()  { echo -e "\n${BOLD}[$1/6] $2${NC}"; }
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
@@ -22,104 +22,152 @@ echo -e "${BOLD} AphroArchive installer${NC}"
 echo " ====================="
 echo ""
 
-# ── 1. Node.js ────────────────────────────────────────────────────────────────
-sep 1 "Checking Node.js"
-if command -v node &>/dev/null; then
-    ok "Node.js $(node --version)"
+# ── Install mode menu ─────────────────────────────────────────────────
+echo "  Choose install mode:"
+echo ""
+echo "    [1] Minimal install (default)"
+echo "         Installs only runtime dependencies (preact, signals)."
+echo "         Skips LLM, image-gen, and all dev/build tools."
+echo "         Fastest option — no native compilation required."
+echo ""
+echo "    [2] Full install"
+echo "         Installs ALL dependencies including dev/build tools"
+echo "         (vite, TypeScript, pkg, etc.) and image-gen Python deps."
+echo "         Needed for development and building executable packages."
+echo ""
+read -r -p "  Enter choice (1 or 2) [1]: " INSTALL_MODE
+INSTALL_MODE="${INSTALL_MODE:-1}"
+echo ""
+if [[ "$INSTALL_MODE" == "2" ]]; then
+    echo "  Full mode selected — installing all dependencies."
 else
+    INSTALL_MODE="1"
+    echo "  Minimal mode selected — skipping optional and dev dependencies."
+fi
+echo ""
+
+
+# ── 1. Node.js (22.5+ required for built-in sqlite) ──────────────────────────
+sep 1 "Checking Node.js"
+if ! command -v node &>/dev/null; then
     warn "Node.js not found. Attempting install..."
     if [[ "$OS" == "Darwin" ]]; then
         if command -v brew &>/dev/null; then
             brew install node
         else
-            err "Homebrew not found. Install Node.js from https://nodejs.org or install Homebrew first."
+            err "Homebrew not found. Install Node.js 22+ from https://nodejs.org or install Homebrew first."
             exit 1
         fi
     elif [[ "$OS" == "Linux" ]]; then
         if command -v apt-get &>/dev/null; then
-            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
             sudo apt-get install -y nodejs
         elif command -v dnf &>/dev/null; then
             sudo dnf install -y nodejs
         elif command -v pacman &>/dev/null; then
             sudo pacman -S --noconfirm nodejs npm
         else
-            err "Could not detect package manager. Install Node.js manually: https://nodejs.org"
+            err "Could not detect package manager. Install Node.js 22+ manually: https://nodejs.org"
             exit 1
         fi
     fi
-    ok "Node.js $(node --version)"
 fi
 
-
-# ── 2. Python 3 ───────────────────────────────────────────────────────────────
-sep 2 "Checking Python 3"
-PYTHON=""
-if command -v python3 &>/dev/null; then
-    PYTHON="python3"
-elif command -v python &>/dev/null && python --version 2>&1 | grep -q "Python 3"; then
-    PYTHON="python"
+NODE_MAJOR=$(node -e "process.stdout.write(String(parseInt(process.versions.node)))")
+if [[ "$NODE_MAJOR" -lt 22 ]]; then
+    err "Node.js 22 or newer is required (found $(node --version))."
+    err "node:sqlite is a built-in module available from Node 22.5+."
+    err "Please update from: https://nodejs.org"
+    exit 1
 fi
+ok "Node.js $(node --version)"
 
-if [[ -n "$PYTHON" ]]; then
-    ok "$($PYTHON --version)"
+
+# ── 2. npm install ────────────────────────────────────────────────────────────
+sep 2 "Running npm install"
+if [[ "$INSTALL_MODE" == "1" ]]; then
+    echo "  Skips: node-llama-cpp, Capacitor, Vite, TypeScript, pkg"
+    npm install --omit=optional --omit=dev
 else
-    warn "Python 3 not found. Attempting install..."
-    if [[ "$OS" == "Darwin" ]]; then
-        brew install python3
-        PYTHON="python3"
-    elif [[ "$OS" == "Linux" ]]; then
-        if command -v apt-get &>/dev/null; then
-            sudo apt-get install -y python3 python3-pip
-        elif command -v dnf &>/dev/null; then
-            sudo dnf install -y python3 python3-pip
-        elif command -v pacman &>/dev/null; then
-            sudo pacman -S --noconfirm python python-pip
-        else
-            err "Could not detect package manager. Install Python 3 manually: https://python.org"
-            exit 1
-        fi
-        PYTHON="python3"
-    fi
-    ok "$($PYTHON --version)"
+    echo "  Note: node-llama-cpp (LLM) skipped — install separately if needed."
+    npm install --omit=optional
 fi
-
-
-# ── 3. npm install (dev deps for building) ────────────────────────────────────
-sep 3 "Running npm install"
-npm install
 ok "npm install done"
 
 
-# ── 4. Image generation Python dependencies ───────────────────────────────────
-sep 4 "Image generation (Python / diffusers)"
-$PYTHON -m pip install --upgrade pip --quiet
-
-echo ""
-echo "  Choose PyTorch variant for image generation:"
-echo ""
-echo "    [1] NVIDIA GPU  (CUDA 12.1 — recommended if you have an NVIDIA card)"
-echo "    [2] CPU only    (slower, no GPU required)"
-echo "    [3] Skip        (install later manually)"
-echo ""
-read -r -p "  Enter choice (1, 2 or 3) [3]: " TORCH_MODE
-TORCH_MODE="${TORCH_MODE:-3}"
-echo ""
-
-if [[ "$TORCH_MODE" == "1" ]]; then
-    $PYTHON -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-    ok "PyTorch (CUDA) installed"
-elif [[ "$TORCH_MODE" == "2" ]]; then
-    $PYTHON -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-    ok "PyTorch (CPU) installed"
+# ── 3. Python 3 (full install only) ──────────────────────────────────────────
+sep 3 "Python 3"
+PYTHON=""
+if [[ "$INSTALL_MODE" != "2" ]]; then
+    ok "Skipped (minimal mode)"
 else
-    warn "Skipping PyTorch — run manually later:"
-    warn "  pip install torch --index-url https://download.pytorch.org/whl/cu121"
+    if command -v python3 &>/dev/null; then
+        PYTHON="python3"
+    elif command -v python &>/dev/null && python --version 2>&1 | grep -q "Python 3"; then
+        PYTHON="python"
+    fi
+
+    if [[ -n "$PYTHON" ]]; then
+        ok "$($PYTHON --version)"
+    else
+        warn "Python 3 not found. Attempting install..."
+        if [[ "$OS" == "Darwin" ]]; then
+            brew install python3
+            PYTHON="python3"
+        elif [[ "$OS" == "Linux" ]]; then
+            if command -v apt-get &>/dev/null; then
+                sudo apt-get install -y python3 python3-pip
+            elif command -v dnf &>/dev/null; then
+                sudo dnf install -y python3 python3-pip
+            elif command -v pacman &>/dev/null; then
+                sudo pacman -S --noconfirm python python-pip
+            else
+                warn "Could not detect package manager. Install Python 3 manually: https://python.org"
+                PYTHON=""
+            fi
+            [[ -z "$PYTHON" ]] || PYTHON="python3"
+        fi
+        [[ -z "$PYTHON" ]] || ok "$($PYTHON --version)"
+    fi
 fi
 
-if [[ "$TORCH_MODE" != "3" ]]; then
-    $PYTHON -m pip install -r imagegen/requirements.txt
-    ok "Image gen deps installed (diffusers, gguf, etc.)"
+
+# ── 4. Image generation Python dependencies (full install only) ───────────────
+sep 4 "Image generation (Python / diffusers)"
+if [[ "$INSTALL_MODE" != "2" ]]; then
+    ok "Skipped (minimal mode)"
+elif [[ -z "$PYTHON" ]]; then
+    warn "Python not available — skipping image generation setup."
+    warn "Install Python 3.10+ and run:  pip install -r imagegen/requirements.txt"
+else
+    $PYTHON -m pip install --upgrade pip --quiet
+
+    echo ""
+    echo "  Choose PyTorch variant for image generation:"
+    echo ""
+    echo "    [1] NVIDIA GPU  (CUDA 12.1 — recommended if you have an NVIDIA card)"
+    echo "    [2] CPU only    (slower, no GPU required)"
+    echo "    [3] Skip        (install later manually)"
+    echo ""
+    read -r -p "  Enter choice (1, 2 or 3) [3]: " TORCH_MODE
+    TORCH_MODE="${TORCH_MODE:-3}"
+    echo ""
+
+    if [[ "$TORCH_MODE" == "1" ]]; then
+        $PYTHON -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+        ok "PyTorch (CUDA) installed"
+    elif [[ "$TORCH_MODE" == "2" ]]; then
+        $PYTHON -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        ok "PyTorch (CPU) installed"
+    else
+        warn "Skipping PyTorch — run manually later:"
+        warn "  pip install torch --index-url https://download.pytorch.org/whl/cu121"
+    fi
+
+    if [[ "$TORCH_MODE" != "3" ]]; then
+        $PYTHON -m pip install -r imagegen/requirements.txt
+        ok "Image gen deps installed (diffusers, gguf, etc.)"
+    fi
 fi
 
 
@@ -163,14 +211,12 @@ else
         elif command -v pacman &>/dev/null; then
             sudo pacman -S --noconfirm ffmpeg
         else
-            # Download a static build for Linux
             warn "Package manager not detected. Downloading static ffmpeg build..."
             if [[ "$ARCH" == "x86_64" ]]; then
                 FFMPEG_STATIC_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
                 curl -fsSL "$FFMPEG_STATIC_URL" -o ffmpeg_static.tar.xz
                 tar xf ffmpeg_static.tar.xz --strip-components=1 --wildcards '*/ffmpeg' '*/ffprobe' 2>/dev/null || \
                     tar xf ffmpeg_static.tar.xz
-                # Find extracted binaries
                 find . -maxdepth 2 -name 'ffmpeg' -not -path './node_modules/*' -exec cp {} . \; 2>/dev/null || true
                 find . -maxdepth 2 -name 'ffprobe' -not -path './node_modules/*' -exec cp {} . \; 2>/dev/null || true
                 rm -f ffmpeg_static.tar.xz
@@ -182,7 +228,6 @@ else
         fi
     fi
 fi
-
 
 
 echo ""

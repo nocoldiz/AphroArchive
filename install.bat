@@ -12,15 +12,14 @@ echo.
 echo  Choose install mode:
 echo.
 echo    [1] Minimal install (default)
-echo         Installs only runtime dependencies required to run the
-echo         server (Preact, better-sqlite3, etc.).
-echo         Skips optional LLM module and dev/build tools.
-echo         Faster and uses less disk space.
+echo         Installs only runtime dependencies (preact, signals).
+echo         Skips LLM, image-gen, and all dev/build tools.
+echo         Fastest option — no native compilation required.
 echo.
 echo    [2] Full install
 echo         Installs ALL dependencies including dev/build tools (vite,
-echo         TypeScript, pkg, etc.) — needed for development and building
-echo         executable packages.
+echo         TypeScript, pkg, etc.) and image-gen Python deps.
+echo         Needed for development and building executable packages.
 echo.
 
 choice /c 12 /n /m "Enter choice (1 or 2) [Default 1]: " /t 10 /d 1
@@ -29,7 +28,7 @@ if errorlevel 2 (
     echo  Full mode selected — installing all dependencies.
 ) else (
     set INSTALL_MODE=1
-    echo  Minimal mode selected — will skip optional and dev dependencies.
+    echo  Minimal mode selected — skipping optional and dev dependencies.
 )
 echo.
 
@@ -38,7 +37,7 @@ echo [1/5] Fetching latest code from GitHub...
 git pull && echo  Git pull  OK || echo  [WARN] Git pull failed, continuing anyway...
 echo.
 
-:: ── 2. Node.js ───────────────────────────────────────────────────────────────
+:: ── 2. Node.js (22.5+ required for built-in sqlite) ──────────────────────────
 echo [2/5] Checking Node.js...
 node --version >nul 2>&1
 if errorlevel 1 (
@@ -47,7 +46,7 @@ if errorlevel 1 (
     if errorlevel 1 (
         echo.
         echo  [ERROR] Could not install Node.js automatically.
-        echo  Please install it manually from: https://nodejs.org
+        echo  Please install Node.js 22 or newer from: https://nodejs.org
         pause
         exit /b 1
     )
@@ -58,17 +57,30 @@ if errorlevel 1 (
     set "PATH=!syspath!;!userpath!"
 )
 
-node --version >nul 2>&1 && for /f "tokens=*" %%v in ('node --version 2^>nul') do echo  Node.js %%v  OK || (
+node --version >nul 2>&1 || (
     echo  [ERROR] Node.js is still not available on PATH. Please restart the installer.
     pause
     exit /b 1
 )
+
+:: Check Node major version >= 22
+for /f "tokens=*" %%v in ('node -e "process.stdout.write(process.versions.node)"') do set NODE_VER=%%v
+for /f "tokens=1 delims=." %%m in ("!NODE_VER!") do set NODE_MAJOR=%%m
+if !NODE_MAJOR! LSS 22 (
+    echo.
+    echo  [ERROR] Node.js 22 or newer is required ^(found v!NODE_VER!^).
+    echo  node:sqlite is a built-in module available from Node 22.5+.
+    echo  Please update from: https://nodejs.org
+    pause
+    exit /b 1
+)
+echo  Node.js v!NODE_VER!  OK
 echo.
 
 :: ── 3. npm install ──────────────────────────────────────────────────────────
 if "%INSTALL_MODE%"=="1" (
     echo [3/5] Running npm install ^(minimal — runtime deps only^)...
-    echo  Installing runtime deps ^(skipping optional and dev^)...
+    echo  Skips: node-llama-cpp, Capacitor, Vite, TypeScript, pkg
     echo  --------------------------------------------
     call npm install --omit=optional --omit=dev --loglevel verbose && echo  npm install  OK || (
         echo.
@@ -78,8 +90,7 @@ if "%INSTALL_MODE%"=="1" (
     )
 ) else (
     echo [3/5] Running npm install ^(full — all dependencies^)...
-    echo  Starting npm install — this may take a while...
-    echo  Note: optional deps like node-llama-cpp may be skipped if build tools are missing.
+    echo  Note: node-llama-cpp ^(LLM^) will be skipped — install separately if needed.
     echo  --------------------------------------------
     call npm install --omit=optional --loglevel verbose && echo  npm install  OK || (
         echo.
@@ -139,6 +150,8 @@ if "%INSTALL_MODE%"=="2" (
 
     echo  Installing diffusers and image gen dependencies...
     pip install -r imagegen\requirements.txt && echo  Image gen deps  OK || echo  [WARN] Some image gen packages failed to install.
+) else (
+    echo [4/5] Image generation — skipped ^(minimal mode^).
 )
 :skip_imagegen
 echo.
@@ -150,7 +163,6 @@ if exist "ffmpeg.exe" if exist "ffprobe.exe" (
     goto :done
 )
 
-:: Try winget first (adds to system PATH, server falls back to PATH)
 where ffmpeg >nul 2>&1
 if not errorlevel 1 (
     echo  ffmpeg already on PATH  OK
@@ -174,10 +186,7 @@ echo     Write-Host '[WARN] ffmpeg download failed — thumbnails and duration d
 echo     Remove-Item $zip,'ffmpeg_tmp' -Recurse -Force -ErrorAction SilentlyContinue >> dl_ffmpeg.ps1
 echo } >> dl_ffmpeg.ps1
 
-:: Execute it
 powershell -NoProfile -ExecutionPolicy Bypass -File dl_ffmpeg.ps1
-
-:: Clean up
 del dl_ffmpeg.ps1
 
 :done

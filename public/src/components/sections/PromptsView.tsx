@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 
 const PROMPT_SITES = [
   // ── General chat ──
@@ -57,6 +57,9 @@ export const PromptsView = () => {
   const [templateValues, setTemplateValues] = useState<Record<string, string[]>>({});
   const [valorizedTexts, setValorizedTexts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+
+  const txtInputRef = useRef<HTMLInputElement>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
 
   const w = window as any;
 
@@ -245,16 +248,86 @@ export const PromptsView = () => {
     if (w.toast) w.toast('Valorization cleared');
   };
 
+  const handleTxtImport = async (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    input.value = '';
+    if (!lines.length) { if (w.toast) w.toast('No prompts found in file'); return; }
+    let added = 0;
+    for (const line of lines) {
+      try {
+        const r = await fetch('/api/prompts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: line }),
+        });
+        if (r.ok) added++;
+      } catch {}
+    }
+    loadPrompts();
+    if (w.toast) w.toast('Imported ' + added + ' prompt' + (added !== 1 ? 's' : ''));
+  };
+
+  const exportJson = () => {
+    const data = JSON.stringify(prompts, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'prompts.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleJsonImport = async (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    let data: any[];
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!Array.isArray(parsed)) throw new Error();
+      data = parsed;
+    } catch {
+      if (w.toast) w.toast('Invalid JSON file');
+      input.value = '';
+      return;
+    }
+    input.value = '';
+    let added = 0;
+    for (const p of data) {
+      if (!p.text) continue;
+      try {
+        const r = await fetch('/api/prompts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: p.text, sites: p.sites }),
+        });
+        if (r.ok) added++;
+      } catch {}
+    }
+    loadPrompts();
+    if (w.toast) w.toast('Imported ' + added + ' prompt' + (added !== 1 ? 's' : ''));
+  };
+
   const filteredPrompts = getFilteredPrompts();
   const templates = scanTemplates();
 
   return (
     <div className="prompts-view on">
+      <input ref={txtInputRef} type="file" accept=".txt" aria-label="Import prompts from TXT file" style={{ display: 'none' }} onChange={handleTxtImport as any} />
+      <input ref={jsonInputRef} type="file" accept=".json" aria-label="Import prompts from JSON file" style={{ display: 'none' }} onChange={handleJsonImport as any} />
       <div className="section-header">
         <h2>AI Prompts</h2>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button className="btn-primary" onClick={() => setIsAddModalOpen(true)}>New Prompt</button>
           <button className="btn-primary" onClick={() => setIsMassImportOpen(true)}>Mass Import</button>
+          <button className="sort-btn" onClick={() => txtInputRef.current?.click()} title="Import a .txt file — each line becomes a prompt">Import TXT</button>
+          <button className="sort-btn" onClick={exportJson} title="Export all prompts as JSON">Export JSON</button>
+          <button className="sort-btn" onClick={() => jsonInputRef.current?.click()} title="Import prompts from a JSON file">Import JSON</button>
           <button className={`sort-btn ${Object.keys(valorizedTexts).length > 0 ? 'sort-btn--valorize-active' : ''}`} onClick={() => setIsValorizeOpen(true)}>Valorize Template</button>
           <button className="sort-btn" onClick={() => {
             const text = filteredPrompts.map(p => valorizedTexts[p.id] || p.text).join('\n\n');

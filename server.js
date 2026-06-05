@@ -331,6 +331,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/read-book' && req.method === 'GET') return vault.apiVaultReadBook(req, res, params.get('id'));
   if ((m = p.match(/^\/api\/vault\/stream-page\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultStreamPage(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/page-resource\/([^/]+)\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultPageResource(req, res, m[1], m[2]);
+  if (p === '/api/vault/create-text' && req.method === 'POST') return vault.apiVaultCreateTextFile(req, res);
   if ((m = p.match(/^\/api\/vault\/text\/([^/]+)$/)) && req.method === 'PUT') return vault.apiVaultUpdateTextFile(req, res, m[1]);
   if (p === '/api/vault/import-drop' && req.method === 'POST') return vault.apiVaultImportDrop(req, res);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/restore$/)) && req.method === 'POST') return vault.apiVaultRestoreFile(req, res, m[1]);
