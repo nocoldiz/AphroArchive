@@ -228,8 +228,8 @@ async function apiRenameProfile(req, res) {
   const db = require('./db-server');
   const current = db.getCurrentProfile();
 
-  const oldPath = path.join(__dirname, `../db/aphroarchive_${oldName}.db`);
-  const newPath = path.join(__dirname, `../db/aphroarchive_${newName}.db`);
+  const oldPath = path.join(DB_DIR, `aphroarchive_${oldName}.db`);
+  const newPath = path.join(DB_DIR, `aphroarchive_${newName}.db`);
 
   if (!fs.existsSync(oldPath)) return json(res, { error: 'Profile not found' }, 404);
   if (fs.existsSync(newPath)) return json(res, { error: 'New name already exists' }, 400);
@@ -257,7 +257,7 @@ async function apiDeleteProfile(req, res) {
   const db = require('./db-server');
   if (db.getCurrentProfile() === name) return json(res, { error: 'Cannot delete the active profile — switch first' }, 400);
 
-  const dbPath = path.join(__dirname, `../db/aphroarchive_${name}.db`);
+  const dbPath = path.join(DB_DIR, `aphroarchive_${name}.db`);
   if (!fs.existsSync(dbPath)) return json(res, { error: 'Profile not found' }, 404);
 
   try { fs.unlinkSync(dbPath); } catch (e) { return json(res, { error: e.message }, 500); }
@@ -270,8 +270,8 @@ async function apiCloneProfile(req, res) {
   if (!sourceName || !newName) return json(res, { error: 'sourceName and newName required' }, 400);
   if (newName === 'Vault') return json(res, { error: 'Reserved name' }, 400);
 
-  const srcPath = path.join(__dirname, `../db/aphroarchive_${sourceName}.db`);
-  const dstPath = path.join(__dirname, `../db/aphroarchive_${newName}.db`);
+  const srcPath = path.join(DB_DIR, `aphroarchive_${sourceName}.db`);
+  const dstPath = path.join(DB_DIR, `aphroarchive_${newName}.db`);
 
   if (!fs.existsSync(srcPath)) return json(res, { error: 'Source profile not found' }, 404);
   if (fs.existsSync(dstPath)) return json(res, { error: 'Name already in use' }, 400);
@@ -290,7 +290,7 @@ async function apiCloneProfile(req, res) {
   json(res, { ok: true });
 }
 
-const LAST_PROFILE_FILE = path.join(__dirname, '../db/last-profile.txt');
+const LAST_PROFILE_FILE = path.join(DB_DIR, 'last-profile.txt');
 
 function saveLastProfile(name) {
   try { fs.writeFileSync(LAST_PROFILE_FILE, name, 'utf-8'); } catch {}
@@ -299,7 +299,7 @@ function saveLastProfile(name) {
 function loadLastProfile() {
   try {
     const name = fs.readFileSync(LAST_PROFILE_FILE, 'utf-8').trim();
-    const dbPath = path.join(__dirname, `../db/aphroarchive_${name}.db`);
+    const dbPath = path.join(DB_DIR, `aphroarchive_${name}.db`);
     return name && fs.existsSync(dbPath) ? name : null;
   } catch { return null; }
 }

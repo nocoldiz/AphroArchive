@@ -18,9 +18,10 @@ const {
   BOOKS_META_FILE, AUDIO_META_FILE,
   LINK_DIR,
   VAULT_DIR,
+  DB_DIR,
+  CACHE_DIR,
 } = require('./config-server');
 
-// eval bypasses pkg's static analyser which can't resolve the node: scheme
 const { DatabaseSync } = eval("require('node:sqlite')");
 
 // ── In-memory write-through caches ──────────────────────────────────
@@ -227,8 +228,8 @@ function switchProfile(profileName) {
   if (db) {
     try { db.close(); } catch(e) {}
   }
-  const dbPath = path.join(__dirname, `../db/aphroarchive_${profileName}.db`);
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const dbPath = path.join(DB_DIR, `aphroarchive_${profileName}.db`);
+  fs.mkdirSync(DB_DIR, { recursive: true });
   db = new DatabaseSync(dbPath);
   ensureSchema(db);
 
@@ -248,9 +249,9 @@ function switchProfile(profileName) {
 {
   let startProfile = 'default';
   try {
-    const _lastFile = require('path').join(__dirname, '../db/last-profile.txt');
+    const _lastFile = path.join(DB_DIR, 'last-profile.txt');
     const _name = require('fs').readFileSync(_lastFile, 'utf-8').trim();
-    const _dbPath = require('path').join(__dirname, `../db/aphroarchive_${_name}.db`);
+    const _dbPath = path.join(DB_DIR, `aphroarchive_${_name}.db`);
     if (_name && _name !== 'Vault' && require('fs').existsSync(_dbPath)) startProfile = _name;
   } catch {}
   switchProfile(startProfile);
@@ -422,7 +423,7 @@ function _migrateJsonToSqlite() {
   // Visual hashes
   try {
     const hashCount = db.prepare('SELECT COUNT(*) as c FROM visual_hashes').get().c;
-    const HASHES_FILE = path.join(path.join(__dirname, '../cache'), '.AphroArchive-visual-hashes.json');
+    const HASHES_FILE = path.join(CACHE_DIR, '.AphroArchive-visual-hashes.json');
     if (hashCount === 0 && fs.existsSync(HASHES_FILE)) {
       const raw = JSON.parse(fs.readFileSync(HASHES_FILE, 'utf-8'));
       txn(() => {
@@ -452,7 +453,7 @@ function _migrateJsonToSqlite() {
   try {
     const cCount = db.prepare('SELECT COUNT(*) as c FROM comments').get().c;
     if (cCount === 0) {
-      const cacheDir = path.join(__dirname, '../cache');
+      const cacheDir = CACHE_DIR;
       if (fs.existsSync(cacheDir)) {
         const files = fs.readdirSync(cacheDir).filter(f => f.startsWith('comments_') && f.endsWith('.json'));
         if (files.length) {
