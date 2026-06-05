@@ -56,16 +56,27 @@ export function App() {
       .then(s => { isVaultUnlocked.value = !!s.unlocked; })
       .catch(() => {});
 
-    loadProfiles().then(() => {
+    loadProfiles().then(profileData => {
       if (activeProfile.value === 'Vault') {
         currentView.value = 'vault';
       }
+      // If any aphroarchive*.db file exists, app is already set up — skip preset picker
+      if (profileData?.hasDbFiles) return;
+
+      fetch('/api/presets')
+        .then(r => r.json())
+        .then(data => {
+          if (data.needed && activeProfile.value !== 'Vault') {
+            presetPickerState.value = { visible: true, mergeMode: false };
+          }
+        })
+        .catch(e => console.error('Failed to check presets', e));
     });
-    
+
     // Load theme
     const saved = localStorage.getItem('theme') || '';
     if (saved) document.documentElement.setAttribute('data-theme', saved);
-    
+
     // Also update button states if they exist
     document.querySelectorAll('.theme-btn').forEach(btn => {
       const b = btn as HTMLElement;
@@ -112,27 +123,6 @@ export function App() {
         if (h) h.classList.add('closed');
       }
     });
-
-    // Check if preset picker is needed on startup
-    fetch('/api/presets')
-      .then(r => {
-        if (!r.ok) {
-          throw new Error(`HTTP error! status: ${r.status}`);
-        }
-        return r.text(); // Read as plain text first
-      })
-      .then(text => {
-        try {
-          const data = JSON.parse(text); // Parse JSON manually
-          if (data.needed && activeProfile.value !== 'Vault') {
-            presetPickerState.value = { visible: true, mergeMode: false };
-          }
-        } catch (e) {
-          console.error('Invalid JSON response:', text); // Log raw response
-          throw e; // Re-throw the error for debugging
-        }
-      })
-      .catch(e => console.error('Failed to check presets', e));
     // 6. Panic Key/Mouse listener
     const triggerPanic = () => {
       // Hide everything and stop all media immediately, then shut down the server.

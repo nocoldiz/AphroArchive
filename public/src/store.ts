@@ -191,6 +191,7 @@ export async function loadProfiles() {
   const data = await res.json();
   profiles.value = data.profiles;
   activeProfile.value = data.current;
+  return data;
 }
 
 export async function switchProfile(name: string) {

@@ -16,29 +16,24 @@ interface Preset {
 export const PresetPicker = () => {
   const state = presetPickerState.value;
   const [presets, setPresets] = useState<Preset[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('');
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'orange');
 
   useEffect(() => {
     if (state.visible) {
+      setLoading(true);
       fetch('/api/presets')
         .then(r => {
-          if (!r.ok) {
-            throw new Error(`HTTP error! status: ${r.status}`);
-          }
-          return r.text(); // Read as plain text first
+          if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
+          return r.json();
         })
-        .then(text => {
-          try {
-            const data = JSON.parse(text); // Parse JSON manually
-            setPresets(data.profiles || []);
-          } catch (e) {
-            console.error('Invalid JSON response:', text); // Log raw response
-            throw e; // Re-throw the error for debugging
-          }
+        .then(data => {
+          setPresets(data.profiles || []);
         })
-        .catch(e => console.error('Failed to load presets', e));
+        .catch(e => console.error('Failed to load presets', e))
+        .finally(() => setLoading(false));
     }
     setStatus('');
     setSelected(new Set());
@@ -122,7 +117,8 @@ export const PresetPicker = () => {
               </div>
             </label>
           ))}
-          {presets.length === 0 && <p style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No presets found.</p>}
+          {loading && <p style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>Loading…</p>}
+          {!loading && presets.length === 0 && <p style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No presets found.</p>}
         </div>
 
         <div className="theme-selection" style={{ margin: '16px 0', borderTop: '1px solid var(--brd)', paddingTop: '12px' }}>

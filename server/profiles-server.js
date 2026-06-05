@@ -10,10 +10,12 @@ const { json, readBody } = require('./helpers-server');
 
 const PROFILES_DIR = path.join(DB_DIR, 'profiles');
 
-// DB is considered initialised if categories.json exists
+// DB is considered initialised if any user DB file exists
 function isDbInitialized() {
-  const db = require('./db-server');
-  return db.loadCategories().length > 0;
+  try {
+    if (!fs.existsSync(DB_DIR)) return false;
+    return fs.readdirSync(DB_DIR).some(f => f.startsWith('aphroarchive') && f.endsWith('.db'));
+  } catch { return false; }
 }
 
 function listProfileTemplates() {
@@ -166,21 +168,19 @@ async function apiApplyPreset(req, res) {
 
 // GET /api/profiles
 function apiGetProfiles(req, res) {
-  const dbDir = path.join(__dirname, '../db');
-  if (!fs.existsSync(dbDir)) return json(res, { profiles: ['default', 'Vault'], current: 'default' });
-  
-  const files = fs.readdirSync(dbDir);
+  if (!fs.existsSync(DB_DIR)) return json(res, { profiles: ['default', 'Vault'], current: 'default', hasDbFiles: false });
+
+  const files = fs.readdirSync(DB_DIR);
+  const dbFiles = files.filter(f => f.startsWith('aphroarchive') && f.endsWith('.db'));
   const profiles = files
     .filter(f => f.startsWith('aphroarchive_') && f.endsWith('.db'))
     .map(f => f.replace('aphroarchive_', '').replace('.db', ''));
-    
+
   if (profiles.length === 0) profiles.push('default');
-  
-  // Add Vault to the list of profiles
   if (!profiles.includes('Vault')) profiles.push('Vault');
-    
+
   const db = require('./db-server');
-  json(res, { profiles, current: db.getCurrentProfile() });
+  json(res, { profiles, current: db.getCurrentProfile(), hasDbFiles: dbFiles.length > 0 });
 }
 
 // POST /api/profiles/switch
