@@ -9,13 +9,24 @@ const { DB_DIR } = require('./config-server');
 const { json, readBody } = require('./helpers-server');
 
 const PROFILES_DIR = path.join(DB_DIR, 'profiles');
+const SETUP_DONE_FILE = path.join(DB_DIR, 'setup.done');
 
-// DB is considered initialised if any user DB file exists
+function markSetupDone() {
+  try { fs.mkdirSync(DB_DIR, { recursive: true }); } catch {}
+  try { fs.writeFileSync(SETUP_DONE_FILE, '', 'utf-8'); } catch {}
+}
+
 function isDbInitialized() {
-  try {
-    if (!fs.existsSync(DB_DIR)) return false;
-    return fs.readdirSync(DB_DIR).some(f => f.startsWith('aphroarchive') && f.endsWith('.db'));
-  } catch { return false; }
+  return fs.existsSync(SETUP_DONE_FILE);
+}
+
+// Grandfather existing users: if they have a last-profile.txt or a Vault DB they've already set up
+{
+  if (!fs.existsSync(SETUP_DONE_FILE)) {
+    const hasLastProfile = fs.existsSync(path.join(DB_DIR, 'last-profile.txt'));
+    const hasVaultDb = fs.existsSync(path.join(DB_DIR, 'aphroarchive_Vault.db'));
+    if (hasLastProfile || hasVaultDb) markSetupDone();
+  }
 }
 
 function listProfileTemplates() {
@@ -136,7 +147,8 @@ function writeDb(merged, mergeWithExisting = false) {
 
 // GET /api/presets
 function apiGetPresets(req, res) {
-  json(res, { needed: !isDbInitialized(), profiles: listProfileTemplates() });
+  const firstRun = !isDbInitialized();
+  json(res, { needed: firstRun, firstRun, profiles: listProfileTemplates() });
 }
 
 // POST /api/presets/apply  { selection: 'blank' | 'all' | ['id',...], merge?: boolean }
@@ -156,6 +168,7 @@ async function apiApplyPreset(req, res) {
   }
 
   writeDb(merged, !!merge);
+  markSetupDone();
 
   // Bust in-memory caches
   const db = require('./db-server');
@@ -209,14 +222,15 @@ async function apiCreateProfile(req, res) {
   
   const db = require('./db-server');
   db.switchProfile(name);
-  
+
   if (preset) {
     const data = loadPresetData(preset);
     db.saveCategories(data.categories);
     db.saveStudios(data.studios);
     db.saveWebsites(data.websites);
   }
-  
+  markSetupDone();
+
   json(res, { ok: true, current: name });
 }
 

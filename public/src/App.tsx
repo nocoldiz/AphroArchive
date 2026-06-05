@@ -59,14 +59,13 @@ export function App() {
     loadProfiles().then(profileData => {
       if (activeProfile.value === 'Vault') {
         currentView.value = 'vault';
+        return;
       }
-      // If any aphroarchive*.db file exists, app is already set up — skip preset picker
-      if (profileData?.hasDbFiles) return;
 
       fetch('/api/presets')
         .then(r => r.json())
         .then(data => {
-          if (data.needed && activeProfile.value !== 'Vault') {
+          if (data.firstRun) {
             presetPickerState.value = { visible: true, mergeMode: false };
           }
         })
