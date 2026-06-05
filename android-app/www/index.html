@@ -1,241 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>AphroArchive</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0a0a0a;
-      color: #e0e0e0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .logo {
-      font-size: 48px;
-      margin-bottom: 8px;
-    }
-    h1 {
-      font-size: 26px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      margin-bottom: 4px;
-      color: #fff;
-    }
-    .subtitle {
-      font-size: 13px;
-      color: #666;
-      margin-bottom: 40px;
-    }
-    .card {
-      background: #161616;
-      border: 1px solid #2a2a2a;
-      border-radius: 14px;
-      padding: 28px 24px;
-      width: 100%;
-      max-width: 380px;
-    }
-    .card-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #999;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 16px;
-    }
-    label {
-      display: block;
-      font-size: 13px;
-      color: #888;
-      margin-bottom: 6px;
-    }
-    input {
-      width: 100%;
-      background: #0f0f0f;
-      border: 1px solid #2a2a2a;
-      border-radius: 8px;
-      color: #e0e0e0;
-      font-size: 15px;
-      padding: 12px 14px;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    input:focus { border-color: #555; }
-    input::placeholder { color: #444; }
-    .hint {
-      font-size: 12px;
-      color: #555;
-      margin-top: 8px;
-      margin-bottom: 20px;
-    }
-    button {
-      width: 100%;
-      background: #e0e0e0;
-      color: #0a0a0a;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      padding: 13px;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    button:active { background: #bbb; }
-    .error {
-      color: #f04040;
-      font-size: 13px;
-      margin-top: 12px;
-      text-align: center;
-      min-height: 20px;
-    }
-    .connecting {
-      display: none;
-      text-align: center;
-    }
-    .connecting p { color: #666; font-size: 14px; margin-top: 12px; }
-    .spinner {
-      width: 36px; height: 36px;
-      border: 3px solid #2a2a2a;
-      border-top-color: #e0e0e0;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .saved-info {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #111;
-      border: 1px solid #222;
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 16px;
-      font-size: 13px;
-      color: #888;
-    }
-    .saved-url { color: #aaa; font-family: monospace; font-size: 12px; }
-    .change-btn {
-      background: none;
-      border: 1px solid #333;
-      color: #666;
-      font-size: 11px;
-      padding: 4px 8px;
-      width: auto;
-      border-radius: 5px;
-    }
-    .change-btn:active { background: #1a1a1a; }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=Space+Mono:wght@400;700&display=swap"
+    rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"></noscript>
+  <script type="module" crossorigin src="./assets/index-BH8SDW5W.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DhypfWf5.css">
 </head>
+
 <body>
-  <div class="logo">🎬</div>
-  <h1>AphroArchive</h1>
-  <p class="subtitle">Local Media Organizer</p>
 
-  <div class="card" id="setup-card">
-    <div class="card-title">Connect to Server</div>
+  <div id="topbar-root"></div>
 
-    <div id="saved-banner" style="display:none">
-      <div class="saved-info">
-        <span>Last: <span class="saved-url" id="saved-url-label"></span></span>
-        <button class="change-btn" onclick="showInput()">Change</button>
-      </div>
-    </div>
+  <div class="wrap">
+    <aside class="side" id="side"></aside>
 
-    <div id="input-section">
-      <label for="url-input">Server Address</label>
-      <input
-        type="url"
-        id="url-input"
-        placeholder="http://192.168.1.100:3000"
-        autocomplete="off"
-        autocapitalize="none"
-        spellcheck="false"
-      >
-      <p class="hint">Enter the IP and port where AphroArchive is running on your PC.</p>
-      <button onclick="connect()">Connect</button>
-      <div class="error" id="error-msg"></div>
+    <div class="main-content">
+      <div id="main-root"></div>
     </div>
   </div>
 
-  <div class="connecting" id="connecting-view">
-    <div class="spinner"></div>
-    <p id="connecting-text">Connecting…</p>
-  </div>
-
-  <script>
-    const STORAGE_KEY = 'aphroarchive_server_url';
-
-    function showInput() {
-      document.getElementById('saved-banner').style.display = 'none';
-      document.getElementById('input-section').style.display = 'block';
-    }
-
-    function showConnecting(url) {
-      document.getElementById('setup-card').style.display = 'none';
-      document.getElementById('connecting-view').style.display = 'block';
-      document.getElementById('connecting-text').textContent = 'Connecting to ' + url + '…';
-    }
-
-    function goToServer(url) {
-      showConnecting(url);
-      setTimeout(() => { window.location.href = url; }, 400);
-    }
-
-    function connect() {
-      const raw = document.getElementById('url-input').value.trim();
-      const errEl = document.getElementById('error-msg');
-      errEl.textContent = '';
-
-      if (!raw) { errEl.textContent = 'Please enter a server address.'; return; }
-
-      let url = raw;
-      if (!url.startsWith('http')) url = 'http://' + url;
-
-      try { new URL(url); } catch {
-        errEl.textContent = 'Invalid URL — example: http://192.168.1.100:3000';
-        return;
-      }
-
-      localStorage.setItem(STORAGE_KEY, url);
-      goToServer(url);
-    }
-
-    // Allow Enter key to connect
-    document.getElementById('url-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') connect();
-    });
-
-    // On load: check for saved URL
-    window.addEventListener('load', () => {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        document.getElementById('saved-url-label').textContent = saved;
-        document.getElementById('saved-banner').style.display = 'flex';
-        document.getElementById('input-section').style.display = 'none';
-        // Auto-connect after brief delay so the UI is visible
-        document.querySelector('#setup-card button:not(.change-btn)') || (() => {
-          const btn = document.createElement('button');
-          btn.textContent = 'Connect to ' + new URL(saved).hostname;
-          btn.style.marginTop = '4px';
-          btn.onclick = () => goToServer(saved);
-          document.getElementById('saved-banner').after(btn);
-        })();
-        // Add connect button below saved banner
-        const connectBtn = document.createElement('button');
-        connectBtn.textContent = 'Connect';
-        connectBtn.onclick = () => goToServer(saved);
-        document.querySelector('.card').appendChild(connectBtn);
-        // Auto-connect
-        setTimeout(() => goToServer(saved), 1200);
-      }
-    });
-  </script>
 </body>
+
 </html>

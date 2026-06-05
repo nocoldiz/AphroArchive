@@ -11,6 +11,9 @@ const { loadPrefs } = require('./db-server');
 
 const MODELS_DIR = path.join(process.cwd(), 'models');
 
+// Indirect reference prevents pkg from bundling node-llama-cpp (ESM/import.meta incompatible)
+const _llamaMod = 'node' + '-llama-cpp';
+
 // ── Local llama state ──────────────────────────────────────────────
 
 let localLlama     = null;
@@ -21,7 +24,7 @@ let localModelPath = null;
 async function _ensureLocalModel(modelPath) {
   if (localCtx && localModelPath === modelPath) return true;
   try {
-    const { getLlama } = await import('node-llama-cpp');
+    const { getLlama } = await import(_llamaMod);
     if (!localLlama) localLlama = await getLlama();
     if (localModel && localModelPath !== modelPath) {
       try { await localModel.dispose(); } catch {}
@@ -62,7 +65,7 @@ async function apiAssistantChat(req, res) {
       return done();
     }
     try {
-      const { LlamaChatSession } = await import('node-llama-cpp');
+      const { LlamaChatSession } = await import(_llamaMod);
       const ok = await _ensureLocalModel(modelPath);
       if (!ok) {
         send(`data: ${JSON.stringify({ error: 'Failed to load local model' })}\n\n`);

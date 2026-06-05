@@ -11,6 +11,9 @@ const fs   = require('fs');
 const path = require('path');
 
 const MODELS_DIR        = path.join(process.cwd(), 'models');
+
+// Indirect reference prevents pkg from bundling node-llama-cpp (ESM/import.meta incompatible)
+const _llamaMod = 'node' + '-llama-cpp';
 const MODEL_FILENAME    = 'llama-3.2-1b-instruct.gguf';
 const DEFAULT_MODEL_URI = 'hf:bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M';
 
@@ -33,7 +36,7 @@ let dlAbort  = null;
 // ── Model path resolution ──────────────────────────────────────────────────
 
 async function _resolveModelPath() {
-  const { resolveModelFile } = await import('node-llama-cpp');
+  const { resolveModelFile } = await import(_llamaMod);
   const opts = { download: false };
   // Priority 1: local ./models subfolder if it exists
   if (fs.existsSync(MODELS_DIR)) {
@@ -54,7 +57,7 @@ async function initCommentsModel() {
   const prefs = loadPrefs();
   if (!prefs.aiCommentsEnabled) return;
   try {
-    const nodeLlama = await import('node-llama-cpp');
+    const nodeLlama = await import(_llamaMod);
     getLlama = nodeLlama.getLlama;
     LlamaChatSession = nodeLlama.LlamaChatSession;
   } catch (e) {
@@ -84,7 +87,7 @@ async function _runDownload() {
   const prefs = loadPrefs();
   const modelUri = (prefs.llamaModelUri || '').trim() || DEFAULT_MODEL_URI;
   try {
-    const { createModelDownloader } = await import('node-llama-cpp');
+    const { createModelDownloader } = await import(_llamaMod);
     fs.mkdirSync(MODELS_DIR, { recursive: true });
     const downloader = await createModelDownloader({
       modelUri,
