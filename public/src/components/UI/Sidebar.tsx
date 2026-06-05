@@ -446,6 +446,13 @@ export const Sidebar = () => {
             ) : undefined}
           />
           <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
+            <SidebarItem
+              label="All Videos"
+              badge={filteredVids.length}
+              onClick={() => { currentView.value = 'browse'; currentCategory.value = ''; currentTag.value = null; currentTagTerms.value = []; isSidebarOpen.value = false; }}
+              isActive={!currentCategory.value && !currentTag.value}
+              indent
+            />
             {displayCategories.map(c => {
               const lockIcon = inVaultMode
                 ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2.5" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
