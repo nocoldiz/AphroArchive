@@ -29,6 +29,11 @@ export const DatabaseView = () => {
   const importAllRef = useRef<HTMLInputElement>(null);
   const importWcRef = useRef<HTMLInputElement>(null);
 
+  // Preset import modal
+  const [presetImportOpen, setPresetImportOpen] = useState(false);
+  const [presetList, setPresetList] = useState<{id: string, name: string, description: string, counts: Record<string,number>}[]>([]);
+  const [presetImporting, setPresetImporting] = useState<string | null>(null);
+
   // Wildcards tab state
   const [wcList, setWcList] = useState<{name: string, count: number, preview: string[]}[]>([]);
   const [wcExpanded, setWcExpanded] = useState<string | null>(null);
@@ -343,6 +348,33 @@ export const DatabaseView = () => {
     }
   };
 
+  const openPresetImport = async () => {
+    const r = await fetch('/api/presets');
+    const data = await r.json();
+    setPresetList(data.profiles || []);
+    setPresetImportOpen(true);
+  };
+
+  const applyPresetImport = async (id: string) => {
+    setPresetImporting(id);
+    try {
+      const r = await fetch('/api/presets/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selection: [id], merge: true }),
+      });
+      if (!r.ok) throw new Error('Server error');
+      const w = window as any;
+      if (w.toast) w.toast('Preset merged into DB');
+      setPresetImportOpen(false);
+      loadTab(activeTab);
+    } catch (e: any) {
+      alert('Import failed: ' + e.message);
+    } finally {
+      setPresetImporting(null);
+    }
+  };
+
   // ── Wildcard handlers ────────────────────────────────────────────────
 
   const handleWcEdit = async (name: string) => {
@@ -507,6 +539,7 @@ export const DatabaseView = () => {
           )}
           <button className="modal-btn" onClick={handleExportJson} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Export JSON</button>
           <button className="modal-btn" onClick={() => importFileRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import JSON</button>
+          <button className="modal-btn" onClick={openPresetImport} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import from Preset</button>
           <button className="modal-btn modal-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
         </div>
       )}
@@ -843,6 +876,41 @@ export const DatabaseView = () => {
           <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '900px', maxWidth: '95%', maxHeight: '90%', overflowY: 'auto', position: 'relative' }}>
             <button onClick={() => setScraperModalOpen(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
             <ActorScraperView />
+          </div>
+        </div>
+      )}
+
+      {/* Import from Preset Modal */}
+      {presetImportOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '520px', maxWidth: '95%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>Import from Preset</h3>
+              <button type="button" onClick={() => setPresetImportOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.3rem' }}>&times;</button>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--tx3)' }}>Select a preset to merge its entries into your database.</p>
+            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {presetList.map(p => (
+                <div key={p.id} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '8px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--tx)' }}>{p.name}</div>
+                    {p.description && <div style={{ fontSize: '0.78rem', color: 'var(--tx3)', marginTop: '2px' }}>{p.description}</div>}
+                    <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', marginTop: '4px' }}>
+                      {Object.entries(p.counts).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`).join(' · ')}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetImport(p.id)}
+                    disabled={presetImporting === p.id}
+                    className="modal-btn modal-btn--primary"
+                    style={{ flexShrink: 0, fontSize: '0.82rem', padding: '6px 14px' }}
+                  >
+                    {presetImporting === p.id ? 'Importing…' : 'Import'}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
