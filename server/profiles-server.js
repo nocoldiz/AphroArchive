@@ -279,8 +279,8 @@ async function apiCloneProfile(req, res) {
   try {
     fs.copyFileSync(srcPath, dstPath);
     // Open the new DB and clear per-user data (videos, links, history, favs)
-    const Database = require('better-sqlite3');
-    const newDb = new Database(dstPath);
+    const { DatabaseSync } = require('node:sqlite');
+    const newDb = new DatabaseSync(dstPath);
     newDb.exec(`DELETE FROM videos; DELETE FROM links; DELETE FROM history; DELETE FROM favs;`);
     newDb.close();
   } catch (e) {

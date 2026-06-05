@@ -68,10 +68,9 @@ echo.
 :: ── 3. npm install ──────────────────────────────────────────────────────────
 if "%INSTALL_MODE%"=="1" (
     echo [3/5] Running npm install ^(minimal — runtime deps only^)...
-    echo  Installing preact, @preact/signals, better-sqlite3...
-    echo  ^(better-sqlite3 is a native module — first install may take a minute^)
+    echo  Installing runtime deps ^(skipping optional and dev^)...
     echo  --------------------------------------------
-    call npm install preact @preact/signals better-sqlite3 --omit=optional --loglevel verbose && echo  npm install  OK || (
+    call npm install --omit=optional --omit=dev --loglevel verbose && echo  npm install  OK || (
         echo.
         echo  [ERROR] Failed to install core dependencies.
         pause

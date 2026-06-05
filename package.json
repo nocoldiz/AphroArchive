@@ -8,10 +8,10 @@
     "build:android-web": "vite build --mode android",
     "dev": "vite",
     "dev:watch": "node --watch server.js",
-    "build": "vite build && pkg . --targets node20-win-x64,node20-linux-x64,node20-macos-x64,node20-macos-arm64 --out-path dist --compress GZip",
+    "build": "vite build && pkg . --targets node22-win-x64,node22-linux-x64,node22-macos-x64,node22-macos-arm64 --out-path dist --compress GZip",
     "start": "node server.js",
-    "build:win": "pkg . --targets node20-win-x64 --output dist/AphroArchive.exe --compress GZip",
-    "build:linux": "pkg . --targets node20-linux-x64 --output dist/AphroArchive --compress GZip",
+    "build:win": "pkg . --targets node22-win-x64 --output dist/AphroArchive.exe --compress GZip",
+    "build:linux": "pkg . --targets node22-linux-x64 --output dist/AphroArchive --compress GZip",
     "build:wrapper": "npm run build:linux && npm run wrapper",
     "create-wrapper": "echo '#!/bin/bash\n# Creates an isolated network namespace to bypass proxy blocks\nbwrap --dev-bind / / --unshare-net --die-with-parent /bin/bash -c \"./AphroArchive & sleep 2 && x-www-browser http://127.0.0.1:3000\"' > dist/AphroArchive-Tails.sh && chmod +x dist/AphroArchive-Tails.sh"
   },
@@ -20,24 +20,23 @@
       "public/**/*"
     ],
     "targets": [
-      "node20-win-x64",
-      "node20-linux-x64"
+      "node22-win-x64",
+      "node22-linux-x64"
     ],
     "outputPath": "dist"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.4",
-    "@capacitor/cli": "^8.3.4",
-    "@capacitor/core": "^8.3.4",
-    "@capacitor/preferences": "^8.0.1",
     "@preact/signals": "^2.9.0",
-    "better-sqlite3": "^12.10.0",
     "preact": "^10.29.1"
   },
   "optionalDependencies": {
     "node-llama-cpp": "^3.18.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/preferences": "^8.0.1",
     "@preact/preset-vite": "^2.10.5",
     "@types/node": "^20.17.10",
     "@types/react": "^19.2.14",

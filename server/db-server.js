@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  db.js — All load/save functions for persistent data
 // ═══════════════════════════════════════════════════════════════════
@@ -19,7 +19,7 @@ const {
   LINK_DIR,
 } = require('./config-server');
 
-const Database = require('better-sqlite3');
+const { DatabaseSync } = require('node:sqlite');
 
 // ── In-memory write-through caches ──────────────────────────────────
 let _favs       = null;
@@ -32,6 +32,13 @@ let _studios    = null;
 
 let db;
 let currentProfile = 'default';
+
+// Wraps a synchronous function in a BEGIN/COMMIT/ROLLBACK block
+function txn(fn) {
+  db.exec('BEGIN');
+  try { fn(); db.exec('COMMIT'); }
+  catch (e) { try { db.exec('ROLLBACK'); } catch {} throw e; }
+}
 
 function ensureSchema(database) {
   database.exec(`
@@ -220,9 +227,9 @@ function switchProfile(profileName) {
   }
   const dbPath = path.join(__dirname, `../db/aphroarchive_${profileName}.db`);
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  db = new Database(dbPath);
+  db = new DatabaseSync(dbPath);
   ensureSchema(db);
-  
+
   // Clear caches
   _favs       = null;
   _history    = null;
@@ -231,7 +238,7 @@ function switchProfile(profileName) {
   _actors     = null;
   _categories = null;
   _studios    = null;
-  
+
   return db;
 }
 
@@ -252,7 +259,7 @@ const videoCount = db.prepare('SELECT COUNT(*) as count FROM videos').get().coun
 if (videoCount === 0) {
   console.log('Migrating data from JSON to SQLite...');
   try {
-    db.transaction(() => {
+    txn(() => {
       // Migrate Video Meta
       if (fs.existsSync(VIDEO_META_FILE)) {
         const meta = JSON.parse(fs.readFileSync(VIDEO_META_FILE, 'utf-8'));
@@ -296,7 +303,7 @@ if (videoCount === 0) {
           }
         }
       }
-    })();
+    });
     console.log('Migration to SQLite complete!');
   } catch (e) {
     console.error('Failed to migrate data to SQLite:', e);
@@ -308,7 +315,7 @@ const categoryCount = db.prepare('SELECT COUNT(*) as count FROM categories').get
 if (categoryCount === 0) {
   console.log('Migrating categories, studios, and websites from JSON to SQLite...');
   try {
-    db.transaction(() => {
+    txn(() => {
       // Migrate Categories
       if (fs.existsSync(CATEGORIES_JSON)) {
         const cats = JSON.parse(fs.readFileSync(CATEGORIES_JSON, 'utf-8'));
@@ -344,7 +351,7 @@ if (categoryCount === 0) {
           }
         }
       }
-    })();
+    });
     console.log('Migration of categories, studios, and websites complete!');
   } catch (e) {
     console.error('Failed to migrate categories, studios, and websites:', e);
@@ -359,10 +366,10 @@ function _migrateJsonToSqlite() {
     const actorCount = db.prepare('SELECT COUNT(*) as c FROM actors').get().c;
     if (actorCount === 0 && fs.existsSync(ACTORS_JSON)) {
       const raw = JSON.parse(fs.readFileSync(ACTORS_JSON, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO actors (name, date_of_birth, nationality, imdb_page) VALUES (?, ?, ?, ?)');
         for (const [name, d] of Object.entries(raw)) ins.run(name, d.date_of_birth || null, d.nationality || null, d.imdb_page || null);
-      })();
+      });
       console.log('[migrate] actors.json → actors table');
     }
   } catch (e) { console.error('[migrate] actors:', e.message); }
@@ -373,10 +380,10 @@ function _migrateJsonToSqlite() {
     if (bmCount === 0 && fs.existsSync(BM_CACHE_FILE)) {
       const data = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
       const items = Array.isArray(data.items) ? data.items : [];
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO links (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
         for (const it of items) ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null, it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now());
-      })();
+      });
       console.log(`[migrate] links_cache.json → links table (${items.length} items)`);
     }
   } catch (e) { console.error('[migrate] links:', e.message); }
@@ -386,10 +393,10 @@ function _migrateJsonToSqlite() {
     const ogCount = db.prepare('SELECT COUNT(*) as c FROM og_thumbs').get().c;
     if (ogCount === 0 && fs.existsSync(OG_THUMB_CACHE_FILE)) {
       const raw = JSON.parse(fs.readFileSync(OG_THUMB_CACHE_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO og_thumbs (url, img, ts) VALUES (?, ?, ?)');
         for (const [url, v] of Object.entries(raw)) ins.run(url, v.img ?? null, v.ts ?? null);
-      })();
+      });
       console.log('[migrate] og_thumb_cache.json → og_thumbs table');
     }
   } catch (e) { console.error('[migrate] og_thumbs:', e.message); }
@@ -399,13 +406,13 @@ function _migrateJsonToSqlite() {
     const tcCount = db.prepare('SELECT COUNT(*) as c FROM thumbs_cache').get().c;
     if (tcCount === 0 && fs.existsSync(THUMBS_CACHE_FILE)) {
       const raw = JSON.parse(fs.readFileSync(THUMBS_CACHE_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO thumbs_cache (video_id, duration, data) VALUES (?, ?, ?)');
         for (const [id, entry] of Object.entries(raw)) {
           const { duration, ...rest } = entry;
           ins.run(id, duration ?? null, Object.keys(rest).length ? JSON.stringify(rest) : null);
         }
-      })();
+      });
       console.log('[migrate] thumbcache.json → thumbs_cache table');
     }
   } catch (e) { console.error('[migrate] thumbs_cache:', e.message); }
@@ -416,10 +423,10 @@ function _migrateJsonToSqlite() {
     const HASHES_FILE = path.join(path.join(__dirname, '../cache'), '.AphroArchive-visual-hashes.json');
     if (hashCount === 0 && fs.existsSync(HASHES_FILE)) {
       const raw = JSON.parse(fs.readFileSync(HASHES_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO visual_hashes (video_id, hash) VALUES (?, ?)');
         for (const [id, hash] of Object.entries(raw)) ins.run(id, hash);
-      })();
+      });
       console.log('[migrate] visual-hashes.json → visual_hashes table');
     }
   } catch (e) { console.error('[migrate] visual_hashes:', e.message); }
@@ -430,10 +437,10 @@ function _migrateJsonToSqlite() {
     if (pCount === 0 && fs.existsSync(PROMPTS_FILE)) {
       const raw = JSON.parse(fs.readFileSync(PROMPTS_FILE, 'utf-8'));
       if (Array.isArray(raw) && raw.length) {
-        db.transaction(() => {
+        txn(() => {
           const ins = db.prepare('INSERT OR IGNORE INTO prompts (id, text, sites, created_at) VALUES (?, ?, ?, ?)');
           for (const p of raw) ins.run(p.id, p.text, JSON.stringify(p.sites || []), p.createdAt || Date.now());
-        })();
+        });
         console.log(`[migrate] prompts.json → prompts table (${raw.length} prompts)`);
       }
     }
@@ -447,7 +454,7 @@ function _migrateJsonToSqlite() {
       if (fs.existsSync(cacheDir)) {
         const files = fs.readdirSync(cacheDir).filter(f => f.startsWith('comments_') && f.endsWith('.json'));
         if (files.length) {
-          db.transaction(() => {
+          txn(() => {
             const ins = db.prepare('INSERT OR IGNORE INTO comments (video_id, data) VALUES (?, ?)');
             for (const f of files) {
               try {
@@ -456,7 +463,7 @@ function _migrateJsonToSqlite() {
                 ins.run(videoId, data);
               } catch {}
             }
-          })();
+          });
           console.log(`[migrate] ${files.length} comment files → comments table`);
         }
       }
@@ -468,10 +475,10 @@ function _migrateJsonToSqlite() {
     const bCount = db.prepare('SELECT COUNT(*) as c FROM books_meta').get().c;
     if (bCount === 0 && fs.existsSync(BOOKS_META_FILE)) {
       const raw = JSON.parse(fs.readFileSync(BOOKS_META_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO books_meta (filename, title, ext, size, size_f, date, type) VALUES (?, ?, ?, ?, ?, ?, ?)');
         for (const [fn, d] of Object.entries(raw)) ins.run(fn, d.title ?? null, d.ext ?? null, d.size ?? 0, d.sizeF ?? null, d.date ?? null, d.type ?? null);
-      })();
+      });
       console.log('[migrate] books/.meta.json → books_meta table');
     }
   } catch (e) { console.error('[migrate] books_meta:', e.message); }
@@ -481,10 +488,10 @@ function _migrateJsonToSqlite() {
     const aCount = db.prepare('SELECT COUNT(*) as c FROM audio_meta').get().c;
     if (aCount === 0 && fs.existsSync(AUDIO_META_FILE)) {
       const raw = JSON.parse(fs.readFileSync(AUDIO_META_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO audio_meta (filename, title, ext, size, size_f, date) VALUES (?, ?, ?, ?, ?, ?)');
         for (const [fn, d] of Object.entries(raw)) ins.run(fn, d.title ?? null, d.ext ?? null, d.size ?? 0, d.sizeF ?? null, d.date ?? null);
-      })();
+      });
       console.log('[migrate] audio/.meta.json → audio_meta table');
     }
   } catch (e) { console.error('[migrate] audio_meta:', e.message); }
@@ -522,13 +529,13 @@ function loadFavs() {
 function saveFavs(f) {
   _favs = f;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM favourites').run();
       const insert = db.prepare('INSERT INTO favourites (video_id) VALUES (?)');
       for (const id of f) {
         insert.run(id);
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save favourites to SQLite:', e);
   }
@@ -552,14 +559,14 @@ function loadHistory() {
 function saveHistory(h) {
   _history = h;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM history').run();
       const insert = db.prepare('INSERT INTO history (video_id, timestamp) VALUES (?, ?)');
       let ts = Date.now();
       for (const id of h) {
         insert.run(id, ts--); // Use decreasing timestamps to maintain order
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save history to SQLite:', e);
   }
@@ -651,7 +658,7 @@ function loadVideoMeta() {
       const rows = db.prepare('SELECT * FROM videos').all();
       const getActors = db.prepare('SELECT actor FROM video_actors WHERE video_id = ?');
       const getTags = db.prepare('SELECT tag FROM video_tags WHERE video_id = ?');
-      
+
       for (const row of rows) {
         const actors = getActors.all(row.id).map(r => r.actor);
         const tags = getTags.all(row.id).map(r => r.tag);
@@ -678,11 +685,11 @@ function saveVideoMeta(m) {
   // This is a legacy fallback. In SQLite we should use setVideoMetaFields.
   // But if we must save the whole object, we can do it in a transaction.
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM video_actors').run();
       db.prepare('DELETE FROM video_tags').run();
       db.prepare('DELETE FROM videos').run();
-      
+
       const insertVideo = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date) VALUES (?, ?, ?, ?, ?, ?, ?)');
       const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
       const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
@@ -696,7 +703,7 @@ function saveVideoMeta(m) {
           for (const tag of data.tags) insertTag.run(id, tag);
         }
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save video meta to SQLite:', e);
   }
@@ -706,13 +713,13 @@ function setVideoMetaFields(id, fields) {
   const meta = loadVideoMeta();
   if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
   Object.assign(meta[id], fields);
-  
+
   try {
-    db.transaction(() => {
+    txn(() => {
       const stmt = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, studio=excluded.studio, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date');
       const current = meta[id];
       stmt.run(id, current.title || '', current.studio || '', current.category || '', current.rating || null, current.note || '', current.date || '');
-      
+
       if (fields.actors) {
         db.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
         const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
@@ -723,7 +730,7 @@ function setVideoMetaFields(id, fields) {
         const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
         for (const tag of fields.tags) insertTag.run(id, tag);
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to set video meta fields in SQLite:', e);
   }
@@ -750,14 +757,14 @@ function loadThumbsCache() {
 function saveThumbsCache(c) {
   _thumbs = c;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM thumbs_cache').run();
       const ins = db.prepare('INSERT INTO thumbs_cache (video_id, duration, data) VALUES (?, ?, ?)');
       for (const [id, entry] of Object.entries(c)) {
         const { duration, ...rest } = entry;
         ins.run(id, duration ?? null, Object.keys(rest).length ? JSON.stringify(rest) : null);
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save thumbs cache to SQLite:', e);
   }
@@ -852,13 +859,13 @@ function loadCollections() {
 
 function saveCollections(c) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM collections').run();
       const insert = db.prepare('INSERT INTO collections (id, name, video_ids) VALUES (?, ?, ?)');
       for (const coll of c) {
         insert.run(coll.id, coll.name, JSON.stringify(coll.video_ids || []));
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save collections to SQLite:', e);
   }
@@ -870,7 +877,7 @@ function loadHidden() {
   try {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('hidden_terms');
     if (row) return JSON.parse(row.value);
-    
+
     // Fallback to file and migrate
     if (fs.existsSync(HIDDEN_FILE)) {
       const lines = fs.readFileSync(HIDDEN_FILE, 'utf-8')
@@ -909,7 +916,7 @@ function loadWebsites() {
 
 function saveWebsites(s) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM website_tags').run();
       db.prepare('DELETE FROM websites').run();
       const insertSite = db.prepare('INSERT INTO websites (name, url, search_url, scrape_method, description) VALUES (?, ?, ?, ?, ?)');
@@ -921,7 +928,7 @@ function saveWebsites(s) {
           for (const tag of site.tags) insertTag.run(name, tag);
         }
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save websites to SQLite:', e);
   }
@@ -1057,11 +1064,11 @@ function saveLinksCache(data) {
     items.push(it);
   }
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM links').run();
       const ins = db.prepare(`INSERT INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`);
       for (const it of items) ins.run(_linkParams(it));
-    })();
+    });
   } catch (e) { console.error('Failed to save links cache to SQLite:', e); }
 }
 
@@ -1078,13 +1085,13 @@ function loadBooksMeta() {
 
 function saveBooksMeta(m) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM books_meta').run();
       const ins = db.prepare('INSERT INTO books_meta (filename, title, ext, size, size_f, date, type) VALUES (?, ?, ?, ?, ?, ?, ?)');
       for (const [filename, d] of Object.entries(m)) {
         ins.run(filename, d.title ?? null, d.ext ?? null, d.size ?? 0, d.sizeF ?? null, d.date ?? null, d.type ?? null);
       }
-    })();
+    });
   } catch (e) { console.error('Failed to save books meta:', e); }
 }
 
@@ -1101,13 +1108,13 @@ function loadAudioMeta() {
 
 function saveAudioMeta(m) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM audio_meta').run();
       const ins = db.prepare('INSERT INTO audio_meta (filename, title, ext, size, size_f, date) VALUES (?, ?, ?, ?, ?, ?)');
       for (const [filename, d] of Object.entries(m)) {
         ins.run(filename, d.title ?? null, d.ext ?? null, d.size ?? 0, d.sizeF ?? null, d.date ?? null);
       }
-    })();
+    });
   } catch (e) { console.error('Failed to save audio meta:', e); }
 }
 
@@ -1152,11 +1159,11 @@ function setVisualHash(videoId, hash) {
 
 function saveVisualHashes(hashes) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM visual_hashes').run();
       const ins = db.prepare('INSERT INTO visual_hashes (video_id, hash) VALUES (?, ?)');
       for (const [id, hash] of Object.entries(hashes)) ins.run(id, hash);
-    })();
+    });
   } catch (e) { console.error('Failed to save visual hashes:', e); }
 }
 
@@ -1244,13 +1251,13 @@ function loadActors() {
 function saveActors(raw) {
   _actors = null;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM actors').run();
       const ins = db.prepare('INSERT INTO actors (name, date_of_birth, nationality, imdb_page) VALUES (?, ?, ?, ?)');
       for (const [name, data] of Object.entries(raw)) {
         ins.run(name, data.date_of_birth || null, data.nationality || null, data.imdb_page || null);
       }
-    })();
+    });
   } catch (e) { console.error('Failed to save actors to SQLite:', e); }
 }
 
@@ -1302,13 +1309,10 @@ function saveEnabledCategories(paths) {
   try {
     const insert = db.prepare('INSERT OR IGNORE INTO enabled_categories (path) VALUES (?)');
     const del = db.prepare('DELETE FROM enabled_categories');
-    
-    const transaction = db.transaction((list) => {
+    txn(() => {
       del.run();
-      for (const p of list) insert.run(p);
+      for (const p of paths) insert.run(p);
     });
-    
-    transaction(paths);
   } catch (e) {
     console.error('Failed to save enabled categories:', e);
   }
@@ -1317,7 +1321,7 @@ function saveEnabledCategories(paths) {
 function saveCategories(cats) {
   _categories = null;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM category_tags').run();
       db.prepare('DELETE FROM categories').run();
       const insertCat = db.prepare('INSERT INTO categories (name, display_name) VALUES (?, ?)');
@@ -1328,7 +1332,7 @@ function saveCategories(cats) {
           for (const tag of data.tags) insertCatTag.run(name, tag);
         }
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save categories to SQLite:', e);
   }
@@ -1362,13 +1366,13 @@ function loadStudios() {
 function saveStudios(studios) {
   _studios = null;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM studios').run();
       const insertStudio = db.prepare('INSERT INTO studios (name, website, description) VALUES (?, ?, ?)');
       for (const [name, data] of Object.entries(studios)) {
         insertStudio.run(name, data.website || null, data.short_description || data.description || null);
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save studios to SQLite:', e);
   }
@@ -1423,7 +1427,7 @@ function loadVideoIndex() {
 
 function saveVideoIndex(videos) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM video_index').run();
       const insert = db.prepare(
         'INSERT INTO video_index (id, name, filename, ext, rel, cat_path, category, size, size_f, mtime, modified, is_external, encrypted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -1436,7 +1440,7 @@ function saveVideoIndex(videos) {
           v.isExternal ? 1 : 0, v.encrypted ? 1 : 0
         );
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save video index to SQLite:', e);
   }
@@ -1459,12 +1463,12 @@ function loadAllVideoTags() {
 function saveLinksToDb(items) {
   const cats = loadCategories();
   const { wordMatchAny } = require('./helpers-server');
-  
+
   try {
     const seenUrls = new Set();
     const seenNames = new Set();
     let inserted = 0;
-    db.transaction(() => {
+    txn(() => {
       const insertVideo = db.prepare('INSERT OR IGNORE INTO videos (id, title, category) VALUES (?, ?, ?)');
       for (const item of items) {
         if (!item || !item.url) continue;
@@ -1484,7 +1488,7 @@ function saveLinksToDb(items) {
         insertVideo.run(id, item.title, category);
         inserted++;
       }
-    })();
+    });
     return { ok: true, count: inserted };
   } catch (e) {
     console.error('Failed to save links to SQLite:', e);
