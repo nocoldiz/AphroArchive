@@ -20,7 +20,8 @@ const {
   VAULT_DIR,
 } = require('./config-server');
 
-const { DatabaseSync } = require('node:sqlite');
+// eval bypasses pkg's static analyser which can't resolve the node: scheme
+const { DatabaseSync } = eval("require('node:sqlite')");
 
 // ── In-memory write-through caches ──────────────────────────────────
 let _favs       = null;

@@ -29,7 +29,10 @@ const YT_DLP_BIN = (() => {
 const VIDEOS_DIR = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || path.join(DATA_DIR, 'videos'));
 const AUDIO_DIR = path.join(DATA_DIR, 'audio');
 const PORT = parseInt(process.argv[3] || process.env.PORT || '3000', 10);
-const PUBLIC_DIR = path.join(ROOT_DIR, 'public');           // bundled read-only assets
+const DIST_PUBLIC = path.join(ROOT_DIR, 'dist', 'public');
+const PUBLIC_DIR = fs.existsSync(path.join(DIST_PUBLIC, 'index.html'))
+  ? DIST_PUBLIC
+  : path.join(ROOT_DIR, 'public');
 const CACHE_DIR = path.join(DATA_DIR, 'cache');
 const THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-thumbs');
 const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');

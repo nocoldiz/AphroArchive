@@ -12,7 +12,8 @@ motherless_downloads/
 video_downloads/
 db/websites.json
 db/studios.json
-dist/
+dist/*
+!dist/public
 .AphroArchive-thumbs
 .AphroArchive-actor-photos
 settings

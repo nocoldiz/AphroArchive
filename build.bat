@@ -19,7 +19,7 @@ echo.
 :: 2. Windows
 :: ============================================================
 echo [2/5] Packaging Windows (x64)...
-call npx pkg . --targets node20-win-x64 --output dist\AphroArchive.exe --compress GZip
+call npx pkg . --targets node22-win-x64 --output dist\AphroArchive.exe --compress GZip
 if %ERRORLEVEL% NEQ 0 ( echo  FAILED: Windows build & exit /b 1 )
 echo  done: dist\AphroArchive.exe
 echo.
@@ -28,7 +28,7 @@ echo.
 :: 3. Linux
 :: ============================================================
 echo [3/5] Packaging Linux (x64)...
-call npx pkg . --targets node20-linux-x64 --output dist\AphroArchive-linux --compress GZip
+call npx pkg . --targets node22-linux-x64 --output dist\AphroArchive-linux --compress GZip
 if %ERRORLEVEL% NEQ 0 ( echo  FAILED: Linux build & exit /b 1 )
 echo  done: dist\AphroArchive-linux
 echo.
@@ -38,10 +38,10 @@ echo.
 :: ============================================================
 echo [4/5] Packaging macOS...
 
-call npx pkg . --targets node20-macos-arm64 --output dist\AphroArchive-macos-arm64 --compress GZip
+call npx pkg . --targets node22-macos-arm64 --output dist\AphroArchive-macos-arm64 --compress GZip
 if %ERRORLEVEL% NEQ 0 ( echo  FAILED: macOS arm64 build & exit /b 1 )
 
-call npx pkg . --targets node20-macos-x64 --output dist\AphroArchive-macos-x64 --compress GZip
+call npx pkg . --targets node22-macos-x64 --output dist\AphroArchive-macos-x64 --compress GZip
 if %ERRORLEVEL% NEQ 0 ( echo  FAILED: macOS x64 build & exit /b 1 )
 
 :: Create macOS package with .app launcher
