@@ -10,14 +10,16 @@ set DO_WINDOWS=0
 set DO_LINUX=0
 set DO_MAC=0
 set DO_ANDROID=0
+set DO_ELECTRON=0
 set ANY_FLAG=0
 
 :parse_args
 if "%~1"=="" goto :done_args
-if /i "%~1"=="--windows" ( set DO_WINDOWS=1 & set ANY_FLAG=1 )
-if /i "%~1"=="--linux"   ( set DO_LINUX=1   & set ANY_FLAG=1 )
-if /i "%~1"=="--mac"     ( set DO_MAC=1     & set ANY_FLAG=1 )
-if /i "%~1"=="--android" ( set DO_ANDROID=1 & set ANY_FLAG=1 )
+if /i "%~1"=="--windows"  ( set DO_WINDOWS=1  & set ANY_FLAG=1 )
+if /i "%~1"=="--linux"    ( set DO_LINUX=1    & set ANY_FLAG=1 )
+if /i "%~1"=="--mac"      ( set DO_MAC=1      & set ANY_FLAG=1 )
+if /i "%~1"=="--android"  ( set DO_ANDROID=1  & set ANY_FLAG=1 )
+if /i "%~1"=="--electron" ( set DO_ELECTRON=1 & set ANY_FLAG=1 )
 shift
 goto :parse_args
 :done_args
@@ -29,10 +31,11 @@ if !ANY_FLAG!==0 (
   set DO_ANDROID=1
 )
 
-if !DO_WINDOWS!==1 echo  Target: Windows
-if !DO_LINUX!==1   echo  Target: Linux
-if !DO_MAC!==1     echo  Target: macOS
-if !DO_ANDROID!==1 echo  Target: Android
+if !DO_WINDOWS!==1  echo  Target: Windows ^(pkg exe^)
+if !DO_ELECTRON!==1 echo  Target: Windows ^(Electron installer^)
+if !DO_LINUX!==1    echo  Target: Linux
+if !DO_MAC!==1      echo  Target: macOS
+if !DO_ANDROID!==1  echo  Target: Android
 echo.
 
 if not exist dist mkdir dist
@@ -41,9 +44,10 @@ if not exist dist mkdir dist
 :: Frontend build — desktop (needed for Windows / Linux / Mac)
 :: ============================================================
 set NEED_DESKTOP=0
-if !DO_WINDOWS!==1 set NEED_DESKTOP=1
-if !DO_LINUX!==1   set NEED_DESKTOP=1
-if !DO_MAC!==1     set NEED_DESKTOP=1
+if !DO_WINDOWS!==1  set NEED_DESKTOP=1
+if !DO_LINUX!==1    set NEED_DESKTOP=1
+if !DO_MAC!==1      set NEED_DESKTOP=1
+if !DO_ELECTRON!==1 set NEED_DESKTOP=1
 
 if !NEED_DESKTOP!==1 (
   echo [build] Building frontend ^(desktop^)...
@@ -61,6 +65,17 @@ if !DO_WINDOWS!==1 (
   call npx pkg . --targets node24-win-x64 --output dist\AphroArchive.exe --compress GZip
   if %ERRORLEVEL% NEQ 0 ( echo  FAILED: Windows build & exit /b 1 )
   echo  done: dist\AphroArchive.exe
+  echo.
+)
+
+:: ============================================================
+:: Electron (Windows installer)
+:: ============================================================
+if !DO_ELECTRON!==1 (
+  echo [electron] Building Electron installer ^(Windows^)...
+  call npx electron-builder --win
+  if %ERRORLEVEL% NEQ 0 ( echo  FAILED: Electron build & exit /b 1 )
+  echo  done: dist\electron\
   echo.
 )
 
@@ -165,7 +180,8 @@ if !DO_ANDROID!==1 (
 echo ============================================================
 echo  Build complete. Outputs in dist\:
 echo.
-if exist dist\AphroArchive.exe          echo    AphroArchive.exe            Windows x64
+if exist dist\AphroArchive.exe          echo    AphroArchive.exe            Windows x64 ^(pkg^)
+if exist dist\electron\                 echo    electron\                   Windows Electron installer
 if exist dist\AphroArchive-linux        echo    AphroArchive-linux          Linux x64
 if exist dist\AphroArchive-mac.zip      echo    AphroArchive-mac.zip        macOS (arm64 + x64)
 if exist dist\AphroArchive.apk          echo    AphroArchive.apk            Android

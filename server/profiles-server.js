@@ -17,6 +17,9 @@ function markSetupDone() {
 }
 
 function isDbInitialized() {
+  // Primary: check whether the default DB file has been written to disk
+  if (fs.existsSync(path.join(DB_DIR, 'aphroarchive_default.db'))) return true;
+  // Fallback: setup.done covers the profile-creation path and legacy installs
   return fs.existsSync(SETUP_DONE_FILE);
 }
 
@@ -167,11 +170,13 @@ async function apiApplyPreset(req, res) {
     return json(res, { error: 'Invalid selection' }, 400);
   }
 
+  const db = require('./db-server');
+  // First run: promote in-memory DB to a real file before writing preset data
+  if (!db.isDbOnDisk()) db.switchProfile('default');
+
   writeDb(merged, !!merge);
   markSetupDone();
 
-  // Bust in-memory caches
-  const db = require('./db-server');
   db.invalidateDbTypeCache('actors');
   db.invalidateDbTypeCache('categories');
   db.invalidateDbTypeCache('studios');
@@ -228,6 +233,7 @@ async function apiCreateProfile(req, res) {
     db.saveCategories(data.categories);
     db.saveStudios(data.studios);
     db.saveWebsites(data.websites);
+    db.saveActors(data.actors);
   }
   markSetupDone();
 

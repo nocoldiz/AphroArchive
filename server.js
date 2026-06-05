@@ -497,7 +497,7 @@ server.listen(PORT, () => {
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);
   console.log(`  \x1b[90m📁  Videos: ${VIDEOS_DIR}\x1b[0m`);
   console.log(`  \x1b[90m📂  Public: ${path.join(__dirname, 'public')}\x1b[0m\n`);
-  if (IS_PKG) {
+  if (IS_PKG && !process.env.APHRO_ELECTRON) {
     const openCmd = process.platform === 'win32' ? `start http://localhost:${PORT}`
       : process.platform === 'darwin' ? `open http://localhost:${PORT}`
         : `xdg-open http://localhost:${PORT}`;

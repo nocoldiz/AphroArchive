@@ -35,6 +35,7 @@ let _studios    = null;
 
 let db;
 let currentProfile = 'default';
+let _dbInMemory = false;
 
 // Wraps a synchronous function in a BEGIN/COMMIT/ROLLBACK block
 function txn(fn) {
@@ -225,6 +226,7 @@ function ensureSchema(database) {
 
 function switchProfile(profileName) {
   currentProfile = profileName;
+  _dbInMemory = false;
   if (db) {
     try { db.close(); } catch(e) {}
   }
@@ -245,16 +247,25 @@ function switchProfile(profileName) {
   return db;
 }
 
-// Initialize with last active profile (or default)
+// Initialize with last active profile (or default); defer disk creation until preset is chosen
 {
   let startProfile = 'default';
   try {
     const _lastFile = path.join(DB_DIR, 'last-profile.txt');
-    const _name = require('fs').readFileSync(_lastFile, 'utf-8').trim();
+    const _name = fs.readFileSync(_lastFile, 'utf-8').trim();
     const _dbPath = path.join(DB_DIR, `aphroarchive_${_name}.db`);
-    if (_name && _name !== 'Vault' && require('fs').existsSync(_dbPath)) startProfile = _name;
+    if (_name && _name !== 'Vault' && fs.existsSync(_dbPath)) startProfile = _name;
   } catch {}
-  switchProfile(startProfile);
+  const _startDbPath = path.join(DB_DIR, `aphroarchive_${startProfile}.db`);
+  if (fs.existsSync(_startDbPath)) {
+    switchProfile(startProfile);
+  } else {
+    // First run — no DB on disk yet; stay in memory until the user picks a preset
+    currentProfile = startProfile;
+    _dbInMemory = true;
+    db = new DatabaseSync(':memory:');
+    ensureSchema(db);
+  }
 }
 
 
@@ -1475,6 +1486,7 @@ module.exports = {
   readDbFile, writeDbFile,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   switchProfile, getCurrentProfile: () => currentProfile,
+  isDbOnDisk: () => !_dbInMemory,
   closeDb: () => { if (db) { db.close(); db = null; } },
   saveLinksToDb, loadAllVideoTags,
 };
