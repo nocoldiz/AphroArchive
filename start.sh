@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 cd "$(dirname "$0")"
 
+FORCE_INSTALL=0
+if [[ "$1" == "--install" ]]; then FORCE_INSTALL=1; fi
+
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -16,7 +19,7 @@ OS="$(uname -s)"
 ARCH="$(uname -m)"
 
 # ── First-run install ─────────────────────────────────────────────────────────
-if [ ! -d "node_modules" ]; then
+if [ ! -d "node_modules" ] || [ "$FORCE_INSTALL" = "1" ]; then
     echo ""
     echo -e "${BOLD} AphroArchive — First Run Setup${NC}"
     echo " =============================="

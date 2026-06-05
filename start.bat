@@ -3,7 +3,10 @@ setlocal enabledelayedexpansion
 title AphroArchive
 cd /d "%~dp0"
 
-if exist "node_modules" goto :launch
+set FORCE_INSTALL=0
+if "%~1"=="--install" set FORCE_INSTALL=1
+
+if exist "node_modules" if not "!FORCE_INSTALL!"=="1" goto :launch
 
 :: ════════════════════════════════════════════════════════════
 ::  First Run Setup
