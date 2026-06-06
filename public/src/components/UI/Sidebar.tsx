@@ -1,5 +1,5 @@
-﻿import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile } from '../../store';
+import { useState, useEffect } from 'preact/hooks';
+import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -139,6 +139,7 @@ export const Sidebar = () => {
     currentView.value = 'browse';
     currentCategory.value = catName;
     currentTag.value = null; currentTagTerms.value = [];
+    searchQuery.value = '';
     isSidebarOpen.value = false;
     // Compatibility
     (window as any).cat = catName;
@@ -147,7 +148,7 @@ export const Sidebar = () => {
 
   const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
-  // Derive filtered counts from allVideos + sourceFilter so badges update when filter changes
+  // Use the counts already provided by the server's categories API — no client-side recomputation
   const sf = sourceFilter.value;
   const vids = allVideos.value;
   const filteredVids = sf === 'local'
@@ -156,23 +157,19 @@ export const Sidebar = () => {
     ? vids.filter(v => !!(v as any).isLink)
     : vids;
 
-  const catCountMap = new Map<string, number>();
-  let uncategorizedCount = 0;
-  for (const v of filteredVids) {
-    const cp = ((v as any).catPath as string) || '';
-    if (!cp) {
-      uncategorizedCount++;
-      continue;
-    }
-    const parts = cp.split('/');
-    let cur = '';
-    for (const p of parts) {
-      cur = cur ? cur + '/' + p : p;
-      catCountMap.set(cur, (catCountMap.get(cur) || 0) + 1);
-    }
-  }
   const displayCategories = categories.value
-    .map(c => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (catCountMap.get(c.path) || 0) }))
+    .map(c => {
+      // Use the count from the server response; if missing (e.g. for link-only cats), compute from filteredVids
+      let count = c.count || 0;
+      if (count === 0 && c.path !== 'uncategorized') {
+        count = filteredVids.filter(v => {
+          const vp = ((v as any).catPath || '').toLowerCase();
+          const cl = c.path.toLowerCase();
+          return vp === cl || vp.startsWith(cl + '/');
+        }).length;
+      }
+      return { ...c, count };
+    })
     .filter(c => {
       // In vault mode show only fully-encrypted categories
       if (inVaultMode) return !!c.encrypted;
@@ -436,14 +433,19 @@ export const Sidebar = () => {
             label={inVaultMode ? 'Encrypted Folders' : 'Folders'}
             id="sh3-cats"
             onClick={() => setCatsOpen(v => !v)}
-            action={!inVaultMode ? (
-              <button type="button" className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-            ) : undefined}
+            action={
+              <span className="sidebar-heading-actions">
+                {isLoadingVideos.value && <span className="sidebar-loading-spin" />}
+                {!inVaultMode && (
+                  <button type="button" className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                )}
+              </span>
+            }
           />
           <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
             <SidebarItem
@@ -543,6 +545,7 @@ export const Sidebar = () => {
                   currentCategory.value = '';
                   currentTag.value = t.name;
                   currentTagTerms.value = t.terms;
+                  searchQuery.value = '';
                   currentView.value = 'browse';
                   isSidebarOpen.value = false;
                 }}

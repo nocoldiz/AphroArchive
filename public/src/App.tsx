@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked } from './store';
+import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, categories } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { ConnectModal } from './components/modals/ConnectModal';
@@ -45,6 +45,22 @@ export function App() {
   useEffect(() => {
     // Signal server that the page is loaded — triggers deferred heavy work
     fetch('/api/ready', { method: 'POST' }).catch(() => {});
+
+    // Kick off preload immediately — fast metadata from DB
+    fetch('/api/preload').then(r => r.json()).then(preload => {
+      (window as any).__preloaded = preload;
+      // Populate folder list immediately from DB index so sidebar shows names before full scan
+      if (preload.catCounts && categories.value.length === 0) {
+        const initial = Object.entries(preload.catCounts as Record<string, number>)
+          .map(([p, count]) => ({ name: p.replace(/\//g, ' / '), path: p, count }))
+          .sort((a, b) => {
+            if (a.path === 'uncategorized') return -1;
+            if (b.path === 'uncategorized') return 1;
+            return a.name.localeCompare(b.name);
+          });
+        categories.value = initial;
+      }
+    }).catch(() => {});
 
     loadVideos();
     loadCategories();

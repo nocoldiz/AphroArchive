@@ -1,4 +1,4 @@
-﻿import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
+import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
@@ -25,6 +25,13 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
   const [dlQueued, setDlQueued] = useState(false);
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  const openLink = useCallback((e: any) => {
+    e.stopPropagation();
+    if (video.linkUrl) {
+      window.open(video.linkUrl, '_blank');
+    }
+  }, [video]);
 
   const downloadLink = useCallback(async (e: any) => {
     e.stopPropagation();
@@ -241,18 +248,31 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
             </button>
           )}
           {video.isLink && (
-            <button
-              onClick={downloadLink}
-              title={dlQueued ? 'Download queued…' : 'Download video'}
-              className={dlQueued ? 'fav-active' : ''}
-              style={{ opacity: dlQueued ? 0.5 : 1 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-            </button>
+            <>
+              <button
+                onClick={openLink}
+                title="Open in browser"
+                style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', color: 'white' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </button>
+              <button
+                onClick={downloadLink}
+                title={dlQueued ? 'Download queued…' : 'Download video'}
+                className={dlQueued ? 'fav-active' : ''}
+                style={{ opacity: dlQueued ? 0.5 : 1 }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </button>
+            </>
           )}
           <button onClick={openCtx} title="Menu">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>

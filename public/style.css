@@ -3583,6 +3583,26 @@ input {
   background: var(--ac)18
 }
 
+.sidebar-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px
+}
+
+.sidebar-loading-spin {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--tx3);
+  border-top-color: var(--ac);
+  border-radius: 50%;
+  animation: sidebar-spin 0.7s linear infinite;
+  flex-shrink: 0
+}
+
+@keyframes sidebar-spin {
+  to { transform: rotate(360deg) }
+}
+
 .side-section {
   overflow: hidden
 }

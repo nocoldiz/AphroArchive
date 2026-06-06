@@ -32,6 +32,7 @@ const {
   loadLinksCache,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   loadEnabledCategories,
+  getVideoIndexEntry, getSingleVideoMeta,
 } = require('./db-server');
 
 // ── Video scan cache ─────────────────────────────────────────────────
@@ -1014,6 +1015,95 @@ async function apiVideoDetail(req, res, id) {
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
   json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
+}
+
+// ── Lightweight video detail (fast single-lookup) ──────────────────
+async function apiVideoDetailFast(req, res, id) {
+  // Load video from the DB index directly
+  const db = require('./db-server');
+  const v = db.getVideoIndexEntry(id);
+  if (!v) {
+    // Fallback to old method
+    return apiVideoDetail(req, res, id);
+  }
+
+  // Enrich with metadata, favs, duration
+  const meta = db.getSingleVideoMeta(id);
+  const favs = db.loadFavs();
+  const thumbsCache = db.loadThumbsCache();
+  const actors = db.loadActors();
+  const cats = db.loadCategories();
+
+  const fav = favs.includes(id);
+  const cached = thumbsCache[id];
+  const duration = cached?.duration || null;
+  const vMeta = meta || {};
+  const metaTags = vMeta.tags || [];
+  const metaActors = vMeta.actors || [];
+  const filenameActors = actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name);
+  const combinedActors = [...new Set([...metaActors, ...filenameActors])];
+
+  // Build allCategories set
+  const allTagSet = new Set();
+  allTagSet.add(...metaTags);
+  cats.forEach(e => allTagSet.add(e.displayName));
+
+  // Suggested: find up to 8 related from the full allVideos list (without loading everything if possible)
+  const enabledPaths = db.loadEnabledCategories();
+  const allVisible = await allVideos();
+  const visibleVideos = enabledPaths.length ? allVisible.filter(x => isCategoryEnabled(x.catPath, enabledPaths)) : allVisible;
+
+  const suggested = visibleVideos
+    .filter(x => x.id !== v.id)
+    .map(x => {
+      let score = 0;
+      const xMeta = db.getSingleVideoMeta(x.id);
+      const xActors = xMeta?.actors || [];
+      const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
+      score += shared.length * 100;
+      if (x.category === v.category) score += 50;
+      return { video: { ...x, fav: favs.includes(x.id), rating: xMeta?.rating ?? null }, score };
+    })
+    .sort((a, b) => b.score - a.score || Math.random() - 0.5)
+    .slice(0, 12)
+    .map(item => item.video);
+
+  const video = { ...v, fav, rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: metaTags, chapters: vMeta.chapters || [] };
+
+  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
+}
+
+// ── Preload endpoint (fast startup data) ──────────────────────────
+async function apiPreload(req, res) {
+  const db = require('./db-server');
+  // Load categories from server (this calls cachedScan which loads index from DB)
+  // But we can do it faster: just count videos from the index
+  let totalVideos = 0;
+  let catCounts = {};
+  try {
+    const index = db.loadVideoIndex();
+    if (index && index.length > 0) {
+      totalVideos = index.length;
+      // Count per category
+      for (const v of index) {
+        const cp = v.catPath || '';
+        if (!cp) continue;
+        catCounts[cp] = (catCounts[cp] || 0) + 1;
+      }
+    }
+  } catch (e) {
+    // Fallback: just return existing API data
+    console.error('[preload] index load error:', e.message);
+  }
+
+  const enabledPaths = db.loadEnabledCategories();
+
+  json(res, {
+    totalVideos,
+    catCounts,
+    enabledPaths,
+    ok: true
+  });
 }
 
 async function apiStream(req, res, id) {
@@ -2786,7 +2876,7 @@ module.exports = {
   apiVideosUpload, apiRescan,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
   apiGetAllCategories, apiSetEnabledCategories,
-  apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
+  apiVideoDetail, apiVideoDetailFast, apiPreload, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
   apiAddHistory, apiGetHistory, apiClearHistory, apiClearFavourites, apiClearThumbs,
   apiSetRating, apiDeleteRating,

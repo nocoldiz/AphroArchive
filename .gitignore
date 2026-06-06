@@ -4,6 +4,7 @@ audio
 photos
 cache/
 pages
+dist/
 node_modules/
 db/wildcards
 db/actors.json

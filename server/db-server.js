@@ -1391,6 +1391,53 @@ function loadVideoIndex() {
   }
 }
 
+function getVideoIndexEntry(id) {
+  try {
+    const r = db.prepare('SELECT * FROM video_index WHERE id = ?').get(id);
+    if (!r) return null;
+    return {
+      id: r.id,
+      name: r.name,
+      filename: r.filename,
+      ext: r.ext,
+      rel: r.rel,
+      catPath: r.cat_path,
+      category: r.category,
+      size: r.size,
+      sizeF: r.size_f,
+      mtime: r.mtime,
+      modified: r.modified,
+      ...(r.is_external ? { isExternal: true } : {}),
+      ...(r.encrypted ? { encrypted: true } : {}),
+    };
+  } catch (e) {
+    console.error('Failed to get video index entry from SQLite:', e);
+    return null;
+  }
+}
+
+function getSingleVideoMeta(id) {
+  try {
+    const row = db.prepare('SELECT * FROM videos WHERE id = ?').get(id);
+    if (!row) return null;
+    const actors = db.prepare('SELECT actor FROM video_actors WHERE video_id = ?').all(id).map(r => r.actor);
+    const tags = db.prepare('SELECT tag FROM video_tags WHERE video_id = ?').all(id).map(r => r.tag);
+    return {
+      title: row.title || '',
+      studio: row.studio || '',
+      category: row.category || '',
+      rating: row.rating,
+      note: row.note || '',
+      date: row.date || '',
+      actors,
+      tags
+    };
+  } catch (e) {
+    console.error('Failed to get single video meta from SQLite:', e);
+    return null;
+  }
+}
+
 function saveVideoIndex(videos) {
   try {
     txn(() => {
@@ -1484,7 +1531,7 @@ module.exports = {
   loadVisualHashes, setVisualHash, saveVisualHashes,
   loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,
-  loadVideoIndex, saveVideoIndex, clearVideoIndex,
+  loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, getSingleVideoMeta,
   switchProfile, getCurrentProfile: () => currentProfile,
   isDbOnDisk: () => !_dbInMemory,
   closeDb: () => { if (db) { db.close(); db = null; } },

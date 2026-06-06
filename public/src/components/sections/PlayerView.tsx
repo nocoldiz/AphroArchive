@@ -1,4 +1,4 @@
-﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, imagegenInputState } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, imagegenInputState } from '../../store';
 import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
@@ -298,14 +298,14 @@ export const PlayerView = () => {
           {video.isLink ? (
               <div className="bm-fallback" style={{ background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9', gap: '16px' }}>
                 {video.img && (
-                  <a href={video.linkUrl} target="_blank" rel="noopener noreferrer" style={{ maxWidth: '100%', maxHeight: '70%', display: 'flex', justifyContent: 'center' }}>
-                    <img src={video.img} alt={video.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' }} />
-                  </a>
+                  <div style={{ maxWidth: '100%', maxHeight: '70%', display: 'flex', justifyContent: 'center', cursor: 'pointer' }} onClick={() => video.linkUrl && window.open(video.linkUrl, '_blank')}>
+                    <img src={video.img} alt={video.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                  </div>
                 )}
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <a href={video.linkUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ fontSize: '1rem', padding: '10px 20px' }}>
+                  <button onClick={() => video.linkUrl && window.open(video.linkUrl, '_blank')} className="btn" style={{ fontSize: '1rem', padding: '10px 20px', cursor: 'pointer' }}>
                     Open in browser ↗
-                  </a>
+                  </button>
                   <button onClick={() => startDownload()} className="btn" style={{ fontSize: '1rem', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -487,14 +487,14 @@ export const PlayerView = () => {
               
               {video.isLink && (
                 <>
-                  <a href={video.linkUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--tx)', textDecoration: 'none' }}>
+                  <button onClick={() => video.linkUrl && window.open(video.linkUrl, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--tx)' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                       <polyline points="15 3 21 3 21 9"></polyline>
                       <line x1="10" y1="14" x2="21" y2="3"></line>
                     </svg>
                     <span>Open Link</span>
-                  </a>
+                  </button>
                   <button onClick={() => startDownload()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />

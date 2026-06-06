@@ -119,8 +119,8 @@ export const CategorizerView = () => {
   };
 
   const pickCat = (s: Side, path: string) => {
-    if (s === 'left') { setCatL(path); setSelL(new Set()); lastClickL.current = -1; }
-    else              { setCatR(path); setSelR(new Set()); lastClickR.current = -1; }
+    if (s === 'left') { setCatL(path); setSelL(new Set()); setSearchL(''); lastClickL.current = -1; }
+    else              { setCatR(path); setSelR(new Set()); setSearchR(''); lastClickR.current = -1; }
   };
 
   // ── Selection ─────────────────────────────────────────────────────────

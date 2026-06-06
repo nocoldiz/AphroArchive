@@ -327,6 +327,12 @@ export const ContextMenu = () => {
         )}
         {type === 'video' && (
           <>
+            {data.isLink && data.linkUrl && (
+              <ContextItem label="Open Link" icon="link" onClick={() => {
+                window.open(data.linkUrl, '_blank');
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+              }} />
+            )}
             <ContextItem label={data.fav ? "Unfavourite" : "Favourite"} icon="star" onClick={async () => {
               const r = await fetch(`/api/favourites/${data.id}`, { method: 'POST' });
               const d = await r.json();

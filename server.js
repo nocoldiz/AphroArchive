@@ -174,7 +174,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/encryption/status' && req.method === 'GET') return videos.apiEncryptionStatus(req, res);
   if (p === '/api/encryption/stop' && req.method === 'POST') return videos.apiEncryptionStop(req, res);
 
-  if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetail(req, res, m[1]);
+  if (p === '/api/preload' && req.method === 'GET') return videos.apiPreload(req, res);
+  if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetailFast(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/encrypt$/)) && req.method === 'POST') return videos.apiEncryptVideo(req, res, m[1]);
   if ((m = p.match(/^\/api\/stream\/([^/]+)$/)) && req.method === 'GET') return videos.apiStream(req, res, m[1]);
