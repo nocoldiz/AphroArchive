@@ -154,17 +154,24 @@ export const SearchSitesView = () => {
     <div className="search-sites-view on">
       <div className="section-header">
         <h2>Web Search</h2>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
-            <button className={`ss-tab ${tab === 'sites' ? 'on' : ''}`} onClick={() => setTab('sites')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: tab === 'sites' ? 'var(--ac)' : 'transparent', color: tab === 'sites' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.8rem' }}>Sites</button>
-            <button className={`ss-tab ${tab === 'cards' ? 'on' : ''}`} onClick={() => setTab('cards')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: tab === 'cards' ? 'var(--ac)' : 'transparent', color: tab === 'cards' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.8rem' }}>Scrape</button>
-            <button className={`ss-tab ${tab === 'history' ? 'on' : ''}`} onClick={() => setTab('history')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: tab === 'history' ? 'var(--ac)' : 'transparent', color: tab === 'history' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.8rem' }}>History</button>
-          </div>
-          
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--brd)', paddingBottom: '10px' }}>
+        {(['sites', 'cards', 'history'] as const).map(t => (
+          <button
+            key={t}
+            className={`db-tab ${tab === t ? 'on' : ''}`}
+            onClick={() => setTab(t)}
+            style={{ padding: '8px 16px', background: tab === t ? 'var(--ac)' : 'transparent', color: tab === t ? '#fff' : 'var(--tx2)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            {t === 'sites' ? 'Sites' : t === 'cards' ? 'Scrape' : 'History'}
+          </button>
+        ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
           <div className="gallery-filter-wrap" style={{ display: 'flex', alignItems: 'center' }}>
-            <input 
-              type="text" 
-              placeholder="Search or filter…" 
+            <input
+              type="text"
+              placeholder="Search or filter…"
               value={query}
               onInput={(e: any) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (tab === 'cards' ? doSearch() : null)}

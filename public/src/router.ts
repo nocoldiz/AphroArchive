@@ -1,4 +1,4 @@
-import { currentView, currentActor, currentStudio, currentCategory, currentTag, currentVideo, allVideos } from './store';
+import { currentView, currentActor, currentStudio, currentCategory, currentTag, currentVideo, allVideos, enableUrlSync } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
@@ -139,6 +139,8 @@ export function setupRouter() {
     }
   });
 
-  // Initial routing — runs synchronously so the very first render shows the right view
+  // Route to the initial URL before enabling URL sync, so signal subscriptions
+  // don't overwrite the pasted URL with '/' during first render.
   routeToPath(location.pathname);
+  enableUrlSync();
 }

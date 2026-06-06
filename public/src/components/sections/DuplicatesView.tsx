@@ -146,23 +146,23 @@ export const DuplicatesView = () => {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1000px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-        <h2 style={{ margin: 0, color: 'var(--ac)' }}>Duplicate Finder</h2>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
-            <button
-              onClick={() => { if (!scanning) { setMode('size'); } }}
-              style={{ padding: '7px 14px', background: mode === 'size' ? 'var(--ac)' : 'transparent', color: mode === 'size' ? '#fff' : 'var(--tx2)', border: 'none', cursor: scanning ? 'not-allowed' : 'pointer', fontSize: '0.85rem' }}
-            >
-              Quick (size)
-            </button>
-            <button
-              onClick={() => { if (!scanning) { setMode('visual'); } }}
-              style={{ padding: '7px 14px', background: mode === 'visual' ? 'var(--ac)' : 'transparent', color: mode === 'visual' ? '#fff' : 'var(--tx2)', border: 'none', cursor: scanning ? 'not-allowed' : 'pointer', fontSize: '0.85rem' }}
-            >
-              Visual scan
-            </button>
-          </div>
+      <h2 style={{ margin: '0 0 20px', color: 'var(--ac)' }}>Duplicate Finder</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--brd)', paddingBottom: '10px' }}>
+        <button
+          className={`db-tab ${mode === 'size' ? 'on' : ''}`}
+          onClick={() => { if (!scanning) setMode('size'); }}
+          style={{ padding: '8px 16px', background: mode === 'size' ? 'var(--ac)' : 'transparent', color: mode === 'size' ? '#fff' : 'var(--tx2)', border: 'none', borderRadius: '4px', cursor: scanning ? 'not-allowed' : 'pointer' }}
+        >
+          Quick (size)
+        </button>
+        <button
+          className={`db-tab ${mode === 'visual' ? 'on' : ''}`}
+          onClick={() => { if (!scanning) setMode('visual'); }}
+          style={{ padding: '8px 16px', background: mode === 'visual' ? 'var(--ac)' : 'transparent', color: mode === 'visual' ? '#fff' : 'var(--tx2)', border: 'none', borderRadius: '4px', cursor: scanning ? 'not-allowed' : 'pointer' }}
+        >
+          Visual scan
+        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
           {mode === 'visual' && !scanning && (
             <button
               onClick={startVisualScan}

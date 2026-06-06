@@ -727,8 +727,11 @@ export function syncUrlToState() {
   }
 }
 
+let _urlSyncEnabled = false;
+export function enableUrlSync() { _urlSyncEnabled = true; }
+
 export function updateUrl() {
-  if (typeof window === 'undefined') return;
+  if (!_urlSyncEnabled || typeof window === 'undefined') return;
   const view = currentView.value;
   let path = '/';
 

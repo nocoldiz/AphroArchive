@@ -417,14 +417,13 @@ export const SettingsView = () => {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', color: 'var(--tx)' }}>
 
       {/* ── Tab bar ─────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '4px', padding: '10px 16px', borderBottom: '1px solid var(--brd)', background: 'var(--bg2)', flexWrap: 'wrap', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: '10px', padding: '10px 16px', borderBottom: '1px solid var(--brd)', flexWrap: 'wrap', flexShrink: 0 }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+          <button key={t.id} className={`db-tab ${activeTab === t.id ? 'on' : ''}`} onClick={() => setActiveTab(t.id)} style={{
             background: activeTab === t.id ? 'var(--ac)' : 'transparent',
             color: activeTab === t.id ? '#fff' : 'var(--tx2)',
-            padding: '7px 16px', borderRadius: '4px', border: 'none',
-            cursor: 'pointer', fontSize: '13px',
-            fontWeight: activeTab === t.id ? 600 : 400,
+            padding: '8px 16px', borderRadius: '4px', border: 'none',
+            cursor: 'pointer',
           }}>{t.label}</button>
         ))}
       </div>
