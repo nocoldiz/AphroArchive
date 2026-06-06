@@ -483,7 +483,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|categories|chapters|download-queue|prompts|imagegen|assistant|categorizer|browse|home|instagram|reddit|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

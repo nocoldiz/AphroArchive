@@ -1,5 +1,5 @@
-import { useState, useRef } from 'preact/hooks';
-import { allVideos, categories } from '../../store';
+import { useState, useRef, useEffect } from 'preact/hooks';
+import { allVideos, categories, loadCategories, loadVideos } from '../../store';
 import { Video } from '../../types';
 
 type Side   = 'left' | 'right';
@@ -45,6 +45,11 @@ export const CategorizerView = () => {
   const dragCtrR     = useRef(0);
   const lastClickL   = useRef(-1);
   const lastClickR   = useRef(-1);
+
+  useEffect(() => {
+    if (categories.value.length === 0) loadCategories();
+    if (allVideos.value.length === 0) loadVideos();
+  }, []);
 
   const allCats = [...cats, ...extraCats.filter(ec => !cats.some(c => c.path === ec.path))];
 

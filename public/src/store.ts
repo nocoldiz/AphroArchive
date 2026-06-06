@@ -320,13 +320,6 @@ w.thumbObs = null;
 w.hoverTimer = null;
 w.hoverEl = null;
 w.hoverIdx = 0;
-w.zapOn = false;
-w.zapTimer = null;
-w.zapIv = 8;
-w.zapLock = false;
-w.zapNextVid = null;
-w.zapNextTime = 0;
-w.activePlayer = 'video-player';
 
 Object.defineProperty(w, 'linkVidIds', {
   get() { return linkVidIds.value; },
@@ -624,17 +617,7 @@ w.showHome = () => {
 w.goHome = () => {
   if (w.playlistSkipped) w.playlistSkipped.clear();
   if (w.mosaicOn && w.stopMosaic) w.stopMosaic();
-  if (w.zapOn) {
-    w.zapOn = false;
-    clearTimeout(w.zapTimer);
-    const zui = document.getElementById('zap-ui');
-    if (zui) zui.style.display = 'none';
-    const vp = document.getElementById('video-player');
-    if (vp) vp.style.display = 'block';
-    const vpz = document.getElementById('video-player-zap');
-    if (vpz) vpz.style.display = 'none';
-    w.activePlayer = 'video-player';
-  }
+  if (w.stopZapping) w.stopZapping();
   currentView.value = 'hub';
   currentCategory.value = '';
   currentTag.value = null; currentTagTerms.value = [];
@@ -707,11 +690,10 @@ export function syncUrlToState() {
   let m;
   if ((m = p.match(/^\/video\/([^/]+)$/))) {
     const vidId = m[1];
-    const vid = videos.value.find(v => v.id === vidId);
+    const vid = allVideos.value.find(v => v.id === vidId);
     if (vid) {
       currentVideo.value = vid;
-      // We might need to set a view that shows the video player!
-      // If it's a modal, it will open automatically if currentVideo is set!
+      currentView.value = 'player';
     }
   } else if ((m = p.match(/^\/cat\/([^/]+)$/))) {
     currentView.value = 'browse';
@@ -749,38 +731,36 @@ export function updateUrl() {
   if (typeof window === 'undefined') return;
   const view = currentView.value;
   let path = '/';
-  
+
   if (view === 'hub' || view === 'home') {
     path = '/';
-  } else if (currentVideo.value) {
+  } else if (view === 'player' && currentVideo.value) {
     path = `/video/${currentVideo.value.id}`;
-  } else if (currentCategory.value) {
+  } else if (view === 'actors' && currentActor.value) {
+    path = `/actor/${encodeURIComponent(currentActor.value)}`;
+  } else if (view === 'studios' && currentStudio.value) {
+    path = `/studio/${encodeURIComponent(currentStudio.value)}`;
+  } else if (view === 'browse' && currentCategory.value) {
     path = `/cat/${encodeURIComponent(currentCategory.value)}`;
-  } else if (currentTag.value) {
+  } else if (view === 'browse' && currentTag.value) {
     path = `/tag/${encodeURIComponent(currentTag.value)}`;
-  } else if (view === 'browse') {
-    path = '/browse';
+  } else if (view === 'player') {
+    path = '/'; // player without a video — go home
   } else {
     path = `/${view}`;
   }
-  
+
   if (window.location.pathname !== path) {
     history.pushState(null, '', path);
   }
 }
 
 if (typeof window !== 'undefined') {
-  // Subscribe to signals
   currentView.subscribe(updateUrl);
   currentCategory.subscribe(updateUrl);
   currentTag.subscribe(updateUrl);
   currentVideo.subscribe(updateUrl);
-
-  // Listen for popstate
-  window.addEventListener('popstate', syncUrlToState);
-
-  // Run on load
-  setTimeout(syncUrlToState, 100);
+  // popstate and initial routing are handled by setupRouter() in router.ts
 }
 
 w.loadC = async () => {

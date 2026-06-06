@@ -41,6 +41,102 @@ interface Prompt {
   sites?: string[];
 }
 
+const AdvancedPromptEditor = ({ initial, onSave, onClose }: { initial: Prompt | null; onSave: (p: Partial<Prompt>) => void; onClose: () => void }) => {
+  const [title, setTitle] = useState(initial?.title || '');
+  const [tags, setTags] = useState((initial?.tags || []).join(', '));
+  const [text, setText] = useState(initial?.text || '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+
+  const handleSave = () => {
+    const trimTitle = title.trim();
+    const trimText = text.trim();
+    if (!trimTitle || !trimText) { alert('Title and text are required'); return; }
+    onSave({
+      id: initial?.id,
+      title: trimTitle,
+      tags: tags.split(',').map(s => s.trim()).filter(Boolean),
+      text: trimText,
+    });
+  };
+
+  const insertAtCursor = (snippet: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const next = text.slice(0, start) + snippet + text.slice(end);
+    setText(next);
+    requestAnimationFrame(() => {
+      ta.selectionStart = ta.selectionEnd = start + snippet.length;
+      ta.focus();
+    });
+  };
+
+  const templateVars = [...new Set(text.match(/\$[A-Z][A-Z0-9_]*/g) || [])];
+  const charCount = text.length;
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
+      {/* Header bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--brd)', flexShrink: 0 }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--tx)' }}>{initial ? 'Edit Prompt' : 'New Prompt'}</h3>
+          <input
+            type="text"
+            placeholder="Title"
+            value={title}
+            onInput={(e: any) => setTitle(e.target.value)}
+            style={{ flex: 1, maxWidth: '320px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 10px', borderRadius: '6px', fontSize: '0.9rem' }}
+          />
+          <input
+            type="text"
+            placeholder="Tags (comma separated)"
+            value={tags}
+            onInput={(e: any) => setTags(e.target.value)}
+            style={{ flex: 1, maxWidth: '280px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 10px', borderRadius: '6px', fontSize: '0.85rem' }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button className="modal-btn" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave}>Save</button>
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--brd)', flexShrink: 0, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginRight: '4px' }}>Insert:</span>
+        {['$SUBJECT', '$STYLE', '$MOOD', '$SETTING', '$PERSONA'].map(v => (
+          <button key={v} onClick={() => insertAtCursor(v)} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--ac)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}>{v}</button>
+        ))}
+        <div style={{ flex: 1 }} />
+        {templateVars.length > 0 && (
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>Templates:</span>
+            {templateVars.map(v => <span key={v} style={{ background: 'var(--bg3)', color: 'var(--ac)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem' }}>{v}</span>)}
+          </div>
+        )}
+        <span style={{ fontSize: '0.72rem', color: 'var(--tx3)', marginLeft: '12px' }}>{wordCount}w · {charCount}c</span>
+      </div>
+
+      {/* Editor body */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px', gap: '12px', overflow: 'hidden' }}>
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onInput={(e: any) => setText(e.target.value)}
+          placeholder="Write your prompt here…  Use $UPPERCASE for template variables."
+          style={{ flex: 1, width: '100%', resize: 'none', background: 'var(--bg2)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '14px', borderRadius: '8px', fontSize: '0.95rem', lineHeight: '1.65', fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box' }}
+          onKeyDown={(e: any) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleSave(); } }}
+        />
+        <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', textAlign: 'right' }}>Ctrl+Enter to save</div>
+      </div>
+    </div>
+  );
+};
+
 export const PromptsView = () => {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [query, setQuery] = useState('');
@@ -323,8 +419,8 @@ export const PromptsView = () => {
       <div className="section-header">
         <h2>AI Prompts</h2>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button className="btn-primary" onClick={() => setIsAddModalOpen(true)}>New Prompt</button>
-          <button className="btn-primary" onClick={() => setIsMassImportOpen(true)}>Mass Import</button>
+          <button className="sort-btn" onClick={() => setIsAddModalOpen(true)}>New Prompt</button>
+          <button className="sort-btn" onClick={() => setIsMassImportOpen(true)}>Mass Import</button>
           <button className="sort-btn" onClick={() => txtInputRef.current?.click()} title="Import a .txt file — each line becomes a prompt">Import TXT</button>
           <button className="sort-btn" onClick={exportJson} title="Export all prompts as JSON">Export JSON</button>
           <button className="sort-btn" onClick={() => jsonInputRef.current?.click()} title="Import prompts from a JSON file">Import JSON</button>
@@ -397,45 +493,13 @@ export const PromptsView = () => {
         )}
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Advanced Prompt Editor */}
       {isAddModalOpen && (
-        <div className="modal on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000 }}>
-          <div className="modal-dialog" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '24px', width: '500px', maxWidth: '90%' }}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0 }}>{editPrompt ? 'Edit Prompt' : 'New Prompt'}</h3>
-              <button className="modal-close" onClick={() => { setIsAddModalOpen(false); setEditPrompt(null); }} style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>Title</label>
-                <input id="prompt-title-input" className="modal-input" type="text" defaultValue={editPrompt?.title || ''} style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px', borderRadius: '4px', marginTop: '4px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>Tags (comma separated)</label>
-                <input id="prompt-tags-input" className="modal-input" type="text" defaultValue={(editPrompt?.tags || []).join(', ')} style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px', borderRadius: '4px', marginTop: '4px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>Prompt Text</label>
-                <textarea id="prompt-text-input" className="modal-input" defaultValue={editPrompt?.text || ''} style={{ width: '100%', height: '150px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px', borderRadius: '4px', marginTop: '4px', resize: 'vertical' }} />
-              </div>
-            </div>
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-              <button className="modal-btn" onClick={() => { setIsAddModalOpen(false); setEditPrompt(null); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => {
-                const title = (document.getElementById('prompt-title-input') as HTMLInputElement).value.trim();
-                const tags = (document.getElementById('prompt-tags-input') as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean);
-                const text = (document.getElementById('prompt-text-input') as HTMLTextAreaElement).value.trim();
-                if (!title || !text) {
-                  alert('Title and text are required');
-                  return;
-                }
-                savePrompt({ id: editPrompt?.id, title, tags, text });
-              }}>Save</button>
-            </div>
-          </div>
-        </div>
+        <AdvancedPromptEditor
+          initial={editPrompt}
+          onSave={(data) => savePrompt(data)}
+          onClose={() => { setIsAddModalOpen(false); setEditPrompt(null); }}
+        />
       )}
 
       {/* Send Modal */}

@@ -23,8 +23,7 @@ export const DatabaseView = () => {
   const [sourceFolders, setSourceFolders] = useState<string[]>([]);
   const [defaultRoot, setDefaultRoot] = useState<string>('');
   const [newSourceFolder, setNewSourceFolder] = useState('');
-  const [autoCatRunning, setAutoCatRunning] = useState(false);
-  const [autoCatResult, setAutoCatResult] = useState<{movedVideos: number, categorizedLinks: number, errors: string[]} | null>(null);
+
   const importFileRef = useRef<HTMLInputElement>(null);
   const importAllRef = useRef<HTMLInputElement>(null);
   const importWcRef = useRef<HTMLInputElement>(null);
@@ -54,7 +53,6 @@ export const DatabaseView = () => {
     { id: 'studios', name: 'Studios' },
     { id: 'websites', name: 'Websites' },
     { id: 'wildcards', name: 'Wildcards' },
-    { id: 'duplicates', name: 'Duplicates' }
   ];
 
   useEffect(() => {
@@ -75,10 +73,6 @@ export const DatabaseView = () => {
   }, []);
 
   const loadTab = async (tab: string) => {
-    if (tab === 'duplicates') {
-      setEntries([]);
-      return;
-    }
     if (tab === 'wildcards') {
       setLoading(true);
       try {
@@ -480,20 +474,6 @@ export const DatabaseView = () => {
     }
   };
 
-  const handleAutoCategorize = async () => {
-    setAutoCatRunning(true);
-    setAutoCatResult(null);
-    try {
-      const r = await fetch('/api/videos/auto-categorize', { method: 'POST' });
-      const d = await r.json();
-      setAutoCatResult(d);
-      if (d.movedVideos > 0 || d.categorizedLinks > 0) loadTab('folders');
-    } catch (e: any) {
-      setAutoCatResult({ movedVideos: 0, categorizedLinks: 0, errors: [e.message] });
-    } finally {
-      setAutoCatRunning(false);
-    }
-  };
 
   return (
     <div id="database-view" className="database-view on" style={{ padding: '24px' }}>
@@ -526,7 +506,7 @@ export const DatabaseView = () => {
       </div>
 
       {/* Action Bar */}
-      {activeTab !== 'duplicates' && activeTab !== 'folders' && activeTab !== 'wildcards' && (
+      {activeTab !== 'folders' && activeTab !== 'wildcards' && (
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
           <input ref={importFileRef} type="file" accept=".json" title="Import JSON" style={{ display: 'none' }} onChange={handleImportJson} />
           <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: false }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset as Profile</button>
@@ -668,30 +648,6 @@ export const DatabaseView = () => {
             </div>
           </div>
 
-          {/* Auto-categorize */}
-          <div style={{ marginBottom: '24px', background: 'var(--bg2)', padding: '16px', borderRadius: '8px', border: '1px solid var(--brd)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <div>
-                <h4 style={{ margin: '0 0 4px', fontSize: '0.9rem', color: 'var(--ac)' }}>Auto-Categorize Uncategorized</h4>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--tx3)' }}>
-                  Moves uncategorized videos to matching folders and tags uncategorized links — based on filename and category tags.
-                </p>
-              </div>
-              <button
-                onClick={handleAutoCategorize}
-                disabled={autoCatRunning}
-                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '6px', cursor: autoCatRunning ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: autoCatRunning ? 0.7 : 1, whiteSpace: 'nowrap' }}
-              >
-                {autoCatRunning ? 'Running…' : '⚡ Auto-Categorize'}
-              </button>
-            </div>
-            {autoCatResult && (
-              <div style={{ marginTop: '10px', fontSize: '0.8rem', color: autoCatResult.errors.length > 0 ? '#f44336' : '#4caf50', background: 'var(--bg3)', padding: '8px 12px', borderRadius: '4px' }}>
-                ✓ Moved {autoCatResult.movedVideos} video{autoCatResult.movedVideos !== 1 ? 's' : ''}, categorized {autoCatResult.categorizedLinks} link{autoCatResult.categorizedLinks !== 1 ? 's' : ''}
-                {autoCatResult.errors.length > 0 && <span> · {autoCatResult.errors.length} error{autoCatResult.errors.length !== 1 ? 's' : ''}</span>}
-              </div>
-            )}
-          </div>
 
           {/* Category visibility */}
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

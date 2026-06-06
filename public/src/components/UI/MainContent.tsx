@@ -37,6 +37,8 @@ import { ImportModal } from '../modals/ImportModal';
 import { ImageGenView } from '../sections/ImageGenView';
 import { AssistantView } from '../sections/AssistantView';
 import { CategorizerView } from '../sections/CategorizerView';
+import { PromptsView } from '../sections/PromptsView';
+import { DuplicatesView } from '../sections/DuplicatesView';
 import { useEffect } from 'preact/hooks';
 
 export const MainContent = () => {
@@ -109,12 +111,13 @@ export const MainContent = () => {
     if (view === 'audio') return <AudioView />;
     if (view === 'books') return <BooksView />;
     if (view === 'vault') return <VaultView />;
-    if (view === 'prompts') return <AssistantView />;
+    if (view === 'prompts') return <PromptsView />;
     if (view === 'player') return <PlayerView />;
     if (view === 'mosaic')   return <MosaicView />;
     if (view === 'imagegen') return <ImageGenView />;
     if (view === 'assistant') return <AssistantView />;
     if (view === 'categorizer') return <CategorizerView />;
+    if (view === 'duplicates') return <DuplicatesView />;
     return <BrowseView />;
   };
 

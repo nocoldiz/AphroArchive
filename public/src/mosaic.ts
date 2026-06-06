@@ -1,5 +1,6 @@
 ﻿import { signal } from '@preact/signals';
 import { allVideos, categories, currentCategory, linkVidIds, currentView, playerNextUp, filteredVideos } from './store';
+import { zapOn, stopZapping } from './zap';
 
 // ─── Mosaic State ───
 export const mosaicOn = signal(false);
@@ -50,7 +51,7 @@ export function startMosaic() {
   _mosaicPhotoMode = false;
   
   const w = window as any;
-  if (w.zapOn && w.stopZapping) w.stopZapping();
+  if (zapOn.value) stopZapping();
   
   currentView.value = 'mosaic';
   mosaicOn.value = true;

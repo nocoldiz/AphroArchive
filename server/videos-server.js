@@ -2628,12 +2628,29 @@ async function apiRecategorizeAll(req, res) {
 }
 
 // ── Scoring / fuzzy matching ──────────────────────────────────────────
+// Normalize separators (_, -, .) to space for cross-format matching
+function normSeps(s) {
+  return s.toLowerCase().replace(/[\s\-_.]+/g, ' ').trim();
+}
+
 function computeScore(text, cat) {
   let best = 0;
+  const normText = normSeps(text);
+
+  // Folder display name in filename → highest-confidence match
+  const dn = cat.displayName || cat.name;
+  if (wordMatch(text, dn)) return 100;
+  const normDn = normSeps(dn);
+  if (normDn.length >= 3 && normText.includes(normDn)) best = 90;
+
   for (const term of cat.terms) {
+    if (best >= 100) break;
     if (wordMatch(text, term)) return 100;
     const tl = term.toLowerCase(), xl = text.toLowerCase();
     if (xl.includes(tl)) { best = Math.max(best, 60); continue; }
+    // Normalized separator match: "My_Category" matches "My Category"
+    const normTerm = normSeps(term);
+    if (normTerm.length >= 3 && normText.includes(normTerm)) { best = Math.max(best, 60); continue; }
     const words = xl.split(/\W+/).filter(w => w.length >= 3);
     for (const w of words) {
       if (tl.startsWith(w.slice(0, 3)) || w.startsWith(tl.slice(0, 3))) {

@@ -1,5 +1,5 @@
 import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, imagegenInputState } from '../../store';
-import { zapOn, zapLock, zapIv, setZapIv, toggleZapLock, stopZapping } from '../../zap';
+import { zapOn, zapLock, zapIv, zapStartTime, setZapIv, toggleZapLock, stopZapping } from '../../zap';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
@@ -325,6 +325,7 @@ export const PlayerView = () => {
                 chapters={chapters}
                 videoRef={videoRef}
                 isMuted={isMuted.value}
+                startTime={zapStartTime.value}
                 onNext={() => {
                   if (playerNextUp.value.length > 0) {
                     currentVideo.value = playerNextUp.value[0];
@@ -341,6 +342,7 @@ export const PlayerView = () => {
                 chapters={chapters}
                 videoRef={videoRef}
                 isMuted={isMuted.value}
+                startTime={zapStartTime.value}
                 onNext={() => {
                   if (playerNextUp.value.length > 0) {
                     currentVideo.value = playerNextUp.value[0];
@@ -349,12 +351,7 @@ export const PlayerView = () => {
                 onPrev={() => {}}
               />
             )}
-            <video
-              id="video-player-zap"
-              controls
-              muted={isMuted.value}
-              style={{ display: 'none', width: '100%', maxHeight: '80vh', background: '#000' }}
-            />
+            <video id="zap-preload" style={{ display: 'none' }} />
           </div>
           
           {zapOn.value && (

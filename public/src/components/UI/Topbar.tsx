@@ -2,6 +2,7 @@ import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
 import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState } from '../../store';
+import { zapOn, toggleZapping as _toggleZapping } from '../../zap';
 import { useEffect } from 'preact/hooks';
 
 export const Topbar = () => {
@@ -29,9 +30,7 @@ export const Topbar = () => {
     if ((window as any).toggleMosaic) (window as any).toggleMosaic();
   };
 
-  const toggleZapping = () => {
-    if ((window as any).toggleZapping) (window as any).toggleZapping();
-  };
+  const toggleZapping = () => _toggleZapping();
 
   const togglePan = () => {
     if ((window as any).togglePan) (window as any).togglePan();
@@ -98,7 +97,7 @@ export const Topbar = () => {
           </button>
         )}
 
-        <button id="zapBtn" onClick={toggleZapping} title="Zapping mode">
+        <button id="zapBtn" onClick={toggleZapping} title="Zapping mode" class={zapOn.value ? 'on' : ''}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
           </svg>

@@ -19,12 +19,14 @@ interface AdvancedPlayerProps {
   onNext?: () => void;
   onPrev?: () => void;
   isMuted?: boolean;
-  videoRef?: any; // Allow passing external ref
+  videoRef?: any;
+  startTime?: number;
 }
 
-export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPrev, isMuted = false, videoRef: externalRef }: AdvancedPlayerProps) => {
+export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPrev, isMuted = false, videoRef: externalRef, startTime = 0 }: AdvancedPlayerProps) => {
   const localRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalRef || localRef;
+  const startTimeRef = useRef(startTime);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -51,6 +53,13 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     const onPause = () => setPlaying(false);
     const onTimeUpdate = () => setCurrentTime(vid.currentTime);
     const onDurationChange = () => setDuration(vid.duration);
+    const onLoadedMetadata = () => {
+      setDuration(vid.duration);
+      if (startTimeRef.current > 0) {
+        vid.currentTime = startTimeRef.current;
+        startTimeRef.current = 0;
+      }
+    };
     const onVolumeChange = () => {
       setVolume(vid.volume);
       setMuted(vid.muted);
@@ -73,6 +82,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     vid.addEventListener('pause', onPause);
     vid.addEventListener('timeupdate', onTimeUpdate);
     vid.addEventListener('durationchange', onDurationChange);
+    vid.addEventListener('loadedmetadata', onLoadedMetadata);
     vid.addEventListener('volumechange', onVolumeChange);
     vid.addEventListener('ended', onEnded);
     vid.addEventListener('progress', onProgress);
@@ -84,6 +94,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       vid.removeEventListener('pause', onPause);
       vid.removeEventListener('timeupdate', onTimeUpdate);
       vid.removeEventListener('durationchange', onDurationChange);
+      vid.removeEventListener('loadedmetadata', onLoadedMetadata);
       vid.removeEventListener('volumechange', onVolumeChange);
       vid.removeEventListener('ended', onEnded);
       vid.removeEventListener('progress', onProgress);

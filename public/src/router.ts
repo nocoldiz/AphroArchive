@@ -1,50 +1,128 @@
-﻿import { currentView, currentActor, currentStudio, currentCategory, currentTag } from './store';
+import { currentView, currentActor, currentStudio, currentCategory, currentTag, currentVideo, allVideos } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
   const w = window as any;
-  
-  if (path === '/' || path === '') { currentView.value = 'home'; return; }
-  if (path === '/favourites') { if (!w.favM) { w.favM = true; const fBtn = document.getElementById('fBtn'); if (fBtn) fBtn.classList.add('on'); } if (w.refresh) w.refresh(); return; }
-  if (path === '/duplicates') { if (w.showDups) w.showDups(); return; }
-  if (path === '/vault') { currentView.value = 'vault'; return; }
+
+  // Reset transient state on every navigation
+  currentVideo.value = null;
+
+  if (path === '/' || path === '' || path === '/home' || path === '/hub') {
+    currentView.value = 'hub';
+    currentCategory.value = '';
+    currentTag.value = null;
+    currentActor.value = null;
+    currentStudio.value = null;
+    return;
+  }
+
+  // Simple signal-based views
+  const directViews: Record<string, string> = {
+    '/vault':          'vault',
+    '/collections':    'collections',
+    '/scraper':        'scraper',
+    '/books':          'books',
+    '/audio':          'audio',
+    '/thumbnails':     'thumbnails',
+    '/settings':       'settings',
+    '/photos':         'photos',
+    '/links':          'links',
+    '/pages':          'pages',
+    '/search':         'search',
+    '/database':       'database',
+    '/categories':     'categories',
+    '/chapters':       'chapters',
+    '/actors':         'actors',
+    '/studios':        'studios',
+    '/download-queue': 'download-queue',
+    '/prompts':        'prompts',
+    '/imagegen':       'imagegen',
+    '/assistant':      'assistant',
+    '/categorizer':    'categorizer',
+    '/duplicates':     'duplicates',
+    '/browse':         'browse',
+    '/instagram':      'instagram',
+    '/reddit':         'reddit',
+  };
+
+  if (directViews[path]) {
+    currentView.value = directViews[path];
+    currentCategory.value = '';
+    currentTag.value = null;
+    currentActor.value = null;
+    currentStudio.value = null;
+    return;
+  }
+
+  // Legacy-only views (no Preact component yet)
+  if (path === '/favourites') {
+    if (w.favM !== undefined) { w.favM = true; document.getElementById('fBtn')?.classList.add('on'); }
+    if (w.refresh) w.refresh();
+    return;
+  }
+if (path === '/recent')     { if (w.showRecent) w.showRecent(); return; }
   if (path === '/vault/prompts') { if (w.showVaultPrompts) w.showVaultPrompts(); return; }
-  if (path === '/recent') { if (w.showRecent) w.showRecent(); return; }
-  if (path === '/collections') { currentView.value = 'collections'; return; }
-  if (path === '/scraper') { currentView.value = 'scraper'; return; }
-  if (path === '/books') { currentView.value = 'books'; return; }
-  if (path === '/audio') { currentView.value = 'audio'; return; }
-  
-  // Migrated views
-  if (path === '/thumbnails') { currentView.value = 'thumbnails'; return; }
-  if (path === '/settings') { currentView.value = 'settings'; return; }
-  if (path === '/photos') { currentView.value = 'photos'; return; }
-  if (path === '/links') { currentView.value = 'links'; return; }
-  
-  if (path === '/pages')  { currentView.value = 'pages'; return; }
-  if (path === '/search') { currentView.value = 'search'; return; }
-  if (path === '/prompts') { if (w.showPrompts) w.showPrompts(); return; }
-  if (path === '/database') { currentView.value = 'database'; return; }
-  if (path === '/categories') { currentView.value = 'categories'; return; }
-  if (path === '/chapters') { currentView.value = 'chapters'; return; }
-  if (path === '/actors') { currentView.value = 'actors'; currentActor.value = null; return; }
-  if (path === '/studios') { currentView.value = 'studios'; currentStudio.value = null; return; }
-  
-  if ((m = path.match(/^\/video\/([^/]+)$/))) { if (w.openVid) w.openVid(decodeURIComponent(m[1])); return; }
-  if ((m = path.match(/^\/tag\/(.+)$/))) { currentTag.value = decodeURIComponent(m[1]); currentView.value = 'browse'; return; }
-  if ((m = path.match(/^\/cat\/(.+)$/))) { currentCategory.value = decodeURIComponent(m[1]); currentView.value = 'browse'; return; }
-  if ((m = path.match(/^\/actor\/(.+)$/))) { currentView.value = 'actors'; currentActor.value = decodeURIComponent(m[1]); return; }
-  if ((m = path.match(/^\/studio\/(.+)$/))) { currentView.value = 'studios'; currentStudio.value = decodeURIComponent(m[1]); return; }
-  if ((m = path.match(/^\/collection\/(.+)$/))) { if (w.showCollections) w.showCollections(); if (w.openCollectionDetail) w.openCollectionDetail(decodeURIComponent(m[1])); return; }
-  
+
+  // Parameterised routes
+  if ((m = path.match(/^\/video\/([^/]+)$/))) {
+    const videoId = decodeURIComponent(m[1]);
+    const tryOpen = () => {
+      const vid = allVideos.value.find((v: any) => v.id === videoId);
+      if (vid) {
+        currentVideo.value = vid;
+        currentView.value = 'player';
+        return true;
+      }
+      return false;
+    };
+    if (!tryOpen()) {
+      // Videos not loaded yet — retry once they arrive
+      const unsub = allVideos.subscribe(vids => {
+        if (vids.length > 0 && tryOpen()) unsub();
+      });
+    }
+    return;
+  }
+
+  if ((m = path.match(/^\/tag\/(.+)$/))) {
+    currentTag.value = decodeURIComponent(m[1]);
+    currentCategory.value = '';
+    currentView.value = 'browse';
+    return;
+  }
+
+  if ((m = path.match(/^\/cat\/(.+)$/))) {
+    currentCategory.value = decodeURIComponent(m[1]);
+    currentTag.value = null;
+    currentView.value = 'browse';
+    return;
+  }
+
+  if ((m = path.match(/^\/actor\/(.+)$/))) {
+    currentActor.value = decodeURIComponent(m[1]);
+    currentView.value = 'actors';
+    return;
+  }
+
+  if ((m = path.match(/^\/studio\/(.+)$/))) {
+    currentStudio.value = decodeURIComponent(m[1]);
+    currentView.value = 'studios';
+    return;
+  }
+
+  if ((m = path.match(/^\/collection\/(.+)$/))) {
+    currentView.value = 'collections';
+    if (w.openCollectionDetail) setTimeout(() => w.openCollectionDetail(decodeURIComponent(m![1])), 50);
+    return;
+  }
+
+  // Unknown path — go home
   if (w.goHome) w.goHome();
 }
 
 export function setupRouter() {
-  window.addEventListener('popstate', () => {
-    routeToPath(location.pathname);
-  });
-  
+  window.addEventListener('popstate', () => routeToPath(location.pathname));
+
   window.addEventListener('scroll', () => {
     const w = window as any;
     const scrollable = document.documentElement.scrollHeight - window.innerHeight;
@@ -60,7 +138,7 @@ export function setupRouter() {
       }
     }
   });
-  
-  // Initial routing
+
+  // Initial routing — runs synchronously so the very first render shows the right view
   routeToPath(location.pathname);
 }

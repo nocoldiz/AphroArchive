@@ -262,6 +262,20 @@ export const Sidebar = () => {
           isActive={currentView.value === 'categorizer'}
         />
         <SidebarItem
+          id="imagegen-sidebar"
+          label="Image Gen"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
+          onClick={() => setView('imagegen')}
+          isActive={currentView.value === 'imagegen'}
+        />
+        <SidebarItem
+          id="duplicates-sidebar"
+          label="Duplicates"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
+          onClick={() => setView('duplicates')}
+          isActive={currentView.value === 'duplicates'}
+        />
+        <SidebarItem
           id="database-sidebar"
           label="Database"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg>}
@@ -332,6 +346,13 @@ export const Sidebar = () => {
           onClick={() => setView('search', 'showSearchSites')}
           isActive={currentView.value === 'search'}
         />
+        <SidebarItem
+          id="prompts-sidebar"
+          label="Prompts"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>}
+          onClick={() => setView('prompts')}
+          isActive={currentView.value === 'prompts'}
+        />
       </>}
 
       {/* Media — hidden in vault mode */}
@@ -351,13 +372,6 @@ export const Sidebar = () => {
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>}
           onClick={() => setView('thumbnails')}
           isActive={currentView.value === 'thumbnails'}
-        />
-        <SidebarItem
-          id="imagegen-sidebar"
-          label="Image Gen"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
-          onClick={() => setView('imagegen')}
-          isActive={currentView.value === 'imagegen'}
         />
         <SidebarItem
           id="photos-sidebar"
