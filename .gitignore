@@ -14,6 +14,7 @@ video_downloads/
 db/websites.json
 db/studios.json
 dist/*
+android-app/www
 !dist/public
 .AphroArchive-thumbs
 .AphroArchive-actor-photos

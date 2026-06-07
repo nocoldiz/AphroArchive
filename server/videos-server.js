@@ -24,7 +24,6 @@ const {
   resolveCategoryPhysicalPath,
   loadVideoMeta, saveVideoMeta, setVideoMetaFields,
   loadThumbsCache, saveThumbsCache,
-  loadHidden, saveHidden,
   loadActors, loadCategories, loadStudios,
   loadAudioMeta, saveAudioMeta,
   loadBooksMeta, saveBooksMeta,
@@ -428,16 +427,6 @@ async function scan(dir, base = dir, isExternal = false) {
   return out;
 }
 
-function isVideoHidden(v, hiddenTerms, tags = []) {
-  return hiddenTerms.some(term => {
-    if (wordMatch(v.name, term)) return true;
-    const catLo = v.catPath.toLowerCase(), termLo = term.toLowerCase();
-    if (catLo === termLo || catLo.startsWith(termLo + '/') || catLo.startsWith(termLo + '\\')) return true;
-    if (tags.some(t => t.toLowerCase() === termLo)) return true;
-    return false;
-  });
-}
-
 async function allVideos() {
   const db = require('./db-server');
   if (db.getCurrentProfile() === 'Vault') {
@@ -461,7 +450,6 @@ async function allVideos() {
   }
 
   const all    = await cachedScan();
-  const hidden = loadHidden();
   const meta   = loadVideoMeta();
   
   let list = all.map(v => {
@@ -505,7 +493,6 @@ async function allVideos() {
   list.push(...bmVideos);
 
   return list.filter(v => {
-    if (hidden.length && isVideoHidden(v, hidden, v.tags)) return false;
     if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
   });
@@ -667,7 +654,6 @@ async function apiVideos(req, res, params) {
 
 async function apiCategories(req, res) {
   const videos = await cachedScan();
-  const hidden = loadHidden();
   const meta = loadVideoMeta();
   const catMap = new Map();
 
@@ -797,14 +783,6 @@ async function apiCategories(req, res) {
 
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
-    const parts = key.split('/');
-    const kLo = key.toLowerCase();
-    const isHidden = hidden.some(t => {
-      const tLo = t.toLowerCase();
-      return kLo === tLo || kLo.startsWith(tLo + '/') || parts.some(part => part.toLowerCase() === tLo);
-    });
-    if (isHidden) continue;
-
     const isLinks = key === 'Links';
     const full = path.join(VIDEOS_DIR, entry.path);
     const hasCatConfig = !isLinks && fs.existsSync(path.join(full, '.cat-enc-config.json'));
@@ -820,10 +798,9 @@ async function apiCategories(req, res) {
     });
   }
 
-  // Uncategorized count — all videos sitting at root (no subfolder), filtered to match visible ones (hidden terms applied)
+  // Uncategorized count — all videos sitting at root (no subfolder)
   const uncatCount = videos.filter(v => {
     if (v.catPath !== '') return false;
-    if (hidden.length && isVideoHidden(v, hidden, (meta[v.id] && meta[v.id].tags) || [])) return false;
     return true;
   }).length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
@@ -842,7 +819,6 @@ async function apiCategories(req, res) {
 }
 
 async function apiGetAllCategories(req, res) {
-  const hidden = loadHidden();
   // path -> { name, path, isExternal }
   const catMap = new Map();
 
@@ -857,7 +833,6 @@ async function apiGetAllCategories(req, res) {
         const full = path.join(VIDEOS_DIR, subRel);
         if (path.resolve(full) === path.resolve(VAULT_DIR)) continue;
         if (path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
         const key = getCatKey(subRel);
         if (!catMap.has(key)) catMap.set(key, { name: subRel.replace(/\//g, ' / '), path: subRel, isExternal: false });
         await walkMain(full, subRel);
@@ -874,7 +849,6 @@ async function apiGetAllCategories(req, res) {
       for (const ent of entries) {
         if (!ent.isDirectory()) continue;
         if (isHiddenFolderName(ent.name)) continue;
-        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
         const subRel = rel ? rel + '/' + ent.name : ent.name;
         const key = getCatKey(subRel);
         if (!catMap.has(key)) catMap.set(key, { name: subRel.replace(/\//g, ' / '), path: subRel, isExternal: true });
@@ -918,7 +892,6 @@ async function apiSetEnabledCategories(req, res) {
 }
 
 async function apiMainCategories(req, res) {
-  const hidden = loadHidden();
   const result = [{ name: 'Uncategorized', path: '' }];
 
   async function walk(dir, rel = '') {
@@ -931,7 +904,6 @@ async function apiMainCategories(req, res) {
         const subRel = rel ? path.join(rel, ent.name) : ent.name;
         const full = path.join(VIDEOS_DIR, subRel);
         if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
         result.push({ name: subRel.replace(/[\\/]/g, ' / '), path: subRel.replace(/\\/g, '/') });
         await walk(full, subRel);
       }
@@ -1491,7 +1463,6 @@ async function apiDuplicates(req, res) {
 async function apiCategoriesOverview(req, res) {
   const videos = await cachedScan();
   const meta   = loadVideoMeta();
-  const hidden = loadHidden();
 
   // ── Categories (from folder structure) ──
   const catMap = new Map();
@@ -1544,11 +1515,7 @@ async function apiCategoriesOverview(req, res) {
     });
   }
 
-  const filteredCats = [...catMap.values()].filter(c => {
-    const lo = c.path.toLowerCase();
-    const parts = lo.split(/[/\\]/);
-    return !hidden.some(t => { const tl = t.toLowerCase(); return lo === tl || lo.startsWith(tl + '/') || lo.startsWith(tl + '\\') || parts.some(p => p === tl); });
-  });
+  const filteredCats = [...catMap.values()];
 
   // Respect enabled folders for current profile/user (so browser does not show disabled folders)
   let catsForOverview = filteredCats;
@@ -1563,7 +1530,6 @@ async function apiCategoriesOverview(req, res) {
 
   // ── Tags ──
   const videosForTags = videos.filter(v => {
-    if (hidden.length && isVideoHidden(v, hidden, meta[v.id]?.tags || [])) return false;
     return isCategoryEnabled(v.catPath, _enabledPathsOv);
   });
   const folderNames = new Set(
@@ -1607,12 +1573,9 @@ async function apiCategoriesOverview(req, res) {
 
   // Re-derive catsForOverview to include vault ghosts (they passed filtering already since they're new)
   const allCatsForOverview = [...catsForOverview];
-  const hidden2 = loadHidden();
   for (const [key, e] of catMap.entries()) {
     if (e._vaultEncrypted && !catsForOverview.some(c => c.path === key)) {
-      const kLo = key.toLowerCase();
-      const isHid = hidden2.some(t => { const tl = t.toLowerCase(); return kLo === tl || kLo.startsWith(tl + '/'); });
-      if (!isHid && isCategoryEnabled(key, _enabledPathsOv)) allCatsForOverview.push(e);
+      if (isCategoryEnabled(key, _enabledPathsOv)) allCatsForOverview.push(e);
     }
   }
 
@@ -2889,7 +2852,7 @@ async function apiEncryptionStop(req, res) {
 }
 
 module.exports = {
-  scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
+  scan, cachedScan, allVideos, invalidateScanCache, initVideoMeta,
   apiVideosUpload, apiRescan,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
   apiGetAllCategories, apiSetEnabledCategories,
