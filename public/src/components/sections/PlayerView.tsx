@@ -6,6 +6,25 @@ import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 import { VideoCard } from '../UI/VideoGrid';
 import { AdvancedPlayer } from '../UI/AdvancedPlayer';
 
+// BCP-47 codes — fed to SpeechRecognition.lang for live subtitle generation
+const LANGUAGES: { code: string; label: string }[] = [
+  { code: 'en-US', label: 'English' },
+  { code: 'it-IT', label: 'Italiano' },
+  { code: 'es-ES', label: 'Español' },
+  { code: 'fr-FR', label: 'Français' },
+  { code: 'de-DE', label: 'Deutsch' },
+  { code: 'pt-BR', label: 'Português' },
+  { code: 'ru-RU', label: 'Русский' },
+  { code: 'ja-JP', label: '日本語' },
+  { code: 'zh-CN', label: '中文' },
+  { code: 'ko-KR', label: '한국어' },
+  { code: 'ar-SA', label: 'العربية' },
+  { code: 'hi-IN', label: 'हिन्दी' },
+  { code: 'nl-NL', label: 'Nederlands' },
+  { code: 'pl-PL', label: 'Polski' },
+  { code: 'tr-TR', label: 'Türkçe' },
+];
+
 export const PlayerView = () => {
   const video = currentVideo.value;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -18,6 +37,7 @@ export const PlayerView = () => {
   const [chapters, setChapters] = useState<any[]>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
   const [subtitles, setSubtitles] = useState<any[]>([]);
+  const [language, setLanguage] = useState<string>('');
   if (!video) return null;
 
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
@@ -26,10 +46,17 @@ export const PlayerView = () => {
 
   useEffect(() => {
     let timer: any;
-    if (downloadJobId) {
+    let cancelled = false;
+    if (downloadJobId && video) {
       timer = setInterval(async () => {
-        const r = await fetch('/api/download/jobs');
-        const jobs = await r.json();
+        let jobs: any[];
+        try {
+          const r = await fetch('/api/download/jobs');
+          jobs = await r.json();
+        } catch {
+          return;
+        }
+        if (cancelled) return;
         const job = jobs.find((j: any) => j.id === downloadJobId);
         if (job) {
           setDownloadProgress(job.progress);
@@ -73,7 +100,10 @@ export const PlayerView = () => {
         }
       }, 1000);
     }
-    return () => { if (timer) clearInterval(timer); };
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
   }, [downloadJobId]);
 
   const startDownload = async () => {
@@ -159,6 +189,7 @@ export const PlayerView = () => {
       setTags(d.tags || []);
       setStudio(d.studio || '');
       setRating(d.video?.rating ?? null);
+      setLanguage(d.video?.language || '');
       setChapters(d.video?.chapters || []);
       setSuggested(d.suggested || []);
       setSubtitles(tracks);
@@ -210,6 +241,8 @@ export const PlayerView = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [video, toggleFav]);
 
+  if (!video) return null;
+
   const updateRating = async (stars: number | null) => {
     if (!video) return;
     const r = await fetch(`/api/videos/${video.id}/meta`, {
@@ -219,6 +252,21 @@ export const PlayerView = () => {
     });
     if (r.ok) {
       setRating(stars);
+    }
+  };
+
+  const updateLanguage = async (lang: string) => {
+    if (!video) return;
+    const prev = language;
+    setLanguage(lang);
+    const r = await fetch(`/api/videos/${video.id}/meta`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: lang })
+    }).catch(() => null);
+    if (!r || !r.ok) {
+      setLanguage(prev);
+      (window as any).toast?.('Failed to save language');
     }
   };
 
@@ -323,6 +371,7 @@ export const PlayerView = () => {
                 videoId={video.id}
                 subtitles={subtitles}
                 chapters={chapters}
+                language={language}
                 videoRef={videoRef}
                 isMuted={isMuted.value}
                 startTime={zapStartTime.value}
@@ -340,6 +389,7 @@ export const PlayerView = () => {
                 videoId={video.id}
                 subtitles={subtitles}
                 chapters={chapters}
+                language={language}
                 videoRef={videoRef}
                 isMuted={isMuted.value}
                 startTime={zapStartTime.value}
@@ -515,6 +565,21 @@ export const PlayerView = () => {
                 </div>
               </div>
             )}
+
+            <div className="player-language-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Language</span>
+              <select
+                value={language}
+                title="Video language — used for live subtitle generation"
+                onChange={(e: any) => updateLanguage(e.target.value)}
+                style={{ background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                <option value="">Not set</option>
+                {LANGUAGES.map(l => (
+                  <option key={l.code} value={l.code}>{l.label}</option>
+                ))}
+              </select>
+            </div>
 
             <div className="player-studio-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
               <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Studio</span>

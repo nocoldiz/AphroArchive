@@ -151,7 +151,7 @@ export function App() {
       }
       document.querySelectorAll('audio, video').forEach((media) => {
         try {
-          media.pause();
+          (media as HTMLMediaElement).pause();
           if ((media as HTMLMediaElement).src) {
             (media as HTMLMediaElement).src = '';
           }

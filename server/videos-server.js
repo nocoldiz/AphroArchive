@@ -955,7 +955,7 @@ async function apiVideoDetail(req, res, id) {
   const favs  = loadFavs();
   const meta  = loadVideoMeta();
   const vMeta = meta[v.id] || {};
-  const video = { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, chapters: vMeta.chapters || [] };
+  const video = { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, language: vMeta.language || '', chapters: vMeta.chapters || [] };
 
   const actors         = loadActors();
   const metaActors     = vMeta.actors || [];
@@ -1040,7 +1040,7 @@ async function apiVideoDetailFast(req, res, id) {
     .slice(0, 12)
     .map(item => item.video);
 
-  const video = { ...v, fav, rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: metaTags, chapters: vMeta.chapters || [] };
+  const video = { ...v, fav, rating: vMeta.rating ?? null, language: vMeta.language || '', duration, durationF: formatDuration(duration), tags: metaTags, chapters: vMeta.chapters || [] };
 
   json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
 }
@@ -1406,7 +1406,7 @@ async function apiUpdateVideoMeta(req, res, id) {
   const videos = await allVideos();
   if (!videos.find(v => v.id === id)) return json(res, { error: 'Not found' }, 404);
   const body    = await readBody(req);
-  const allowed = ['title', 'actors', 'tags', 'studio', 'rating', 'category', 'note', 'date'];
+  const allowed = ['title', 'actors', 'tags', 'studio', 'rating', 'category', 'note', 'date', 'language'];
   const fields  = {};
   for (const key of allowed) { if (key in body) fields[key] = body[key]; }
   setVideoMetaFields(id, fields);

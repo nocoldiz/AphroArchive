@@ -928,7 +928,7 @@ export const ImageGenView = () => {
     // Apply to builder state (will update dropdowns reactively)
     const patch: any = { ...p };
     if (p.numChars) patch.numChars = p.numChars;
-    if (p.chars) patch.chars = p.chars;
+    if ((p as any).chars) patch.chars = (p as any).chars;
     // Only set fields that exist in builder UI
     ['background', 'setting', 'action', 'pose', 'photography', 'lighting', 'style', 'quality'].forEach(k => {
       if ((p as any)[k] !== undefined) patch[k] = (p as any)[k];
