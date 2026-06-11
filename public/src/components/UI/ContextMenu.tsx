@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, vaultUnlockModalState, imagegenInputState, currentView } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, imagegenInputState, currentView } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -169,44 +169,15 @@ export const ContextMenu = () => {
     contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
 
-  const checkVaultAndPrompt = async (action: () => void): Promise<void> => {
-    try {
-      const res = await fetch('/api/vault/status');
-      const status = await res.json();
-      if (!status.configured) {
-        toast('Vault not configured. Set it up first from the Vault view.');
-        return;
-      }
-      if (!status.unlocked) {
-        // Open the vault unlock modal; after unlock it will update isVaultUnlocked signal
-        vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: null };
-        // Poll until unlocked, then proceed
-        const checkInterval = setInterval(async () => {
-          const r2 = await fetch('/api/vault/status');
-          const s2 = await r2.json();
-          if (s2.unlocked) {
-            clearInterval(checkInterval);
-            isVaultUnlocked.value = true;
-            action();
-          }
-        }, 500);
-        return;
-      }
-      action();
-    } catch {
-      toast('Failed to check vault status');
-    }
-  };
-
   const handleEncrypt = async () => {
-    checkVaultAndPrompt(() => {
+    ensureVaultUnlocked(() => {
       setShowEncryptConfirm(true);
       closeMenu();
     });
   };
 
   const handleUnlock = async () => {
-    checkVaultAndPrompt(async () => {
+    ensureVaultUnlocked(() => {
       setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
       setShowUnlockModal(true);
     });
@@ -359,7 +330,11 @@ export const ContextMenu = () => {
             <ContextItem label="Actors" icon="user" onClick={() => {
               actorModalState.value = { visible: true, vidId: data.id };
             }} />
-            <ContextItem label="Encrypt" icon="lock" onClick={() => { closeMenu(); setShowEncryptVideoConfirm(true); }} />
+            <ContextItem label="Encrypt" icon="lock" onClick={() => {
+              closeMenu();
+              // Normal users must unlock the vault (password prompt) before encrypting
+              ensureVaultUnlocked(() => setShowEncryptVideoConfirm(true));
+            }} />
             <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
               if (!confirm(`Delete video "${data.name}" from disk?\nThis action cannot be undone.`)) return;
               const r = await fetch(`/api/videos/${data.id}`, { method: 'DELETE' });
@@ -396,10 +371,18 @@ export const ContextMenu = () => {
                 contextMenuState.value = { ...contextMenuState.value, visible: false };
               }} />
             )}
-            <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
-              if (data.onDelete) await data.onDelete();
-              contextMenuState.value = { ...contextMenuState.value, visible: false };
-            }} />
+            {data.onEncrypt && (
+              <ContextItem label="Encrypt" icon="lock" onClick={() => {
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+                ensureVaultUnlocked(() => data.onEncrypt());
+              }} />
+            )}
+            {data.onDelete && (
+              <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
+                await data.onDelete();
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+              }} />
+            )}
           </>
         )}
       </div>

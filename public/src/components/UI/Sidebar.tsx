@@ -196,11 +196,8 @@ export const Sidebar = () => {
       }
       return { ...c, count };
     })
-    .filter(c => {
-      // In vault mode show only fully-encrypted categories
-      if (inVaultMode) return !!c.encrypted;
-      return true;
-    })
+    // The Vault is a superuser: it sees every category across the system,
+    // so vault mode applies no category filtering.
     .sort((a, b) => {
       if (a.path === 'uncategorized') return -1;
       if (b.path === 'uncategorized') return 1;
@@ -324,8 +321,8 @@ export const Sidebar = () => {
         />
       </div>
 
-      {/* Browse — hidden in vault mode */}
-      {!inVaultMode && <><div className="side-sep"></div>
+      {/* Browse — the Vault is a superuser, so this stays visible in vault mode */}
+      <><div className="side-sep"></div>
       <SectionHeader label="Browse" id="sh3-browse" onClick={toggleBrowse} />
       <div style={{ display: browseOpen ? 'block' : 'none' }}>
         <div className="side-section" id="browseSection">
@@ -381,10 +378,10 @@ export const Sidebar = () => {
           isActive={currentView.value === 'prompts'}
         />
       </div>
-      </>}
+      </>
 
-      {/* Media — hidden in vault mode */}
-      {!inVaultMode && <><div className="side-sep"></div>
+      {/* Media — the Vault is a superuser, so this stays visible in vault mode */}
+      <><div className="side-sep"></div>
       <SectionHeader label="Media" id="sh3-media" onClick={toggleMedia} />
       <div className="side-section" id="mediaSection" style={{ display: mediaOpen ? 'block' : 'none' }}>
         <SidebarItem
@@ -440,7 +437,7 @@ export const Sidebar = () => {
         />
       </div>
 
-      </>}
+      </>
 
 
 

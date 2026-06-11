@@ -184,6 +184,41 @@ export const activeProfile = signal<string>('default');
 export const profileModalState = signal<{ visible: boolean }>({ visible: false });
 export const dbPendingOpen = signal<{ tab: string; action: 'add' } | null>(null);
 export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
+
+// Vault topbar toggle: false = Vault-Only view (default), true = Global view
+// (all files from all profiles, allowing import/encryption into the Vault)
+export const vaultGlobalView = signal<boolean>(false);
+
+// Runs an action once the vault is unlocked. If the vault is locked, the
+// unlock modal opens and the action runs after a successful unlock.
+export async function ensureVaultUnlocked(action: () => void) {
+  const w = window as any;
+  try {
+    const status = await fetch('/api/vault/status').then(r => r.json());
+    if (!status.configured) {
+      w.toast?.('Vault not configured. Set it up first from the Vault view.');
+      return;
+    }
+    if (status.unlocked) {
+      isVaultUnlocked.value = true;
+      action();
+      return;
+    }
+    vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: null };
+    const interval = setInterval(async () => {
+      const s = await fetch('/api/vault/status').then(r => r.json()).catch(() => null);
+      if (s && s.unlocked) {
+        clearInterval(interval);
+        isVaultUnlocked.value = true;
+        action();
+      } else if (!vaultUnlockModalState.value.visible) {
+        clearInterval(interval); // unlock modal was cancelled
+      }
+    }, 500);
+  } catch {
+    w.toast?.('Failed to check vault status');
+  }
+}
 export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
 export async function loadProfiles() {
@@ -635,6 +670,9 @@ w.showPrompts = () => { currentView.value = 'prompts'; };
 // Subscriber to handle legacy view visibility
 currentView.subscribe(view => {
   isRecentMode.value = (view === 'recent');
+
+  // Entering the Vault always starts in Vault-Only view
+  if (view === 'vault') vaultGlobalView.value = false;
   
   const topbarEl = document.getElementById('topbar-root');
   const sidebarEl = document.getElementById('side');

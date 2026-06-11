@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos, ensureVaultUnlocked } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 
@@ -311,6 +311,30 @@ export const VideoSelBar = () => {
   const selectedVids = allVideos.value.filter(v => selectedVideoIds.value.has(v.id));
   const linkVids = selectedVids.filter(v => v.isLink);
   const hasLinks = linkVids.length > 0;
+  const localVids = selectedVids.filter(v => !v.isLink);
+
+  const encryptSelected = () => {
+    if (!localVids.length) return;
+    ensureVaultUnlocked(async () => {
+      if (!confirm(`Encrypt ${localVids.length} video${localVids.length !== 1 ? 's' : ''} into the Vault?\nOriginals will be securely deleted and removed from the public database.`)) return;
+      const w = window as any;
+      let ok = 0;
+      for (const v of localVids) {
+        try {
+          const r = await fetch(`/api/videos/${v.id}/encrypt`, { method: 'POST' });
+          if (r.ok) {
+            ok++;
+            // Instant gallery update — remove each file as it is encrypted
+            videos.value = videos.value.filter(x => x.id !== v.id);
+            allVideos.value = allVideos.value.filter(x => x.id !== v.id);
+            selectedVideoIds.value = new Set([...selectedVideoIds.value].filter(id => id !== v.id));
+          }
+        } catch {}
+      }
+      videoSelMode.value = selectedVideoIds.value.size > 0;
+      if (w.toast) w.toast(`Encrypted ${ok}/${localVids.length} video${localVids.length !== 1 ? 's' : ''} into the Vault`);
+    });
+  };
 
   const deleteSelected = async () => {
     if (!confirm(`Delete ${count} video${count !== 1 ? 's' : ''} from disk?\nThis action cannot be undone.`)) return;
@@ -397,6 +421,19 @@ export const VideoSelBar = () => {
         </svg>
         Delete ({count})
       </button>
+      {localVids.length > 0 && (
+        <button
+          onClick={encryptSelected}
+          style={{ background: '#7c3aed', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+          title="Encrypt selected videos into the Vault"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          Encrypt ({localVids.length})
+        </button>
+      )}
       {hasLinks && (
         <button
           onClick={downloadSelected}

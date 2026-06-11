@@ -2234,10 +2234,9 @@ async function apiEncryptVideo(req, res, id) {
       }
     }
 
-    if (meta[v.id]) {
-      delete meta[v.id];
-      saveVideoMeta(meta);
-    }
+    // Remove the original entry from the public database(s)
+    const { deleteVideoMetaEverywhere } = require('./db-server');
+    deleteVideoMetaEverywhere(v.id);
 
     invalidateScanCache();
     json(res, { ok: true, vaultId });

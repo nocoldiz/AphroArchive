@@ -341,6 +341,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/import-links' && req.method === 'POST') return vault.apiVaultImportLinks(req, res);
   if (p === '/api/vault/move-links' && req.method === 'POST') return vault.apiVaultMoveLinks(req, res);
   if (p === '/api/vault/restore-link' && req.method === 'POST') return vault.apiVaultRestoreLink(req, res);
+  if (p === '/api/vault/link-fav' && req.method === 'POST') return vault.apiVaultLinkFav(req, res);
 
   // ── Presets ──────────────────────────────────────────────────────────
   if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);

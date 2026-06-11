@@ -551,39 +551,71 @@ function saveRatings(r) { fs.writeFileSync(RATINGS_FILE, JSON.stringify(r)); }
 
 // ── Video meta ───────────────────────────────────────────────────────
 
-function loadVideoMeta() {
+function _readVideoMetaFromDb(database) {
+  const out = {};
+  const rows = database.prepare('SELECT * FROM videos').all();
+  const getActors = database.prepare('SELECT actor FROM video_actors WHERE video_id = ?');
+  const getTags = database.prepare('SELECT tag FROM video_tags WHERE video_id = ?');
+  for (const row of rows) {
+    out[row.id] = {
+      title: row.title || '',
+      studio: row.studio || '',
+      category: row.category || '',
+      rating: row.rating,
+      note: row.note || '',
+      date: row.date || '',
+      actors: getActors.all(row.id).map(r => r.actor),
+      tags: getTags.all(row.id).map(r => r.tag)
+    };
+  }
+  return out;
+}
+
+// Remove a video's metadata row from the public database(s). When the Vault
+// profile is active the row lives in another profile's DB, so it is deleted
+// there too — encryption must leave no trace in any public database.
+function deleteVideoMetaEverywhere(id) {
+  _videoMeta = null;
+  const wipe = (database) => {
+    database.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
+    database.prepare('DELETE FROM video_tags WHERE video_id = ?').run(id);
+    database.prepare('DELETE FROM videos WHERE id = ?').run(id);
+  };
+  try { wipe(db); } catch (e) { console.error('Failed to delete video meta:', e); }
   if (currentProfile === 'Vault') {
-    const meta = loadVaultMeta();
-    const result = {};
-    for (const [id, item] of Object.entries(meta)) {
-      if (item.videoMeta) {
-        result[id] = item.videoMeta;
+    for (const dbPath of _otherProfileDbPaths()) {
+      let other = null;
+      try {
+        other = new DatabaseSync(dbPath);
+        wipe(other);
+      } catch (e) {
+        console.error('[vault] failed to delete public meta in', path.basename(dbPath), e.message);
+      } finally {
+        if (other) { try { other.close(); } catch {} }
       }
     }
-    return result;
+  }
+}
+
+function loadVideoMeta() {
+  if (currentProfile === 'Vault') {
+    if (!_videoMeta) {
+      const result = {};
+      // Public meta from every other profile, then private vault meta on top
+      for (const metaMap of _mapOtherProfiles(_readVideoMetaFromDb)) Object.assign(result, metaMap);
+      const meta = loadVaultMeta();
+      for (const [id, item] of Object.entries(meta)) {
+        if (item.videoMeta) result[id] = item.videoMeta;
+      }
+      _videoMeta = result;
+    }
+    return _videoMeta;
   }
 
   if (!_videoMeta) {
     _videoMeta = {};
     try {
-      const rows = db.prepare('SELECT * FROM videos').all();
-      const getActors = db.prepare('SELECT actor FROM video_actors WHERE video_id = ?');
-      const getTags = db.prepare('SELECT tag FROM video_tags WHERE video_id = ?');
-
-      for (const row of rows) {
-        const actors = getActors.all(row.id).map(r => r.actor);
-        const tags = getTags.all(row.id).map(r => r.tag);
-        _videoMeta[row.id] = {
-          title: row.title || '',
-          studio: row.studio || '',
-          category: row.category || '',
-          rating: row.rating,
-          note: row.note || '',
-          date: row.date || '',
-          actors,
-          tags
-        };
-      }
+      _videoMeta = _readVideoMetaFromDb(db);
     } catch (e) {
       console.error('Failed to load video meta from SQLite:', e);
     }
@@ -723,6 +755,39 @@ function _decryptString(jsonStr, key) {
   return dec;
 }
 
+// ── Vault superuser merge ────────────────────────────────────────────
+// When the Vault profile is active, reads act as a merged view of every
+// other profile's public database plus the Vault's own private rows.
+// Writes always go to the Vault's own DB, so private entries (actors,
+// websites, tags, links…) never leak into public profiles.
+
+function _otherProfileDbPaths() {
+  try {
+    return fs.readdirSync(DB_DIR)
+      .filter(f => /^aphroarchive_.+\.db$/.test(f) && f !== `aphroarchive_${currentProfile}.db` && f !== 'aphroarchive_Vault.db')
+      .map(f => path.join(DB_DIR, f));
+  } catch { return []; }
+}
+
+// Run fn against each other profile's DB (read-only) and collect results.
+// Returns [] unless the Vault profile is active.
+function _mapOtherProfiles(fn) {
+  if (currentProfile !== 'Vault') return [];
+  const out = [];
+  for (const dbPath of _otherProfileDbPaths()) {
+    let other = null;
+    try {
+      other = new DatabaseSync(dbPath, { readOnly: true });
+      out.push(fn(other));
+    } catch (e) {
+      console.error('[vault] merged read failed for', path.basename(dbPath), e.message);
+    } finally {
+      if (other) { try { other.close(); } catch {} }
+    }
+  }
+  return out;
+}
+
 function loadVaultConfig() { try { return JSON.parse(fs.readFileSync(VAULT_CONFIG_FILE, 'utf-8')); } catch { return null; } }
 function saveVaultConfig(c) { fs.writeFileSync(VAULT_CONFIG_FILE, JSON.stringify(c)); }
 
@@ -743,6 +808,7 @@ function loadVaultMeta() {
 }
 
 function saveVaultMeta(m) {
+  if (currentProfile === 'Vault') _videoMeta = null; // merged view includes vault meta
   const jsonStr = JSON.stringify(m);
   if (!_vaultKey) {
     fs.writeFileSync(VAULT_META_FILE, jsonStr);
@@ -805,20 +871,27 @@ function loadHidden() {
 
 // ── Websites ─────────────────────────────────────────────────────────
 
+function _readWebsiteRows(database) {
+  const rows = database.prepare('SELECT * FROM websites').all();
+  const getTags = database.prepare('SELECT tag FROM website_tags WHERE website_name = ?');
+  return rows.map(row => ({
+    name: row.name,
+    url: row.url,
+    searchURL: row.search_url,
+    scrapeMethod: row.scrape_method,
+    tags: getTags.all(row.name).map(r => r.tag),
+    description: row.description
+  }));
+}
+
 function loadWebsites() {
   try {
-    const rows = db.prepare('SELECT * FROM websites').all();
-    return rows.map(row => {
-      const tags = db.prepare('SELECT tag FROM website_tags WHERE website_name = ?').all(row.name).map(r => r.tag);
-      return {
-        name: row.name,
-        url: row.url,
-        searchURL: row.search_url,
-        scrapeMethod: row.scrape_method,
-        tags,
-        description: row.description
-      };
-    });
+    const merged = new Map();
+    for (const list of _mapOtherProfiles(_readWebsiteRows)) {
+      for (const s of list) merged.set(s.name.toLowerCase(), s);
+    }
+    for (const s of _readWebsiteRows(db)) merged.set(s.name.toLowerCase(), s); // private rows win
+    return [...merged.values()];
   } catch (e) {
     console.error('Failed to load websites from SQLite:', e);
     return [];
@@ -924,8 +997,14 @@ const _LINK_PLACEHOLDERS = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
 
 function loadLinksCache() {
   try {
-    const rows = db.prepare(`SELECT ${_LINK_COLS} FROM links WHERE vault = 0 OR vault IS NULL`).all();
-    return { items: rows.map(_rowToLink) };
+    const publicLinks = (database) =>
+      database.prepare(`SELECT ${_LINK_COLS} FROM links WHERE vault = 0 OR vault IS NULL`).all().map(_rowToLink);
+    const merged = new Map();
+    for (const list of _mapOtherProfiles(publicLinks)) {
+      for (const l of list) merged.set(l.url, l);
+    }
+    for (const l of publicLinks(db)) merged.set(l.url, l); // private rows win
+    return { items: [...merged.values()] };
   } catch (e) {
     console.error('Failed to load links cache from SQLite:', e);
     return { items: [] };
@@ -1194,21 +1273,30 @@ function _parseActors(raw) {
   });
 }
 
+function _readActorRows(database) {
+  const rows = database.prepare('SELECT name, date_of_birth, nationality, imdb_page FROM actors').all();
+  return rows.map(r => {
+    const ageInfo = parseActorAge(r.date_of_birth);
+    return {
+      name: r.name, terms: [r.name],
+      date_of_birth: r.date_of_birth || null,
+      nationality: r.nationality || null,
+      age: ageInfo ? ageInfo.age : null,
+      deceased: ageInfo ? ageInfo.deceased : false,
+      imdb_page: r.imdb_page || null,
+    };
+  });
+}
+
 function loadActors() {
   if (!_actors) {
     try {
-      const rows = db.prepare('SELECT name, date_of_birth, nationality, imdb_page FROM actors').all();
-      _actors = rows.map(r => {
-        const ageInfo = parseActorAge(r.date_of_birth);
-        return {
-          name: r.name, terms: [r.name],
-          date_of_birth: r.date_of_birth || null,
-          nationality: r.nationality || null,
-          age: ageInfo ? ageInfo.age : null,
-          deceased: ageInfo ? ageInfo.deceased : false,
-          imdb_page: r.imdb_page || null,
-        };
-      });
+      const merged = new Map();
+      for (const list of _mapOtherProfiles(_readActorRows)) {
+        for (const a of list) merged.set(a.name.toLowerCase(), a);
+      }
+      for (const a of _readActorRows(db)) merged.set(a.name.toLowerCase(), a); // private rows win
+      _actors = [...merged.values()];
     } catch (e) { console.error('Failed to load actors from SQLite:', e); _actors = []; }
   }
   return _actors;
@@ -1236,23 +1324,38 @@ function _parseCategories(raw) {
   });
 }
 
+function _readCategoryRows(database) {
+  const rows = database.prepare('SELECT * FROM categories').all();
+  const getTags = database.prepare('SELECT tag FROM category_tags WHERE category_name = ?');
+  return rows.map(row => {
+    const tags = getTags.all(row.name).map(r => r.tag);
+    return { name: row.name, displayName: row.display_name, terms: [row.name, ...tags] };
+  });
+}
+
 function loadCategories() {
   if (currentProfile === 'Vault') {
-    const meta = loadVaultMeta();
-    const cats = new Set();
-    for (const item of Object.values(meta)) {
-      if (item.category) cats.add(item.category);
+    // Superuser view: every profile's categories, the Vault's own private
+    // categories table, plus categories derived from encrypted file metadata.
+    const merged = new Map();
+    for (const list of _mapOtherProfiles(_readCategoryRows)) {
+      for (const c of list) merged.set(c.name.toLowerCase(), c);
     }
-    return Array.from(cats).map(name => ({ name, displayName: name, terms: [name] }));
+    try {
+      for (const c of _readCategoryRows(db)) merged.set(c.name.toLowerCase(), c); // private rows win
+    } catch (e) { console.error('Failed to load vault categories from SQLite:', e); }
+    const meta = loadVaultMeta();
+    for (const item of Object.values(meta)) {
+      if (item.category && !merged.has(item.category.toLowerCase())) {
+        merged.set(item.category.toLowerCase(), { name: item.category, displayName: item.category, terms: [item.category] });
+      }
+    }
+    return [...merged.values()];
   }
 
   if (!_categories) {
     try {
-      const rows = db.prepare('SELECT * FROM categories').all();
-      _categories = rows.map(row => {
-        const tags = db.prepare('SELECT tag FROM category_tags WHERE category_name = ?').all(row.name).map(r => r.tag);
-        return { name: row.name, displayName: row.display_name, terms: [row.name, ...tags] };
-      });
+      _categories = _readCategoryRows(db);
     } catch (e) {
       console.error('Failed to load categories from SQLite:', e);
       _categories = [];
@@ -1514,7 +1617,7 @@ module.exports = {
   loadHistory, saveHistory,
   loadPrefs, savePrefs, getDefaultWriteRoot, resolveCategoryPhysicalPath,
   loadRatings, saveRatings,
-  loadVideoMeta, saveVideoMeta, setVideoMetaFields,
+  loadVideoMeta, saveVideoMeta, setVideoMetaFields, deleteVideoMetaEverywhere,
   loadThumbsCache, saveThumbsCache, setThumbCacheEntry,
   loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, setVaultKey,
   loadCollections, saveCollections,

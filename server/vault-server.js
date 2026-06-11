@@ -1240,6 +1240,22 @@ async function apiVaultMoveLinks(req, res) {
   json(res, { ok: true, moved });
 }
 
+// Toggle the private favourite flag on a vault link. Favourites are stored
+// inside _vault_links.enc, so they stay encrypted at rest like the links.
+async function apiVaultLinkFav(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body = await readBody(req);
+  const { url } = body;
+  if (!url) return json(res, { error: 'URL required' }, 400);
+  const links = _loadVaultLinksEnc();
+  const link = links.find(l => l.url === url);
+  if (!link) return json(res, { error: 'Not found in vault links' }, 404);
+  link.fav = !link.fav;
+  _saveVaultLinksEnc(links);
+  json(res, { ok: true, fav: !!link.fav });
+}
+
 async function apiVaultRestoreLink(req, res) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   resetVaultTimer();
@@ -1266,7 +1282,7 @@ module.exports = {
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
-  apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink,
+  apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultLinkFav,
   deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
   shredFile: _shredFile,
 };
