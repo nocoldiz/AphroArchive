@@ -191,7 +191,7 @@ def extract_candidates(base_url, page):
             add(direct, m.group(1))
 
     # 5) Raw media URLs anywhere in the markup/scripts (incl. escaped slashes).
-    raw_pat = r'(https?:(?:\\?/\\?/)[^"\'<>\s\\]+?\.(?:%s)(?:\?[^"\'<>\s\\]*)?)' % '|'.join(DIRECT_MEDIA_EXTS)
+    raw_pat = r'(https?:(?:\\?/\\?/)(?:[^"\'<>\s\\]|\\/)+?\.(?:%s)(?:\?(?:[^"\'<>\s\\]|\\/)*)?)' % '|'.join(DIRECT_MEDIA_EXTS)
     for m in re.finditer(raw_pat, page, re.I):
         add(direct, m.group(1))
 
