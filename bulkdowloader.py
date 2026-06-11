@@ -26,6 +26,39 @@ except ImportError:
     import yt_dlp
 
 
+# Browser impersonation (curl_cffi) is required to get past Cloudflare/PerimeterX
+# checks on sites like X.com, Instagram, TikTok and YouTube. If the dependency
+# isn't installed, yt-dlp *raises immediately* on `impersonate: 'chrome'` —
+# so we detect availability once and silently omit the option otherwise.
+def _detect_impersonate_targets():
+    try:
+        with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+            return list(ydl._get_available_impersonate_targets())
+    except Exception:
+        return []
+
+
+_IMPERSONATE_TARGETS = None
+
+
+def impersonate_available():
+    global _IMPERSONATE_TARGETS
+    if _IMPERSONATE_TARGETS is None:
+        _IMPERSONATE_TARGETS = _detect_impersonate_targets()
+        if not _IMPERSONATE_TARGETS:
+            print('   [info] curl_cffi not installed — browser impersonation disabled '
+                  '(pip install curl_cffi for better X.com/Instagram/TikTok support).',
+                  flush=True)
+    return bool(_IMPERSONATE_TARGETS)
+
+
+def set_impersonate(opts, target='chrome'):
+    """Only set opts['impersonate'] if a matching target is actually usable."""
+    if impersonate_available():
+        opts['impersonate'] = target
+    return opts
+
+
 # ════════════════════════════════════════════════════════════════════════
 #  Constants
 # ════════════════════════════════════════════════════════════════════════
@@ -279,7 +312,8 @@ class UniversalVideoDownloader:
 
         if 'pornhub.com' in u:
             opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                         'impersonate': 'chrome', 'prefer_free_formats': True, 'sleep_interval': 1})
+                         'prefer_free_formats': True, 'sleep_interval': 1})
+            set_impersonate(opts)
         elif 'xvideos.com' in u or 'xvideos.red' in u:
             opts.update({'format': 'best[ext=mp4]/best'})
             opts['http_headers']['Referer'] = 'https://www.xvideos.com/'
@@ -290,14 +324,18 @@ class UniversalVideoDownloader:
         elif any(s in u for s in ('eporner.com', 'porntrex.com', 'hqporner.com')):
             opts.update({'format': 'bestvideo+bestaudio/best[ext=mp4]/best', 'concurrent_fragment_downloads': 6})
         elif any(s in u for s in ('youtube.com', 'youtu.be')):
-            opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best', 'impersonate': 'chrome'})
+            opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best'})
+            set_impersonate(opts)
         elif 'x.com' in u or 'twitter.com' in u:
-            opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
-                         'extractor_args': {'twitter': {'api': ['graphql']}}, 'impersonate': 'chrome'})
+            opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best/best',
+                         'extractor_args': {'twitter': {'api': ['graphql', 'syndication']}}})
+            set_impersonate(opts)
         elif 'instagram.com' in u:
-            opts.update({'format': 'bestvideo+bestaudio/best', 'impersonate': 'chrome'})
+            opts.update({'format': 'bestvideo+bestaudio/best'})
+            set_impersonate(opts)
         elif 'tiktok.com' in u:
-            opts.update({'format': 'best', 'impersonate': 'chrome'})
+            opts.update({'format': 'best'})
+            set_impersonate(opts)
         elif 'reddit.com' in u:
             opts.update({'format': 'bestvideo+bestaudio/best'})
         else:
