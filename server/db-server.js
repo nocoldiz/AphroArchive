@@ -796,14 +796,16 @@ function saveVaultConfig(c) { fs.writeFileSync(VAULT_CONFIG_FILE, JSON.stringify
 function loadVaultMeta() {
   try {
     const raw = fs.readFileSync(VAULT_META_FILE, 'utf-8');
-    try {
-      return JSON.parse(raw); // Legacy cleartext
-    } catch {
-      // Failed to parse, likely encrypted
-      if (!_vaultKey) throw new Error('Vault is locked or key missing');
-      const decrypted = _decryptString(raw, _vaultKey);
-      return JSON.parse(decrypted);
-    }
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch {}
+    // Encrypted wrapper produced by _encryptString is itself valid JSON, so
+    // detect it by shape ({iv, tag, ciphertext}) rather than by parse failure.
+    // Vault entry ids are UUIDs, so a real meta map can never have these keys.
+    const isEncrypted = parsed && typeof parsed.iv === 'string' &&
+      typeof parsed.tag === 'string' && typeof parsed.ciphertext === 'string';
+    if (parsed && !isEncrypted) return parsed; // legacy cleartext
+    if (!_vaultKey) throw new Error('Vault is locked or key missing');
+    return JSON.parse(_decryptString(raw, _vaultKey));
   } catch (e) {
     return {};
   }

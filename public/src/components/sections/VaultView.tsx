@@ -99,18 +99,20 @@ export const VaultView = () => {
     }
     const f = photoFiles[lightboxIdx];
     setBlobUrl('');
+    let url = '';
+    let stale = false;
     fetch(`/api/vault/stream/${f.id}`)
       .then(r => r.blob())
       .then(blob => {
-        const url = URL.createObjectURL(blob);
+        url = URL.createObjectURL(blob);
+        if (stale) { URL.revokeObjectURL(url); return; }
         setBlobUrl(url);
       })
-      .catch(() => setBlobUrl(`/api/vault/stream/${f.id}`));
+      .catch(() => { if (!stale) setBlobUrl(`/api/vault/stream/${f.id}`); });
 
     return () => {
-      if (blobUrl && blobUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(blobUrl);
-      }
+      stale = true;
+      if (url) URL.revokeObjectURL(url);
     };
   }, [lightboxIdx, photoFiles]);
 
@@ -167,11 +169,12 @@ export const VaultView = () => {
     }
   };
 
-  // Global view: unencrypted files from every profile (filesystem is shared,
-  // so /api/videos is the system-wide public file list)
+  // Global view: unencrypted files from every profile. all=1 bypasses the
+  // current profile's enabled-categories filter (server allows it only while
+  // the vault is unlocked) so files from any profile can be imported here.
   const loadPublicFiles = async () => {
     try {
-      const vids = await fetch('/api/videos').then(r => r.json());
+      const vids = await fetch('/api/videos?all=1').then(r => r.json());
       if (!Array.isArray(vids)) return;
       setPublicFiles(vids.map((v: any) => ({
         id: v.id,
@@ -529,7 +532,7 @@ export const VaultView = () => {
 
   const downloadFile = (id: string, name: string) => {
     const a = document.createElement('a');
-    a.href = `/api/vault/stream/${id}`;
+    a.href = `/api/vault/download/${id}`;
     a.download = name;
     document.body.appendChild(a);
     a.click();

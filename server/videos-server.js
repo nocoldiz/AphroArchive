@@ -142,7 +142,8 @@ async function runEncryptCategory(catPath) {
       if (!fs.existsSync(full)) continue;
 
       const videoMeta = meta[v.id] || null;
-      const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
+      // Pass the real filename (with extension) — v.name has the extension stripped
+      const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
       if (!vaultId) {
         console.error(`[ENC] Failed to encrypt ${v.name}`);
         continue;
@@ -575,8 +576,11 @@ async function apiVideos(req, res, params) {
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
   const enabledPaths = loadEnabledCategories();
+  // all=1 (vault unlocked only): bypass the per-profile enabled-categories
+  // filter so the Vault's Global view can import files from any profile
+  const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
   let list = videos
-    .filter(v => isCategoryEnabled(v.catPath, enabledPaths))
+    .filter(v => showAll || isCategoryEnabled(v.catPath, enabledPaths))
     .map(v => {
       const cached   = thumbsCache[v.id];
       const duration = cached?.duration || null;
@@ -2199,7 +2203,8 @@ async function apiEncryptVideo(req, res, id) {
   const vaultKey = getVaultKey();
 
   try {
-    const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
+    // Pass the real filename (with extension) — v.name has the extension stripped
+    const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
 
     if (!vaultId) {
       return json(res, { error: 'Encryption failed' }, 500);

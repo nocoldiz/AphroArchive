@@ -134,7 +134,15 @@ async function processDownloadQueue() {
 
 async function runJob(next) {
   try {
-    await runYtDlp(next);
+    try {
+      await runYtDlp(next);
+    } catch (ytErr) {
+      // yt-dlp couldn't extract — fall back to the universal Python scraper,
+      // which scrapes the page (og:video, JSON-LD, <video>, HLS, iframes…)
+      // and downloads via any method possible.
+      next.error = null;
+      await runUniversal(next, ytErr);
+    }
     next.status   = 'done';
     next.progress = 100;
     const writeRoot = getDefaultWriteRoot();

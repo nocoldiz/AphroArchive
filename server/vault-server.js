@@ -677,16 +677,6 @@ function apiVaultPageResource(req, res, pageId, fileId) {
   }
 }
 
-function apiVaultDownload(req, res, id) {
-  if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
-  resetVaultTimer();
-  const meta = loadVaultMeta();
-  const encPath = path.join(VAULT_DIR, id + '.enc');
-  if (!meta[id] || !fs.existsSync(encPath)) { res.writeHead(404); res.end(); return; }
-  try { _streamDecrypt(req, res, id, meta, true); }
-  catch (e) { res.writeHead(500); res.end('Decryption failed'); }
-}
-
 async function apiVaultChangePassword(req, res) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   const cfg = loadVaultConfig();
