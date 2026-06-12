@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, categories } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
+import { OnboardingWizard } from './components/modals/OnboardingWizard';
 import { ConnectModal } from './components/modals/ConnectModal';
 import { DropOverlay } from './components/UI/DropOverlay';
 
@@ -72,16 +73,9 @@ export function App() {
       .then(s => { isVaultUnlocked.value = !!s.unlocked; })
       .catch(() => {});
 
-    loadProfiles().then(profileData => {
-      fetch('/api/presets')
-        .then(r => r.json())
-        .then(data => {
-          if (data.firstRun) {
-            presetPickerState.value = { visible: true, mergeMode: false };
-          }
-        })
-        .catch(e => console.error('Failed to check presets', e));
-    });
+    // The old PresetPicker first-run logic is replaced by OnboardingWizard
+    // which is shown when no DB files exist (checked in OnboardingWizard component)
+    loadProfiles();
 
     // Load theme
     const saved = localStorage.getItem('theme') || '';
@@ -248,6 +242,7 @@ export function App() {
 
   return (
     <>
+      <OnboardingWizard />
       <PresetPicker />
       <ProfileModal />
       {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}
