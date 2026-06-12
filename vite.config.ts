@@ -3,12 +3,12 @@ import preact from '@preact/preset-vite';
 import { resolve } from 'node:path';
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [preact()],
-  root: 'public', // Setting root to public while we migrate
+  root: 'public',
   base: './',
   build: {
-    outDir: '../dist/public',
+    outDir: mode === 'android' ? '../android-app/www' : '../dist/public',
     emptyOutDir: true,
   },
   server: {
@@ -23,4 +23,4 @@ export default defineConfig({
       '/cache': 'http://localhost:3000',
     }
   }
-});
+}));

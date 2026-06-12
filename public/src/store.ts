@@ -1,4 +1,4 @@
-﻿import { signal, computed } from '@preact/signals';
+import { signal, computed } from '@preact/signals';
 import { Video, Category, Actor, Studio, AppPrefs, ThumbnailGroup } from './types';
 import * as api from './api';
 
@@ -109,6 +109,11 @@ export const presetPickerState = signal<{
 
 export const importModalState = signal<{ visible: boolean }>({ visible: false });
 
+export const imagegenInputState = signal<{
+  imageUrl: string;
+  imagePath: string;
+} | null>(null);
+
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentTagTerms = signal<string[]>([]);
@@ -150,10 +155,19 @@ if (typeof window !== 'undefined') {
 
 export const cardSize = signal<number>(parseInt(localStorage.getItem('cardSize') || '270', 10));
 
+let _prefsLoaded = false;
+let _cardSizeTimer: ReturnType<typeof setTimeout> | null = null;
+
 if (typeof document !== 'undefined') {
   cardSize.subscribe(w => {
     document.documentElement.style.setProperty('--card-min', w + 'px');
     localStorage.setItem('cardSize', w.toString());
+    if (_prefsLoaded) {
+      if (_cardSizeTimer) clearTimeout(_cardSizeTimer);
+      _cardSizeTimer = setTimeout(() => {
+        fetch('/api/settings/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardSize: w }) }).catch(() => {});
+      }, 800);
+    }
   });
 }
 export const isLoadingVideos = signal<boolean>(false);
@@ -170,6 +184,41 @@ export const activeProfile = signal<string>('default');
 export const profileModalState = signal<{ visible: boolean }>({ visible: false });
 export const dbPendingOpen = signal<{ tab: string; action: 'add' } | null>(null);
 export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
+
+// Vault topbar toggle: false = Vault-Only view (default), true = Global view
+// (all files from all profiles, allowing import/encryption into the Vault)
+export const vaultGlobalView = signal<boolean>(false);
+
+// Runs an action once the vault is unlocked. If the vault is locked, the
+// unlock modal opens and the action runs after a successful unlock.
+export async function ensureVaultUnlocked(action: () => void) {
+  const w = window as any;
+  try {
+    const status = await fetch('/api/vault/status').then(r => r.json());
+    if (!status.configured) {
+      w.toast?.('Vault not configured. Set it up first from the Vault view.');
+      return;
+    }
+    if (status.unlocked) {
+      isVaultUnlocked.value = true;
+      action();
+      return;
+    }
+    vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: null };
+    const interval = setInterval(async () => {
+      const s = await fetch('/api/vault/status').then(r => r.json()).catch(() => null);
+      if (s && s.unlocked) {
+        clearInterval(interval);
+        isVaultUnlocked.value = true;
+        action();
+      } else if (!vaultUnlockModalState.value.visible) {
+        clearInterval(interval); // unlock modal was cancelled
+      }
+    }, 500);
+  } catch {
+    w.toast?.('Failed to check vault status');
+  }
+}
 export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
 export async function loadProfiles() {
@@ -177,6 +226,7 @@ export async function loadProfiles() {
   const data = await res.json();
   profiles.value = data.profiles;
   activeProfile.value = data.current;
+  return data;
 }
 
 export async function switchProfile(name: string) {
@@ -189,6 +239,7 @@ export async function switchProfile(name: string) {
   if (res.status === 401) {
     const data = await res.json();
     if (data.locked) {
+      profileModalState.value = { visible: false };
       vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: name };
       return;
     }
@@ -203,6 +254,9 @@ if (typeof document !== 'undefined') {
     const mediaElements = document.querySelectorAll('video, audio');
     mediaElements.forEach((el: any) => el.muted = muted);
     localStorage.setItem('isMuted', muted ? 'true' : 'false');
+    if (_prefsLoaded) {
+      fetch('/api/settings/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isMuted: muted }) }).catch(() => {});
+    }
   });
 }
 
@@ -302,13 +356,6 @@ w.thumbObs = null;
 w.hoverTimer = null;
 w.hoverEl = null;
 w.hoverIdx = 0;
-w.zapOn = false;
-w.zapTimer = null;
-w.zapIv = 8;
-w.zapLock = false;
-w.zapNextVid = null;
-w.zapNextTime = 0;
-w.activePlayer = 'video-player';
 
 Object.defineProperty(w, 'linkVidIds', {
   get() { return linkVidIds.value; },
@@ -555,6 +602,18 @@ export async function loadPrefs() {
   const res = await fetch('/api/settings/prefs');
   const data = await res.json();
   appPrefs.value = data;
+  // Apply per-profile UI settings stored in prefs
+  if (data.theme) {
+    document.documentElement.setAttribute('data-theme', data.theme);
+    localStorage.setItem('theme', data.theme);
+  }
+  if (data.cardSize && data.cardSize !== cardSize.value) cardSize.value = data.cardSize;
+  if (data.isMuted !== undefined && data.isMuted !== isMuted.value) isMuted.value = !!data.isMuted;
+  if (data.thumbBlurMode && data.thumbBlurMode !== thumbBlurMode.value) {
+    thumbBlurMode.value = data.thumbBlurMode;
+    localStorage.setItem('thumbBlurMode', data.thumbBlurMode);
+  }
+  _prefsLoaded = true;
 }
 
 export async function updatePrefs(updates: Partial<AppPrefs>) {
@@ -594,17 +653,7 @@ w.showHome = () => {
 w.goHome = () => {
   if (w.playlistSkipped) w.playlistSkipped.clear();
   if (w.mosaicOn && w.stopMosaic) w.stopMosaic();
-  if (w.zapOn) {
-    w.zapOn = false;
-    clearTimeout(w.zapTimer);
-    const zui = document.getElementById('zap-ui');
-    if (zui) zui.style.display = 'none';
-    const vp = document.getElementById('video-player');
-    if (vp) vp.style.display = 'block';
-    const vpz = document.getElementById('video-player-zap');
-    if (vpz) vpz.style.display = 'none';
-    w.activePlayer = 'video-player';
-  }
+  if (w.stopZapping) w.stopZapping();
   currentView.value = 'hub';
   currentCategory.value = '';
   currentTag.value = null; currentTagTerms.value = [];
@@ -622,6 +671,9 @@ w.showPrompts = () => { currentView.value = 'prompts'; };
 // Subscriber to handle legacy view visibility
 currentView.subscribe(view => {
   isRecentMode.value = (view === 'recent');
+
+  // Entering the Vault always starts in Vault-Only view
+  if (view === 'vault') vaultGlobalView.value = false;
   
   const topbarEl = document.getElementById('topbar-root');
   const sidebarEl = document.getElementById('side');
@@ -677,11 +729,10 @@ export function syncUrlToState() {
   let m;
   if ((m = p.match(/^\/video\/([^/]+)$/))) {
     const vidId = m[1];
-    const vid = videos.value.find(v => v.id === vidId);
+    const vid = allVideos.value.find(v => v.id === vidId);
     if (vid) {
       currentVideo.value = vid;
-      // We might need to set a view that shows the video player!
-      // If it's a modal, it will open automatically if currentVideo is set!
+      currentView.value = 'player';
     }
   } else if ((m = p.match(/^\/cat\/([^/]+)$/))) {
     currentView.value = 'browse';
@@ -715,42 +766,43 @@ export function syncUrlToState() {
   }
 }
 
+let _urlSyncEnabled = false;
+export function enableUrlSync() { _urlSyncEnabled = true; }
+
 export function updateUrl() {
-  if (typeof window === 'undefined') return;
+  if (!_urlSyncEnabled || typeof window === 'undefined') return;
   const view = currentView.value;
   let path = '/';
-  
+
   if (view === 'hub' || view === 'home') {
     path = '/';
-  } else if (currentVideo.value) {
+  } else if (view === 'player' && currentVideo.value) {
     path = `/video/${currentVideo.value.id}`;
-  } else if (currentCategory.value) {
+  } else if (view === 'actors' && currentActor.value) {
+    path = `/actor/${encodeURIComponent(currentActor.value)}`;
+  } else if (view === 'studios' && currentStudio.value) {
+    path = `/studio/${encodeURIComponent(currentStudio.value)}`;
+  } else if (view === 'browse' && currentCategory.value) {
     path = `/cat/${encodeURIComponent(currentCategory.value)}`;
-  } else if (currentTag.value) {
+  } else if (view === 'browse' && currentTag.value) {
     path = `/tag/${encodeURIComponent(currentTag.value)}`;
-  } else if (view === 'browse') {
-    path = '/browse';
+  } else if (view === 'player') {
+    path = '/'; // player without a video — go home
   } else {
     path = `/${view}`;
   }
-  
+
   if (window.location.pathname !== path) {
     history.pushState(null, '', path);
   }
 }
 
 if (typeof window !== 'undefined') {
-  // Subscribe to signals
   currentView.subscribe(updateUrl);
   currentCategory.subscribe(updateUrl);
   currentTag.subscribe(updateUrl);
   currentVideo.subscribe(updateUrl);
-
-  // Listen for popstate
-  window.addEventListener('popstate', syncUrlToState);
-
-  // Run on load
-  setTimeout(syncUrlToState, 100);
+  // popstate and initial routing are handled by setupRouter() in router.ts
 }
 
 w.loadC = async () => {

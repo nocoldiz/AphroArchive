@@ -2,43 +2,68 @@
   "name": "aphro-archive",
   "version": "1.0.0",
   "description": "Local media organizer and browser",
-  "main": "server.js",
+  "main": "electron-main.js",
   "bin": "server.js",
   "scripts": {
+    "build:android-web": "vite build --mode android",
     "dev": "vite",
     "dev:watch": "node --watch server.js",
-    "build": "vite build && pkg . --targets node20-win-x64,node20-linux-x64,node20-macos-x64,node20-macos-arm64 --out-path dist --compress GZip",
+    "build": "vite build && pkg . --targets node24-win-x64,node24-linux-x64,node24-macos-x64,node24-macos-arm64 --out-path dist --compress GZip",
     "start": "node server.js",
-    "build:win": "pkg . --targets node20-win-x64 --output dist/AphroArchive.exe --compress GZip",
-    "build:linux": "pkg . --targets node20-linux-x64 --output dist/AphroArchive --compress GZip",
+    "build:win": "vite build && pkg . --targets node24-win-x64 --output dist/AphroArchive.exe --compress GZip",
+    "build:linux": "pkg . --targets node24-linux-x64 --output dist/AphroArchive --compress GZip",
     "build:wrapper": "npm run build:linux && npm run wrapper",
-    "create-wrapper": "echo '#!/bin/bash\n# Creates an isolated network namespace to bypass proxy blocks\nbwrap --dev-bind / / --unshare-net --die-with-parent /bin/bash -c \"./AphroArchive & sleep 2 && x-www-browser http://127.0.0.1:3000\"' > dist/AphroArchive-Tails.sh && chmod +x dist/AphroArchive-Tails.sh"
+    "create-wrapper": "echo '#!/bin/bash\n# Creates an isolated network namespace to bypass proxy blocks\nbwrap --dev-bind / / --unshare-net --die-with-parent /bin/bash -c \"./AphroArchive & sleep 2 && x-www-browser http://127.0.0.1:3000\"' > dist/AphroArchive-Tails.sh && chmod +x dist/AphroArchive-Tails.sh",
+    "electron:dev": "electron .",
+    "build:electron:win": "vite build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.aphroarchive.app",
+    "productName": "AphroArchive",
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!android-app/**",
+      "!*.bat",
+      "!*.sh"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "directories": {
+      "output": "dist/electron"
+    }
   },
   "pkg": {
     "assets": [
-      "public/**/*"
+      "dist/public/**/*",
+      "db/profiles/**/*",
+      "db/wildcards/**/*"
     ],
     "targets": [
-      "node20-win-x64",
-      "node20-linux-x64"
+      "node24-win-x64",
+      "node24-linux-x64"
     ],
     "outputPath": "dist"
   },
   "dependencies": {
+    "@preact/signals": "^2.9.0",
+    "preact": "^10.29.1"
+  },
+  "optionalDependencies": {
+    "node-llama-cpp": "^3.18.1"
+  },
+  "devDependencies": {
     "@capacitor/android": "^8.3.4",
     "@capacitor/cli": "^8.3.4",
     "@capacitor/core": "^8.3.4",
     "@capacitor/preferences": "^8.0.1",
-    "@preact/signals": "^2.9.0",
-    "better-sqlite3": "^12.10.0",
-    "node-llama-cpp": "^3.18.1",
-    "preact": "^10.29.1"
-  },
-  "devDependencies": {
     "@preact/preset-vite": "^2.10.5",
     "@types/node": "^20.17.10",
     "@types/react": "^19.2.14",
-    "@yao-pkg/pkg": "^5.12.0",
+    "@yao-pkg/pkg": "^6.20.0",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.8.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.10"
   }

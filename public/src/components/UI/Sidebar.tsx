@@ -1,5 +1,5 @@
-﻿import { useState, useEffect } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile } from '../../store';
+import { useState, useEffect } from 'preact/hooks';
+import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos } from '../../store';
 
 interface SidebarItemProps {
   id?: string;
@@ -31,26 +31,40 @@ const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave,
   </div>
 );
 
-const SectionHeader = ({ label, id, style, onClick, action }: { label: string, id: string, style?: any, onClick?: () => void, action?: any }) => {
-  const handleClick = () => {
-    if (onClick) {
-      onClick();
-    } else if ((window as any).toggleSection) {
-      const section = id.replace('sh3-', '');
-      (window as any).toggleSection(section);
-    }
-  };
+const SectionHeader = ({ label, id, style, onClick, action }: { label: string, id: string, style?: any, onClick?: () => void, action?: any }) => (
+  <h3 className="sidebar-heading" id={id} style={style} onClick={onClick}>
+    {label}
+    <svg className="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+    {action}
+  </h3>
+);
 
-  return (
-    <h3 className="sidebar-heading" id={id} style={style} onClick={handleClick}>
-      {label}
-      <svg className="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-        <path d="m6 9 6 6 6-6" />
-      </svg>
-      {action}
-    </h3>
-  );
-};
+const LS_KEY = 'sidebarSections';
+
+function loadSections(): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+}
+
+function sectionState(key: string, defaultOpen = true): boolean {
+  const s = loadSections();
+  return key in s ? s[key] : defaultOpen;
+}
+
+function persistSection(key: string, open: boolean) {
+  const s = loadSections();
+  s[key] = open;
+  localStorage.setItem(LS_KEY, JSON.stringify(s));
+}
+
+function makeToggle(key: string, setter: (fn: (v: boolean) => boolean) => void) {
+  return () => setter(prev => {
+    const next = !prev;
+    persistSection(key, next);
+    return next;
+  });
+}
 
 export const Sidebar = () => {
   const view = currentView.value;
@@ -69,12 +83,24 @@ export const Sidebar = () => {
   if (view === 'reddit') return null;
 
   const [tagGroups, setTagGroups] = useState<{ displayName: string, terms: string[] }[]>([]);
-  const [tagsOpen, setTagsOpen] = useState(true);
-  const [catsOpen, setCatsOpen] = useState(true);
+  const [libraryOpen, setLibraryOpen] = useState(() => sectionState('library'));
+  const [manageOpen, setManageOpen] = useState(() => sectionState('manage'));
+  const [browseOpen, setBrowseOpen] = useState(() => sectionState('browse'));
+  const [mediaOpen, setMediaOpen] = useState(() => sectionState('media'));
+  const [tagsOpen, setTagsOpen] = useState(() => sectionState('tags'));
+  const [catsOpen, setCatsOpen] = useState(() => sectionState('cats'));
   const [photoFolders, setPhotoFolders] = useState<{ path: string, name: string }[]>([]);
   const [photoFoldersOpen, setPhotoFoldersOpen] = useState(true);
   const [vaultFolders, setVaultFolders] = useState<{ id: string, name: string }[]>([]);
-  const [vaultFoldersOpen, setVaultFoldersOpen] = useState(true);
+  const [vaultFoldersOpen, setVaultFoldersOpen] = useState(() => sectionState('vaultFolders'));
+
+  const toggleLibrary = makeToggle('library', setLibraryOpen);
+  const toggleManage = makeToggle('manage', setManageOpen);
+  const toggleBrowse = makeToggle('browse', setBrowseOpen);
+  const toggleMedia = makeToggle('media', setMediaOpen);
+  const toggleTags = makeToggle('tags', setTagsOpen);
+  const toggleCats = makeToggle('cats', setCatsOpen);
+  const toggleVaultFolders = makeToggle('vaultFolders', setVaultFoldersOpen);
 
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
 
@@ -106,15 +132,6 @@ export const Sidebar = () => {
 
 
   const setView = (view: string, legacyFn?: string) => {
-    // Leaving vault: restore previous profile
-    if (activeProfile.value === 'Vault' && view !== 'vault') {
-      const prev = localStorage.getItem('preVaultProfile') || 'default';
-      if (prev !== 'Vault') {
-        localStorage.removeItem('preVaultProfile');
-        switchProfile(prev); // triggers page reload — we're done here
-        return;
-      }
-    }
     currentView.value = view;
     isSidebarOpen.value = false;
     if (legacyFn && (window as any)[legacyFn]) {
@@ -122,23 +139,11 @@ export const Sidebar = () => {
     }
   };
 
-  const enterVault = () => {
-    if (activeProfile.value === 'Vault') {
-      // Already in vault profile — just switch to vault view
-      currentView.value = 'vault';
-      isSidebarOpen.value = false;
-      return;
-    }
-    // Save current profile so we can restore it when leaving
-    localStorage.setItem('preVaultProfile', activeProfile.value);
-    // switchProfile handles lock check and shows unlock modal if needed
-    switchProfile('Vault');
-  };
-
   const selectCategory = (catName: string) => {
     currentView.value = 'browse';
     currentCategory.value = catName;
     currentTag.value = null; currentTagTerms.value = [];
+    searchQuery.value = '';
     isSidebarOpen.value = false;
     // Compatibility
     (window as any).cat = catName;
@@ -147,7 +152,7 @@ export const Sidebar = () => {
 
   const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
-  // Derive filtered counts from allVideos + sourceFilter so badges update when filter changes
+  // Use the counts already provided by the server's categories API — no client-side recomputation
   const sf = sourceFilter.value;
   const vids = allVideos.value;
   const filteredVids = sf === 'local'
@@ -156,28 +161,21 @@ export const Sidebar = () => {
     ? vids.filter(v => !!(v as any).isLink)
     : vids;
 
-  const catCountMap = new Map<string, number>();
-  let uncategorizedCount = 0;
-  for (const v of filteredVids) {
-    const cp = ((v as any).catPath as string) || '';
-    if (!cp) {
-      uncategorizedCount++;
-      continue;
-    }
-    const parts = cp.split('/');
-    let cur = '';
-    for (const p of parts) {
-      cur = cur ? cur + '/' + p : p;
-      catCountMap.set(cur, (catCountMap.get(cur) || 0) + 1);
-    }
-  }
   const displayCategories = categories.value
-    .map(c => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (catCountMap.get(c.path) || 0) }))
-    .filter(c => {
-      // In vault mode show only fully-encrypted categories
-      if (inVaultMode) return !!c.encrypted;
-      return true;
+    .map(c => {
+      // Use the count from the server response; if missing (e.g. for link-only cats), compute from filteredVids
+      let count = c.count || 0;
+      if (count === 0 && c.path !== 'uncategorized') {
+        count = filteredVids.filter(v => {
+          const vp = ((v as any).catPath || '').toLowerCase();
+          const cl = c.path.toLowerCase();
+          return vp === cl || vp.startsWith(cl + '/');
+        }).length;
+      }
+      return { ...c, count };
     })
+    // The Vault is a superuser: it sees every category across the system,
+    // so vault mode applies no category filtering.
     .sort((a, b) => {
       if (a.path === 'uncategorized') return -1;
       if (b.path === 'uncategorized') return 1;
@@ -207,8 +205,8 @@ export const Sidebar = () => {
       {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
       <div className="side-scroll">
       {/* Library */}
-      <SectionHeader label="Library" id="sh3-library" />
-      <div className="side-section" id="librarySection">
+      <SectionHeader label="Library" id="sh3-library" onClick={toggleLibrary} />
+      <div className="side-section" id="librarySection" style={{ display: libraryOpen ? 'block' : 'none' }}>
         <SidebarItem
           id="home-sidebar"
           label="Home"
@@ -237,13 +235,7 @@ export const Sidebar = () => {
           onClick={() => setView('collections', 'showCollections')}
           isActive={currentView.value === 'collections'}
         />
-        <SidebarItem
-          id="vault-sidebar"
-          label={isVaultUnlocked.value ? 'Vault ●' : 'Vault'}
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isVaultUnlocked.value ? 'var(--ac)' : 'currentColor'} strokeWidth={2} style={iconStyle}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
-          onClick={enterVault}
-          isActive={currentView.value === 'vault'}
-        />
+
         <SidebarItem
           id="assistant-sidebar"
           label="Assistant"
@@ -255,14 +247,28 @@ export const Sidebar = () => {
 
       {/* Manage */}
       <div className="side-sep"></div>
-      <SectionHeader label="Manage" id="sh3-manage" />
-      <div className="side-section" id="manageSection">
+      <SectionHeader label="Manage" id="sh3-manage" onClick={toggleManage} />
+      <div className="side-section" id="manageSection" style={{ display: manageOpen ? 'block' : 'none' }}>
         <SidebarItem
           id="categorizer-sidebar"
           label="Categorizer"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>}
           onClick={() => setView('categorizer')}
           isActive={currentView.value === 'categorizer'}
+        />
+        <SidebarItem
+          id="imagegen-sidebar"
+          label="Image Gen"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
+          onClick={() => setView('imagegen')}
+          isActive={currentView.value === 'imagegen'}
+        />
+        <SidebarItem
+          id="duplicates-sidebar"
+          label="Duplicates"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
+          onClick={() => setView('duplicates')}
+          isActive={currentView.value === 'duplicates'}
         />
         <SidebarItem
           id="database-sidebar"
@@ -287,46 +293,69 @@ export const Sidebar = () => {
         />
       </div>
 
-      {/* Browse — hidden in vault mode */}
-      {!inVaultMode && <><div className="side-sep"></div>
-      <SectionHeader label="Browse" id="sh3-browse" />
-      <div className="side-section" id="browseSection">
+      {/* Browse — the Vault is a superuser, so this stays visible in vault mode */}
+      <><div className="side-sep"></div>
+      <SectionHeader label="Browse" id="sh3-browse" onClick={toggleBrowse} />
+      <div style={{ display: browseOpen ? 'block' : 'none' }}>
+        <div className="side-section" id="browseSection">
+          <SidebarItem
+            id="categories-view-sidebar"
+            label="Folders"
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>}
+            onClick={() => setView('categories', 'showCategoriesView')}
+            isActive={currentView.value === 'categories'}
+          />
+          <SidebarItem
+            id="actor-sidebar"
+            label="Actors"
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>}
+            onClick={() => setView('actors', 'showActors')}
+            isActive={currentView.value === 'actors'}
+          />
+          <SidebarItem
+            id="studio-sidebar"
+            label="Studios"
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="2" y="7" width="20" height="15" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>}
+            onClick={() => setView('studios', 'showStudios')}
+            isActive={currentView.value === 'studios'}
+          />
+          <SidebarItem
+            id="chapters-sidebar"
+            label="Chapters"
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>}
+            onClick={() => setView('chapters', 'showChaptersView')}
+            isActive={currentView.value === 'chapters'}
+          />
+        </div>
         <SidebarItem
-          id="categories-view-sidebar"
-          label="Folders"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>}
-          onClick={() => setView('categories', 'showCategoriesView')}
-          isActive={currentView.value === 'categories'}
+          id="import-favs-sidebar"
+          label="Links"
+          badge={linkCount > 0 ? linkCount : undefined}
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>}
+          onClick={() => setView('links', 'showImportFavs')}
+          isActive={currentView.value === 'links'}
         />
         <SidebarItem
-          id="actor-sidebar"
-          label="Actors"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></svg>}
-          onClick={() => setView('actors', 'showActors')}
-          isActive={currentView.value === 'actors'}
+          id="search-sites-sidebar"
+          label="Search"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></svg>}
+          onClick={() => setView('search', 'showSearchSites')}
+          isActive={currentView.value === 'search'}
         />
         <SidebarItem
-          id="studio-sidebar"
-          label="Studios"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="2" y="7" width="20" height="15" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>}
-          onClick={() => setView('studios', 'showStudios')}
-          isActive={currentView.value === 'studios'}
-        />
-        <SidebarItem
-          id="chapters-sidebar"
-          label="Chapters"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>}
-          onClick={() => setView('chapters', 'showChaptersView')}
-          isActive={currentView.value === 'chapters'}
+          id="prompts-sidebar"
+          label="Prompts"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>}
+          onClick={() => setView('prompts')}
+          isActive={currentView.value === 'prompts'}
         />
       </div>
+      </>
 
-      </>}
-
-      {/* Media — hidden in vault mode */}
-      {!inVaultMode && <><div className="side-sep"></div>
-      <SectionHeader label="Media" id="sh3-media" />
-      <div className="side-section" id="mediaSection">
+      {/* Media — the Vault is a superuser, so this stays visible in vault mode */}
+      <><div className="side-sep"></div>
+      <SectionHeader label="Media" id="sh3-media" onClick={toggleMedia} />
+      <div className="side-section" id="mediaSection" style={{ display: mediaOpen ? 'block' : 'none' }}>
         <SidebarItem
           id="videos-media-sidebar"
           label="Videos"
@@ -340,13 +369,6 @@ export const Sidebar = () => {
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>}
           onClick={() => setView('thumbnails')}
           isActive={currentView.value === 'thumbnails'}
-        />
-        <SidebarItem
-          id="imagegen-sidebar"
-          label="Image Gen"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
-          onClick={() => setView('imagegen')}
-          isActive={currentView.value === 'imagegen'}
         />
         <SidebarItem
           id="photos-sidebar"
@@ -387,29 +409,9 @@ export const Sidebar = () => {
         />
       </div>
 
-      </>}
+      </>
 
-      {/* Web — hidden in vault mode */}
-      {!inVaultMode && <><div className="side-sep"></div>
-      <SectionHeader label="Web" id="sh3-web" />
-      <div className="side-section" id="webSection">
-        <SidebarItem
-          id="import-favs-sidebar"
-          label="Links"
-          badge={linkCount > 0 ? linkCount : undefined}
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>}
-          onClick={() => setView('links', 'showImportFavs')}
-          isActive={currentView.value === 'links'}
-        />
-        <SidebarItem
-          id="search-sites-sidebar"
-          label="Search"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></svg>}
-          onClick={() => setView('search', 'showSearchSites')}
-          isActive={currentView.value === 'search'}
-        />
-      </div>
-      </>}
+
 
       {/* Vault folders — shown only when vault is open */}
       {inVaultMode && vaultFolders.length > 0 && (
@@ -418,7 +420,7 @@ export const Sidebar = () => {
           <SectionHeader
             label="Vault Folders"
             id="sh3-vault-folders"
-            onClick={() => setVaultFoldersOpen(v => !v)}
+            onClick={toggleVaultFolders}
           />
           <div className="side-section" id="vaultFoldersSection" style={{ display: vaultFoldersOpen ? 'block' : 'none' }}>
             {vaultFolders.map(f => (
@@ -441,17 +443,29 @@ export const Sidebar = () => {
           <SectionHeader
             label={inVaultMode ? 'Encrypted Folders' : 'Folders'}
             id="sh3-cats"
-            onClick={() => setCatsOpen(v => !v)}
-            action={!inVaultMode ? (
-              <button type="button" className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-            ) : undefined}
+            onClick={toggleCats}
+            action={
+              <span className="sidebar-heading-actions">
+                {isLoadingVideos.value && <span className="sidebar-loading-spin" />}
+                {!inVaultMode && (
+                  <button type="button" className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                )}
+              </span>
+            }
           />
           <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
+            <SidebarItem
+              label="All Videos"
+              badge={filteredVids.length}
+              onClick={() => { currentView.value = 'browse'; currentCategory.value = ''; currentTag.value = null; currentTagTerms.value = []; isSidebarOpen.value = false; }}
+              isActive={!currentCategory.value && !currentTag.value}
+              indent
+            />
             {displayCategories.map(c => {
               const lockIcon = inVaultMode
                 ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2.5" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -520,7 +534,7 @@ export const Sidebar = () => {
           <SectionHeader
             label="Tags"
             id="sh3-tags"
-            onClick={() => setTagsOpen(v => !v)}
+            onClick={toggleTags}
             action={
               <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'categories', action: 'add' }; }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -542,6 +556,7 @@ export const Sidebar = () => {
                   currentCategory.value = '';
                   currentTag.value = t.name;
                   currentTagTerms.value = t.terms;
+                  searchQuery.value = '';
                   currentView.value = 'browse';
                   isSidebarOpen.value = false;
                 }}

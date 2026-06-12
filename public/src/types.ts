@@ -67,6 +67,12 @@ export interface AppPrefs {
   videosDirExists?: boolean;
   comfyuiPath?: string;
   llamaModelUri?: string;
+  openrouterApiKey?: string;
+  openrouterModel?: string;
+  assistantProvider?: 'openrouter' | 'local';
+  commentsProvider?: 'local' | 'openrouter';
+  isMuted?: boolean;
+  thumbBlurMode?: string;
 }
 export interface ThumbnailGroup {
   id: string;

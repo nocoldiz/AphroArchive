@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  db.js — All load/save functions for persistent data
 // ═══════════════════════════════════════════════════════════════════
@@ -17,9 +17,12 @@ const {
   BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
   BOOKS_META_FILE, AUDIO_META_FILE,
   LINK_DIR,
+  VAULT_DIR,
+  DB_DIR,
+  CACHE_DIR,
 } = require('./config-server');
 
-const Database = require('better-sqlite3');
+const { DatabaseSync } = eval("require('node:sqlite')");
 
 // ── In-memory write-through caches ──────────────────────────────────
 let _favs       = null;
@@ -32,6 +35,14 @@ let _studios    = null;
 
 let db;
 let currentProfile = 'default';
+let _dbInMemory = false;
+
+// Wraps a synchronous function in a BEGIN/COMMIT/ROLLBACK block
+function txn(fn) {
+  db.exec('BEGIN');
+  try { fn(); db.exec('COMMIT'); }
+  catch (e) { try { db.exec('ROLLBACK'); } catch {} throw e; }
+}
 
 function ensureSchema(database) {
   database.exec(`
@@ -210,18 +221,21 @@ function ensureSchema(database) {
   try { database.exec('ALTER TABLE links ADD COLUMN has_video INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE links ADD COLUMN has_embed INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE links ADD COLUMN fav INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE links ADD COLUMN vault INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE videos ADD COLUMN language TEXT'); } catch {}
 }
 
 function switchProfile(profileName) {
   currentProfile = profileName;
+  _dbInMemory = false;
   if (db) {
     try { db.close(); } catch(e) {}
   }
-  const dbPath = path.join(__dirname, `../db/aphroarchive_${profileName}.db`);
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  db = new Database(dbPath);
+  const dbPath = path.join(DB_DIR, `aphroarchive_${profileName}.db`);
+  fs.mkdirSync(DB_DIR, { recursive: true });
+  db = new DatabaseSync(dbPath);
   ensureSchema(db);
-  
+
   // Clear caches
   _favs       = null;
   _history    = null;
@@ -230,116 +244,31 @@ function switchProfile(profileName) {
   _actors     = null;
   _categories = null;
   _studios    = null;
-  
+
   return db;
 }
 
-// Initialize with default profile
-switchProfile('default');
-
-// Migration from JSON to SQLite
-const videoCount = db.prepare('SELECT COUNT(*) as count FROM videos').get().count;
-if (videoCount === 0) {
-  console.log('Migrating data from JSON to SQLite...');
+// Initialize with last active profile (or default); defer disk creation until preset is chosen
+{
+  let startProfile = 'default';
   try {
-    db.transaction(() => {
-      // Migrate Video Meta
-      if (fs.existsSync(VIDEO_META_FILE)) {
-        const meta = JSON.parse(fs.readFileSync(VIDEO_META_FILE, 'utf-8'));
-        const insertVideo = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
-        const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
-
-        for (const [id, data] of Object.entries(meta)) {
-          insertVideo.run(id, data.title || '', data.studio || '', data.category || '', data.rating || null, data.note || '', data.date || '');
-          if (Array.isArray(data.actors)) {
-            for (const actor of data.actors) {
-              insertActor.run(id, actor);
-            }
-          }
-          if (Array.isArray(data.tags)) {
-            for (const tag of data.tags) {
-              insertTag.run(id, tag);
-            }
-          }
-        }
-      }
-
-      // Migrate Favourites
-      if (fs.existsSync(FAVOURITES_FILE)) {
-        const favs = JSON.parse(fs.readFileSync(FAVOURITES_FILE, 'utf-8'));
-        const insertFav = db.prepare('INSERT INTO favourites (video_id) VALUES (?)');
-        if (Array.isArray(favs)) {
-          for (const id of favs) {
-            try { insertFav.run(id); } catch {} // Ignore duplicates
-          }
-        }
-      }
-
-      // Migrate Collections
-      if (fs.existsSync(COLLECTIONS_FILE)) {
-        const colls = JSON.parse(fs.readFileSync(COLLECTIONS_FILE, 'utf-8'));
-        const insertColl = db.prepare('INSERT INTO collections (id, name, video_ids) VALUES (?, ?, ?)');
-        if (Array.isArray(colls)) {
-          for (const c of colls) {
-            try { insertColl.run(c.id, c.name, JSON.stringify(c.video_ids || [])); } catch {}
-          }
-        }
-      }
-    })();
-    console.log('Migration to SQLite complete!');
-  } catch (e) {
-    console.error('Failed to migrate data to SQLite:', e);
+    const _lastFile = path.join(DB_DIR, 'last-profile.txt');
+    const _name = fs.readFileSync(_lastFile, 'utf-8').trim();
+    const _dbPath = path.join(DB_DIR, `aphroarchive_${_name}.db`);
+    if (_name && _name !== 'Vault' && fs.existsSync(_dbPath)) startProfile = _name;
+  } catch {}
+  const _startDbPath = path.join(DB_DIR, `aphroarchive_${startProfile}.db`);
+  if (fs.existsSync(_startDbPath)) {
+    switchProfile(startProfile);
+  } else {
+    // First run — no DB on disk yet; stay in memory until the user picks a preset
+    currentProfile = startProfile;
+    _dbInMemory = true;
+    db = new DatabaseSync(':memory:');
+    ensureSchema(db);
   }
 }
 
-// Migration for categories, studios, and websites
-const categoryCount = db.prepare('SELECT COUNT(*) as count FROM categories').get().count;
-if (categoryCount === 0) {
-  console.log('Migrating categories, studios, and websites from JSON to SQLite...');
-  try {
-    db.transaction(() => {
-      // Migrate Categories
-      if (fs.existsSync(CATEGORIES_JSON)) {
-        const cats = JSON.parse(fs.readFileSync(CATEGORIES_JSON, 'utf-8'));
-        const insertCat = db.prepare('INSERT INTO categories (name, display_name) VALUES (?, ?)');
-        const insertCatTag = db.prepare('INSERT INTO category_tags (category_name, tag) VALUES (?, ?)');
-        for (const [name, data] of Object.entries(cats)) {
-          insertCat.run(name, data.displayName || name);
-          if (Array.isArray(data.tags)) {
-            for (const tag of data.tags) insertCatTag.run(name, tag);
-          }
-        }
-      }
-
-      // Migrate Studios
-      if (fs.existsSync(STUDIOS_JSON)) {
-        const studios = JSON.parse(fs.readFileSync(STUDIOS_JSON, 'utf-8'));
-        const insertStudio = db.prepare('INSERT INTO studios (name, website, description) VALUES (?, ?, ?)');
-        for (const [name, data] of Object.entries(studios)) {
-          insertStudio.run(name, data.website || null, data.short_description || null);
-        }
-      }
-
-      // Migrate Websites
-      if (fs.existsSync(WEBSITES_JSON)) {
-        const sites = JSON.parse(fs.readFileSync(WEBSITES_JSON, 'utf-8'));
-        const insertSite = db.prepare('INSERT INTO websites (name, url, search_url, scrape_method, description) VALUES (?, ?, ?, ?, ?)');
-        const insertSiteTag = db.prepare('INSERT INTO website_tags (website_name, tag) VALUES (?, ?)');
-        for (const site of sites) {
-          const name = site.name || site.url;
-          insertSite.run(name, site.url || '', site.searchURL || '', site.scrapeMethod || '', site.description || '');
-          if (Array.isArray(site.tags)) {
-            for (const tag of site.tags) insertSiteTag.run(name, tag);
-          }
-        }
-      }
-    })();
-    console.log('Migration of categories, studios, and websites complete!');
-  } catch (e) {
-    console.error('Failed to migrate categories, studios, and websites:', e);
-  }
-}
 
 // ── Full JSON → SQLite migration (runs once per table) ───────────────
 
@@ -349,10 +278,10 @@ function _migrateJsonToSqlite() {
     const actorCount = db.prepare('SELECT COUNT(*) as c FROM actors').get().c;
     if (actorCount === 0 && fs.existsSync(ACTORS_JSON)) {
       const raw = JSON.parse(fs.readFileSync(ACTORS_JSON, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO actors (name, date_of_birth, nationality, imdb_page) VALUES (?, ?, ?, ?)');
         for (const [name, d] of Object.entries(raw)) ins.run(name, d.date_of_birth || null, d.nationality || null, d.imdb_page || null);
-      })();
+      });
       console.log('[migrate] actors.json → actors table');
     }
   } catch (e) { console.error('[migrate] actors:', e.message); }
@@ -363,10 +292,10 @@ function _migrateJsonToSqlite() {
     if (bmCount === 0 && fs.existsSync(BM_CACHE_FILE)) {
       const data = JSON.parse(fs.readFileSync(BM_CACHE_FILE, 'utf-8'));
       const items = Array.isArray(data.items) ? data.items : [];
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO links (url, title, category, img, scraped_video_url, embed_url, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
         for (const it of items) ins.run(it.url, it.title ?? null, it.category ?? null, it.img ?? null, it.scrapedVideoUrl ?? null, it.embedUrl ?? null, it.addedAt ?? Date.now());
-      })();
+      });
       console.log(`[migrate] links_cache.json → links table (${items.length} items)`);
     }
   } catch (e) { console.error('[migrate] links:', e.message); }
@@ -376,10 +305,10 @@ function _migrateJsonToSqlite() {
     const ogCount = db.prepare('SELECT COUNT(*) as c FROM og_thumbs').get().c;
     if (ogCount === 0 && fs.existsSync(OG_THUMB_CACHE_FILE)) {
       const raw = JSON.parse(fs.readFileSync(OG_THUMB_CACHE_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO og_thumbs (url, img, ts) VALUES (?, ?, ?)');
         for (const [url, v] of Object.entries(raw)) ins.run(url, v.img ?? null, v.ts ?? null);
-      })();
+      });
       console.log('[migrate] og_thumb_cache.json → og_thumbs table');
     }
   } catch (e) { console.error('[migrate] og_thumbs:', e.message); }
@@ -389,13 +318,13 @@ function _migrateJsonToSqlite() {
     const tcCount = db.prepare('SELECT COUNT(*) as c FROM thumbs_cache').get().c;
     if (tcCount === 0 && fs.existsSync(THUMBS_CACHE_FILE)) {
       const raw = JSON.parse(fs.readFileSync(THUMBS_CACHE_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO thumbs_cache (video_id, duration, data) VALUES (?, ?, ?)');
         for (const [id, entry] of Object.entries(raw)) {
           const { duration, ...rest } = entry;
           ins.run(id, duration ?? null, Object.keys(rest).length ? JSON.stringify(rest) : null);
         }
-      })();
+      });
       console.log('[migrate] thumbcache.json → thumbs_cache table');
     }
   } catch (e) { console.error('[migrate] thumbs_cache:', e.message); }
@@ -403,13 +332,13 @@ function _migrateJsonToSqlite() {
   // Visual hashes
   try {
     const hashCount = db.prepare('SELECT COUNT(*) as c FROM visual_hashes').get().c;
-    const HASHES_FILE = path.join(path.join(__dirname, '../cache'), '.AphroArchive-visual-hashes.json');
+    const HASHES_FILE = path.join(CACHE_DIR, '.AphroArchive-visual-hashes.json');
     if (hashCount === 0 && fs.existsSync(HASHES_FILE)) {
       const raw = JSON.parse(fs.readFileSync(HASHES_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO visual_hashes (video_id, hash) VALUES (?, ?)');
         for (const [id, hash] of Object.entries(raw)) ins.run(id, hash);
-      })();
+      });
       console.log('[migrate] visual-hashes.json → visual_hashes table');
     }
   } catch (e) { console.error('[migrate] visual_hashes:', e.message); }
@@ -420,10 +349,10 @@ function _migrateJsonToSqlite() {
     if (pCount === 0 && fs.existsSync(PROMPTS_FILE)) {
       const raw = JSON.parse(fs.readFileSync(PROMPTS_FILE, 'utf-8'));
       if (Array.isArray(raw) && raw.length) {
-        db.transaction(() => {
+        txn(() => {
           const ins = db.prepare('INSERT OR IGNORE INTO prompts (id, text, sites, created_at) VALUES (?, ?, ?, ?)');
           for (const p of raw) ins.run(p.id, p.text, JSON.stringify(p.sites || []), p.createdAt || Date.now());
-        })();
+        });
         console.log(`[migrate] prompts.json → prompts table (${raw.length} prompts)`);
       }
     }
@@ -433,11 +362,11 @@ function _migrateJsonToSqlite() {
   try {
     const cCount = db.prepare('SELECT COUNT(*) as c FROM comments').get().c;
     if (cCount === 0) {
-      const cacheDir = path.join(__dirname, '../cache');
+      const cacheDir = CACHE_DIR;
       if (fs.existsSync(cacheDir)) {
         const files = fs.readdirSync(cacheDir).filter(f => f.startsWith('comments_') && f.endsWith('.json'));
         if (files.length) {
-          db.transaction(() => {
+          txn(() => {
             const ins = db.prepare('INSERT OR IGNORE INTO comments (video_id, data) VALUES (?, ?)');
             for (const f of files) {
               try {
@@ -446,7 +375,7 @@ function _migrateJsonToSqlite() {
                 ins.run(videoId, data);
               } catch {}
             }
-          })();
+          });
           console.log(`[migrate] ${files.length} comment files → comments table`);
         }
       }
@@ -458,10 +387,10 @@ function _migrateJsonToSqlite() {
     const bCount = db.prepare('SELECT COUNT(*) as c FROM books_meta').get().c;
     if (bCount === 0 && fs.existsSync(BOOKS_META_FILE)) {
       const raw = JSON.parse(fs.readFileSync(BOOKS_META_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO books_meta (filename, title, ext, size, size_f, date, type) VALUES (?, ?, ?, ?, ?, ?, ?)');
         for (const [fn, d] of Object.entries(raw)) ins.run(fn, d.title ?? null, d.ext ?? null, d.size ?? 0, d.sizeF ?? null, d.date ?? null, d.type ?? null);
-      })();
+      });
       console.log('[migrate] books/.meta.json → books_meta table');
     }
   } catch (e) { console.error('[migrate] books_meta:', e.message); }
@@ -471,10 +400,10 @@ function _migrateJsonToSqlite() {
     const aCount = db.prepare('SELECT COUNT(*) as c FROM audio_meta').get().c;
     if (aCount === 0 && fs.existsSync(AUDIO_META_FILE)) {
       const raw = JSON.parse(fs.readFileSync(AUDIO_META_FILE, 'utf-8'));
-      db.transaction(() => {
+      txn(() => {
         const ins = db.prepare('INSERT OR IGNORE INTO audio_meta (filename, title, ext, size, size_f, date) VALUES (?, ?, ?, ?, ?, ?)');
         for (const [fn, d] of Object.entries(raw)) ins.run(fn, d.title ?? null, d.ext ?? null, d.size ?? 0, d.sizeF ?? null, d.date ?? null);
-      })();
+      });
       console.log('[migrate] audio/.meta.json → audio_meta table');
     }
   } catch (e) { console.error('[migrate] audio_meta:', e.message); }
@@ -512,13 +441,13 @@ function loadFavs() {
 function saveFavs(f) {
   _favs = f;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM favourites').run();
       const insert = db.prepare('INSERT INTO favourites (video_id) VALUES (?)');
       for (const id of f) {
         insert.run(id);
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save favourites to SQLite:', e);
   }
@@ -542,14 +471,14 @@ function loadHistory() {
 function saveHistory(h) {
   _history = h;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM history').run();
       const insert = db.prepare('INSERT INTO history (video_id, timestamp) VALUES (?, ?)');
       let ts = Date.now();
       for (const id of h) {
         insert.run(id, ts--); // Use decreasing timestamps to maintain order
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save history to SQLite:', e);
   }
@@ -623,39 +552,72 @@ function saveRatings(r) { fs.writeFileSync(RATINGS_FILE, JSON.stringify(r)); }
 
 // ── Video meta ───────────────────────────────────────────────────────
 
-function loadVideoMeta() {
+function _readVideoMetaFromDb(database) {
+  const out = {};
+  const rows = database.prepare('SELECT * FROM videos').all();
+  const getActors = database.prepare('SELECT actor FROM video_actors WHERE video_id = ?');
+  const getTags = database.prepare('SELECT tag FROM video_tags WHERE video_id = ?');
+  for (const row of rows) {
+    out[row.id] = {
+      title: row.title || '',
+      studio: row.studio || '',
+      category: row.category || '',
+      rating: row.rating,
+      note: row.note || '',
+      date: row.date || '',
+      language: row.language || '',
+      actors: getActors.all(row.id).map(r => r.actor),
+      tags: getTags.all(row.id).map(r => r.tag)
+    };
+  }
+  return out;
+}
+
+// Remove a video's metadata row from the public database(s). When the Vault
+// profile is active the row lives in another profile's DB, so it is deleted
+// there too — encryption must leave no trace in any public database.
+function deleteVideoMetaEverywhere(id) {
+  _videoMeta = null;
+  const wipe = (database) => {
+    database.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
+    database.prepare('DELETE FROM video_tags WHERE video_id = ?').run(id);
+    database.prepare('DELETE FROM videos WHERE id = ?').run(id);
+  };
+  try { wipe(db); } catch (e) { console.error('Failed to delete video meta:', e); }
   if (currentProfile === 'Vault') {
-    const meta = loadVaultMeta();
-    const result = {};
-    for (const [id, item] of Object.entries(meta)) {
-      if (item.videoMeta) {
-        result[id] = item.videoMeta;
+    for (const dbPath of _otherProfileDbPaths()) {
+      let other = null;
+      try {
+        other = new DatabaseSync(dbPath);
+        wipe(other);
+      } catch (e) {
+        console.error('[vault] failed to delete public meta in', path.basename(dbPath), e.message);
+      } finally {
+        if (other) { try { other.close(); } catch {} }
       }
     }
-    return result;
+  }
+}
+
+function loadVideoMeta() {
+  if (currentProfile === 'Vault') {
+    if (!_videoMeta) {
+      const result = {};
+      // Public meta from every other profile, then private vault meta on top
+      for (const metaMap of _mapOtherProfiles(_readVideoMetaFromDb)) Object.assign(result, metaMap);
+      const meta = loadVaultMeta();
+      for (const [id, item] of Object.entries(meta)) {
+        if (item.videoMeta) result[id] = item.videoMeta;
+      }
+      _videoMeta = result;
+    }
+    return _videoMeta;
   }
 
   if (!_videoMeta) {
     _videoMeta = {};
     try {
-      const rows = db.prepare('SELECT * FROM videos').all();
-      const getActors = db.prepare('SELECT actor FROM video_actors WHERE video_id = ?');
-      const getTags = db.prepare('SELECT tag FROM video_tags WHERE video_id = ?');
-      
-      for (const row of rows) {
-        const actors = getActors.all(row.id).map(r => r.actor);
-        const tags = getTags.all(row.id).map(r => r.tag);
-        _videoMeta[row.id] = {
-          title: row.title || '',
-          studio: row.studio || '',
-          category: row.category || '',
-          rating: row.rating,
-          note: row.note || '',
-          date: row.date || '',
-          actors,
-          tags
-        };
-      }
+      _videoMeta = _readVideoMetaFromDb(db);
     } catch (e) {
       console.error('Failed to load video meta from SQLite:', e);
     }
@@ -668,17 +630,17 @@ function saveVideoMeta(m) {
   // This is a legacy fallback. In SQLite we should use setVideoMetaFields.
   // But if we must save the whole object, we can do it in a transaction.
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM video_actors').run();
       db.prepare('DELETE FROM video_tags').run();
       db.prepare('DELETE FROM videos').run();
-      
-      const insertVideo = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date) VALUES (?, ?, ?, ?, ?, ?, ?)');
+
+      const insertVideo = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
       const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
       const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
 
       for (const [id, data] of Object.entries(m)) {
-        insertVideo.run(id, data.title || '', data.studio || '', data.category || '', data.rating || null, data.note || '', data.date || '');
+        insertVideo.run(id, data.title || '', data.studio || '', data.category || '', data.rating || null, data.note || '', data.date || '', data.language || '');
         if (Array.isArray(data.actors)) {
           for (const actor of data.actors) insertActor.run(id, actor);
         }
@@ -686,7 +648,7 @@ function saveVideoMeta(m) {
           for (const tag of data.tags) insertTag.run(id, tag);
         }
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save video meta to SQLite:', e);
   }
@@ -694,15 +656,15 @@ function saveVideoMeta(m) {
 
 function setVideoMetaFields(id, fields) {
   const meta = loadVideoMeta();
-  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
+  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '', language: '' };
   Object.assign(meta[id], fields);
-  
+
   try {
-    db.transaction(() => {
-      const stmt = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, studio=excluded.studio, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date');
+    txn(() => {
+      const stmt = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, studio=excluded.studio, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date, language=excluded.language');
       const current = meta[id];
-      stmt.run(id, current.title || '', current.studio || '', current.category || '', current.rating || null, current.note || '', current.date || '');
-      
+      stmt.run(id, current.title || '', current.studio || '', current.category || '', current.rating || null, current.note || '', current.date || '', current.language || '');
+
       if (fields.actors) {
         db.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
         const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
@@ -713,7 +675,7 @@ function setVideoMetaFields(id, fields) {
         const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
         for (const tag of fields.tags) insertTag.run(id, tag);
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to set video meta fields in SQLite:', e);
   }
@@ -740,14 +702,14 @@ function loadThumbsCache() {
 function saveThumbsCache(c) {
   _thumbs = c;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM thumbs_cache').run();
       const ins = db.prepare('INSERT INTO thumbs_cache (video_id, duration, data) VALUES (?, ?, ?)');
       for (const [id, entry] of Object.entries(c)) {
         const { duration, ...rest } = entry;
         ins.run(id, duration ?? null, Object.keys(rest).length ? JSON.stringify(rest) : null);
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save thumbs cache to SQLite:', e);
   }
@@ -795,26 +757,62 @@ function _decryptString(jsonStr, key) {
   return dec;
 }
 
+// ── Vault superuser merge ────────────────────────────────────────────
+// When the Vault profile is active, reads act as a merged view of every
+// other profile's public database plus the Vault's own private rows.
+// Writes always go to the Vault's own DB, so private entries (actors,
+// websites, tags, links…) never leak into public profiles.
+
+function _otherProfileDbPaths() {
+  try {
+    return fs.readdirSync(DB_DIR)
+      .filter(f => /^aphroarchive_.+\.db$/.test(f) && f !== `aphroarchive_${currentProfile}.db` && f !== 'aphroarchive_Vault.db')
+      .map(f => path.join(DB_DIR, f));
+  } catch { return []; }
+}
+
+// Run fn against each other profile's DB (read-only) and collect results.
+// Returns [] unless the Vault profile is active.
+function _mapOtherProfiles(fn) {
+  if (currentProfile !== 'Vault') return [];
+  const out = [];
+  for (const dbPath of _otherProfileDbPaths()) {
+    let other = null;
+    try {
+      other = new DatabaseSync(dbPath, { readOnly: true });
+      out.push(fn(other));
+    } catch (e) {
+      console.error('[vault] merged read failed for', path.basename(dbPath), e.message);
+    } finally {
+      if (other) { try { other.close(); } catch {} }
+    }
+  }
+  return out;
+}
+
 function loadVaultConfig() { try { return JSON.parse(fs.readFileSync(VAULT_CONFIG_FILE, 'utf-8')); } catch { return null; } }
 function saveVaultConfig(c) { fs.writeFileSync(VAULT_CONFIG_FILE, JSON.stringify(c)); }
 
 function loadVaultMeta() {
   try {
     const raw = fs.readFileSync(VAULT_META_FILE, 'utf-8');
-    try {
-      return JSON.parse(raw); // Legacy cleartext
-    } catch {
-      // Failed to parse, likely encrypted
-      if (!_vaultKey) throw new Error('Vault is locked or key missing');
-      const decrypted = _decryptString(raw, _vaultKey);
-      return JSON.parse(decrypted);
-    }
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch {}
+    // Encrypted wrapper produced by _encryptString is itself valid JSON, so
+    // detect it by shape ({iv, tag, ciphertext}) rather than by parse failure.
+    // Vault entry ids are UUIDs, so a real meta map can never have these keys.
+    const isEncrypted = parsed && typeof parsed.iv === 'string' &&
+      typeof parsed.tag === 'string' && typeof parsed.ciphertext === 'string';
+    if (parsed && !isEncrypted) return parsed; // legacy cleartext
+    if (!_vaultKey) throw new Error('Vault is locked or key missing');
+    return JSON.parse(_decryptString(raw, _vaultKey));
   } catch (e) {
     return {};
   }
 }
 
 function saveVaultMeta(m) {
+  if (currentProfile === 'Vault') _videoMeta = null; // merged view includes vault meta
   const jsonStr = JSON.stringify(m);
   if (!_vaultKey) {
     fs.writeFileSync(VAULT_META_FILE, jsonStr);
@@ -842,13 +840,13 @@ function loadCollections() {
 
 function saveCollections(c) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM collections').run();
       const insert = db.prepare('INSERT INTO collections (id, name, video_ids) VALUES (?, ?, ?)');
       for (const coll of c) {
         insert.run(coll.id, coll.name, JSON.stringify(coll.video_ids || []));
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save collections to SQLite:', e);
   }
@@ -860,7 +858,7 @@ function loadHidden() {
   try {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('hidden_terms');
     if (row) return JSON.parse(row.value);
-    
+
     // Fallback to file and migrate
     if (fs.existsSync(HIDDEN_FILE)) {
       const lines = fs.readFileSync(HIDDEN_FILE, 'utf-8')
@@ -877,20 +875,27 @@ function loadHidden() {
 
 // ── Websites ─────────────────────────────────────────────────────────
 
+function _readWebsiteRows(database) {
+  const rows = database.prepare('SELECT * FROM websites').all();
+  const getTags = database.prepare('SELECT tag FROM website_tags WHERE website_name = ?');
+  return rows.map(row => ({
+    name: row.name,
+    url: row.url,
+    searchURL: row.search_url,
+    scrapeMethod: row.scrape_method,
+    tags: getTags.all(row.name).map(r => r.tag),
+    description: row.description
+  }));
+}
+
 function loadWebsites() {
   try {
-    const rows = db.prepare('SELECT * FROM websites').all();
-    return rows.map(row => {
-      const tags = db.prepare('SELECT tag FROM website_tags WHERE website_name = ?').all(row.name).map(r => r.tag);
-      return {
-        name: row.name,
-        url: row.url,
-        searchURL: row.search_url,
-        scrapeMethod: row.scrape_method,
-        tags,
-        description: row.description
-      };
-    });
+    const merged = new Map();
+    for (const list of _mapOtherProfiles(_readWebsiteRows)) {
+      for (const s of list) merged.set(s.name.toLowerCase(), s);
+    }
+    for (const s of _readWebsiteRows(db)) merged.set(s.name.toLowerCase(), s); // private rows win
+    return [...merged.values()];
   } catch (e) {
     console.error('Failed to load websites from SQLite:', e);
     return [];
@@ -899,7 +904,7 @@ function loadWebsites() {
 
 function saveWebsites(s) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM website_tags').run();
       db.prepare('DELETE FROM websites').run();
       const insertSite = db.prepare('INSERT INTO websites (name, url, search_url, scrape_method, description) VALUES (?, ?, ?, ?, ?)');
@@ -911,7 +916,7 @@ function saveWebsites(s) {
           for (const tag of site.tags) insertTag.run(name, tag);
         }
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save websites to SQLite:', e);
   }
@@ -968,6 +973,7 @@ function _rowToLink(r) {
     downloaded: !!r.downloaded,
     localVideoId: r.local_video_id || null,
     fav: !!r.fav,
+    vault: !!r.vault,
   };
 }
 
@@ -986,19 +992,36 @@ function _linkParams(it) {
     it.downloaded ? 1 : 0,
     it.localVideoId ?? null,
     it.fav ? 1 : 0,
+    it.vault ? 1 : 0,
   ];
 }
 
-const _LINK_COLS = 'url, title, category, img, scraped_video_url, has_video, embed_url, has_embed, added_at, tags, downloaded, local_video_id, fav';
-const _LINK_PLACEHOLDERS = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
+const _LINK_COLS = 'url, title, category, img, scraped_video_url, has_video, embed_url, has_embed, added_at, tags, downloaded, local_video_id, fav, vault';
+const _LINK_PLACEHOLDERS = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
 
 function loadLinksCache() {
   try {
-    const rows = db.prepare(`SELECT ${_LINK_COLS} FROM links`).all();
-    return { items: rows.map(_rowToLink) };
+    const publicLinks = (database) =>
+      database.prepare(`SELECT ${_LINK_COLS} FROM links WHERE vault = 0 OR vault IS NULL`).all().map(_rowToLink);
+    const merged = new Map();
+    for (const list of _mapOtherProfiles(publicLinks)) {
+      for (const l of list) merged.set(l.url, l);
+    }
+    for (const l of publicLinks(db)) merged.set(l.url, l); // private rows win
+    return { items: [...merged.values()] };
   } catch (e) {
     console.error('Failed to load links cache from SQLite:', e);
     return { items: [] };
+  }
+}
+
+function loadVaultLinks() {
+  try {
+    const rows = db.prepare(`SELECT ${_LINK_COLS} FROM links WHERE vault = 1`).all();
+    return rows.map(_rowToLink);
+  } catch (e) {
+    console.error('Failed to load vault links from SQLite:', e);
+    return [];
   }
 }
 
@@ -1035,11 +1058,11 @@ function saveLinksCache(data) {
     items.push(it);
   }
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM links').run();
       const ins = db.prepare(`INSERT INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`);
       for (const it of items) ins.run(_linkParams(it));
-    })();
+    });
   } catch (e) { console.error('Failed to save links cache to SQLite:', e); }
 }
 
@@ -1056,13 +1079,13 @@ function loadBooksMeta() {
 
 function saveBooksMeta(m) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM books_meta').run();
       const ins = db.prepare('INSERT INTO books_meta (filename, title, ext, size, size_f, date, type) VALUES (?, ?, ?, ?, ?, ?, ?)');
       for (const [filename, d] of Object.entries(m)) {
         ins.run(filename, d.title ?? null, d.ext ?? null, d.size ?? 0, d.sizeF ?? null, d.date ?? null, d.type ?? null);
       }
-    })();
+    });
   } catch (e) { console.error('Failed to save books meta:', e); }
 }
 
@@ -1079,13 +1102,13 @@ function loadAudioMeta() {
 
 function saveAudioMeta(m) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM audio_meta').run();
       const ins = db.prepare('INSERT INTO audio_meta (filename, title, ext, size, size_f, date) VALUES (?, ?, ?, ?, ?, ?)');
       for (const [filename, d] of Object.entries(m)) {
         ins.run(filename, d.title ?? null, d.ext ?? null, d.size ?? 0, d.sizeF ?? null, d.date ?? null);
       }
-    })();
+    });
   } catch (e) { console.error('Failed to save audio meta:', e); }
 }
 
@@ -1095,14 +1118,17 @@ function loadComments(videoId) {
   try {
     const row = db.prepare('SELECT data FROM comments WHERE video_id = ?').get(videoId);
     if (!row) return null;
-    return JSON.parse(row.data);
+    const raw = _isVaultEncryptActive() ? _tryDecrypt(row.data) : row.data;
+    return JSON.parse(raw);
   } catch (e) { console.error('Failed to load comments:', e); return null; }
 }
 
 function saveComments(videoId, arr) {
   try {
+    const vault = _isVaultEncryptActive();
+    const data = vault ? _encryptString(JSON.stringify(arr), _vaultKey) : JSON.stringify(arr);
     db.prepare('INSERT INTO comments (video_id, data) VALUES (?, ?) ON CONFLICT(video_id) DO UPDATE SET data=excluded.data')
-      .run(videoId, JSON.stringify(arr));
+      .run(videoId, data);
   } catch (e) { console.error('Failed to save comments:', e); }
 }
 
@@ -1130,27 +1156,44 @@ function setVisualHash(videoId, hash) {
 
 function saveVisualHashes(hashes) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM visual_hashes').run();
       const ins = db.prepare('INSERT INTO visual_hashes (video_id, hash) VALUES (?, ?)');
       for (const [id, hash] of Object.entries(hashes)) ins.run(id, hash);
-    })();
+    });
   } catch (e) { console.error('Failed to save visual hashes:', e); }
 }
 
 // ── Prompts ───────────────────────────────────────────────────────────
 
+function _isVaultEncryptActive() {
+  return currentProfile === 'Vault' && !!_vaultKey;
+}
+
+function _tryDecrypt(str) {
+  if (!_vaultKey || !str) return str;
+  try { return _decryptString(str, _vaultKey); } catch { return str; }
+}
+
 function loadPrompts() {
   try {
     const rows = db.prepare('SELECT id, text, sites, created_at FROM prompts ORDER BY created_at DESC').all();
-    return rows.map(r => ({ id: r.id, text: r.text, sites: JSON.parse(r.sites || '[]'), createdAt: r.created_at }));
+    const vault = _isVaultEncryptActive();
+    return rows.map(r => {
+      const text  = vault ? _tryDecrypt(r.text)  : r.text;
+      const sites = vault ? _tryDecrypt(r.sites) : (r.sites || '[]');
+      return { id: r.id, text, sites: JSON.parse(sites || '[]'), createdAt: r.created_at };
+    });
   } catch (e) { console.error('Failed to load prompts:', e); return []; }
 }
 
 function savePrompt(prompt) {
   try {
+    const vault = _isVaultEncryptActive();
+    const text  = vault ? _encryptString(prompt.text,                    _vaultKey) : prompt.text;
+    const sites = vault ? _encryptString(JSON.stringify(prompt.sites || []), _vaultKey) : JSON.stringify(prompt.sites || []);
     db.prepare('INSERT INTO prompts (id, text, sites, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET text=excluded.text, sites=excluded.sites')
-      .run(prompt.id, prompt.text, JSON.stringify(prompt.sites || []), prompt.createdAt || Date.now());
+      .run(prompt.id, text, sites, prompt.createdAt || Date.now());
   } catch (e) { console.error('Failed to save prompt:', e); }
 }
 
@@ -1158,11 +1201,46 @@ function updatePrompt(id, fields) {
   try {
     const row = db.prepare('SELECT text, sites FROM prompts WHERE id = ?').get(id);
     if (!row) return false;
-    const text = fields.text !== undefined ? fields.text : row.text;
-    const sites = fields.sites !== undefined ? JSON.stringify(fields.sites) : row.sites;
-    db.prepare('UPDATE prompts SET text = ?, sites = ? WHERE id = ?').run(text, sites, id);
+    const vault = _isVaultEncryptActive();
+    let newText, newSites;
+    if (fields.text !== undefined) {
+      newText = vault ? _encryptString(fields.text, _vaultKey) : fields.text;
+    } else {
+      newText = row.text; // already in correct form (encrypted or plain)
+    }
+    if (fields.sites !== undefined) {
+      newSites = vault ? _encryptString(JSON.stringify(fields.sites), _vaultKey) : JSON.stringify(fields.sites);
+    } else {
+      newSites = row.sites; // already in correct form
+    }
+    db.prepare('UPDATE prompts SET text = ?, sites = ? WHERE id = ?').run(newText, newSites, id);
     return true;
   } catch (e) { console.error('Failed to update prompt:', e); return false; }
+}
+
+// Re-encrypts all prompts and comments in the current DB from oldKey → newKey.
+// Called by vault-server.js during password change.
+function reEncryptVaultSqlite(oldKey, newKey) {
+  try {
+    const rows = db.prepare('SELECT id, text, sites FROM prompts').all();
+    const upd  = db.prepare('UPDATE prompts SET text = ?, sites = ? WHERE id = ?');
+    for (const row of rows) {
+      let text = row.text, sites = row.sites || '[]';
+      try { text  = _decryptString(row.text,  oldKey); } catch {}
+      try { sites = _decryptString(row.sites,  oldKey); } catch {}
+      upd.run(_encryptString(text, newKey), _encryptString(sites, newKey), row.id);
+    }
+  } catch (e) { console.error('[vault] re-encrypt prompts failed:', e); }
+
+  try {
+    const rows = db.prepare('SELECT video_id, data FROM comments').all();
+    const upd  = db.prepare('UPDATE comments SET data = ? WHERE video_id = ?');
+    for (const row of rows) {
+      let data = row.data;
+      try { data = _decryptString(row.data, oldKey); } catch {}
+      upd.run(_encryptString(data, newKey), row.video_id);
+    }
+  } catch (e) { console.error('[vault] re-encrypt comments failed:', e); }
 }
 
 function deletePrompt(id) {
@@ -1199,21 +1277,30 @@ function _parseActors(raw) {
   });
 }
 
+function _readActorRows(database) {
+  const rows = database.prepare('SELECT name, date_of_birth, nationality, imdb_page FROM actors').all();
+  return rows.map(r => {
+    const ageInfo = parseActorAge(r.date_of_birth);
+    return {
+      name: r.name, terms: [r.name],
+      date_of_birth: r.date_of_birth || null,
+      nationality: r.nationality || null,
+      age: ageInfo ? ageInfo.age : null,
+      deceased: ageInfo ? ageInfo.deceased : false,
+      imdb_page: r.imdb_page || null,
+    };
+  });
+}
+
 function loadActors() {
   if (!_actors) {
     try {
-      const rows = db.prepare('SELECT name, date_of_birth, nationality, imdb_page FROM actors').all();
-      _actors = rows.map(r => {
-        const ageInfo = parseActorAge(r.date_of_birth);
-        return {
-          name: r.name, terms: [r.name],
-          date_of_birth: r.date_of_birth || null,
-          nationality: r.nationality || null,
-          age: ageInfo ? ageInfo.age : null,
-          deceased: ageInfo ? ageInfo.deceased : false,
-          imdb_page: r.imdb_page || null,
-        };
-      });
+      const merged = new Map();
+      for (const list of _mapOtherProfiles(_readActorRows)) {
+        for (const a of list) merged.set(a.name.toLowerCase(), a);
+      }
+      for (const a of _readActorRows(db)) merged.set(a.name.toLowerCase(), a); // private rows win
+      _actors = [...merged.values()];
     } catch (e) { console.error('Failed to load actors from SQLite:', e); _actors = []; }
   }
   return _actors;
@@ -1222,13 +1309,13 @@ function loadActors() {
 function saveActors(raw) {
   _actors = null;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM actors').run();
       const ins = db.prepare('INSERT INTO actors (name, date_of_birth, nationality, imdb_page) VALUES (?, ?, ?, ?)');
       for (const [name, data] of Object.entries(raw)) {
         ins.run(name, data.date_of_birth || null, data.nationality || null, data.imdb_page || null);
       }
-    })();
+    });
   } catch (e) { console.error('Failed to save actors to SQLite:', e); }
 }
 
@@ -1241,23 +1328,38 @@ function _parseCategories(raw) {
   });
 }
 
+function _readCategoryRows(database) {
+  const rows = database.prepare('SELECT * FROM categories').all();
+  const getTags = database.prepare('SELECT tag FROM category_tags WHERE category_name = ?');
+  return rows.map(row => {
+    const tags = getTags.all(row.name).map(r => r.tag);
+    return { name: row.name, displayName: row.display_name, terms: [row.name, ...tags] };
+  });
+}
+
 function loadCategories() {
   if (currentProfile === 'Vault') {
-    const meta = loadVaultMeta();
-    const cats = new Set();
-    for (const item of Object.values(meta)) {
-      if (item.category) cats.add(item.category);
+    // Superuser view: every profile's categories, the Vault's own private
+    // categories table, plus categories derived from encrypted file metadata.
+    const merged = new Map();
+    for (const list of _mapOtherProfiles(_readCategoryRows)) {
+      for (const c of list) merged.set(c.name.toLowerCase(), c);
     }
-    return Array.from(cats).map(name => ({ name, displayName: name, terms: [name] }));
+    try {
+      for (const c of _readCategoryRows(db)) merged.set(c.name.toLowerCase(), c); // private rows win
+    } catch (e) { console.error('Failed to load vault categories from SQLite:', e); }
+    const meta = loadVaultMeta();
+    for (const item of Object.values(meta)) {
+      if (item.category && !merged.has(item.category.toLowerCase())) {
+        merged.set(item.category.toLowerCase(), { name: item.category, displayName: item.category, terms: [item.category] });
+      }
+    }
+    return [...merged.values()];
   }
 
   if (!_categories) {
     try {
-      const rows = db.prepare('SELECT * FROM categories').all();
-      _categories = rows.map(row => {
-        const tags = db.prepare('SELECT tag FROM category_tags WHERE category_name = ?').all(row.name).map(r => r.tag);
-        return { name: row.name, displayName: row.display_name, terms: [row.name, ...tags] };
-      });
+      _categories = _readCategoryRows(db);
     } catch (e) {
       console.error('Failed to load categories from SQLite:', e);
       _categories = [];
@@ -1280,13 +1382,10 @@ function saveEnabledCategories(paths) {
   try {
     const insert = db.prepare('INSERT OR IGNORE INTO enabled_categories (path) VALUES (?)');
     const del = db.prepare('DELETE FROM enabled_categories');
-    
-    const transaction = db.transaction((list) => {
+    txn(() => {
       del.run();
-      for (const p of list) insert.run(p);
+      for (const p of paths) insert.run(p);
     });
-    
-    transaction(paths);
   } catch (e) {
     console.error('Failed to save enabled categories:', e);
   }
@@ -1295,7 +1394,7 @@ function saveEnabledCategories(paths) {
 function saveCategories(cats) {
   _categories = null;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM category_tags').run();
       db.prepare('DELETE FROM categories').run();
       const insertCat = db.prepare('INSERT INTO categories (name, display_name) VALUES (?, ?)');
@@ -1306,7 +1405,7 @@ function saveCategories(cats) {
           for (const tag of data.tags) insertCatTag.run(name, tag);
         }
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save categories to SQLite:', e);
   }
@@ -1340,13 +1439,13 @@ function loadStudios() {
 function saveStudios(studios) {
   _studios = null;
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM studios').run();
       const insertStudio = db.prepare('INSERT INTO studios (name, website, description) VALUES (?, ?, ?)');
       for (const [name, data] of Object.entries(studios)) {
         insertStudio.run(name, data.website || null, data.short_description || data.description || null);
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save studios to SQLite:', e);
   }
@@ -1399,9 +1498,57 @@ function loadVideoIndex() {
   }
 }
 
+function getVideoIndexEntry(id) {
+  try {
+    const r = db.prepare('SELECT * FROM video_index WHERE id = ?').get(id);
+    if (!r) return null;
+    return {
+      id: r.id,
+      name: r.name,
+      filename: r.filename,
+      ext: r.ext,
+      rel: r.rel,
+      catPath: r.cat_path,
+      category: r.category,
+      size: r.size,
+      sizeF: r.size_f,
+      mtime: r.mtime,
+      modified: r.modified,
+      ...(r.is_external ? { isExternal: true } : {}),
+      ...(r.encrypted ? { encrypted: true } : {}),
+    };
+  } catch (e) {
+    console.error('Failed to get video index entry from SQLite:', e);
+    return null;
+  }
+}
+
+function getSingleVideoMeta(id) {
+  try {
+    const row = db.prepare('SELECT * FROM videos WHERE id = ?').get(id);
+    if (!row) return null;
+    const actors = db.prepare('SELECT actor FROM video_actors WHERE video_id = ?').all(id).map(r => r.actor);
+    const tags = db.prepare('SELECT tag FROM video_tags WHERE video_id = ?').all(id).map(r => r.tag);
+    return {
+      title: row.title || '',
+      studio: row.studio || '',
+      category: row.category || '',
+      rating: row.rating,
+      note: row.note || '',
+      date: row.date || '',
+      language: row.language || '',
+      actors,
+      tags
+    };
+  } catch (e) {
+    console.error('Failed to get single video meta from SQLite:', e);
+    return null;
+  }
+}
+
 function saveVideoIndex(videos) {
   try {
-    db.transaction(() => {
+    txn(() => {
       db.prepare('DELETE FROM video_index').run();
       const insert = db.prepare(
         'INSERT INTO video_index (id, name, filename, ext, rel, cat_path, category, size, size_f, mtime, modified, is_external, encrypted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -1414,7 +1561,7 @@ function saveVideoIndex(videos) {
           v.isExternal ? 1 : 0, v.encrypted ? 1 : 0
         );
       }
-    })();
+    });
   } catch (e) {
     console.error('Failed to save video index to SQLite:', e);
   }
@@ -1437,12 +1584,12 @@ function loadAllVideoTags() {
 function saveLinksToDb(items) {
   const cats = loadCategories();
   const { wordMatchAny } = require('./helpers-server');
-  
+
   try {
     const seenUrls = new Set();
     const seenNames = new Set();
     let inserted = 0;
-    db.transaction(() => {
+    txn(() => {
       const insertVideo = db.prepare('INSERT OR IGNORE INTO videos (id, title, category) VALUES (?, ?, ?)');
       for (const item of items) {
         if (!item || !item.url) continue;
@@ -1462,7 +1609,7 @@ function saveLinksToDb(items) {
         insertVideo.run(id, item.title, category);
         inserted++;
       }
-    })();
+    });
     return { ok: true, count: inserted };
   } catch (e) {
     console.error('Failed to save links to SQLite:', e);
@@ -1475,7 +1622,7 @@ module.exports = {
   loadHistory, saveHistory,
   loadPrefs, savePrefs, getDefaultWriteRoot, resolveCategoryPhysicalPath,
   loadRatings, saveRatings,
-  loadVideoMeta, saveVideoMeta, setVideoMetaFields,
+  loadVideoMeta, saveVideoMeta, setVideoMetaFields, deleteVideoMetaEverywhere,
   loadThumbsCache, saveThumbsCache, setThumbCacheEntry,
   loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, setVaultKey,
   loadCollections, saveCollections,
@@ -1483,17 +1630,18 @@ module.exports = {
   loadWebsites, saveWebsites,
   loadStarredSites, saveStarredSites,
   loadOgThumbCache, saveOgThumbCache,
-  loadLinksCache, saveLinksCache, upsertLink, deleteLink,
+  loadLinksCache, loadVaultLinks, saveLinksCache, upsertLink, deleteLink,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
   loadActors, saveActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,
   loadEnabledCategories, saveEnabledCategories,
   loadComments, saveComments, clearAllComments,
   loadVisualHashes, setVisualHash, saveVisualHashes,
-  loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts,
+  loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,
-  loadVideoIndex, saveVideoIndex, clearVideoIndex,
+  loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, getSingleVideoMeta,
   switchProfile, getCurrentProfile: () => currentProfile,
+  isDbOnDisk: () => !_dbInMemory,
   closeDb: () => { if (db) { db.close(); db = null; } },
   saveLinksToDb, loadAllVideoTags,
 };

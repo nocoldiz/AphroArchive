@@ -1,4 +1,4 @@
-import { searchQuery, currentView } from '../../store';
+import { searchQuery, currentView, currentCategory, currentTag, currentTagTerms } from '../../store';
 import { useState, useEffect } from 'preact/hooks';
 
 export const Search = () => {
@@ -36,6 +36,12 @@ export const Search = () => {
 
     if (val && currentView.value !== 'browse') {
       currentView.value = 'browse';
+    }
+
+    if (val) {
+      currentCategory.value = '';
+      currentTag.value = null;
+      currentTagTerms.value = [];
     }
 
     const h = getSuggest(val);

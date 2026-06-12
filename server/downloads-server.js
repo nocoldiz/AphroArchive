@@ -134,7 +134,15 @@ async function processDownloadQueue() {
 
 async function runJob(next) {
   try {
-    await runYtDlp(next);
+    try {
+      await runYtDlp(next);
+    } catch (ytErr) {
+      // yt-dlp couldn't extract — fall back to the universal Python scraper,
+      // which scrapes the page (og:video, JSON-LD, <video>, HLS, iframes…)
+      // and downloads via any method possible.
+      next.error = null;
+      await runUniversal(next, ytErr);
+    }
     next.status   = 'done';
     next.progress = 100;
     const writeRoot = getDefaultWriteRoot();
@@ -217,6 +225,61 @@ function runYtDlp(job) {
     proc.on('error', err => reject(new Error(
       err.code === 'ENOENT'
         ? 'yt-dlp not found — place yt-dlp.exe next to AphroArchive.exe or add it to PATH'
+        : err.message
+    )));
+  });
+}
+
+// Universal fallback: hand the URL to bulkdowloader.py in single-URL mode.
+// It scrapes the linked page for video in any way possible (Open Graph,
+// JSON-LD, <video>/<source>, JWPlayer/HLS/DASH configs, iframe recursion,
+// direct stream) and reports the saved file via a `RESULT_FILE:` line.
+function runUniversal(job, ytErr) {
+  return new Promise((resolve, reject) => {
+    const cleanCat = (job.category || '').trim();
+    const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
+    const writeRoot = getDefaultWriteRoot();
+    const physicalCat = isVirtual ? '' : cleanCat;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : writeRoot;
+    try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
+
+    const pythonBin  = process.platform === 'win32' ? 'python' : 'python3';
+    const scriptPath = path.join(__dirname, '..', 'bulkdowloader.py');
+
+    const proc = spawn(pythonBin, [
+      '-u', scriptPath,
+      '--url', job.url,
+      '--out-dir', outDir,
+      '--out-tmpl', '%(title)s.%(ext)s',
+    ], { env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    job._kill = () => proc.kill('SIGKILL');
+
+    let resultFile = null;
+    const parseLine = line => {
+      const res = line.match(/^RESULT_FILE:\s*(.+)/);
+      if (res) { resultFile = res[1].trim(); job.outputPath = resultFile; job.title = path.basename(resultFile).replace(/\.[^.]+$/, ''); }
+      const prog = line.match(/\[download\]\s+([\d.]+)%/);
+      if (prog) job.progress = parseFloat(prog[1]);
+    };
+
+    let oBuf = '', eBuf = '';
+    const feed = (buf, data) => {
+      buf += data.toString();
+      const lines = buf.split(/[\r\n]/); buf = lines.pop();
+      lines.forEach(l => { if (l.trim()) parseLine(l); }); return buf;
+    };
+    proc.stdout.on('data', d => { oBuf = feed(oBuf, d); });
+    proc.stderr.on('data', d => { eBuf = feed(eBuf, d); });
+
+    proc.on('close', code => {
+      if (oBuf) parseLine(oBuf);
+      if (eBuf) parseLine(eBuf);
+      if (resultFile && fs.existsSync(resultFile)) return resolve();
+      reject(new Error('No downloadable video found (yt-dlp: ' + (ytErr?.message || 'failed') + ')'));
+    });
+    proc.on('error', err => reject(new Error(
+      err.code === 'ENOENT'
+        ? 'Python not found — install Python 3 to enable universal page scraping (yt-dlp: ' + (ytErr?.message || 'failed') + ')'
         : err.message
     )));
   });

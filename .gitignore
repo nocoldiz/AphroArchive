@@ -4,6 +4,7 @@ audio
 photos
 cache/
 pages
+dist/
 node_modules/
 db/wildcards
 db/actors.json
@@ -12,7 +13,9 @@ motherless_downloads/
 video_downloads/
 db/websites.json
 db/studios.json
-dist/
+dist/*
+android-app/www
+!dist/public
 .AphroArchive-thumbs
 .AphroArchive-actor-photos
 settings
@@ -30,3 +33,5 @@ models
 db/*.db
 db/*.db-shm
 db/*.db-wal
+db/last-profile.txt
+android-app/www/index.html

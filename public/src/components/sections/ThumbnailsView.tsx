@@ -32,24 +32,8 @@ export const ThumbnailsView = () => {
 
   const list = thumbnails.value;
 
-  if (loading) {
-    return (
-      <div className="empty-state" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <h3 style={{ color: 'var(--tx2)' }}>Loading thumbnails...</h3>
-      </div>
-    );
-  }
-
-  if (list.length === 0) {
-    return (
-      <div className="empty-state">
-        <h3 style={{ color: 'var(--tx2)' }}>No thumbnails found</h3>
-        <p style={{ color: 'var(--tx3)' }}>Generate some thumbnails first by browsing your videos.</p>
-      </div>
-    );
-  }
-
   const allThumbs = useMemo(() => {
+    if (!list.length) return [];
     const videoMap = new Map(allVideos.value.map(v => [v.id, v]));
     const baseThumbs: FlatThumb[] = list.flatMap(group =>
       (group.thumbs || []).map((url: string, i: number) => ({ videoId: group.id, url, index: i }))
@@ -69,7 +53,7 @@ export const ThumbnailsView = () => {
       thumbs.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sortMode === 'size') {
       thumbs.sort((a, b) => b.size - a.size);
-    } else { // date
+    } else {
       thumbs.sort((a, b) => b.date - a.date);
     }
 
@@ -84,9 +68,8 @@ export const ThumbnailsView = () => {
   const prev = () => setLightboxIdx((lightboxIdx - 1 + allThumbs.length) % allThumbs.length);
   const next = () => setLightboxIdx((lightboxIdx + 1) % allThumbs.length);
 
-  // Slideshow effect
   useEffect(() => {
-    if (slideshowOn && lightboxIdx !== -1) {
+    if (slideshowOn && lightboxIdx !== -1 && allThumbs.length > 0) {
       slideTimerRef.current = setTimeout(() => {
         setLightboxIdx((lightboxIdx + 1) % allThumbs.length);
       }, slideSecs * 1000);
@@ -94,7 +77,6 @@ export const ThumbnailsView = () => {
     return () => clearTimeout(slideTimerRef.current);
   }, [slideshowOn, lightboxIdx, slideSecs, allThumbs.length]);
 
-  // Keyboard listeners for lightbox
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (lightboxIdx === -1) return;
@@ -111,6 +93,23 @@ export const ThumbnailsView = () => {
   }, [lightboxIdx, slideshowOn, allThumbs.length]);
 
   const currentPhoto = lightboxIdx !== -1 ? allThumbs[lightboxIdx] : null;
+
+  if (loading) {
+    return (
+      <div className="empty-state" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <h3 style={{ color: 'var(--tx2)' }}>Loading thumbnails...</h3>
+      </div>
+    );
+  }
+
+  if (list.length === 0) {
+    return (
+      <div className="empty-state">
+        <h3 style={{ color: 'var(--tx2)' }}>No thumbnails found</h3>
+        <p style={{ color: 'var(--tx3)' }}>Generate some thumbnails first by browsing your videos.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="thumbnails-view" style={{ padding: '20px' }}>

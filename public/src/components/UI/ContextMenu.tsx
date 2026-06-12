@@ -1,5 +1,5 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, vaultUnlockModalState } from '../../store';
-import { useState, useEffect } from 'preact/hooks';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, imagegenInputState, currentView } from '../../store';
+import { useState, useEffect, useRef } from 'preact/hooks';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -7,7 +7,9 @@ export const ContextMenu = () => {
 
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
+  const [showEncryptVideoConfirm, setShowEncryptVideoConfirm] = useState(false);
   const [showVaultUnlockModal, setShowVaultUnlockModal] = useState(false);
+  const encryptPollRef = useRef<any>(null);
 
   const [targetProfile, setTargetProfile] = useState('default');
 
@@ -27,7 +29,7 @@ export const ContextMenu = () => {
     };
   }, [visible]);
 
-  if (!visible && !showEncryptConfirm && !showUnlockModal) return null;
+  if (!visible && !showEncryptConfirm && !showEncryptVideoConfirm && !showUnlockModal) return null;
 
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -167,47 +169,45 @@ export const ContextMenu = () => {
     contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
 
-  const checkVaultAndPrompt = async (action: () => void): Promise<void> => {
-    try {
-      const res = await fetch('/api/vault/status');
-      const status = await res.json();
-      if (!status.configured) {
-        toast('Vault not configured. Set it up first from the Vault view.');
-        return;
-      }
-      if (!status.unlocked) {
-        // Open the vault unlock modal; after unlock it will update isVaultUnlocked signal
-        vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: null };
-        // Poll until unlocked, then proceed
-        const checkInterval = setInterval(async () => {
-          const r2 = await fetch('/api/vault/status');
-          const s2 = await r2.json();
-          if (s2.unlocked) {
-            clearInterval(checkInterval);
-            isVaultUnlocked.value = true;
-            action();
-          }
-        }, 500);
-        return;
-      }
-      action();
-    } catch {
-      toast('Failed to check vault status');
-    }
-  };
-
   const handleEncrypt = async () => {
-    checkVaultAndPrompt(() => {
+    ensureVaultUnlocked(() => {
       setShowEncryptConfirm(true);
       closeMenu();
     });
   };
 
   const handleUnlock = async () => {
-    checkVaultAndPrompt(async () => {
+    ensureVaultUnlocked(() => {
       setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
       setShowUnlockModal(true);
     });
+  };
+
+  const startEncryptPoller = (catPath: string) => {
+    const seenNames = new Set<string>();
+    encryptPollRef.current = setInterval(async () => {
+      try {
+        const r = await fetch('/api/encryption/status');
+        if (!r.ok) return;
+        const p = await r.json();
+        if (p.type === 'encrypt' && p.current && !seenNames.has(p.current)) {
+          seenNames.add(p.current);
+          const nameLo = p.current.toLowerCase();
+          const remove = (v: any) =>
+            (v.catPath || '') === catPath && (v.name || '').toLowerCase() === nameLo;
+          allVideos.value = allVideos.value.filter((v: any) => !remove(v));
+          videos.value = videos.value.filter((v: any) => !remove(v));
+          categories.value = categories.value.map((c: any) =>
+            c.path === catPath ? { ...c, count: Math.max(0, (c.count || 1) - 1) } : c
+          );
+        }
+        if (!p.running) {
+          clearInterval(encryptPollRef.current);
+          encryptPollRef.current = null;
+          if (p.ok) loadVideos();
+        }
+      } catch {}
+    }, 800);
   };
 
   const execEncrypt = async () => {
@@ -220,7 +220,20 @@ export const ContextMenu = () => {
       const err = await r.json().catch(() => ({}));
       toast('Encryption failed: ' + (err.error || 'Unknown error'));
     } else {
-      toast('Encrypting — track progress in the sync drawer');
+      toast('Encrypting…');
+      startEncryptPoller(data.path);
+    }
+  };
+
+  const execEncryptVideo = async () => {
+    const r = await fetch(`/api/videos/${data.id}/encrypt`, { method: 'POST' });
+    if (r.ok) {
+      toast('Video encrypted and moved to Vault');
+      videos.value = videos.value.filter((v: any) => v.id !== data.id);
+      allVideos.value = allVideos.value.filter((v: any) => v.id !== data.id);
+    } else {
+      const err = await r.json().catch(() => ({}));
+      toast('Encryption failed: ' + (err.error || 'Unknown error'));
     }
   };
 
@@ -285,6 +298,12 @@ export const ContextMenu = () => {
         )}
         {type === 'video' && (
           <>
+            {data.isLink && data.linkUrl && (
+              <ContextItem label="Open Link" icon="link" onClick={() => {
+                window.open(data.linkUrl, '_blank');
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+              }} />
+            )}
             <ContextItem label={data.fav ? "Unfavourite" : "Favourite"} icon="star" onClick={async () => {
               const r = await fetch(`/api/favourites/${data.id}`, { method: 'POST' });
               const d = await r.json();
@@ -311,16 +330,10 @@ export const ContextMenu = () => {
             <ContextItem label="Actors" icon="user" onClick={() => {
               actorModalState.value = { visible: true, vidId: data.id };
             }} />
-            <ContextItem label="Encrypt" icon="lock" onClick={async () => {
-              if (!confirm(`Encrypt video "${data.name}" and move to Vault?`)) return;
-              const r = await fetch(`/api/videos/${data.id}/encrypt`, { method: 'POST' });
-              if (r.ok) {
-                if ((window as any).toast) (window as any).toast('Video encrypted and moved to Vault');
-                videos.value = videos.value.filter(v => v.id !== data.id);
-              } else {
-                const err = await r.json();
-                if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
-              }
+            <ContextItem label="Encrypt" icon="lock" onClick={() => {
+              closeMenu();
+              // Normal users must unlock the vault (password prompt) before encrypting
+              ensureVaultUnlocked(() => setShowEncryptVideoConfirm(true));
             }} />
             <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
               if (!confirm(`Delete video "${data.name}" from disk?\nThis action cannot be undone.`)) return;
@@ -351,10 +364,25 @@ export const ContextMenu = () => {
               data.onOpen();
               contextMenuState.value = { ...contextMenuState.value, visible: false };
             }} />}
-            <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
-              if (data.onDelete) await data.onDelete();
-              contextMenuState.value = { ...contextMenuState.value, visible: false };
-            }} />
+            {type === 'photo' && (
+              <ContextItem label="Send to Image Gen" icon="image" onClick={() => {
+                imagegenInputState.value = { imageUrl: `/api/photos/${data.id}/img`, imagePath: '' };
+                currentView.value = 'imagegen';
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+              }} />
+            )}
+            {data.onEncrypt && (
+              <ContextItem label="Encrypt" icon="lock" onClick={() => {
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+                ensureVaultUnlocked(() => data.onEncrypt());
+              }} />
+            )}
+            {data.onDelete && (
+              <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
+                await data.onDelete();
+                contextMenuState.value = { ...contextMenuState.value, visible: false };
+              }} />
+            )}
           </>
         )}
       </div>
@@ -403,6 +431,27 @@ export const ContextMenu = () => {
                 execEncrypt();
               }}>Encrypt</button>
               <button class="modal-btn" onClick={() => setShowEncryptConfirm(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEncryptVideoConfirm && (
+        <div className="modal on" style={{ display: 'flex' }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Encrypt Video</h2>
+            </div>
+            <div className="modal-body">
+              <p>Encrypt "{data.name}" and move it to Vault?</p>
+              <p>The video will be placed in a vault folder matching its current category.</p>
+            </div>
+            <div className="modal-footer">
+              <button class="modal-btn modal-btn--primary" onClick={() => {
+                setShowEncryptVideoConfirm(false);
+                execEncryptVideo();
+              }}>Encrypt</button>
+              <button class="modal-btn" onClick={() => setShowEncryptVideoConfirm(false)}>Cancel</button>
             </div>
           </div>
         </div>

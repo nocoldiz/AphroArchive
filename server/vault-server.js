@@ -677,16 +677,6 @@ function apiVaultPageResource(req, res, pageId, fileId) {
   }
 }
 
-function apiVaultDownload(req, res, id) {
-  if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
-  resetVaultTimer();
-  const meta = loadVaultMeta();
-  const encPath = path.join(VAULT_DIR, id + '.enc');
-  if (!meta[id] || !fs.existsSync(encPath)) { res.writeHead(404); res.end(); return; }
-  try { _streamDecrypt(req, res, id, meta, true); }
-  catch (e) { res.writeHead(500); res.end('Decryption failed'); }
-}
-
 async function apiVaultChangePassword(req, res) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   const cfg = loadVaultConfig();
@@ -718,7 +708,7 @@ async function apiVaultChangePassword(req, res) {
       }
     }
 
-    // Re-encrypt the special encrypted-JSON files (_vault_favs.enc)
+    // Re-encrypt the special encrypted-JSON files (_vault_favs.enc, _vault_links.enc)
     if (fs.existsSync(VAULT_DIR)) {
       const specials = fs.readdirSync(VAULT_DIR).filter(f => f.startsWith('_') && f.endsWith('.enc'));
       for (const file of specials) {
@@ -726,9 +716,14 @@ async function apiVaultChangePassword(req, res) {
       }
     }
 
+    // Re-encrypt prompts and comments stored in the Vault SQLite database
+    const { reEncryptVaultSqlite } = require('./db-server');
+    reEncryptVaultSqlite(oldKey, newKey);
+
     // Save new config
     saveVaultConfig({ salt: newSalt, verifyHash: newHash, useRandomSalt: !keepStatic });
     vaultKey = newKey;
+    setVaultKey(newKey);
     resetVaultTimer();
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -1101,6 +1096,172 @@ function getVaultKey() {
   return vaultKey;
 }
 
+// ── Restore a vault file to its original category folder ─────────────
+
+async function apiVaultRestoreToOrigin(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+
+  const meta = loadVaultMeta();
+  const entry = meta[id];
+  if (!entry) return json(res, { error: 'Not found' }, 404);
+  if (entry.type === 'folder') return json(res, { error: 'Cannot restore a folder entry' }, 400);
+
+  const { VIDEOS_DIR } = require('./config-server');
+  const catPath = entry.category || '';
+  const destDir = catPath ? path.join(VIDEOS_DIR, catPath) : VIDEOS_DIR;
+
+  const encPath = path.join(VAULT_DIR, id + '.enc');
+  if (!fs.existsSync(encPath)) return json(res, { error: 'Encrypted file not found' }, 404);
+  if (!fs.existsSync(destDir)) {
+    try { fs.mkdirSync(destDir, { recursive: true }); } catch (e) {
+      return json(res, { error: 'Cannot create destination directory: ' + e.message }, 500);
+    }
+  }
+
+  const originalName = entry.originalName || (id + (entry.ext || ''));
+  let finalDest = path.join(destDir, originalName);
+  if (fs.existsSync(finalDest)) {
+    const ext = path.extname(originalName);
+    const base = path.basename(originalName, ext);
+    let n = 1;
+    while (fs.existsSync(finalDest)) finalDest = path.join(destDir, `${base}_${n++}${ext}`);
+  }
+
+  try {
+    const raw = fs.readFileSync(encPath);
+    const ivLen = 12, tagLen = 16;
+    if (raw.length < ivLen + tagLen) return json(res, { error: 'File corrupted' }, 500);
+    const iv = raw.slice(0, ivLen);
+    const tag = raw.slice(raw.length - tagLen);
+    const ct = raw.slice(ivLen, raw.length - tagLen);
+    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    const plaintext = Buffer.concat([dec.update(ct), dec.final()]);
+    const tmpDest = finalDest + '.restoring';
+    fs.writeFileSync(tmpDest, plaintext);
+    fs.renameSync(tmpDest, finalDest);
+    _shredFile(encPath);
+    delete meta[id];
+    saveVaultMeta(meta);
+    json(res, { ok: true, path: finalDest, name: path.basename(finalDest) });
+  } catch (e) {
+    try { fs.unlinkSync(finalDest + '.restoring'); } catch {}
+    json(res, { error: 'Restore failed: ' + e.message }, 500);
+  }
+}
+
+// ── Vault links (encrypted file) ──────────────────────────────────────
+// Links are stored in _vault_links.enc so URLs and titles are encrypted
+// at rest. On password change, this file is re-encrypted automatically
+// by apiVaultChangePassword (it matches the _*.enc pattern).
+
+const VAULT_LINKS_FILE = path.join(VAULT_DIR, '_vault_links.enc');
+
+function _loadVaultLinksEnc() {
+  if (!fs.existsSync(VAULT_LINKS_FILE)) return [];
+  try {
+    const raw = fs.readFileSync(VAULT_LINKS_FILE);
+    const iv  = raw.slice(0, 12);
+    const tag = raw.slice(raw.length - 16);
+    const enc = raw.slice(12, raw.length - 16);
+    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    return JSON.parse(Buffer.concat([dec.update(enc), dec.final()]).toString('utf8'));
+  } catch { return []; }
+}
+
+function _saveVaultLinksEnc(links) {
+  if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
+  const iv     = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+  const plain  = Buffer.from(JSON.stringify(links), 'utf8');
+  const enc    = Buffer.concat([cipher.update(plain), cipher.final()]);
+  const tag    = cipher.getAuthTag();
+  fs.writeFileSync(VAULT_LINKS_FILE, Buffer.concat([iv, enc, tag]));
+}
+
+async function apiVaultGetLinks(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  json(res, _loadVaultLinksEnc());
+}
+
+async function apiVaultImportLinks(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body = await readBody(req);
+  const urls = Array.isArray(body.urls) ? body.urls.filter(u => u && typeof u === 'string') : [];
+  if (!urls.length) return json(res, { error: 'No URLs provided' }, 400);
+  const links = _loadVaultLinksEnc();
+  const seen  = new Set(links.map(l => l.url));
+  let added = 0;
+  for (const url of urls) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    links.push({ url, title: url, addedAt: Date.now() });
+    added++;
+  }
+  _saveVaultLinksEnc(links);
+  json(res, { ok: true, added, skipped: urls.length - added });
+}
+
+async function apiVaultMoveLinks(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body = await readBody(req);
+  const urls = Array.isArray(body.urls) ? body.urls : [];
+  if (!urls.length) return json(res, { error: 'No URLs provided' }, 400);
+  const { loadLinksCache, deleteLink } = require('./db-server');
+  const all   = loadLinksCache().items || [];
+  const links = _loadVaultLinksEnc();
+  const seen  = new Set(links.map(l => l.url));
+  let moved = 0;
+  for (const url of urls) {
+    const existing = all.find(l => l.url === url);
+    if (!seen.has(url)) {
+      seen.add(url);
+      links.push(existing ? { ...existing, vault: undefined } : { url, title: url, addedAt: Date.now() });
+    }
+    deleteLink(url);
+    moved++;
+  }
+  _saveVaultLinksEnc(links);
+  json(res, { ok: true, moved });
+}
+
+// Toggle the private favourite flag on a vault link. Favourites are stored
+// inside _vault_links.enc, so they stay encrypted at rest like the links.
+async function apiVaultLinkFav(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body = await readBody(req);
+  const { url } = body;
+  if (!url) return json(res, { error: 'URL required' }, 400);
+  const links = _loadVaultLinksEnc();
+  const link = links.find(l => l.url === url);
+  if (!link) return json(res, { error: 'Not found in vault links' }, 404);
+  link.fav = !link.fav;
+  _saveVaultLinksEnc(links);
+  json(res, { ok: true, fav: !!link.fav });
+}
+
+async function apiVaultRestoreLink(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body = await readBody(req);
+  const { url } = body;
+  if (!url) return json(res, { error: 'URL required' }, 400);
+  const links    = _loadVaultLinksEnc();
+  const idx      = links.findIndex(l => l.url === url);
+  if (idx < 0) return json(res, { error: 'Not found in vault links' }, 404);
+  const [link]   = links.splice(idx, 1);
+  _saveVaultLinksEnc(links);
+  const { upsertLink } = require('./db-server');
+  upsertLink({ ...link, vault: 0 });
+  json(res, { ok: true });
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
@@ -1110,7 +1271,8 @@ module.exports = {
   apiVaultFavsGet, apiVaultFavsToggle,
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
-  apiVaultRestoreFile,
+  apiVaultRestoreFile, apiVaultRestoreToOrigin,
+  apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultLinkFav,
   deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
   shredFile: _shredFile,
 };

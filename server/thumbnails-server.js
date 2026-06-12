@@ -6,9 +6,9 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
-const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config-server');
-const { json, safePath } = require('./helpers-server');
-const { loadThumbsCache, saveThumbsCache } = require('./db-server');
+const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
+const { json, safePath, fromId } = require('./helpers-server');
+const { loadThumbsCache, saveThumbsCache, loadPrefs } = require('./db-server');
 const crypto = require('crypto');
 
 // ── ffprobe helper ───────────────────────────────────────────────────
@@ -24,6 +24,27 @@ function ffprobeDuration(fp) {
         });
     } catch { resolve(null); }
   });
+}
+
+// ── Alt thumb dir (source-folder parent cache) ───────────────────────
+
+function findAltThumbDir(videoFp, id) {
+  try {
+    const prefs = loadPrefs();
+    for (const sf of (prefs.sourceFolders || [])) {
+      const resolvedSf = path.resolve(sf);
+      if (videoFp.startsWith(resolvedSf + path.sep)) {
+        const altDir = path.join(path.dirname(resolvedSf), 'cache', '.AphroArchive-thumbs', id);
+        if (fs.existsSync(altDir)) return altDir;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function videoFpFromId(id) {
+  const rel = fromId(id);
+  return path.isAbsolute(rel) ? rel : path.join(VIDEOS_DIR, rel);
 }
 
 // ── Thumbnail generation ─────────────────────────────────────────────
@@ -57,6 +78,19 @@ async function apiThumbGen(req, res, id) {
   if (cache[id] && cache[id].mtime === stat.mtimeMs && cache[id].count > 0)
     return json(res, { count: cache[id].count, duration: cache[id].duration || null });
   if (genLock.has(id)) return json(res, { count: 0, busy: true });
+
+  const altDir = findAltThumbDir(fp, id);
+  if (altDir) {
+    const jpgs = fs.readdirSync(altDir).filter(f => /^\d+\.jpg$/.test(f));
+    if (jpgs.length > 0) {
+      const c = loadThumbsCache();
+      const duration = (c[id] && c[id].duration) || null;
+      c[id] = { mtime: stat.mtimeMs, count: jpgs.length, duration };
+      saveThumbsCache(c);
+      return json(res, { count: jpgs.length, duration });
+    }
+  }
+
   genLock.add(id);
   try {
     const { count, duration } = await genThumbs(id, fp);
@@ -96,7 +130,18 @@ async function apiThumbImg(req, res, id, idx) {
     } catch (e) { res.writeHead(500); res.end(); return; }
   }
 
-  if (!fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
+  if (!fs.existsSync(fp)) {
+    const altDir = findAltThumbDir(videoFpFromId(id), id);
+    if (altDir) {
+      const altFp = path.join(altDir, `${idx}.jpg`);
+      if (fs.existsSync(altFp)) {
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
+        fs.createReadStream(altFp).pipe(res);
+        return;
+      }
+    }
+    res.writeHead(404); res.end(); return;
+  }
   res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
   fs.createReadStream(fp).pipe(res);
 }
@@ -129,7 +174,18 @@ async function apiChapterThumbImg(req, res, id, chapterId) {
     } catch (e) { res.writeHead(500); res.end(); return; }
   }
 
-  if (!fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
+  if (!fs.existsSync(fp)) {
+    const altDir = findAltThumbDir(videoFpFromId(id), id);
+    if (altDir) {
+      const altFp = path.join(altDir, 'chapters', `${chapterId}.jpg`);
+      if (fs.existsSync(altFp)) {
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
+        fs.createReadStream(altFp).pipe(res);
+        return;
+      }
+    }
+    res.writeHead(404); res.end(); return;
+  }
   res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800' });
   fs.createReadStream(fp).pipe(res);
 }

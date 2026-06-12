@@ -19,9 +19,11 @@ interface LinkCardProps {
   onRemove: (url: string) => void;
   onToggleStar: (url: string) => void;
   onUpdate: (url: string, updates: Partial<LinkItem>) => void;
+  selected?: boolean;
+  onToggleSelect?: (url: string) => void;
 }
 
-const LinkCard = ({ item, onRemove, onToggleStar }: LinkCardProps) => {
+const LinkCard = ({ item, onRemove, onToggleStar, onVault, selected, onToggleSelect }: LinkCardProps & { onVault?: (url: string) => void }) => {
   const hostname = new URL(item.url).hostname;
   const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
 
@@ -56,7 +58,7 @@ const LinkCard = ({ item, onRemove, onToggleStar }: LinkCardProps) => {
             </svg>
           </div>
         )}
-        <input type="checkbox" class="bf-chk" value={item.url} onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '10px', left: '10px' }} />
+        <input type="checkbox" class="bf-chk" aria-label="Select link" checked={selected || false} onChange={() => onToggleSelect?.(item.url)} onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '10px', left: '10px' }} />
         
         {/* Star Button */}
         <button 
@@ -69,10 +71,19 @@ const LinkCard = ({ item, onRemove, onToggleStar }: LinkCardProps) => {
           </svg>
         </button>
 
+        {/* Vault Button */}
+        {onVault && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onVault(item.url); }}
+            style={{ position: 'absolute', top: '10px', right: '66px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}
+            title="Move to Vault"
+          >🔒</button>
+        )}
         {/* Remove Button */}
-        <button 
-          class="bf-card-rm" 
-          onClick={(e) => { e.stopPropagation(); onRemove(item.url); }} 
+        <button
+          class="bf-card-rm"
+          onClick={(e) => { e.stopPropagation(); onRemove(item.url); }}
           style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           ×
@@ -284,7 +295,7 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
                       style={{ cursor: 'pointer', background: isSelected ? 'var(--acg)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                     >
                       <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)' }} onClick={(e: any) => e.stopPropagation()}>
-                        <input type="checkbox" checked={isSelected} onChange={() => toggleRow(b.url)} />
+                        <input type="checkbox" aria-label={`Select ${b.title || b.url}`} checked={isSelected} onChange={() => toggleRow(b.url)} />
                       </td>
                       <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '460px' }} title={b.url}>
                         {b.title || '(no title)'}
@@ -344,6 +355,15 @@ export const LinksView = () => {
 
   const [bmPickerBrowser, setBmPickerBrowser] = useState<'chrome' | 'firefox' | null>(null);
   const [importMenuOpen, setImportMenuOpen] = useState<'chrome' | 'firefox' | null>(null);
+
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (url: string) =>
+    setSelectedUrls(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n; });
+  const selectUrls = (urls: string[]) =>
+    setSelectedUrls(prev => new Set([...prev, ...urls]));
+  const deselectUrls = (urls: string[]) =>
+    setSelectedUrls(prev => { const n = new Set(prev); urls.forEach(u => n.delete(u)); return n; });
 
   const dlPollerRef = useRef<any>(null);
   const [scrapeJob, setScrapeJob] = useState<{ running: boolean, total: number, done: number, failed: number, current: string } | null>(null);
@@ -618,9 +638,37 @@ export const LinksView = () => {
     });
   };
 
+  const moveSelectedToVault = async () => {
+    const urls = [...selectedUrls];
+    if (!urls.length) { alert('Select at least one link'); return; }
+    const r = await fetch('/api/vault/move-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    if (r.ok) {
+      setItems(prev => prev.filter(it => !urls.includes(it.url)));
+      setSelectedUrls(new Set());
+      const w = window as any;
+      if (w.toast) w.toast(`${urls.length} link(s) moved to Vault`);
+    }
+  };
+
+  const moveLinkToVault = async (url: string) => {
+    const r = await fetch('/api/vault/move-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [url] }),
+    });
+    if (r.ok) {
+      setItems(prev => prev.filter(it => it.url !== url));
+      const w = window as any;
+      if (w.toast) w.toast('Link moved to Vault');
+    }
+  };
+
   const downloadSelected = async () => {
-    const checkboxes = document.querySelectorAll('.bf-chk:checked') as NodeListOf<HTMLInputElement>;
-    const urls = Array.from(checkboxes).map(el => el.value);
+    const urls = [...selectedUrls];
     if (!urls.length) {
       alert('Select at least one link');
       return;
@@ -760,7 +808,7 @@ export const LinksView = () => {
 
           {(['chrome', 'firefox'] as const).map(browser => (
             <div key={browser} style={{ position: 'relative' }}>
-              <button type="button" class="btn" onClick={() => setImportMenuOpen(v => v === browser ? null : browser)}>
+              <button type="button" class="sort-btn" onClick={() => setImportMenuOpen(v => v === browser ? null : browser)}>
                 {browser === 'chrome' ? 'Chrome' : 'Firefox'} ▾
               </button>
               {importMenuOpen === browser && (
@@ -783,14 +831,14 @@ export const LinksView = () => {
               )}
             </div>
           ))}
-          <button class="btn" onClick={exportLinksJson} title={`Export all ${items.length} links as JSON`}>Export JSON</button>
-          <button class="btn" onClick={() => importFileRef.current?.click()} title="Import links from JSON file">Import JSON</button>
+          <button class="sort-btn" onClick={exportLinksJson} title={`Export all ${items.length} links as JSON`}>Export JSON</button>
+          <button class="sort-btn" onClick={() => importFileRef.current?.click()} title="Import links from JSON file">Import JSON</button>
           <input ref={importFileRef as any} type="file" accept=".json,application/json" aria-label="Import links from JSON file" style={{ display: 'none' }} onChange={onImportFileChange as any} />
-          <button class="btn" onClick={clearAll}>Clear All</button>
-          <button class="btn" onClick={removeDuplicates} title="Remove links that have duplicate URL or duplicate name/title">Remove Duplicates</button>
-          <button class="btn" onClick={saveToDb}>Save to DB</button>
-          <button class="btn" onClick={startScraping}>Start Scraping</button>
-          <button class="btn" onClick={rescrapeAll}>Rescrape All</button>
+          <button class="sort-btn" onClick={clearAll}>Clear All</button>
+          <button class="sort-btn" onClick={removeDuplicates} title="Remove links that have duplicate URL or duplicate name/title">Remove Duplicates</button>
+          <button class="sort-btn" onClick={saveToDb}>Save to DB</button>
+          <button class="sort-btn" onClick={startScraping}>Start Scraping</button>
+          <button class="sort-btn" onClick={rescrapeAll}>Rescrape All</button>
         </div>
       </div>
 
@@ -829,7 +877,19 @@ export const LinksView = () => {
           <span className="sg-sep"></span>
           <button className="sort-btn" onClick={copyAllVisible}>Copy URLs</button>
           <button className="sort-btn" onClick={openAllVisible}>Open All</button>
+          <span className="sg-sep"></span>
+          <button
+            className="sort-btn"
+            onClick={() => {
+              const allSelected = visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url));
+              allSelected ? deselectUrls(visibleItems.map(i => i.url)) : selectUrls(visibleItems.map(i => i.url));
+            }}
+            title="Select / deselect all visible links"
+          >
+            {visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url)) ? 'Deselect All' : `Select All${selectedUrls.size ? ` (${selectedUrls.size})` : ''}`}
+          </button>
           <button className="sort-btn" onClick={downloadSelected}>Download Selected</button>
+          <button className="sort-btn" onClick={moveSelectedToVault} title="Move selected links to Vault">🔒 Vault Selected</button>
         </SectionControls>
 
       <div class="bf-stats" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -857,11 +917,11 @@ export const LinksView = () => {
         <div class="empty-state">No links found</div>
       ) : (() => {
         const renderCard = (item: LinkItem) => (
-          <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} />
+          <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} />
         );
         const renderRow = (item: LinkItem) => (
           <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>
-            <input type="checkbox" class="bf-chk" value={item.url} aria-label="Select link" />
+            <input type="checkbox" class="bf-chk" checked={selectedUrls.has(item.url)} onChange={() => toggleSelect(item.url)} aria-label="Select link" />
             <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent(item.url)}`} width="16" height="16" alt="" />
             <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: 'var(--text)', textDecoration: 'none' }}>{item.title}</a>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{new URL(item.url).hostname}</span>
@@ -883,11 +943,26 @@ export const LinksView = () => {
           });
           return (
             <>
-              {sortedKeys.map(cat => (
+              {sortedKeys.map(cat => {
+                const folderUrls = groups[cat].map(i => i.url);
+                const selectedCount = folderUrls.filter(u => selectedUrls.has(u)).length;
+                const allFolderSelected = selectedCount === folderUrls.length;
+                const someFolderSelected = selectedCount > 0 && !allFolderSelected;
+                return (
                 <div key={cat} style={{ marginBottom: '30px' }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '1rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {cat} <span style={{ fontWeight: 400, opacity: 0.6 }}>({groups[cat].length})</span>
-                  </h3>
+                  <div style={{ margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select all in ${cat}`}
+                      checked={allFolderSelected}
+                      onChange={() => (allFolderSelected || someFolderSelected) ? deselectUrls(folderUrls) : selectUrls(folderUrls)}
+                      ref={(el: HTMLInputElement | null) => { if (el) el.indeterminate = someFolderSelected; }}
+                      style={{ cursor: 'pointer', width: '14px', height: '14px', flexShrink: 0 }}
+                    />
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {cat} <span style={{ fontWeight: 400, opacity: 0.6 }}>({groups[cat].length})</span>
+                    </h3>
+                  </div>
                   {viewMode === 'grid' ? (
                     <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
                       {groups[cat].map(renderCard)}
@@ -896,7 +971,8 @@ export const LinksView = () => {
                     <div class="bf-list">{groups[cat].map(renderRow)}</div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </>
           );
         }

@@ -24,7 +24,6 @@ const {
   resolveCategoryPhysicalPath,
   loadVideoMeta, saveVideoMeta, setVideoMetaFields,
   loadThumbsCache, saveThumbsCache,
-  loadHidden, saveHidden,
   loadActors, loadCategories, loadStudios,
   loadAudioMeta, saveAudioMeta,
   loadBooksMeta, saveBooksMeta,
@@ -32,6 +31,7 @@ const {
   loadLinksCache,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   loadEnabledCategories,
+  getVideoIndexEntry, getSingleVideoMeta,
 } = require('./db-server');
 
 // ── Video scan cache ─────────────────────────────────────────────────
@@ -142,7 +142,8 @@ async function runEncryptCategory(catPath) {
       if (!fs.existsSync(full)) continue;
 
       const videoMeta = meta[v.id] || null;
-      const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
+      // Pass the real filename (with extension) — v.name has the extension stripped
+      const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
       if (!vaultId) {
         console.error(`[ENC] Failed to encrypt ${v.name}`);
         continue;
@@ -166,6 +167,20 @@ async function runEncryptCategory(catPath) {
 
       updateEncryptionProgress({ done: encryptedCount, current: v.name });
     }
+
+    // Also vault-flag any links associated with this category
+    try {
+      const { loadLinksCache: llc, upsertLink: ul } = require('./db-server');
+      const ck = getCatKey(catPath);
+      const allLinks = llc().items || [];
+      for (const lnk of allLinks) {
+        const lcat = lnk.category || '';
+        const lck = getCatKey(lcat);
+        if (lck === ck || lck.startsWith(ck + '/')) {
+          ul({ ...lnk, vault: 1 });
+        }
+      }
+    } catch (linkErr) { console.error('[runEncryptCategory] link vault error:', linkErr.message); }
 
     invalidateScanCache();
     updateEncryptionProgress({ ok: true, running: false });
@@ -413,16 +428,6 @@ async function scan(dir, base = dir, isExternal = false) {
   return out;
 }
 
-function isVideoHidden(v, hiddenTerms, tags = []) {
-  return hiddenTerms.some(term => {
-    if (wordMatch(v.name, term)) return true;
-    const catLo = v.catPath.toLowerCase(), termLo = term.toLowerCase();
-    if (catLo === termLo || catLo.startsWith(termLo + '/') || catLo.startsWith(termLo + '\\')) return true;
-    if (tags.some(t => t.toLowerCase() === termLo)) return true;
-    return false;
-  });
-}
-
 async function allVideos() {
   const db = require('./db-server');
   if (db.getCurrentProfile() === 'Vault') {
@@ -446,7 +451,6 @@ async function allVideos() {
   }
 
   const all    = await cachedScan();
-  const hidden = loadHidden();
   const meta   = loadVideoMeta();
   
   let list = all.map(v => {
@@ -490,7 +494,6 @@ async function allVideos() {
   list.push(...bmVideos);
 
   return list.filter(v => {
-    if (hidden.length && isVideoHidden(v, hidden, v.tags)) return false;
     if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
   });
@@ -573,8 +576,11 @@ async function apiVideos(req, res, params) {
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
   const enabledPaths = loadEnabledCategories();
+  // all=1 (vault unlocked only): bypass the per-profile enabled-categories
+  // filter so the Vault's Global view can import files from any profile
+  const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
   let list = videos
-    .filter(v => isCategoryEnabled(v.catPath, enabledPaths))
+    .filter(v => showAll || isCategoryEnabled(v.catPath, enabledPaths))
     .map(v => {
       const cached   = thumbsCache[v.id];
       const duration = cached?.duration || null;
@@ -652,7 +658,6 @@ async function apiVideos(req, res, params) {
 
 async function apiCategories(req, res) {
   const videos = await cachedScan();
-  const hidden = loadHidden();
   const meta = loadVideoMeta();
   const catMap = new Map();
 
@@ -782,14 +787,6 @@ async function apiCategories(req, res) {
 
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
-    const parts = key.split('/');
-    const kLo = key.toLowerCase();
-    const isHidden = hidden.some(t => {
-      const tLo = t.toLowerCase();
-      return kLo === tLo || kLo.startsWith(tLo + '/') || parts.some(part => part.toLowerCase() === tLo);
-    });
-    if (isHidden) continue;
-
     const isLinks = key === 'Links';
     const full = path.join(VIDEOS_DIR, entry.path);
     const hasCatConfig = !isLinks && fs.existsSync(path.join(full, '.cat-enc-config.json'));
@@ -805,10 +802,9 @@ async function apiCategories(req, res) {
     });
   }
 
-  // Uncategorized count — all videos sitting at root (no subfolder), filtered to match visible ones (hidden terms applied)
+  // Uncategorized count — all videos sitting at root (no subfolder)
   const uncatCount = videos.filter(v => {
     if (v.catPath !== '') return false;
-    if (hidden.length && isVideoHidden(v, hidden, (meta[v.id] && meta[v.id].tags) || [])) return false;
     return true;
   }).length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
@@ -827,7 +823,6 @@ async function apiCategories(req, res) {
 }
 
 async function apiGetAllCategories(req, res) {
-  const hidden = loadHidden();
   // path -> { name, path, isExternal }
   const catMap = new Map();
 
@@ -842,7 +837,6 @@ async function apiGetAllCategories(req, res) {
         const full = path.join(VIDEOS_DIR, subRel);
         if (path.resolve(full) === path.resolve(VAULT_DIR)) continue;
         if (path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
         const key = getCatKey(subRel);
         if (!catMap.has(key)) catMap.set(key, { name: subRel.replace(/\//g, ' / '), path: subRel, isExternal: false });
         await walkMain(full, subRel);
@@ -859,7 +853,6 @@ async function apiGetAllCategories(req, res) {
       for (const ent of entries) {
         if (!ent.isDirectory()) continue;
         if (isHiddenFolderName(ent.name)) continue;
-        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
         const subRel = rel ? rel + '/' + ent.name : ent.name;
         const key = getCatKey(subRel);
         if (!catMap.has(key)) catMap.set(key, { name: subRel.replace(/\//g, ' / '), path: subRel, isExternal: true });
@@ -903,7 +896,6 @@ async function apiSetEnabledCategories(req, res) {
 }
 
 async function apiMainCategories(req, res) {
-  const hidden = loadHidden();
   const result = [{ name: 'Uncategorized', path: '' }];
 
   async function walk(dir, rel = '') {
@@ -916,7 +908,6 @@ async function apiMainCategories(req, res) {
         const subRel = rel ? path.join(rel, ent.name) : ent.name;
         const full = path.join(VIDEOS_DIR, subRel);
         if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-        if (hidden.some(t => t.toLowerCase() === ent.name.toLowerCase())) continue;
         result.push({ name: subRel.replace(/[\\/]/g, ' / '), path: subRel.replace(/\\/g, '/') });
         await walk(full, subRel);
       }
@@ -968,7 +959,7 @@ async function apiVideoDetail(req, res, id) {
   const favs  = loadFavs();
   const meta  = loadVideoMeta();
   const vMeta = meta[v.id] || {};
-  const video = { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, chapters: vMeta.chapters || [] };
+  const video = { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, language: vMeta.language || '', chapters: vMeta.chapters || [] };
 
   const actors         = loadActors();
   const metaActors     = vMeta.actors || [];
@@ -1000,6 +991,95 @@ async function apiVideoDetail(req, res, id) {
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
   json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
+}
+
+// ── Lightweight video detail (fast single-lookup) ──────────────────
+async function apiVideoDetailFast(req, res, id) {
+  // Load video from the DB index directly
+  const db = require('./db-server');
+  const v = db.getVideoIndexEntry(id);
+  if (!v) {
+    // Fallback to old method
+    return apiVideoDetail(req, res, id);
+  }
+
+  // Enrich with metadata, favs, duration
+  const meta = db.getSingleVideoMeta(id);
+  const favs = db.loadFavs();
+  const thumbsCache = db.loadThumbsCache();
+  const actors = db.loadActors();
+  const cats = db.loadCategories();
+
+  const fav = favs.includes(id);
+  const cached = thumbsCache[id];
+  const duration = cached?.duration || null;
+  const vMeta = meta || {};
+  const metaTags = vMeta.tags || [];
+  const metaActors = vMeta.actors || [];
+  const filenameActors = actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name);
+  const combinedActors = [...new Set([...metaActors, ...filenameActors])];
+
+  // Build allCategories set
+  const allTagSet = new Set();
+  allTagSet.add(...metaTags);
+  cats.forEach(e => allTagSet.add(e.displayName));
+
+  // Suggested: find up to 8 related from the full allVideos list (without loading everything if possible)
+  const enabledPaths = db.loadEnabledCategories();
+  const allVisible = await allVideos();
+  const visibleVideos = enabledPaths.length ? allVisible.filter(x => isCategoryEnabled(x.catPath, enabledPaths)) : allVisible;
+
+  const suggested = visibleVideos
+    .filter(x => x.id !== v.id)
+    .map(x => {
+      let score = 0;
+      const xMeta = db.getSingleVideoMeta(x.id);
+      const xActors = xMeta?.actors || [];
+      const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
+      score += shared.length * 100;
+      if (x.category === v.category) score += 50;
+      return { video: { ...x, fav: favs.includes(x.id), rating: xMeta?.rating ?? null }, score };
+    })
+    .sort((a, b) => b.score - a.score || Math.random() - 0.5)
+    .slice(0, 12)
+    .map(item => item.video);
+
+  const video = { ...v, fav, rating: vMeta.rating ?? null, language: vMeta.language || '', duration, durationF: formatDuration(duration), tags: metaTags, chapters: vMeta.chapters || [] };
+
+  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
+}
+
+// ── Preload endpoint (fast startup data) ──────────────────────────
+async function apiPreload(req, res) {
+  const db = require('./db-server');
+  // Load categories from server (this calls cachedScan which loads index from DB)
+  // But we can do it faster: just count videos from the index
+  let totalVideos = 0;
+  let catCounts = {};
+  try {
+    const index = db.loadVideoIndex();
+    if (index && index.length > 0) {
+      totalVideos = index.length;
+      // Count per category
+      for (const v of index) {
+        const cp = v.catPath || '';
+        if (!cp) continue;
+        catCounts[cp] = (catCounts[cp] || 0) + 1;
+      }
+    }
+  } catch (e) {
+    // Fallback: just return existing API data
+    console.error('[preload] index load error:', e.message);
+  }
+
+  const enabledPaths = db.loadEnabledCategories();
+
+  json(res, {
+    totalVideos,
+    catCounts,
+    enabledPaths,
+    ok: true
+  });
 }
 
 async function apiStream(req, res, id) {
@@ -1296,6 +1376,23 @@ function apiClearHistory(req, res) {
   json(res, { ok: true });
 }
 
+function apiClearFavourites(req, res) {
+  saveFavs([]);
+  json(res, { ok: true });
+}
+
+function apiClearThumbs(req, res) {
+  saveThumbsCache({});
+  try {
+    if (fs.existsSync(THUMBS_DIR)) {
+      for (const f of fs.readdirSync(THUMBS_DIR)) {
+        try { fs.unlinkSync(path.join(THUMBS_DIR, f)); } catch {}
+      }
+    }
+  } catch {}
+  json(res, { ok: true });
+}
+
 async function apiSetRating(req, res, id) {
   const body  = await readBody(req);
   const stars = parseInt(body.stars, 10);
@@ -1313,7 +1410,7 @@ async function apiUpdateVideoMeta(req, res, id) {
   const videos = await allVideos();
   if (!videos.find(v => v.id === id)) return json(res, { error: 'Not found' }, 404);
   const body    = await readBody(req);
-  const allowed = ['title', 'actors', 'tags', 'studio', 'rating', 'category', 'note', 'date'];
+  const allowed = ['title', 'actors', 'tags', 'studio', 'rating', 'category', 'note', 'date', 'language'];
   const fields  = {};
   for (const key of allowed) { if (key in body) fields[key] = body[key]; }
   setVideoMetaFields(id, fields);
@@ -1370,7 +1467,6 @@ async function apiDuplicates(req, res) {
 async function apiCategoriesOverview(req, res) {
   const videos = await cachedScan();
   const meta   = loadVideoMeta();
-  const hidden = loadHidden();
 
   // ── Categories (from folder structure) ──
   const catMap = new Map();
@@ -1423,11 +1519,7 @@ async function apiCategoriesOverview(req, res) {
     });
   }
 
-  const filteredCats = [...catMap.values()].filter(c => {
-    const lo = c.path.toLowerCase();
-    const parts = lo.split(/[/\\]/);
-    return !hidden.some(t => { const tl = t.toLowerCase(); return lo === tl || lo.startsWith(tl + '/') || lo.startsWith(tl + '\\') || parts.some(p => p === tl); });
-  });
+  const filteredCats = [...catMap.values()];
 
   // Respect enabled folders for current profile/user (so browser does not show disabled folders)
   let catsForOverview = filteredCats;
@@ -1442,7 +1534,6 @@ async function apiCategoriesOverview(req, res) {
 
   // ── Tags ──
   const videosForTags = videos.filter(v => {
-    if (hidden.length && isVideoHidden(v, hidden, meta[v.id]?.tags || [])) return false;
     return isCategoryEnabled(v.catPath, _enabledPathsOv);
   });
   const folderNames = new Set(
@@ -1486,12 +1577,9 @@ async function apiCategoriesOverview(req, res) {
 
   // Re-derive catsForOverview to include vault ghosts (they passed filtering already since they're new)
   const allCatsForOverview = [...catsForOverview];
-  const hidden2 = loadHidden();
   for (const [key, e] of catMap.entries()) {
     if (e._vaultEncrypted && !catsForOverview.some(c => c.path === key)) {
-      const kLo = key.toLowerCase();
-      const isHid = hidden2.some(t => { const tl = t.toLowerCase(); return kLo === tl || kLo.startsWith(tl + '/'); });
-      if (!isHid && isCategoryEnabled(key, _enabledPathsOv)) allCatsForOverview.push(e);
+      if (isCategoryEnabled(key, _enabledPathsOv)) allCatsForOverview.push(e);
     }
   }
 
@@ -2115,15 +2203,31 @@ async function apiEncryptVideo(req, res, id) {
   const vaultKey = getVaultKey();
 
   try {
-    const vaultId = await encryptLocalFileToVault(full, v.name, v.catPath, videoMeta);
-    
+    // Pass the real filename (with extension) — v.name has the extension stripped
+    const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
+
     if (!vaultId) {
       return json(res, { error: 'Encryption failed' }, 500);
     }
 
+    // Assign vault file to a vault folder matching the video's top-level category
+    if (v.catPath) {
+      const { loadVaultMeta: lvm, saveVaultMeta: svm } = require('./db-server');
+      const vaultMeta = lvm();
+      const folderName = v.catPath.split(/[/\\]/)[0];
+      const existingFolder = Object.entries(vaultMeta).find(([, m]) => m.type === 'folder' && m.name.toLowerCase() === folderName.toLowerCase());
+      let folderId = existingFolder ? existingFolder[0] : null;
+      if (!folderId) {
+        folderId = require('crypto').randomBytes(16).toString('hex');
+        vaultMeta[folderId] = { type: 'folder', name: folderName, id: folderId };
+      }
+      if (vaultMeta[vaultId]) vaultMeta[vaultId].folder = folderId;
+      svm(vaultMeta);
+    }
+
     const oldThumb = path.join(THUMBS_DIR, v.id);
     const newThumb = path.join(THUMBS_DIR, vaultId);
-    
+
     if (fs.existsSync(oldThumb)) {
       if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
       fs.renameSync(oldThumb, newThumb);
@@ -2135,10 +2239,9 @@ async function apiEncryptVideo(req, res, id) {
       }
     }
 
-    if (meta[v.id]) {
-      delete meta[v.id];
-      saveVideoMeta(meta);
-    }
+    // Remove the original entry from the public database(s)
+    const { deleteVideoMetaEverywhere } = require('./db-server');
+    deleteVideoMetaEverywhere(v.id);
 
     invalidateScanCache();
     json(res, { ok: true, vaultId });
@@ -2492,12 +2595,29 @@ async function apiRecategorizeAll(req, res) {
 }
 
 // ── Scoring / fuzzy matching ──────────────────────────────────────────
+// Normalize separators (_, -, .) to space for cross-format matching
+function normSeps(s) {
+  return s.toLowerCase().replace(/[\s\-_.]+/g, ' ').trim();
+}
+
 function computeScore(text, cat) {
   let best = 0;
+  const normText = normSeps(text);
+
+  // Folder display name in filename → highest-confidence match
+  const dn = cat.displayName || cat.name;
+  if (wordMatch(text, dn)) return 100;
+  const normDn = normSeps(dn);
+  if (normDn.length >= 3 && normText.includes(normDn)) best = 90;
+
   for (const term of cat.terms) {
+    if (best >= 100) break;
     if (wordMatch(text, term)) return 100;
     const tl = term.toLowerCase(), xl = text.toLowerCase();
     if (xl.includes(tl)) { best = Math.max(best, 60); continue; }
+    // Normalized separator match: "My_Category" matches "My Category"
+    const normTerm = normSeps(term);
+    if (normTerm.length >= 3 && normText.includes(normTerm)) { best = Math.max(best, 60); continue; }
     const words = xl.split(/\W+/).filter(w => w.length >= 3);
     for (const w of words) {
       if (tl.startsWith(w.slice(0, 3)) || w.startsWith(tl.slice(0, 3))) {
@@ -2736,13 +2856,13 @@ async function apiEncryptionStop(req, res) {
 }
 
 module.exports = {
-  scan, cachedScan, allVideos, isVideoHidden, invalidateScanCache, initVideoMeta,
+  scan, cachedScan, allVideos, invalidateScanCache, initVideoMeta,
   apiVideosUpload, apiRescan,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
   apiGetAllCategories, apiSetEnabledCategories,
-  apiVideoDetail, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
+  apiVideoDetail, apiVideoDetailFast, apiPreload, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
-  apiAddHistory, apiGetHistory, apiClearHistory,
+  apiAddHistory, apiGetHistory, apiClearHistory, apiClearFavourites, apiClearThumbs,
   apiSetRating, apiDeleteRating,
   apiUpdateVideoMeta, apiOpenFolder, apiOpenCategoryFolder, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,

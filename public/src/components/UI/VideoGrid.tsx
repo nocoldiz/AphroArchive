@@ -1,6 +1,6 @@
-﻿import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
+import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos, ensureVaultUnlocked } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 
@@ -25,6 +25,13 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
   const [dlQueued, setDlQueued] = useState(false);
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  const openLink = useCallback((e: any) => {
+    e.stopPropagation();
+    if (video.linkUrl) {
+      window.open(video.linkUrl, '_blank');
+    }
+  }, [video]);
 
   const downloadLink = useCallback(async (e: any) => {
     e.stopPropagation();
@@ -241,18 +248,31 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
             </button>
           )}
           {video.isLink && (
-            <button
-              onClick={downloadLink}
-              title={dlQueued ? 'Download queued…' : 'Download video'}
-              className={dlQueued ? 'fav-active' : ''}
-              style={{ opacity: dlQueued ? 0.5 : 1 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-            </button>
+            <>
+              <button
+                onClick={openLink}
+                title="Open in browser"
+                style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', color: 'white' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </button>
+              <button
+                onClick={downloadLink}
+                title={dlQueued ? 'Download queued…' : 'Download video'}
+                className={dlQueued ? 'fav-active' : ''}
+                style={{ opacity: dlQueued ? 0.5 : 1 }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </button>
+            </>
           )}
           <button onClick={openCtx} title="Menu">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
@@ -291,6 +311,47 @@ export const VideoSelBar = () => {
   const selectedVids = allVideos.value.filter(v => selectedVideoIds.value.has(v.id));
   const linkVids = selectedVids.filter(v => v.isLink);
   const hasLinks = linkVids.length > 0;
+  const localVids = selectedVids.filter(v => !v.isLink);
+
+  const encryptSelected = () => {
+    if (!localVids.length) return;
+    ensureVaultUnlocked(async () => {
+      if (!confirm(`Encrypt ${localVids.length} video${localVids.length !== 1 ? 's' : ''} into the Vault?\nOriginals will be securely deleted and removed from the public database.`)) return;
+      const w = window as any;
+      let ok = 0;
+      for (const v of localVids) {
+        try {
+          const r = await fetch(`/api/videos/${v.id}/encrypt`, { method: 'POST' });
+          if (r.ok) {
+            ok++;
+            // Instant gallery update — remove each file as it is encrypted
+            videos.value = videos.value.filter(x => x.id !== v.id);
+            allVideos.value = allVideos.value.filter(x => x.id !== v.id);
+            selectedVideoIds.value = new Set([...selectedVideoIds.value].filter(id => id !== v.id));
+          }
+        } catch {}
+      }
+      videoSelMode.value = selectedVideoIds.value.size > 0;
+      if (w.toast) w.toast(`Encrypted ${ok}/${localVids.length} video${localVids.length !== 1 ? 's' : ''} into the Vault`);
+    });
+  };
+
+  const deleteSelected = async () => {
+    if (!confirm(`Delete ${count} video${count !== 1 ? 's' : ''} from disk?\nThis action cannot be undone.`)) return;
+    const ids = [...selectedVideoIds.value];
+    let deleted = 0;
+    for (const id of ids) {
+      try {
+        const r = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
+        if (r.ok) deleted++;
+      } catch {}
+    }
+    videos.value = videos.value.filter(v => !selectedVideoIds.value.has(v.id));
+    allVideos.value = allVideos.value.filter(v => !selectedVideoIds.value.has(v.id));
+    selectedVideoIds.value = new Set();
+    videoSelMode.value = false;
+    if ((window as any).toast) (window as any).toast(`Deleted ${deleted} video${deleted !== 1 ? 's' : ''}`);
+  };
 
   const downloadSelected = async () => {
     if (!linkVids.length) return;
@@ -348,8 +409,33 @@ export const VideoSelBar = () => {
     }}>
       <span id="videoSelCount" style={{ fontWeight: 'bold' }}>{count} video{count !== 1 ? 's' : ''} selected</span>
       
+      <button
+        onClick={deleteSelected}
+        style={{ background: '#c0392b', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+          <path d="M10 11v6M14 11v6" />
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+        </svg>
+        Delete ({count})
+      </button>
+      {localVids.length > 0 && (
+        <button
+          onClick={encryptSelected}
+          style={{ background: '#7c3aed', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+          title="Encrypt selected videos into the Vault"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          Encrypt ({localVids.length})
+        </button>
+      )}
       {hasLinks && (
-        <button 
+        <button
           onClick={downloadSelected}
           style={{ background: '#ff7300', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
         >

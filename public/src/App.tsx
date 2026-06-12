@@ -1,12 +1,67 @@
-import { useEffect } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked } from './store';
+import { useEffect, useState } from 'preact/hooks';
+import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, categories } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { ConnectModal } from './components/modals/ConnectModal';
 import { DropOverlay } from './components/UI/DropOverlay';
 
 export function App() {
+  const [connLost, setConnLost] = useState(false);
+
+  // Connection-lost detection: poll /api/ping, show banner if server goes away
   useEffect(() => {
+    let wasUp = true;
+    let panicFired = false;
+    // If panic fires, the tab is closing — suppress the lost-connection banner
+    const onBeforeUnload = () => { panicFired = true; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    const check = async () => {
+      if (panicFired) return;
+      try {
+        const r = await fetch('/api/ping', { cache: 'no-store' });
+        if (r.ok) {
+          wasUp = true;
+          setConnLost(false);
+        } else if (wasUp) {
+          wasUp = false;
+          setConnLost(true);
+        }
+      } catch {
+        if (wasUp) {
+          wasUp = false;
+          setConnLost(true);
+        }
+      }
+    };
+
+    const id = setInterval(check, 5000);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Signal server that the page is loaded — triggers deferred heavy work
+    fetch('/api/ready', { method: 'POST' }).catch(() => {});
+
+    // Kick off preload immediately — fast metadata from DB
+    fetch('/api/preload').then(r => r.json()).then(preload => {
+      (window as any).__preloaded = preload;
+      // Populate folder list immediately from DB index so sidebar shows names before full scan
+      if (preload.catCounts && categories.value.length === 0) {
+        const initial = Object.entries(preload.catCounts as Record<string, number>)
+          .map(([p, count]) => ({ name: p.replace(/\//g, ' / '), path: p, count }))
+          .sort((a, b) => {
+            if (a.path === 'uncategorized') return -1;
+            if (b.path === 'uncategorized') return 1;
+            return a.name.localeCompare(b.name);
+          });
+        categories.value = initial;
+      }
+    }).catch(() => {});
+
     loadVideos();
     loadCategories();
     loadPrefs();
@@ -17,16 +72,21 @@ export function App() {
       .then(s => { isVaultUnlocked.value = !!s.unlocked; })
       .catch(() => {});
 
-    loadProfiles().then(() => {
-      if (activeProfile.value === 'Vault') {
-        currentView.value = 'vault';
-      }
+    loadProfiles().then(profileData => {
+      fetch('/api/presets')
+        .then(r => r.json())
+        .then(data => {
+          if (data.firstRun) {
+            presetPickerState.value = { visible: true, mergeMode: false };
+          }
+        })
+        .catch(e => console.error('Failed to check presets', e));
     });
-    
+
     // Load theme
     const saved = localStorage.getItem('theme') || '';
     if (saved) document.documentElement.setAttribute('data-theme', saved);
-    
+
     // Also update button states if they exist
     document.querySelectorAll('.theme-btn').forEach(btn => {
       const b = btn as HTMLElement;
@@ -73,27 +133,6 @@ export function App() {
         if (h) h.classList.add('closed');
       }
     });
-
-    // Check if preset picker is needed on startup
-    fetch('/api/presets')
-      .then(r => {
-        if (!r.ok) {
-          throw new Error(`HTTP error! status: ${r.status}`);
-        }
-        return r.text(); // Read as plain text first
-      })
-      .then(text => {
-        try {
-          const data = JSON.parse(text); // Parse JSON manually
-          if (data.needed) {
-            presetPickerState.value = { visible: true, mergeMode: false };
-          }
-        } catch (e) {
-          console.error('Invalid JSON response:', text); // Log raw response
-          throw e; // Re-throw the error for debugging
-        }
-      })
-      .catch(e => console.error('Failed to check presets', e));
     // 6. Panic Key/Mouse listener
     const triggerPanic = () => {
       // Hide everything and stop all media immediately, then shut down the server.
@@ -107,7 +146,7 @@ export function App() {
       }
       document.querySelectorAll('audio, video').forEach((media) => {
         try {
-          media.pause();
+          (media as HTMLMediaElement).pause();
           if ((media as HTMLMediaElement).src) {
             (media as HTMLMediaElement).src = '';
           }
@@ -209,11 +248,32 @@ export function App() {
 
   return (
     <>
-
       <PresetPicker />
       <ProfileModal />
       {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}
       <DropOverlay />
+
+      {connLost && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: 'rgba(0,0,0,0.82)', display: 'flex',
+          flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: '16px', backdropFilter: 'blur(6px)',
+        }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="1.5">
+            <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
+          </svg>
+          <div style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 700 }}>Connection lost</div>
+          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem' }}>The server stopped responding. Reconnecting…</div>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{ marginTop: '8px', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '9px 22px', fontSize: '14px', cursor: 'pointer', fontWeight: 600 }}
+          >
+            Reload
+          </button>
+        </div>
+      )}
     </>
   );
 }

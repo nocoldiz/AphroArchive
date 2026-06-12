@@ -1,4 +1,4 @@
-﻿# GEMINI.md
+# GEMINI.md
 
 This file provides guidance to Gemini when working with code in this repository.
 
@@ -37,16 +37,16 @@ There are no tests or linting configured.
 
 The entry point is a plain `http.createServer` router in `server.js` — all routes are matched with `if (p === '/api/...')` or regex patterns. No Express.
 
-Module responsibilities:
-- `server/config.js` — All paths, environment variables, MIME types, binary resolution (`ffmpeg`, `ffprobe`, `yt-dlp`). Import constants from here rather than computing paths elsewhere.
-- `server/db.js` — All load/save functions for every JSON data file. Single source of truth for persistence. All state lives in flat JSON files under `cache/`.
-- `server/helpers.js` — Shared utilities: `json(res, data)`, `serveStatic`, `toId`/`fromId` (base64url file ID encoding), `readBody`, word-matching helpers.
-- `server/videos.js` — Video file scanning (recursive, skips `hidden/` and `Z/` dirs), all video API handlers, category derivation from folder structure.
-- Feature modules: `actors.js`, `vault.js`, `thumbnails.js`, `collections.js`, `downloads.js`, `links.js`, `books.js`, `audio.js`, `database.js`, `remote.js`, `settings.js`.
+Module responsibilities (files are suffixed with `-server.js`):
+- `server/config-server.js` — All paths, environment variables, MIME types, binary resolution (`ffmpeg`, `ffprobe`, `yt-dlp`). Import constants from here rather than computing paths elsewhere.
+- `server/db-server.js` — Low-level SQLite database manager and in-memory caches. Single source of truth for persistence.
+- `server/helpers-server.js` — Shared utilities: `json(res, data)`, `serveStatic`, `toId`/`fromId` (base64url file ID encoding), `readBody`, word-matching helpers.
+- `server/videos-server.js` — Video file scanning (recursive, skips `hidden/` and `Z/` dirs), all video API handlers, category derivation from folder structure.
+- Feature modules: `actors-server.js`, `vault-server.js`, `thumbnails-server.js`, `collections-server.js`, `downloads-server.js`, `links-server.js`, `books-server.js`, `audio-server.js`, `database-server.js`, `remote-server.js`, `settings-server.js`, `comments-server.js`, `duplicates-server.js`, `feed-watcher-server.js`, `gen-thumbs-server.js`, `imagegen-server.js`, `pages-server.js`, `photos-server.js`, `profiles-server.js`, `prompts-server.js`, `scrapeMethods-server.js`, `vault-zip-server.js`, `vision-server.js`, `assistant-server.js`, `background-worker-server.js`.
 
-**Data storage**: All persistent data is in flat JSON files under `cache/` (runtime state) and `db/` (curated reference data — actors, categories, studios, websites). The `db/` directory is checked into git; `cache/` is not.
+**Data storage**: Uses SQLite (`better-sqlite3`) as the primary database, which stores videos, video actors, video tags, websites, categories, favourites, comments, collections, settings, ratings, audio/book metadata, etc. In-memory write-through caches are used for favourites, history, ratings, and actors to reduce database access.
 
-**Video IDs**: Files are identified by `toId(relPath)` — a base64url encoding of the path relative to VIDEOS_DIR. Use `fromId(id)` to recover the path.
+**Video IDs**: Files are identified by `toId(relPath)` — a base64url encoding of the path relative to VIDEOS_DIR (or the absolute path for external folders). Use `fromId(id)` to recover the path.
 
 **Categories**: Derived automatically from folder structure. A video at `videos/CategoryName/file.mp4` gets category `CategoryName`. Nested folders produce `Parent / Child` category names.
 
@@ -66,7 +66,7 @@ Pure vanilla JS, no bundler. `index.html` loads module scripts. State is global 
 Uses Preact and TSX. Components are located in `public/src/components/`.
 - `src/main.tsx` mounts components to specific DOM elements.
 - `src/store.ts` handles shared state using Preact signals.
-- `src/components/MainContent.tsx` acts as a view switcher for new views like `SettingsView`, `ThumbnailsView`, and `InstagramView`.
+- Views like `HomeView.tsx`, `VaultView.tsx`, `InstagramView.tsx`, `RedditView.tsx`, `SettingsView.tsx`, `BrowseView.tsx` etc. are located under `public/src/components/sections/` and loaded dynamically via `MainContent.tsx`.
 
 ### External Tool Dependencies
 

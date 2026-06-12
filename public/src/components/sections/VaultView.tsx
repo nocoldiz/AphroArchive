@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { vaultMode, isVaultUnlocked, currentVideo, currentView, contextMenuState } from '../../store';
+import { vaultMode, isVaultUnlocked, currentVideo, currentView, contextMenuState, vaultGlobalView } from '../../store';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
 
 interface VaultFile {
@@ -13,6 +13,8 @@ interface VaultFile {
   mtime?: number;
   folder?: string | null;
   aiTagged?: boolean;
+  isVault?: boolean; // false = unencrypted public file shown in Global view
+  raw?: any;         // original /api/videos entry for public files
 }
 
 const VAULT_VIDEO_EXTS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.mpg', '.mpeg', '.wmv', '.ts']);
@@ -56,8 +58,16 @@ export const VaultView = () => {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [blobUrl, setBlobUrl] = useState('');
 
+  // Vault links
+  const [vaultLinks, setVaultLinks] = useState<any[]>([]);
+
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Global view (topbar toggle): also show unencrypted files from all profiles
+  const isGlobal = vaultGlobalView.value;
+  const [publicFiles, setPublicFiles] = useState<VaultFile[]>([]);
+  const [encrypting, setEncrypting] = useState(false);
 
   // Infinite Scroll State
   const [renderLimit, setRenderLimit] = useState(100);
@@ -73,6 +83,13 @@ export const VaultView = () => {
     }
   }, [status.unlocked]);
 
+  // Seamless Global ⇄ Vault-Only switching — no page reload, just a data refresh
+  useEffect(() => {
+    if (status.unlocked && isGlobal) loadPublicFiles();
+    else setPublicFiles([]);
+    setRenderLimit(100);
+  }, [status.unlocked, isGlobal]);
+
   const photoFiles = useMemo(() => files.filter(f => VAULT_PHOTO_EXTS.has((f.ext || '').toLowerCase())), [files]);
 
   useEffect(() => {
@@ -82,18 +99,20 @@ export const VaultView = () => {
     }
     const f = photoFiles[lightboxIdx];
     setBlobUrl('');
+    let url = '';
+    let stale = false;
     fetch(`/api/vault/stream/${f.id}`)
       .then(r => r.blob())
       .then(blob => {
-        const url = URL.createObjectURL(blob);
+        url = URL.createObjectURL(blob);
+        if (stale) { URL.revokeObjectURL(url); return; }
         setBlobUrl(url);
       })
-      .catch(() => setBlobUrl(`/api/vault/stream/${f.id}`));
+      .catch(() => { if (!stale) setBlobUrl(`/api/vault/stream/${f.id}`); });
 
     return () => {
-      if (blobUrl && blobUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(blobUrl);
-      }
+      stale = true;
+      if (url) URL.revokeObjectURL(url);
     };
   }, [lightboxIdx, photoFiles]);
 
@@ -124,11 +143,13 @@ export const VaultView = () => {
 
   const loadVaultFiles = async () => {
     try {
-      const [items, favs, cats] = await Promise.all([
+      const [items, favs, cats, vLinks] = await Promise.all([
         fetch('/api/vault/files').then(r => r.json()),
         fetch('/api/vault/favs').then(r => r.json()).catch(() => []),
         fetch('/api/db/categories').then(r => r.json()).catch(() => ({})),
+        fetch('/api/vault/links').then(r => r.json()).catch(() => []),
       ]);
+      if (Array.isArray(vLinks)) setVaultLinks(vLinks);
 
       if (items.error) return;
 
@@ -146,6 +167,69 @@ export const VaultView = () => {
     } catch (e) {
       console.error('Failed to load vault files', e);
     }
+  };
+
+  // Global view: unencrypted files from every profile. all=1 bypasses the
+  // current profile's enabled-categories filter (server allows it only while
+  // the vault is unlocked) so files from any profile can be imported here.
+  const loadPublicFiles = async () => {
+    try {
+      const vids = await fetch('/api/videos?all=1').then(r => r.json());
+      if (!Array.isArray(vids)) return;
+      setPublicFiles(vids.map((v: any) => ({
+        id: v.id,
+        name: (v.name || '').replace(/\.[^.]+$/, ''),
+        originalName: v.name || '',
+        ext: ((v.name || '').match(/\.[^.]+$/)?.[0] || '').toLowerCase(),
+        type: 'public',
+        size: v.size,
+        mtime: v.mtime,
+        folder: null,
+        isVault: false,
+        raw: v,
+      })));
+    } catch (e) {
+      console.error('Failed to load public files', e);
+    }
+  };
+
+  // Encrypt a public file into the Vault. The server shreds the original,
+  // moves+encrypts its thumbnails and removes its public DB entry; the UI
+  // reflects the new state instantly.
+  const encryptPublicFile = async (id: string, name: string, silent = false) => {
+    const w = window as any;
+    const r = await fetch(`/api/videos/${id}/encrypt`, { method: 'POST' });
+    if (r.ok) {
+      setPublicFiles(prev => prev.filter(f => f.id !== id));
+      if (!silent) {
+        if (w.toast) w.toast(`Encrypted "${name}" into the Vault`);
+        loadVaultFiles();
+      }
+      return true;
+    }
+    const err = await r.json().catch(() => ({}));
+    if (!silent && w.toast) w.toast('Encryption failed: ' + (err.error || 'Unknown error'));
+    return false;
+  };
+
+  const encryptSelectedPublic = async () => {
+    const targets = publicFiles.filter(f => selectedIds.has(f.id));
+    if (!targets.length || encrypting) return;
+    if (!confirm(`Encrypt ${targets.length} file${targets.length !== 1 ? 's' : ''} into the Vault?\nOriginals and their public database entries will be removed.`)) return;
+    setEncrypting(true);
+    const w = window as any;
+    let ok = 0;
+    for (const f of targets) {
+      if (await encryptPublicFile(f.id, f.name || f.originalName, true)) ok++;
+    }
+    setEncrypting(false);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      for (const f of targets) next.delete(f.id);
+      return next;
+    });
+    if (w.toast) w.toast(`Encrypted ${ok}/${targets.length} files into the Vault`);
+    loadVaultFiles();
   };
 
   const handleUnlock = async () => {
@@ -201,6 +285,21 @@ export const VaultView = () => {
       setError(e.message || 'Failed to setup');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDecryptFile = async (id: string, name: string) => {
+    if (!confirm(`Decrypt "${name}" and restore to its original category?`)) return;
+    const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' });
+    if (res.ok) {
+      setFiles(prev => prev.filter(f => f.id !== id));
+      const w = window as any;
+      if (w.toast) w.toast('File restored to original folder');
+      if (w.loadVideos) w.loadVideos();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      const w = window as any;
+      if (w.toast) w.toast('Restore failed: ' + (err.error || 'Unknown error'));
     }
   };
 
@@ -264,6 +363,12 @@ export const VaultView = () => {
   };
 
   const handleFileClick = (f: VaultFile) => {
+    if (f.isVault === false && f.raw) {
+      // Public file in Global view — play through the normal player
+      currentVideo.value = f.raw;
+      currentView.value = 'player';
+      return;
+    }
     const extLower = (f.ext || '').toLowerCase();
     if (VAULT_VIDEO_EXTS.has(extLower)) {
       currentVideo.value = {
@@ -304,8 +409,9 @@ export const VaultView = () => {
       data: {
         id: file.id,
         name: file.name || file.originalName,
-        onDelete: () => handleDeleteFile(file.id),
-        onOpen: () => handleFileClick(file)
+        onDelete: file.isVault === false ? undefined : () => handleDeleteFile(file.id),
+        onOpen: () => handleFileClick(file),
+        onEncrypt: file.isVault === false ? () => encryptPublicFile(file.id, file.name || file.originalName) : undefined
       }
     };
   };
@@ -318,7 +424,8 @@ export const VaultView = () => {
   };
 
   const handleDeleteSelected = async () => {
-    const ids = Array.from(selectedIds);
+    // Only vault files can be deleted here — public files in Global view are skipped
+    const ids = Array.from(selectedIds).filter(id => files.some(f => f.id === id));
     if (!ids.length) return;
     if (!confirm(`Delete ${ids.length} selected items?`)) return;
 
@@ -425,7 +532,7 @@ export const VaultView = () => {
 
   const downloadFile = (id: string, name: string) => {
     const a = document.createElement('a');
-    a.href = `/api/vault/stream/${id}`;
+    a.href = `/api/vault/download/${id}`;
     a.download = name;
     document.body.appendChild(a);
     a.click();
@@ -433,7 +540,7 @@ export const VaultView = () => {
   };
 
   const filteredFiles = useMemo(() => {
-    let result = [...files];
+    let result = isGlobal ? [...files, ...publicFiles] : [...files];
     const q = searchQuery.toLowerCase();
 
     if (typeFilter) {
@@ -484,7 +591,7 @@ export const VaultView = () => {
     }
 
     return result;
-  }, [files, curFolder, typeFilter, searchQuery, sortField, sortDir, favIds, aiIds, catFilter, categories]);
+  }, [files, publicFiles, isGlobal, curFolder, typeFilter, searchQuery, sortField, sortDir, favIds, aiIds, catFilter, categories]);
 
   const categoryMap = useMemo(() => {
     if (!categories || Object.keys(categories).length === 0) return {};
@@ -622,6 +729,16 @@ export const VaultView = () => {
               Settings
             </button>
 
+            {isGlobal && publicFiles.some(f => selectedIds.has(f.id)) && (
+              <button
+                onClick={encryptSelectedPublic}
+                disabled={encrypting}
+                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: encrypting ? 'wait' : 'pointer', fontWeight: 600 }}
+                title="Encrypt all selected unencrypted files into the Vault"
+              >
+                {encrypting ? 'Encrypting…' : `🔒 Encrypt Selected (${publicFiles.filter(f => selectedIds.has(f.id)).length})`}
+              </button>
+            )}
             {selectedIds.size > 0 && (
               <button
                 onClick={() => (window as any).openVaultZipModal(Array.from(selectedIds))}
@@ -732,14 +849,18 @@ export const VaultView = () => {
         {/* Files Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px' }}>
           {visibleFiles.map(f => {
+            const isPublic = f.isVault === false;
             const isImg = VAULT_PHOTO_EXTS.has(f.ext.toLowerCase());
             const isFav = favIds.has(f.id);
             const isSelected = selectedIds.has(f.id);
+            const thumbSrc = isPublic
+              ? (f.raw?.isLink ? (f.raw.img || '') : `/api/thumbs/${f.id}/0`)
+              : `/api/vault/stream/${f.id}`;
             return (
-              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined }}>
+              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined, opacity: isPublic ? 0.92 : undefined }}>
                 <div className="card-thumb" style={{ cursor: 'pointer' }} onClick={() => handleFileClick(f)}>
-                  {isImg ? (
-                    <img src={`/api/vault/stream/${f.id}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+                  {(isImg || isPublic) ? (
+                    <img src={thumbSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
                   ) : (
                     <span style={{ fontSize: '1.2rem', color: 'var(--tx2)' }}>{f.ext.replace('.', '').toUpperCase()}</span>
                   )}
@@ -752,12 +873,19 @@ export const VaultView = () => {
                     <input type="checkbox" checked={isSelected} onChange={() => { }} style={{ cursor: 'pointer' }} />
                   </div>
 
-                  <div
-                    style={{ position: 'absolute', top: '4px', right: '4px', cursor: 'pointer' }}
-                    onClick={(e) => { e.stopPropagation(); handleToggleFav(f.id); }}
-                  >
-                    {isFav ? '❤️' : '🤍'}
-                  </div>
+                  {!isPublic && (
+                    <div
+                      style={{ position: 'absolute', top: '4px', right: '4px', cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); handleToggleFav(f.id); }}
+                    >
+                      {isFav ? '❤️' : '🤍'}
+                    </div>
+                  )}
+                  {isPublic && (
+                    <span style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(232,64,64,0.85)', color: '#fff', fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', letterSpacing: '0.5px' }}>
+                      UNENCRYPTED
+                    </span>
+                  )}
                   {f.sizeF && <span className="size-badge">{f.sizeF}</span>}
                 </div>
                 <div className="card-body">
@@ -765,7 +893,18 @@ export const VaultView = () => {
                     {f.name || f.originalName}
                   </div>
                   <div className="card-meta">
-                    <span className="card-category">Vault</span>
+                    <span className="card-category">{isPublic ? (f.raw?.category || 'Public') : 'Vault'}</span>
+                    {isPublic ? (
+                      <div className="card-actions">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); encryptPublicFile(f.id, f.name || f.originalName); }}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--ac)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                          title="Encrypt into Vault"
+                        >
+                          🔒 Encrypt
+                        </button>
+                      </div>
+                    ) : (
                     <div className="card-actions">
                       <select
                         onChange={(e: any) => handleMoveFile(f.id, e.target.value || null)}
@@ -793,6 +932,13 @@ export const VaultView = () => {
                         👁️
                       </button>
                       <button
+                        onClick={(e) => { e.stopPropagation(); handleDecryptFile(f.id, f.name || f.originalName || f.id); }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
+                        title="Decrypt & restore"
+                      >
+                        🔓
+                      </button>
+                      <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteFile(f.id); }}
                         style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
                         title="Delete"
@@ -800,6 +946,7 @@ export const VaultView = () => {
                         🗑️
                       </button>
                     </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -817,6 +964,45 @@ export const VaultView = () => {
         {filteredFiles.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx2)' }}>
             No files found.
+          </div>
+        )}
+
+        {/* Vault Links */}
+        {vaultLinks.length > 0 && (
+          <div style={{ marginTop: '32px' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: '1rem', color: 'var(--tx2)' }}>Links ({vaultLinks.length})</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[...vaultLinks].sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0)).map((lnk: any) => (
+                <div key={lnk.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--bg3)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--brd)' }}>
+                  {lnk.img && <img src={lnk.img} alt="" style={{ width: '48px', height: '36px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lnk.title || lnk.url}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lnk.url}</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const r = await fetch('/api/vault/link-fav', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: lnk.url }) });
+                      if (r.ok) {
+                        const d = await r.json();
+                        setVaultLinks(prev => prev.map(l => l.url === lnk.url ? { ...l, fav: d.fav } : l));
+                      }
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.95rem', flexShrink: 0 }}
+                    title={lnk.fav ? 'Remove private favourite' : 'Private favourite'}
+                    type="button"
+                  >{lnk.fav ? '❤️' : '🤍'}</button>
+                  <button
+                    onClick={async () => {
+                      const r = await fetch('/api/vault/restore-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: lnk.url }) });
+                      if (r.ok) setVaultLinks(prev => prev.filter(l => l.url !== lnk.url));
+                    }}
+                    style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '4px 8px', fontSize: '0.72rem', cursor: 'pointer', flexShrink: 0 }}
+                    title="Restore to Links"
+                    type="button"
+                  >🔓 Restore</button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

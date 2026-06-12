@@ -19,7 +19,7 @@ const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, C
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
 const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites } = require('./server/db-server');
-const { initVideoMeta, invalidateScanCache } = require('./server/videos-server');
+const { initVideoMeta } = require('./server/videos-server');
 const { getLocalIPs, getLocalIP } = require('./server/config-server');
 
 // ── Modules ──────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ ensureDirSync(cfg.LINK_THUMBS_DIR);
 ensureDirSync(path.dirname(BM_CACHE_FILE));
 ensureDirSync(path.join(process.cwd(), 'models'));
 
-(async () => { await comments.initCommentsModel(); })();
+// Model loading is deferred — initiated on first use via reinitIfNeeded()
 
 // ── Seed default category folders ────────────────────────────────────
 
@@ -114,6 +114,8 @@ function isLocalhost(req) {
 
 // ── HTTP server ───────────────────────────────────────────────────────
 
+let _serverReady = false;
+
 const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, `http://localhost:${PORT}`);
   const p = urlObj.pathname;
@@ -150,8 +152,10 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);
   if (p === '/api/open-category-folder' && req.method === 'POST') return videos.apiOpenCategoryFolder(req, res);
   if (p === '/api/favourites' && req.method === 'GET') return videos.apiFavourites(req, res);
+  if (p === '/api/favourites' && req.method === 'DELETE') return videos.apiClearFavourites(req, res);
   if (p === '/api/history' && req.method === 'GET') return videos.apiGetHistory(req, res);
   if (p === '/api/history' && req.method === 'DELETE') return videos.apiClearHistory(req, res);
+  if (p === '/api/thumbs/clear' && req.method === 'POST') return videos.apiClearThumbs(req, res);
   if (p === '/api/duplicates' && req.method === 'GET') return videos.apiDuplicates(req, res);
   if (p === '/api/duplicates/scan' && req.method === 'POST') return duplicates.apiDuplicatesScan(req, res, await videos.cachedScan());
   if (p === '/api/duplicates/stop' && req.method === 'POST') return duplicates.apiDuplicatesStop(req, res);
@@ -170,7 +174,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/encryption/status' && req.method === 'GET') return videos.apiEncryptionStatus(req, res);
   if (p === '/api/encryption/stop' && req.method === 'POST') return videos.apiEncryptionStop(req, res);
 
-  if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetail(req, res, m[1]);
+  if (p === '/api/preload' && req.method === 'GET') return videos.apiPreload(req, res);
+  if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetailFast(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/encrypt$/)) && req.method === 'POST') return videos.apiEncryptVideo(req, res, m[1]);
   if ((m = p.match(/^\/api\/stream\/([^/]+)$/)) && req.method === 'GET') return videos.apiStream(req, res, m[1]);
@@ -248,6 +253,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/imagegen/engine/stop'   && req.method === 'POST') return imagegen.apiStopEngine(req, res);
   if (p === '/api/imagegen/gallery'       && req.method === 'GET')  return imagegen.apiGallery(req, res);
   if (p === '/api/imagegen/progress'      && req.method === 'GET')  return imagegen.apiProgress(req, res);
+  if (p === '/api/imagegen/wildcards-export'                                             && req.method === 'GET')    return imagegen.apiExportAllWildcards(req, res);
+  if (p === '/api/imagegen/wildcards-import'                                             && req.method === 'POST')   return imagegen.apiImportAllWildcards(req, res);
   if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'GET')    return imagegen.apiGetWildcard(req, res, m[1]);
   if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'PUT')    return imagegen.apiSaveWildcard(req, res, m[1]);
   if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'DELETE') return imagegen.apiDeleteWildcard(req, res, m[1]);
@@ -255,6 +262,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/imagegen\/image\/([^/]+)$/))     && req.method === 'DELETE') return imagegen.apiDeleteImage(req, res, m[1]);
   if (p === '/api/imagegen/comfyui/start'                    && req.method === 'POST')   return imagegen.apiStartComfyui(req, res);
   if (p === '/api/imagegen/comfyui/sync'                     && req.method === 'POST')   return imagegen.apiSyncComfyui(req, res);
+  if (p === '/api/imagegen/upload'                           && req.method === 'POST')   return imagegen.apiUploadImage(req, res);
+  if (p === '/api/imagegen/encrypt-generated'                && req.method === 'POST')   return imagegen.apiEncryptGenerated(req, res);
 
   // ── Links / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
@@ -274,6 +283,8 @@ const server = http.createServer(async (req, res) => {
     return json(res, { starred: idx < 0, urls: starred });
   }
   if (p === '/api/websites' && req.method === 'POST') return links.apiWebsiteAdd(req, res);
+  if (p === '/api/websites/from-links' && req.method === 'GET') return links.apiWebsitesFromLinks(req, res);
+  if (p === '/api/websites/bulk-add' && req.method === 'POST') return links.apiWebsitesBulkAdd(req, res);
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'DELETE') return links.apiWebsiteDelete(req, res, parseInt(m[1]));
   if ((m = p.match(/^\/api\/websites\/(\d+)$/)) && req.method === 'PUT') return links.apiWebsiteUpdate(req, res, parseInt(m[1]));
   if (p === '/api/scrape' && req.method === 'GET') return links.apiScrape(req, res);
@@ -321,9 +332,16 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/read-book' && req.method === 'GET') return vault.apiVaultReadBook(req, res, params.get('id'));
   if ((m = p.match(/^\/api\/vault\/stream-page\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultStreamPage(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/page-resource\/([^/]+)\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultPageResource(req, res, m[1], m[2]);
+  if (p === '/api/vault/create-text' && req.method === 'POST') return vault.apiVaultCreateTextFile(req, res);
   if ((m = p.match(/^\/api\/vault\/text\/([^/]+)$/)) && req.method === 'PUT') return vault.apiVaultUpdateTextFile(req, res, m[1]);
   if (p === '/api/vault/import-drop' && req.method === 'POST') return vault.apiVaultImportDrop(req, res);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/restore$/)) && req.method === 'POST') return vault.apiVaultRestoreFile(req, res, m[1]);
+  if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/restore-to-origin$/)) && req.method === 'POST') return vault.apiVaultRestoreToOrigin(req, res, m[1]);
+  if (p === '/api/vault/links' && req.method === 'GET') return vault.apiVaultGetLinks(req, res);
+  if (p === '/api/vault/import-links' && req.method === 'POST') return vault.apiVaultImportLinks(req, res);
+  if (p === '/api/vault/move-links' && req.method === 'POST') return vault.apiVaultMoveLinks(req, res);
+  if (p === '/api/vault/restore-link' && req.method === 'POST') return vault.apiVaultRestoreLink(req, res);
+  if (p === '/api/vault/link-fav' && req.method === 'POST') return vault.apiVaultLinkFav(req, res);
 
   // ── Presets ──────────────────────────────────────────────────────────
   if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
@@ -334,6 +352,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/profiles/switch' && req.method === 'POST') return profiles.apiSwitchProfile(req, res);
   if (p === '/api/profiles/create' && req.method === 'POST') return profiles.apiCreateProfile(req, res);
   if (p === '/api/profiles/rename' && req.method === 'POST') return profiles.apiRenameProfile(req, res);
+  if (p === '/api/profiles/delete' && req.method === 'POST') return profiles.apiDeleteProfile(req, res);
+  if (p === '/api/profiles/clone' && req.method === 'POST') return profiles.apiCloneProfile(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
   if (p === '/api/db/category-tags' && req.method === 'GET') return database.apiGetCategoryTags(req, res);
@@ -379,6 +399,7 @@ const server = http.createServer(async (req, res) => {
   // ── Vision ───────────────────────────────────────────────────────────
   if (p === '/api/vision/describe' && req.method === 'POST') return vision.apiVisionDescribe(req, res);
   if (p === '/api/assistant/chat'  && req.method === 'POST') return assistant.apiAssistantChat(req, res);
+  if (p === '/api/models/scan'     && req.method === 'GET')  return assistant.apiScanModels(req, res);
 
   // ── Prompts ──────────────────────────────────────────────────────────
   if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);
@@ -450,27 +471,35 @@ const server = http.createServer(async (req, res) => {
     return json(res, { ok: true, app: 'AphroArchive', networkEnabled: !!prefs.networkEnabled });
   }
 
+  // ── Ready signal from frontend — deferred heavy work ─────────────────
+  if (p === '/api/ready' && req.method === 'POST') {
+    json(res, { ok: true });
+    if (!_serverReady) {
+      _serverReady = true;
+      initVideoMeta().catch(() => {});
+      startBackgroundWorker();
+    }
+    return;
+  }
+
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|categories|chapters|download-queue|prompts|imagegen|assistant|categorizer|browse|home|instagram|reddit|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });
 
 // ── Listen ───────────────────────────────────────────────────────────
 
-server.listen(PORT, async () => {
+server.listen(PORT, () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
-  invalidateScanCache(); // force fresh filesystem scan on every startup
-  await initVideoMeta();
-  startBackgroundWorker();
   feedWatcher.startWatchers(loadPrefs());
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);
   console.log(`  \x1b[90m📁  Videos: ${VIDEOS_DIR}\x1b[0m`);
   console.log(`  \x1b[90m📂  Public: ${path.join(__dirname, 'public')}\x1b[0m\n`);
-  if (IS_PKG) {
+  if (IS_PKG && !process.env.APHRO_ELECTRON) {
     const openCmd = process.platform === 'win32' ? `start http://localhost:${PORT}`
       : process.platform === 'darwin' ? `open http://localhost:${PORT}`
         : `xdg-open http://localhost:${PORT}`;

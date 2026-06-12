@@ -1,7 +1,8 @@
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
-import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState } from '../../store';
+import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView } from '../../store';
+import { zapOn, toggleZapping as _toggleZapping } from '../../zap';
 import { useEffect } from 'preact/hooks';
 
 export const Topbar = () => {
@@ -29,9 +30,7 @@ export const Topbar = () => {
     if ((window as any).toggleMosaic) (window as any).toggleMosaic();
   };
 
-  const toggleZapping = () => {
-    if ((window as any).toggleZapping) (window as any).toggleZapping();
-  };
+  const toggleZapping = () => _toggleZapping();
 
   const togglePan = () => {
     if ((window as any).togglePan) (window as any).togglePan();
@@ -57,6 +56,35 @@ export const Topbar = () => {
       <div className="search-w">
         <Search />
       </div>
+
+      {view === 'vault' && isVaultUnlocked.value && (
+        <div
+          className="vault-scope-toggle"
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '16px', padding: '3px' }}
+          title="Vault-Only shows encrypted files; Global shows every file from all profiles and lets you import them into the Vault"
+        >
+          <button
+            onClick={() => vaultGlobalView.value = false}
+            style={{
+              border: 'none', borderRadius: '13px', padding: '4px 12px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600,
+              background: !vaultGlobalView.value ? 'var(--ac)' : 'transparent',
+              color: !vaultGlobalView.value ? '#fff' : 'var(--tx2)'
+            }}
+          >
+            🔒 Vault Only
+          </button>
+          <button
+            onClick={() => vaultGlobalView.value = true}
+            style={{
+              border: 'none', borderRadius: '13px', padding: '4px 12px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600,
+              background: vaultGlobalView.value ? 'var(--ac)' : 'transparent',
+              color: vaultGlobalView.value ? '#fff' : 'var(--tx2)'
+            }}
+          >
+            🌐 Global
+          </button>
+        </div>
+      )}
 
       <div className="tb-acts">
         <button 
@@ -98,7 +126,7 @@ export const Topbar = () => {
           </button>
         )}
 
-        <button id="zapBtn" onClick={toggleZapping} title="Zapping mode">
+        <button id="zapBtn" onClick={toggleZapping} title="Zapping mode" class={zapOn.value ? 'on' : ''}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
           </svg>

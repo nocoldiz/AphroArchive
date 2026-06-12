@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { VIDEOS_DIR, THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config-server');
-const { scan, invalidateScanCache } = require('./videos-server');
+const { cachedScan, invalidateScanCache } = require('./videos-server');
 const { toId } = require('./helpers-server');
 const { genThumbs } = require('./thumbnails-server');
 const { execFile } = require('child_process');
@@ -46,14 +46,15 @@ async function scanAndProcess() {
   _isProcessing = true;
 
   try {
-    console.log('Background worker: Scanning files...');
-    const files = await scan(VIDEOS_DIR);
+    console.log('Background worker: Loading file index...');
+    const allFiles = await cachedScan();
+    const files = allFiles.filter(f => !f.isExternal && !f.encrypted);
     console.log(`Background worker: Found ${files.length} files.`);
 
     let processedCount = 0;
 
     for (const file of files) {
-      const fp = path.join(VIDEOS_DIR, file.rel);
+      const fp = path.join(VIDEOS_DIR, file.rel.replace(/\\/g, path.sep));
       const id = file.id;
 
       try {
@@ -120,11 +121,11 @@ async function scanAndProcess() {
 }
 
 function startBackgroundWorker() {
-  // Run every 5 minutes
-  setInterval(scanAndProcess, 5 * 60 * 1000);
-  // Run once at start after a short delay
-  setTimeout(scanAndProcess, 10000);
-  console.log('Background worker started (running every 5 minutes)');
+  // Run every 10 minutes
+  setInterval(scanAndProcess, 10 * 60 * 1000);
+  // First run after a 30s delay so the page is fully usable first
+  setTimeout(scanAndProcess, 30000);
+  console.log('Background worker started (running every 10 minutes)');
 }
 
 module.exports = { startBackgroundWorker };

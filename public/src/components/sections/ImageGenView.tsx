@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
-import { appPrefs } from '../../store';
+import { appPrefs, imagegenInputState, activeProfile } from '../../store';
 import {
   PROMPT_TEMPLATES,
   MODEL_TARGETS,
@@ -15,6 +15,8 @@ import {
   BUILDER_CATEGORY_WILDCARDS,
   AGE_PRESETS,
   buildPromptFromBuilder,
+} from '../../characterPrompts';
+import {
   inspireRandomBuilder,
   pickRandomForCategory,
   HARDCODED_OPTIONS,
@@ -23,7 +25,7 @@ import {
   isNsfwPhrase,
   SFW_THRESHOLD,
   sanitizeBuilderStateForLevel,
-} from '../../characterPrompts';
+} from '../../nsfwCharacterPrompts';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -35,6 +37,8 @@ interface GenParams {
   model:         string;
   model_type:    'sd15' | 'sdxl' | 'pony' | 'flux';
   vae:           string;
+  textEncoder:   string;
+  clipEncoder:   string;
   prompt:        string;
   negative:      string;
   width:         number;
@@ -47,6 +51,7 @@ interface GenParams {
 }
 
 interface GalleryImage { name: string; size: number; mtime: number; }
+interface InputImage { url: string; serverPath: string; name: string; }
 
 interface EngineStatus {
   state: 'stopped' | 'idle' | 'loading' | 'generating' | 'queued' | 'error';
@@ -65,6 +70,13 @@ const SIZE_PRESETS = [
   { label: '1024×1024',w: 1024, h: 1024 },
   { label: '1024×1536',w: 1024, h: 1536 },
   { label: '1152×896', w: 1152, h: 896  },
+];
+const SPEED_PRESETS = [
+  { label: 'Ultra Fast',   steps: 4,  cfg: 1.0, sampler: 'lcm' },
+  { label: 'Fast',         steps: 8,  cfg: 2.0, sampler: 'lcm' },
+  { label: 'Balanced',     steps: 20, cfg: 7.0, sampler: 'euler' },
+  { label: 'Quality',      steps: 30, cfg: 8.0, sampler: 'dpm++_2m' },
+  { label: 'High Quality', steps: 40, cfg: 9.0, sampler: 'dpm++_sde' },
 ];
 const DEFAULT_NEGATIVE = 'lowres, bad anatomy, bad hands, text, error, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, blurry';
 const STATUS_DOT: Record<string, string> = {
@@ -217,7 +229,7 @@ function Slider({ label, value, min, max, step = 1, unit = '', onChange }: {
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--tx2)', marginBottom: '2px' }}>
         <span>{label}</span><b style={{ color: 'var(--tx)' }}>{value}{unit}</b>
       </div>
-      <input type="range" min={min} max={max} step={step} value={value}
+      <input type="range" min={min} max={max} step={step} value={value} title={label}
         onInput={(e: any) => onChange(parseFloat(e.target.value))}
         style={{ width: '100%', accentColor: 'var(--ac)', cursor: 'pointer' }} />
     </div>
@@ -246,7 +258,7 @@ function WildcardEditor({ name, onClose, onSaved }: { name: string; onClose: () 
           <span style={{ fontWeight: 700, fontSize: '14px', flex: 1 }}>Edit wildcard: <code style={{ color: 'var(--ac)' }}>{name}</code></span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '16px' }}>✕</button>
         </div>
-        <textarea value={content} onInput={(e: any) => setContent(e.target.value)} rows={14} spellcheck={false}
+        <textarea value={content} onInput={(e: any) => setContent(e.target.value)} rows={14} spellcheck={false} title="Wildcard content"
           style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', fontSize: '13px', fontFamily: 'monospace', lineHeight: '1.5' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{lineCount} option{lineCount !== 1 ? 's' : ''}</span>
@@ -433,16 +445,18 @@ export const ImageGenView = () => {
   const [engineDevice,  setEngineDevice]  = useState('');
   const [queueLength,   setQueueLength]   = useState(0);
 
-  const [models,    setModels]    = useState<AssetFile[]>([]);
-  const [vaes,      setVaes]      = useState<AssetFile[]>([]);
-  const [loras,     setLoras]     = useState<AssetFile[]>([]);
-  const [wildcards, setWildcards] = useState<WildcardFile[]>([]);
+  const [models,       setModels]       = useState<AssetFile[]>([]);
+  const [vaes,         setVaes]         = useState<AssetFile[]>([]);
+  const [loras,        setLoras]        = useState<AssetFile[]>([]);
+  const [wildcards,    setWildcards]    = useState<WildcardFile[]>([]);
+  const [textEncoders, setTextEncoders] = useState<AssetFile[]>([]);
+  const [clips,        setClips]        = useState<AssetFile[]>([]);
   const [gallery,   setGallery]   = useState<GalleryImage[]>([]);
   const [lightbox,  setLightbox]  = useState<GalleryImage | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [params, setParams] = useState<GenParams>({
-    model: '', model_type: 'sd15', vae: '',
+    model: '', model_type: 'sd15', vae: '', textEncoder: '', clipEncoder: '',
     prompt: '', negative: DEFAULT_NEGATIVE,
     width: 512, height: 768, steps: 20, cfg: 7.5,
     sampler: 'euler', seed: -1, batch: 1,
@@ -461,7 +475,7 @@ export const ImageGenView = () => {
   const promptRef   = useRef<HTMLTextAreaElement>(null);
   const negativeRef = useRef<HTMLTextAreaElement>(null);
 
-  const [genMode, setGenMode] = useState<'static' | 'advanced'>('static');
+  const [genMode, setGenMode] = useState<'static' | 'advanced'>('advanced');
   const [genTemplateKey, setGenTemplateKey] = useState<keyof typeof PROMPT_TEMPLATES>('ponyxl-default');
   const [customTemplate, setCustomTemplate] = useState('');
   const [generatedPrompt, setGeneratedPrompt] = useState('');
@@ -495,6 +509,14 @@ export const ImageGenView = () => {
 
   const [generating, setGenerating] = useState(false);
   const [promptGenOpen, setPromptGenOpen] = useState(false);
+
+  // ── Img2img / input image state ──────────────────────────────────
+  const [inputImages, setInputImages]   = useState<InputImage[]>([]);
+  const [imgMode, setImgMode]           = useState<'txt2img' | 'img2img'>('txt2img');
+  const [imgStrength, setImgStrength]   = useState(0.65);
+  const [imgPanelOpen, setImgPanelOpen] = useState(false);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [massGenOpen, setMassGenOpen] = useState(false);
   const [massGenCount, setMassGenCount] = useState(10);
   const [massGenResults, setMassGenResults] = useState<string[]>([]);
@@ -520,13 +542,15 @@ export const ImageGenView = () => {
       setVaes(assetsRes.vaes || []);
       setLoras(assetsRes.loras || []);
       setWildcards(assetsRes.wildcards || []);
+      setTextEncoders(assetsRes.textEncoders || []);
+      setClips(assetsRes.clips || []);
       setGallery(galleryRes || []);
       setModelsDir(cfgRes.modelsDir || '');
       setVaesDir(cfgRes.vaesDir || '');
       setLorasDir(cfgRes.lorasDir || '');
       setOutputDir(cfgRes.outputDir || '');
       setDevicePref((cfgRes.device || 'auto') as 'auto'|'cpu'|'cuda'|'mps');
-      if (cfgRes.model) setParams(p => ({ ...p, model: cfgRes.model, model_type: cfgRes.modelType || 'sd15', vae: cfgRes.vae || '' }));
+      if (cfgRes.model) setParams(p => ({ ...p, model: cfgRes.model, model_type: cfgRes.modelType || 'sd15', vae: cfgRes.vae || '', textEncoder: cfgRes.textEncoder || '', clipEncoder: cfgRes.clipEncoder || '' }));
       setEngineRunning(cfgRes.engine?.running || false);
       setEngineReady(cfgRes.engine?.ready || false);
       setEngineDevice(cfgRes.engine?.device || '');
@@ -536,6 +560,42 @@ export const ImageGenView = () => {
 
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { if (comfyuiPath) loadAll(); }, [comfyuiPath]);
+
+  // Consume imagegenInputState set by ContextMenu or PlayerView
+  useEffect(() => {
+    const pending = imagegenInputState.value;
+    if (!pending) return;
+    imagegenInputState.value = null;
+
+    const { imageUrl, imagePath } = pending;
+    if (imagePath) {
+      // Already has a server path (from frame capture)
+      const name = imagePath.split(/[\\/]/).pop() || 'input.jpg';
+      setInputImages([{ url: imageUrl, serverPath: imagePath, name }]);
+      setImgMode('img2img');
+      setImgPanelOpen(true);
+    } else if (imageUrl) {
+      // Photo from context menu — fetch and upload
+      (async () => {
+        try {
+          const blob = await fetch(imageUrl).then(r => r.blob());
+          const ext = blob.type.includes('png') ? '.png' : '.jpg';
+          const fname = 'photo' + ext;
+          const r = await fetch('/api/imagegen/upload', {
+            method: 'POST',
+            headers: { 'x-filename': fname, 'Content-Type': blob.type },
+            body: blob,
+          });
+          const d = await r.json();
+          if (d.ok) {
+            setInputImages([{ url: URL.createObjectURL(blob), serverPath: d.path, name: d.name }]);
+            setImgMode('img2img');
+            setImgPanelOpen(true);
+          }
+        } catch { /* best-effort */ }
+      })();
+    }
+  }, []);
 
   // Preload character editor options on startup so selects are ready in prompt builder
   useEffect(() => {
@@ -591,7 +651,20 @@ export const ImageGenView = () => {
       case 'done':
         setGenerating(false);
         setEngineStatus({ state: 'idle', step: 0, total: 0, pct: 100, message: `Done in ${msg.elapsed}s — ${msg.count} image(s)` });
-        fetch('/api/imagegen/gallery').then(r => r.json()).then(d => { setGallery(d); setDrawerOpen(true); }).catch(() => {});
+        if (activeProfile.value === 'Vault' && msg.paths?.length) {
+          // Auto-encrypt into vault when vault profile is active
+          Promise.all((msg.paths as string[]).map(p =>
+            fetch('/api/imagegen/encrypt-generated', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename: p.split(/[\\/]/).pop() }),
+            }).catch(() => {})
+          )).then(() => {
+            fetch('/api/imagegen/gallery').then(r => r.json()).then(d => { setGallery(d); setDrawerOpen(true); }).catch(() => {});
+          });
+        } else {
+          fetch('/api/imagegen/gallery').then(r => r.json()).then(d => { setGallery(d); setDrawerOpen(true); }).catch(() => {});
+        }
         break;
       case 'cancelled':
         setGenerating(false);
@@ -610,11 +683,20 @@ export const ImageGenView = () => {
   const stopEngine  = () => fetch('/api/imagegen/engine/stop',  { method: 'POST' });
   const cancel      = () => fetch('/api/imagegen/cancel',        { method: 'POST' });
 
+  const buildGenerateBody = (imagePath = '') => ({
+    ...params,
+    loras: selectedLoras.map(l => l.name),
+    lora_strengths: selectedLoras.map(l => l.strength),
+    mode: (imagePath || (imgMode === 'img2img' && inputImages.length > 0)) ? 'img2img' : 'txt2img',
+    image_path: imagePath || (imgMode === 'img2img' && inputImages.length > 0 ? inputImages[0].serverPath : ''),
+    strength: imgStrength,
+  });
+
   const generate = async () => {
     if (!params.model)        { alert('Select a model first'); return; }
     if (!params.prompt.trim()){ alert('Enter a prompt');        return; }
     if (!engineRunning) await startEngine();
-    const body = { ...params, loras: selectedLoras.map(l => l.name), lora_strengths: selectedLoras.map(l => l.strength) };
+    const body = buildGenerateBody();
     const r = await fetch('/api/imagegen/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     if (d.error) { alert(d.error); return; }
@@ -622,8 +704,26 @@ export const ImageGenView = () => {
     setEngineStatus(s => ({ ...s, state: 'queued', message: 'Queued…' }));
   };
 
+  // Generate with same prompt for each input image (batch mode)
+  const generateBatch = async () => {
+    if (!params.model)        { alert('Select a model first'); return; }
+    if (!params.prompt.trim()){ alert('Enter a prompt');        return; }
+    if (inputImages.length === 0) { alert('Load at least one image'); return; }
+    if (!engineRunning) await startEngine();
+    setBatchRunning(true);
+    for (const img of inputImages) {
+      const body = buildGenerateBody(img.serverPath);
+      const r = await fetch('/api/imagegen/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (d.error) { alert(`Batch error: ${d.error}`); break; }
+    }
+    setGenerating(true);
+    setEngineStatus(s => ({ ...s, state: 'queued', message: `Batch: ${inputImages.length} images queued…` }));
+    setBatchRunning(false);
+  };
+
   const saveConfig = async () => {
-    await fetch('/api/imagegen/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelsDir, vaesDir, lorasDir, outputDir, model: params.model, vae: params.vae, modelType: params.model_type, device: devicePref }) });
+    await fetch('/api/imagegen/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelsDir, vaesDir, lorasDir, outputDir, model: params.model, vae: params.vae, textEncoder: params.textEncoder, clipEncoder: params.clipEncoder, modelType: params.model_type, device: devicePref }) });
     await loadAll(); setConfigOpen(false);
   };
 
@@ -828,7 +928,7 @@ export const ImageGenView = () => {
     // Apply to builder state (will update dropdowns reactively)
     const patch: any = { ...p };
     if (p.numChars) patch.numChars = p.numChars;
-    if (p.chars) patch.chars = p.chars;
+    if ((p as any).chars) patch.chars = (p as any).chars;
     // Only set fields that exist in builder UI
     ['background', 'setting', 'action', 'pose', 'photography', 'lighting', 'style', 'quality'].forEach(k => {
       if ((p as any)[k] !== undefined) patch[k] = (p as any)[k];
@@ -873,6 +973,45 @@ export const ImageGenView = () => {
     const example = '{option1|option2|option3}';
     if (field === 'prompt') insertAtCursor(promptRef as any, params.prompt, example, v => setParam('prompt', v));
     else insertAtCursor(negativeRef as any, params.negative, example, v => setParam('negative', v));
+  };
+
+  const uploadFiles = async (files: FileList | File[]) => {
+    const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!arr.length) return;
+    const results: InputImage[] = [];
+    for (const file of arr) {
+      try {
+        const r = await fetch('/api/imagegen/upload', {
+          method: 'POST',
+          headers: { 'x-filename': file.name, 'Content-Type': file.type },
+          body: file,
+        });
+        const d = await r.json();
+        if (d.ok) results.push({ url: URL.createObjectURL(file), serverPath: d.path, name: file.name });
+      } catch { /* skip failed */ }
+    }
+    if (results.length) {
+      setInputImages(prev => [...prev, ...results]);
+      setImgMode('img2img');
+    }
+  };
+
+  const onFileInputChange = (e: any) => {
+    if (e.target.files?.length) uploadFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const onDropZone = (e: any) => {
+    e.preventDefault();
+    if (e.dataTransfer?.files?.length) uploadFiles(e.dataTransfer.files);
+  };
+
+  const removeInputImage = (idx: number) => {
+    setInputImages(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      if (next.length === 0) setImgMode('txt2img');
+      return next;
+    });
   };
 
   const deleteImage = (name: string) => {
@@ -944,6 +1083,7 @@ export const ImageGenView = () => {
             <select
               value={devicePref}
               onChange={(e: any) => setDevicePref(e.target.value as 'auto'|'cpu'|'cuda'|'mps')}
+              title="Device"
               style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 7px', fontSize: '12px' }}
             >
               <option value="auto">Auto (GPU if available)</option>
@@ -984,6 +1124,77 @@ export const ImageGenView = () => {
 
           {/* ── LEFT: Prompts + Generator + Wildcards ───────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+            {/* ── Input Image (img2img) panel ─────────────────── */}
+            <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
+              <button onClick={() => setImgPanelOpen(v => !v)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 10px', background: inputImages.length > 0 ? 'rgba(var(--ac-rgb,83,139,255),0.12)' : 'var(--bg2)', border: 'none', cursor: 'pointer' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: inputImages.length > 0 ? 'var(--ac)' : 'var(--tx2)', flex: 1 }}>
+                  🖼 Input Image{inputImages.length > 1 ? ` (${inputImages.length})` : inputImages.length === 1 ? ' (1)' : ''}
+                  {imgMode === 'img2img' && inputImages.length > 0 && <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--ac)' }}>img2img</span>}
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{imgPanelOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {imgPanelOpen && (
+                <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Mode toggle */}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {(['txt2img', 'img2img'] as const).map(m => (
+                      <button key={m} onClick={() => setImgMode(m)}
+                        style={{ flex: 1, padding: '4px', fontSize: '12px', fontWeight: 600, borderRadius: '4px', border: imgMode === m ? '1px solid var(--ac)' : '1px solid var(--brd)', background: imgMode === m ? 'var(--ac)' : 'var(--bg2)', color: imgMode === m ? '#fff' : 'var(--tx2)', cursor: 'pointer' }}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+
+                  {imgMode === 'img2img' && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--tx2)', marginBottom: '2px' }}>
+                        <span>Denoising strength</span>
+                        <b style={{ color: 'var(--tx)' }}>{imgStrength.toFixed(2)}</b>
+                      </div>
+                      <input type="range" min={0.01} max={1} step={0.01} value={imgStrength} title="Denoising strength"
+                        onInput={(e: any) => setImgStrength(parseFloat(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--ac)' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--tx3)' }}>
+                        <span>subtle</span><span>full regen</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Drop zone */}
+                  <div
+                    onDragOver={(e: any) => e.preventDefault()}
+                    onDrop={onDropZone}
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ border: '2px dashed var(--brd)', borderRadius: '6px', padding: '12px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg3)', fontSize: '12px', color: 'var(--tx3)' }}>
+                    Drop images here or click to browse<br />
+                    <span style={{ fontSize: '10px' }}>Multiple images = batch generation (same prompt for each)</span>
+                  </div>
+                  <input ref={fileInputRef as any} type="file" accept="image/*" multiple title="Select images" style={{ display: 'none' }} onChange={onFileInputChange} />
+
+                  {/* Loaded images */}
+                  {inputImages.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {inputImages.map((img, idx) => (
+                        <div key={idx} style={{ position: 'relative', width: '72px', height: '72px', borderRadius: '5px', overflow: 'hidden', border: '2px solid var(--brd)', flexShrink: 0 }}>
+                          <img src={img.url} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <button onClick={() => removeInputImage(idx)}
+                            style={{ position: 'absolute', top: '1px', right: '1px', background: 'rgba(0,0,0,0.65)', border: 'none', color: '#fff', borderRadius: '3px', width: '16px', height: '16px', fontSize: '10px', cursor: 'pointer', lineHeight: '1', padding: '0' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {inputImages.length > 1 && (
+                    <div style={{ fontSize: '11px', color: 'var(--ac)', background: 'rgba(var(--ac-rgb,83,139,255),0.1)', borderRadius: '4px', padding: '5px 8px', border: '1px solid var(--ac)' }}>
+                      {inputImages.length} images loaded — use <b>Batch Generate</b> to run the same prompt on each
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Positive prompt */}
             <div>
@@ -1036,7 +1247,6 @@ export const ImageGenView = () => {
               style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '9px 13px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '6px', cursor: 'pointer', textAlign: 'left' }}>
               <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tx2)', flex: 1 }}>✨ Prompt Generator</span>
               {generatedPrompt && <span style={{ fontSize: '10px', color: 'var(--ac)' }}>prompt ready</span>}
-              <span style={{ fontSize: '11px', color: 'var(--tx3)', textTransform: 'capitalize' }}>{genMode}</span>
               <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>open →</span>
             </button>
             {generatedPrompt && (
@@ -1052,19 +1262,6 @@ export const ImageGenView = () => {
                 </div>
               </div>
             )}
-            {/* Wildcards panel */}
-            <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
-              <button onClick={() => setWildcardsOpen(v => !v)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 10px', background: 'var(--bg2)', border: 'none', cursor: 'pointer' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--tx2)', flex: 1 }}>🃏 Wildcards ({wildcards.length})</span>
-                <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{wildcardsOpen ? '▲' : '▼'}</span>
-              </button>
-              {wildcardsOpen && (
-                <div style={{ padding: '8px 10px' }}>
-                  <WildcardsPanel wildcards={wildcards} onRefresh={reloadWildcards} onInsert={insertWildcard} activeField={activeField} />
-                </div>
-              )}
-            </div>
           </div>
 
           {/* ── RIGHT: Model + Params ────────────────────────────── */}
@@ -1073,7 +1270,7 @@ export const ImageGenView = () => {
             {/* Model */}
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px', fontWeight: 600 }}>Model</label>
-              <select value={params.model} onChange={(e: any) => selectModel(e.target.value)}
+              <select value={params.model} onChange={(e: any) => selectModel(e.target.value)} title="Model"
                 style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }}>
                 <option value="">— select model —</option>
                 {models.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
@@ -1091,12 +1288,47 @@ export const ImageGenView = () => {
             {/* VAE */}
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>VAE (optional)</label>
-              <select value={params.vae} onChange={(e: any) => setParam('vae', e.target.value)}
+              <select value={params.vae} onChange={(e: any) => setParam('vae', e.target.value)} title="VAE"
                 style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }}>
                 <option value="">— built-in —</option>
                 {vaes.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
               </select>
             </div>
+
+            {/* Flux text encoders — shown only when model_type is flux */}
+            {params.model_type === 'flux' && (clips.length > 0 || textEncoders.length > 0) && (
+              <div style={{ borderTop: '1px solid var(--brd)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--ac)', fontWeight: 600, marginBottom: '2px' }}>Flux Text Encoders (optional)</div>
+                <div style={{ fontSize: '11px', color: 'var(--tx3)', marginBottom: '4px' }}>
+                  CLIP-L and T5/Qwen text encoders override the ones bundled in the model file. Leave blank to use embedded encoders.
+                  {params.model.toLowerCase().includes('unet/') && params.model.toLowerCase().endsWith('.gguf') && (
+                    <span style={{ color: '#ff9800', display: 'block', marginTop: '3px' }}>
+                      Note: unet-only GGUF models require img2img mode to be disabled — txt2img only.
+                    </span>
+                  )}
+                </div>
+                {clips.length > 0 && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '3px' }}>CLIP-L (text encoder 1)</label>
+                    <select value={params.clipEncoder} onChange={(e: any) => setParam('clipEncoder', e.target.value)} title="CLIP encoder"
+                      style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px 7px', fontSize: '12px' }}>
+                      <option value="">— use embedded —</option>
+                      {clips.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                )}
+                {textEncoders.length > 0 && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '3px' }}>T5 / Qwen text encoder (text encoder 2)</label>
+                    <select value={params.textEncoder} onChange={(e: any) => setParam('textEncoder', e.target.value)} title="Text encoder 2"
+                      style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px 7px', fontSize: '12px' }}>
+                      <option value="">— use embedded —</option>
+                      {textEncoders.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Size presets */}
             <div>
@@ -1113,11 +1345,27 @@ export const ImageGenView = () => {
                 {(['width', 'height'] as const).map(k => (
                   <div key={k} style={{ flex: 1 }}>
                     <label style={{ fontSize: '11px', color: 'var(--tx3)', display: 'block', marginBottom: '2px' }}>{k}</label>
-                    <input type="number" min={64} max={2048} step={64} value={params[k]}
+                    <input type="number" min={64} max={2048} step={64} value={params[k]} title={k}
                       onInput={(e: any) => setParam(k, parseInt(e.target.value) || 512)}
                       style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 6px', fontSize: '13px', textAlign: 'center' }} />
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Speed/Quality presets */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px' }}>Speed / Quality Preset</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px' }}>
+                {SPEED_PRESETS.map(p => {
+                  const isActive = params.steps === p.steps && params.cfg === p.cfg && params.sampler === p.sampler;
+                  return (
+                    <button key={p.label} onClick={() => setParams(prev => ({ ...prev, steps: p.steps, cfg: p.cfg, sampler: p.sampler }))}
+                      style={{ background: isActive ? 'var(--ac)' : 'var(--bg2)', color: isActive ? '#fff' : 'var(--tx2)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '3px 7px', fontSize: '11px', cursor: 'pointer' }}>
+                      {p.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1128,7 +1376,7 @@ export const ImageGenView = () => {
             {/* Sampler */}
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>Sampler</label>
-              <select value={params.sampler} onChange={(e: any) => setParam('sampler', e.target.value)}
+              <select value={params.sampler} onChange={(e: any) => setParam('sampler', e.target.value)} title="Sampler"
                 style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }}>
                 {SAMPLERS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -1138,7 +1386,7 @@ export const ImageGenView = () => {
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>Seed</label>
               <div style={{ display: 'flex', gap: '6px' }}>
-                <input type="number" value={params.seed} onInput={(e: any) => setParam('seed', parseInt(e.target.value))}
+                <input type="number" value={params.seed} title="Seed" onInput={(e: any) => setParam('seed', parseInt(e.target.value))}
                   style={{ flex: 1, background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }} />
                 <button onClick={() => setParam('seed', -1)} title="Random"
                   style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '5px 10px', fontSize: '13px', cursor: 'pointer' }}>🎲</button>
@@ -1150,7 +1398,7 @@ export const ImageGenView = () => {
             {loras.length > 0 && (
               <div>
                 <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>LoRAs</label>
-                <select onChange={(e: any) => { addLora(e.target.value); e.target.value = ''; }}
+                <select onChange={(e: any) => { addLora(e.target.value); e.target.value = ''; }} title="Add LoRA"
                   style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', marginBottom: '5px' }}>
                   <option value="">+ Add LoRA…</option>
                   {loras.filter(l => !selectedLoras.find(s => s.name === l.name)).map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
@@ -1158,7 +1406,7 @@ export const ImageGenView = () => {
                 {selectedLoras.map(l => (
                   <div key={l.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                     <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
-                    <input type="range" min={0} max={1} step={0.05} value={l.strength} onInput={(e: any) => setLoraStrength(l.name, parseFloat(e.target.value))} style={{ width: '70px', accentColor: 'var(--ac)' }} />
+                    <input type="range" min={0} max={1} step={0.05} value={l.strength} title={`${l.name} strength`} onInput={(e: any) => setLoraStrength(l.name, parseFloat(e.target.value))} style={{ width: '70px', accentColor: 'var(--ac)' }} />
                     <span style={{ fontSize: '11px', color: 'var(--tx3)', width: '28px' }}>{l.strength.toFixed(2)}</span>
                     <button onClick={() => removeLora(l.name)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '13px' }}>✕</button>
                   </div>
@@ -1169,16 +1417,24 @@ export const ImageGenView = () => {
         </div>
 
         {/* ── Generate button ──────────────────────────────────────── */}
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           {isWorking ? (
             <button onClick={cancel} style={{ flex: 1, background: '#c44', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
               ⏹ Cancel
             </button>
           ) : (
-            <button onClick={generate} disabled={!params.model}
-              style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', opacity: !params.model ? 0.5 : 1 }}>
-              ✦ Generate {totalImages > 1 ? `(${totalImages} images)` : ''}
-            </button>
+            <>
+              <button onClick={generate} disabled={!params.model}
+                style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', opacity: !params.model ? 0.5 : 1 }}>
+                ✦ {imgMode === 'img2img' && inputImages.length > 0 ? 'Img2Img' : 'Generate'} {totalImages > 1 ? `(${totalImages} images)` : ''}
+              </button>
+              {inputImages.length > 1 && (
+                <button onClick={generateBatch} disabled={!params.model || batchRunning}
+                  style={{ background: '#9333ea', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', opacity: (!params.model || batchRunning) ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                  ⚡ Batch ({inputImages.length}×)
+                </button>
+              )}
+            </>
           )}
 
           {/* Gallery drawer trigger */}
@@ -1249,19 +1505,11 @@ export const ImageGenView = () => {
       {promptGenOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
           onClick={(e: any) => { if (e.target === e.currentTarget) setPromptGenOpen(false); }}>
-          <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(960px, 98vw)', maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(1320px, 98vw)', maxHeight: '94vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
 
             {/* Header */}
             <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-              <span style={{ fontWeight: 700, fontSize: '15px', flex: 1 }}>✨ Prompt Generator</span>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                {(['static', 'advanced'] as const).map(m => (
-                  <button key={m} onClick={() => setGenMode(m)}
-                    style={{ fontSize: '12px', padding: '4px 12px', borderRadius: '5px', border: genMode === m ? '1px solid var(--ac)' : '1px solid var(--brd)', background: genMode === m ? 'var(--ac)' : 'transparent', color: genMode === m ? '#fff' : 'var(--tx2)', cursor: 'pointer', textTransform: 'capitalize' }}>
-                    {m === 'static' ? 'Template' : 'Builder'}
-                  </button>
-                ))}
-              </div>
+              <span style={{ fontWeight: 700, fontSize: '15px', flex: 1 }}>✨ Prompt Builder</span>
               <button onClick={() => setMassGenOpen(true)}
                 style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '4px 12px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
                 📋 Mass Generate
@@ -1270,41 +1518,17 @@ export const ImageGenView = () => {
                 style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px 4px' }}>✕</button>
             </div>
 
-            {/* Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Body — builder left, wildcards right */}
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-              {/* ── Template mode ── */}
-              {genMode === 'static' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px', fontWeight: 600 }}>Template</label>
-                    <select value={genTemplateKey} onChange={(e: any) => setGenTemplateKey(e.target.value)}
-                      style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '6px 8px', fontSize: '13px' }}>
-                      {Object.entries(PROMPT_TEMPLATES).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
-                    </select>
-                  </div>
-                  {genTemplateKey === 'custom' && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px' }}>Custom template</label>
-                      <textarea value={customTemplate} onInput={(e: any) => setCustomTemplate(e.target.value)} placeholder="Custom: __subject__, __lighting__ ..." rows={4}
-                        style={{ width: '100%', boxSizing: 'border-box', fontSize: '13px', fontFamily: 'monospace', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '8px', resize: 'vertical', color: 'var(--tx)' }} />
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={doStaticGenerate} disabled={genLoading} style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '5px', padding: '8px', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}>{genLoading ? '…' : 'Generate (resolve wildcards)'}</button>
-                    <button onClick={() => setGeneratedPrompt('')} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '8px 14px', fontSize: '13px', cursor: 'pointer' }}>Clear</button>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Advanced builder mode ── */}
-              {genMode === 'advanced' && (
+              {/* ── Builder ── */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
                   {/* Global bar */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', padding: '8px 12px', background: 'var(--bg3)', borderRadius: '6px', border: '1px solid var(--brd)' }}>
                     <span style={{ color: 'var(--tx3)', fontSize: '12px' }}>Target</span>
-                    <select value={builder.target} onChange={(e: any) => { const t = e.target.value as ModelTarget; updateBuilder({ target: t }); setAdvTarget(t); }}
+                    <select value={builder.target} onChange={(e: any) => { const t = e.target.value as ModelTarget; updateBuilder({ target: t }); setAdvTarget(t); }} title="Target"
                       style={{ background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '3px 6px', fontSize: '12px' }}>
                       {MODEL_TARGETS.map(t => <option key={t} value={t}>{getModelLabel(t)}</option>)}
                     </select>
@@ -1438,7 +1662,7 @@ export const ImageGenView = () => {
                                   {pinBtn}
                                   {randBtn}
                                 </div>
-                                <select value={cur} onChange={(e: any) => {
+                                <select value={cur} title={label} onChange={(e: any) => {
                                   const v = e.target.value;
                                   if (v === '__random__') {
                                     randomizeOneCategory(cat, true, i);
@@ -1492,7 +1716,7 @@ export const ImageGenView = () => {
                               <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat, false)} style={{ fontSize: '9px', padding: '0 3px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>{
+                            <select value={val} title={cat} onChange={(e:any)=>{
                               const v = e.target.value;
                               if (v === '__random__') { randomizeOneCategory(cat, false); return; }
                               updateBuilder({ [cat]: v } as any);
@@ -1520,7 +1744,7 @@ export const ImageGenView = () => {
                               <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize: '9px', padding: '0 1px', background: 'none', border: 'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor: 'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat, false)} style={{ fontSize: '9px', padding: '0 3px', background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>{
+                            <select value={val} title={cat} onChange={(e:any)=>{
                               const v = e.target.value;
                               if (v === '__random__') { randomizeOneCategory(cat, false); return; }
                               updateBuilder({ [cat]: v } as any);
@@ -1552,7 +1776,7 @@ export const ImageGenView = () => {
                               <button onClick={() => togglePin(cat)} title={pinnedNow ? 'Pinned (protected from Inspire All)' : 'Pin (keep during master shuffle)'} style={{ fontSize:'9px', padding:'0 1px', background:'none', border:'none', color: pinnedNow ? 'var(--ac)' : 'var(--tx3)', cursor:'pointer' }}>📌</button>
                               <button onClick={()=>randomizeOneCategory(cat,false)} style={{ fontSize:'9px', padding:'0 2px', background:'none', border:'none', color:'var(--ac)', cursor:'pointer' }}>🎲</button>
                             </div>
-                            <select value={val} onChange={(e:any)=>{
+                            <select value={val} title={cat} onChange={(e:any)=>{
                               const v = e.target.value;
                               if (v === '__random__') { randomizeOneCategory(cat, false); return; }
                               updateBuilder({ [cat]: v } as any);
@@ -1589,7 +1813,13 @@ export const ImageGenView = () => {
                     </div>
                   </details>
                 </div>
-              )}
+              </div>
+
+              {/* ── Wildcards panel (right column) ── */}
+              <div style={{ width: '280px', flexShrink: 0, overflowY: 'auto', padding: '12px 14px', borderLeft: '1px solid var(--brd)', background: 'var(--bg3)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--tx2)', paddingBottom: '6px', borderBottom: '1px solid var(--brd)' }}>🃏 Wildcards ({wildcards.length})</div>
+                <WildcardsPanel wildcards={wildcards} onRefresh={reloadWildcards} onInsert={insertWildcard} activeField={activeField} />
+              </div>
             </div>
 
             {/* Footer — generated prompt */}
@@ -1626,7 +1856,7 @@ export const ImageGenView = () => {
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <label style={{ fontSize: '13px', color: 'var(--tx2)', whiteSpace: 'nowrap' }}>Generate</label>
-                <input type="number" min={1} max={100} value={massGenCount}
+                <input type="number" min={1} max={100} value={massGenCount} title="Number of prompts"
                   onInput={(e: any) => setMassGenCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 10)))}
                   style={{ width: '70px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '5px 8px', fontSize: '13px', textAlign: 'center' }} />
                 <label style={{ fontSize: '13px', color: 'var(--tx2)' }}>prompts</label>

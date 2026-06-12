@@ -95,6 +95,10 @@ async function apiSavePrefs(req, res) {
   if ('assistantSystemMode' in body) prefs.assistantSystemMode = String(body.assistantSystemMode || 'default');
   if ('assistantStoryGenre' in body) prefs.assistantStoryGenre = String(body.assistantStoryGenre || 'Any');
   if ('llamaModelUri' in body) prefs.llamaModelUri = String(body.llamaModelUri || '').trim();
+  if ('theme' in body) prefs.theme = String(body.theme || '').trim();
+  if ('cardSize' in body && !isNaN(parseInt(body.cardSize, 10))) prefs.cardSize = parseInt(body.cardSize, 10);
+  if ('isMuted' in body) prefs.isMuted = !!body.isMuted;
+  if ('thumbBlurMode' in body) prefs.thumbBlurMode = String(body.thumbBlurMode || 'show').trim();
   if ('comfyuiPath' in body) {
     prefs.comfyuiPath = String(body.comfyuiPath || '').trim();
     try {
@@ -177,12 +181,17 @@ function apiBrowseFoldersNative(req, res) {
   const scriptLines = [
     'Add-Type -AssemblyName System.Windows.Forms',
     '$fb = New-Object System.Windows.Forms.FolderBrowserDialog',
-    '$fb.Description = "Select Source Folder"',
-    'if ($fb.ShowDialog() -eq \'OK\') { $fb.SelectedPath }',
+    '$fb.Description = "Select Folder"',
+    '$owner = New-Object System.Windows.Forms.Form',
+    '$owner.TopMost = $true',
+    '$owner.StartPosition = "CenterScreen"',
+    '$owner.Width = 0; $owner.Height = 0; $owner.ShowInTaskbar = $false',
+    'if ($fb.ShowDialog($owner) -eq "OK") { $fb.SelectedPath }',
+    '$owner.Dispose()',
   ].join('\n');
   const encoded = Buffer.from(scriptLines, 'utf16le').toString('base64');
 
-  exec(`powershell -STA -EncodedCommand ${encoded}`, (error, stdout) => {
+  exec(`powershell -STA -EncodedCommand ${encoded}`, { timeout: 120000 }, (error, stdout) => {
     if (error) {
       return json(res, { error: error.message }, 500);
     }

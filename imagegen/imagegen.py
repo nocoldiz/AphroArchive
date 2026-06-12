@@ -58,6 +58,7 @@ except ImportError:
 try:
     from diffusers import (
         StableDiffusionPipeline, StableDiffusionXLPipeline,
+        StableDiffusionImg2ImgPipeline, StableDiffusionXLImg2ImgPipeline,
         AutoencoderKL,
         EulerDiscreteScheduler, EulerAncestralDiscreteScheduler,
         DPMSolverMultistepScheduler, DPMSolverSDEScheduler,
@@ -80,6 +81,12 @@ except ImportError:
     HAS_FLUX = False
 
 try:
+    from diffusers import FluxImg2ImgPipeline
+    HAS_FLUX_IMG2IMG = True
+except ImportError:
+    HAS_FLUX_IMG2IMG = False
+
+try:
     from diffusers import GGUFQuantizationConfig
     HAS_GGUF = True
 except ImportError:
@@ -100,7 +107,7 @@ if HAS_DEPS:
 # ── Global state ──────────────────────────────────────────────────────
 
 pipeline         = None
-loaded_key       = None   # (model_path, model_type, vae_path)
+loaded_key       = None   # (model_path, model_type, vae_path, mode)
 loaded_model_type = 'sd15'
 loaded_device    = None
 cancel_event     = threading.Event()
@@ -227,10 +234,17 @@ def count_combinations(prompt: str) -> int:
 
 # ── Model loading ─────────────────────────────────────────────────────
 
-def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> None:
-    global pipeline, loaded_key, loaded_model_type
+def _load_pipeline(
+    model_path: str,
+    model_type: str,
+    vae_path: str | None,
+    mode: str = 'txt2img',
+    clip_path: str = '',
+    text_encoder_path: str = '',
+) -> None:
+    global pipeline, loaded_key, loaded_model_type, loaded_device
 
-    key = (model_path, model_type, vae_path)
+    key = (model_path, model_type, vae_path, mode, clip_path, text_encoder_path)
     if loaded_key == key and pipeline is not None:
         return
 
@@ -246,7 +260,37 @@ def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> No
             'GGUF models require diffusers>=0.32: pip install -U diffusers'
         )
 
-    if model_type == 'flux':
+    if mode == 'img2img':
+        # img2img pipelines — GGUF files not supported in img2img mode
+        if is_gguf:
+            raise RuntimeError(
+                'GGUF models do not support img2img mode. Use a .safetensors checkpoint instead.'
+            )
+        if model_type == 'flux':
+            if not HAS_FLUX_IMG2IMG:
+                raise RuntimeError(
+                    'FluxImg2ImgPipeline requires diffusers>=0.31: pip install -U diffusers'
+                )
+            bf16 = torch.bfloat16  # type: ignore[name-defined]
+            pipe = FluxImg2ImgPipeline.from_single_file(model_path, torch_dtype=bf16)  # type: ignore[name-defined]
+        elif model_type in ('sdxl', 'pony'):
+            if vae_path and os.path.exists(vae_path):
+                try:
+                    vae = AutoencoderKL.from_single_file(vae_path, torch_dtype=dtype)
+                    kwargs['vae'] = vae
+                except Exception as e:
+                    send({'type': 'warning', 'message': f'VAE load failed: {e}'})
+            pipe = StableDiffusionXLImg2ImgPipeline.from_single_file(model_path, **kwargs)
+        else:
+            kwargs['safety_checker'] = None
+            if vae_path and os.path.exists(vae_path):
+                try:
+                    vae = AutoencoderKL.from_single_file(vae_path, torch_dtype=dtype)
+                    kwargs['vae'] = vae
+                except Exception as e:
+                    send({'type': 'warning', 'message': f'VAE load failed: {e}'})
+            pipe = StableDiffusionImg2ImgPipeline.from_single_file(model_path, **kwargs)
+    elif model_type == 'flux':
         if not HAS_FLUX:
             raise RuntimeError(
                 'Flux requires diffusers>=0.30: pip install -U diffusers transformers'
@@ -255,6 +299,32 @@ def _load_pipeline(model_path: str, model_type: str, vae_path: str | None) -> No
         flux_kwargs: dict = {'torch_dtype': bf16}
         if is_gguf:
             flux_kwargs['quantization_config'] = GGUFQuantizationConfig(compute_dtype=bf16)
+
+        # Optional: load separate CLIP-L and text encoder (T5 / Qwen3-GGUF) for Flux
+        has_clip = clip_path and os.path.exists(clip_path)
+        has_te   = text_encoder_path and os.path.exists(text_encoder_path)
+        if has_clip or has_te:
+            try:
+                if has_clip:
+                    from transformers import CLIPTextModel  # type: ignore[import]
+                    send({'type': 'loading', 'model': f'Loading CLIP-L: {os.path.basename(clip_path)}'})
+                    flux_kwargs['text_encoder'] = CLIPTextModel.from_single_file(
+                        clip_path, torch_dtype=bf16
+                    )
+                if has_te:
+                    from transformers import T5EncoderModel  # type: ignore[import]
+                    te_kw: dict = {'torch_dtype': bf16}
+                    if text_encoder_path.lower().endswith('.gguf') and HAS_GGUF:
+                        te_kw['quantization_config'] = GGUFQuantizationConfig(compute_dtype=bf16)
+                    send({'type': 'loading', 'model': f'Loading text encoder: {os.path.basename(text_encoder_path)}'})
+                    flux_kwargs['text_encoder_2'] = T5EncoderModel.from_single_file(
+                        text_encoder_path, **te_kw
+                    )
+            except Exception as e:
+                send({'type': 'warning', 'message': f'Text encoder override failed ({e}), using model-embedded encoders'})
+                flux_kwargs.pop('text_encoder', None)
+                flux_kwargs.pop('text_encoder_2', None)
+
         pipe = FluxPipeline.from_single_file(model_path, **flux_kwargs)  # type: ignore[name-defined]
     elif model_type in ('sdxl', 'pony'):
         if is_gguf:
@@ -323,6 +393,8 @@ def _generate_one(
     model_path: str,
     combo_idx: int,
     combo_total: int,
+    input_image=None,
+    strength: float = 0.75,
 ) -> list[str]:
     """Generate images for one resolved prompt. Returns list of saved paths."""
     import torch
@@ -338,8 +410,48 @@ def _generate_one(
               'combo_idx': combo_idx, 'combo_total': combo_total})
         return cb
 
-    if loaded_model_type == 'flux':
-        # Flux: no negative prompt, uses max_sequence_length
+    if input_image is not None:
+        # img2img mode: resize input to target dimensions
+        resized = input_image.resize((width, height))
+        # Actual denoising steps = ceil(steps * strength); use for progress %
+        import math
+        actual_steps = max(1, math.ceil(steps * strength))
+
+        def on_step_img2img(pipe, i, t, cb):
+            if cancel_event.is_set():
+                pipe._interrupt = True
+            pct = round((i + 1) / actual_steps * 100)
+            send({'type': 'progress', 'step': i + 1, 'total': actual_steps, 'pct': pct,
+                  'combo_idx': combo_idx, 'combo_total': combo_total})
+            return cb
+
+        if loaded_model_type == 'flux':
+            result = pipeline(
+                prompt=prompt_text,
+                image=resized,
+                strength=strength,
+                num_inference_steps=steps,
+                guidance_scale=cfg,
+                num_images_per_prompt=batch,
+                generator=generator,
+                callback_on_step_end=on_step_img2img,
+            )
+        else:
+            sched_cls = SCHEDULERS.get(sampler, EulerDiscreteScheduler)
+            pipeline.scheduler = sched_cls.from_config(pipeline.scheduler.config)
+            result = pipeline(
+                prompt=prompt_text,
+                image=resized,
+                strength=strength,
+                negative_prompt=negative,
+                num_inference_steps=steps,
+                guidance_scale=cfg,
+                num_images_per_prompt=batch,
+                generator=generator,
+                callback_on_step_end=on_step_img2img,
+            )
+    elif loaded_model_type == 'flux':
+        # Flux txt2img: no negative prompt, uses max_sequence_length
         result = pipeline(
             prompt=prompt_text,
             width=width, height=height,
@@ -406,11 +518,25 @@ def _generate(job: dict) -> None:
     lora_str      = job.get('lora_strengths', [1.0] * len(loras))
     wildcards_dir = job.get('wildcards_dir', '')
     combinatorial = bool(job.get('combinatorial', False))
+    mode               = job.get('mode', 'txt2img')
+    image_path         = job.get('image_path', '') or ''
+    strength           = max(0.01, min(1.0, float(job.get('strength', 0.75))))
+    clip_path          = job.get('clip_path', '') or ''
+    text_encoder_path  = job.get('text_encoder_path', '') or ''
 
     if seed < 0:
         seed = _random.randint(0, 2**32 - 1)
 
-    _load_pipeline(model_path, model_type, vae_path)
+    # Load input image for img2img mode
+    input_image = None
+    if mode == 'img2img' and image_path and os.path.exists(image_path):
+        try:
+            input_image = Image.open(image_path).convert('RGB')
+        except Exception as e:
+            send({'type': 'warning', 'message': f'Could not load input image: {e}'})
+            mode = 'txt2img'
+
+    _load_pipeline(model_path, model_type, vae_path, mode, clip_path, text_encoder_path)
     if cancel_event.is_set():
         send({'type': 'cancelled'})
         return
@@ -451,6 +577,8 @@ def _generate(job: dict) -> None:
                 batch=batch, output_dir=output_dir,
                 model_path=model_path,
                 combo_idx=idx, combo_total=combo_total,
+                input_image=input_image,
+                strength=strength,
             )
             all_paths.extend(paths)
         except RuntimeError as e:

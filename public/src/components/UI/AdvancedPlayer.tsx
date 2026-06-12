@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { isMuted as isMutedSignal } from '../../store';
 
 interface Chapter {
   id: string;
@@ -19,29 +20,45 @@ interface AdvancedPlayerProps {
   onNext?: () => void;
   onPrev?: () => void;
   isMuted?: boolean;
-  videoRef?: any; // Allow passing external ref
+  videoRef?: any;
+  startTime?: number;
+  language?: string;
 }
 
-export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPrev, isMuted = false, videoRef: externalRef }: AdvancedPlayerProps) => {
+const loadSavedVolume = () => {
+  const v = parseFloat(localStorage.getItem('playerVolume') || '1');
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+};
+
+export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPrev, isMuted = false, videoRef: externalRef, startTime = 0, language = '' }: AdvancedPlayerProps) => {
   const localRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalRef || localRef;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startTimeRef = useRef(startTime);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState(loadSavedVolume);
   const [muted, setMuted] = useState(isMuted);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState(0);
   const [buffered, setBuffered] = useState<{ start: number; end: number }[]>([]);
   const [localZap, setLocalZap] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [ccOn, setCcOn] = useState(false);
+  const [ccText, setCcText] = useState('');
   const controlsTimeoutRef = useRef<any>(null);
+  const recRef = useRef<any>(null);
+  const ccOnRef = useRef(false);
   const onNextRef = useRef(onNext);
   const onPrevRef = useRef(onPrev);
   useEffect(() => { onNextRef.current = onNext; });
   useEffect(() => { onPrevRef.current = onPrev; });
+
+  const toast = (msg: string) => (window as any).toast?.(msg);
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -51,9 +68,17 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     const onPause = () => setPlaying(false);
     const onTimeUpdate = () => setCurrentTime(vid.currentTime);
     const onDurationChange = () => setDuration(vid.duration);
+    const onLoadedMetadata = () => {
+      setDuration(vid.duration);
+      if (startTimeRef.current > 0) {
+        vid.currentTime = startTimeRef.current;
+        startTimeRef.current = 0;
+      }
+    };
     const onVolumeChange = () => {
       setVolume(vid.volume);
       setMuted(vid.muted);
+      localStorage.setItem('playerVolume', String(vid.volume));
     };
     const onEnded = () => {
       if (onNextRef.current) onNextRef.current();
@@ -73,6 +98,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     vid.addEventListener('pause', onPause);
     vid.addEventListener('timeupdate', onTimeUpdate);
     vid.addEventListener('durationchange', onDurationChange);
+    vid.addEventListener('loadedmetadata', onLoadedMetadata);
     vid.addEventListener('volumechange', onVolumeChange);
     vid.addEventListener('ended', onEnded);
     vid.addEventListener('progress', onProgress);
@@ -84,6 +110,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       vid.removeEventListener('pause', onPause);
       vid.removeEventListener('timeupdate', onTimeUpdate);
       vid.removeEventListener('durationchange', onDurationChange);
+      vid.removeEventListener('loadedmetadata', onLoadedMetadata);
       vid.removeEventListener('volumechange', onVolumeChange);
       vid.removeEventListener('ended', onEnded);
       vid.removeEventListener('progress', onProgress);
@@ -105,14 +132,14 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
 
     const interval = setInterval(() => {
       if (vid.paused) return;
-      
+
       const remaining = vid.duration - vid.currentTime;
       if (remaining < 10) {
         clearInterval(interval);
         setLocalZap(false);
         return;
       }
-      
+
       const minJump = 5;
       const maxJump = remaining - 5;
       if (maxJump > minJump) {
@@ -134,6 +161,100 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       vid.muted = muted;
     }
   }, [volume, muted]);
+
+  // Mute writes through to the global mute signal so the topbar button stays in sync
+  const setMutedAndSync = (next: boolean) => {
+    setMuted(next);
+    isMutedSignal.value = next;
+  };
+
+  // ── Fullscreen ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const onFsChange = () => {
+      const fsEl = document.fullscreenElement || (document as any).webkitFullscreenElement;
+      setIsFullscreen(fsEl === containerRef.current);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    const container = containerRef.current;
+    if (!container) return;
+    const fsEl = document.fullscreenElement || (document as any).webkitFullscreenElement;
+    if (!fsEl) {
+      const request = container.requestFullscreen || (container as any).webkitRequestFullscreen;
+      if (!request) { toast('Fullscreen not supported'); return; }
+      try {
+        const p = request.call(container);
+        if (p && p.catch) p.catch(() => toast('Fullscreen blocked'));
+      } catch { toast('Fullscreen blocked'); }
+    } else {
+      (document.exitFullscreen || (document as any).webkitExitFullscreen)?.call(document);
+    }
+  };
+
+  // ── Live captions via the browser SpeechRecognition API ────────────
+  // Listens through the microphone, so video audio must be audible (speakers).
+  useEffect(() => {
+    ccOnRef.current = ccOn;
+    if (!ccOn) {
+      if (recRef.current) {
+        recRef.current.onend = null;
+        try { recRef.current.stop(); } catch {}
+        recRef.current = null;
+      }
+      setCcText('');
+      return;
+    }
+
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      toast('Live captions are not supported by this browser');
+      setCcOn(false);
+      return;
+    }
+
+    const rec = new SR();
+    recRef.current = rec;
+    rec.lang = language || navigator.language || 'en-US';
+    rec.continuous = true;
+    rec.interimResults = true;
+
+    rec.onresult = (e: any) => {
+      let text = '';
+      for (let i = 0; i < e.results.length; i++) {
+        text += e.results[i][0].transcript;
+      }
+      // Keep only the tail so the overlay stays at most ~2 lines
+      setCcText(text.length > 160 ? '…' + text.slice(-160) : text);
+    };
+    rec.onerror = (e: any) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        toast('Live captions need microphone access (audio must play through speakers)');
+        setCcOn(false);
+      }
+    };
+    rec.onend = () => {
+      // Chrome stops recognition periodically — restart while captions are on
+      if (ccOnRef.current && recRef.current === rec) {
+        try { rec.start(); } catch {}
+      }
+    };
+
+    try { rec.start(); } catch {}
+    toast(`Live captions on (${rec.lang}) — listening via microphone`);
+
+    return () => {
+      rec.onend = null;
+      try { rec.stop(); } catch {}
+      if (recRef.current === rec) recRef.current = null;
+    };
+  }, [ccOn, language]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -165,10 +286,13 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
           togglePlay();
           break;
         case 'm': case 'M':
-          setMuted(!muted);
+          setMutedAndSync(!muted);
           break;
         case 'f': case 'F':
           toggleFullscreen();
+          break;
+        case 'c': case 'C':
+          setCcOn(v => !v);
           break;
         case 'n': case 'N':
           if (onNextRef.current) onNextRef.current();
@@ -232,16 +356,6 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     return () => window.removeEventListener('mousemove', resetControlsTimeout);
   }, [playing]);
 
-  const toggleFullscreen = () => {
-    const container = videoRef.current?.parentElement;
-    if (!container) return;
-    if (!document.fullscreenElement) {
-      container.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
-  };
-
   const formatDuration = (secs: number) => {
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
@@ -256,12 +370,23 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   };
 
   return (
-    <div className="advanced-player" style={{ position: 'relative', width: '100%', background: '#000' }} onMouseMove={resetControlsTimeout}>
+    <div
+      ref={containerRef}
+      className="advanced-player"
+      style={{
+        position: 'relative',
+        width: '100%',
+        background: '#000',
+        ...(isFullscreen ? { height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' } : {})
+      }}
+      onMouseMove={resetControlsTimeout}
+    >
       <video
         ref={videoRef}
         src={src}
         preload="auto"
-        style={{ width: '100%', maxHeight: '80vh', display: 'block' }}
+        muted={muted}
+        style={{ width: '100%', maxHeight: isFullscreen ? '100vh' : '80vh', display: 'block' }}
         onClick={togglePlay}
         autoPlay
       >
@@ -306,6 +431,29 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
         </div>
       )}
 
+      {/* Live Captions Overlay */}
+      {ccOn && ccText && (
+        <div style={{
+          position: 'absolute',
+          bottom: showControls ? '90px' : '30px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          maxWidth: '85%',
+          background: 'rgba(0,0,0,0.75)',
+          color: '#fff',
+          padding: '6px 14px',
+          borderRadius: '6px',
+          fontSize: '1.05rem',
+          lineHeight: 1.4,
+          textAlign: 'center',
+          zIndex: 6,
+          pointerEvents: 'none',
+          transition: 'bottom 0.3s'
+        }}>
+          {ccText}
+        </div>
+      )}
+
       {/* Controls Overlay */}
       <div style={{
         position: 'absolute',
@@ -319,8 +467,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
         pointerEvents: showControls ? 'auto' : 'none'
       }}>
         {/* Timebar */}
-        <div 
-          className="timebar" 
+        <div
+          className="timebar"
           style={{ height: '6px', background: 'rgba(255,255,255,0.2)', cursor: 'pointer', position: 'relative', borderRadius: '3px', marginBottom: '10px' }}
           onClick={handleTimebarClick}
           onMouseMove={handleTimebarMouseMove}
@@ -339,7 +487,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
           ))}
 
           <div className="progress" style={{ width: `${(currentTime / duration) * 100}%`, height: '100%', background: 'var(--ac, #ff4a4a)', borderRadius: '3px', position: 'relative', zIndex: 1 }} />
-          
+
           {/* Hover Preview */}
           {hoverTime !== null && (
             <div style={{
@@ -359,9 +507,9 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
               gap: '4px',
               zIndex: 10
             }}>
-              <img 
-                src={`/api/thumbs/${videoId}/${getThumbIndex(hoverTime)}`} 
-                alt="" 
+              <img
+                src={`/api/thumbs/${videoId}/${getThumbIndex(hoverTime)}`}
+                alt=""
                 style={{ width: '120px', height: 'auto', borderRadius: '2px' }}
                 onError={(e: any) => e.target.style.display = 'none'}
               />
@@ -398,26 +546,38 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             {/* Volume */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <button onClick={() => setMuted(!muted)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
+              <button onClick={() => setMutedAndSync(!muted)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
                 {muted || volume === 0 ? '🔇' : '🔊'}
               </button>
-              <input 
-                type="range" 
-                min="0" 
-                max="1" 
-                step="0.05" 
-                value={muted ? 0 : volume} 
+              <input
+                type="range"
+                title="Volume"
+                min="0"
+                max="1"
+                step="0.05"
+                value={muted ? 0 : volume}
                 onChange={(e: any) => {
                   setVolume(parseFloat(e.target.value));
-                  if (muted) setMuted(false);
-                }} 
+                  localStorage.setItem('playerVolume', e.target.value);
+                  if (muted) setMutedAndSync(false);
+                }}
                 style={{ width: '80px', cursor: 'pointer' }}
               />
             </div>
-            
+
+            {/* Live Captions */}
+            <button
+              onClick={() => setCcOn(v => !v)}
+              title={`Live captions${language ? ` (${language})` : ''} — generated with speech recognition through the microphone; play audio through speakers`}
+              style={{ background: 'none', border: ccOn ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: ccOn ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px' }}
+            >
+              CC
+            </button>
+
             {/* Speed */}
-            <select 
-              value={playbackSpeed} 
+            <select
+              value={playbackSpeed}
+              title="Playback speed"
               onChange={(e: any) => setPlaybackSpeed(parseFloat(e.target.value))}
               style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer' }}
             >
@@ -428,7 +588,9 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
               <option value="2">2x</option>
             </select>
 
-            <button onClick={toggleFullscreen} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>🔲</button>
+            <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen (f)' : 'Fullscreen (f)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
+              {isFullscreen ? '🡼' : '⛶'}
+            </button>
           </div>
         </div>
       </div>

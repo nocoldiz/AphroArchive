@@ -1,20 +1,3 @@
-﻿
-in imagegen: move wildcards inpsection ut in  prompt generator in a right column of the modal,, prompt generation modal should have only the builder view.
-Make it possible to write custom data in dropdowns instead of choosing the options, pin button should be grayed out when a dropdown is not pinned
-
-
-
-
-Fix that in browse/folders i can see disabled folders for the current users that are hidden in sidebar but visible here
-
-
-
-add button in database/website to add new websites based on saved links in DB, adding missing ones.
-Show a confirmation modal where you can select which websites will be  created
-
-
-Add possibility to remove users
-Make sure that the last user logged is loaded next time the app start
 
 # AphroArchive — TODO & Roadmap
 
@@ -23,7 +6,6 @@ Make sure that the last user logged is loaded next time the app start
 - [ ] **Request size limit** — `readBody()` has no payload cap; a large request exhausts memory. Add a max-bytes guard before accumulating chunks.
 - [ ] **CORS lockdown** — `Access-Control-Allow-Origin: *` lets any site call the API. Restrict to `localhost` only since this is a local app.
 - [ ] **Whitelist domain matching** — `matchesWhitelist()` uses `includes()`, so `evil-example.com` matches a whitelist entry of `example.com`. Switch to exact hostname or `endsWith('.' + entry)` logic.
-- [ ] **Vault temp file security** — Decrypted files land in the world-readable system tmpdir and persist for up to 5 minutes. Use a private subdirectory with restricted permissions and wipe securely (overwrite then delete) on cleanup.
 - [ ] **Rate limit vault unlock** — No attempt throttle exists. Add a per-IP lockout after N failed PIN/password tries.
 - [ ] **Actor photo content-type validation** — Downloaded IMDb images are written to disk without checking the Content-Type. Validate that it is a known image type before saving.
 - [ ] **Duplicate CORS header** — `Access-Control-Allow-Headers` is set twice; the second write drops `X-Filename`. Remove the duplicate.
@@ -35,9 +17,7 @@ Make sure that the last user logged is loaded next time the app start
 - [ ] **Resume playback position** — There is no mechanism to save or restore the playback position when a video is revisited. Add `localStorage` persistence keyed by video ID.
 - [ ] **Vault timer race** — `resetVaultTimer()` exits early if `vaultKey` is null, which means the timer is not restarted after it fires. The lock state can become inconsistent.
 - [ ] **Thumbnail queue unbounded** — No concurrency cap on ffmpeg thumbnail spawns. Under load this can queue thousands of processes. Add a max-concurrent limit (e.g. 3).
-- [ ] **Regex compiled per match** — `wordMatch()` compiles a new `RegExp` on every invocation. Pre-compile and cache regexes keyed by term.
 - [ ] **Silently swallowed errors** — ffprobe/ffmpeg failures return `null` with no log entry. At minimum log the error so the user can diagnose missing binaries.
-- [ ] **loadActors / loadFavs called repeatedly** — These read from disk on every endpoint. Load once at startup and refresh only on writes.
 - [ ] **Duplicate temp decryption** — Concurrent requests for the same vault file each trigger a separate decrypt. Lock on the file ID so only the first request decrypts.
 
 ## Performance
@@ -54,7 +34,6 @@ Make sure that the last user logged is loaded next time the app start
 - [ ] **Export metadata** — Allow exporting all ratings, actors, and categories as JSON or CSV for backup/import.
 - [ ] **Smart duplicate handling** — When duplicates are detected, offer to keep the highest-resolution file and move the others to trash rather than just flagging.
 - [ ] **Search result count** — Show "X results" after filtering so the user knows how many videos matched.
-- [ ] **Mobile layout** — Sidebar collapses and video cards reflow on screens narrower than 768 px. The fixed 220 px sidebar currently breaks on phones.
 - [ ] **API documentation** — Add an `api.md` or OpenAPI spec describing each endpoint, its parameters, and response shape.
 - [ ] **Folder watch / auto-refresh** — Watch VIDEOS_DIR with `fs.watch` and push a lightweight update event to the frontend so new files appear without a manual refresh.
 - [ ] **Multi-user support** — Separate history, ratings, and favourites per named profile stored as separate JSON files.
@@ -84,7 +63,6 @@ Make sure that the last user logged is loaded next time the app start
 
 ## Code Quality & Refactoring
 
-- [ ] **Split server.js** — At 1600+ lines the file is hard to navigate. Extract route groups into separate files: `routes/videos.js`, `routes/vault.js`, `routes/actors.js`, `routes/downloads.js`.
 - [ ] **Standardize error responses** — All API errors should return `{ error: "message" }` JSON with appropriate HTTP status codes, not mixed plain-text/empty responses.
 - [ ] **Validate JSON input** — Add a lightweight validator for all POST/PATCH bodies: required fields, type checks, max string lengths.
 - [ ] **Consistent async** — Avoid mixing `readFileSync` in async functions. Decide on one I/O style per module.

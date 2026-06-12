@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { loadVideos } from '../../store';
-import { CategorizeModal, PlanItem, Move } from './CategorizeModal';
 
 interface ScraperStatus {
   running: boolean;
@@ -84,22 +83,9 @@ function ScraperRow({
   );
 }
 
-interface ModalState {
-  mode: 'uncategorized' | 'all';
-  uncategorized: PlanItem[];
-  categorized: PlanItem[];
-  categories: string[];
-  confirming: boolean;
-}
-
 export const SyncManager = () => {
   const [open, setOpen] = useState(false);
   const [rescanning, setRescanning] = useState(false);
-  const [autoCatLoading, setAutoCatLoading] = useState(false);
-  const [recatAllLoading, setRecatAllLoading] = useState(false);
-  const [autoCatResult, setAutoCatResult] = useState<string | undefined>();
-  const [recatAllResult, setRecatAllResult] = useState<string | undefined>();
-  const [modal, setModal] = useState<ModalState | null>(null);
   const [scrapers, setScrapers] = useState<{
     videoThumbs: ScraperStatus;
     bmMeta: ScraperStatus;
@@ -161,52 +147,10 @@ export const SyncManager = () => {
   }, [open]);
 
   const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs].filter(s => s.running).length
-    + (rescanning ? 1 : 0) + (autoCatLoading ? 1 : 0) + (recatAllLoading ? 1 : 0)
-    + (encProgress.running ? 1 : 0);
+    + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
     await fetch(url, { method }).catch(() => {});
-  };
-
-  const openCategorizeModal = async (mode: 'uncategorized' | 'all') => {
-    const setLoading = mode === 'all' ? setRecatAllLoading : setAutoCatLoading;
-    setLoading(true);
-    try {
-      const r = await fetch('/api/videos/categorize-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      });
-      const { uncategorized, categorized, categories } = await r.json();
-      setModal({ mode, uncategorized: uncategorized || [], categorized: categorized || [], categories, confirming: false });
-    } catch {
-      if (mode === 'all') setRecatAllResult('error fetching plan');
-      else setAutoCatResult('error fetching plan');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleConfirm = async (moves: Move[]) => {
-    if (!modal) return;
-    setModal(m => m ? { ...m, confirming: true } : null);
-    try {
-      const r = await fetch('/api/videos/categorize-execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moves }),
-      });
-      const d = await r.json();
-      const result = `${d.movedVideos} videos, ${d.movedLinks} links`;
-      if (modal.mode === 'all') setRecatAllResult(result);
-      else setAutoCatResult(result);
-      await loadVideos();
-      setModal(null);
-    } catch {
-      if (modal.mode === 'all') setRecatAllResult('error');
-      else setAutoCatResult('error');
-      setModal(null);
-    }
   };
 
   const iconThumb = (
@@ -222,11 +166,6 @@ export const SyncManager = () => {
   const iconActor = (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-    </svg>
-  );
-  const iconFolder = (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
     </svg>
   );
   const iconRescan = (
@@ -310,38 +249,6 @@ export const SyncManager = () => {
               onStop={() => scraperAction('/api/links/stop-generating')}
             />
 
-            {/* Auto Categorize */}
-            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
-              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconFolder}</span>
-              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Auto Categorize</span>
-              {autoCatResult && !autoCatLoading && (
-                <span style={{ fontSize: '0.68rem', color: 'var(--tx3)' }}>{autoCatResult}</span>
-              )}
-              <button
-                disabled={autoCatLoading}
-                onClick={() => openCategorizeModal('uncategorized')}
-                style={{ background: autoCatLoading ? 'var(--bg3)' : 'var(--ac)', color: autoCatLoading ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: autoCatLoading ? 'default' : 'pointer' }}
-              >
-                {autoCatLoading ? 'Loading…' : 'Run'}
-              </button>
-            </div>
-
-            {/* Recategorize All */}
-            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
-              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconFolder}</span>
-              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Recategorize All</span>
-              {recatAllResult && !recatAllLoading && (
-                <span style={{ fontSize: '0.68rem', color: 'var(--tx3)' }}>{recatAllResult}</span>
-              )}
-              <button
-                disabled={recatAllLoading}
-                onClick={() => openCategorizeModal('all')}
-                style={{ background: recatAllLoading ? 'var(--bg3)' : '#c07800', color: recatAllLoading ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: recatAllLoading ? 'default' : 'pointer' }}
-              >
-                {recatAllLoading ? 'Loading…' : 'Run'}
-              </button>
-            </div>
-
             {/* Actor Data */}
             <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>
               <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconActor}</span>
@@ -407,17 +314,6 @@ export const SyncManager = () => {
         )}
       </div>
 
-      {modal && (
-        <CategorizeModal
-          mode={modal.mode}
-          uncategorized={modal.uncategorized}
-          categorized={modal.categorized}
-          categories={modal.categories}
-          confirming={modal.confirming}
-          onConfirm={handleConfirm}
-          onCancel={() => setModal(null)}
-        />
-      )}
     </>
   );
 };

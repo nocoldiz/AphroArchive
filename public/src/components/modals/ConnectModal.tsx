@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { ensureQRCode } from '../../utils';
 
-declare var QRCode: any;
-
 interface Props {
   onClose: () => void;
 }
@@ -40,23 +38,15 @@ export const ConnectModal = ({ onClose }: Props) => {
       if (!localUrl || !qrRef.current) return;
       try {
         await ensureQRCode();
-        if (typeof QRCode === 'undefined') return;
+        const QR = (window as any).QRCode;
+        if (!QR) return;
         qrRef.current.innerHTML = '';
-        new QRCode(qrRef.current, {
-          text: localUrl,
-          width: 160,
-          height: 160,
-          colorDark: '#000000',
-          colorLight: '#ffffff',
-          correctLevel: 2 // QRErrorCorrectLevel.M
-        });
-        // Add border radius to the generated canvas/img
-        const child = qrRef.current.querySelector('canvas, img');
-        if (child) {
-          (child as HTMLElement).style.borderRadius = '8px';
-          (child as HTMLElement).style.display = 'block';
-          (child as HTMLElement).style.margin = '0 auto';
-        }
+        const canvas = document.createElement('canvas');
+        canvas.style.borderRadius = '8px';
+        canvas.style.display = 'block';
+        canvas.style.margin = '0 auto';
+        qrRef.current.appendChild(canvas);
+        await QR.toCanvas(canvas, localUrl, { width: 160, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
       } catch (e) {
         console.warn('QR code generation failed:', e);
       }
@@ -136,29 +126,32 @@ export const ConnectModal = ({ onClose }: Props) => {
           </div>
         </div>
 
-        {/* Body shown only when network is enabled */}
-        {networkEnabled && (
-          <div id="connectModalBody" style={{ marginTop: '16px' }}>
+        {/* QR + URL — shown whenever we have a local URL */}
+        {localUrl && (
+          <div style={{ marginTop: '16px' }}>
+            <div ref={qrRef} style={{ display: 'inline-block', background: '#fff', padding: '8px', borderRadius: '12px', marginBottom: '10px' }} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '8px' }}>
-              <p id="connectUrl" style={{ fontSize: '0.75rem', color: 'var(--tx2)', wordBreak: 'break-all', margin: 0 }}>{localUrl}</p>
-              <button onClick={() => doVerify(localUrl)} title="Re-verify" style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', fontSize: '0.65rem', padding: '1px 4px', borderRadius: '3px', cursor: 'pointer' }}>↻</button>
+              <p style={{ fontSize: '0.72rem', color: 'var(--tx2)', wordBreak: 'break-all', margin: 0 }}>{localUrl}</p>
+              {networkEnabled && <button type="button" onClick={() => doVerify(localUrl)} title="Re-verify" style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', fontSize: '0.65rem', padding: '1px 4px', borderRadius: '3px', cursor: 'pointer' }}>↻</button>}
             </div>
-            {(() => {
+            {networkEnabled && (() => {
               if (verify.checking) return <div style={{ fontSize: '0.7rem', color: 'var(--tx3)', marginBottom: '8px' }}>Verifying…</div>;
               if (verify.ok) return <div style={{ fontSize: '0.7rem', color: '#4ade80', marginBottom: '8px' }}>✓ Remote URL verified</div>;
               if (verify.error) return <div style={{ fontSize: '0.7rem', color: '#f87171', marginBottom: '8px' }}>✗ {verify.error}</div>;
               return null;
             })()}
-            <div ref={qrRef} style={{ display: 'inline-block', background: '#fff', padding: '8px', borderRadius: '12px', marginBottom: '16px' }} />
-            
-            <div class="rm-row" onClick={toggleRemoteMode} style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}>
-              <div class={`rm-toggle ${remoteMode ? 'on' : ''}`} style={{ width: '40px', height: '20px', background: remoteMode ? 'var(--ac)' : '#555', borderRadius: '10px', position: 'relative', transition: 'background 0.3s' }}>
-                <div style={{ width: '16px', height: '16px', background: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', left: remoteMode ? '22px' : '2px', transition: 'left 0.3s' }} />
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <div class="rm-label" style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Remote Mode — {remoteMode ? 'on' : 'off'}</div>
-                <div class="rm-desc" style={{ fontSize: '0.8rem', color: 'var(--tx3)' }}>Videos you pick play on the main device</div>
-              </div>
+          </div>
+        )}
+
+        {/* Remote mode + network body — only when network enabled */}
+        {networkEnabled && localUrl && (
+          <div class="rm-row" onClick={toggleRemoteMode} style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}>
+            <div class={`rm-toggle ${remoteMode ? 'on' : ''}`} style={{ width: '40px', height: '20px', background: remoteMode ? 'var(--ac)' : '#555', borderRadius: '10px', position: 'relative', transition: 'background 0.3s' }}>
+              <div style={{ width: '16px', height: '16px', background: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', left: remoteMode ? '22px' : '2px', transition: 'left 0.3s' }} />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div class="rm-label" style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Remote Mode — {remoteMode ? 'on' : 'off'}</div>
+              <div class="rm-desc" style={{ fontSize: '0.8rem', color: 'var(--tx3)' }}>Videos you pick play on the main device</div>
             </div>
           </div>
         )}

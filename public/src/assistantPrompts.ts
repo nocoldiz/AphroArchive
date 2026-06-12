@@ -7,26 +7,24 @@
 export type Role = 'user' | 'assistant' | 'system';
 export interface Message { role: Role; content: string; }
 
-// OpenRouter models list (ported from assistant.py + expanded; with censorship notes)
+// OpenRouter models list
 export const MODELS = [
-  // Uncensored / Low censorship (from assistant.py + porn focus)
-  { id: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', name: 'Venice Dolphin 24B (Free) — 2%' },
-  { id: 'cognitivecomputations/dolphin-llama3-70b', name: 'Dolphin Llama3 70B — 3%' },
-  { id: 'cognitivecomputations/dolphin-llama3-8b', name: 'Dolphin Llama3 8B — 4%' },
-  { id: 'sao10k/l3.1-euryale-70b', name: 'Euryale 70B — 5%' },
-  { id: 'sao10k/l3-lunaris-8b', name: 'Lunaris 8B — 6%' },
-  { id: 'sonoma/dusk-alpha', name: 'Sonoma Dusk Alpha — 2%' },
-  { id: 'sonoma/sky-alpha', name: 'Sonoma Sky Alpha — 3%' },
-  { id: 'gryphe/mythomax-l2-13b', name: 'MythoMax 13B — 8%' },
-  { id: 'microsoft/wizardlm-2-8x22b', name: 'WizardLM 2 8x22B — 12%' },
-  { id: 'nousresearch/hermes-4-405b', name: 'Hermes 4 405B — 15%' },
-  { id: 'thedrummer/cydonia-24b', name: 'Cydonia 24B — 10%' },
-  // Mainstream / higher censorship
-  { id: 'mistralai/mistral-large', name: 'Mistral Large — 35%' },
-  { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Free) — 28%' },
-  { id: 'meta-llama/llama-4-maverick:free', name: 'Llama 4 Maverick (Free) — 65%' },
-  { id: 'meta-llama/llama-4-scout:free', name: 'Llama 4 Scout (Free) — 70%' },
-  { id: 'mistralai/mistral-medium', name: 'Mistral Medium — 55%' },
+  { id: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', name: 'Venice Dolphin 24B (Free)' },
+  { id: 'cognitivecomputations/dolphin-llama3-70b', name: 'Dolphin Llama3 70B' },
+  { id: 'cognitivecomputations/dolphin-llama3-8b', name: 'Dolphin Llama3 8B' },
+  { id: 'sao10k/l3.1-euryale-70b', name: 'Euryale 70B' },
+  { id: 'sao10k/l3-lunaris-8b', name: 'Lunaris 8B' },
+  { id: 'sonoma/dusk-alpha', name: 'Sonoma Dusk Alpha' },
+  { id: 'sonoma/sky-alpha', name: 'Sonoma Sky Alpha' },
+  { id: 'gryphe/mythomax-l2-13b', name: 'MythoMax 13B' },
+  { id: 'microsoft/wizardlm-2-8x22b', name: 'WizardLM 2 8x22B' },
+  { id: 'nousresearch/hermes-4-405b', name: 'Hermes 4 405B' },
+  { id: 'thedrummer/cydonia-24b', name: 'Cydonia 24B' },
+  { id: 'mistralai/mistral-large', name: 'Mistral Large' },
+  { id: 'qwen/qwen3-235b-a22b:free', name: 'Qwen3 235B (Free)' },
+  { id: 'meta-llama/llama-4-maverick:free', name: 'Llama 4 Maverick (Free)' },
+  { id: 'meta-llama/llama-4-scout:free', name: 'Llama 4 Scout (Free)' },
+  { id: 'mistralai/mistral-medium', name: 'Mistral Medium' },
   { id: 'anthropic/claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
   { id: 'anthropic/claude-opus-4', name: 'Claude Opus 4' },
 ];
