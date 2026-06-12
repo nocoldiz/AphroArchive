@@ -33,3 +33,5 @@ models
 db/*.db
 db/*.db-shm
 db/*.db-wal
+db/last-profile.txt
+android-app/www/index.html

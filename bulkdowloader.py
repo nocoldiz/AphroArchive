@@ -26,10 +26,14 @@ except ImportError:
     import yt_dlp
 
 
-# Browser impersonation (curl_cffi) is required to get past Cloudflare/PerimeterX
-# checks on sites like X.com, Instagram, TikTok and YouTube. If the dependency
-# isn't installed, yt-dlp *raises immediately* on `impersonate: 'chrome'` —
-# so we detect availability once and silently omit the option otherwise.
+# Browser impersonation via curl_cffi is now ENABLED BY DEFAULT for virtually
+# every site. This is currently the single most effective technique to download
+# videos from modern platforms (especially adult/porn tubes) protected by
+# Cloudflare, PerimeterX, DataDome, Akamai, or custom bot detection.
+#
+#   pip install curl_cffi     ← Strongly recommended (huge success rate boost)
+#
+# Without it, many protected sites will fail or return blocked/lower-quality results.
 def _detect_impersonate_targets():
     try:
         with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
@@ -223,6 +227,24 @@ def extract_candidates(base_url, page):
         for m in re.finditer(pat, page, re.I):
             add(direct, m.group(1))
 
+    # 4b) AGGRESSIVE patterns for modern adult tubes & players (Dood, Voe, Streamtape,
+    #     Mixdrop, Upstream, Filemoon, Vidoza, etc. — these power thousands of sites)
+    aggressive_pats = [
+        # Common variable assignments
+        r'(?:var|let|const)\s+(?:source|file|video|play_url|hls|dash|stream|mp4)[_\w]*\s*=\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
+        r'["\'](?:src|file|source|url|video_url|play_url|hls_url|dash_url)["\']\s*:\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
+        # Player config objects (very common on adult sites)
+        r'(?:player|videojs|plyr|shaka|jwplayer| Clappr)\s*\([^)]*\{[^}]*?["\'](?:file|src|source|url)["\']\s*:\s*["\']([^"\']+)["\']',
+        r'new\s+(?:Player|Video|Media)\s*\([^)]*\{[^}]*?["\'](?:file|src|source)["\']\s*:\s*["\']([^"\']+)["\']',
+        # data-* attributes (lazy loading)
+        r'data-(?:src|url|video|source|play|stream|file)\s*=\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
+        # JSON-like in scripts (common in __NEXT_DATA__, window.* , etc.)
+        r'["\'](?:videoUrl|sourceUrl|playUrl|hls|dash|mp4|stream)["\']\s*:\s*["\']([^"\']+\.(?:m3u8|mpd|mp4)[^"\']*)["\']',
+    ]
+    for pat in aggressive_pats:
+        for m in re.finditer(pat, page, re.I):
+            add(direct, m.group(1))
+
     # 5) Raw media URLs anywhere in the markup/scripts (incl. escaped slashes).
     raw_pat = r'(https?:(?:\\?/\\?/)(?:[^"\'<>\s\\]|\\/)+?\.(?:%s)(?:\?(?:[^"\'<>\s\\]|\\/)*)?)' % '|'.join(DIRECT_MEDIA_EXTS)
     for m in re.finditer(raw_pat, page, re.I):
@@ -237,13 +259,25 @@ def extract_candidates(base_url, page):
         if u and (_looks_direct(u) or any(h in u.lower() for h in EMBED_HOST_HINTS)):
             add(direct if _looks_direct(u) else embeds, m.group(1))
 
+    # Extra aggressive data-* and common adult embed attributes
+    for m in re.finditer(r'data-(?:video|source|url|src|play|stream|file|embed)\s*=\s*["\']([^"\']+)["\']', page, re.I):
+        u = _clean_url(m.group(1))
+        if u and u.startswith('http'):
+            add(direct if _looks_direct(u) else embeds, u)
+
+    # Look for more iframe variants and embed containers popular on adult sites
+    for m in re.finditer(r'<(?:iframe|embed|object)[^>]+(?:src|data)\s*=\s*["\']([^"\']+)["\']', page, re.I):
+        add(embeds, m.group(1))
+
     # Prefer manifests first within direct list (better quality/adaptive).
     direct.sort(key=lambda u: (0 if _is_manifest(u) else 1))
     return direct, embeds
 
 
-def scrape_for_media(url, referer=None, depth=0, max_depth=2, seen_pages=None):
-    """Walk a page (and its iframes) returning a list of downloadable media URLs."""
+def scrape_for_media(url, referer=None, depth=0, max_depth=3, seen_pages=None):
+    """Walk a page (and its iframes) returning a list of downloadable media URLs.
+    max_depth=3 gives deeper recursion for heavily embedded adult sites.
+    """
     if seen_pages is None:
         seen_pages = set()
     if url in seen_pages or depth > max_depth:
@@ -261,7 +295,7 @@ def scrape_for_media(url, referer=None, depth=0, max_depth=2, seen_pages=None):
     # Nothing direct here — descend into the most promising embeds.
     results = []
     ranked = sorted(embeds, key=lambda u: (0 if any(h in u.lower() for h in EMBED_HOST_HINTS) else 1))
-    for emb in ranked[:6]:
+    for emb in ranked[:8]:   # try a few more embeds
         results.extend(scrape_for_media(emb, referer=final_url, depth=depth + 1,
                                         max_depth=max_depth, seen_pages=seen_pages))
         if results:
@@ -310,36 +344,57 @@ class UniversalVideoDownloader:
         u = url.lower()
         opts = {k: (v.copy() if isinstance(v, dict) else v) for k, v in self.default_opts.items()}
 
-        if 'pornhub.com' in u:
-            opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                         'prefer_free_formats': True, 'sleep_interval': 1})
-            set_impersonate(opts)
-        elif 'xvideos.com' in u or 'xvideos.red' in u:
+        # =====================================================================
+        # UNIVERSAL MODE: Browser impersonation enabled for VIRTUALLY EVERYTHING
+        # =====================================================================
+        # This is the #1 most effective change for making the downloader work on
+        # "virtually any" video site in 2025-2026. Most modern sites (especially
+        # adult tubes, streaming platforms, and sites behind CF / PX / Akamai)
+        # require realistic browser fingerprints.
+        set_impersonate(opts)
+
+        # --- Explicit per-site optimizations (format, referer, rate limiting) ---
+        if any(s in u for s in ('pornhub.com', 'youporn.com', 'redtube.com', 'tube8.com')):
+            opts.update({
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'prefer_free_formats': True,
+                'sleep_interval': 1
+            })
+        elif any(s in u for s in ('xvideos.com', 'xvideos.red', 'xnxx.com')):
             opts.update({'format': 'best[ext=mp4]/best'})
-            opts['http_headers']['Referer'] = 'https://www.xvideos.com/'
+            opts.setdefault('http_headers', {})['Referer'] = 'https://www.xvideos.com/'
         elif 'xhamster.com' in u:
-            opts.update({'format': 'bestvideo+bestaudio/best', 'concurrent_fragment_downloads': 6})
+            opts.update({
+                'format': 'bestvideo+bestaudio/best',
+                'concurrent_fragment_downloads': 6
+            })
         elif 'spankbang.com' in u:
-            opts.update({'format': 'bestvideo+bestaudio/best', 'concurrent_fragment_downloads': 8})
+            opts.update({
+                'format': 'bestvideo+bestaudio/best',
+                'concurrent_fragment_downloads': 8
+            })
         elif any(s in u for s in ('eporner.com', 'porntrex.com', 'hqporner.com')):
-            opts.update({'format': 'bestvideo+bestaudio/best[ext=mp4]/best', 'concurrent_fragment_downloads': 6})
+            opts.update({
+                'format': 'bestvideo+bestaudio/best[ext=mp4]/best',
+                'concurrent_fragment_downloads': 6
+            })
         elif any(s in u for s in ('youtube.com', 'youtu.be')):
             opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best'})
-            set_impersonate(opts)
-        elif 'x.com' in u or 'twitter.com' in u:
-            opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best/best',
-                         'extractor_args': {'twitter': {'api': ['graphql', 'syndication']}}})
-            set_impersonate(opts)
+        elif any(s in u for s in ('x.com', 'twitter.com')):
+            opts.update({
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best/best',
+                'extractor_args': {'twitter': {'api': ['graphql', 'syndication']}}
+            })
         elif 'instagram.com' in u:
             opts.update({'format': 'bestvideo+bestaudio/best'})
-            set_impersonate(opts)
         elif 'tiktok.com' in u:
             opts.update({'format': 'best'})
-            set_impersonate(opts)
         elif 'reddit.com' in u:
             opts.update({'format': 'bestvideo+bestaudio/best'})
         else:
+            # Default for everything else — very good for most unknown sites
             opts.setdefault('format', 'bestvideo+bestaudio/best/best')
+
         return opts
 
     # ── filename helpers ─────────────────────────────────────────────────

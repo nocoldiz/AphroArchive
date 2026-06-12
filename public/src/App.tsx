@@ -73,11 +73,6 @@ export function App() {
       .catch(() => {});
 
     loadProfiles().then(profileData => {
-      if (activeProfile.value === 'Vault') {
-        currentView.value = 'vault';
-        return;
-      }
-
       fetch('/api/presets')
         .then(r => r.json())
         .then(data => {

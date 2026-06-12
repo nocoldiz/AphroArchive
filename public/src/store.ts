@@ -1,4 +1,4 @@
-﻿import { signal, computed } from '@preact/signals';
+import { signal, computed } from '@preact/signals';
 import { Video, Category, Actor, Studio, AppPrefs, ThumbnailGroup } from './types';
 import * as api from './api';
 
@@ -239,6 +239,7 @@ export async function switchProfile(name: string) {
   if (res.status === 401) {
     const data = await res.json();
     if (data.locked) {
+      profileModalState.value = { visible: false };
       vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: name };
       return;
     }

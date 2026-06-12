@@ -132,33 +132,11 @@ export const Sidebar = () => {
 
 
   const setView = (view: string, legacyFn?: string) => {
-    // Leaving vault: restore previous profile
-    if (activeProfile.value === 'Vault' && view !== 'vault') {
-      const prev = localStorage.getItem('preVaultProfile') || 'default';
-      if (prev !== 'Vault') {
-        localStorage.removeItem('preVaultProfile');
-        switchProfile(prev); // triggers page reload — we're done here
-        return;
-      }
-    }
     currentView.value = view;
     isSidebarOpen.value = false;
     if (legacyFn && (window as any)[legacyFn]) {
       (window as any)[legacyFn]();
     }
-  };
-
-  const enterVault = () => {
-    if (activeProfile.value === 'Vault') {
-      // Already in vault profile — just switch to vault view
-      currentView.value = 'vault';
-      isSidebarOpen.value = false;
-      return;
-    }
-    // Save current profile so we can restore it when leaving
-    localStorage.setItem('preVaultProfile', activeProfile.value);
-    // switchProfile handles lock check and shows unlock modal if needed
-    switchProfile('Vault');
   };
 
   const selectCategory = (catName: string) => {
@@ -257,13 +235,7 @@ export const Sidebar = () => {
           onClick={() => setView('collections', 'showCollections')}
           isActive={currentView.value === 'collections'}
         />
-        <SidebarItem
-          id="vault-sidebar"
-          label={isVaultUnlocked.value ? 'Vault ●' : 'Vault'}
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isVaultUnlocked.value ? 'var(--ac)' : 'currentColor'} strokeWidth={2} style={iconStyle}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
-          onClick={enterVault}
-          isActive={currentView.value === 'vault'}
-        />
+
         <SidebarItem
           id="assistant-sidebar"
           label="Assistant"
