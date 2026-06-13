@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 import { rebuildLinkVidIds, currentVideo, currentView } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
@@ -492,24 +492,11 @@ export const LinksView = () => {
       const r = await fetch(`/api/browser-favs?browser=${browser}`);
       const d = await r.json();
       if (d.items) {
-        // Filter links to only include those matching profile websites!
-        const filtered = d.items.filter((item: any) => {
-          return websites.some(w => {
-            try {
-              const itemUrl = new URL(item.url);
-              const webUrl = new URL(w.url);
-              return itemUrl.hostname === webUrl.hostname || itemUrl.hostname.endsWith('.' + webUrl.hostname);
-            } catch {
-              return item.url.includes(w.url);
-            }
-          });
-        });
-        
-        // Merge with existing items (avoid duplicates by url or name)
+        // Server already filters by category & tag names; just merge with existing items
         const existingUrls = new Set(items.map(it => it.url));
         const existingNames = new Set(items.map(it => (it.title || '').trim().toLowerCase()).filter(Boolean));
         const newItems = [...items];
-        for (const item of filtered) {
+        for (const item of d.items) {
           const nm = (item.title || '').trim().toLowerCase();
           if (!existingUrls.has(item.url) && !(nm && existingNames.has(nm))) {
             newItems.push(item);
@@ -529,7 +516,10 @@ export const LinksView = () => {
         });
         
         const w = window as any;
-        if (w.toast) w.toast(`Imported ${filtered.length} links`);
+        if (w.toast) w.toast(`Imported ${newItems.length - items.length} links`);
+      } else if (d.cat_tag_empty) {
+        const w = window as any;
+        if (w.toast) w.toast('No categories or tags defined — add some first', 4000);
       }
     } catch { }
     setLoading(false);

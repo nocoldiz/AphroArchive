@@ -1,5 +1,11 @@
-
 # AphroArchive — TODO & Roadmap
+
+## Bookmark Import: Match categories/tags instead of saved websites
+
+- [x] Analyze codebase: understand current bookmark import flow
+- [x] Modify `server/links-server.js` `apiBrowserFavs` — filter bookmarks by category names and tag names instead of whitelist
+- [x] Modify `server/links-server.js` `apiBrowserFavsFile` — same filter for uploaded bookmark files
+- [x] Modify `public/src/components/sections/LinksView.tsx` `importFavs` — frontend filter by categories/tags instead of websites
 
 ## Security (Fix First)
 

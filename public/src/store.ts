@@ -396,7 +396,6 @@ w.dualR = { q: '', cat: '', curTag: null };
 w._dualTagVids = [];
 
 // ─── Computed State ──────────────────────────────────────────────────
-// Example: Automatically filter videos based on search and category
 export const filteredVideos = computed(() => {
   let list = [...videos.value];
   
@@ -581,7 +580,11 @@ export async function loadVideos() {
     }
     categories.value = cats.map((c: any) => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (countMap.get(c.path) || 0) }));
   }
-  syncUrlToState();
+
+  // Don't call syncUrlToState here — it races with routeToPath's async
+  // retry subscription. The initial page URL has already been resolved by
+  // routeToPath (called in setupRouter), and URL sync is handled entirely
+  // by the updateUrl subscriber + popstate listener.
 
   // Only redirect to links if no videos found from any source (local + external + links)
   if (data.length === 0 && linkVideos.length === 0) {
@@ -769,15 +772,18 @@ export function syncUrlToState() {
 let _urlSyncEnabled = false;
 export function enableUrlSync() { _urlSyncEnabled = true; }
 
-export function updateUrl() {
+let _pendingUrlUpdate: Promise<void> | null = null;
+
+function doUpdateUrl() {
   if (!_urlSyncEnabled || typeof window === 'undefined') return;
   const view = currentView.value;
+  const video = currentVideo.value;
   let path = '/';
 
   if (view === 'hub' || view === 'home') {
     path = '/';
-  } else if (view === 'player' && currentVideo.value) {
-    path = `/video/${currentVideo.value.id}`;
+  } else if (view === 'player' && video) {
+    path = `/video/${encodeURIComponent(video.id)}`;
   } else if (view === 'actors' && currentActor.value) {
     path = `/actor/${encodeURIComponent(currentActor.value)}`;
   } else if (view === 'studios' && currentStudio.value) {
@@ -797,11 +803,25 @@ export function updateUrl() {
   }
 }
 
+/**
+ * Schedule a URL update that coalesces multiple signal changes within the
+ * same synchronous task (e.g. setting currentVideo then currentView) into
+ * a single history pushState. This prevents intermediate/wrong URLs from
+ * polluting the browser history during navigation transitions.
+ */
+function scheduleUrlUpdate() {
+  if (_pendingUrlUpdate) return;
+  _pendingUrlUpdate = Promise.resolve().then(() => {
+    _pendingUrlUpdate = null;
+    doUpdateUrl();
+  });
+}
+
 if (typeof window !== 'undefined') {
-  currentView.subscribe(updateUrl);
-  currentCategory.subscribe(updateUrl);
-  currentTag.subscribe(updateUrl);
-  currentVideo.subscribe(updateUrl);
+  currentView.subscribe(scheduleUrlUpdate);
+  currentCategory.subscribe(scheduleUrlUpdate);
+  currentTag.subscribe(scheduleUrlUpdate);
+  currentVideo.subscribe(scheduleUrlUpdate);
   // popstate and initial routing are handled by setupRouter() in router.ts
 }
 

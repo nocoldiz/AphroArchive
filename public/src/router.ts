@@ -4,7 +4,29 @@ export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
   const w = window as any;
 
-  // Reset transient state on every navigation
+  // Parameterised routes — handle BEFORE resetting transient state
+  // so /video/:id can restore correctly without a null flash
+  if ((m = path.match(/^\/video\/([^/]+)$/))) {
+    const videoId = decodeURIComponent(m[1]);
+    const tryOpen = () => {
+      const vid = allVideos.value.find((v: any) => v.id === videoId);
+      if (vid) {
+        currentView.value = 'player';
+        currentVideo.value = vid;
+        return true;
+      }
+      return false;
+    };
+    if (!tryOpen()) {
+      // Videos not loaded yet — retry once they arrive
+      const unsub = allVideos.subscribe(vids => {
+        if (vids.length > 0 && tryOpen()) unsub();
+      });
+    }
+    return;
+  }
+
+  // Reset transient state on every other navigation
   currentVideo.value = null;
 
   if (path === '/' || path === '' || path === '/home' || path === '/hub') {
@@ -63,27 +85,7 @@ export async function routeToPath(path: string) {
 if (path === '/recent')     { if (w.showRecent) w.showRecent(); return; }
   if (path === '/vault/prompts') { if (w.showVaultPrompts) w.showVaultPrompts(); return; }
 
-  // Parameterised routes
-  if ((m = path.match(/^\/video\/([^/]+)$/))) {
-    const videoId = decodeURIComponent(m[1]);
-    const tryOpen = () => {
-      const vid = allVideos.value.find((v: any) => v.id === videoId);
-      if (vid) {
-        currentVideo.value = vid;
-        currentView.value = 'player';
-        return true;
-      }
-      return false;
-    };
-    if (!tryOpen()) {
-      // Videos not loaded yet — retry once they arrive
-      const unsub = allVideos.subscribe(vids => {
-        if (vids.length > 0 && tryOpen()) unsub();
-      });
-    }
-    return;
-  }
-
+  // Parameterised routes (non-video)
   if ((m = path.match(/^\/tag\/(.+)$/))) {
     currentTag.value = decodeURIComponent(m[1]);
     currentCategory.value = '';

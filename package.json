@@ -6,6 +6,8 @@
   "bin": "server.js",
   "scripts": {
     "build:android-web": "vite build --mode android",
+    "test": "vitest run --config vitest.config.js",
+    "test:watch": "vitest --config vitest.config.js",
     "dev": "vite",
     "dev:watch": "node --watch server.js",
     "build": "vite build && pkg . --targets node24-win-x64,node24-linux-x64,node24-macos-x64,node24-macos-arm64 --out-path dist --compress GZip",
@@ -65,6 +67,7 @@
     "electron": "^42.3.3",
     "electron-builder": "^26.8.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "vitest": "^4.1.8"
   }
 }

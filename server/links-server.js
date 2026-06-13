@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  links.js — Websites, browser-favs import, OG thumbnails,
 //                 links cache, and scrape proxy
@@ -713,20 +713,33 @@ async function apiScrape(req, res) {
 
 // ── Browser favourites ────────────────────────────────────────────────
 
-function loadWhitelist() {
-  const sites = loadWebsites();
-  if (sites.length) return sites.map(s => { try { return new URL(s.url).hostname; } catch { return s.url; } });
-  try {
-    const { BROWSER_WHITELIST_FILE } = require('./config-server');
-    return fs.readFileSync(BROWSER_WHITELIST_FILE, 'utf-8')
-      .split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  } catch { return []; }
+function loadCategoryAndTagNames() {
+  const cats = loadCategories();
+  const names = new Set();
+  for (const cat of cats) {
+    // Add the display name and category name
+    if (cat.displayName) names.add(cat.displayName.toLowerCase());
+    if (cat.name) names.add(cat.name.toLowerCase());
+    // Add all terms associated with this category
+    if (Array.isArray(cat.terms)) {
+      for (const t of cat.terms) {
+        if (t && t.length >= 2) names.add(t.toLowerCase());
+      }
+    }
+  }
+  // Also load all video tags from the profile
+  const allTags = loadAllVideoTags();
+  for (const tag of allTags) {
+    if (tag && tag.length >= 2) names.add(tag.toLowerCase());
+  }
+  return [...names];
 }
 
-function matchesWhitelist(urlStr, whitelist) {
+function matchesCategoryOrTag(urlStr, matchNames) {
   try {
-    const hostname = new URL(urlStr).hostname;
-    return whitelist.some(entry => hostname.includes(entry));
+    const u = new URL(urlStr);
+    const searchText = (u.hostname + ' ' + u.pathname + ' ' + u.search).toLowerCase();
+    return matchNames.some(name => searchText.includes(name));
   } catch { return false; }
 }
 
@@ -853,9 +866,9 @@ function apiBrowserFavs(req, res) {
       return json(res, { items });
     }
 
-    const whitelist = loadWhitelist();
-    if (!whitelist.length) return json(res, { whitelist_empty: true, items: [] });
-    json(res, { items: items.filter(b => matchesWhitelist(b.url, whitelist)) });
+    const matchNames = loadCategoryAndTagNames();
+    if (!matchNames.length) return json(res, { cat_tag_empty: true, items: [] });
+    json(res, { items: items.filter(b => matchesCategoryOrTag(b.url, matchNames)) });
   } catch (e) {
     console.error('apiBrowserFavs error:', e);
     json(res, { error: e.message, items: [] }, 500);
@@ -867,8 +880,8 @@ async function apiBrowserFavsFile(req, res) {
     const body     = await readBody(req);
     const { data, filename, browser } = body;
     if (!data) return json(res, { error: 'No file data' }, 400);
-    const whitelist = loadWhitelist();
-    if (!whitelist.length) return json(res, { whitelist_empty: true, items: [] });
+    const matchNames = loadCategoryAndTagNames();
+    if (!matchNames.length) return json(res, { cat_tag_empty: true, items: [] });
 
     const buf         = Buffer.from(data, 'base64');
     const MOZILLA_MAGIC = Buffer.from('mozLz40\0');
@@ -890,7 +903,7 @@ async function apiBrowserFavsFile(req, res) {
       }
     }
 
-    json(res, { items: all.filter(b => matchesWhitelist(b.url, whitelist)) });
+    json(res, { items: all.filter(b => matchesCategoryOrTag(b.url, matchNames)) });
   } catch (e) {
     console.error('apiBrowserFavsFile error:', e);
     json(res, { error: e.message, items: [] }, 500);
