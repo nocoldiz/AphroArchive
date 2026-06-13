@@ -295,7 +295,7 @@ input {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   cursor: pointer;
   transition: all var(--tr);
   border-left: 3px solid transparent;
@@ -4892,6 +4892,16 @@ input {
   box-shadow: 0 0 30px var(--acg);
 }
 
+.mos-search-in {
+  width: 220px;
+  background: var(--bg3);
+  border: 1px solid var(--brd);
+  color: var(--tx);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
 .mos-cnt-in {
   width: 38px;
   text-align: center;
@@ -7319,5 +7329,276 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 @media(max-width:420px) {
   .imagegen-photo-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ── Immersive Zapping Mode ── */
+.zap-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  background: #000;
+}
+
+.zap-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.zap-player-wrap {
+  width: 100%;
+  height: 100%;
+  animation: zapFadeIn 0.4s ease;
+}
+
+.zap-player-wrap .advanced-player {
+  width: 100%;
+  height: 100%;
+}
+
+.zap-player-wrap .advanced-player video {
+  width: 100%;
+  height: 100%;
+  max-height: 100vh !important;
+  object-fit: contain;
+}
+
+@keyframes zapFadeIn {
+  from { opacity: 0; transform: scale(1.01); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.zap-title-overlay {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  right: 20px;
+  z-index: 4;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.zap-hud {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px 90px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  pointer-events: none;
+}
+
+.zap-hud > * {
+  pointer-events: auto;
+}
+
+.zap-timer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+}
+
+.zap-timer-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.zap-timer-fill {
+  height: 100%;
+  background: var(--ac, #ff4a4a);
+  transition: width 0.1s linear;
+}
+
+.zap-timer-label {
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.zap-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.zap-controls button {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.zap-controls button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.zap-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.zap-controls button.on {
+  background: var(--ac, #ff4a4a);
+  border-color: var(--ac, #ff4a4a);
+}
+
+.zap-controls button.exit {
+  border-color: rgba(255, 74, 74, 0.5);
+  color: #ff4a4a;
+  margin-left: auto;
+}
+
+.zap-controls button.exit:hover {
+  background: rgba(255, 74, 74, 0.15);
+}
+
+.zap-range {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.zap-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 160px;
+}
+
+.zap-range input[type="range"] {
+  width: 100%;
+  cursor: pointer;
+}
+
+.zap-queue {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0b0b0b;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.zap-queue-header {
+  padding: 16px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.zap-queue-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zap-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.zap-queue-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.zap-queue-item img {
+  width: 84px;
+  height: 47px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #1a1a1a;
+  flex-shrink: 0;
+}
+
+.zap-queue-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zap-queue-name {
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zap-queue-cat {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zap-queue-empty {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  padding: 16px;
+  text-align: center;
+}
+
+@media(max-width: 900px) {
+  .zap-immersive {
+    flex-direction: column;
+  }
+
+  .zap-queue {
+    width: 100%;
+    max-height: 180px;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .zap-queue-list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .zap-queue-item {
+    flex-direction: column;
+    min-width: 110px;
   }
 }

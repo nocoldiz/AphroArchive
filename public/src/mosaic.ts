@@ -6,8 +6,10 @@ import { zapOn, stopZapping } from './zap';
 export const mosaicOn = signal(false);
 export const mosTileCount = signal(6);
 export const mosaicIv = signal(5); // seconds
+export const mosaicQuery = signal('');
 
 let _mosaicPhotos: any[] = [];
+let _mosBasePool: any[] = [];
 let _mosPool: any[] = [];
 let _mosLayoutIdx = 0;
 const _mosLayouts = ['mos-layout-a', 'mos-layout-b', 'mos-layout-c', 'mos-layout-d', 'mos-layout-e'];
@@ -49,6 +51,7 @@ export function startMosaic() {
   }
   if (!V.length) { toast('No videos to show'); return; }
   _mosaicPhotoMode = false;
+  mosaicQuery.value = '';
   
   const w = window as any;
   if (zapOn.value) stopZapping();
@@ -74,6 +77,7 @@ export function startMosaic() {
   $('mosaic-view').add('on');
   $('mosBtn').add('on');
 
+  _mosBasePool = V;
   _mosPool = V;
 
   buildMosaicTiles();
@@ -83,6 +87,9 @@ export function startMosaic() {
 export function startMosaicWithPhotos(photos: any[]) {
   _mosaicPhotoMode = true;
   _mosaicPhotos = photos;
+  mosaicQuery.value = '';
+  _mosBasePool = [];
+  _mosPool = [];
   currentView.value = 'mosaic';
   mosaicOn.value = true;
   
@@ -110,6 +117,10 @@ export function stopMosaic() {
   mosaicOn.value = false;
   _mosaicPhotoMode = false;
   _mosaicPhotos = [];
+  _mosBasePool = [];
+  _mosPool = [];
+  mosaicQuery.value = '';
+  clearTimeout(_mosQueryDebounce);
   clearTimeout(mosaicTimer);
   
   mosTilesState.forEach(t => {
@@ -227,12 +238,12 @@ export function buildMosaicTiles() {
     wrap.className = 'mos-tile';
 
     const a = document.createElement('video');
-    a.muted = true; a.playsInline = true; a.loop = true;
+    a.muted = true; a.playsInline = true; a.loop = true; a.autoplay = true; a.preload = 'auto';
     a.className = 'mos-v mos-v-active';
     a.dataset.vid = v.id; a.dataset.dur = v.duration || 0;
 
     const b = document.createElement('video');
-    b.muted = true; b.playsInline = true; b.loop = true;
+    b.muted = true; b.playsInline = true; b.loop = true; b.autoplay = true; b.preload = 'auto';
     b.className = 'mos-v';
     b.dataset.ready = '0';
 
@@ -245,6 +256,7 @@ export function buildMosaicTiles() {
     a.poster = v.isVault ? '' : '/api/thumbs/' + v.id + '/0';
     a.src = v.isVault ? '/api/vault/stream/' + v.id : '/api/stream/' + v.id;
     a.addEventListener('loadedmetadata', () => { mosSeekRandom(a); a.play().catch(() => {}); }, { once: true });
+    a.addEventListener('canplay', () => { if (a.paused) a.play().catch(() => {}); }, { once: true });
     a.play().catch(() => {});
 
     const nextV = mosPickExcluding(v.id);
@@ -339,6 +351,49 @@ export function refreshMosaicTiles() {
   });
 }
 
+// ─── Live search filtering ───
+let _mosQueryDebounce: any = null;
+
+function _mosMatchesQuery(v: any, terms: string[]) {
+  const hay = [v.name, v.category, v.catPath, ...(v.tags || [])]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return terms.every(t => hay.includes(t));
+}
+
+function _mosFilterPool(q: string) {
+  const query = q.trim().toLowerCase();
+  if (!query) return _mosBasePool.length ? _mosBasePool : allVideos.value;
+  const terms = query.split(/\s+/).filter(Boolean);
+  return allVideos.value.filter(v => _mosMatchesQuery(v, terms));
+}
+
+export function setMosaicQuery(q: string) {
+  mosaicQuery.value = q;
+  clearTimeout(_mosQueryDebounce);
+  _mosQueryDebounce = setTimeout(() => _applyMosaicQuery(q), 250);
+}
+
+function _applyMosaicQuery(q: string) {
+  if (_mosaicPhotoMode || !mosaicOn.value) return;
+  const pool = _mosFilterPool(q);
+  if (!pool.length) { toast('No matches for "' + q + '"'); return; }
+  _mosPool = pool;
+
+  mosTilesState.forEach((tile, i) => {
+    if (i === mosHoveredIdx || tile.isPhoto) return;
+    const nextV = mosPickExcluding(tile.vidId);
+    if (nextV) preloadMosTile(tile, nextV);
+  });
+
+  clearTimeout(mosaicTimer);
+  mosaicTimer = setTimeout(() => {
+    refreshMosaicTiles();
+    scheduleMosaic();
+  }, 400);
+}
+
 export function setMosaicIv(delta: number) {
   mosaicIv.value = Math.max(2, Math.min(60, mosaicIv.value + delta));
   $('mosaic-interval').text(mosaicIv.value + 's');
@@ -359,4 +414,5 @@ if (typeof window !== 'undefined') {
   (window as any).stopMosaic = stopMosaic;
   (window as any).setMosaicIv = setMosaicIv;
   (window as any).setMosaicCount = setMosaicCount;
+  (window as any).setMosaicQuery = setMosaicQuery;
 }

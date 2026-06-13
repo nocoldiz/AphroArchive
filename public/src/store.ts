@@ -245,6 +245,7 @@ export async function reloadAppData() {
   currentTagTerms.value = [];
   currentActor.value = null;
   currentStudio.value = null;
+  currentPhotoFolder.value = '';
   searchQuery.value = '';
   if (location.pathname !== '/') history.pushState(null, '', '/');
 

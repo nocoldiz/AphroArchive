@@ -1,5 +1,5 @@
 import { useEffect } from 'preact/hooks';
-import { mosaicOn, stopMosaic, buildMosaicTiles, scheduleMosaic, setMosaicIv, setMosaicCount, mosTileCount, mosaicIv } from '../../mosaic';
+import { mosaicOn, stopMosaic, buildMosaicTiles, scheduleMosaic, setMosaicIv, setMosaicCount, setMosaicQuery, mosTileCount, mosaicIv, mosaicQuery } from '../../mosaic';
 
 export const MosaicView = () => {
   useEffect(() => {
@@ -13,6 +13,14 @@ export const MosaicView = () => {
       <div className="section-header">
         <h2 id="mosaic-category-label">Mosaic</h2>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <input
+            id="mosaic-search"
+            className="mos-search-in"
+            type="text"
+            placeholder="Search to filter random videos…"
+            value={mosaicQuery.value}
+            onInput={(e: any) => setMosaicQuery(e.target.value)}
+          />
           <div>
             <span id="mosaic-count-label">Players</span>: 
             <input 
