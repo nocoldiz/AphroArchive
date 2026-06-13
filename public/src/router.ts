@@ -18,9 +18,14 @@ export async function routeToPath(path: string) {
       return false;
     };
     if (!tryOpen()) {
-      // Videos not loaded yet — retry once they arrive
+      // Videos not loaded yet — retry once they arrive. Unsubscribe on the
+      // first non-empty list either way so the subscription can't leak.
+      let done = false;
       const unsub = allVideos.subscribe(vids => {
-        if (vids.length > 0 && tryOpen()) unsub();
+        if (done || vids.length === 0) return;
+        done = true;
+        if (!tryOpen()) currentView.value = 'hub';
+        Promise.resolve().then(() => unsub());
       });
     }
     return;
@@ -65,6 +70,9 @@ export async function routeToPath(path: string) {
     '/browse':         'browse',
     '/instagram':      'instagram',
     '/reddit':         'reddit',
+    '/mosaic':         'mosaic',
+    '/favourites':     'favourites',
+    '/recent':         'recent',
   };
 
   if (directViews[path]) {
@@ -77,12 +85,6 @@ export async function routeToPath(path: string) {
   }
 
   // Legacy-only views (no Preact component yet)
-  if (path === '/favourites') {
-    if (w.favM !== undefined) { w.favM = true; document.getElementById('fBtn')?.classList.add('on'); }
-    if (w.refresh) w.refresh();
-    return;
-  }
-if (path === '/recent')     { if (w.showRecent) w.showRecent(); return; }
   if (path === '/vault/prompts') { if (w.showVaultPrompts) w.showVaultPrompts(); return; }
 
   // Parameterised routes (non-video)

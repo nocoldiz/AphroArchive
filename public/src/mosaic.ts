@@ -124,7 +124,7 @@ export function stopMosaic() {
   const cntLbl = document.getElementById('mosaic-count-label');
   if (cntLbl) cntLbl.textContent = 'Players';
   
-  currentView.value = 'home';
+  currentView.value = 'hub';
 }
 
 function mosPick(n: number) {

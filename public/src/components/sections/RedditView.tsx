@@ -243,7 +243,7 @@ export const RedditView = () => {
           <svg style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#818384' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         </div>
 
-        <button className="rd-hdr-btn" onClick={() => currentView.value = 'home'} style={{ background: '#272729', border: '1px solid #343536', color: '#d7dadc', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>
+        <button className="rd-hdr-btn" onClick={() => currentView.value = 'hub'} style={{ background: '#272729', border: '1px solid #343536', color: '#d7dadc', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>
           ← Archive
         </button>
       </header>

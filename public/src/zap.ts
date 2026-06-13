@@ -124,7 +124,7 @@ export function stopZapping() {
     preload.load();
   }
 
-  currentView.value = 'home';
+  currentView.value = 'hub';
 }
 
 export function setZapIv(delta: number) {
