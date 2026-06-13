@@ -372,7 +372,7 @@ export const InstagramView = () => {
       <div className="ig-content">
         {curView === 'feed' && (
           <>
-            <div className="ig-feed" style={{ flex: 'none', width: '680px', maxWidth: '100%', padding: '24px 12px', display: 'flex', flexDirection: 'column' }}>
+            <div className="ig-feed" style={{ flex: 'none', width: '940px', maxWidth: '100%', padding: '24px 12px', display: 'flex', flexDirection: 'column' }}>
               {/* Stories */}
               <div className="ig-stories" style={{ display: 'flex', gap: '14px', overflowX: 'auto', padding: '8px 0 20px', scrollbarWidth: 'none', borderBottom: '1px solid #262626', marginBottom: '16px', flexShrink: 0 }}>
                 {categories.map(cat => {

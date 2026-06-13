@@ -1,0 +1,8 @@
+{
+  "name": "Zapping Mode",
+  "description": "Quickly flip through random clips like channel-surfing.",
+  "location": "topbar",
+  "type": "toggle",
+  "toggleAction": "toggleZapping",
+  "enabledByDefault": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "Mosaic Mode",
+  "description": "View a multi-video mosaic grid.",
+  "location": "topbar",
+  "type": "toggle",
+  "toggleAction": "toggleMosaic",
+  "enabledByDefault": true,
+  "contexts": ["browse", "player", "home"]
+}

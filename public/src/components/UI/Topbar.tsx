@@ -2,14 +2,48 @@ import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
 import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos } from '../../store';
-import { zapOn, toggleZapping as _toggleZapping } from '../../zap';
+import { zapOn } from '../../zap';
+import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { useEffect } from 'preact/hooks';
+
+const PLUGIN_ICONS: Record<string, preact.JSX.Element> = {
+  mosaic: (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+  zapping: (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+    </svg>
+  ),
+  instagram: (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  reddit: (
+    <svg width="15" height="15" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="12" fill="#ff4500" />
+      <ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff" />
+      <circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500" />
+      <circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500" />
+      <path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" strokeWidth="1" strokeLinecap="round" fill="none" />
+    </svg>
+  ),
+};
 
 export const Topbar = () => {
   const view = currentView.value;
   
   useEffect(() => {
     loadProfiles();
+    loadPlugins();
   }, []);
 
   if (view === 'instagram' || view === 'reddit') return null;
@@ -21,12 +55,6 @@ export const Topbar = () => {
   const openImport = () => {
     importModalState.value = { visible: true };
   };
-
-  const toggleMosaic = () => {
-    if ((window as any).toggleMosaic) (window as any).toggleMosaic();
-  };
-
-  const toggleZapping = () => _toggleZapping();
 
   const togglePan = () => {
     if ((window as any).togglePan) (window as any).togglePan();
@@ -104,22 +132,25 @@ export const Topbar = () => {
         <SyncManager />
         <DownloadManager />
 
-        {['browse', 'player', 'home'].includes(view) && (
-          <button id="mosBtn" onClick={toggleMosaic} title="Mosaic mode">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
-          </button>
-        )}
-
-        <button id="zapBtn" onClick={toggleZapping} title="Zapping mode" class={zapOn.value ? 'on' : ''}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-          </svg>
-        </button>
+        {pluginsList.value
+          .filter(p => p.location === 'topbar' && isPluginEnabled(p.id))
+          .filter(p => !p.contexts || p.contexts.includes(view))
+          .map(p => {
+            const isActive = p.type === 'toggle' && p.toggleAction === 'toggleZapping'
+              ? zapOn.value
+              : p.type === 'view' && view === p.view;
+            return (
+              <button
+                key={p.id}
+                id={`plugin-${p.id}`}
+                onClick={() => runPluginAction(p, currentView)}
+                title={p.name}
+                class={isActive ? 'on' : ''}
+              >
+                {PLUGIN_ICONS[p.id]}
+              </button>
+            );
+          })}
 
         <button id="panBtn" onClick={togglePan} title="Panoramic mode">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -128,29 +159,11 @@ export const Topbar = () => {
           </svg>
         </button>
 
-        <button id="igBtn" onClick={() => currentView.value = 'instagram'} title="Instagram mode">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-            <circle cx="12" cy="12" r="4" />
-            <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-          </svg>
-        </button>
-
         <button id="dlQueueBtn" onClick={() => currentView.value = 'download-queue'} title="Download Queue" class={view === 'download-queue' ? 'on' : ''}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-        </button>
-
-        <button id="rdBtn" onClick={() => currentView.value = 'reddit'} title="Reddit mode">
-          <svg width="15" height="15" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="12" fill="#ff4500" />
-            <ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff" />
-            <circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500" />
-            <circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500" />
-            <path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" strokeWidth="1" strokeLinecap="round" fill="none" />
           </svg>
         </button>
 

@@ -345,6 +345,7 @@ const EMBED_HOSTS = [
   'myvi.ru', 'ok.ru', 'rutube.ru',
   'xvideos.com', 'xhamster.com', 'pornhub.com', 'redtube.com',
   'tube8.com', 'youporn.com', 'spankbang.com', 'xnxx.com',
+  'x.com', 'twitter.com',
 ];
 
 function extractEmbedUrl(pageUrl) {

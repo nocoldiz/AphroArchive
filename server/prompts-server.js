@@ -58,39 +58,6 @@ async function apiDeleteAllPrompts(req, res) {
 // In your main server router (likely where other /api/prompts routes are defined):
 // Example: if (path === '/api/prompts/all' && method === 'DELETE') return apiDeleteAllPrompts(req, res);
 
-// ── Local Llama via Ollama ────────────────────────────────────────────
-
-async function apiRunLocal(req, res) {
-  const body  = await readBody(req);
-  const text  = (body.text || '').trim();
-  const model = (body.model || 'llama3').trim();
-  if (!text) return json(res, { error: 'text required' }, 400);
-
-  const payload = JSON.stringify({ model, prompt: text, stream: false });
-
-  const response = await new Promise(resolve => {
-    const r = http.request(
-      { hostname: '127.0.0.1', port: 11434, path: '/api/generate', method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } },
-      res2 => {
-        let data = '';
-        res2.on('data', c => data += c);
-        res2.on('end', () => {
-          try { resolve({ ok: true, data: JSON.parse(data) }); }
-          catch { resolve({ ok: false, error: 'invalid JSON from ollama' }); }
-        });
-      }
-    );
-    r.on('error', e => resolve({ ok: false, error: 'Ollama not reachable: ' + e.message }));
-    r.setTimeout(120000, () => { r.destroy(); resolve({ ok: false, error: 'timeout' }); });
-    r.write(payload);
-    r.end();
-  });
-
-  if (!response.ok) return json(res, { error: response.error }, 502);
-  json(res, { response: response.data.response || '' });
-}
-
 // ── ComfyUI: queue a workflow with the prompt text ────────────────────
 
 // Finds the node whose text input should receive the prompt: prefers an
@@ -242,7 +209,7 @@ async function apiImportAllWildcards(req, res) {
 
 module.exports = {
   apiGetPrompts, apiAddPrompt, apiUpdatePrompt, apiDeletePrompt,
-  apiDeleteAllPrompts, apiRunLocal, apiSendComfyUI,
+  apiDeleteAllPrompts, apiSendComfyUI,
   apiGetWildcardAssets, apiGetWildcard, apiSaveWildcard, apiDeleteWildcard,
   apiExportAllWildcards, apiImportAllWildcards,
 };

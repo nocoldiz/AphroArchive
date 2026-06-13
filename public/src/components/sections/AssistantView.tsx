@@ -84,15 +84,10 @@ function Bubble({ msg, onUseAsPrompt }: { msg: Message; onUseAsPrompt: (text: st
 
 // ── Main view ─────────────────────────────────────────────────────────
 
-interface LocalModel { name: string; path: string; size: number; }
-
 export const AssistantView = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  // Session model: 'openrouter' sentinel or a local GGUF path
-  const [sessionModel, setSessionModel] = useState<string>('openrouter');
   const [openrouterModel, setOpenrouterModel] = useState(MODELS[0].id);
-  const [localModels, setLocalModels] = useState<LocalModel[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [apiKeySaved, setApiKeySaved] = useState(false);
@@ -129,11 +124,6 @@ export const AssistantView = () => {
       if (p.assistantStoryGenre) setStoryGenre(p.assistantStoryGenre);
     }).catch(() => {});
 
-    // Load local GGUF models for the session model picker
-    fetch('/api/models/scan').then(r => r.json()).then((d: any) => {
-      if (Array.isArray(d.llm)) setLocalModels(d.llm);
-    }).catch(() => {});
-
     fetch('/api/comfyui/workflows').then(r => r.json()).then((d: any) => {
       const raw = Array.isArray(d) ? d : (d.workflows || []);
       const list = raw.map((x: any) => (typeof x === 'string' ? x : (x.name || x.file || ''))).filter(Boolean);
@@ -158,8 +148,7 @@ export const AssistantView = () => {
     if ((window as any).toast) (window as any).toast('API key saved');
   };
 
-  // Resolve which model id/path to send to the server for this session
-  const resolvedModel = sessionModel === 'openrouter' ? openrouterModel : sessionModel;
+  const resolvedModel = openrouterModel;
 
   const buildLibContext = useCallback(async () => {
     try {
@@ -439,21 +428,6 @@ export const AssistantView = () => {
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
         <span style={{ fontWeight: 700, fontSize: '14px', flex: 1 }}>Assistant 🔥</span>
-
-        {/* Session model picker: local GGUF files or OpenRouter */}
-        <select
-          value={sessionModel}
-          onChange={(e: any) => setSessionModel(e.target.value)}
-          title="Model for this session (local GGUF or OpenRouter via Settings)"
-          style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '3px 7px', fontSize: '11px', maxWidth: '230px' }}
-        >
-          <option value="openrouter">OpenRouter (configured in Settings)</option>
-          {localModels.length > 0 && <option disabled>── Local GGUF ──</option>}
-          {localModels.map(m => (
-            <option key={m.path} value={m.path}>{m.name}</option>
-          ))}
-          {localModels.length === 0 && <option disabled>No local models found</option>}
-        </select>
 
         {/* Jailbreak / System prompt selector (hardcoded methods) */}
         <select

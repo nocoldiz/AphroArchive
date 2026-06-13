@@ -6,7 +6,7 @@ interface DownloadJob {
   url: string;
   title: string;
   category: string;
-  status: 'queued' | 'running' | 'done' | 'error';
+  status: 'queued' | 'running' | 'paused' | 'done' | 'error';
   progress: number;
   speed?: string;
   eta?: string;
@@ -31,7 +31,7 @@ function suggestCategory(title: string, cats: any[]): string {
 }
 
 const DL_STATUS_COLOR: Record<string, string> = {
-  done: '#1a7a3a', error: '#a11', running: 'var(--ac)', queued: 'var(--bg3)',
+  done: '#1a7a3a', error: '#a11', running: 'var(--ac)', queued: 'var(--bg3)', paused: '#b45309',
 };
 
 export const DownloadManager = () => {
@@ -88,6 +88,16 @@ export const DownloadManager = () => {
     setJobs(prev => prev.filter(j => j.id !== id));
   };
 
+  const pauseJob = async (id: string) => {
+    const r = await fetch(`/api/download/jobs/${id}/pause`, { method: 'POST' });
+    if (r.ok) setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'paused', speed: '', eta: '' } : j));
+  };
+
+  const resumeJob = async (id: string) => {
+    const r = await fetch(`/api/download/jobs/${id}/resume`, { method: 'POST' });
+    if (r.ok) setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'queued', error: undefined } : j));
+  };
+
   const cancelAll = async () => {
     await fetch('/api/download/cancel-all', { method: 'POST' });
     setJobs(prev => prev.filter(j => j.status === 'done' || j.status === 'error'));
@@ -119,6 +129,23 @@ export const DownloadManager = () => {
   };
 
   const parseUrls = () => newUrls.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+
+  const pasteClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) setNewUrls(prev => (prev.trim() ? prev.trim() + '\n' : '') + text.trim() + '\n');
+    } catch {}
+  };
+
+  const cleanDedupeUrls = () => {
+    const seen = new Set<string>();
+    const cleaned: string[] = [];
+    for (const line of newUrls.split('\n')) {
+      const u = line.trim();
+      if (u && !seen.has(u)) { seen.add(u); cleaned.push(u); }
+    }
+    setNewUrls(cleaned.length ? cleaned.join('\n') + '\n' : '');
+  };
 
   const handleDownload = async () => {
     const urls = parseUrls();
@@ -239,17 +266,31 @@ export const DownloadManager = () => {
                         background: DL_STATUS_COLOR[job.status] || 'var(--bg3)',
                         color: job.status === 'queued' ? 'var(--tx2)' : '#fff',
                       }}>
-                        {job.status === 'running' ? `${Math.round(job.progress || 0)}%` : job.status}
+                        {job.status === 'running' || job.status === 'paused' ? `${Math.round(job.progress || 0)}%` : job.status}
                       </span>
+                      {job.status === 'running' && (
+                        <button onClick={() => pauseJob(job.id)} title="Pause" style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                            <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+                          </svg>
+                        </button>
+                      )}
+                      {job.status === 'paused' && (
+                        <button onClick={() => resumeJob(job.id)} title="Resume" style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                          </svg>
+                        </button>
+                      )}
                       <button onClick={() => removeJob(job.id)} title="Remove" style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                         </svg>
                       </button>
                     </div>
-                    {(job.status === 'running' || job.status === 'queued') && (
+                    {(job.status === 'running' || job.status === 'queued' || job.status === 'paused') && (
                       <div style={{ height: '3px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ width: `${job.progress || 0}%`, height: '100%', background: 'var(--ac)', transition: 'width 0.3s' }} />
+                        <div style={{ width: `${job.progress || 0}%`, height: '100%', background: job.status === 'paused' ? '#b45309' : 'var(--ac)', transition: 'width 0.3s' }} />
                       </div>
                     )}
                     {job.status === 'running' && job.speed && (
@@ -284,6 +325,25 @@ export const DownloadManager = () => {
 
           {/* ── Add download section ──────────────────────── */}
           <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={pasteClipboard}
+                title="Paste URLs from clipboard"
+                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '3px 9px', fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                📋 Paste
+              </button>
+              <button
+                type="button"
+                onClick={cleanDedupeUrls}
+                disabled={!newUrls.trim()}
+                title="Strip blanks and remove duplicate URLs"
+                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '3px 9px', fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                🧹 Clean &amp; dedupe
+              </button>
+            </div>
             <textarea
               value={newUrls}
               onInput={(e: any) => setNewUrls(e.target.value)}

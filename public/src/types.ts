@@ -53,10 +53,7 @@ export interface AppPrefs {
   aiCommentMasterPrompt?: string;
   aiReplyMasterPrompt?: string;
   aiCommentsEnabled?: boolean;
-  ollamaUrl?: string;
-  ollamaVisionModel?: string;
   anthropicApiKey?: string;
-  visionProvider?: string;
   disableSearchTracking?: boolean;
   vaultSelfDestruct?: boolean;
   vaultTimeoutMinutes?: number;
@@ -66,11 +63,8 @@ export interface AppPrefs {
   privateFeedFolders?: string[];
   videosDir?: string;
   videosDirExists?: boolean;
-  llamaModelUri?: string;
   openrouterApiKey?: string;
   openrouterModel?: string;
-  assistantProvider?: 'openrouter' | 'local';
-  commentsProvider?: 'local' | 'openrouter';
   isMuted?: boolean;
   thumbBlurMode?: string;
   hideEmptyFolders?: boolean;
@@ -78,6 +72,7 @@ export interface AppPrefs {
   comfyuiUrl?: string;
   comfyuiWorkflowJson?: string;
   comfyuiPositiveNodeId?: string;
+  disabledPlugins?: string[];
 }
 export interface ThumbnailGroup {
   id: string;

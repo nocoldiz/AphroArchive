@@ -40,6 +40,7 @@ const database = require('./server/database-server');
 const profiles = require('./server/profiles-server');
 const remote = require('./server/remote-server');
 const settings = require('./server/settings-server');
+const plugins = require('./server/plugins-server');
 const prompts = require('./server/prompts-server');
 const comments = require('./server/comments-server');
 const vision = require('./server/vision-server');
@@ -77,9 +78,6 @@ ensureDirSync(FILES_DIR);
 ensureDirSync(path.join(VIDEOS_DIR, 'downloads'));
 ensureDirSync(cfg.LINK_THUMBS_DIR);
 ensureDirSync(path.dirname(BM_CACHE_FILE));
-ensureDirSync(path.join(process.cwd(), 'models'));
-
-// Model loading is deferred — initiated on first use via reinitIfNeeded()
 
 // ── Seed default category folders ────────────────────────────────────
 
@@ -240,6 +238,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/download/cancel-all' && req.method === 'POST') return downloads.apiDownloadCancelAll(req, res);
   if (p === '/api/download/check' && req.method === 'GET') return downloads.apiDownloadCheck(req, res);
   if ((m = p.match(/^\/api\/download\/jobs\/([^/]+)$/)) && req.method === 'DELETE') return downloads.apiDownloadRemove(req, res, m[1]);
+  if ((m = p.match(/^\/api\/download\/jobs\/([^/]+)\/pause$/)) && req.method === 'POST') return downloads.apiDownloadPauseJob(req, res, m[1]);
+  if ((m = p.match(/^\/api\/download\/jobs\/([^/]+)\/resume$/)) && req.method === 'POST') return downloads.apiDownloadResumeJob(req, res, m[1]);
+  if ((m = p.match(/^\/api\/download\/jobs\/([^/]+)\/restart$/)) && req.method === 'POST') return downloads.apiDownloadRestartJob(req, res, m[1]);
   if (p === '/api/download-queue' && req.method === 'GET') return downloads.apiReadDownloadQueue(req, res);
   if (p === '/api/download-queue' && req.method === 'POST') return downloads.apiWriteDownloadQueue(req, res);
   if (p === '/api/download-queue/add' && req.method === 'POST') return downloads.apiDownloadQueueAdd(req, res);
@@ -398,10 +399,8 @@ const server = http.createServer(async (req, res) => {
   // ── Vision ───────────────────────────────────────────────────────────
   if (p === '/api/vision/describe' && req.method === 'POST') return vision.apiVisionDescribe(req, res);
   if (p === '/api/assistant/chat'  && req.method === 'POST') return assistant.apiAssistantChat(req, res);
-  if (p === '/api/models/scan'     && req.method === 'GET')  return assistant.apiScanModels(req, res);
 
   // ── Prompts ──────────────────────────────────────────────────────────
-  if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);
   if (p === '/api/prompts/send-comfyui' && req.method === 'POST') return prompts.apiSendComfyUI(req, res);
   if (p === '/api/prompts' && req.method === 'GET') return prompts.apiGetPrompts(req, res);
   if (p === '/api/prompts' && req.method === 'POST') return prompts.apiAddPrompt(req, res);
@@ -438,6 +437,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/settings\/(hidden|whitelist)$/)) && req.method === 'PUT') return settings.apiSettingsSave(req, res, m[1]);
   if (p === '/api/settings/prefs' && req.method === 'GET') return settings.apiGetPrefs(req, res);
   if (p === '/api/settings/prefs' && req.method === 'PUT') return settings.apiSavePrefs(req, res);
+  if (p === '/api/plugins' && req.method === 'GET') return plugins.apiGetPlugins(req, res);
   if (p === '/api/browse-folders' && req.method === 'GET') return settings.apiBrowseFolders(req, res, params);
   if (p === '/api/browse-folders-native' && req.method === 'GET') return settings.apiBrowseFoldersNative(req, res);
   if (p === '/api/feed-folders/verify-vault' && req.method === 'POST') return settings.apiVerifyVaultPassword(req, res);
@@ -446,9 +446,6 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);
   if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
   if (p === '/api/comments/reply' && req.method === 'POST') return comments.apiReplyToComment(req, res);
-  if (p === '/api/comments/model/status' && req.method === 'GET') return comments.apiModelStatus(req, res);
-  if (p === '/api/comments/model/download' && req.method === 'POST') return comments.apiDownloadModel(req, res);
-  if (p === '/api/comments/model/download' && req.method === 'DELETE') return comments.apiCancelDownload(req, res);
   {
     const m = p.match(/^\/api\/comments\/([^/]+)\/add$/);
     if (m && req.method === 'POST') return comments.apiAddComment(req, res, decodeURIComponent(m[1]));

@@ -33,7 +33,6 @@ process
 .aider.tags.cache.v4/cache.db
 .aider.tags.cache.v4/cache.db-shm
 .aider.tags.cache.v4/cache.db-wal
-models/llama-3.2-1b-instruct.gguf.gguf
 yt-dlp.exe
 models
 *.db

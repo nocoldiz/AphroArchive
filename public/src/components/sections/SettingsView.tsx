@@ -4,6 +4,7 @@ import { PERSONALITIES, Personality } from '../../personalities';
 import { JSX } from 'preact';
 import { ensureQRCode } from '../../utils';
 import { CategorizeModal, PlanItem, Move } from '../UI/CategorizeModal';
+import { pluginsList, isPluginEnabled, loadPlugins, togglePlugin } from '../../plugins';
 
 declare global {
   interface Window {
@@ -65,6 +66,7 @@ const TABS = [
   { id: 'ai',         label: 'AI' },
   { id: 'cache',      label: 'Cache' },
   { id: 'security',   label: 'Security' },
+  { id: 'plugins',    label: 'Plugins' },
 ];
 
 export const SettingsView = () => {
@@ -74,8 +76,6 @@ export const SettingsView = () => {
 
   const [commentPrompt, setCommentPrompt] = useState(prefs.aiCommentMasterPrompt || '');
   const [replyPrompt, setReplyPrompt] = useState(prefs.aiReplyMasterPrompt || '');
-  const [ollamaUrl, setOllamaUrl] = useState(prefs.ollamaUrl || '');
-  const [ollamaModel, setOllamaModel] = useState(prefs.ollamaVisionModel || '');
   const [anthropicKey, setAnthropicKey] = useState(prefs.anthropicApiKey || '');
   const [hiddenCats, setHiddenCats] = useState<string[]>([]);
 
@@ -115,20 +115,12 @@ export const SettingsView = () => {
     if (prefs.theme) setCurrentTheme(prefs.theme);
   }, [prefs.theme]);
 
-  const [modelStatus, setModelStatus] = useState<{ ready: boolean; fileExists: boolean; modelName: string; downloading: boolean; dlPct: number; dlDone: number; dlTotal: number; dlError: string | null } | null>(null);
-  const [llamaModelUri, setLlamaModelUri] = useState(prefs.llamaModelUri || '');
-  const modelPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    loadPlugins();
+  }, []);
 
   const [openrouterKey, setOpenrouterKey] = useState(prefs.openrouterApiKey || '');
   const [openrouterKeySaved, setOpenrouterKeySaved] = useState(false);
-
-  interface ScannedModel { name: string; path: string; size: number; }
-  interface ScannedModels {
-    llm: ScannedModel[];
-    comfyui: { checkpoints: ScannedModel[]; loras: ScannedModel[]; vaes: ScannedModel[]; embeddings: ScannedModel[]; unet: ScannedModel[]; gguf: ScannedModel[] };
-  }
-  const [scannedModels, setScannedModels] = useState<ScannedModels | null>(null);
-  const [modelsLoading, setModelsLoading] = useState(false);
 
   const [scrapers, setScrapers] = useState<{ bmMeta: ScraperStatus; bmThumbs: ScraperStatus }>({
     bmMeta: { running: false }, bmThumbs: { running: false },
@@ -214,11 +206,8 @@ export const SettingsView = () => {
   useEffect(() => {
     setCommentPrompt(prefs.aiCommentMasterPrompt || '');
     setReplyPrompt(prefs.aiReplyMasterPrompt || '');
-    setOllamaUrl(prefs.ollamaUrl || '');
-    setOllamaModel(prefs.ollamaVisionModel || '');
     setAnthropicKey(prefs.anthropicApiKey || '');
     setNetEnabled(!!prefs.networkEnabled);
-    setLlamaModelUri(prefs.llamaModelUri || '');
     setOpenrouterKey(prefs.openrouterApiKey || '');
   }, [prefs]);
 
@@ -274,45 +263,6 @@ export const SettingsView = () => {
     setTimeout(() => setOpenrouterKeySaved(false), 3000);
   };
 
-  const scanModels = () => {
-    setModelsLoading(true);
-    fetch('/api/models/scan').then(r => r.json()).then(d => { setScannedModels(d); setModelsLoading(false); }).catch(() => setModelsLoading(false));
-  };
-
-  const fetchModelStatus = () => {
-    fetch('/api/comments/model/status').then(r => r.json()).then(d => setModelStatus(d)).catch(() => {});
-  };
-
-  useEffect(() => {
-    fetchModelStatus();
-  }, []);
-
-  useEffect(() => {
-    if (!modelStatus?.downloading) {
-      if (modelPollRef.current) { clearInterval(modelPollRef.current); modelPollRef.current = null; }
-      return;
-    }
-    if (!modelPollRef.current) {
-      modelPollRef.current = setInterval(fetchModelStatus, 800);
-    }
-    return () => { if (modelPollRef.current) { clearInterval(modelPollRef.current); modelPollRef.current = null; } };
-  }, [modelStatus?.downloading]);
-
-  const startModelDownload = async () => {
-    await updatePrefs({ llamaModelUri });
-    const r = await fetch('/api/comments/model/download', { method: 'POST' });
-    const d = await r.json();
-    if (d.error) { alert(d.error); return; }
-    fetchModelStatus();
-    if (modelPollRef.current) clearInterval(modelPollRef.current);
-    modelPollRef.current = setInterval(fetchModelStatus, 800);
-  };
-
-  const cancelModelDownload = async () => {
-    await fetch('/api/comments/model/download', { method: 'DELETE' });
-    fetchModelStatus();
-  };
-
   useEffect(() => {
     fetch('/api/settings/lists')
       .then(r => r.json())
@@ -349,7 +299,6 @@ export const SettingsView = () => {
   const applyPersonality = (p: Personality) => { setCommentPrompt(p.prompt); setReplyPrompt(p.replyPrompt); };
 
   const handleSaveAi = () => { updatePrefs({ aiCommentMasterPrompt: commentPrompt, aiReplyMasterPrompt: replyPrompt }); alert('AI Prompts saved!'); };
-  const handleSaveOllama = () => { updatePrefs({ ollamaUrl, ollamaVisionModel: ollamaModel }); alert('Ollama settings saved!'); };
   const handleSaveAnthropic = () => { updatePrefs({ anthropicApiKey: anthropicKey }); alert('Anthropic API key saved!'); };
 
   const handleSaveHidden = async () => {
@@ -495,28 +444,6 @@ export const SettingsView = () => {
             </div>
           </div>
 
-          {/* AI Provider configuration */}
-          <div style={card}>
-            <h3 style={cardH}>AI Providers</h3>
-            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Choose which backend each AI feature uses. Local requires a GGUF model in the <code style={{ fontSize: '11px' }}>models/</code> folder; OpenRouter requires an API key above.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div style={fieldRow}>
-                <label style={label}>Chat Assistant</label>
-                <select title="Chat Assistant AI provider" value={prefs.assistantProvider || 'openrouter'} onChange={(e) => updatePrefs({ assistantProvider: (e.target as HTMLSelectElement).value as any })} style={{ ...inp }}>
-                  <option value="openrouter">OpenRouter</option>
-                  <option value="local">Local GGUF</option>
-                </select>
-              </div>
-              <div style={fieldRow}>
-                <label style={label}>AI Comments</label>
-                <select title="AI Comments provider" value={prefs.commentsProvider || 'local'} onChange={(e) => updatePrefs({ commentsProvider: (e.target as HTMLSelectElement).value as any })} style={{ ...inp }}>
-                  <option value="local">Local GGUF</option>
-                  <option value="openrouter">OpenRouter</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
           {/* AI Comments */}
           <div style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -543,129 +470,17 @@ export const SettingsView = () => {
               <textarea value={replyPrompt} onInput={(e) => setReplyPrompt((e.target as HTMLTextAreaElement).value)} rows={3} style={{ ...inp, fontFamily: 'monospace', resize: 'vertical' }} />
             </div>
             <button class="modal-btn modal-btn--primary" onClick={handleSaveAi} style={{ width: '100%' }}>Save Prompts</button>
-
-            {/* Model status + download */}
-            <div style={{ marginTop: '16px', padding: '12px', background: 'var(--bg3)', borderRadius: '6px', border: '1px solid var(--brd)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0, background: modelStatus?.ready ? '#4caf50' : modelStatus?.fileExists ? '#ff9800' : '#888', display: 'inline-block' }} />
-                <span style={{ fontSize: '13px', fontWeight: 600, flex: 1 }}>Local Model</span>
-                <code style={{ fontSize: '11px', color: 'var(--tx3)' }}>{modelStatus?.modelName || 'llama-3.2-1b-instruct.gguf'}</code>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '10px' }}>
-                {modelStatus?.ready ? 'Loaded and ready' : modelStatus?.fileExists ? 'File found — not yet loaded' : 'Model not found — download required'}
-              </div>
-              {!modelStatus?.fileExists && !modelStatus?.downloading && (
-                <div style={{ marginBottom: '8px' }}>
-                  <label style={{ ...label, display: 'block', marginBottom: '4px' }}>Model URI</label>
-                  <input value={llamaModelUri} onInput={(e) => setLlamaModelUri((e.target as HTMLInputElement).value)}
-                    placeholder="hf:bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M"
-                    style={{ ...inp, marginBottom: '6px' }} />
-                </div>
-              )}
-              {modelStatus?.downloading ? (
-                <div>
-                  <div style={{ height: '4px', background: 'var(--brd)', borderRadius: '2px', marginBottom: '6px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${modelStatus.dlPct}%`, background: 'var(--ac)', transition: 'width 0.3s' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--tx2)' }}>{modelStatus.dlPct}% — {(modelStatus.dlDone / 1048576).toFixed(1)} / {(modelStatus.dlTotal / 1048576).toFixed(1)} MB</span>
-                    <button type="button" onClick={cancelModelDownload} style={{ fontSize: '11px', padding: '2px 8px', background: 'none', border: '1px solid #c44', color: '#c44', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
-                  </div>
-                </div>
-              ) : !modelStatus?.fileExists ? (
-                <button type="button" onClick={startModelDownload} class="modal-btn modal-btn--primary" style={{ width: '100%', fontSize: '13px' }}>Download Model</button>
-              ) : null}
-              {modelStatus?.dlError && <div style={{ fontSize: '11px', color: '#e53935', marginTop: '6px' }}>{modelStatus.dlError}</div>}
-            </div>
           </div>
 
           {/* Vision Provider */}
           <div style={card}>
             <h3 style={cardH}>Vision Provider</h3>
-            <div style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px', padding: '8px 10px', background: 'var(--bg3)', borderRadius: '5px', border: '1px solid var(--brd)' }}>
-              Vision requires a <strong>multimodal</strong> model (one that can analyze images). Your <code style={{ fontSize: '11px' }}>text_encoders/</code> and <code style={{ fontSize: '11px' }}>clip/</code> models are text-only and cannot be used for vision — they are Flux image-generation helpers. For local vision use Ollama with a model like <code style={{ fontSize: '11px' }}>minicpm-v</code>, <code style={{ fontSize: '11px' }}>llava</code>, or <code style={{ fontSize: '11px' }}>qwen2-vl</code> (note: Qwen2-VL ≠ Qwen3).
-            </div>
+            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Image descriptions are generated via Claude (Anthropic). Vision requires a <strong>multimodal</strong> model.</p>
             <div style={fieldRow}>
-              <label style={label}>Provider</label>
-              <select value={prefs.visionProvider || 'ollama'} onChange={(e) => updatePrefs({ visionProvider: (e.target as HTMLSelectElement).value })} style={{ ...inp }}>
-                <option value="ollama">Ollama (Local)</option>
-                <option value="claude">Claude (Anthropic)</option>
-              </select>
+              <label style={label}>Anthropic API Key</label>
+              <input type="password" value={anthropicKey} onInput={(e) => setAnthropicKey((e.target as HTMLInputElement).value)} style={{ ...inp }} />
             </div>
-            {(prefs.visionProvider === 'ollama' || !prefs.visionProvider) ? <>
-              <div style={fieldRow}>
-                <label style={label}>Ollama URL</label>
-                <input type="text" value={ollamaUrl} onInput={(e) => setOllamaUrl((e.target as HTMLInputElement).value)} style={{ ...inp }} />
-              </div>
-              <div style={fieldRow}>
-                <label style={label}>Vision Model</label>
-                <input type="text" value={ollamaModel} onInput={(e) => setOllamaModel((e.target as HTMLInputElement).value)} style={{ ...inp }} />
-              </div>
-              <button class="modal-btn modal-btn--primary" onClick={handleSaveOllama} style={{ width: '100%' }}>Save Ollama Settings</button>
-            </> : <>
-              <div style={fieldRow}>
-                <label style={label}>Anthropic API Key</label>
-                <input type="password" value={anthropicKey} onInput={(e) => setAnthropicKey((e.target as HTMLInputElement).value)} style={{ ...inp }} />
-              </div>
-              <button class="modal-btn modal-btn--primary" onClick={handleSaveAnthropic} style={{ width: '100%' }}>Save API Key</button>
-            </>}
-          </div>
-
-          {/* Models Library */}
-          <div style={card}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, color: 'var(--ac)' }}>Models Library</h3>
-              <button type="button" class="modal-btn modal-btn--secondary" onClick={scanModels} disabled={modelsLoading} style={{ fontSize: '12px' }}>
-                {modelsLoading ? 'Scanning…' : 'Scan Models'}
-              </button>
-            </div>
-            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>
-              Lists GGUF models from <code style={{ fontSize: '11px' }}>models/</code> and safetensor/GGUF models from your ComfyUI folder.
-            </p>
-
-            {!scannedModels && !modelsLoading && (
-              <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px', padding: '20px 0' }}>Click "Scan Models" to discover installed models.</div>
-            )}
-
-            {scannedModels && (() => {
-              const fmtSize = (b: number) => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : (b / 1048576).toFixed(0) + ' MB';
-              const ModelRow = ({ m }: { m: { name: string; path: string; size: number } }) => (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderRadius: '4px', background: 'var(--bg)', marginBottom: '4px', fontSize: '12px' }}>
-                  <span style={{ color: 'var(--tx)', wordBreak: 'break-all', flex: 1 }}>{m.name}</span>
-                  <span style={{ color: 'var(--tx3)', whiteSpace: 'nowrap', marginLeft: '12px' }}>{fmtSize(m.size)}</span>
-                </div>
-              );
-              const Section = ({ title, items, accent }: { title: string; items: typeof scannedModels.llm; accent?: boolean }) => items.length > 0 ? (
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: accent ? 'var(--ac)' : 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>{title} <span style={{ fontWeight: 400 }}>({items.length})</span></div>
-                  {items.map((m, i) => <ModelRow key={i} m={m} />)}
-                </div>
-              ) : null;
-
-              return (
-                <div>
-                  {/* Local LLM */}
-                  <Section title="Local GGUF (LLM)" items={scannedModels.llm} accent />
-                  {/* ComfyUI */}
-                  {Object.values(scannedModels.comfyui).some(a => a.length > 0) && (
-                    <div style={{ marginTop: '8px', paddingTop: '12px', borderTop: '1px solid var(--brd)' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>ComfyUI</div>
-                      <Section title="Checkpoints" items={scannedModels.comfyui.checkpoints} />
-                      <Section title="UNet / Transformers" items={scannedModels.comfyui.unet} />
-                      <Section title="Text Encoders (T5 / Qwen)" items={(scannedModels.comfyui as any).text_encoders || []} />
-                      <Section title="CLIP Encoders" items={(scannedModels.comfyui as any).clip || []} />
-                      <Section title="LoRAs" items={scannedModels.comfyui.loras} />
-                      <Section title="VAEs" items={scannedModels.comfyui.vaes} />
-                      <Section title="Embeddings" items={scannedModels.comfyui.embeddings} />
-                      <Section title="GGUF (other)" items={scannedModels.comfyui.gguf} />
-                    </div>
-                  )}
-                  {scannedModels.llm.length === 0 && Object.values(scannedModels.comfyui).every(a => a.length === 0) && (
-                    <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px', padding: '12px 0' }}>No models found. Place GGUF files in <code style={{ fontSize: '11px' }}>models/</code> or set your ComfyUI path.</div>
-                  )}
-                </div>
-              );
-            })()}
+            <button class="modal-btn modal-btn--primary" onClick={handleSaveAnthropic} style={{ width: '100%' }}>Save API Key</button>
           </div>
         </>}
 
@@ -962,6 +777,32 @@ export const SettingsView = () => {
         })()}
 
         {/* ══ Security ════════════════════════════════════════════════ */}
+        {/* ══ Plugins ═════════════════════════════════════════════════ */}
+        {activeTab === 'plugins' && (
+          <div style={card}>
+            <h3 style={cardH}>Plugin Manager</h3>
+            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Enable or disable optional modes. Disabled plugins are hidden from the topbar and sidebar.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {pluginsList.value.map(p => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '14px', color: 'var(--tx)', fontWeight: 600 }}>{p.name}</div>
+                    {p.description && <div style={{ fontSize: '12px', color: 'var(--tx3)' }}>{p.description}</div>}
+                    <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px' }}>{p.location === 'sidebar' ? 'Sidebar' : 'Topbar'}</div>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                    <input type="checkbox" checked={isPluginEnabled(p.id)} onChange={() => togglePlugin(p.id)} style={{ width: '16px', height: '16px' }} />
+                    Enabled
+                  </label>
+                </div>
+              ))}
+              {pluginsList.value.length === 0 && (
+                <p style={{ fontSize: '12px', color: 'var(--tx3)' }}>No plugins found.</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'security' && <>
           {/* Vault */}
           <div style={card}>

@@ -68,6 +68,8 @@ interface Prompt {
 // __wildcard__             → resolves to a random line from a wildcard file
 // {opt1|opt2|opt3}         → combinatorial group, expands to one variant per option
 
+const PROMPT_TEMPLATE_VALUES_KEY = 'promptTemplateValues';
+
 const TEMPLATE_REGEX = /\$[A-Z][A-Z0-9_]*/g;
 const COMBO_REGEX = /\{[^{}]*\|[^{}]*\}/g;
 const WILDCARD_TOKEN_REGEX = /__([a-zA-Z0-9_\-]+)__/g;
@@ -809,16 +811,17 @@ export const PromptsView = () => {
   const [editPrompt, setEditPrompt] = useState<Prompt | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [sendPrompt, setSendPrompt] = useState<Prompt | null>(null);
-  const [sendModel, setSendModel] = useState('llama3');
   const [sendResponse, setSendResponse] = useState('');
   const [isMassImportOpen, setIsMassImportOpen] = useState(false);
   const [massImportText, setMassImportText] = useState('');
-  const [isValorizeOpen, setIsValorizeOpen] = useState(false);
-  const [templateValues, setTemplateValues] = useState<Record<string, string[]>>({});
+  const [showTemplateDrawer, setShowTemplateDrawer] = useState(false);
+  const [templateValues, setTemplateValues] = useState<Record<string, string[]>>(() => {
+    try { return JSON.parse(localStorage.getItem(PROMPT_TEMPLATE_VALUES_KEY) || '{}'); } catch { return {}; }
+  });
   const [valorizedTexts, setValorizedTexts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
 
   // Find & replace
   const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
@@ -835,7 +838,6 @@ export const PromptsView = () => {
 
   const txtInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
   const wildcardCacheRef = useRef(new Map<string, string[]>()).current;
 
   const w = window as any;
@@ -843,15 +845,6 @@ export const PromptsView = () => {
   useEffect(() => {
     loadPrompts();
   }, []);
-
-  useEffect(() => {
-    if (!moreMenuOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [moreMenuOpen]);
 
   const loadPrompts = async () => {
     setLoading(true);
@@ -884,7 +877,7 @@ export const PromptsView = () => {
     try {
       const isEdit = !!p.id;
       const res = await fetch(isEdit ? `/api/prompts/${p.id}` : '/api/prompts', {
-        method: isEdit ? 'PUT' : 'POST',
+        method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(p)
       });
@@ -936,23 +929,6 @@ export const PromptsView = () => {
     if (!sendPrompt) return;
     const text = valorizedTexts[sendPrompt.id] || sendPrompt.text;
 
-    if (serviceId === '__llama__') {
-      setSendResponse('Running…');
-      try {
-        const r = await fetch('/api/prompts/run-local', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, model: sendModel })
-        });
-        const d = await r.json();
-        if (!r.ok) { setSendResponse('Error: ' + (d.error || r.status)); return; }
-        setSendResponse(d.response || '(no response)');
-      } catch (e: any) {
-        setSendResponse('Error: ' + e.message);
-      }
-      return;
-    }
-
     if (serviceId === '__comfyui__') {
       setSendResponse('Queuing in ComfyUI…');
       try {
@@ -1003,32 +979,42 @@ export const PromptsView = () => {
 
   // $START / $END are fixed templates: if given a value, it's prepended/appended
   // to every prompt's text (rather than substituted for a placeholder in the text).
-  const applyValorize = () => {
+  const computeValorizedTexts = (vals: Record<string, string[]>): Record<string, string> => {
     const newValorizedTexts: Record<string, string> = {};
-    const startVals = (templateValues['START'] || []).filter(Boolean);
-    const endVals = (templateValues['END'] || []).filter(Boolean);
+    const startVals = (vals['START'] || []).filter(Boolean);
+    const endVals = (vals['END'] || []).filter(Boolean);
     prompts.forEach(p => {
       const tpls = [...new Set(p.text.match(TEMPLATE_REGEX) || [])].filter(t => t !== '$START' && t !== '$END');
       let text = p.text;
       tpls.forEach(t => {
         const name = t.slice(1);
-        const vals = templateValues[name];
-        if (vals && vals.length) text = text.split(t).join(vals[Math.floor(Math.random() * vals.length)]);
+        const tplVals = vals[name];
+        if (tplVals && tplVals.length) text = text.split(t).join(tplVals[Math.floor(Math.random() * tplVals.length)]);
       });
       if (startVals.length) text = startVals[Math.floor(Math.random() * startVals.length)] + ' ' + text;
       if (endVals.length) text = text + ' ' + endVals[Math.floor(Math.random() * endVals.length)];
       if (text !== p.text) newValorizedTexts[p.id] = text;
     });
+    return newValorizedTexts;
+  };
+
+  const applyValorize = () => {
+    const newValorizedTexts = computeValorizedTexts(templateValues);
     setValorizedTexts(newValorizedTexts);
-    setIsValorizeOpen(false);
     const count = Object.keys(newValorizedTexts).length;
     if (w.toast) w.toast(count ? 'Templates valorized in ' + count + ' prompt' + (count > 1 ? 's' : '') : 'No templates matched');
   };
 
+  // Remember template values across sessions, and live-update the preview as you type.
+  useEffect(() => {
+    localStorage.setItem(PROMPT_TEMPLATE_VALUES_KEY, JSON.stringify(templateValues));
+    if (Object.keys(templateValues).length === 0) { setValorizedTexts({}); return; }
+    setValorizedTexts(computeValorizedTexts(templateValues));
+  }, [templateValues, prompts]);
+
   const clearValorize = () => {
     setTemplateValues({});
     setValorizedTexts({});
-    setIsValorizeOpen(false);
     if (w.toast) w.toast('Valorization cleared');
   };
 
@@ -1068,7 +1054,7 @@ export const PromptsView = () => {
       const newText = p.text.replace(re, frReplace);
       if (newText === p.text) continue;
       try {
-        const r = await fetch(`/api/prompts/${p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: newText }) });
+        const r = await fetch(`/api/prompts/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: newText }) });
         if (r.ok) { next[i] = { ...p, text: newText }; updated++; }
       } catch {}
     }
@@ -1126,6 +1112,18 @@ export const PromptsView = () => {
     const p = pool[Math.floor(Math.random() * pool.length)];
     setExpandedIds(prev => new Set(prev).add(p.id));
     setSendPrompt(p);
+  };
+
+  const shufflePrompts = () => {
+    setPrompts(prev => {
+      const arr = [...prev];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    });
+    if (w.toast) w.toast('Shuffled');
   };
 
   const handleTxtImport = async (e: Event) => {
@@ -1213,34 +1211,76 @@ export const PromptsView = () => {
             />
             {query && <span style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginLeft: '8px' }}>{filteredPrompts.length} / {prompts.length}</span>}
           </div>
-          {Object.keys(valorizedTexts).length > 0 && (
-            <button className="sort-btn sort-btn--valorize-active" onClick={() => setIsValorizeOpen(true)} title="Templates are valorized — click to edit or clear">Valorized</button>
-          )}
+          <button className={`sort-btn ${showTemplateDrawer || Object.keys(valorizedTexts).length > 0 ? 'sort-btn--valorize-active' : ''}`} onClick={() => setShowTemplateDrawer(v => !v)} title="Global templates ($NAME, $JOB, …) and $START / $END — assign values to swap them across all prompts">🧩 Templates</button>
           <button className="sort-btn" onClick={openRandomPrompt} title="Pick a random prompt">🎲 Random</button>
-          <button className="sort-btn sort-btn--primary" onClick={() => setIsAddModalOpen(true)}>+ New Prompt</button>
-          <div className="pt-more-wrap" ref={moreMenuRef}>
-            <button className="sort-btn" onClick={() => setMoreMenuOpen(v => !v)}>⋯ More</button>
-            {moreMenuOpen && (
-              <div className="pt-more-menu">
-                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); setIsMassImportOpen(true); }}>Mass Import</button>
-                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); txtInputRef.current?.click(); }} title="Import a .txt file — each line becomes a prompt">Import TXT</button>
-                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); jsonInputRef.current?.click(); }} title="Import prompts from a JSON file">Import JSON</button>
-                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); exportJson(); }} title="Export all prompts as JSON">Export JSON</button>
-                <div className="pt-more-menu-sep" />
-                <button className={`pt-more-menu-item ${Object.keys(valorizedTexts).length > 0 ? 'pt-more-menu-item--active' : ''}`} onClick={() => { setMoreMenuOpen(false); setIsValorizeOpen(true); }} title="Global templates ($NAME, $JOB, …) — assign values to swap them across all prompts">Templates ($NAME)</button>
-                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); setIsFindReplaceOpen(true); }} title="Find and replace a word or phrase across every prompt">Find &amp; Replace</button>
-                <button className="pt-more-menu-item" onClick={() => {
-                  setMoreMenuOpen(false);
-                  const text = filteredPrompts.map(p => valorizedTexts[p.id] || p.text).join('\n\n');
-                  navigator.clipboard.writeText(text).then(() => { if (w.toast) w.toast('Copied ' + filteredPrompts.length + ' prompts'); });
-                }}>Copy All</button>
-                <div className="pt-more-menu-sep" />
-                <button className="pt-more-menu-item pt-more-menu-item--danger" onClick={() => { setMoreMenuOpen(false); deleteAllPrompts(); }}>Delete All</button>
-              </div>
-            )}
+          <button className="sort-btn" onClick={shufflePrompts} title="Shuffle the display order">🔀 Shuffle</button>
+          <div className="pt-view-toggle">
+            <button className={`pt-view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`} onClick={() => setViewMode('card')} title="Card view">▦</button>
+            <button className={`pt-view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')} title="List view">☰</button>
           </div>
+          <button className="sort-btn sort-btn--primary" onClick={() => setIsAddModalOpen(true)}>+ New Prompt</button>
+          <button className="sort-btn" onClick={() => setIsMassImportOpen(true)}>Mass Import</button>
+          <button className="sort-btn" onClick={() => txtInputRef.current?.click()} title="Import a .txt file — each line becomes a prompt">Import TXT</button>
+          <button className="sort-btn" onClick={() => jsonInputRef.current?.click()} title="Import prompts from a JSON file">Import JSON</button>
+          <button className="sort-btn" onClick={exportJson} title="Export all prompts as JSON">Export JSON</button>
+          <button className="sort-btn" onClick={() => setIsFindReplaceOpen(true)} title="Find and replace a word or phrase across every prompt">Find &amp; Replace</button>
+          <button className="sort-btn" onClick={() => {
+            const text = filteredPrompts.map(p => valorizedTexts[p.id] || p.text).join('\n\n');
+            navigator.clipboard.writeText(text).then(() => { if (w.toast) w.toast('Copied ' + filteredPrompts.length + ' prompts'); });
+          }}>Copy All</button>
+          <button className="sort-btn pt-danger-btn" onClick={deleteAllPrompts}>Delete All</button>
         </div>
       </div>
+
+      {showTemplateDrawer && (
+        <div className="pt-template-drawer">
+          <div className="pt-template-drawer-head">
+            <span className="pt-template-drawer-title">🧩 Global Templates</span>
+            <span className="pt-template-drawer-hint">Recognized <span className="pt-token pt-token--template">$UPPERCASE</span> placeholders — set values and Apply to swap them across every prompt below.</span>
+          </div>
+          <div className="pt-template-drawer-body">
+            {([['START', '$START — prepended to every prompt'], ['END', '$END — appended to every prompt']] as const).map(([name, label]) => (
+              <div className="pt-template-row" key={name}>
+                <div className="pt-template-name" style={{ color: '#e84040' }} title={label}>${name}</div>
+                <textarea
+                  className="pt-template-input"
+                  placeholder={`One value per line — randomly ${name === 'START' ? 'prepended to' : 'appended to'} every prompt when valorized`}
+                  value={(templateValues[name] || []).join('\n')}
+                  onInput={(e: any) => {
+                    const lines = e.target.value.split('\n').map((l: string) => l.trim()).filter(Boolean);
+                    setTemplateValues({ ...templateValues, [name]: lines });
+                  }}
+                />
+              </div>
+            ))}
+            {templates.length === 0 ? (
+              <div className="pt-template-empty">No other $UPPERCASE template strings found in your prompts.</div>
+            ) : (
+              templates.map(t => {
+                const name = t.slice(1);
+                return (
+                  <div className="pt-template-row" key={t}>
+                    <div className="pt-template-name">{t}</div>
+                    <textarea
+                      className="pt-template-input"
+                      placeholder="One value per line"
+                      value={(templateValues[name] || []).join('\n')}
+                      onInput={(e: any) => {
+                        const lines = e.target.value.split('\n').map((l: string) => l.trim()).filter(Boolean);
+                        setTemplateValues({ ...templateValues, [name]: lines });
+                      }}
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="pt-template-drawer-actions">
+            <button className="modal-btn" onClick={clearValorize} style={{ display: Object.keys(valorizedTexts).length > 0 ? '' : 'none' }}>Clear</button>
+            <button className="btn-primary" onClick={applyValorize}>Apply</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: '16px 0' }}>
         {loading && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>Loading…</div>}
@@ -1250,7 +1290,7 @@ export const PromptsView = () => {
           </div>
         )}
         {!loading && filteredPrompts.length > 0 && (
-          <div className="pt-card-list">
+          <div className={`pt-card-list ${viewMode === 'list' ? 'pt-view-list' : ''}`}>
             {filteredPrompts.map(p => {
               const isValorized = !!valorizedTexts[p.id];
               const displayText = valorizedTexts[p.id] || p.text;
@@ -1338,11 +1378,6 @@ export const PromptsView = () => {
               </div>
               <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--tx2)', marginTop: '5px' }}>Local Execution</div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input className="stg-ta" style={{ flex: 1, padding: '8px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px' }}
-                  placeholder="Model (e.g. llama3)" value={sendModel} onInput={(e: any) => setSendModel(e.target.value)} />
-                <button className="pt-btn" style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }} onClick={() => execSendPromptTo('__llama__')}>
-                  Run with Ollama
-                </button>
                 <button className="pt-btn" style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', cursor: 'pointer' }} onClick={() => execSendPromptTo('__comfyui__')} title="Queue this prompt on your running ComfyUI instance (configure workflow in Settings)">
                   Send to ComfyUI
                 </button>
@@ -1378,66 +1413,6 @@ export const PromptsView = () => {
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
               <button className="modal-btn" onClick={() => setIsMassImportOpen(false)}>Cancel</button>
               <button className="btn-primary" onClick={saveMassImport}>Import</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Valorize Modal */}
-      {isValorizeOpen && (
-        <div className="modal on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000 }}>
-          <div className="modal-dialog" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '24px', width: '600px', maxWidth: '90%' }}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0 }}>Valorize Templates</h3>
-              <button className="modal-close" onClick={() => setIsValorizeOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {([['START', '$START — prepended to every prompt'], ['END', '$END — appended to every prompt']] as const).map(([name, label]) => (
-                  <div key={name} style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ width: '100px', fontWeight: '500', color: '#e84040' }} title={label}>${name}</div>
-                    <textarea
-                      style={{ flex: 1, height: '44px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px', borderRadius: '4px', resize: 'vertical' }}
-                      placeholder={`One value per line — randomly ${name === 'START' ? 'prepended to' : 'appended to'} every prompt when valorized`}
-                      value={(templateValues[name] || []).join('\n')}
-                      onInput={(e: any) => {
-                        const lines = e.target.value.split('\n').map((l: string) => l.trim()).filter(Boolean);
-                        setTemplateValues({ ...templateValues, [name]: lines });
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-              {templates.length === 0 ? (
-                <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No other template strings ($UPPERCASE) found in your prompts.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {templates.map(t => {
-                    const name = t.slice(1);
-                    return (
-                      <div key={t} style={{ display: 'flex', gap: '12px' }}>
-                        <div style={{ width: '100px', fontWeight: '500', color: 'var(--tx)' }}>{t}</div>
-                        <textarea
-                          style={{ flex: 1, height: '60px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px', borderRadius: '4px', resize: 'vertical' }}
-                          placeholder="One value per line"
-                          value={(templateValues[name] || []).join('\n')}
-                          onInput={(e: any) => {
-                            const lines = e.target.value.split('\n').map((l: string) => l.trim()).filter(Boolean);
-                            setTemplateValues({ ...templateValues, [name]: lines });
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-              <button className="modal-btn" onClick={clearValorize} style={{ display: Object.keys(valorizedTexts).length > 0 ? '' : 'none' }}>Clear</button>
-              <button className="modal-btn" onClick={() => setIsValorizeOpen(false)}>Cancel</button>
-              <button className="btn-primary" onClick={applyValorize}>Apply</button>
             </div>
           </div>
         </div>

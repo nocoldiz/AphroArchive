@@ -28,7 +28,7 @@ body { background: #000; color: #fff; font-family: -apple-system, BlinkMacSystem
 .ig-content { margin-left: 245px; flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 0; min-width: 0; }
 
 /* ── Feed ── */
-.ig-feed { flex: none; width: 680px; max-width: 100%; padding: 24px 12px; display: flex; flex-direction: column; }
+.ig-feed { flex: none; width: 940px; max-width: 100%; padding: 24px 12px; display: flex; flex-direction: column; }
 .ig-feed.hidden { display: none; }
 
 /* Stories */
@@ -184,8 +184,8 @@ body { background: #000; color: #fff; font-family: -apple-system, BlinkMacSystem
 .ig-modal-close { position: fixed; top: 16px; right: 20px; background: none; border: none; color: #fff; cursor: pointer; font-size: 28px; z-index: 1001; line-height: 1; }
 .ig-modal-inner { display: flex; max-width: 96vw; max-height: 94vh; background: #000; border-radius: 4px; overflow: hidden; border: 1px solid #262626; }
 .ig-modal-media { flex: 1; background: #111; display: flex; align-items: center; justify-content: center; min-width: 0; }
-.ig-modal-media video { max-width: min(1100px,72vw); max-height: 94vh; display: block; }
-.ig-modal-media img { max-width: min(1100px,72vw); max-height: 94vh; display: block; object-fit: contain; }
+.ig-modal-media video { max-width: min(1400px,86vw); max-height: 94vh; display: block; }
+.ig-modal-media img { max-width: min(1400px,86vw); max-height: 94vh; display: block; object-fit: contain; }
 .ig-modal-side { width: 335px; display: flex; flex-direction: column; border-left: 1px solid #262626; flex-shrink: 0; --cw-brd: #262626; --cw-tx2: #a8a8a8; --cw-inp: #1a1a1a; --ac: #0095f6; }
 .ig-modal-header { padding: 14px 16px; border-bottom: 1px solid #262626; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .ig-modal-info { flex: 1; min-width: 0; }
@@ -282,7 +282,7 @@ body { background: #000; color: #fff; font-family: -apple-system, BlinkMacSystem
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-@media (max-width: 1264px) { .ig-right { display: none; } }
+@media (max-width: 1500px) { .ig-right { display: none; } }
 @media (max-width: 768px) {
   .ig-nav {
     width: 100%; height: auto;

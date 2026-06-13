@@ -52,9 +52,6 @@
     "@preact/signals": "^2.9.0",
     "preact": "^10.29.1"
   },
-  "optionalDependencies": {
-    "node-llama-cpp": "^3.18.1"
-  },
   "devDependencies": {
     "@capacitor/android": "^8.3.4",
     "@capacitor/cli": "^8.3.4",

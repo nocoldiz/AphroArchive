@@ -6376,60 +6376,9 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   color: #fff
 }
 
-.pt-more-wrap {
-  position: relative
-}
-
-.pt-more-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 200;
-  background: var(--bg2);
-  border: 1px solid var(--brd);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.25);
-  min-width: 180px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px
-}
-
-.pt-more-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  text-align: left;
-  padding: 7px 10px;
-  border-radius: 5px;
-  border: none;
-  background: none;
-  color: var(--tx2);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all var(--tr)
-}
-
-.pt-more-menu-item:hover {
-  background: var(--bg3);
-  color: var(--tx)
-}
-
-.pt-more-menu-item--danger:hover {
+.pt-danger-btn:hover {
   color: #e84040;
   background: #e8404018
-}
-
-.pt-more-menu-sep {
-  height: 1px;
-  background: var(--brd);
-  margin: 4px 2px
-}
-
-.pt-more-menu-item--active {
-  color: var(--ac)
 }
 
 .pt-count {
@@ -6456,6 +6405,58 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   .pt-card-list {
     grid-template-columns: 1fr
   }
+}
+
+.pt-card-list.pt-view-list {
+  grid-template-columns: 1fr
+}
+
+.pt-card-list.pt-view-list .pt-card {
+  flex-direction: row;
+  align-items: flex-start
+}
+
+.pt-card-list.pt-view-list .pt-card-actions {
+  flex-direction: column;
+  border-top: none;
+  border-left: 1px solid var(--brd);
+  padding-top: 0;
+  padding-left: 8px;
+  margin-top: 0;
+  align-self: stretch;
+  justify-content: center
+}
+
+.pt-view-toggle {
+  display: flex;
+  border: 1px solid var(--brd);
+  border-radius: 6px;
+  overflow: hidden
+}
+
+.pt-view-toggle-btn {
+  background: var(--bg3);
+  border: none;
+  color: var(--tx3);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: all var(--tr)
+}
+
+.pt-view-toggle-btn + .pt-view-toggle-btn {
+  border-left: 1px solid var(--brd)
+}
+
+.pt-view-toggle-btn.active {
+  background: var(--ac);
+  color: #fff
+}
+
+.pt-view-toggle-btn:not(.active):hover {
+  background: var(--bg2);
+  color: var(--tx)
 }
 
 .pt-card {
@@ -6628,6 +6629,83 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 .pt-fr-info {
   font-size: 0.78rem;
   color: var(--tx3)
+}
+
+/* ── Inline global template drawer ── */
+.pt-template-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--brd);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px
+}
+
+.pt-template-drawer-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px
+}
+
+.pt-template-drawer-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--tx)
+}
+
+.pt-template-drawer-hint {
+  font-size: 0.8rem;
+  color: var(--tx2)
+}
+
+.pt-template-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px
+}
+
+.pt-template-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start
+}
+
+.pt-template-name {
+  width: 100px;
+  flex-shrink: 0;
+  font-weight: 500;
+  font-family: monospace;
+  color: var(--tx);
+  padding-top: 8px
+}
+
+.pt-template-input {
+  flex: 1;
+  min-height: 44px;
+  background: var(--bg3);
+  border: 1px solid var(--brd);
+  color: var(--tx);
+  padding: 8px;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.85rem
+}
+
+.pt-template-empty {
+  color: var(--tx2);
+  font-size: 0.85rem
+}
+
+.pt-template-drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px
 }
 
 /* Prompt modal */
@@ -7449,11 +7527,28 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 }
 
 /* ─── Premium Modals ─── */
+.modal-header {
+  margin-bottom: 16px;
+}
+
+.modal-header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
 .modal-btn {
   background: var(--bg3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--brd);
   color: var(--tx);
-  padding: 12px;
+  padding: 10px 16px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -7466,12 +7561,12 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 }
 
 .modal-btn:hover {
-  background: var(--border);
+  background: var(--brd);
 }
 
 .modal-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--ac);
+  border-color: var(--ac);
   color: white;
 }
 

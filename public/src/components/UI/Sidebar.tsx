@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos } from '../../store';
+import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 
 interface SidebarItemProps {
   id?: string;
@@ -119,6 +120,7 @@ export const Sidebar = () => {
   const [photoFoldersOpen, setPhotoFoldersOpen] = useState(true);
   const [vaultFolders, setVaultFolders] = useState<{ id: string, name: string }[]>([]);
   const [vaultFoldersOpen, setVaultFoldersOpen] = useState(() => sectionState('vaultFolders'));
+  const [pluginsOpen, setPluginsOpen] = useState(() => sectionState('plugins'));
 
   const toggleLibrary = makeToggle('library', setLibraryOpen);
   const toggleManage = makeToggle('manage', setManageOpen);
@@ -127,6 +129,11 @@ export const Sidebar = () => {
   const toggleTags = makeToggle('tags', setTagsOpen);
   const toggleCats = makeToggle('cats', setCatsOpen);
   const toggleVaultFolders = makeToggle('vaultFolders', setVaultFoldersOpen);
+  const togglePlugins = makeToggle('plugins', setPluginsOpen);
+
+  useEffect(() => {
+    loadPlugins();
+  }, []);
 
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
 
@@ -490,6 +497,22 @@ export const Sidebar = () => {
       </div>
 
       </>
+
+      {/* Plugins */}
+      {pluginsList.value.some(p => p.location === 'sidebar' && isPluginEnabled(p.id)) && <>
+        <div className="side-sep"></div>
+        <SectionHeader label="Plugins" id="sh3-plugins" onClick={togglePlugins} />
+        <div className="side-section" id="pluginsSection" style={{ display: pluginsOpen ? 'block' : 'none' }}>
+          {pluginsList.value.filter(p => p.location === 'sidebar' && isPluginEnabled(p.id)).map(p => (
+            <SidebarItem
+              key={p.id}
+              label={p.name}
+              onClick={() => runPluginAction(p, currentView)}
+              isActive={p.type === 'view' && currentView.value === p.view}
+            />
+          ))}
+        </div>
+      </>}
 
       {/* Tools */}
       <div className="side-sep"></div>

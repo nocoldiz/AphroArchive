@@ -45,14 +45,7 @@ async function apiSavePrefs(req, res) {
     if (!CHRON_MODES.has(body.chronologyMode)) return json(res, { error: 'Invalid value' }, 400);
     prefs.chronologyMode = body.chronologyMode;
   }
-  if ('aiCommentsEnabled' in body) {
-    const wasEnabled = !!prefs.aiCommentsEnabled;
-    prefs.aiCommentsEnabled = !!body.aiCommentsEnabled;
-    if (!wasEnabled && prefs.aiCommentsEnabled) {
-      const comments = require('./comments-server');
-      comments.reinitIfNeeded();
-    }
-  }
+  if ('aiCommentsEnabled' in body) prefs.aiCommentsEnabled = !!body.aiCommentsEnabled;
   if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   if ('vaultSelfDestruct' in body) prefs.vaultSelfDestruct = !!body.vaultSelfDestruct;
   if ('vaultTimeoutMinutes' in body) {
@@ -63,9 +56,6 @@ async function apiSavePrefs(req, res) {
   if ('anthropicApiKey' in body) prefs.anthropicApiKey = String(body.anthropicApiKey || '').trim();
   if ('openrouterApiKey' in body) prefs.openrouterApiKey = String(body.openrouterApiKey || '').trim();
   if ('openrouterModel' in body) prefs.openrouterModel = String(body.openrouterModel || '').trim();
-  if ('visionProvider' in body) prefs.visionProvider = body.visionProvider === 'claude' ? 'claude' : 'ollama';
-  if ('ollamaUrl' in body) prefs.ollamaUrl = String(body.ollamaUrl || '').trim();
-  if ('ollamaVisionModel' in body) prefs.ollamaVisionModel = String(body.ollamaVisionModel || '').trim();
   if ('networkEnabled' in body)   prefs.networkEnabled   = !!body.networkEnabled;
   if ('aiCommentMasterPrompt' in body) prefs.aiCommentMasterPrompt = String(body.aiCommentMasterPrompt || '').trim();
   if ('aiReplyMasterPrompt' in body)   prefs.aiReplyMasterPrompt   = String(body.aiReplyMasterPrompt || '').trim();
@@ -99,7 +89,6 @@ async function apiSavePrefs(req, res) {
   if ('assistantNsfw' in body) prefs.assistantNsfw = !!body.assistantNsfw;
   if ('assistantSystemMode' in body) prefs.assistantSystemMode = String(body.assistantSystemMode || 'default');
   if ('assistantStoryGenre' in body) prefs.assistantStoryGenre = String(body.assistantStoryGenre || 'Any');
-  if ('llamaModelUri' in body) prefs.llamaModelUri = String(body.llamaModelUri || '').trim();
   if ('theme' in body) prefs.theme = String(body.theme || '').trim();
   if ('cardSize' in body && !isNaN(parseInt(body.cardSize, 10))) prefs.cardSize = parseInt(body.cardSize, 10);
   if ('isMuted' in body) prefs.isMuted = !!body.isMuted;
@@ -107,6 +96,9 @@ async function apiSavePrefs(req, res) {
   if ('comfyuiUrl' in body) prefs.comfyuiUrl = String(body.comfyuiUrl || '').trim();
   if ('comfyuiWorkflowJson' in body) prefs.comfyuiWorkflowJson = String(body.comfyuiWorkflowJson || '').trim();
   if ('comfyuiPositiveNodeId' in body) prefs.comfyuiPositiveNodeId = String(body.comfyuiPositiveNodeId || '').trim();
+  if ('disabledPlugins' in body) {
+    if (Array.isArray(body.disabledPlugins)) prefs.disabledPlugins = body.disabledPlugins.map(String);
+  }
   savePrefs(prefs);
   if (feedFoldersChanged) {
     try {

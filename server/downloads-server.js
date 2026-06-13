@@ -236,7 +236,7 @@ async function runJob(next) {
       next.status   = 'done';
       next.progress = 100;
     } catch (e) {
-      if (downloadJobs.has(next.id)) { next.status = 'error'; next.error = e.message; }
+      if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
     } finally {
       dlActive--;
       saveJobs();
@@ -245,14 +245,7 @@ async function runJob(next) {
     return;
   }
   try {
-    try {
-      await runUniversal(next);
-    } catch (universalErr) {
-      // The universal Python scraper (native yt-dlp + generic extractor +
-      // page scraping) couldn't extract — fall back to a plain yt-dlp run.
-      next.error = null;
-      await runYtDlp(next, universalErr);
-    }
+    await runUniversal(next);
     next.status   = 'done';
     next.progress = 100;
     const writeRoot = getDefaultWriteRoot();
@@ -282,64 +275,12 @@ async function runJob(next) {
     }
     await handleLinkConversion(next.url, next.videoId);
   } catch (e) {
-    if (downloadJobs.has(next.id)) { next.status = 'error'; next.error = e.message; }
+    if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
   } finally {
     dlActive--;
     saveJobs();
     processDownloadQueue();
   }
-}
-
-function runYtDlp(job, universalErr) {
-  return new Promise((resolve, reject) => {
-    const cleanCat = (job.category || '').trim();
-    const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
-    const writeRoot = getDefaultWriteRoot();
-    const physicalCat = isVirtual ? '' : cleanCat;
-    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : path.join(writeRoot, 'downloads');
-    try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
-
-    const proc = spawn(YT_DLP_BIN, [
-      '--no-playlist', '--progress', '--newline',
-      '--merge-output-format', 'mp4',
-      '-o', path.join(outDir, '%(title)s.%(ext)s'),
-      job.url,
-    ]);
-    job._kill = () => proc.kill('SIGKILL');
-
-    const parseLine = line => {
-      const dst = line.match(/\[download\] Destination:\s*(.+)/);
-      if (dst) { job.title = path.basename(dst[1].trim()).replace(/\.[^.]+$/, ''); job.outputPath = dst[1].trim(); }
-      const merger = line.match(/\[Merger\] Merging formats into "(.+)"/);
-      if (merger) job.outputPath = merger[1].trim();
-      const already = line.match(/\[download\] (.+) has already been downloaded/);
-      if (already) { job.title = path.basename(already[1].trim()).replace(/\.[^.]+$/, ''); job.progress = 100; job.outputPath = already[1].trim(); }
-      const prog = line.match(/\[download\]\s+([\d.]+)%.*?at\s+(\S+)\s+ETA\s+(\S+)/);
-      if (prog) { job.progress = parseFloat(prog[1]); job.speed = prog[2]; job.eta = prog[3]; }
-    };
-
-    let oBuf = '', eBuf = '';
-    const feed = (buf, data) => {
-      buf += data.toString();
-      const lines = buf.split('\n'); buf = lines.pop();
-      lines.forEach(parseLine); return buf;
-    };
-    proc.stdout.on('data', d => { oBuf = feed(oBuf, d); });
-    proc.stderr.on('data', d => { eBuf = feed(eBuf, d); });
-
-    proc.on('close', code => {
-      if (oBuf) parseLine(oBuf);
-      if (eBuf) parseLine(eBuf);
-      if (code === 0) return resolve();
-      const prefix = universalErr ? `universal scraper: ${universalErr.message}; ` : '';
-      reject(new Error(prefix + 'yt-dlp exited with code ' + code));
-    });
-    proc.on('error', err => reject(new Error(
-      err.code === 'ENOENT'
-        ? 'yt-dlp not found — place yt-dlp.exe next to AphroArchive.exe or add it to PATH'
-        : err.message
-    )));
-  });
 }
 
 // Primary downloader: hand the URL to bulkdownloader.py in single-URL mode.
@@ -472,6 +413,31 @@ function apiDownloadRestartJob(req, res, id) {
   job.speed    = '';
   job.eta      = '';
   job.error    = null;
+  saveJobs();
+  processDownloadQueue();
+  json(res, { ok: true });
+}
+
+// Pause a running job: kills the underlying process but keeps the partial
+// output on disk so yt-dlp/bulkdownloader.py can resume from the .part file.
+function apiDownloadPauseJob(req, res, id) {
+  const job = downloadJobs.get(id);
+  if (!job) return json(res, { error: 'Not found' }, 404);
+  if (job.status !== 'running') return json(res, { error: 'Job is not running' }, 409);
+  job.status = 'paused';
+  job.speed  = '';
+  job.eta    = '';
+  if (job._kill) job._kill();
+  saveJobs();
+  json(res, { ok: true });
+}
+
+function apiDownloadResumeJob(req, res, id) {
+  const job = downloadJobs.get(id);
+  if (!job) return json(res, { error: 'Not found' }, 404);
+  if (job.status !== 'paused') return json(res, { error: 'Job is not paused' }, 409);
+  job.status = 'queued';
+  job.error  = null;
   saveJobs();
   processDownloadQueue();
   json(res, { ok: true });
@@ -638,7 +604,7 @@ processDownloadQueue();
 
 module.exports = {
   apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadRemoveAll, apiDownloadCancelAll, apiDownloadCheck,
-  apiDownloadUpdateJob, apiDownloadRestartJob,
+  apiDownloadUpdateJob, apiDownloadRestartJob, apiDownloadPauseJob, apiDownloadResumeJob,
   apiDownloadGetConfig, apiDownloadSetConfig,
   apiReadDownloadQueue, apiWriteDownloadQueue, apiDownloadQueueAdd, apiDownloadQueueRemove,
   apiBulkDownloadStart, apiBulkDownloadStatus, apiBulkDownloadStop,
