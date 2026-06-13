@@ -63,6 +63,117 @@ interface Prompt {
   sites?: string[];
 }
 
+// ── Template / wildcard / combinatorial syntax helpers ─────────────────
+// $NAME / $JOB / $CLOTHES  → global templates (Valorize drawer)
+// __wildcard__             → resolves to a random line from a wildcard file
+// {opt1|opt2|opt3}         → combinatorial group, expands to one variant per option
+
+const TEMPLATE_REGEX = /\$[A-Z][A-Z0-9_]*/g;
+const COMBO_REGEX = /\{[^{}]*\|[^{}]*\}/g;
+const WILDCARD_TOKEN_REGEX = /__([a-zA-Z0-9_\-]+)__/g;
+const HIGHLIGHT_REGEX = /(\$[A-Z][A-Z0-9_]*)|(__[a-zA-Z0-9_\-]+__)|(\{[^{}]*\|[^{}]*\})/g;
+
+function hasComboGroup(text: string): boolean {
+  return /\{[^{}]*\|[^{}]*\}/.test(text);
+}
+
+function hasWildcardToken(text: string): boolean {
+  return /__[a-zA-Z0-9_\-]+__/.test(text);
+}
+
+function tokenizePromptCombos(text: string): { literals: string[]; groups: string[][] } {
+  const groups: string[][] = [];
+  const literals: string[] = [];
+  let lastIndex = 0;
+  for (const m of text.matchAll(COMBO_REGEX)) {
+    literals.push(text.slice(lastIndex, m.index));
+    groups.push(m[0].slice(1, -1).split('|').map(s => s.trim()).filter(Boolean));
+    lastIndex = (m.index ?? 0) + m[0].length;
+  }
+  literals.push(text.slice(lastIndex));
+  return { literals, groups };
+}
+
+function countCombinations(text: string): number {
+  const { groups } = tokenizePromptCombos(text);
+  if (!groups.length) return 1;
+  return groups.reduce((acc, g) => acc * Math.max(1, g.length), 1);
+}
+
+function expandCombinations(text: string, max = 200): string[] {
+  const { literals, groups } = tokenizePromptCombos(text);
+  if (!groups.length) return [text];
+  let results: string[] = [''];
+  for (let i = 0; i < literals.length; i++) {
+    results = results.map(r => r + literals[i]);
+    if (i < groups.length) {
+      const next: string[] = [];
+      outer: for (const r of results) {
+        for (const opt of groups[i]) {
+          next.push(r + opt);
+          if (next.length >= max) break outer;
+        }
+      }
+      results = next;
+    }
+    if (results.length >= max) break;
+  }
+  return results.slice(0, max);
+}
+
+// Picks one random option per combinatorial group and resolves __wildcard__ tokens
+// against the wildcards stored on the server (cached in `wildcardCache`).
+async function resolveRandomPrompt(text: string, wildcardCache: Map<string, string[]>): Promise<string> {
+  const { literals, groups } = tokenizePromptCombos(text);
+  let result = '';
+  for (let i = 0; i < literals.length; i++) {
+    result += literals[i];
+    if (i < groups.length && groups[i].length) {
+      result += groups[i][Math.floor(Math.random() * groups[i].length)];
+    }
+  }
+  const names = new Set<string>();
+  for (const m of result.matchAll(WILDCARD_TOKEN_REGEX)) names.add(m[1]);
+  for (const name of names) {
+    if (!wildcardCache.has(name)) {
+      try {
+        const r = await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`);
+        if (r.ok) {
+          const d = await r.json();
+          wildcardCache.set(name, (d.lines || []).filter((x: string) => x && !x.startsWith('#')));
+        }
+      } catch { /* leave unresolved */ }
+    }
+  }
+  return result.replace(WILDCARD_TOKEN_REGEX, (full, name) => {
+    const lines = wildcardCache.get(name);
+    return lines && lines.length ? lines[Math.floor(Math.random() * lines.length)] : full;
+  });
+}
+
+// Renders $TEMPLATE (red), __wildcard__ (green) and {combo|combo} (pink) tokens as highlighted chips.
+function renderPromptText(text: string) {
+  const parts: any[] = [];
+  let lastIndex = 0;
+  let key = 0;
+  let m: RegExpExecArray | null;
+  HIGHLIGHT_REGEX.lastIndex = 0;
+  while ((m = HIGHLIGHT_REGEX.exec(text))) {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
+    if (m[1]) {
+      parts.push(<span key={key++} className="pt-token pt-token--template" title="Global template — set its value in the Templates drawer">{m[1]}</span>);
+    } else if (m[2]) {
+      parts.push(<span key={key++} className="pt-token pt-token--wildcard" title="Wildcard — resolves to a random line from this list">{m[2]}</span>);
+    } else if (m[3]) {
+      const opts = m[3].slice(1, -1).split('|').map(s => s.trim()).filter(Boolean);
+      parts.push(<span key={key++} className="pt-token pt-token--combo" title={`${opts.length} options: ${opts.join(', ')}`}>{m[3]}</span>);
+    }
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
 // ── Shared wildcard types + helpers ───────────────────────────────────
 
 interface WildcardFile { name: string; file: string; count: number; preview: string[]; }
@@ -709,9 +820,23 @@ export const PromptsView = () => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
+  // Find & replace
+  const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
+  const [frFind, setFrFind] = useState('');
+  const [frReplace, setFrReplace] = useState('');
+  const [frCaseSensitive, setFrCaseSensitive] = useState(false);
+  const [frRegex, setFrRegex] = useState(false);
+  const [frBusy, setFrBusy] = useState(false);
+
+  // Combinatorial expansion
+  const [comboPrompt, setComboPrompt] = useState<Prompt | null>(null);
+  const [comboSelected, setComboSelected] = useState<Set<number>>(new Set());
+  const [comboBusy, setComboBusy] = useState(false);
+
   const txtInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const wildcardCacheRef = useRef(new Map<string, string[]>()).current;
 
   const w = window as any;
 
@@ -871,21 +996,27 @@ export const PromptsView = () => {
 
   const scanTemplates = () => {
     const found = new Set<string>();
-    prompts.forEach(p => { (p.text.match(/\$[A-Z][A-Z0-9_]*/g) || []).forEach(m => found.add(m)); });
+    prompts.forEach(p => { (p.text.match(TEMPLATE_REGEX) || []).forEach(m => found.add(m)); });
+    found.delete('$START'); found.delete('$END');
     return [...found].sort();
   };
 
+  // $START / $END are fixed templates: if given a value, it's prepended/appended
+  // to every prompt's text (rather than substituted for a placeholder in the text).
   const applyValorize = () => {
     const newValorizedTexts: Record<string, string> = {};
+    const startVals = (templateValues['START'] || []).filter(Boolean);
+    const endVals = (templateValues['END'] || []).filter(Boolean);
     prompts.forEach(p => {
-      const tpls = [...new Set(p.text.match(/\$[A-Z][A-Z0-9_]*/g) || [])];
-      if (!tpls.length) return;
+      const tpls = [...new Set(p.text.match(TEMPLATE_REGEX) || [])].filter(t => t !== '$START' && t !== '$END');
       let text = p.text;
       tpls.forEach(t => {
         const name = t.slice(1);
         const vals = templateValues[name];
         if (vals && vals.length) text = text.split(t).join(vals[Math.floor(Math.random() * vals.length)]);
       });
+      if (startVals.length) text = startVals[Math.floor(Math.random() * startVals.length)] + ' ' + text;
+      if (endVals.length) text = text + ' ' + endVals[Math.floor(Math.random() * endVals.length)];
       if (text !== p.text) newValorizedTexts[p.id] = text;
     });
     setValorizedTexts(newValorizedTexts);
@@ -899,6 +1030,102 @@ export const PromptsView = () => {
     setValorizedTexts({});
     setIsValorizeOpen(false);
     if (w.toast) w.toast('Valorization cleared');
+  };
+
+  // ── Find & Replace across all prompts ──────────────────────────────
+
+  const buildFindReplaceRegex = (): RegExp | null => {
+    if (!frFind) return null;
+    try {
+      const source = frRegex ? frFind : frFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(source, frCaseSensitive ? 'g' : 'gi');
+    } catch { return null; }
+  };
+
+  const findReplaceMatchInfo = () => {
+    const re = buildFindReplaceRegex();
+    if (!re) return { matches: 0, affected: 0, invalid: !!frFind && !!frRegex };
+    let matches = 0, affected = 0;
+    for (const p of prompts) {
+      re.lastIndex = 0;
+      const found = p.text.match(re);
+      if (found && found.length) { matches += found.length; affected++; }
+    }
+    return { matches, affected, invalid: false };
+  };
+
+  const applyFindReplace = async () => {
+    const re = buildFindReplaceRegex();
+    if (!re) return;
+    setFrBusy(true);
+    let updated = 0;
+    const next = [...prompts];
+    for (let i = 0; i < next.length; i++) {
+      const p = next[i];
+      re.lastIndex = 0;
+      if (!re.test(p.text)) continue;
+      re.lastIndex = 0;
+      const newText = p.text.replace(re, frReplace);
+      if (newText === p.text) continue;
+      try {
+        const r = await fetch(`/api/prompts/${p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: newText }) });
+        if (r.ok) { next[i] = { ...p, text: newText }; updated++; }
+      } catch {}
+    }
+    setPrompts(next);
+    setFrBusy(false);
+    setIsFindReplaceOpen(false);
+    if (w.toast) w.toast(updated ? `Replaced in ${updated} prompt${updated !== 1 ? 's' : ''}` : 'No matches found');
+  };
+
+  // ── Combinatorial prompts: {opt1|opt2|opt3} ────────────────────────
+
+  const rollPrompt = async (p: Prompt) => {
+    const resolved = await resolveRandomPrompt(p.text, wildcardCacheRef);
+    setValorizedTexts(v => ({ ...v, [p.id]: resolved }));
+    if (w.toast) w.toast('Rolled a random variant — click 🎲 again to reroll');
+  };
+
+  const openComboModal = (p: Prompt) => {
+    setComboPrompt(p);
+    setComboSelected(new Set());
+  };
+
+  const toggleComboSelection = (idx: number) => {
+    setComboSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const addSelectedCombosAsPrompts = async () => {
+    if (!comboPrompt) return;
+    const variants = expandCombinations(comboPrompt.text, 200);
+    const selected = [...comboSelected].map(i => variants[i]).filter(Boolean);
+    if (!selected.length) { if (w.toast) w.toast('Select at least one variant'); return; }
+    setComboBusy(true);
+    let added = 0;
+    for (const text of selected) {
+      try {
+        const r = await fetch('/api/prompts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+        if (r.ok) added++;
+      } catch {}
+    }
+    setComboBusy(false);
+    setComboPrompt(null);
+    loadPrompts();
+    if (w.toast) w.toast('Added ' + added + ' prompt' + (added !== 1 ? 's' : ''));
+  };
+
+  // ── Random prompt ───────────────────────────────────────────────────
+
+  const openRandomPrompt = () => {
+    const pool = getFilteredPrompts();
+    if (!pool.length) { if (w.toast) w.toast('No prompts to pick from'); return; }
+    const p = pool[Math.floor(Math.random() * pool.length)];
+    setExpandedIds(prev => new Set(prev).add(p.id));
+    setSendPrompt(p);
   };
 
   const handleTxtImport = async (e: Event) => {
@@ -989,6 +1216,7 @@ export const PromptsView = () => {
           {Object.keys(valorizedTexts).length > 0 && (
             <button className="sort-btn sort-btn--valorize-active" onClick={() => setIsValorizeOpen(true)} title="Templates are valorized — click to edit or clear">Valorized</button>
           )}
+          <button className="sort-btn" onClick={openRandomPrompt} title="Pick a random prompt">🎲 Random</button>
           <button className="sort-btn sort-btn--primary" onClick={() => setIsAddModalOpen(true)}>+ New Prompt</button>
           <div className="pt-more-wrap" ref={moreMenuRef}>
             <button className="sort-btn" onClick={() => setMoreMenuOpen(v => !v)}>⋯ More</button>
@@ -999,7 +1227,8 @@ export const PromptsView = () => {
                 <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); jsonInputRef.current?.click(); }} title="Import prompts from a JSON file">Import JSON</button>
                 <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); exportJson(); }} title="Export all prompts as JSON">Export JSON</button>
                 <div className="pt-more-menu-sep" />
-                <button className={`pt-more-menu-item ${Object.keys(valorizedTexts).length > 0 ? 'pt-more-menu-item--active' : ''}`} onClick={() => { setMoreMenuOpen(false); setIsValorizeOpen(true); }}>Valorize Template</button>
+                <button className={`pt-more-menu-item ${Object.keys(valorizedTexts).length > 0 ? 'pt-more-menu-item--active' : ''}`} onClick={() => { setMoreMenuOpen(false); setIsValorizeOpen(true); }} title="Global templates ($NAME, $JOB, …) — assign values to swap them across all prompts">Templates ($NAME)</button>
+                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); setIsFindReplaceOpen(true); }} title="Find and replace a word or phrase across every prompt">Find &amp; Replace</button>
                 <button className="pt-more-menu-item" onClick={() => {
                   setMoreMenuOpen(false);
                   const text = filteredPrompts.map(p => valorizedTexts[p.id] || p.text).join('\n\n');
@@ -1026,11 +1255,16 @@ export const PromptsView = () => {
               const isValorized = !!valorizedTexts[p.id];
               const displayText = valorizedTexts[p.id] || p.text;
               const expanded = expandedIds.has(p.id);
+              const comboCount = countCombinations(p.text);
+              const canRoll = hasComboGroup(p.text) || hasWildcardToken(p.text);
               return (
                 <div className="pt-card" key={p.id}>
                   <div className="pt-card-main">
                     <div className="pt-card-head">
                       <span className="pt-card-title">{p.title || '(untitled)'}</span>
+                      {comboCount > 1 && (
+                        <span className="pt-combo-badge" title={`${comboCount} possible combinations`}>⊞ {comboCount}</span>
+                      )}
                       {(p.tags || []).length > 0 && (
                         <div className="pt-card-tags">
                           {(p.tags || []).map(t => <span key={t} className="pt-card-tag">{t}</span>)}
@@ -1042,10 +1276,16 @@ export const PromptsView = () => {
                       onClick={() => toggleExpanded(p.id)}
                       title={expanded ? 'Click to collapse' : 'Click to expand'}
                     >
-                      {displayText}
+                      {renderPromptText(displayText)}
                     </div>
                   </div>
                   <div className="pt-card-actions">
+                    {canRoll && (
+                      <button className="pt-btn" onClick={() => rollPrompt(p)} title="Roll a random variant (resolves {combo|combo} and __wildcards__)">🎲</button>
+                    )}
+                    {comboCount > 1 && (
+                      <button className="pt-btn" onClick={() => openComboModal(p)} title="Expand all combinations">⊞</button>
+                    )}
                     <button className="pt-btn" onClick={() => copyPromptText(p)} title="Copy prompt text">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     </button>
@@ -1154,8 +1394,24 @@ export const PromptsView = () => {
               </button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {([['START', '$START — prepended to every prompt'], ['END', '$END — appended to every prompt']] as const).map(([name, label]) => (
+                  <div key={name} style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{ width: '100px', fontWeight: '500', color: '#e84040' }} title={label}>${name}</div>
+                    <textarea
+                      style={{ flex: 1, height: '44px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px', borderRadius: '4px', resize: 'vertical' }}
+                      placeholder={`One value per line — randomly ${name === 'START' ? 'prepended to' : 'appended to'} every prompt when valorized`}
+                      value={(templateValues[name] || []).join('\n')}
+                      onInput={(e: any) => {
+                        const lines = e.target.value.split('\n').map((l: string) => l.trim()).filter(Boolean);
+                        setTemplateValues({ ...templateValues, [name]: lines });
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
               {templates.length === 0 ? (
-                <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No template strings ($UPPERCASE) found in your prompts.</div>
+                <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No other template strings ($UPPERCASE) found in your prompts.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {templates.map(t => {
@@ -1181,11 +1437,92 @@ export const PromptsView = () => {
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
               <button className="modal-btn" onClick={clearValorize} style={{ display: Object.keys(valorizedTexts).length > 0 ? '' : 'none' }}>Clear</button>
               <button className="modal-btn" onClick={() => setIsValorizeOpen(false)}>Cancel</button>
-              {templates.length > 0 && <button className="btn-primary" onClick={applyValorize}>Apply</button>}
+              <button className="btn-primary" onClick={applyValorize}>Apply</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Find & Replace Modal */}
+      {isFindReplaceOpen && (() => {
+        const info = findReplaceMatchInfo();
+        return (
+          <div className="modal on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000 }}>
+            <div className="modal-dialog" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '24px', width: '480px', maxWidth: '90%' }}>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0 }}>Find &amp; Replace</h3>
+                <button className="modal-close" aria-label="Close" onClick={() => setIsFindReplaceOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div className="modal-body pt-fr-row">
+                <input className="modal-input" placeholder="Find…" value={frFind}
+                  onInput={(e: any) => setFrFind(e.target.value)}
+                  style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px', borderRadius: '4px' }} autoFocus />
+                <input className="modal-input" placeholder="Replace with…" value={frReplace}
+                  onInput={(e: any) => setFrReplace(e.target.value)}
+                  style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px', borderRadius: '4px' }} />
+                <div className="pt-fr-checks">
+                  <label><input type="checkbox" checked={frCaseSensitive} onChange={(e: any) => setFrCaseSensitive(e.target.checked)} /> Case sensitive</label>
+                  <label><input type="checkbox" checked={frRegex} onChange={(e: any) => setFrRegex(e.target.checked)} /> Regex</label>
+                </div>
+                {frFind && (
+                  <div className="pt-fr-info">
+                    {info.invalid ? 'Invalid regular expression' :
+                      `${info.matches} match${info.matches !== 1 ? 'es' : ''} in ${info.affected} prompt${info.affected !== 1 ? 's' : ''}`}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+                <button className="modal-btn" onClick={() => setIsFindReplaceOpen(false)}>Cancel</button>
+                <button className="btn-primary" disabled={!frFind || info.matches === 0 || frBusy} onClick={applyFindReplace}>
+                  {frBusy ? 'Replacing…' : 'Replace All'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Combinatorial Expansion Modal */}
+      {comboPrompt && (() => {
+        const variants = expandCombinations(comboPrompt.text, 200);
+        const allSelected = comboSelected.size === variants.length && variants.length > 0;
+        return (
+          <div className="modal on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000 }}>
+            <div className="modal-dialog" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '24px', width: '640px', maxWidth: '92%' }}>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0 }}>Expand Combinations ({variants.length}{countCombinations(comboPrompt.text) > 200 ? '+' : ''})</h3>
+                <button className="modal-close" aria-label="Close" onClick={() => setComboPrompt(null)} style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--tx3)' }}>{comboSelected.size} selected — pick variants to save as new prompts</span>
+                  <button className="modal-btn" onClick={() => setComboSelected(allSelected ? new Set() : new Set(variants.map((_, i) => i)))}>
+                    {allSelected ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <div className="pt-combo-list">
+                  {variants.map((v, i) => (
+                    <label className="pt-combo-item" key={i}>
+                      <input type="checkbox" checked={comboSelected.has(i)} onChange={() => toggleComboSelection(i)} />
+                      <span>{renderPromptText(v)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+                <button className="modal-btn" onClick={() => setComboPrompt(null)}>Cancel</button>
+                <button className="btn-primary" disabled={comboSelected.size === 0 || comboBusy} onClick={addSelectedCombosAsPrompts}>
+                  {comboBusy ? 'Adding…' : `Add ${comboSelected.size || ''} as New Prompt${comboSelected.size === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

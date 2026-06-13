@@ -157,19 +157,9 @@ class BulkDownloaderGUI(tk.Tk):
         self.url_count_var = tk.StringVar(value='0 URLs')
         self.progress_pct_var = tk.StringVar(value='0%')
 
-        # Search / website registry state
-        self.websites = site_search.load_websites(WEBSITES_FILE)
-        self.search_queue = queue.Queue()
-        self.search_query_var = tk.StringVar()
-        self.search_status_var = tk.StringVar(value='')
-        self._search_running = False
-        self._search_stop = False
-        self._search_result_data = {}  # treeview iid -> result dict
-
         self._setup_style()
         self._build_ui()
         self.after(100, self._poll_queue)
-        self.after(100, self._poll_search_queue)
         self.protocol('WM_DELETE_WINDOW', self._on_close)
 
     # ── styling ──────────────────────────────────────────────────────

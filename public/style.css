@@ -6440,16 +6440,29 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 }
 
 .pt-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
   margin-top: 16px
+}
+
+@media (max-width: 1100px) {
+  .pt-card-list {
+    grid-template-columns: repeat(2, 1fr)
+  }
+}
+
+@media (max-width: 680px) {
+  .pt-card-list {
+    grid-template-columns: 1fr
+  }
 }
 
 .pt-card {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 12px 14px;
   background: var(--bg2);
   border: 1px solid var(--brd);
@@ -6520,7 +6533,101 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  align-self: center
+  justify-content: flex-end;
+  border-top: 1px solid var(--brd);
+  padding-top: 6px;
+  margin-top: auto
+}
+
+/* ── Visual wildcard / combinatorial tokens ── */
+.pt-token {
+  display: inline;
+  border-radius: 4px;
+  padding: 0 3px;
+  font-family: monospace;
+  font-size: 0.82em;
+  white-space: nowrap
+}
+
+.pt-token--wildcard {
+  background: color-mix(in srgb, #2ecc71 18%, transparent);
+  color: #2ecc71
+}
+
+.pt-token--template {
+  background: color-mix(in srgb, #e84040 18%, transparent);
+  color: #e84040
+}
+
+.pt-token--combo {
+  background: color-mix(in srgb, #ff69b4 18%, transparent);
+  color: #ff69b4
+}
+
+.pt-combo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: color-mix(in srgb, #ff69b4 16%, transparent);
+  color: #ff69b4;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap
+}
+
+.pt-combo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px
+}
+
+.pt-combo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--brd);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 0.8rem;
+  color: var(--tx2);
+  line-height: 1.45
+}
+
+.pt-combo-item input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0
+}
+
+.pt-fr-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px
+}
+
+.pt-fr-checks {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--tx2)
+}
+
+.pt-fr-checks label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer
+}
+
+.pt-fr-info {
+  font-size: 0.78rem;
+  color: var(--tx3)
 }
 
 /* Prompt modal */
