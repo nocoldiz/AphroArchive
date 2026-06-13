@@ -10,8 +10,7 @@ db/actors.json
 db/categories.json
 
 
-
-
+android-app/www/assets/*
 dist/public/assets/
 video_downloads/
 db/websites.json
@@ -40,3 +39,5 @@ db/*.db-shm
 db/*.db-wal
 db/last-profile.txt
 android-app/www/index.html
+android-app/www/index.html
+db/last-profile.txt
