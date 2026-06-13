@@ -932,6 +932,14 @@ export const LinksView = () => {
     });
   };
 
+  const copyAllLinks = () => {
+    if (!items.length) return;
+    const text = items.map(item => item.url).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`Copied ${items.length} URLs`);
+    });
+  };
+
   const saveToDb = async () => {
     if (!items.length) {
       alert('No links to save');
@@ -1116,7 +1124,8 @@ export const LinksView = () => {
             Folders
           </button>
           <span className="sg-sep"></span>
-          <button className="sort-btn" onClick={copyAllVisible}>Copy URLs</button>
+          <button className="sort-btn" onClick={copyAllVisible} title="Copy URLs of currently visible/filtered links">Copy URLs</button>
+          <button className="sort-btn" onClick={copyAllLinks} title="Copy URLs of all links, ignoring filters">Copy All Links</button>
           <button className="sort-btn" onClick={openAllVisible}>Open All</button>
           <span className="sg-sep"></span>
           <button

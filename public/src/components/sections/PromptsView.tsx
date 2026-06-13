@@ -828,6 +828,24 @@ export const PromptsView = () => {
       return;
     }
 
+    if (serviceId === '__comfyui__') {
+      setSendResponse('Queuing in ComfyUI…');
+      try {
+        const r = await fetch('/api/prompts/send-comfyui', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const d = await r.json();
+        if (!r.ok) { setSendResponse('Error: ' + (d.error || r.status)); return; }
+        setSendResponse('Queued in ComfyUI (prompt_id: ' + d.prompt_id + ')');
+        if (w.toast) w.toast('Sent to ComfyUI');
+      } catch (e: any) {
+        setSendResponse('Error: ' + e.message);
+      }
+      return;
+    }
+
     const site = PROMPT_SITES.find(s => s.id === serviceId);
     if (!site) return;
     await navigator.clipboard.writeText(text).catch(() => {});
@@ -1084,6 +1102,9 @@ export const PromptsView = () => {
                   placeholder="Model (e.g. llama3)" value={sendModel} onInput={(e: any) => setSendModel(e.target.value)} />
                 <button className="pt-btn" style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }} onClick={() => execSendPromptTo('__llama__')}>
                   Run with Ollama
+                </button>
+                <button className="pt-btn" style={{ padding: '8px 16px', fontSize: '0.85rem', whiteSpace: 'nowrap', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', cursor: 'pointer' }} onClick={() => execSendPromptTo('__comfyui__')} title="Queue this prompt on your running ComfyUI instance (configure workflow in Settings)">
+                  Send to ComfyUI
                 </button>
               </div>
               {sendResponse && (

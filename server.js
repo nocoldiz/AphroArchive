@@ -402,6 +402,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Prompts ──────────────────────────────────────────────────────────
   if (p === '/api/prompts/run-local' && req.method === 'POST') return prompts.apiRunLocal(req, res);
+  if (p === '/api/prompts/send-comfyui' && req.method === 'POST') return prompts.apiSendComfyUI(req, res);
   if (p === '/api/prompts' && req.method === 'GET') return prompts.apiGetPrompts(req, res);
   if (p === '/api/prompts' && req.method === 'POST') return prompts.apiAddPrompt(req, res);
   if (p === '/api/prompts/all' && req.method === 'DELETE') return prompts.apiDeleteAllPrompts(req, res);

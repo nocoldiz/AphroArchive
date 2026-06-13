@@ -86,6 +86,9 @@ export const SettingsView = () => {
   const [verifyStatus, setVerifyStatus] = useState<Record<number, { ok?: boolean; error?: string; checking?: boolean }>>({});
 
   const [comfyuiPath, setComfyuiPath] = useState(prefs.comfyuiPath || '');
+  const [comfyuiUrl, setComfyuiUrl] = useState(prefs.comfyuiUrl || 'http://127.0.0.1:8188');
+  const [comfyuiWorkflowJson, setComfyuiWorkflowJson] = useState(prefs.comfyuiWorkflowJson || '');
+  const [comfyuiPositiveNodeId, setComfyuiPositiveNodeId] = useState(prefs.comfyuiPositiveNodeId || '');
 
   const [genRunning, setGenRunning] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
@@ -798,6 +801,33 @@ export const SettingsView = () => {
                 LoRAs: <code>{comfyuiPath}/models/loras</code>
               </div>
             )}
+          </div>
+
+          {/* ComfyUI Send-Prompt Workflow */}
+          <div style={card}>
+            <h3 style={{ ...cardH, marginBottom: '8px' }}>ComfyUI — Send Prompt</h3>
+            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>
+              Lets "Send Prompt" in AI Prompts queue a generation on your running ComfyUI instance. In ComfyUI,
+              open your image workflow and use <strong>Workflow → Export (API)</strong> to save it, then paste
+              the JSON below. The prompt text replaces the <code>text</code> input of your positive
+              <code>CLIPTextEncode</code> node (auto-detected, or set its node ID explicitly).
+            </p>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--tx2)', display: 'block', marginBottom: '4px' }}>ComfyUI URL</label>
+              <input value={comfyuiUrl} onInput={(e: any) => setComfyuiUrl(e.target.value)} placeholder="http://127.0.0.1:8188" style={inp} />
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--tx2)', display: 'block', marginBottom: '4px' }}>Workflow (API format JSON)</label>
+              <textarea value={comfyuiWorkflowJson} onInput={(e: any) => setComfyuiWorkflowJson(e.target.value)} rows={8} spellcheck={false}
+                placeholder='{"3": {"class_type": "CLIPTextEncode", "inputs": {"text": "...", ...}, "_meta": {"title": "Positive"}}, ...}'
+                style={{ ...inp, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }} />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--tx2)', display: 'block', marginBottom: '4px' }}>Positive prompt node ID (optional)</label>
+              <input value={comfyuiPositiveNodeId} onInput={(e: any) => setComfyuiPositiveNodeId(e.target.value)} placeholder="auto-detect" style={inp} />
+            </div>
+            <button type="button" onClick={() => updatePrefs({ comfyuiUrl, comfyuiWorkflowJson, comfyuiPositiveNodeId })}
+              style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '10px 18px', cursor: 'pointer', fontWeight: 600 }}>Save</button>
           </div>
         </>}
 
