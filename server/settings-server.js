@@ -104,13 +104,6 @@ async function apiSavePrefs(req, res) {
   if ('cardSize' in body && !isNaN(parseInt(body.cardSize, 10))) prefs.cardSize = parseInt(body.cardSize, 10);
   if ('isMuted' in body) prefs.isMuted = !!body.isMuted;
   if ('thumbBlurMode' in body) prefs.thumbBlurMode = String(body.thumbBlurMode || 'show').trim();
-  if ('comfyuiPath' in body) {
-    prefs.comfyuiPath = String(body.comfyuiPath || '').trim();
-    try {
-      const imagegen = require('./imagegen-server');
-      imagegen.applyComfyuiPath(prefs.comfyuiPath);
-    } catch {}
-  }
   savePrefs(prefs);
   if (feedFoldersChanged) {
     try {

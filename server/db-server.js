@@ -1029,7 +1029,7 @@ function loadVaultLinks() {
 function upsertLink(it) {
   if (!it || !it.url) return;
   try {
-    db.prepare(`INSERT OR REPLACE INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`).run(_linkParams(it));
+    db.prepare(`INSERT OR REPLACE INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`).run(..._linkParams(it));
   } catch (e) { console.error('Failed to upsert link:', e); }
 }
 
@@ -1081,7 +1081,7 @@ function saveLinksCache(data) {
     txn(() => {
       db.prepare('DELETE FROM links').run();
       const ins = db.prepare(`INSERT INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`);
-      for (const it of items) ins.run(_linkParams(it));
+      for (const it of items) ins.run(..._linkParams(it));
     });
   } catch (e) { console.error('Failed to save links cache to SQLite:', e); }
 }

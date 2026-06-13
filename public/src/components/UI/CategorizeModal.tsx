@@ -190,7 +190,7 @@ export function CategorizeModal({ mode, uncategorized, categorized, categories, 
                             {item.name}
                           </td>
                           <td style={{ padding: '5px 8px', color: 'var(--tx3)', whiteSpace: 'nowrap', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {item.currentFolder || <em>root</em>}
+                            {item.currentFolder ? item.currentFolder.replace(/\//g, ' / ') : <em>root</em>}
                           </td>
                           <td style={{ padding: '5px 4px' }}>
                             {item.score > 0 ? <ScorePill score={item.score} /> : <span style={{ color: 'var(--tx3)', fontSize: '0.68rem' }}>—</span>}
@@ -205,7 +205,7 @@ export function CategorizeModal({ mode, uncategorized, categorized, categories, 
                                 padding: '2px 4px', fontSize: '0.73rem', cursor: 'pointer', maxWidth: '150px',
                               }}
                             >
-                              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                              {categories.map(cat => <option key={cat} value={cat}>{cat.replace(/\//g, ' / ')}</option>)}
                               <option value={SKIP}>— keep —</option>
                             </select>
                           </td>

@@ -109,11 +109,6 @@ export const presetPickerState = signal<{
 
 export const importModalState = signal<{ visible: boolean }>({ visible: false });
 
-export const imagegenInputState = signal<{
-  imageUrl: string;
-  imagePath: string;
-} | null>(null);
-
 export const currentCategory = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentTagTerms = signal<string[]>([]);
@@ -139,13 +134,19 @@ export function rebuildLinkVidIds(items: any[]) {
 // Bridge for legacy JS
 export const isRecentMode = signal<boolean>(false);
 export const recentVideos = signal<Video[]>([]);
-export const favFilter = signal<boolean>(false);
+export const favFilter = signal<boolean>(localStorage.getItem('favFilter') === 'true');
 export const searchQuery = signal<string>('');
 export const visionModalText = signal<string | null>(null);
 export const showAddToCollectionModal = signal<boolean>(false);
 export const showConnectModal = signal<boolean>(false);
-export const galleryFilter = signal<string>('');
-export const sourceFilter = signal<string>('both');
+export const galleryFilter = signal<string>(localStorage.getItem('galleryFilter') || '');
+export const sourceFilter = signal<string>(localStorage.getItem('sourceFilter') || 'both');
+
+if (typeof window !== 'undefined') {
+  favFilter.subscribe(val => localStorage.setItem('favFilter', val ? 'true' : 'false'));
+  galleryFilter.subscribe(val => localStorage.setItem('galleryFilter', val));
+  sourceFilter.subscribe(val => localStorage.setItem('sourceFilter', val));
+}
 
 if (typeof window !== 'undefined') {
   sourceFilter.subscribe(val => {
@@ -171,12 +172,16 @@ if (typeof document !== 'undefined') {
   });
 }
 export const isLoadingVideos = signal<boolean>(false);
-export const sortMode = signal<string>('date');
-export const isShuffle = signal<boolean>(false);
+export const sortMode = signal<string>(localStorage.getItem('sortMode') || 'date');
+export const isShuffle = signal<boolean>(localStorage.getItem('isShuffle') === 'true');
 // Bumped each time shuffle is (re-)enabled — the only thing that should re-roll order
 export const shuffleSeed = signal(0);
 if (typeof window !== 'undefined') {
-  isShuffle.subscribe(val => { if (val) shuffleSeed.value++; });
+  isShuffle.subscribe(val => {
+    if (val) shuffleSeed.value++;
+    localStorage.setItem('isShuffle', val ? 'true' : 'false');
+  });
+  sortMode.subscribe(val => localStorage.setItem('sortMode', val));
 }
 export const vaultMode = signal<boolean>(false);
 export const isVaultUnlocked = signal<boolean>(false);
@@ -547,10 +552,13 @@ export async function loadVideos() {
 }
 
 async function loadVideosInner() {
+  const isVaultGlobal = activeProfile.value === 'Vault' && vaultGlobalView.value;
+  const videosUrl = isVaultGlobal ? '/api/videos?all=1' : '/api/videos';
+  const categoriesUrl = isVaultGlobal ? '/api/categories?all=1' : '/api/categories';
   const [res, bRes, cRes] = await Promise.all([
-    fetch('/api/videos'),
+    fetch(videosUrl),
     fetch('/api/links/cache?limit=0').catch(() => null),
-    fetch('/api/categories').catch(() => null),
+    fetch(categoriesUrl).catch(() => null),
   ]);
   if (!res.ok) throw new Error('Failed to fetch videos');
   const data = await res.json();

@@ -77,7 +77,6 @@ export async function routeToPath(path: string) {
     '/studios':        'studios',
     '/download-queue': 'download-queue',
     '/prompts':        'prompts',
-    '/imagegen':       'imagegen',
     '/assistant':      'assistant',
     '/categorizer':    'categorizer',
     '/duplicates':     'duplicates',

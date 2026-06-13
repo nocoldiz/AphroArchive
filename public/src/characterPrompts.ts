@@ -269,7 +269,7 @@ export async function generateAdvancedRandomCharacterPrompt(
     for (const name of needed) {
       if (!wildcardCache.has(name)) {
         try {
-          const res = await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`);
+          const res = await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`);
           const data = await res.json();
           const lines: string[] = (data.lines || []).filter((l: string) => l && !l.startsWith('#'));
           wildcardCache.set(name, lines.length ? lines : [name]);

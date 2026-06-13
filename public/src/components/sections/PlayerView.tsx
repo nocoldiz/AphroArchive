@@ -1,4 +1,4 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, imagegenInputState, renameModalState, moveModalState, tagModalState, actorModalState, studioModalState } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, renameModalState, moveModalState, tagModalState, actorModalState, studioModalState } from '../../store';
 import { zapOn, zapStartTime } from '../../zap';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
@@ -310,34 +310,6 @@ export const PlayerView = () => {
     }
   };
 
-  const sendFrameToImagegen = async () => {
-    const vid = videoRef.current;
-    if (!vid) { (window as any).toast?.('Video not loaded'); return; }
-    const canvas = document.createElement('canvas');
-    canvas.width = vid.videoWidth || 512;
-    canvas.height = vid.videoHeight || 512;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(vid, 0, 0);
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      try {
-        const r = await fetch('/api/imagegen/upload', {
-          method: 'POST',
-          headers: { 'x-filename': 'frame.jpg', 'Content-Type': 'image/jpeg' },
-          body: blob,
-        });
-        const d = await r.json();
-        if (d.ok) {
-          imagegenInputState.value = { imageUrl: URL.createObjectURL(blob), imagePath: d.path };
-          currentView.value = 'imagegen';
-        } else {
-          (window as any).toast?.('Upload failed');
-        }
-      } catch { (window as any).toast?.('Upload failed'); }
-    }, 'image/jpeg', 0.92);
-  };
-
   const takeScreenshot = async () => {
     const vid = videoRef.current;
     if (!vid) { (window as any).toast?.('Video not loaded'); return; }
@@ -532,15 +504,6 @@ export const PlayerView = () => {
                 <span>Encrypt</span>
               </button>
 
-              {!video.isLink && (
-                <button onClick={sendFrameToImagegen} title="Capture current frame and open in Image Gen" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-                    <polyline points="21 15 16 10 5 21"/>
-                  </svg>
-                  <span>Frame → Image Gen</span>
-                </button>
-              )}
 
               {!video.isLink && (
                 <button onClick={takeScreenshot} title="Save current frame to Screenshots" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>

@@ -207,27 +207,9 @@ function _scanDir(dir, exts) {
 }
 
 function apiScanModels(req, res) {
-  const prefs = loadPrefs();
-  const comfyPath = prefs.comfyuiPath || '';
-
   // Local LLM models (GGUF)
   const llmModels = _scanDir(MODELS_DIR, ['.gguf']);
-
-  // ComfyUI models — scan standard subdirs
-  const comfyResult = { checkpoints: [], loras: [], vaes: [], embeddings: [], unet: [], gguf: [], text_encoders: [], clip: [] };
-  if (comfyPath) {
-    const modelsBase = path.join(comfyPath, 'models');
-    comfyResult.checkpoints   = _scanDir(path.join(modelsBase, 'checkpoints'),   ['.safetensors', '.ckpt', '.pt']);
-    comfyResult.loras         = _scanDir(path.join(modelsBase, 'loras'),         ['.safetensors', '.pt']);
-    comfyResult.vaes          = _scanDir(path.join(modelsBase, 'vae'),           ['.safetensors', '.pt']);
-    comfyResult.embeddings    = _scanDir(path.join(modelsBase, 'embeddings'),    ['.safetensors', '.pt']);
-    comfyResult.unet          = _scanDir(path.join(modelsBase, 'unet'),          ['.safetensors', '.gguf']);
-    comfyResult.gguf          = _scanDir(path.join(modelsBase, 'gguf'),          ['.gguf']);
-    comfyResult.text_encoders = _scanDir(path.join(modelsBase, 'text_encoders'), ['.safetensors', '.gguf']);
-    comfyResult.clip          = _scanDir(path.join(modelsBase, 'clip'),          ['.safetensors', '.pt']);
-  }
-
-  return json(res, { llm: llmModels, comfyui: comfyResult });
+  return json(res, { llm: llmModels });
 }
 
 module.exports = { apiAssistantChat, apiScanModels };

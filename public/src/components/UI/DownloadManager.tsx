@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 import { categories, loadVideos } from '../../store';
 
 interface DownloadJob {
@@ -93,6 +93,12 @@ export const DownloadManager = () => {
     setJobs(prev => prev.filter(j => j.status === 'done' || j.status === 'error'));
   };
 
+  const removeAll = async () => {
+    if (!confirm('Clear the entire download queue? This cancels any active downloads.')) return;
+    await fetch('/api/download/jobs', { method: 'DELETE' });
+    setJobs([]);
+  };
+
   const moveToCategory = async (job: DownloadJob) => {
     if (!job.videoId) return;
     const cat = moveTarget[job.id] !== undefined ? moveTarget[job.id] : suggestCategory(job.title, cats);
@@ -178,7 +184,7 @@ export const DownloadManager = () => {
         }}>
 
           {/* ── Downloads section ─────────────────────────── */}
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, fontSize: '0.85rem', flex: 1 }}>Downloads {jobs.length > 0 && `(${jobs.length})`}</span>
             {activeDlCount > 0 && (
               <button
@@ -194,6 +200,15 @@ export const DownloadManager = () => {
                 style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.72rem' }}
               >
                 Clear finished
+              </button>
+            )}
+            {jobs.length > 0 && (
+              <button
+                onClick={removeAll}
+                title="Remove all downloads from the queue"
+                style={{ background: 'none', border: 'none', color: '#e55', cursor: 'pointer', fontSize: '0.72rem' }}
+              >
+                Clear all
               </button>
             )}
           </div>

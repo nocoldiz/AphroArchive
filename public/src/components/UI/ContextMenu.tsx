@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, imagegenInputState, currentView } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 
 export const ContextMenu = () => {
@@ -364,13 +364,6 @@ export const ContextMenu = () => {
               data.onOpen();
               contextMenuState.value = { ...contextMenuState.value, visible: false };
             }} />}
-            {type === 'photo' && (
-              <ContextItem label="Send to Image Gen" icon="image" onClick={() => {
-                imagegenInputState.value = { imageUrl: `/api/photos/${data.id}/img`, imagePath: '' };
-                currentView.value = 'imagegen';
-                contextMenuState.value = { ...contextMenuState.value, visible: false };
-              }} />
-            )}
             {data.onEncrypt && (
               <ContextItem label="Encrypt" icon="lock" onClick={() => {
                 contextMenuState.value = { ...contextMenuState.value, visible: false };

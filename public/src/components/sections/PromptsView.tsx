@@ -107,7 +107,7 @@ async function loadCharOptions(cache: Map<string, string[]>, setter: (o: Record<
       for (const name of names) {
         if (!cache.has(name)) {
           try {
-            const res = await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`);
+            const res = await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`);
             if (res.ok) {
               const data = await res.json();
               const l: string[] = (data.lines || []).filter((x: string) => x && !x.startsWith('#'));
@@ -135,11 +135,11 @@ function WildcardEditor({ name, onClose, onSaved }: { name: string; onClose: () 
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!name) return;
-    fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`).then(r => r.json()).then(d => setContent(d.content || '')).catch(() => {});
+    fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`).then(r => r.json()).then(d => setContent(d.content || '')).catch(() => {});
   }, [name]);
   const save = async () => {
     setSaving(true);
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) }).catch(() => {});
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) }).catch(() => {});
     setSaving(false); onSaved(); onClose();
   };
   const lineCount = content.split('\n').filter(l => l.trim() && !l.startsWith('#')).length;
@@ -176,13 +176,13 @@ function WildcardsPanel({ wildcards, onRefresh, onInsert }: {
 
   const deleteWc = async (name: string) => {
     if (!confirm(`Delete wildcard "${name}"?`)) return;
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
     onRefresh();
   };
   const createWc = async () => {
     const safe = newName.trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
     if (!safe) return;
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(safe)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `# ${safe} wildcard\n` }) });
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(safe)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `# ${safe} wildcard\n` }) });
     setNewName(''); setCreating(false); onRefresh(); setEditing(safe);
   };
 
@@ -253,7 +253,7 @@ const PromptBuilderModal = ({ initial, onSave, onClose }: { initial: Prompt | nu
 
   useEffect(() => {
     loadCharOptions(wildcardFullCache, setCharOptions).catch(() => {});
-    fetch('/api/imagegen/assets').then(r => r.json()).then(d => setWildcards(d.wildcards || [])).catch(() => {});
+    fetch('/api/prompts/assets').then(r => r.json()).then(d => setWildcards(d.wildcards || [])).catch(() => {});
   }, []);
 
   const togglePin = (key: string) => {
@@ -367,7 +367,7 @@ const PromptBuilderModal = ({ initial, onSave, onClose }: { initial: Prompt | nu
   };
 
   const reloadWildcards = async () => {
-    try { const r = await fetch('/api/imagegen/assets').then(r => r.json()); setWildcards(r.wildcards || []); } catch {}
+    try { const r = await fetch('/api/prompts/assets').then(r => r.json()); setWildcards(r.wildcards || []); } catch {}
   };
 
   const handleSave = () => {
@@ -706,15 +706,27 @@ export const PromptsView = () => {
   const [templateValues, setTemplateValues] = useState<Record<string, string[]>>({});
   const [valorizedTexts, setValorizedTexts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const txtInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const w = window as any;
 
   useEffect(() => {
     loadPrompts();
   }, []);
+
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [moreMenuOpen]);
 
   const loadPrompts = async () => {
     setLoading(true);
@@ -926,6 +938,19 @@ export const PromptsView = () => {
     if (w.toast) w.toast('Imported ' + added + ' prompt' + (added !== 1 ? 's' : ''));
   };
 
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const copyPromptText = (p: Prompt) => {
+    const text = valorizedTexts[p.id] || p.text;
+    navigator.clipboard?.writeText(text).then(() => { if (w.toast) w.toast('Copied'); });
+  };
+
   const filteredPrompts = getFilteredPrompts();
   const templates = scanTemplates();
 
@@ -934,19 +959,8 @@ export const PromptsView = () => {
       <input ref={txtInputRef} type="file" accept=".txt" aria-label="Import prompts from TXT file" style={{ display: 'none' }} onChange={handleTxtImport as any} />
       <input ref={jsonInputRef} type="file" accept=".json" aria-label="Import prompts from JSON file" style={{ display: 'none' }} onChange={handleJsonImport as any} />
       <div className="section-header">
-        <h2>AI Prompts</h2>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button className="sort-btn" onClick={() => setIsAddModalOpen(true)}>New Prompt</button>
-          <button className="sort-btn" onClick={() => setIsMassImportOpen(true)}>Mass Import</button>
-          <button className="sort-btn" onClick={() => txtInputRef.current?.click()} title="Import a .txt file — each line becomes a prompt">Import TXT</button>
-          <button className="sort-btn" onClick={exportJson} title="Export all prompts as JSON">Export JSON</button>
-          <button className="sort-btn" onClick={() => jsonInputRef.current?.click()} title="Import prompts from a JSON file">Import JSON</button>
-          <button className={`sort-btn ${Object.keys(valorizedTexts).length > 0 ? 'sort-btn--valorize-active' : ''}`} onClick={() => setIsValorizeOpen(true)}>Valorize Template</button>
-          <button className="sort-btn" onClick={() => {
-            const text = filteredPrompts.map(p => valorizedTexts[p.id] || p.text).join('\n\n');
-            navigator.clipboard.writeText(text).then(() => { if (w.toast) w.toast('Copied ' + filteredPrompts.length + ' prompts'); });
-          }}>Copy All</button>
-          <button className="sort-btn" onClick={deleteAllPrompts} style={{ color: 'var(--accent)' }}>Delete All</button>
+        <h2>AI Prompts <span className="pt-count">{prompts.length}</span></h2>
+        <div className="pt-toolbar">
           <div className="gallery-filter-wrap" style={{ display: 'flex', alignItems: 'center' }}>
             <input type="text" placeholder="Filter prompts…" value={query}
               onInput={(e: any) => setQuery(e.target.value)}
@@ -954,53 +968,83 @@ export const PromptsView = () => {
             />
             {query && <span style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginLeft: '8px' }}>{filteredPrompts.length} / {prompts.length}</span>}
           </div>
+          {Object.keys(valorizedTexts).length > 0 && (
+            <button className="sort-btn sort-btn--valorize-active" onClick={() => setIsValorizeOpen(true)} title="Templates are valorized — click to edit or clear">Valorized</button>
+          )}
+          <button className="sort-btn sort-btn--primary" onClick={() => setIsAddModalOpen(true)}>+ New Prompt</button>
+          <div className="pt-more-wrap" ref={moreMenuRef}>
+            <button className="sort-btn" onClick={() => setMoreMenuOpen(v => !v)}>⋯ More</button>
+            {moreMenuOpen && (
+              <div className="pt-more-menu">
+                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); setIsMassImportOpen(true); }}>Mass Import</button>
+                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); txtInputRef.current?.click(); }} title="Import a .txt file — each line becomes a prompt">Import TXT</button>
+                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); jsonInputRef.current?.click(); }} title="Import prompts from a JSON file">Import JSON</button>
+                <button className="pt-more-menu-item" onClick={() => { setMoreMenuOpen(false); exportJson(); }} title="Export all prompts as JSON">Export JSON</button>
+                <div className="pt-more-menu-sep" />
+                <button className={`pt-more-menu-item ${Object.keys(valorizedTexts).length > 0 ? 'pt-more-menu-item--active' : ''}`} onClick={() => { setMoreMenuOpen(false); setIsValorizeOpen(true); }}>Valorize Template</button>
+                <button className="pt-more-menu-item" onClick={() => {
+                  setMoreMenuOpen(false);
+                  const text = filteredPrompts.map(p => valorizedTexts[p.id] || p.text).join('\n\n');
+                  navigator.clipboard.writeText(text).then(() => { if (w.toast) w.toast('Copied ' + filteredPrompts.length + ' prompts'); });
+                }}>Copy All</button>
+                <div className="pt-more-menu-sep" />
+                <button className="pt-more-menu-item pt-more-menu-item--danger" onClick={() => { setMoreMenuOpen(false); deleteAllPrompts(); }}>Delete All</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div style={{ padding: '16px 0' }}>
         {loading && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>Loading…</div>}
         {!loading && filteredPrompts.length === 0 && (
-          <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No prompts found.</div>
+          <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>
+            {prompts.length === 0 ? 'No prompts yet — click "New Prompt" to create one.' : 'No prompts match your filter.'}
+          </div>
         )}
         {!loading && filteredPrompts.length > 0 && (
-          <table className="pt-table" id="prompts-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--brd)' }}>
-                <th style={{ padding: '8px' }}>Title</th>
-                <th style={{ padding: '8px' }}>Prompt</th>
-                <th style={{ padding: '8px', textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPrompts.map(p => {
-                const displayText = valorizedTexts[p.id] || p.text;
-                return (
-                  <tr key={p.id} style={{ borderBottom: '1px solid var(--brd)' }}>
-                    <td className="pt-col-title" style={{ padding: '8px', maxWidth: '200px' }}>
-                      <div className="pt-title" style={{ fontWeight: '500', color: 'var(--tx)' }}>{p.title}</div>
-                      <div className="pt-tags" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
-                        {(p.tags || []).map(t => <span key={t} style={{ background: 'var(--bg3)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', color: 'var(--tx2)' }}>{t}</span>)}
-                      </div>
-                    </td>
-                    <td className="pt-col-text" style={{ padding: '8px' }}>
-                      <div className="pt-text-preview" title={displayText} style={{ fontSize: '0.85rem', color: 'var(--tx2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '500px' }}>{displayText}</div>
-                    </td>
-                    <td className="pt-col-actions" style={{ padding: '8px', textAlign: 'right' }}>
-                      <button className="pt-btn" onClick={() => setSendPrompt(p)} title="Send prompt" style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer', padding: '4px' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                      </button>
-                      <button className="pt-btn" onClick={() => { setEditPrompt(p); setIsAddModalOpen(true); }} title="Edit" style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer', padding: '4px' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button className="pt-btn" onClick={() => deletePrompt(p.id)} title="Delete" style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer', padding: '4px' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="pt-card-list">
+            {filteredPrompts.map(p => {
+              const isValorized = !!valorizedTexts[p.id];
+              const displayText = valorizedTexts[p.id] || p.text;
+              const expanded = expandedIds.has(p.id);
+              return (
+                <div className="pt-card" key={p.id}>
+                  <div className="pt-card-main">
+                    <div className="pt-card-head">
+                      <span className="pt-card-title">{p.title || '(untitled)'}</span>
+                      {(p.tags || []).length > 0 && (
+                        <div className="pt-card-tags">
+                          {(p.tags || []).map(t => <span key={t} className="pt-card-tag">{t}</span>)}
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      className={`pt-card-text ${expanded ? 'expanded' : ''} ${isValorized ? 'pt-card-text--valorized' : ''}`}
+                      onClick={() => toggleExpanded(p.id)}
+                      title={expanded ? 'Click to collapse' : 'Click to expand'}
+                    >
+                      {displayText}
+                    </div>
+                  </div>
+                  <div className="pt-card-actions">
+                    <button className="pt-btn" onClick={() => copyPromptText(p)} title="Copy prompt text">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button className="pt-btn" onClick={() => setSendPrompt(p)} title="Send prompt">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                    <button className="pt-btn" onClick={() => { setEditPrompt(p); setIsAddModalOpen(true); }} title="Edit">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button className="pt-btn pt-btn-del" onClick={() => deletePrompt(p.id)} title="Delete">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 

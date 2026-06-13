@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { ImportLinksToQueueModal } from '../modals/ImportLinksToQueueModal';
 
 interface LinkItem {
   url: string;
@@ -69,6 +70,7 @@ export const DownloadQueueView = () => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'starred' | 'playable' | 'noplay'>('all');
   const [loading, setLoading] = useState(true);
+  const [importOpen, setImportOpen] = useState(false);
   const pollerRef = useRef<any>(null);
 
   const loadData = async () => {
@@ -147,6 +149,19 @@ export const DownloadQueueView = () => {
     } catch {}
   };
 
+  const importSelectedLinks = async (picked: { url: string; category: string }[]) => {
+    setImportOpen(false);
+    if (!picked.length) return;
+    const items = picked.map(p => ({ url: p.url, category: p.category, pendingCategory: p.category }));
+    try {
+      await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
+      const w = window as any;
+      if (w.toast) w.toast(`Added ${picked.length} link(s) to Download Queue`);
+      startPolling();
+      pollJobs();
+    } catch (e) { console.error(e); }
+  };
+
   const getJobForUrl = (url: string) => jobs.find(j => j.url === url);
 
   const activeJobs = jobs.filter(j => j.status === 'queued' || j.status === 'running');
@@ -156,6 +171,14 @@ export const DownloadQueueView = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0, color: 'var(--ac)' }}>Download Queue</h2>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="modal-btn modal-btn--secondary"
+            style={{ padding: '6px 12px', fontSize: '13px' }}
+            title="Pick links from your library to add to the Download Queue"
+          >
+            Import Links
+          </button>
           <input
             type="text" placeholder="Search…" value={search} onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
             style={{ background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px 10px', width: '200px' }}
@@ -296,6 +319,13 @@ export const DownloadQueueView = () => {
       <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--tx3)' }}>
         {visible.length} link{visible.length !== 1 ? 's' : ''} · {links.length} total
       </div>
+
+      {importOpen && (
+        <ImportLinksToQueueModal
+          onImport={importSelectedLinks}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
     </div>
   );
 };

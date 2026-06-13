@@ -246,13 +246,12 @@ async function runJob(next) {
   }
   try {
     try {
-      await runYtDlp(next);
-    } catch (ytErr) {
-      // yt-dlp couldn't extract — fall back to the universal Python scraper,
-      // which scrapes the page (og:video, JSON-LD, <video>, HLS, iframes…)
-      // and downloads via any method possible.
+      await runUniversal(next);
+    } catch (universalErr) {
+      // The universal Python scraper (native yt-dlp + generic extractor +
+      // page scraping) couldn't extract — fall back to a plain yt-dlp run.
       next.error = null;
-      await runUniversal(next, ytErr);
+      await runYtDlp(next, universalErr);
     }
     next.status   = 'done';
     next.progress = 100;
@@ -291,7 +290,7 @@ async function runJob(next) {
   }
 }
 
-function runYtDlp(job) {
+function runYtDlp(job, universalErr) {
   return new Promise((resolve, reject) => {
     const cleanCat = (job.category || '').trim();
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
@@ -331,7 +330,9 @@ function runYtDlp(job) {
     proc.on('close', code => {
       if (oBuf) parseLine(oBuf);
       if (eBuf) parseLine(eBuf);
-      code === 0 ? resolve() : reject(new Error('yt-dlp exited with code ' + code));
+      if (code === 0) return resolve();
+      const prefix = universalErr ? `universal scraper: ${universalErr.message}; ` : '';
+      reject(new Error(prefix + 'yt-dlp exited with code ' + code));
     });
     proc.on('error', err => reject(new Error(
       err.code === 'ENOENT'
@@ -341,11 +342,12 @@ function runYtDlp(job) {
   });
 }
 
-// Universal fallback: hand the URL to bulkdowloader.py in single-URL mode.
-// It scrapes the linked page for video in any way possible (Open Graph,
-// JSON-LD, <video>/<source>, JWPlayer/HLS/DASH configs, iframe recursion,
-// direct stream) and reports the saved file via a `RESULT_FILE:` line.
-function runUniversal(job, ytErr) {
+// Primary downloader: hand the URL to bulkdowloader.py in single-URL mode.
+// It runs yt-dlp's native + generic extractors and, failing that, scrapes
+// the page for video in any way possible (Open Graph, JSON-LD, <video>/
+// <source>, JWPlayer/HLS/DASH configs, iframe recursion, direct stream) and
+// reports the saved file via a `RESULT_FILE:` line.
+function runUniversal(job) {
   return new Promise((resolve, reject) => {
     const cleanCat = (job.category || '').trim();
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
@@ -386,11 +388,11 @@ function runUniversal(job, ytErr) {
       if (oBuf) parseLine(oBuf);
       if (eBuf) parseLine(eBuf);
       if (resultFile && fs.existsSync(resultFile)) return resolve();
-      reject(new Error('No downloadable video found (yt-dlp: ' + (ytErr?.message || 'failed') + ')'));
+      reject(new Error('bulkdowloader.py found no downloadable video (exit code ' + code + ')'));
     });
     proc.on('error', err => reject(new Error(
       err.code === 'ENOENT'
-        ? 'Python not found — install Python 3 to enable universal page scraping (yt-dlp: ' + (ytErr?.message || 'failed') + ')'
+        ? 'Python not found — install Python 3 to enable universal page scraping'
         : err.message
     )));
   });
@@ -437,6 +439,16 @@ function apiDownloadCancelAll(req, res) {
       downloadJobs.delete(id);
     }
   }
+  dlActive = 0;
+  saveJobs();
+  json(res, { ok: true });
+}
+
+function apiDownloadRemoveAll(req, res) {
+  for (const job of downloadJobs.values()) {
+    if (job.status === 'running' && job._kill) job._kill();
+  }
+  downloadJobs.clear();
   dlActive = 0;
   saveJobs();
   json(res, { ok: true });
@@ -625,7 +637,7 @@ loadJobs();
 processDownloadQueue();
 
 module.exports = {
-  apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadCancelAll, apiDownloadCheck,
+  apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadRemoveAll, apiDownloadCancelAll, apiDownloadCheck,
   apiDownloadUpdateJob, apiDownloadRestartJob,
   apiDownloadGetConfig, apiDownloadSetConfig,
   apiReadDownloadQueue, apiWriteDownloadQueue, apiDownloadQueueAdd, apiDownloadQueueRemove,

@@ -38,7 +38,6 @@ const RedditView = lazy(() => import('../sections/RedditView').then(m => ({ defa
 const InstagramView = lazy(() => import('../sections/InstagramView').then(m => ({ default: m.InstagramView })));
 const DatabaseView = lazy(() => import('../sections/DatabaseView').then(m => ({ default: m.DatabaseView })));
 const ActorScraperView = lazy(() => import('../sections/ActorScraperView').then(m => ({ default: m.ActorScraperView })));
-const ImageGenView = lazy(() => import('../sections/ImageGenView').then(m => ({ default: m.ImageGenView })));
 const AssistantView = lazy(() => import('../sections/AssistantView').then(m => ({ default: m.AssistantView })));
 const CategorizerView = lazy(() => import('../sections/CategorizerView').then(m => ({ default: m.CategorizerView })));
 const PromptsView = lazy(() => import('../sections/PromptsView').then(m => ({ default: m.PromptsView })));
@@ -120,7 +119,6 @@ export const MainContent = () => {
     if (view === 'prompts') return <PromptsView />;
     if (view === 'player') return <PlayerView />;
     if (view === 'mosaic')   return <MosaicView />;
-    if (view === 'imagegen') return <ImageGenView />;
     if (view === 'assistant') return <AssistantView />;
     if (view === 'categorizer') return <CategorizerView />;
     if (view === 'duplicates') return <DuplicatesView />;

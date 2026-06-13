@@ -49,7 +49,6 @@ const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
 const { startBackgroundWorker } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
-const imagegen    = require('./server/imagegen-server');
 const assistant   = require('./server/assistant-server');
 
 // ── Startup: create required directories ─────────────────────────────
@@ -148,7 +147,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/videos/categorize-execute' && req.method === 'POST') return videos.apiCategorizeExecute(req, res);
   if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
-  if (p === '/api/categories' && req.method === 'GET') return videos.apiCategories(req, res);
+  if (p === '/api/categories' && req.method === 'GET') return videos.apiCategories(req, res, params);
   if (p === '/api/categories-overview' && req.method === 'GET') return videos.apiCategoriesOverview(req, res);
   if (p === '/api/all-categories' && req.method === 'GET') return videos.apiGetAllCategories(req, res);
   if (p === '/api/enabled-categories' && req.method === 'POST') return videos.apiSetEnabledCategories(req, res);
@@ -237,6 +236,7 @@ const server = http.createServer(async (req, res) => {
   // ── Downloads ────────────────────────────────────────────────────────
   if (p === '/api/download' && req.method === 'POST') return downloads.apiDownloadAdd(req, res);
   if (p === '/api/download/jobs' && req.method === 'GET') return downloads.apiDownloadJobs(req, res);
+  if (p === '/api/download/jobs' && req.method === 'DELETE') return downloads.apiDownloadRemoveAll(req, res);
   if (p === '/api/download/cancel-all' && req.method === 'POST') return downloads.apiDownloadCancelAll(req, res);
   if (p === '/api/download/check' && req.method === 'GET') return downloads.apiDownloadCheck(req, res);
   if ((m = p.match(/^\/api\/download\/jobs\/([^/]+)$/)) && req.method === 'DELETE') return downloads.apiDownloadRemove(req, res, m[1]);
@@ -247,29 +247,6 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/bulk-download/start' && req.method === 'POST') return downloads.apiBulkDownloadStart(req, res);
   if (p === '/api/bulk-download/status' && req.method === 'GET') return downloads.apiBulkDownloadStatus(req, res);
   if (p === '/api/bulk-download/stop' && req.method === 'POST') return downloads.apiBulkDownloadStop(req, res);
-
-  // ── Image Generation ──────────────────────────────────────────────────
-  if (p === '/api/imagegen/config'        && req.method === 'GET')  return imagegen.apiGetConfig(req, res);
-  if (p === '/api/imagegen/config'        && req.method === 'PUT')  return imagegen.apiSetConfig(req, res);
-  if (p === '/api/imagegen/assets'        && req.method === 'GET')  return imagegen.apiGetAssets(req, res);
-  if (p === '/api/imagegen/status'        && req.method === 'GET')  return imagegen.apiGetStatus(req, res);
-  if (p === '/api/imagegen/generate'      && req.method === 'POST') return imagegen.apiGenerate(req, res);
-  if (p === '/api/imagegen/cancel'        && req.method === 'POST') return imagegen.apiCancel(req, res);
-  if (p === '/api/imagegen/engine/start'  && req.method === 'POST') return imagegen.apiStartEngine(req, res);
-  if (p === '/api/imagegen/engine/stop'   && req.method === 'POST') return imagegen.apiStopEngine(req, res);
-  if (p === '/api/imagegen/gallery'       && req.method === 'GET')  return imagegen.apiGallery(req, res);
-  if (p === '/api/imagegen/progress'      && req.method === 'GET')  return imagegen.apiProgress(req, res);
-  if (p === '/api/imagegen/wildcards-export'                                             && req.method === 'GET')    return imagegen.apiExportAllWildcards(req, res);
-  if (p === '/api/imagegen/wildcards-import'                                             && req.method === 'POST')   return imagegen.apiImportAllWildcards(req, res);
-  if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'GET')    return imagegen.apiGetWildcard(req, res, m[1]);
-  if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'PUT')    return imagegen.apiSaveWildcard(req, res, m[1]);
-  if ((m = p.match(/^\/api\/imagegen\/wildcards\/([^/]+)$/)) && req.method === 'DELETE') return imagegen.apiDeleteWildcard(req, res, m[1]);
-  if ((m = p.match(/^\/api\/imagegen\/image\/([^/]+)$/))     && req.method === 'GET')    return imagegen.apiServeImage(req, res, m[1]);
-  if ((m = p.match(/^\/api\/imagegen\/image\/([^/]+)$/))     && req.method === 'DELETE') return imagegen.apiDeleteImage(req, res, m[1]);
-  if (p === '/api/imagegen/comfyui/start'                    && req.method === 'POST')   return imagegen.apiStartComfyui(req, res);
-  if (p === '/api/imagegen/comfyui/sync'                     && req.method === 'POST')   return imagegen.apiSyncComfyui(req, res);
-  if (p === '/api/imagegen/upload'                           && req.method === 'POST')   return imagegen.apiUploadImage(req, res);
-  if (p === '/api/imagegen/encrypt-generated'                && req.method === 'POST')   return imagegen.apiEncryptGenerated(req, res);
 
   // ── Links / Websites ─────────────────────────────────────────────
   if (p === '/api/websites' && req.method === 'GET') return json(res, loadWebsites());
@@ -430,9 +407,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/prompts/all' && req.method === 'DELETE') return prompts.apiDeleteAllPrompts(req, res);
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'PATCH') return prompts.apiUpdatePrompt(req, res, m[1]);
   if ((m = p.match(/^\/api\/prompts\/([^/]+)$/)) && req.method === 'DELETE') return prompts.apiDeletePrompt(req, res, m[1]);
-  if (p === '/api/comfyui/status' && req.method === 'GET') return prompts.apiComfyStatus(req, res);
-  if (p === '/api/comfyui/workflows' && req.method === 'GET') return prompts.apiComfyWorkflows(req, res);
-  if (p === '/api/comfyui/send' && req.method === 'POST') return prompts.apiComfySend(req, res);
+
+  // ── Prompt builder wildcards ──────────────────────────────────────
+  if (p === '/api/prompts/assets'           && req.method === 'GET')    return prompts.apiGetWildcardAssets(req, res);
+  if (p === '/api/prompts/wildcards-export' && req.method === 'GET')    return prompts.apiExportAllWildcards(req, res);
+  if (p === '/api/prompts/wildcards-import' && req.method === 'POST')   return prompts.apiImportAllWildcards(req, res);
+  if ((m = p.match(/^\/api\/prompts\/wildcards\/([^/]+)$/)) && req.method === 'GET')    return prompts.apiGetWildcard(req, res, m[1]);
+  if ((m = p.match(/^\/api\/prompts\/wildcards\/([^/]+)$/)) && req.method === 'PUT')    return prompts.apiSaveWildcard(req, res, m[1]);
+  if ((m = p.match(/^\/api\/prompts\/wildcards\/([^/]+)$/)) && req.method === 'DELETE') return prompts.apiDeleteWildcard(req, res, m[1]);
 
   // ── Panic Button ─────────────────────────────────────────────────────
   if (p === '/api/panic' && req.method === 'POST') {
@@ -506,7 +488,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|screenshots|pages|search|favourites|categories|chapters|download-queue|prompts|imagegen|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|screenshots|pages|search|favourites|categories|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

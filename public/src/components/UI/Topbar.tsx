@@ -1,7 +1,7 @@
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
-import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView } from '../../store';
+import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos } from '../../store';
 import { zapOn, toggleZapping as _toggleZapping } from '../../zap';
 import { useEffect } from 'preact/hooks';
 
@@ -53,14 +53,14 @@ export const Topbar = () => {
         <Search />
       </div>
 
-      {view === 'vault' && isVaultUnlocked.value && (
+      {activeProfile.value === 'Vault' && isVaultUnlocked.value && (
         <div
           className="vault-scope-toggle"
           style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '16px', padding: '3px' }}
           title="Vault-Only shows encrypted files; Global shows every file from all profiles and lets you import them into the Vault"
         >
           <button
-            onClick={() => vaultGlobalView.value = false}
+            onClick={() => { vaultGlobalView.value = false; loadVideos(); }}
             style={{
               border: 'none', borderRadius: '13px', padding: '4px 12px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600,
               background: !vaultGlobalView.value ? 'var(--ac)' : 'transparent',
@@ -70,7 +70,7 @@ export const Topbar = () => {
             🔒 Vault Only
           </button>
           <button
-            onClick={() => vaultGlobalView.value = true}
+            onClick={() => { vaultGlobalView.value = true; loadVideos(); }}
             style={{
               border: 'none', borderRadius: '13px', padding: '4px 12px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600,
               background: vaultGlobalView.value ? 'var(--ac)' : 'transparent',

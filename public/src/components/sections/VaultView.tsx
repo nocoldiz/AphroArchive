@@ -290,7 +290,6 @@ export const VaultView = () => {
   const encryptSelectedPublic = () => {
     const targets = publicFiles.filter(f => selectedIds.has(f.id));
     if (!targets.length || encrypting) return;
-    if (!confirm(`Encrypt ${targets.length} file${targets.length !== 1 ? 's' : ''} into the Vault?\nOriginals and their public database entries will be removed.`)) return;
     encryptItems(targets);
   };
 
@@ -338,6 +337,13 @@ export const VaultView = () => {
     if (w.toast) w.toast(`Imported ${d.added} link${d.added !== 1 ? 's' : ''} into the Vault` + (d.skipped ? `, ${d.skipped} duplicate(s) skipped` : ''));
     setShowLinkImport(false);
     setLinkImportText('');
+    // Update the list optimistically so it reflects the import even if a
+    // follow-up fetch fails (e.g. the vault auto-locks between requests).
+    setVaultLinks(prev => {
+      const seen = new Set(prev.map(l => l.url));
+      const added = urls.filter(u => !seen.has(u)).map(u => ({ url: u, title: u, addedAt: Date.now() }));
+      return added.length ? [...prev, ...added] : prev;
+    });
     fetch('/api/vault/links').then(res => res.json()).then(v => { if (Array.isArray(v)) setVaultLinks(v); }).catch(() => { });
   };
 
@@ -405,8 +411,7 @@ export const VaultView = () => {
     }
   };
 
-  const handleDecryptFile = async (id: string, name: string) => {
-    if (!confirm(`Decrypt "${name}" and restore to its original category?`)) return;
+  const handleDecryptFile = async (id: string) => {
     const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' });
     if (res.ok) {
       setFiles(prev => prev.filter(f => f.id !== id));
@@ -1137,7 +1142,7 @@ export const VaultView = () => {
                         👁️
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDecryptFile(f.id, f.name || f.originalName || f.id); }}
+                        onClick={(e) => { e.stopPropagation(); handleDecryptFile(f.id); }}
                         style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
                         title="Decrypt & restore"
                       >

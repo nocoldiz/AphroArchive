@@ -76,7 +76,7 @@ export const DatabaseView = () => {
     if (tab === 'wildcards') {
       setLoading(true);
       try {
-        const r = await fetch('/api/imagegen/assets');
+        const r = await fetch('/api/prompts/assets');
         const d = await r.json();
         setWcList(d.wildcards || []);
       } catch (e) {
@@ -373,7 +373,7 @@ export const DatabaseView = () => {
 
   const handleWcEdit = async (name: string) => {
     if (wcExpanded === name) { setWcExpanded(null); return; }
-    const r = await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`);
+    const r = await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`);
     const d = await r.json();
     setWcEditContent(d.content || '');
     setWcExpanded(name);
@@ -381,7 +381,7 @@ export const DatabaseView = () => {
 
   const handleWcSave = async (name: string) => {
     setWcEditSaving(true);
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`, {
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: wcEditContent }),
@@ -395,7 +395,7 @@ export const DatabaseView = () => {
 
   const handleWcDelete = async (name: string) => {
     if (!confirm(`Delete wildcard "${name}"?`)) return;
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
     loadTab('wildcards');
     const w = window as any;
     if (w.toast) w.toast('Deleted');
@@ -404,7 +404,7 @@ export const DatabaseView = () => {
   const handleWcCreate = async () => {
     const safe = wcNewName.trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
     if (!safe) return;
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(safe)}`, {
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(safe)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: `# ${safe} wildcard\n` }),
@@ -415,7 +415,7 @@ export const DatabaseView = () => {
   };
 
   const handleWcExportAll = async () => {
-    const r = await fetch('/api/imagegen/wildcards-export');
+    const r = await fetch('/api/prompts/wildcards-export');
     const data = await r.json();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -431,7 +431,7 @@ export const DatabaseView = () => {
     e.target.value = '';
     let data: any;
     try { data = JSON.parse(await file.text()); } catch { alert('Invalid JSON file'); return; }
-    const r = await fetch('/api/imagegen/wildcards-import', {
+    const r = await fetch('/api/prompts/wildcards-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),

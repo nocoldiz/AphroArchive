@@ -656,8 +656,14 @@ async function apiVideos(req, res, params) {
   json(res, list);
 }
 
-async function apiCategories(req, res) {
-  const videos = await cachedScan();
+async function apiCategories(req, res, params) {
+  const db = require('./db-server');
+  // all=1 (vault unlocked only): mirrors apiVideos' Global view — use the
+  // disk-scan set bypassing the per-profile enabled-categories filter.
+  const showAll = !!params && params.get('all') === '1' && require('./vault-server').isUnlocked();
+  // Vault Only: build categories from the Vault's own item list (catPath = item.category)
+  const isVaultOnly = db.getCurrentProfile() === 'Vault' && !showAll;
+  const videos = isVaultOnly ? await allVideos(false) : await cachedScan();
   const meta = loadVideoMeta();
   const catMap = new Map();
 
@@ -697,8 +703,9 @@ async function apiCategories(req, res) {
   }
 
   // Include empty directories from the filesystem so newly created folders appear
+  // (skipped in Vault Only mode — vault categories come purely from vault meta)
   try {
-    if (fs.existsSync(VIDEOS_DIR)) {
+    if (!isVaultOnly && fs.existsSync(VIDEOS_DIR)) {
       const walkDir = (dir, rel) => {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
         for (const ent of entries) {
@@ -768,22 +775,24 @@ async function apiCategories(req, res) {
     });
   }
 
-  // Remove categories whose physical directory no longer exists
-  {
+  const vaultCats = getVaultCategoryPaths();
+
+  // Remove categories whose physical directory no longer exists — vault-only
+  // categories live purely in the Vault's item list, so skip this for them.
+  if (!isVaultOnly) {
     let sfPrefs;
     try { sfPrefs = loadPrefs(); } catch (e) { sfPrefs = {}; }
     const existingSF = (sfPrefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
     const toRemove = [];
     for (const [key, entry] of catMap.entries()) {
       if (key === 'Links') continue;
+      if (vaultCats.has(entry.path)) continue;
       if (fs.existsSync(path.join(VIDEOS_DIR, entry.path))) continue;
       if (existingSF.some(sf => fs.existsSync(path.join(sf, entry.path)))) continue;
       toRemove.push(key);
     }
     toRemove.forEach(k => catMap.delete(k));
   }
-
-  const vaultCats = getVaultCategoryPaths();
 
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
@@ -809,9 +818,8 @@ async function apiCategories(req, res) {
   }).length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
 
-  const db = require('./db-server');
   const enabledPaths = db.loadEnabledCategories();
-  const filtered = cats.filter(c => isCategoryEnabled(c.path, enabledPaths));
+  const filtered = showAll ? cats : cats.filter(c => isCategoryEnabled(c.path, enabledPaths));
 
   filtered.sort((a, b) => {
     if (a.path === 'uncategorized') return -1;
@@ -2711,10 +2719,15 @@ function computeScore(text, cat) {
     // Normalized separator match: "My_Category" matches "My Category"
     const normTerm = normSeps(term);
     if (normTerm.length >= 3 && normText.includes(normTerm)) { best = Math.max(best, 60); continue; }
-    const words = xl.split(/\W+/).filter(w => w.length >= 3);
-    for (const w of words) {
-      if (tl.startsWith(w.slice(0, 3)) || w.startsWith(tl.slice(0, 3))) {
-        best = Math.max(best, 30); break;
+    // Loose prefix-overlap fuzzy match: only for top-level categories (depth 0),
+    // where terms come from user-configured tags. Nested folder names (e.g. actor
+    // or series subfolders) require an exact/substring match to avoid noisy moves.
+    if ((cat.depth || 0) === 0) {
+      const words = xl.split(/\W+/).filter(w => w.length >= 3);
+      for (const w of words) {
+        if (tl.startsWith(w.slice(0, 3)) || w.startsWith(tl.slice(0, 3))) {
+          best = Math.max(best, 30); break;
+        }
       }
     }
   }
@@ -2723,47 +2736,42 @@ function computeScore(text, cat) {
 
 function bestCatMatch(text, cats) {
   let best = null, bs = 0;
-  for (const c of cats) { const s = computeScore(text, c); if (s > bs) { bs = s; best = c; } }
+  for (const c of cats) {
+    const s = computeScore(text, c);
+    if (s <= 0) continue;
+    // Prefer deeper (more specific) folders on a tie, e.g. an existing
+    // "Performers/Jane Doe" subfolder beats the top-level "Performers" category.
+    if (s > bs || (s === bs && (!best || (c.depth || 0) > (best.depth || 0)))) { bs = s; best = c; }
+  }
   return { cat: best, score: bs };
 }
 
-function buildCategorizePlan(roots, cats, mode) {
-  const changes = [];
-  for (const root of roots) {
-    const files = [];
-    if (mode === 'all') {
-      const collect = (dir) => {
-        let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const e of ents) {
-          if (e.isDirectory() && !isHiddenFolderName(e.name)) collect(path.join(dir, e.name));
-          else if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-            files.push(path.join(dir, e.name));
-        }
-      };
-      collect(root);
-    } else {
-      let ents; try { ents = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
-      for (const e of ents) {
-        if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-          files.push(path.join(root, e.name));
-      }
-    }
-    const existing = getExistingTopLevelFolders(root);
-
-    for (const src of files) {
-      const ext = path.extname(src).toLowerCase();
-      const stem = path.basename(src, ext);
-      let matched = null;
-      for (const cat of cats) { if (wordMatchAny(stem, cat.terms)) { matched = cat; break; } }
-      if (!matched) continue;
-      const destFolder = matched.displayName || matched.name;
-      if (!existing.has(destFolder)) continue;
-      if (path.resolve(path.dirname(src)) === path.resolve(path.join(root, destFolder))) continue;
-      const currentFolder = path.relative(root, path.dirname(src)).replace(/\\/g, '/') || '';
-      changes.push({ srcPath: src, name: path.basename(src), currentFolder, destFolder, root });
-    }
+// Recursively collect all existing subfolders under `root` as destination candidates
+// for categorization, including nested subfolders (e.g. "Performers/Jane Doe").
+// Top-level folders that correspond to a configured category inherit its tag terms;
+// nested folders are matched on their own name only.
+function collectDestinationCandidates(root, cats) {
+  const catByName = new Map();
+  for (const c of cats) {
+    catByName.set((c.displayName || c.name).toLowerCase(), c);
+    catByName.set(c.name.toLowerCase(), c);
   }
-  return changes;
+  const candidates = [];
+  const walk = (dir, rel) => {
+    let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      if (!e.isDirectory() || isHiddenFolderName(e.name)) continue;
+      const full = path.join(dir, e.name);
+      if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
+      const relPath = rel ? rel + '/' + e.name : e.name;
+      const depth = rel ? rel.split('/').length : 0;
+      const dbCat = depth === 0 ? catByName.get(e.name.toLowerCase()) : null;
+      candidates.push({ relPath, name: e.name, displayName: e.name, terms: dbCat ? dbCat.terms : [e.name], depth });
+      walk(full, relPath);
+    }
+  };
+  walk(root, '');
+  return candidates;
 }
 
 async function apiCategorizePlan(req, res) {
@@ -2773,25 +2781,17 @@ async function apiCategorizePlan(req, res) {
   const prefs = loadPrefs();
   const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
 
-  // Map folder name → category for quick lookup
+  // Map folder name → category for quick lookup (used for link matching below)
   const catByFolder = new Map();
   for (const c of cats) {
     catByFolder.set((c.displayName || c.name).toLowerCase(), c);
     catByFolder.set(c.name.toLowerCase(), c);
   }
 
-  // Per-root sets of category folder names (displayName||name) that physically exist there.
-  // Auto-suggestions only for cats whose folder exists under the item's own root (no cross-root).
-  const validByRoot = new Map();
-  for (const root of roots) {
-    const existing = getExistingTopLevelFolders(root);
-    const valids = new Set();
-    for (const c of cats) {
-      const dn = c.displayName || c.name;
-      if (existing.has(dn)) valids.add(dn);
-    }
-    validByRoot.set(path.resolve(root), valids);
-  }
+  // Per-root list of every existing folder (any depth) as a possible move target,
+  // so videos can be suggested into existing subfolders, not just top-level categories.
+  const candidatesByRoot = new Map();
+  for (const root of roots) candidatesByRoot.set(path.resolve(root), collectDestinationCandidates(root, cats));
 
   const uncategorized = [];
   const categorized = [];
@@ -2816,32 +2816,36 @@ async function apiCategorizePlan(req, res) {
           files.push(path.join(root, e.name));
     }
 
+    const candidates = candidatesByRoot.get(path.resolve(root)) || [];
+
     for (const src of files) {
       const ext = path.extname(src).toLowerCase();
       const stem = path.basename(src, ext);
       const currentFolder = path.relative(root, path.dirname(src)).replace(/\\/g, '/') || '';
-      const topFolder = currentFolder.split('/')[0] || '';
-      const folderCat = topFolder ? catByFolder.get(topFolder.toLowerCase()) : null;
       const id = Buffer.from(src).toString('base64url');
 
-      if (folderCat && computeScore(stem, folderCat) > 0) {
-        categorized.push({
-          type: 'video', id, name: path.basename(src),
-          currentFolder, matchedCategory: folderCat.displayName || folderCat.name,
-          score: computeScore(stem, folderCat),
-        });
-      } else {
-        const { cat: suggested, score } = bestCatMatch(stem, cats);
-        let suggestedCategory = '';
-        if (suggested) {
-          const dn = suggested.displayName || suggested.name;
-          const valids = validByRoot.get(path.resolve(root)) || new Set();
-          if (valids.has(dn)) suggestedCategory = dn;
-        }
+      const { cat: suggested, score } = bestCatMatch(stem, candidates);
+
+      if (suggested && suggested.relPath !== currentFolder) {
+        // Either uncategorized (no current folder) or a better-matching existing
+        // folder/subfolder exists than where this file currently lives — propose a move.
         uncategorized.push({
           type: 'video', id, name: path.basename(src),
-          currentFolder, suggestedCategory,
-          score: suggestedCategory ? score : 0, srcPath: src, root,
+          currentFolder, suggestedCategory: suggested.relPath,
+          score, srcPath: src, root,
+        });
+      } else if (suggested) {
+        // Already filed in its best-matching existing folder.
+        categorized.push({
+          type: 'video', id, name: path.basename(src),
+          currentFolder, matchedCategory: currentFolder.replace(/\//g, ' / '),
+          score,
+        });
+      } else {
+        uncategorized.push({
+          type: 'video', id, name: path.basename(src),
+          currentFolder, suggestedCategory: '',
+          score: 0, srcPath: src, root,
         });
       }
     }
@@ -2877,9 +2881,9 @@ async function apiCategorizePlan(req, res) {
     }
   } catch (e) { console.error('[apiCategorizePlan] links error:', e.message); }
 
-  const allValidDestNames = new Set();
-  for (const v of validByRoot.values()) for (const n of v) allValidDestNames.add(n);
-  const categories = Array.from(allValidDestNames).sort();
+  const allDestPaths = new Set();
+  for (const list of candidatesByRoot.values()) for (const c of list) allDestPaths.add(c.relPath);
+  const categories = Array.from(allDestPaths).sort();
   uncategorized.sort((a, b) => b.score - a.score);
   categorized.sort((a, b) => b.score - a.score);
   json(res, { uncategorized, categorized, categories });
@@ -2904,7 +2908,8 @@ async function apiCategorizeExecute(req, res) {
     if (!allowedRoots.has(path.resolve(root))) { errors.push(`${path.basename(srcPath)}: root not allowed`); continue; }
     const ext = path.extname(srcPath).toLowerCase();
     const stem = path.basename(srcPath, ext);
-    const destDir = path.join(root, destFolder);
+    // destFolder may be a nested path like "Performers/Jane Doe"
+    const destDir = path.join(root, ...destFolder.split('/'));
     try {
       // never create new folders for auto-categorize; only move into existing ones
       if (!fs.existsSync(destDir)) {

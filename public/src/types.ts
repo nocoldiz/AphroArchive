@@ -66,7 +66,6 @@ export interface AppPrefs {
   privateFeedFolders?: string[];
   videosDir?: string;
   videosDirExists?: boolean;
-  comfyuiPath?: string;
   llamaModelUri?: string;
   openrouterApiKey?: string;
   openrouterModel?: string;
