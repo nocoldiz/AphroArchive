@@ -22,10 +22,6 @@ export const Topbar = () => {
     importModalState.value = { visible: true };
   };
 
-  const toggleDual = () => {
-    if ((window as any).toggleDual) (window as any).toggleDual();
-  };
-
   const toggleMosaic = () => {
     if ((window as any).toggleMosaic) (window as any).toggleMosaic();
   };
@@ -107,13 +103,6 @@ export const Topbar = () => {
 
         <SyncManager />
         <DownloadManager />
-
-        <button id="dualBtn" onClick={toggleDual} title="Dual mode">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="2" y="3" width="9" height="18" rx="1" />
-            <rect x="13" y="3" width="9" height="18" rx="1" />
-          </svg>
-        </button>
 
         {['browse', 'player', 'home'].includes(view) && (
           <button id="mosBtn" onClick={toggleMosaic} title="Mosaic mode">

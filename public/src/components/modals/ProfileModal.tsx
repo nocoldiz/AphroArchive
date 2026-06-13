@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { profileModalState, profiles, activeProfile, switchProfile } from '../../store';
+import { profileModalState, profiles, activeProfile, switchProfile, loadProfiles, reloadAppData } from '../../store';
 
 interface Preset {
   id: string;
@@ -39,6 +39,9 @@ export const ProfileModal = () => {
           body: JSON.stringify({ sourceName: cloneSource, newName: newName.trim() }),
         });
         if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Clone failed'); }
+        await loadProfiles();
+        setNewName('');
+        setCloneSource('');
       } else {
         const r = await fetch('/api/profiles/create', {
           method: 'POST',
@@ -46,9 +49,12 @@ export const ProfileModal = () => {
           body: JSON.stringify({ name: newName.trim(), preset: selectedPreset || undefined }),
         });
         if (!r.ok) throw new Error('Server error');
+        const d = await r.json();
+        activeProfile.value = d.current;
+        await loadProfiles();
+        await reloadAppData();
+        close();
       }
-      close();
-      window.location.reload();
     } catch (e: any) {
       alert('Error: ' + e.message);
     } finally {
@@ -66,7 +72,9 @@ export const ProfileModal = () => {
         body: JSON.stringify({ oldName, newName: n }),
       });
       if (!r.ok) throw new Error('Server error');
-      window.location.reload();
+      const d = await r.json();
+      activeProfile.value = d.current;
+      await loadProfiles();
     } catch (e: any) {
       alert('Error: ' + e.message);
     }
@@ -83,9 +91,7 @@ export const ProfileModal = () => {
       if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Delete failed'); }
       const w = window as any;
       if (w.toast) w.toast(`Profile "${name}" deleted`);
-      // Refresh profiles list
-      const r2 = await fetch('/api/profiles');
-      if (r2.ok) profiles.value = await r2.json();
+      await loadProfiles();
     } catch (e: any) {
       alert('Error: ' + e.message);
     }

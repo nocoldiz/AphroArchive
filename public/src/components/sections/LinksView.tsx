@@ -125,29 +125,44 @@ function matchTitleToCategory(title: string, cats: ActiveCat[]): string | null {
 interface BmPickerProps {
   browser: 'chrome' | 'firefox';
   existingUrls: Set<string>;
+  activeCats: ActiveCat[];
   onImport: (items: { title: string; url: string }[]) => void;
   onClose: () => void;
 }
 
-const tagWordMatch = (title: string, term: string) =>
-  new RegExp('(?:^|[^a-z0-9])' + term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(title.toLowerCase());
+const tagWordMatch = (text: string, term: string) =>
+  new RegExp('(?:^|[^a-z0-9])' + term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(text.toLowerCase());
 
-const matchedTagName = (title: string, tagGroups: { displayName: string; terms: string[] }[]): string | null => {
+const matchedTagName = (text: string, tagGroups: { displayName: string; terms: string[] }[]): string | null => {
   for (const g of tagGroups) {
-    if (g.terms.some(t => tagWordMatch(title, t))) return g.displayName;
+    if (g.terms.some(t => tagWordMatch(text, t))) return g.displayName;
   }
   return null;
 };
 
-const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPickerProps) => {
+const matchedName = (
+  b: { title: string; url: string },
+  tagGroups: { displayName: string; terms: string[] }[],
+  cats: ActiveCat[]
+): string | null =>
+  matchedTagName(b.title, tagGroups) || matchedTagName(b.url, tagGroups) ||
+  matchTitleToCategory(b.title, cats) || matchTitleToCategory(b.url, cats);
+
+const ROW_HEIGHT = 34;
+
+const BookmarkPickerModal = ({ browser, existingUrls, activeCats, onImport, onClose }: BmPickerProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [bookmarks, setBookmarks] = useState<{ title: string; url: string }[]>([]);
   const [tagGroups, setTagGroups] = useState<{ displayName: string; terms: string[] }[]>([]);
-  const [tagMatched, setTagMatched] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState<{ col: 'title' | 'domain'; dir: 'asc' | 'desc' }>({ col: 'title', dir: 'asc' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'sites' | 'all'>('sites');
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(400);
 
   useEffect(() => {
     (async () => {
@@ -161,9 +176,7 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
         if (bmRes.error) { setError(bmRes.error); setLoading(false); return; }
         const groups: { displayName: string; terms: string[] }[] = Array.isArray(tagsRes) ? tagsRes : [];
         const fresh: { title: string; url: string }[] = (bmRes.items || []).filter((b: any) => b.url && !existingUrls.has(b.url));
-        const matched = new Set(fresh.filter(b => matchedTagName(b.title, groups) !== null).map(b => b.url));
         setTagGroups(groups);
-        setTagMatched(matched);
         setBookmarks(fresh);
         setSelected(new Set());
       } catch (e: any) { setError(e.message); }
@@ -171,17 +184,48 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
     })();
   }, [browser]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setContainerHeight(el.clientHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewMode, loading]);
+
   const domainOf = (url: string) => { try { return new URL(url).hostname; } catch { return url; } };
 
   const term = filter.trim().toLowerCase();
   const filtered = term
-    ? bookmarks.filter(b => b.title.toLowerCase().includes(term) || b.url.toLowerCase().includes(term))
+    ? bookmarks.filter(b =>
+        b.title.toLowerCase().includes(term) ||
+        b.url.toLowerCase().includes(term) ||
+        domainOf(b.url).toLowerCase().includes(term))
     : bookmarks;
 
-  // Tag-matched rows always come first, then secondary sort by column
+  // Bookmarks whose title or URL contains a word found in a folder/category name or a tag
+  const recognized = filtered.filter(b => matchedName(b, tagGroups, activeCats) !== null);
+  const recognizedUrls = new Set(recognized.map(b => b.url));
+
+  // Group recognized bookmarks by website for the default view
+  const siteGroups = (() => {
+    const map = new Map<string, { domain: string; urls: { title: string; url: string }[]; tags: Set<string> }>();
+    for (const b of recognized) {
+      const d = domainOf(b.url);
+      let g = map.get(d);
+      if (!g) { g = { domain: d, urls: [], tags: new Set() }; map.set(d, g); }
+      g.urls.push(b);
+      const mn = matchedName(b, tagGroups, activeCats);
+      if (mn) g.tags.add(mn);
+    }
+    return [...map.values()].sort((a, b) => b.urls.length - a.urls.length || a.domain.localeCompare(b.domain));
+  })();
+
+  // Recognized rows always come first, then secondary sort by column
   const sorted = [...filtered].sort((a, b) => {
-    const aTag = tagMatched.has(a.url);
-    const bTag = tagMatched.has(b.url);
+    const aTag = recognizedUrls.has(a.url);
+    const bTag = recognizedUrls.has(b.url);
     if (aTag !== bTag) return aTag ? -1 : 1;
     const av = (sort.col === 'title' ? a.title : domainOf(a.url)).toLowerCase();
     const bv = (sort.col === 'title' ? b.title : domainOf(b.url)).toLowerCase();
@@ -194,15 +238,20 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
   const toggleRow = (url: string) =>
     setSelected(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n; });
 
-  const allVisibleSelected = sorted.length > 0 && sorted.every(b => selected.has(b.url));
+  const setUrlsSelected = (urls: string[], select: boolean) =>
+    setSelected(prev => {
+      const n = new Set(prev);
+      urls.forEach(u => select ? n.add(u) : n.delete(u));
+      return n;
+    });
 
-  const toggleAllVisible = () => {
-    if (allVisibleSelected) {
-      setSelected(prev => { const n = new Set(prev); sorted.forEach(b => n.delete(b.url)); return n; });
-    } else {
-      setSelected(prev => new Set([...prev, ...sorted.map(b => b.url)]));
-    }
-  };
+  const toggleSite = (urls: string[]) => setUrlsSelected(urls, !urls.every(u => selected.has(u)));
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every(b => selected.has(b.url));
+  const toggleAllVisible = () => setUrlsSelected(sorted.map(b => b.url), !allVisibleSelected);
+
+  const allSitesSelected = recognized.length > 0 && recognized.every(b => selected.has(b.url));
+  const toggleAllSites = () => setUrlsSelected(recognized.map(b => b.url), !allSitesSelected);
 
   const arrow = (col: 'title' | 'domain') =>
     sort.col !== col ? ' ↕' : sort.dir === 'asc' ? ' ↑' : ' ↓';
@@ -213,12 +262,19 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
     color: sort.col === col ? 'var(--ac)' : 'var(--tx2)', whiteSpace: 'nowrap',
   });
 
-  const tagMatchCount = filtered.filter(b => tagMatched.has(b.url)).length;
+  // Virtualization for the 'all bookmarks' table
+  const overscan = 6;
+  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - overscan);
+  const visibleCount = Math.ceil(containerHeight / ROW_HEIGHT) + overscan * 2;
+  const endIndex = Math.min(sorted.length, startIndex + visibleCount);
+  const visibleRows = sorted.slice(startIndex, endIndex);
+  const topPad = startIndex * ROW_HEIGHT;
+  const bottomPad = (sorted.length - endIndex) * ROW_HEIGHT;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
       onClick={(e: any) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(900px,100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(1000px,100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
 
         {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
@@ -228,49 +284,128 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
           {!loading && !error && (
             <span style={{ fontSize: '12px', color: 'var(--tx3)' }}>
               {bookmarks.length} available
-              {tagMatchCount > 0 && <span style={{ color: 'var(--ac)', marginLeft: '6px' }}>· {tagMatchCount} tag match{tagMatchCount !== 1 ? 'es' : ''}</span>}
+              {recognized.length > 0 && <span style={{ color: 'var(--ac)', marginLeft: '6px' }}>· {recognized.length} recognized</span>}
               <span style={{ marginLeft: '6px' }}>· {selected.size} selected</span>
             </span>
           )}
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px 6px' }}>✕</button>
         </div>
 
-        {/* Filter + bulk select */}
-        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--brd)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+        {/* Filter + view toggle + bulk select */}
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--brd)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
           <input
             type="text"
-            placeholder="Filter by title or URL…"
+            placeholder="Filter by title, URL or website…"
             aria-label="Filter bookmarks"
             value={filter}
             onInput={(e: any) => setFilter(e.target.value)}
             autoFocus
-            style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px 10px', fontSize: '13px' }}
+            style={{ flex: 1, minWidth: '160px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px 10px', fontSize: '13px' }}
           />
-          <button
-            onClick={() => setSelected(new Set(sorted.map(b => b.url)))}
-            style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
-          >
-            Select all ({sorted.length})
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
-          >
-            Deselect all
-          </button>
+          <div style={{ display: 'flex', borderRadius: '5px', overflow: 'hidden', border: '1px solid var(--brd)' }}>
+            <button
+              onClick={() => setViewMode('sites')}
+              style={{ fontSize: '12px', padding: '5px 12px', background: viewMode === 'sites' ? 'var(--ac)' : 'var(--bg3)', border: 'none', cursor: 'pointer', color: viewMode === 'sites' ? '#fff' : 'var(--tx2)', whiteSpace: 'nowrap' }}
+            >
+              By Website
+            </button>
+            <button
+              onClick={() => setViewMode('all')}
+              style={{ fontSize: '12px', padding: '5px 12px', background: viewMode === 'all' ? 'var(--ac)' : 'var(--bg3)', border: 'none', cursor: 'pointer', color: viewMode === 'all' ? '#fff' : 'var(--tx2)', whiteSpace: 'nowrap' }}
+            >
+              All Bookmarks
+            </button>
+          </div>
+          {viewMode === 'sites' ? (
+            <>
+              <button
+                onClick={toggleAllSites}
+                disabled={recognized.length === 0}
+                style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: recognized.length ? 'pointer' : 'not-allowed', color: 'var(--tx2)', whiteSpace: 'nowrap', opacity: recognized.length ? 1 : 0.5 }}
+              >
+                {allSitesSelected ? 'Deselect all sites' : `Select all sites (${recognized.length})`}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setUrlsSelected(sorted.map(b => b.url), true)}
+                style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
+              >
+                Select all ({sorted.length})
+              </button>
+              <button
+                onClick={() => setUrlsSelected(sorted.map(b => b.url), false)}
+                style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
+              >
+                Deselect all
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Table */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* Body */}
+        <div ref={scrollRef} style={{ flex: 1, overflow: 'auto' }} onScroll={(e: any) => setScrollTop(e.target.scrollTop)}>
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)' }}>Loading bookmarks…</div>
           ) : error ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e53935', fontSize: '13px' }}>{error}</div>
+          ) : bookmarks.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
+              No new bookmarks found — all are already imported
+            </div>
+          ) : viewMode === 'sites' ? (
+            siteGroups.length === 0 ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
+                No recognized websites — none of the bookmarked titles/URLs match a folder or tag name.{' '}
+                <button
+                  onClick={() => setViewMode('all')}
+                  style={{ background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer', textDecoration: 'underline', fontSize: '13px', padding: 0 }}
+                >
+                  Browse all bookmarks instead
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px', padding: '14px 20px' }}>
+                {siteGroups.map(g => {
+                  const urls = g.urls.map(b => b.url);
+                  const selCount = urls.filter(u => selected.has(u)).length;
+                  const allSel = selCount === urls.length;
+                  return (
+                    <div
+                      key={g.domain}
+                      onClick={() => toggleSite(urls)}
+                      style={{ border: '1px solid var(--brd)', borderRadius: '8px', padding: '10px 12px', cursor: 'pointer', background: allSel ? 'var(--acg)' : selCount > 0 ? 'rgba(255,255,255,0.03)' : 'var(--bg3)', display: 'flex', flexDirection: 'column', gap: '6px' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select all from ${g.domain}`}
+                          checked={allSel}
+                          onChange={() => toggleSite(urls)}
+                          onClick={(e: any) => e.stopPropagation()}
+                        />
+                        <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent('https://' + g.domain)}`} width="16" height="16" alt="" style={{ flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={g.domain}>
+                          {g.domain}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--tx3)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>{urls.length} link{urls.length !== 1 ? 's' : ''}{selCount > 0 ? ` · ${selCount} selected` : ''}</span>
+                        {[...g.tags].map(t => (
+                          <span key={t} style={{ fontSize: '11px', background: 'var(--acg)', color: 'var(--ac)', borderRadius: '4px', padding: '1px 5px', whiteSpace: 'nowrap', border: '1px solid var(--ac)', opacity: 0.85 }}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           ) : sorted.length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
-              {bookmarks.length === 0
-                ? 'No new bookmarks found — all are already imported'
-                : 'No bookmarks match the filter'}
+              No bookmarks match the filter
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -281,18 +416,24 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
                   </th>
                   <th style={thStyle('title')} onClick={() => toggleSort('title')}>Title{arrow('title')}</th>
                   <th style={{ ...thStyle('domain'), width: '200px' }} onClick={() => toggleSort('domain')}>Domain{arrow('domain')}</th>
-                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--brd)', width: '90px', color: 'var(--tx2)', fontSize: '11px', fontWeight: 500 }}>Tag match</th>
+                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--brd)', width: '90px', color: 'var(--tx2)', fontSize: '11px', fontWeight: 500 }}>Match</th>
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((b, i) => {
+                {topPad > 0 && (
+                  <tr aria-hidden="true" style={{ height: `${topPad}px` }}>
+                    <td colSpan={4} style={{ padding: 0, border: 'none', height: `${topPad}px` }} />
+                  </tr>
+                )}
+                {visibleRows.map((b) => {
                   const isSelected = selected.has(b.url);
-                  const tag = matchedTagName(b.title, tagGroups);
+                  const i = bookmarks.indexOf(b);
+                  const tag = matchedName(b, tagGroups, activeCats);
                   return (
                     <tr
                       key={b.url}
                       onClick={() => toggleRow(b.url)}
-                      style={{ cursor: 'pointer', background: isSelected ? 'var(--acg)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}
+                      style={{ height: `${ROW_HEIGHT}px`, cursor: 'pointer', background: isSelected ? 'var(--acg)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                     >
                       <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)' }} onClick={(e: any) => e.stopPropagation()}>
                         <input type="checkbox" aria-label={`Select ${b.title || b.url}`} checked={isSelected} onChange={() => toggleRow(b.url)} />
@@ -316,6 +457,11 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
                     </tr>
                   );
                 })}
+                {bottomPad > 0 && (
+                  <tr aria-hidden="true" style={{ height: `${bottomPad}px` }}>
+                    <td colSpan={4} style={{ padding: 0, border: 'none', height: `${bottomPad}px` }} />
+                  </tr>
+                )}
               </tbody>
             </table>
           )}
@@ -1000,6 +1146,7 @@ export const LinksView = () => {
         <BookmarkPickerModal
           browser={bmPickerBrowser}
           existingUrls={new Set(items.map(it => it.url))}
+          activeCats={activeCats}
           onImport={handlePickerImport}
           onClose={() => setBmPickerBrowser(null)}
         />

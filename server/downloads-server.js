@@ -5,8 +5,14 @@
 
 const fs              = require('fs');
 const path            = require('path');
+const http            = require('http');
+const https           = require('https');
 const { spawn, execFile } = require('child_process');
-const { VIDEOS_DIR, YT_DLP_BIN, LINK_DIR } = require('./config-server');
+const {
+  VIDEOS_DIR, YT_DLP_BIN, LINK_DIR,
+  AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, FILES_DIR,
+  VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT,
+} = require('./config-server');
 const { json, readBody, toId, fromId }      = require('./helpers-server');
 const { getDefaultWriteRoot } = require('./db-server');
 
@@ -71,6 +77,7 @@ function enqueueDownload(dlUrl, category, pendingCategory) {
     pendingCategory: pendingCategory || category || '',
     status: 'queued', progress: 0, speed: '', eta: '', error: null,
     addedAt: Date.now(), outputPath: null, videoId: null, _kill: null,
+    kind: 'video', mediaType: null,
   });
   saveJobs();
   processDownloadQueue();
@@ -132,7 +139,111 @@ async function processDownloadQueue() {
   }
 }
 
+// Classify a download URL by its file extension so we know whether to hand
+// it to yt-dlp (video/page) or download it directly and sort it into the
+// matching media folder.
+function classifyUrl(url) {
+  let ext = '';
+  try { ext = path.extname(new URL(url).pathname).toLowerCase(); } catch {}
+  if (!ext || VIDEO_EXT.has(ext)) return { kind: 'video' };
+  if (AUDIO_EXT.has(ext)) return { kind: 'file', mediaType: 'audio', dir: AUDIO_DIR, ext };
+  if (BOOK_EXT.has(ext))  return { kind: 'file', mediaType: 'book',  dir: BOOKS_DIR, ext };
+  if (IMAGE_EXT.has(ext)) return { kind: 'file', mediaType: 'photo', dir: PHOTOS_DIR, ext };
+  return { kind: 'file', mediaType: 'file', dir: FILES_DIR, ext };
+}
+
+function formatSpeed(bytesPerSec) {
+  if (!bytesPerSec || !isFinite(bytesPerSec)) return '';
+  if (bytesPerSec >= 1024 * 1024) return (bytesPerSec / (1024 * 1024)).toFixed(1) + 'MB/s';
+  return (bytesPerSec / 1024).toFixed(1) + 'KB/s';
+}
+
+// Direct HTTP(S) download for non-video files (audio/books/photos/misc),
+// following redirects and sorted straight into the matching media folder.
+function runDirectFileDownload(job, target, url = job.url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) return reject(new Error('Too many redirects'));
+
+    const client = url.startsWith('https') ? https : http;
+    const req = client.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+        res.resume();
+        const nextUrl = new URL(res.headers.location, url).toString();
+        return runDirectFileDownload(job, target, nextUrl, redirects + 1).then(resolve, reject);
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' for ' + url));
+      }
+
+      fs.mkdirSync(target.dir, { recursive: true });
+
+      let filename = '';
+      try {
+        filename = decodeURIComponent(path.basename(new URL(url).pathname));
+      } catch {}
+      if (!filename) filename = 'download-' + job.id;
+      if (!path.extname(filename)) filename += target.ext;
+
+      let destPath = path.join(target.dir, filename);
+      if (fs.existsSync(destPath)) {
+        const base = path.basename(filename, path.extname(filename));
+        destPath = path.join(target.dir, `${base}-${job.id}${path.extname(filename)}`);
+      }
+
+      const total = parseInt(res.headers['content-length'] || '0', 10);
+      let received = 0;
+      let lastTick = Date.now();
+      let lastBytes = 0;
+
+      const out = fs.createWriteStream(destPath);
+      job._kill = () => { req.destroy(); out.destroy(); };
+
+      res.on('data', chunk => {
+        received += chunk.length;
+        if (total > 0) job.progress = Math.min(100, (received / total) * 100);
+        const now = Date.now();
+        if (now - lastTick >= 1000) {
+          job.speed = formatSpeed((received - lastBytes) / ((now - lastTick) / 1000));
+          lastTick = now;
+          lastBytes = received;
+        }
+      });
+
+      res.pipe(out);
+      out.on('finish', () => {
+        job.outputPath = destPath;
+        job.title = path.basename(destPath, path.extname(destPath));
+        job.kind = target.kind || 'file';
+        job.mediaType = target.mediaType;
+        job.progress = 100;
+        resolve();
+      });
+      out.on('error', reject);
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+  });
+}
+
 async function runJob(next) {
+  const classified = classifyUrl(next.url);
+  if (classified.kind === 'file') {
+    next.kind = 'file';
+    next.mediaType = classified.mediaType;
+    try {
+      await runDirectFileDownload(next, classified);
+      next.status   = 'done';
+      next.progress = 100;
+    } catch (e) {
+      if (downloadJobs.has(next.id)) { next.status = 'error'; next.error = e.message; }
+    } finally {
+      dlActive--;
+      saveJobs();
+      processDownloadQueue();
+    }
+    return;
+  }
   try {
     try {
       await runYtDlp(next);
@@ -186,7 +297,7 @@ function runYtDlp(job) {
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
     const writeRoot = getDefaultWriteRoot();
     const physicalCat = isVirtual ? '' : cleanCat;
-    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : writeRoot;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : path.join(writeRoot, 'downloads');
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const proc = spawn(YT_DLP_BIN, [
@@ -240,7 +351,7 @@ function runUniversal(job, ytErr) {
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
     const writeRoot = getDefaultWriteRoot();
     const physicalCat = isVirtual ? '' : cleanCat;
-    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : writeRoot;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : path.join(writeRoot, 'downloads');
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const pythonBin  = process.platform === 'win32' ? 'python' : 'python3';

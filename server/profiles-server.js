@@ -227,6 +227,7 @@ async function apiCreateProfile(req, res) {
   
   const db = require('./db-server');
   db.switchProfile(name);
+  saveLastProfile(name);
 
   if (preset) {
     const data = loadPresetData(preset);

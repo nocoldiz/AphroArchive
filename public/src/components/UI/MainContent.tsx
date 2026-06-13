@@ -2,8 +2,6 @@
 import { VideoGrid } from './VideoGrid';
 import { SettingsView } from '../sections/SettingsView';
 import { ThumbnailsView } from '../sections/ThumbnailsView';
-import { RedditView } from '../sections/RedditView';
-import { InstagramView } from '../sections/InstagramView';
 import { CategoriesView } from '../sections/CategoriesView';
 import { ActorsView } from '../sections/ActorsView';
 import { StudiosView } from '../sections/StudiosView';
@@ -15,7 +13,6 @@ import { SearchSitesView } from '../sections/SearchSitesView';
 import { AudioView } from '../sections/AudioView';
 import { BooksView } from '../sections/BooksView';
 import { CollectionsView } from '../sections/CollectionsView';
-import { DatabaseView } from '../sections/DatabaseView';
 import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
 import { StudioModal } from '../modals/StudioModal';
@@ -31,15 +28,22 @@ import { MosaicView } from '../sections/MosaicView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
 import { DownloadQueueView } from '../sections/DownloadQueueView';
-import { ActorScraperView } from '../sections/ActorScraperView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
-import { ImageGenView } from '../sections/ImageGenView';
-import { AssistantView } from '../sections/AssistantView';
-import { CategorizerView } from '../sections/CategorizerView';
-import { PromptsView } from '../sections/PromptsView';
-import { DuplicatesView } from '../sections/DuplicatesView';
-import { useEffect } from 'preact/hooks';
+import { useEffect, Suspense, lazy } from 'preact/compat';
+
+// Heavy/rare views — code-split so the initial bundle stays small
+const RedditView = lazy(() => import('../sections/RedditView').then(m => ({ default: m.RedditView })));
+const InstagramView = lazy(() => import('../sections/InstagramView').then(m => ({ default: m.InstagramView })));
+const DatabaseView = lazy(() => import('../sections/DatabaseView').then(m => ({ default: m.DatabaseView })));
+const ActorScraperView = lazy(() => import('../sections/ActorScraperView').then(m => ({ default: m.ActorScraperView })));
+const ImageGenView = lazy(() => import('../sections/ImageGenView').then(m => ({ default: m.ImageGenView })));
+const AssistantView = lazy(() => import('../sections/AssistantView').then(m => ({ default: m.AssistantView })));
+const CategorizerView = lazy(() => import('../sections/CategorizerView').then(m => ({ default: m.CategorizerView })));
+const PromptsView = lazy(() => import('../sections/PromptsView').then(m => ({ default: m.PromptsView })));
+const DuplicatesView = lazy(() => import('../sections/DuplicatesView').then(m => ({ default: m.DuplicatesView })));
+
+const ViewLoading = () => <div className="skeleton" style={{ margin: '40px auto', width: '120px', height: '24px' }} />;
 
 export const MainContent = () => {
   const view = currentView.value;
@@ -123,7 +127,9 @@ export const MainContent = () => {
 
   return (
     <>
-      {renderView()}
+      <Suspense fallback={<ViewLoading />}>
+        {renderView()}
+      </Suspense>
       <ContextMenu />
       <TagModal />
       <ActorModal />

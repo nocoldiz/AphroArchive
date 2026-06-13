@@ -1,4 +1,4 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, imagegenInputState } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, imagegenInputState, renameModalState, moveModalState, tagModalState, actorModalState, studioModalState } from '../../store';
 import { zapOn, zapLock, zapIv, zapStartTime, setZapIv, toggleZapLock, stopZapping } from '../../zap';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
@@ -38,7 +38,6 @@ export const PlayerView = () => {
   const [suggested, setSuggested] = useState<any[]>([]);
   const [subtitles, setSubtitles] = useState<any[]>([]);
   const [language, setLanguage] = useState<string>('');
-  if (!video) return null;
 
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
@@ -196,6 +195,23 @@ export const PlayerView = () => {
     }).catch(() => {});
   }, [video]);
 
+  // Refetch actors/tags/studio after the tag/actor/studio modal closes for this video
+  const anyMetaModalOpen = tagModalState.value.visible || actorModalState.value.visible || studioModalState.value.visible;
+  const wasMetaModalOpen = useRef(false);
+  useEffect(() => {
+    if (anyMetaModalOpen) {
+      wasMetaModalOpen.current = true;
+      return;
+    }
+    if (!wasMetaModalOpen.current || !video || video.isVault) return;
+    wasMetaModalOpen.current = false;
+    fetch(`/api/videos/${video.id}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => {
+      setActors(d.actors || []);
+      setTags(d.tags || []);
+      setStudio(d.studio || '');
+    }).catch(() => {});
+  }, [video, anyMetaModalOpen]);
+
   const relatedVideos = useMemo(() => {
     if (!video) return [];
     const nextUpIds = new Set(playerNextUp.value.map(v => v.id));
@@ -255,6 +271,17 @@ export const PlayerView = () => {
     }
   };
 
+  const removeTag = async (tag: string) => {
+    if (!video) return;
+    const newTags = tags.filter(t => t !== tag);
+    setTags(newTags);
+    await fetch(`/api/videos/${video.id}/meta`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: newTags }),
+    }).catch(() => {});
+  };
+
   const updateLanguage = async (lang: string) => {
     if (!video) return;
     const prev = language;
@@ -305,7 +332,7 @@ export const PlayerView = () => {
     const r = await fetch(`/api/videos/${video.id}/encrypt`, { method: 'POST' });
     if (r.ok) {
       if ((window as any).toast) (window as any).toast('Video encrypted and moved to Vault');
-      currentView.value = 'home';
+      currentView.value = 'hub';
     } else {
       const err = await r.json();
       if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
@@ -327,8 +354,7 @@ export const PlayerView = () => {
   };
 
   const goBack = () => {
-    currentView.value = 'home';
-    if ((window as any).goBack) (window as any).goBack();
+    currentView.value = 'hub';
   };
 
   return (
@@ -450,7 +476,7 @@ export const PlayerView = () => {
                 <span>Fav</span>
               </button>
               
-              <button onClick={() => (window as any).openRenP()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => renameModalState.value = { visible: true, vidId: video.id, linkUrl: null, currentName: video.name }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -458,7 +484,7 @@ export const PlayerView = () => {
                 <span>Rename</span>
               </button>
 
-              <button onClick={() => (window as any).openMovP()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => moveModalState.value = { visible: true, vidIds: [video.id], linkUrl: null, currentCategory: video.catPath || '' }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
@@ -475,13 +501,6 @@ export const PlayerView = () => {
                   <line x1="3" y1="18" x2="3.01" y2="18" />
                 </svg>
                 <span>Playlist</span>
-              </button>
-
-              <button id="pinBtn" onClick={() => (window as any).togglePin()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2v20M5 5h14M19 17H5M9 5v12M15 5v12" />
-                </svg>
-                <span>Pin</span>
               </button>
 
               <button onClick={() => handleEncrypt()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
@@ -504,7 +523,7 @@ export const PlayerView = () => {
                 const r = await fetch(`/api/videos/${video.id}`, { method: 'DELETE' });
                 if (r.ok) {
                   if ((window as any).toast) (window as any).toast('Video deleted');
-                  currentView.value = 'home';
+                  currentView.value = 'hub';
                   allVideos.value = allVideos.value.filter((v: any) => v.id !== video.id);
                 } else {
                   const err = await r.json();
@@ -612,7 +631,12 @@ export const PlayerView = () => {
               <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tags</span>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {tags.map(t => (
-                  <span key={t} className="p-tag">{t}</span>
+                  <span key={t} className="p-tag" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {t}
+                    <button onClick={() => removeTag(t)} title="Remove tag" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', opacity: 0.6 }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                    </button>
+                  </span>
                 ))}
                 <button className="p-tag-add-btn" onClick={() => (window as any).openTagModal(video.id)} style={{ width: '24px', height: '24px' }}>
                   +

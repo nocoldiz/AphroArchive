@@ -1,4 +1,4 @@
-import { currentView, currentActor, currentStudio, currentCategory, currentTag, currentVideo, allVideos, enableUrlSync } from './store';
+import { currentView, currentActor, currentStudio, currentCategory, currentTag, currentVideo, allVideos, enableUrlSync, setRouteResolving } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
@@ -20,13 +20,27 @@ export async function routeToPath(path: string) {
     if (!tryOpen()) {
       // Videos not loaded yet — retry once they arrive. Unsubscribe on the
       // first non-empty list either way so the subscription can't leak.
+      setRouteResolving(true);
       let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        setRouteResolving(false);
+      };
       const unsub = allVideos.subscribe(vids => {
         if (done || vids.length === 0) return;
-        done = true;
+        finish();
         if (!tryOpen()) currentView.value = 'hub';
         Promise.resolve().then(() => unsub());
       });
+      // Safety net: if videos never load (empty library, fetch failure),
+      // don't leave URL sync disabled forever.
+      setTimeout(() => {
+        if (done) return;
+        finish();
+        if (!tryOpen()) currentView.value = 'hub';
+        unsub();
+      }, 8000);
     }
     return;
   }

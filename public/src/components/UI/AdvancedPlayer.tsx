@@ -105,6 +105,20 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     vid.addEventListener('waiting', onWaiting);
     vid.addEventListener('canplay', onCanPlay);
 
+    // Browsers block unmuted autoplay without a user gesture (e.g. on page
+    // reload). Fall back to muted autoplay so playback always starts.
+    const playPromise = vid.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {
+        if (!vid.muted) {
+          vid.muted = true;
+          setMuted(true);
+          isMutedSignal.value = true;
+          vid.play().catch(() => {});
+        }
+      });
+    }
+
     return () => {
       vid.removeEventListener('play', onPlay);
       vid.removeEventListener('pause', onPause);

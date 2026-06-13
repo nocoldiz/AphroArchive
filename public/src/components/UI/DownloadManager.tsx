@@ -13,15 +13,13 @@ interface DownloadJob {
   error?: string;
   videoId?: string;
   movedTo?: string;
+  kind?: 'video' | 'file';
+  mediaType?: 'audio' | 'book' | 'photo' | 'file';
 }
 
-interface BulkStatus {
-  running: boolean;
-  done: number;
-  total: number;
-  current: string;
-  log: string[];
-}
+const MEDIA_TYPE_LABEL: Record<string, string> = {
+  audio: 'Audio', book: 'Book', photo: 'Photo', file: 'File',
+};
 
 function suggestCategory(title: string, cats: any[]): string {
   const norm = title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -32,15 +30,6 @@ function suggestCategory(title: string, cats: any[]): string {
   return '';
 }
 
-function ProgressBar({ done = 0, total = 0, color = 'var(--ac)' }: { done?: number; total?: number; color?: string }) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  return (
-    <div style={{ height: '3px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden', marginTop: '2px' }}>
-      <div style={{ width: `${pct}%`, height: '100%', background: color, transition: 'width 0.4s' }} />
-    </div>
-  );
-}
-
 const DL_STATUS_COLOR: Record<string, string> = {
   done: '#1a7a3a', error: '#a11', running: 'var(--ac)', queued: 'var(--bg3)',
 };
@@ -49,19 +38,15 @@ export const DownloadManager = () => {
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [open, setOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<Record<string, string>>({});
-  const [bulk, setBulk] = useState<BulkStatus>({ running: false, done: 0, total: 0, current: '', log: [] });
-  const [bulkUrls, setBulkUrls] = useState('');
-  const [showBulkInput, setShowBulkInput] = useState(false);
+  const [newUrls, setNewUrls] = useState('');
+  const [newCategory, setNewCategory] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
   const prevJobStatuses = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const [dlRes, blkRes] = await Promise.all([
-          fetch('/api/download/jobs'),
-          fetch('/api/bulk-download/status'),
-        ]);
+        const dlRes = await fetch('/api/download/jobs');
         if (dlRes.ok) {
           const newJobs: DownloadJob[] = await dlRes.json();
           // Detect transitions to 'done' and reload the video list
@@ -74,7 +59,6 @@ export const DownloadManager = () => {
           setJobs(newJobs);
           if (anyNewlyDone) loadVideos();
         }
-        if (blkRes.ok) setBulk(await blkRes.json());
       } catch {}
     };
     poll();
@@ -93,7 +77,7 @@ export const DownloadManager = () => {
   }, [open]);
 
   const activeDlCount = jobs.filter(j => j.status === 'queued' || j.status === 'running').length;
-  const badgeCount = activeDlCount + (bulk.running ? 1 : 0);
+  const badgeCount = activeDlCount;
 
   const cats = (categories.value as any[]).filter(
     c => c.path && c.path !== 'uncategorized' && c.path !== 'Links'
@@ -128,18 +112,36 @@ export const DownloadManager = () => {
     }
   };
 
-  const startBulkDownload = async () => {
-    const urls = bulkUrls.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+  const parseUrls = () => newUrls.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+
+  const handleDownload = async () => {
+    const urls = parseUrls();
     if (!urls.length) return;
-    const r = await fetch('/api/bulk-download/start', {
+    const items = urls.map(url => ({ url, category: newCategory, pendingCategory: newCategory }));
+    const r = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    if (r.ok) setNewUrls('');
+  };
+
+  const handleAddToQueue = async () => {
+    const urls = parseUrls();
+    if (!urls.length) return;
+    const r = await fetch('/api/links/import-urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls }),
     });
-    if (r.ok) { setBulkUrls(''); setShowBulkInput(false); }
+    const w = window as any;
+    if (r.ok) {
+      if (w.toast) w.toast(`Added ${urls.length} link(s) to Download Queue`);
+      setNewUrls('');
+    } else if (w.toast) {
+      w.toast('Failed to add to Download Queue');
+    }
   };
-
-  const stopBulkDownload = () => fetch('/api/bulk-download/stop', { method: 'POST' }).catch(() => {});
 
   return (
     <div style={{ position: 'relative' }} ref={wrapRef}>
@@ -212,6 +214,11 @@ export const DownloadManager = () => {
                       <span style={{ flex: 1, fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.title || job.url}>
                         {job.title || job.url}
                       </span>
+                      {job.kind === 'file' && job.mediaType && (
+                        <span style={{ fontSize: '0.62rem', padding: '1px 5px', borderRadius: '3px', flexShrink: 0, background: 'var(--bg3)', color: 'var(--tx2)' }}>
+                          {MEDIA_TYPE_LABEL[job.mediaType] || job.mediaType}
+                        </span>
+                      )}
                       <span style={{
                         fontSize: '0.68rem', padding: '1px 5px', borderRadius: '3px', flexShrink: 0,
                         background: DL_STATUS_COLOR[job.status] || 'var(--bg3)',
@@ -232,7 +239,7 @@ export const DownloadManager = () => {
                     )}
                     {job.status === 'running' && job.speed && (
                       <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', display: 'flex', gap: '8px' }}>
-                        <span>{job.speed}</span>{job.eta && <span>ETA {job.eta}</span>}
+                        <span>↓ {job.speed}</span>{job.eta && <span>ETA {job.eta}</span>}
                       </div>
                     )}
                     {job.status === 'error' && job.error && (
@@ -260,89 +267,48 @@ export const DownloadManager = () => {
             </div>
           )}
 
-          {/* ── Bulk Download section ─────────────────────── */}
-          <div style={{ borderBottom: '1px solid var(--brd)' }}>
-            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
-              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/>
-                  <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>
-                </svg>
-              </span>
-              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Bulk Download</span>
-              {bulk.running ? (
-                <>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
-                    {bulk.total > 0 ? `${bulk.done}/${bulk.total}` : 'running…'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={stopBulkDownload}
-                    style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
-                  >
-                    Stop
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowBulkInput(v => !v)}
-                  style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
-                >
-                  {showBulkInput ? 'Cancel' : 'Add URLs'}
-                </button>
-              )}
+          {/* ── Add download section ──────────────────────── */}
+          <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <textarea
+              value={newUrls}
+              onInput={(e: any) => setNewUrls(e.target.value)}
+              placeholder={'Paste one or more URLs, one per line'}
+              rows={2}
+              style={{
+                width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)',
+                borderRadius: '5px', padding: '6px 8px', fontSize: '0.72rem',
+                fontFamily: 'monospace', lineHeight: '1.5',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <select
+                value={newCategory}
+                onChange={(e: any) => setNewCategory(e.target.value)}
+                title="Category"
+                style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 5px', fontSize: '0.72rem' }}
+              >
+                <option value="">— root —</option>
+                {cats.map((c: any) => <option key={c.path} value={c.path}>{c.path.replace(/\//g, ' / ')}</option>)}
+              </select>
+              <button
+                type="button"
+                onClick={handleAddToQueue}
+                disabled={!parseUrls().length}
+                title="Save link(s) to the Download Queue without downloading now"
+                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '4px 10px', fontSize: '0.72rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Add to Queue
+              </button>
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={!parseUrls().length}
+                style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 14px', fontSize: '0.72rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Download
+              </button>
             </div>
-
-            {bulk.running && bulk.total > 0 && <ProgressBar done={bulk.done} total={bulk.total} />}
-            {bulk.running && bulk.current && (
-              <div style={{ padding: '0 14px 6px', fontSize: '0.68rem', color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={bulk.current}>
-                {bulk.current}
-              </div>
-            )}
-            {bulk.running && bulk.log.length > 0 && (
-              <div style={{ margin: '0 14px 8px', background: 'var(--bg3)', borderRadius: '4px', padding: '6px 8px', maxHeight: '100px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.65rem', color: 'var(--tx2)', lineHeight: '1.4' }}>
-                {bulk.log.slice(-20).map((l, i) => <div key={i}>{l}</div>)}
-              </div>
-            )}
-            {!bulk.running && bulk.total > 0 && bulk.log.length > 0 && (
-              <div style={{ padding: '0 14px 8px', fontSize: '0.7rem', color: 'var(--tx3)' }}>
-                Done — {bulk.total} item(s) processed
-              </div>
-            )}
-
-            {showBulkInput && !bulk.running && (
-              <div style={{ padding: '0 14px 10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <textarea
-                  value={bulkUrls}
-                  onInput={(e: any) => setBulkUrls(e.target.value)}
-                  placeholder={'Paste URLs, one per line\nhttps://example.com/video1\nhttps://example.com/video2'}
-                  rows={5}
-                  style={{
-                    width: '100%', boxSizing: 'border-box', resize: 'vertical',
-                    background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)',
-                    borderRadius: '5px', padding: '6px 8px', fontSize: '0.72rem',
-                    fontFamily: 'monospace', lineHeight: '1.5',
-                  }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--tx3)' }}>
-                    {bulkUrls.split('\n').filter(l => l.trim().startsWith('http')).length} URL(s)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={startBulkDownload}
-                    disabled={!bulkUrls.split('\n').some(l => l.trim().startsWith('http'))}
-                    style={{
-                      background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px',
-                      padding: '4px 14px', fontSize: '0.75rem', cursor: 'pointer',
-                    }}
-                  >
-                    Start
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
         </div>

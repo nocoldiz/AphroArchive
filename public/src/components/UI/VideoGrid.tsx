@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos, ensureVaultUnlocked } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos, ensureVaultUnlocked, moveModalState } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 
 
@@ -11,6 +11,29 @@ const formatDuration = (seconds: number) => {
   const s = Math.floor(seconds % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
+
+// Shared IntersectionObserver for thumbnail generation — avoids one observer
+// per card when the grid renders hundreds of videos.
+let sharedThumbObserver: IntersectionObserver | null = null;
+const thumbObserverIds = new WeakMap<Element, string>();
+
+function getThumbObserver() {
+  if (!sharedThumbObserver) {
+    sharedThumbObserver = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          const id = thumbObserverIds.get(e.target);
+          if (id) {
+            fetch(`/api/thumbs/${id}/generate`, { method: 'POST' }).catch(() => {});
+            sharedThumbObserver!.unobserve(e.target);
+            thumbObserverIds.delete(e.target);
+          }
+        }
+      }
+    }, { rootMargin: '300px' });
+  }
+  return sharedThumbObserver;
+}
 
 interface VideoCardProps {
   video: Video;
@@ -82,17 +105,14 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
 
   useEffect(() => {
     if (!cardRef.current || video.isLink) return;
-    const observer = new IntersectionObserver(entries => {
-      for (const e of entries) {
-        if (e.isIntersecting) {
-          fetch(`/api/thumbs/${video.id}/generate`, { method: 'POST' })
-            .catch(() => {});
-          observer.unobserve(cardRef.current!);
-        }
-      }
-    }, { rootMargin: '300px' });
-    observer.observe(cardRef.current);
-    return () => observer.disconnect();
+    const el = cardRef.current;
+    const observer = getThumbObserver();
+    thumbObserverIds.set(el, video.id);
+    observer.observe(el);
+    return () => {
+      observer.unobserve(el);
+      thumbObserverIds.delete(el);
+    };
   }, [video.id]);
 
   const play = () => {
@@ -448,8 +468,8 @@ export const VideoSelBar = () => {
         </button>
       )}
 
-      <button 
-        onClick={(e) => (window as any).showVideoSelMoveMenu && (window as any).showVideoSelMoveMenu(e)}
+      <button
+        onClick={() => moveModalState.value = { visible: true, vidIds: [...selectedVideoIds.value], linkUrl: null, currentCategory: '' }}
         style={{ background: 'var(--ac)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -468,11 +488,33 @@ export const VideoSelBar = () => {
   );
 };
 
+const CHUNK_SIZE = 60;
+
 export const VideoGrid = () => {
   const list = filteredVideos.value;
   const gridRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [renderLimit, setRenderLimit] = useState(CHUNK_SIZE);
+  const prevListRef = useRef(list);
 
   useVideoSelection(gridRef);
+
+  // Reset chunking when the filtered list itself changes (new search/category/sort/etc.)
+  if (prevListRef.current !== list) {
+    prevListRef.current = list;
+    if (renderLimit !== CHUNK_SIZE) setRenderLimit(CHUNK_SIZE);
+  }
+
+  useEffect(() => {
+    if (!sentinelRef.current || renderLimit >= list.length) return;
+    const observer = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) setRenderLimit(l => l + CHUNK_SIZE);
+      }
+    }, { rootMargin: '600px' });
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [list, renderLimit]);
 
   if (isLoadingVideos.value) {
     return (
@@ -493,11 +535,13 @@ export const VideoGrid = () => {
     );
   }
 
+  const visible = list.slice(0, renderLimit);
+
   return (
     <>
       <VideoSelBar />
       <div className="video-grid" id="video-grid" ref={gridRef} data-thumb-mode={thumbBlurMode.value}>
-        {list.map((v, i) => (
+        {visible.map((v, i) => (
           <VideoCard
             key={v.id}
             video={v}
@@ -506,6 +550,11 @@ export const VideoGrid = () => {
           />
         ))}
       </div>
+      {renderLimit < list.length && (
+        <div ref={sentinelRef} style={{ textAlign: 'center', padding: '20px', color: 'var(--tx3)', fontSize: '0.85rem' }}>
+          Showing {visible.length} of {list.length} — scroll for more
+        </div>
+      )}
     </>
   );
 };

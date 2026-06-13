@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useMemo } from 'preact/hooks';
 import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos } from '../../store';
 
 interface SidebarItemProps {
@@ -155,13 +155,13 @@ export const Sidebar = () => {
   // Use the counts already provided by the server's categories API — no client-side recomputation
   const sf = sourceFilter.value;
   const vids = allVideos.value;
-  const filteredVids = sf === 'local'
+  const filteredVids = useMemo(() => sf === 'local'
     ? vids.filter(v => !(v as any).isLink)
     : sf === 'remote'
     ? vids.filter(v => !!(v as any).isLink)
-    : vids;
+    : vids, [sf, vids]);
 
-  const displayCategories = categories.value
+  const displayCategories = useMemo(() => categories.value
     .map(c => {
       // Use the count from the server response; if missing (e.g. for link-only cats), compute from filteredVids
       let count = c.count || 0;
@@ -180,10 +180,10 @@ export const Sidebar = () => {
       if (a.path === 'uncategorized') return -1;
       if (b.path === 'uncategorized') return 1;
       return a.name.localeCompare(b.name);
-    });
+    }), [categories.value, filteredVids]);
 
   // Count per tag group: pre-computed v.tags match OR live name-match against group terms
-  const displayTags = tagGroups
+  const displayTags = useMemo(() => tagGroups
     .filter(g => !(appPrefs.value.hiddenTags || []).includes(g.displayName))
     .map(g => {
       const nameLo = g.displayName.toLowerCase();
@@ -198,7 +198,7 @@ export const Sidebar = () => {
       return { name: g.displayName, terms: g.terms, count };
     })
     .filter(t => t.count > 0)
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.count - a.count), [tagGroups, appPrefs.value.hiddenTags, filteredVids]);
 
   return (
     <>
@@ -234,6 +234,13 @@ export const Sidebar = () => {
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg>}
           onClick={() => setView('collections', 'showCollections')}
           isActive={currentView.value === 'collections'}
+        />
+        <SidebarItem
+          id="download-queue-sidebar"
+          label="Download Queue"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>}
+          onClick={() => setView('download-queue')}
+          isActive={currentView.value === 'download-queue'}
         />
 
         <SidebarItem

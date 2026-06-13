@@ -173,6 +173,11 @@ if (typeof document !== 'undefined') {
 export const isLoadingVideos = signal<boolean>(false);
 export const sortMode = signal<string>('date');
 export const isShuffle = signal<boolean>(false);
+// Bumped each time shuffle is (re-)enabled — the only thing that should re-roll order
+export const shuffleSeed = signal(0);
+if (typeof window !== 'undefined') {
+  isShuffle.subscribe(val => { if (val) shuffleSeed.value++; });
+}
 export const vaultMode = signal<boolean>(false);
 export const isVaultUnlocked = signal<boolean>(false);
 export const categoryMasterPassword = signal<string | null>(null);
@@ -229,13 +234,35 @@ export async function loadProfiles() {
   return data;
 }
 
+// Resets navigation/filter state and reloads data for the active profile,
+// mirroring App.tsx's initial load — used after a profile switch/create so
+// the UI reflects the new profile's database without a full page reload.
+export async function reloadAppData() {
+  currentVideo.value = null;
+  currentView.value = 'hub';
+  currentCategory.value = '';
+  currentTag.value = null;
+  currentTagTerms.value = [];
+  currentActor.value = null;
+  currentStudio.value = null;
+  searchQuery.value = '';
+  if (location.pathname !== '/') history.pushState(null, '', '/');
+
+  await Promise.all([loadVideos(), loadCategories(), loadPrefs()]);
+
+  try {
+    const s = await (await fetch('/api/vault/status')).json();
+    isVaultUnlocked.value = !!s.unlocked;
+  } catch {}
+}
+
 export async function switchProfile(name: string) {
   const res = await fetch('/api/profiles/switch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ profile: name })
   });
-  
+
   if (res.status === 401) {
     const data = await res.json();
     if (data.locked) {
@@ -244,9 +271,10 @@ export async function switchProfile(name: string) {
       return;
     }
   }
-  
+
   activeProfile.value = name;
-  window.location.reload();
+  profileModalState.value = { visible: false };
+  await reloadAppData();
 }
 
 if (typeof document !== 'undefined') {
@@ -396,6 +424,9 @@ w.dualR = { q: '', cat: '', curTag: null };
 w._dualTagVids = [];
 
 // ─── Computed State ──────────────────────────────────────────────────
+let _shuffleKeys = new Map<string, number>();
+let _shuffleSeedApplied = -1;
+
 export const filteredVideos = computed(() => {
   let list = [...videos.value];
   
@@ -455,7 +486,16 @@ export const filteredVideos = computed(() => {
 
   // Apply sorting or shuffle
   if (isShuffle.value) {
-    list.sort(() => Math.random() - 0.5);
+    if (shuffleSeed.value !== _shuffleSeedApplied) {
+      _shuffleKeys = new Map();
+      _shuffleSeedApplied = shuffleSeed.value;
+    }
+    const keyFor = (v: any) => {
+      let k = _shuffleKeys.get(v.id);
+      if (k === undefined) { k = Math.random(); _shuffleKeys.set(v.id, k); }
+      return k;
+    };
+    list.sort((a, b) => keyFor(a) - keyFor(b));
   } else {
     if (sortMode.value === 'name') {
       list.sort((a, b) => a.name.localeCompare(b.name));
@@ -496,11 +536,22 @@ export function matchLinkCat(title: string, cats: any[], explicitCategory?: stri
 
 export async function loadVideos() {
   isLoadingVideos.value = true;
+  try {
+    await loadVideosInner();
+  } catch (e) {
+    if ((window as any).toast) (window as any).toast('Failed to load videos');
+  } finally {
+    isLoadingVideos.value = false;
+  }
+}
+
+async function loadVideosInner() {
   const [res, bRes, cRes] = await Promise.all([
     fetch('/api/videos'),
     fetch('/api/links/cache?limit=0').catch(() => null),
     fetch('/api/categories').catch(() => null),
   ]);
+  if (!res.ok) throw new Error('Failed to fetch videos');
   const data = await res.json();
 
   const cats = cRes ? await cRes.json().catch(() => []) : [];
@@ -559,7 +610,6 @@ export async function loadVideos() {
 
   allVideos.value = combined;
   videos.value = combined;
-  isLoadingVideos.value = false;
 
   // Recompute category counts from combined list (local + link videos)
   if (Array.isArray(cats) && cats.length > 0) {
@@ -772,10 +822,17 @@ export function syncUrlToState() {
 let _urlSyncEnabled = false;
 export function enableUrlSync() { _urlSyncEnabled = true; }
 
+// While the router is waiting for `allVideos` to load to resolve a
+// /video/:id deep link, currentView/currentVideo briefly sit at their
+// initial 'hub'/null values. Suppress URL sync during that window so it
+// doesn't overwrite the deep-link URL with '/' before the video loads.
+let _routeResolving = false;
+export function setRouteResolving(v: boolean) { _routeResolving = v; }
+
 let _pendingUrlUpdate: Promise<void> | null = null;
 
 function doUpdateUrl() {
-  if (!_urlSyncEnabled || typeof window === 'undefined') return;
+  if (!_urlSyncEnabled || _routeResolving || typeof window === 'undefined') return;
   const view = currentView.value;
   const video = currentVideo.value;
   let path = '/';

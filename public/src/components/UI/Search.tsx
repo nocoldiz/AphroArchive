@@ -1,9 +1,20 @@
 import { searchQuery, currentView, currentCategory, currentTag, currentTagTerms } from '../../store';
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
+
+const SEARCH_DEBOUNCE_MS = 200;
 
 export const Search = () => {
   const [acTerms, setAcTerms] = useState<string[]>([]);
   const [hint, setHint] = useState('');
+  const [localQuery, setLocalQuery] = useState(searchQuery.value);
+  const debounceRef = useRef<any>(null);
+
+  // Keep local input in sync when searchQuery changes externally (e.g. clear/reset)
+  useEffect(() => {
+    setLocalQuery(searchQuery.value);
+  }, [searchQuery.value]);
+
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   useEffect(() => {
     fetch('/api/settings/lists')
@@ -29,10 +40,17 @@ export const Search = () => {
     return match.slice(last.length);
   };
 
-  const onInput = (e: any) => {
-    const val = e.target.value;
+  const commitSearch = (val: string) => {
     searchQuery.value = val;
     (window as any).q = val;
+    if ((window as any).onSearchInput) {
+      (window as any).onSearchInput(val);
+    }
+  };
+
+  const onInput = (e: any) => {
+    const val = e.target.value;
+    setLocalQuery(val);
 
     if (val && currentView.value !== 'browse') {
       currentView.value = 'browse';
@@ -47,17 +65,19 @@ export const Search = () => {
     const h = getSuggest(val);
     setHint(h);
 
-    if ((window as any).onSearchInput) {
-      (window as any).onSearchInput(val);
-    }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => commitSearch(val), SEARCH_DEBOUNCE_MS);
   };
 
   const onKeyDown = (e: any) => {
     if (e.key === 'Tab') {
       if (hint) {
         e.preventDefault();
-        searchQuery.value += hint;
+        const val = localQuery + hint;
+        setLocalQuery(val);
         setHint('');
+        clearTimeout(debounceRef.current);
+        commitSearch(val);
       }
     } else if (e.key === 'Escape') {
       setHint('');
@@ -67,12 +87,12 @@ export const Search = () => {
   useEffect(() => {
     const ghost = document.getElementById('search-ghost');
     if (!ghost) return;
-    if (!hint || !searchQuery.value) {
+    if (!hint || !localQuery) {
       ghost.innerHTML = '';
       return;
     }
-    ghost.innerHTML = `<span class="ghost-typed">${searchQuery.value}</span><span class="ghost-hint">${hint}</span>`;
-  }, [hint, searchQuery.value]);
+    ghost.innerHTML = `<span class="ghost-typed">${localQuery}</span><span class="ghost-hint">${hint}</span>`;
+  }, [hint, localQuery]);
 
   return (
     <>
@@ -84,7 +104,7 @@ export const Search = () => {
         type="text"
         id="search-input"
         placeholder="Search videos..."
-        value={searchQuery.value}
+        value={localQuery}
         onInput={onInput}
         onKeyDown={onKeyDown}
         onBlur={() => setHint('')}
