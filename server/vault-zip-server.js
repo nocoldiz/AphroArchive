@@ -270,4 +270,114 @@ async function apiCategoryDownloadZip(req, res) {
   res.end(zip);
 }
 
-module.exports = { apiVaultDownloadZip, apiCategoryDownloadZip };
+// ═══════════════════════════════════════════════════════════════════
+//  ZIP IMPORT — read (optionally password-protected) archives and either
+//  extract them to a folder under VIDEOS_DIR or encrypt their contents
+//  straight into the vault.
+// ═══════════════════════════════════════════════════════════════════
+
+const fs = require('fs');
+const path = require('path');
+const zipReader = require('./zip-reader-server');
+const { VIDEOS_DIR, PROCESS_DIR } = require('./config-server');
+
+// Resolve the source ZIP bytes from either a vault file id or a path that is
+// constrained to VIDEOS_DIR / PROCESS_DIR (prevents reading arbitrary files).
+function _resolveZipBuffer(body) {
+  const vault = require('./vault-server');
+  if (body.id) {
+    const r = vault.decryptToBuffer(body.id);
+    if (!r) return { error: 'Vault locked or file not found', code: 400 };
+    return { buf: r.buffer, name: (vault.getFileMeta(body.id) || {}).originalName || 'archive.zip' };
+  }
+  if (body.path) {
+    const roots = [VIDEOS_DIR, PROCESS_DIR].filter(Boolean).map(r => path.resolve(r));
+    const abs = path.resolve(body.path);
+    if (!roots.some(root => abs === root || abs.startsWith(root + path.sep))) {
+      return { error: 'Path outside allowed directories', code: 403 };
+    }
+    if (!fs.existsSync(abs)) return { error: 'File not found', code: 404 };
+    return { buf: fs.readFileSync(abs), name: path.basename(abs), srcPath: abs };
+  }
+  return { error: 'Provide a vault file id or a path', code: 400 };
+}
+
+// Normalise an entry name to a safe relative path (defeats Zip-Slip).
+function _safeEntryPath(name) {
+  const cleaned = String(name).replace(/\\/g, '/').replace(/^[a-zA-Z]:/, '').replace(/^\/+/, '');
+  const parts = cleaned.split('/').filter(p => p && p !== '.' && p !== '..');
+  return parts.join('/');
+}
+
+// Preview the entries of a ZIP (names/sizes/encryption) without extracting.
+async function apiVaultZipEntries(req, res) {
+  const body = await readBody(req);
+  const src = _resolveZipBuffer(body);
+  if (src.error) return json(res, { error: src.error }, src.code || 400);
+  try {
+    const entries = zipReader.listEntries(src.buf).map(e => ({
+      name: e.name, isDir: e.isDir, encrypted: e.encrypted,
+      encryption: e.encryption, size: e.size,
+    }));
+    json(res, { ok: true, name: src.name, encrypted: entries.some(e => e.encrypted), entries });
+  } catch (e) {
+    json(res, { error: 'Failed to read ZIP: ' + e.message }, 400);
+  }
+}
+
+// Import a ZIP. mode 'extract' writes decrypted files under VIDEOS_DIR;
+// mode 'vault' encrypts each file into the vault (requires it unlocked).
+async function apiVaultImportZip(req, res) {
+  const body = await readBody(req);
+  const mode = body.mode === 'extract' ? 'extract' : 'vault';
+  const password = typeof body.password === 'string' ? body.password : '';
+
+  const src = _resolveZipBuffer(body);
+  if (src.error) return json(res, { error: src.error }, src.code || 400);
+
+  const vault = require('./vault-server');
+  if (mode === 'vault' && !vault.isUnlocked()) return json(res, { error: 'locked' }, 401);
+
+  let files;
+  try {
+    files = zipReader.extractAll(src.buf, password);
+  } catch (e) {
+    if (e.message === 'WRONG_PASSWORD') return json(res, { error: 'Password required or incorrect', needPassword: true }, 401);
+    return json(res, { error: 'Extraction failed: ' + e.message }, 400);
+  }
+
+  if (mode === 'extract') {
+    // Destination folder under VIDEOS_DIR, defaulting to the archive's name.
+    const folderName = _safeEntryPath(body.destFolder || src.name.replace(/\.zip$/i, '')) || 'imported';
+    const destRoot = path.resolve(path.join(VIDEOS_DIR, folderName));
+    if (destRoot !== path.resolve(VIDEOS_DIR) && !destRoot.startsWith(path.resolve(VIDEOS_DIR) + path.sep)) {
+      return json(res, { error: 'Invalid destination' }, 400);
+    }
+    let written = 0;
+    for (const f of files) {
+      const rel = _safeEntryPath(f.name);
+      if (!rel) continue;
+      const outPath = path.join(destRoot, rel);
+      fs.mkdirSync(path.dirname(outPath), { recursive: true });
+      fs.writeFileSync(outPath, f.data);
+      written++;
+    }
+    return json(res, { ok: true, mode, folder: folderName, count: written });
+  }
+
+  // mode === 'vault'
+  const folder = body.folder || null;
+  const ids = [];
+  for (const f of files) {
+    const baseName = _safeEntryPath(f.name).split('/').pop() || 'file';
+    const id = vault.encryptBufferToVault(f.data, baseName, folder);
+    if (id) ids.push(id);
+  }
+  json(res, { ok: true, mode, count: ids.length, ids });
+}
+
+module.exports = {
+  apiVaultDownloadZip, apiCategoryDownloadZip,
+  apiVaultZipEntries, apiVaultImportZip,
+  buildZip,
+};

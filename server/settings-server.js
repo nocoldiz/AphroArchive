@@ -55,6 +55,11 @@ async function apiSavePrefs(req, res) {
   }
   if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   if ('vaultSelfDestruct' in body) prefs.vaultSelfDestruct = !!body.vaultSelfDestruct;
+  if ('vaultTimeoutMinutes' in body) {
+    // Auto-lock period in minutes. 0 disables auto-lock. Clamp to a sane range.
+    const n = Number(body.vaultTimeoutMinutes);
+    if (Number.isFinite(n) && n >= 0) prefs.vaultTimeoutMinutes = Math.min(n, 24 * 60);
+  }
   if ('anthropicApiKey' in body) prefs.anthropicApiKey = String(body.anthropicApiKey || '').trim();
   if ('openrouterApiKey' in body) prefs.openrouterApiKey = String(body.openrouterApiKey || '').trim();
   if ('openrouterModel' in body) prefs.openrouterModel = String(body.openrouterModel || '').trim();

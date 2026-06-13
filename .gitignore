@@ -16,6 +16,7 @@ android-app/www/*
 android-app/www/index.html
 !dist/public
 .AphroArchive-thumbs
+public/dist/assets/*
 .AphroArchive-actor-photos
 settings
 links_cache.json

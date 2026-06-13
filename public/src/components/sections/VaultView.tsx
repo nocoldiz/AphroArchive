@@ -463,6 +463,60 @@ export const VaultView = () => {
     if (w.toast) w.toast('Empty text file created securely');
   };
 
+  // Import a ZIP (optionally password-protected): upload it into the vault,
+  // then extract its entries either into the vault or to a folder on disk.
+  const handleImportZip = async (file: File) => {
+    const w = window as any;
+    if (!file) return;
+    try {
+      // 1. Stream the archive into the vault to get an id to read from.
+      const up = await fetch('/api/vault/add', {
+        method: 'POST',
+        headers: { 'x-filename': encodeURIComponent(file.name), ...(curFolder ? { 'x-folder': curFolder } : {}) },
+        body: file,
+      });
+      const upData = await up.json();
+      if (!up.ok || !upData.id) { if (w.toast) w.toast('Upload failed'); return; }
+
+      // 2. Probe entries; ask for a password if the archive is encrypted.
+      let password = '';
+      const probe = await fetch('/api/vault/zip-entries', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: upData.id }),
+      });
+      const probeData = await probe.json();
+      if (probeData.encrypted) {
+        password = prompt('This archive is password-protected. Enter its password:') || '';
+        if (!password) { if (w.toast) w.toast('Password required'); return; }
+      }
+
+      // 3. Choose destination. OK = encrypt into vault, Cancel = extract to a folder.
+      const toVault = confirm('Import extracted files INTO the vault?\n\nOK = encrypt into vault\nCancel = extract to a folder on disk');
+      const mode = toVault ? 'vault' : 'extract';
+      const body: any = { id: upData.id, password, mode };
+      if (mode === 'extract') {
+        const folder = prompt('Folder name to extract into (under your media directory):', file.name.replace(/\.zip$/i, ''));
+        if (folder === null) return;
+        body.destFolder = folder;
+      } else {
+        body.folder = curFolder || null;
+      }
+
+      const imp = await fetch('/api/vault/import-zip', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const impData = await imp.json();
+      if (!imp.ok) { if (w.toast) w.toast(impData.error || 'Import failed'); return; }
+
+      // 4. The uploaded .zip itself is redundant once extracted — remove it.
+      try { await fetch('/api/vault/files/' + upData.id, { method: 'DELETE' }); } catch {}
+
+      if (w.toast) w.toast(`Imported ${impData.count} file(s)` + (mode === 'extract' ? ` → ${impData.folder}` : ' into vault'));
+      loadVaultFiles();
+    } catch (e: any) {
+      if (w.toast) w.toast('ZIP import error: ' + (e?.message || e));
+    }
+  };
+
   const importFromVaultDropDir = async () => {
     const r = await fetch('/api/vault/import-drop', { method: 'POST' });
     const w = window as any;
@@ -667,6 +721,21 @@ export const VaultView = () => {
               multiple
               style={{ display: 'none' }}
               onChange={(e: any) => (window as any).handleGlobalFiles && (window as any).handleGlobalFiles(e.target.files)}
+            />
+
+            <label
+              htmlFor="vaultZipIn"
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              title="Import a .zip (supports password-protected archives)"
+            >
+              Import ZIP
+            </label>
+            <input
+              type="file"
+              id="vaultZipIn"
+              accept=".zip,application/zip"
+              style={{ display: 'none' }}
+              onChange={(e: any) => { const f = e.target.files && e.target.files[0]; if (f) handleImportZip(f); e.target.value = ''; }}
             />
 
             <button

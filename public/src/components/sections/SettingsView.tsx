@@ -94,6 +94,10 @@ export const SettingsView = () => {
   const [oldPw, setOldPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [newPw2, setNewPw2] = useState('');
+  const [duressPw, setDuressPw] = useState('');
+  const [vaultTimeout, setVaultTimeout] = useState(
+    prefs.vaultTimeoutMinutes === undefined ? 5 : prefs.vaultTimeoutMinutes,
+  );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -385,13 +389,23 @@ export const SettingsView = () => {
     if (!oldPw || !newPw || !newPw2) { setError('All fields required'); return; }
     if (newPw !== newPw2) { setError('New passwords do not match'); return; }
     if (newPw.length < 6) { setError('New password must be at least 6 chars'); return; }
+    if (duressPw && (duressPw.length < 6 || duressPw === newPw)) { setError('Duress password must be 6+ chars and differ from the real one'); return; }
     setLoading(true);
     try {
-      const r = await fetch('/api/vault/change-pw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oldPw, newPw }) });
+      const body: Record<string, string> = { oldPw, newPw };
+      if (duressPw) body.duressPassword = duressPw;
+      const r = await fetch('/api/vault/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json();
       if (!r.ok) { setError(d.error || 'Failed to change password'); }
-      else { if (window.toast) window.toast('Password changed successfully!'); setOldPw(''); setNewPw(''); setNewPw2(''); }
+      else { if (window.toast) window.toast('Password changed successfully!'); setOldPw(''); setNewPw(''); setNewPw2(''); setDuressPw(''); }
     } catch (e: any) { setError(e.message || 'Failed to change password'); } finally { setLoading(false); }
+  };
+
+  const handleSaveTimeout = (minutes: number) => {
+    const clamped = Math.max(0, Math.min(1440, Math.round(minutes)));
+    setVaultTimeout(clamped);
+    updatePrefs({ vaultTimeoutMinutes: clamped });
+    if (window.toast) window.toast(clamped === 0 ? 'Auto-lock disabled' : `Auto-lock set to ${clamped} min`);
   };
 
   const doVaultDeleteVault = async () => {
@@ -917,10 +931,28 @@ export const SettingsView = () => {
               <label style={label}>Change Password</label>
               <input type="password" placeholder="Old Password" value={oldPw} onInput={(e) => setOldPw((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '8px' }} />
               <input type="password" placeholder="New Password" value={newPw} onInput={(e) => setNewPw((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '8px' }} />
-              <input type="password" placeholder="Confirm New Password" value={newPw2} onInput={(e) => setNewPw2((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '12px' }} />
+              <input type="password" placeholder="Confirm New Password" value={newPw2} onInput={(e) => setNewPw2((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '8px' }} />
+              <input type="password" placeholder="Duress / self-destruct password (optional)" value={duressPw} onInput={(e) => setDuressPw((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '6px' }} />
+              <p style={{ fontSize: '11px', color: 'var(--tx3)', margin: '0 0 12px' }}>If set, entering this password at the unlock screen silently wipes the entire vault while showing a normal "wrong password" message.</p>
               {error && <div style={{ color: '#e84040', fontSize: '0.85rem', marginBottom: '8px' }}>{error}</div>}
               <button class="modal-btn modal-btn--primary" onClick={handleChangePw} style={{ width: '100%' }} disabled={loading}>{loading ? 'Processing…' : 'Change Password'}</button>
             </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--brd)', margin: '16px 0' }} />
+
+            {/* Auto-lock timeout */}
+            <div style={fieldRow}>
+              <label style={label}>Auto-lock timeout</label>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', margin: '0 0 8px' }}>Minutes of inactivity before the vault locks itself. Set to 0 to never auto-lock.</p>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input type="number" min={0} max={1440} value={vaultTimeout} title="Auto-lock timeout in minutes" placeholder="5"
+                  onInput={(e) => setVaultTimeout(parseInt((e.target as HTMLInputElement).value, 10) || 0)}
+                  style={{ ...inp, maxWidth: '120px' }} />
+                <span style={{ color: 'var(--tx3)', fontSize: '13px' }}>min</span>
+                <button class="modal-btn" onClick={() => handleSaveTimeout(vaultTimeout)} disabled={loading}>Save</button>
+              </div>
+            </div>
+
             <hr style={{ border: 'none', borderTop: '1px solid var(--brd)', margin: '16px 0' }} />
             <div>
               <label style={{ ...label, color: '#e84040' }}>Danger Zone</label>

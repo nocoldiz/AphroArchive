@@ -59,6 +59,7 @@ export interface AppPrefs {
   visionProvider?: string;
   disableSearchTracking?: boolean;
   vaultSelfDestruct?: boolean;
+  vaultTimeoutMinutes?: number;
   hiddenTags?: string[];
   sourceFolders?: string[];
   feedFolders?: string[];

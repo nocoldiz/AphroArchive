@@ -20,7 +20,8 @@ let vaultKey = null;
 let failedAttempts = 0;
 let cooldownUntil = 0;
 
-const VAULT_TIMEOUT = 5 * 60 * 1000;
+// Default auto-lock period; overridden per-install by prefs (see getVaultTimeoutMs).
+const DEFAULT_VAULT_TIMEOUT_MS = 5 * 60 * 1000;
 let vaultTimer = null;
 
 const NO_CACHE_HEADERS = {
@@ -29,13 +30,30 @@ const NO_CACHE_HEADERS = {
   'Expires': '0',
 };
 
+// Auto-lock timeout is configurable via prefs. Accepts either an explicit
+// `vaultTimeoutMs` or a friendlier `vaultTimeoutMinutes`. A value of 0
+// disables auto-lock entirely (vault stays unlocked until manually locked).
+function getVaultTimeoutMs() {
+  try {
+    const prefs = loadPrefs() || {};
+    if (typeof prefs.vaultTimeoutMs === 'number' && prefs.vaultTimeoutMs >= 0) return prefs.vaultTimeoutMs;
+    if (typeof prefs.vaultTimeoutMinutes === 'number' && prefs.vaultTimeoutMinutes >= 0) {
+      return Math.round(prefs.vaultTimeoutMinutes * 60 * 1000);
+    }
+  } catch { }
+  return DEFAULT_VAULT_TIMEOUT_MS;
+}
+
 function resetVaultTimer() {
   if (!vaultKey) return;
-  if (vaultTimer) clearTimeout(vaultTimer);
+  if (vaultTimer) { clearTimeout(vaultTimer); vaultTimer = null; }
+  const ms = getVaultTimeoutMs();
+  if (!ms || ms <= 0) return; // 0 → auto-lock disabled
   vaultTimer = setTimeout(() => {
     vaultKey = null;
     vaultTimer = null;
-  }, VAULT_TIMEOUT);
+    try { setVaultKey(null); } catch { }
+  }, ms);
 }
 
 function clearVaultTimer() {
@@ -49,6 +67,24 @@ function deriveKeys(password, salt) {
     crypto.pbkdf2(pw, s, 100000, 32, 'sha512', (err, k) => err ? rej(err) : res(k)));
   return Promise.all([pbkdf2(password, salt), pbkdf2(password, salt + ':verify')])
     .then(([encKey, vKey]) => ({ encKey, verifyHash: vKey.toString('hex') }));
+}
+
+// Constant-time comparison of two hex strings to avoid leaking match
+// progress through response timing.
+function _timingEqualHex(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length || a.length === 0) return false;
+  let bufA, bufB;
+  try { bufA = Buffer.from(a, 'hex'); bufB = Buffer.from(b, 'hex'); } catch { return false; }
+  if (bufA.length !== bufB.length || bufA.length === 0) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+// Reject ids that could escape VAULT_DIR via path traversal. All legitimate
+// ids are UUIDs / random hex, so separators and dot-segments are never valid.
+function _safeId(id) {
+  return typeof id === 'string' && id.length > 0 && id.length < 256
+    && !id.includes('/') && !id.includes('\\') && !id.includes('..')
+    && !path.isAbsolute(id);
 }
 
 // Overwrite a file with random bytes, then delete it
@@ -239,6 +275,25 @@ function _encryptBuf(buf) {
   const enc = cipher.update(buf);
   const fin = cipher.final();
   return Buffer.concat([iv, enc, fin, cipher.getAuthTag()]);
+}
+
+// Encrypt an in-memory buffer straight into the vault (no temp file on disk).
+// Returns the new file id, or null if the vault is locked. Used by the archive
+// importer to drop extracted ZIP entries directly into the vault.
+function encryptBufferToVault(buf, filename, folder = null) {
+  if (!vaultKey) return null;
+  if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
+  const id = crypto.randomUUID();
+  fs.writeFileSync(path.join(VAULT_DIR, id + '.enc'), _encryptBuf(buf));
+  const ext = path.extname(filename).toLowerCase();
+  const meta = loadVaultMeta();
+  meta[id] = {
+    originalName: filename, name: path.basename(filename, ext), ext,
+    size: buf.length, sizeF: _fmtBytes(buf.length), mtime: Date.now(),
+    folder: folder || null,
+  };
+  saveVaultMeta(meta);
+  return id;
 }
 
 async function _encryptHtmlPageToVault(filePath, filename) {
@@ -469,10 +524,12 @@ async function processHiddenFolder() {
   }
 }
 
-// Poll the folder every 15 seconds
-setInterval(() => {
+// Poll the drop folder periodically. unref() so the timer never keeps the
+// process (or a test runner) alive on its own.
+const _sweepInterval = setInterval(() => {
   processHiddenFolder();
 }, 30000);
+if (_sweepInterval.unref) _sweepInterval.unref();
 
 // File Watcher
 
@@ -505,7 +562,19 @@ async function apiVaultSetup(req, res) {
       ? crypto.randomBytes(32).toString('hex')
       : STATIC_SALT;
     const { encKey, verifyHash } = await deriveKeys(pw, salt);
-    saveVaultConfig({ salt, verifyHash, useRandomSalt: !!body.useRandomSalt });
+
+    // Optional duress / self-destruct password. Entering it at unlock time
+    // silently wipes the vault while presenting a normal "wrong password"
+    // response. Stored as an independent salt+hash; never reveals the real key.
+    const cfg = { salt, verifyHash, useRandomSalt: !!body.useRandomSalt };
+    const duressPw = (body.duressPassword || '').trim();
+    if (duressPw && duressPw !== pw && duressPw.length >= 6) {
+      const duressSalt = body.useRandomSalt ? crypto.randomBytes(32).toString('hex') : salt + ':duress';
+      const { verifyHash: duressHash } = await deriveKeys(duressPw, duressSalt);
+      cfg.duressSalt = duressSalt;
+      cfg.duressHash = duressHash;
+    }
+    saveVaultConfig(cfg);
     vaultKey = encKey;
     setVaultKey(encKey);
     failedAttempts = 0; cooldownUntil = 0;
@@ -530,7 +599,17 @@ async function apiVaultUnlock(req, res) {
   const pw = (body.password || '').trim();
   try {
     const { encKey, verifyHash } = await deriveKeys(pw, cfg.salt);
-    if (verifyHash !== cfg.verifyHash) {
+    if (!_timingEqualHex(verifyHash, cfg.verifyHash)) {
+      // Duress / self-destruct: a matching duress password wipes the vault
+      // and returns a generic wrong-password error so the wipe is invisible.
+      if (cfg.duressHash && cfg.duressSalt) {
+        const { verifyHash: duressHash } = await deriveKeys(pw, cfg.duressSalt);
+        if (_timingEqualHex(duressHash, cfg.duressHash)) {
+          _silentWipe();
+          return json(res, { error: 'Wrong password', attempts: failedAttempts + 1 }, 401);
+        }
+      }
+
       failedAttempts++;
 
       // Exponential backoff: 2nd fail → 5s, 3rd fail → 30s
@@ -606,6 +685,7 @@ async function apiVaultAdd(req, res) {
 function apiVaultStream(req, res, id) {
   if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
   resetVaultTimer();
+  if (!_safeId(id)) { res.writeHead(400); res.end(); return; }
   const meta = loadVaultMeta();
   if (!meta[id] || !fs.existsSync(path.join(VAULT_DIR, id + '.enc'))) { res.writeHead(404); res.end(); return; }
 
@@ -623,6 +703,7 @@ function apiVaultStream(req, res, id) {
 function apiVaultDownload(req, res, id) {
   if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
   resetVaultTimer();
+  if (!_safeId(id)) { res.writeHead(400); res.end(); return; }
   const meta = loadVaultMeta();
   const encPath = path.join(VAULT_DIR, id + '.enc');
   if (!meta[id] || !fs.existsSync(encPath)) { res.writeHead(404); res.end(); return; }
@@ -654,6 +735,7 @@ function apiVaultDelete(req, res, id) {
 function apiVaultPageResource(req, res, pageId, fileId) {
   if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
   resetVaultTimer();
+  if (!_safeId(pageId) || !_safeId(fileId)) { res.writeHead(400); res.end(); return; }
   const meta = loadVaultMeta();
   const page = meta[pageId];
   if (!page || !page.resources || !page.resources[fileId]) { res.writeHead(404); res.end(); return; }
@@ -685,12 +767,12 @@ async function apiVaultChangePassword(req, res) {
   // Support both camelCase variants from the frontend
   const oldPw = (body.oldPassword || body.oldPw || '').trim();
   const newPw = (body.newPassword || body.newPw || '').trim();
-  if (newPw.length < 6) return json(res, { error: 'New password must be at least 6 characters' }, 400);
 
   try {
-    // Verify old password matches current key
+    // Authenticate with the old password before validating the new one.
     const { encKey: oldKey, verifyHash: oldHash } = await deriveKeys(oldPw, cfg.salt);
-    if (oldHash !== cfg.verifyHash) return json(res, { error: 'Old password is wrong' }, 401);
+    if (!_timingEqualHex(oldHash, cfg.verifyHash)) return json(res, { error: 'Old password is wrong' }, 401);
+    if (newPw.length < 6) return json(res, { error: 'New password must be at least 6 characters' }, 400);
 
     // Keep the same salt type as the original setup (static or random).
     // If useRandomSalt is explicitly set in body, honour it; otherwise preserve the original choice.
@@ -720,8 +802,21 @@ async function apiVaultChangePassword(req, res) {
     const { reEncryptVaultSqlite } = require('./db-server');
     reEncryptVaultSqlite(oldKey, newKey);
 
-    // Save new config
-    saveVaultConfig({ salt: newSalt, verifyHash: newHash, useRandomSalt: !keepStatic });
+    // Save new config. The duress password is independent of the main
+    // password (own salt+hash), so carry it across a password change unless
+    // the caller supplies a new one.
+    const newCfg = { salt: newSalt, verifyHash: newHash, useRandomSalt: !keepStatic };
+    const newDuressPw = (body.duressPassword || '').trim();
+    if (newDuressPw && newDuressPw !== newPw && newDuressPw.length >= 6) {
+      const duressSalt = keepStatic ? newSalt + ':duress' : crypto.randomBytes(32).toString('hex');
+      const { verifyHash: duressHash } = await deriveKeys(newDuressPw, duressSalt);
+      newCfg.duressSalt = duressSalt;
+      newCfg.duressHash = duressHash;
+    } else if (cfg.duressHash && cfg.duressSalt) {
+      newCfg.duressSalt = cfg.duressSalt;
+      newCfg.duressHash = cfg.duressHash;
+    }
+    saveVaultConfig(newCfg);
     vaultKey = newKey;
     setVaultKey(newKey);
     resetVaultTimer();
@@ -1016,6 +1111,7 @@ function apiVaultFavsToggle(req, res, id) {
 function apiVaultStreamPage(req, res, id) {
   if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end('Vault locked'); return; }
   resetVaultTimer();
+  if (!_safeId(id)) { res.writeHead(400); res.end(); return; }
   const meta = loadVaultMeta();
   const encPath = path.join(VAULT_DIR, id + '.enc');
   if (!meta[id] || !fs.existsSync(encPath)) { res.writeHead(404); res.end(); return; }
@@ -1094,6 +1190,22 @@ function isUnlocked() {
 
 function getVaultKey() {
   return vaultKey;
+}
+
+// ── Test-only seams ──────────────────────────────────────────────────
+// Fully reset module-internal state between tests (key + lockout counters).
+function __resetForTest() {
+  clearVaultTimer();
+  vaultKey = null;
+  try { setVaultKey(null); } catch { }
+  failedAttempts = 0;
+  cooldownUntil = 0;
+}
+
+// Stop background timers so a test runner can exit cleanly.
+function __stopTimers() {
+  clearVaultTimer();
+  if (_sweepInterval) clearInterval(_sweepInterval);
 }
 
 // ── Restore a vault file to its original category folder ─────────────
@@ -1274,5 +1386,7 @@ module.exports = {
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultLinkFav,
   deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
+  encryptBufferToVault,
   shredFile: _shredFile,
+  __resetForTest, __stopTimers,
 };
