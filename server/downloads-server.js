@@ -342,7 +342,7 @@ function runYtDlp(job, universalErr) {
   });
 }
 
-// Primary downloader: hand the URL to bulkdowloader.py in single-URL mode.
+// Primary downloader: hand the URL to bulkdownloader.py in single-URL mode.
 // It runs yt-dlp's native + generic extractors and, failing that, scrapes
 // the page for video in any way possible (Open Graph, JSON-LD, <video>/
 // <source>, JWPlayer/HLS/DASH configs, iframe recursion, direct stream) and
@@ -357,7 +357,7 @@ function runUniversal(job) {
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const pythonBin  = process.platform === 'win32' ? 'python' : 'python3';
-    const scriptPath = path.join(__dirname, '..', 'bulkdowloader.py');
+    const scriptPath = path.join(__dirname, '..', 'Bulkdownloader', 'bulkdownloader.py');
 
     const proc = spawn(pythonBin, [
       '-u', scriptPath,
@@ -388,7 +388,7 @@ function runUniversal(job) {
       if (oBuf) parseLine(oBuf);
       if (eBuf) parseLine(eBuf);
       if (resultFile && fs.existsSync(resultFile)) return resolve();
-      reject(new Error('bulkdowloader.py found no downloadable video (exit code ' + code + ')'));
+      reject(new Error('bulkdownloader.py found no downloadable video (exit code ' + code + ')'));
     });
     proc.on('error', err => reject(new Error(
       err.code === 'ENOENT'
@@ -563,7 +563,7 @@ async function apiBulkDownloadStart(req, res) {
   bulkStatus = { running: true, log: [], done: 0, total: urls.length, current: '' };
 
   const pythonBin = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = path.join(__dirname, '..', 'bulkdowloader.py');
+  const scriptPath = path.join(__dirname, '..', 'Bulkdownloader', 'bulkdownloader.py');
   const projectRoot = path.join(__dirname, '..');
 
   try {

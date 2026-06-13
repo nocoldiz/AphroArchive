@@ -310,9 +310,12 @@ def scrape_for_media(url, referer=None, depth=0, max_depth=3, seen_pages=None):
 class UniversalVideoDownloader:
     _COLLISION_EXTS = DIRECT_MEDIA_EXTS
 
-    def __init__(self, base_dir='video_downloads'):
+    def __init__(self, base_dir=None):
+        if base_dir is None:
+            base_dir = os.environ.get('APHRO_DOWNLOADS_DIR') or os.path.join(
+                os.environ.get('VIDEOS_DIR', 'videos'), 'downloads')
         self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(exist_ok=True)
+        self.base_dir.mkdir(parents=True, exist_ok=True)
         self.last_file = None
 
         self.default_opts = {
@@ -408,35 +411,35 @@ class UniversalVideoDownloader:
             n += 1
         return f'{stem}_{n}'
 
-    def get_folder_name(self, url):
-        try:
-            m = re.search(r'https?://(?:www\.)?([^/]+)', url)
-            domain = (m.group(1).lower() if m else 'misc')
-            domain = re.sub(r'\.(com|net|org|tv|me|xxx|io|co)$', '', domain).replace('www.', '')
-            path = url.split(domain)[-1]
-            sm = re.search(r'/([^/]{5,60}?)(?:[/?#]|$)', path)
-            slug = re.sub(r'[^a-zA-Z0-9._-]', '_', sm.group(1)) if sm else ''
-            return (f'{domain}_{slug}'.strip('_') if slug and len(slug) < 45 else domain.strip('_'))
-        except Exception:
-            return 'misc'
-
     # ── yt-dlp invocation ────────────────────────────────────────────────
-    def _build_outtmpl(self, folder, url, out_tmpl):
-        """Resolve a collision-free output template inside *folder*."""
-        if out_tmpl is None:
-            out_tmpl = '%(title)s.%(ext)s'
-        tmpl = str(folder / out_tmpl)
+    def _probe_stem(self, url):
+        """Best-effort lookup of the filename yt-dlp would give this URL."""
         try:
             probe_opts = {**self.get_site_specific_opts(url), 'quiet': True,
                           'no_warnings': True, 'ignoreerrors': True}
             with yt_dlp.YoutubeDL(probe_opts) as probe:
                 info = probe.extract_info(url, download=False)
             if info:
-                stem = Path(probe.prepare_filename(info)).stem
-                tmpl = str(folder / f'{self._unique_stem(folder, stem)}.%(ext)s')
+                return Path(probe.prepare_filename(info)).stem
         except Exception:
             pass
-        return tmpl
+        return None
+
+    def _find_existing(self, folder, stem):
+        """Return the path of an already-downloaded file matching *stem*, if any."""
+        if not stem:
+            return None
+        for e in self._COLLISION_EXTS:
+            cand = folder / f'{stem}.{e}'
+            if cand.exists():
+                return str(cand)
+        return None
+
+    def _build_outtmpl(self, folder, stem, out_tmpl):
+        """Resolve a collision-free output template inside *folder*."""
+        if stem:
+            return str(folder / f'{self._unique_stem(folder, stem)}.%(ext)s')
+        return str(folder / (out_tmpl or '%(title)s.%(ext)s'))
 
     def _try_ytdlp(self, url, outtmpl, referer=None, force_generic=False, label='yt-dlp'):
         """Single yt-dlp attempt. Returns the downloaded path on success, else None."""
@@ -477,7 +480,12 @@ class UniversalVideoDownloader:
         Returns the downloaded file path, or None.
         """
         folder.mkdir(parents=True, exist_ok=True)
-        outtmpl = self._build_outtmpl(folder, url, out_tmpl)
+        stem = self._probe_stem(url)
+        existing = self._find_existing(folder, stem)
+        if existing:
+            print(f'   [skip] already downloaded: {existing}', flush=True)
+            return existing
+        outtmpl = self._build_outtmpl(folder, stem, out_tmpl)
 
         # 1) Native extractor for the URL as given.
         f = self._try_ytdlp(url, outtmpl, label='native')
@@ -514,6 +522,10 @@ class UniversalVideoDownloader:
             name = re.sub(r'[^a-zA-Z0-9._-]', '_', name)[:120]
             stem, ext = os.path.splitext(name)
             ext = ext.lstrip('.') or 'mp4'
+            existing = self._find_existing(folder, stem)
+            if existing:
+                print(f'   [skip] already downloaded: {existing}', flush=True)
+                return existing
             dest = folder / f'{self._unique_stem(folder, stem)}.{ext}'
             headers = {'User-Agent': USER_AGENT}
             if referer:
@@ -556,10 +568,8 @@ class UniversalVideoDownloader:
     # ── batch entry points ───────────────────────────────────────────────
     def download_list(self, urls):
         for i, url in enumerate(urls, 1):
-            folder = self.base_dir / self.get_folder_name(url)
             print(f'\n[{i}/{len(urls)}] Processing: {url}', flush=True)
-            print(f'   -> Saving to: {folder.name}/', flush=True)
-            self.download(url, folder)
+            self.download(url, self.base_dir)
 
 
 # ════════════════════════════════════════════════════════════════════════
