@@ -13,7 +13,7 @@ const url = require('url');
 const { exec } = require('child_process');
 
 const cfg = require('./server/config-server');
-const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
+const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
   WEBSITES_JSON, CATEGORIES_JSON, LINK_DIR, BM_CACHE_FILE,
   BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
@@ -35,6 +35,7 @@ const links = require('./server/links-server');
 const books = require('./server/books-server');
 const audio = require('./server/audio-server');
 const photos = require('./server/photos-server');
+const screenshots = require('./server/screenshots-server');
 const database = require('./server/database-server');
 const profiles = require('./server/profiles-server');
 const remote = require('./server/remote-server');
@@ -71,6 +72,7 @@ ensureDirSync(VIDEOS_DIR);
 ensureDirSync(AUDIO_DIR);
 ensureDirSync(BOOKS_DIR);
 ensureDirSync(PHOTOS_DIR);
+ensureDirSync(SCREENSHOTS_DIR);
 ensureDirSync(PAGES_DIR);
 ensureDirSync(FILES_DIR);
 ensureDirSync(path.join(VIDEOS_DIR, 'downloads'));
@@ -181,6 +183,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetailFast(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/encrypt$/)) && req.method === 'POST') return videos.apiEncryptVideo(req, res, m[1]);
+  if (p === '/api/vault/encrypt-batch' && req.method === 'POST') return videos.apiEncryptBatch(req, res);
   if ((m = p.match(/^\/api\/stream\/([^/]+)$/)) && req.method === 'GET') return videos.apiStream(req, res, m[1]);
   if ((m = p.match(/^\/api\/favourites\/([^/]+)$/)) && req.method === 'POST') return videos.apiToggleFav(req, res, m[1]);
   if ((m = p.match(/^\/api\/history\/([^/]+)$/)) && req.method === 'POST') return videos.apiAddHistory(req, res, m[1]);
@@ -402,6 +405,13 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/photos\/([^/]+)\/download$/)) && req.method === 'GET') return photos.apiPhotoDownload(req, res, m[1]);
   if ((m = p.match(/^\/api\/photos\/([^/]+)$/)) && req.method === 'DELETE') return photos.apiPhotoDelete(req, res, m[1]);
 
+  // ── Screenshots ──────────────────────────────────────────────────────
+  if (p === '/api/screenshots' && req.method === 'GET') return screenshots.apiScreenshotsList(req, res);
+  if (p === '/api/screenshots/upload' && req.method === 'POST') return screenshots.apiScreenshotsUpload(req, res);
+  if ((m = p.match(/^\/api\/screenshots\/([^/]+)\/img$/)) && req.method === 'GET') return screenshots.apiScreenshotServe(req, res, m[1]);
+  if ((m = p.match(/^\/api\/screenshots\/([^/]+)\/download$/)) && req.method === 'GET') return screenshots.apiScreenshotDownload(req, res, m[1]);
+  if ((m = p.match(/^\/api\/screenshots\/([^/]+)$/)) && req.method === 'DELETE') return screenshots.apiScreenshotDelete(req, res, m[1]);
+
   // ── Pages ────────────────────────────────────────────────────────────
   if (p === '/api/pages' && req.method === 'GET') return pages.apiPagesList(req, res);
   if (p === '/api/pages/upload' && req.method === 'POST') return pages.apiPageUpload(req, res);
@@ -496,7 +506,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|pages|search|favourites|categories|chapters|download-queue|prompts|imagegen|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|screenshots|pages|search|favourites|categories|chapters|download-queue|prompts|imagegen|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

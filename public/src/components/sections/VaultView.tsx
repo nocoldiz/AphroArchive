@@ -14,7 +14,8 @@ interface VaultFile {
   folder?: string | null;
   aiTagged?: boolean;
   isVault?: boolean; // false = unencrypted public file shown in Global view
-  raw?: any;         // original /api/videos entry for public files
+  kind?: 'video' | 'photo' | 'book'; // media kind for unencrypted public files
+  raw?: any;         // original /api/videos|photos|books entry for public files
 }
 
 const VAULT_VIDEO_EXTS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.mpg', '.mpeg', '.wmv', '.ts']);
@@ -68,6 +69,13 @@ export const VaultView = () => {
   const isGlobal = vaultGlobalView.value;
   const [publicFiles, setPublicFiles] = useState<VaultFile[]>([]);
   const [encrypting, setEncrypting] = useState(false);
+  // Ids currently being encrypted — rendered at half opacity until they vanish.
+  const [encryptingIds, setEncryptingIds] = useState<Set<string>>(new Set());
+  const encPollRef = useRef<any>(null);
+
+  // Link import modal
+  const [showLinkImport, setShowLinkImport] = useState(false);
+  const [linkImportText, setLinkImportText] = useState('');
 
   // Infinite Scroll State
   const [renderLimit, setRenderLimit] = useState(100);
@@ -174,62 +182,171 @@ export const VaultView = () => {
   // the vault is unlocked) so files from any profile can be imported here.
   const loadPublicFiles = async () => {
     try {
-      const vids = await fetch('/api/videos?all=1').then(r => r.json());
-      if (!Array.isArray(vids)) return;
-      setPublicFiles(vids.map((v: any) => ({
-        id: v.id,
-        name: (v.name || '').replace(/\.[^.]+$/, ''),
-        originalName: v.name || '',
-        ext: ((v.name || '').match(/\.[^.]+$/)?.[0] || '').toLowerCase(),
-        type: 'public',
-        size: v.size,
-        mtime: v.mtime,
-        folder: null,
-        isVault: false,
-        raw: v,
-      })));
+      const [vids, pics, bks] = await Promise.all([
+        fetch('/api/videos?all=1').then(r => r.json()).catch(() => []),
+        fetch('/api/photos').then(r => r.json()).catch(() => []),
+        fetch('/api/books').then(r => r.json()).catch(() => []),
+      ]);
+      const out: VaultFile[] = [];
+      // Videos (skip links — they're URLs, not files, and import via the Links panel)
+      if (Array.isArray(vids)) {
+        for (const v of vids) {
+          if (v.isLink) continue;
+          out.push({
+            id: v.id, name: (v.name || '').replace(/\.[^.]+$/, ''), originalName: v.name || '',
+            ext: ((v.name || '').match(/\.[^.]+$/)?.[0] || '').toLowerCase(),
+            type: 'public', kind: 'video', size: v.size, mtime: v.mtime, folder: null, isVault: false, raw: v,
+          });
+        }
+      }
+      // Photos
+      if (Array.isArray(pics)) {
+        for (const p of pics) {
+          out.push({
+            id: p.id, name: (p.filename || '').replace(/\.[^.]+$/, ''), originalName: p.filename || '',
+            ext: (p.ext || ((p.filename || '').match(/\.[^.]+$/)?.[0] || '')).toLowerCase(),
+            type: 'public', kind: 'photo', size: p.size, mtime: p.date, folder: null, isVault: false, raw: p,
+          });
+        }
+      }
+      // Books
+      if (Array.isArray(bks)) {
+        for (const b of bks) {
+          out.push({
+            id: b.id, name: (b.title || b.filename || '').replace(/\.[^.]+$/, ''), originalName: b.filename || b.title || '',
+            ext: ((b.filename || '').match(/\.[^.]+$/)?.[0] || '').toLowerCase(),
+            type: 'public', kind: 'book', size: b.size, mtime: b.mtime || b.date, folder: null, isVault: false, raw: b,
+          });
+        }
+      }
+      setPublicFiles(out);
     } catch (e) {
       console.error('Failed to load public files', e);
     }
   };
 
-  // Encrypt a public file into the Vault. The server shreds the original,
-  // moves+encrypts its thumbnails and removes its public DB entry; the UI
-  // reflects the new state instantly.
-  const encryptPublicFile = async (id: string, name: string, silent = false) => {
-    const w = window as any;
-    const r = await fetch(`/api/videos/${id}/encrypt`, { method: 'POST' });
-    if (r.ok) {
-      setPublicFiles(prev => prev.filter(f => f.id !== id));
-      if (!silent) {
-        if (w.toast) w.toast(`Encrypted "${name}" into the Vault`);
-        loadVaultFiles();
-      }
-      return true;
-    }
-    const err = await r.json().catch(() => ({}));
-    if (!silent && w.toast) w.toast('Encryption failed: ' + (err.error || 'Unknown error'));
-    return false;
+  const kindOf = (f: VaultFile): 'video' | 'photo' | 'book' => {
+    if (f.kind) return f.kind;
+    const ext = (f.ext || '').toLowerCase();
+    if (VAULT_PHOTO_EXTS.has(ext)) return 'photo';
+    if (VAULT_BOOK_EXTS.has(ext)) return 'book';
+    return 'video';
   };
 
-  const encryptSelectedPublic = async () => {
+  // Encrypt one or more unencrypted public files into the Vault. The server
+  // shreds each original, encrypts it (along with its thumbnail) and drops its
+  // public DB entry. Each thumbnail fades to half opacity while it encrypts and
+  // disappears once done; progress is mirrored in Sync & Background Tasks.
+  const encryptItems = async (targets: VaultFile[]) => {
+    const w = window as any;
+    if (!targets.length || encrypting) return;
+    const items = targets.map(t => ({ id: t.id, kind: kindOf(t), name: t.name || t.originalName }));
+
+    setEncrypting(true);
+    setEncryptingIds(new Set(items.map(i => i.id)));
+
+    const r = await fetch('/api/vault/encrypt-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      if (w.toast) w.toast('Encryption failed: ' + (err.error || 'Unknown error'));
+      setEncrypting(false);
+      setEncryptingIds(new Set());
+      return;
+    }
+
+    // Poll progress. The server processes items in the order we sent them, so
+    // we can hide each thumbnail as its index is reached.
+    const orderedIds = items.map(i => i.id);
+    const removeFinished = (ids: Set<string>) => {
+      if (!ids.size) return;
+      setPublicFiles(prev => prev.filter(f => !ids.has(f.id)));
+      setSelectedIds(prev => { const n = new Set(prev); for (const id of ids) n.delete(id); return n; });
+    };
+
+    const poll = async () => {
+      try {
+        const s = await fetch('/api/encryption/status').then(res => res.json());
+        const done = s.done || 0;
+        if (done > 0) removeFinished(new Set(orderedIds.slice(0, done)));
+        if (!s.running) {
+          if (encPollRef.current) { clearInterval(encPollRef.current); encPollRef.current = null; }
+          removeFinished(new Set(orderedIds));
+          setEncryptingIds(new Set());
+          setEncrypting(false);
+          loadVaultFiles();
+          if (w.toast) w.toast(s.error ? ('Encryption error: ' + s.error) : `Encrypted ${orderedIds.length} item${orderedIds.length !== 1 ? 's' : ''} into the Vault`);
+        }
+      } catch { }
+    };
+    if (encPollRef.current) clearInterval(encPollRef.current);
+    encPollRef.current = setInterval(poll, 700);
+    poll();
+  };
+
+  const encryptSelectedPublic = () => {
     const targets = publicFiles.filter(f => selectedIds.has(f.id));
     if (!targets.length || encrypting) return;
     if (!confirm(`Encrypt ${targets.length} file${targets.length !== 1 ? 's' : ''} into the Vault?\nOriginals and their public database entries will be removed.`)) return;
-    setEncrypting(true);
-    const w = window as any;
-    let ok = 0;
-    for (const f of targets) {
-      if (await encryptPublicFile(f.id, f.name || f.originalName, true)) ok++;
+    encryptItems(targets);
+  };
+
+  // Stop the progress poll if the view unmounts mid-encryption.
+  useEffect(() => () => { if (encPollRef.current) clearInterval(encPollRef.current); }, []);
+
+  // ── Link import (paste JSON / browser bookmarks / plain URLs) ──────────
+  const extractUrls = (text: string): string[] => {
+    const urls = new Set<string>();
+    const add = (u: any) => { if (typeof u === 'string' && /^https?:\/\//i.test(u.trim())) urls.add(u.trim()); };
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const walk = (node: any) => {
+          if (!node) return;
+          if (typeof node === 'string') { add(node); return; }
+          if (Array.isArray(node)) { node.forEach(walk); return; }
+          if (typeof node === 'object') { add(node.url); add(node.href); Object.values(node).forEach(walk); }
+        };
+        walk(JSON.parse(trimmed));
+        if (urls.size) return [...urls];
+      } catch { }
     }
-    setEncrypting(false);
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      for (const f of targets) next.delete(f.id);
-      return next;
+    // Browser bookmark HTML exports: pull every href="…"
+    const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+    let mm: RegExpExecArray | null;
+    while ((mm = hrefRe.exec(text))) add(mm[1]);
+    if (urls.size) return [...urls];
+    // Fallback: any bare http(s) URL in the text
+    const urlRe = /https?:\/\/[^\s"'<>]+/gi;
+    let m2: RegExpExecArray | null;
+    while ((m2 = urlRe.exec(text))) add(m2[0]);
+    return [...urls];
+  };
+
+  const submitLinkImport = async () => {
+    const w = window as any;
+    const urls = extractUrls(linkImportText);
+    if (!urls.length) { if (w.toast) w.toast('No URLs found in the input'); return; }
+    const r = await fetch('/api/vault/import-links', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls }),
     });
-    if (w.toast) w.toast(`Encrypted ${ok}/${targets.length} files into the Vault`);
-    loadVaultFiles();
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { if (w.toast) w.toast(d.error || 'Import failed'); return; }
+    if (w.toast) w.toast(`Imported ${d.added} link${d.added !== 1 ? 's' : ''} into the Vault` + (d.skipped ? `, ${d.skipped} duplicate(s) skipped` : ''));
+    setShowLinkImport(false);
+    setLinkImportText('');
+    fetch('/api/vault/links').then(res => res.json()).then(v => { if (Array.isArray(v)) setVaultLinks(v); }).catch(() => { });
+  };
+
+  const handleLinkImportFile = async (file: File) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setLinkImportText(prev => (prev ? prev + '\n' : '') + text);
+    } catch { }
   };
 
   const handleUnlock = async () => {
@@ -411,7 +528,7 @@ export const VaultView = () => {
         name: file.name || file.originalName,
         onDelete: file.isVault === false ? undefined : () => handleDeleteFile(file.id),
         onOpen: () => handleFileClick(file),
-        onEncrypt: file.isVault === false ? () => encryptPublicFile(file.id, file.name || file.originalName) : undefined
+        onEncrypt: file.isVault === false ? () => encryptItems([file]) : undefined
       }
     };
   };
@@ -739,6 +856,14 @@ export const VaultView = () => {
             />
 
             <button
+              onClick={() => setShowLinkImport(true)}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="Import links from browser bookmarks or JSON — saved encrypted in the Vault"
+            >
+              Import Links
+            </button>
+
+            <button
               onClick={createNewVaultTextFile}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="New Text File"
@@ -922,16 +1047,26 @@ export const VaultView = () => {
             const isImg = VAULT_PHOTO_EXTS.has(f.ext.toLowerCase());
             const isFav = favIds.has(f.id);
             const isSelected = selectedIds.has(f.id);
+            const isEncrypting = encryptingIds.has(f.id);
+            // Public photos serve their image directly; videos use the thumb endpoint; books have no preview.
+            const hasThumb = isPublic ? f.kind !== 'book' : isImg;
             const thumbSrc = isPublic
-              ? (f.raw?.isLink ? (f.raw.img || '') : `/api/thumbs/${f.id}/0`)
+              ? (f.kind === 'photo' ? `/api/photos/${f.id}/img` : f.raw?.isLink ? (f.raw.img || '') : `/api/thumbs/${f.id}/0`)
               : `/api/vault/stream/${f.id}`;
+            // While encrypting: fade the thumbnail to half opacity, then it vanishes on completion.
+            const cardOpacity = isEncrypting ? 0.45 : (isPublic ? 0.92 : undefined);
             return (
-              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined, opacity: isPublic ? 0.92 : undefined }}>
+              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined, opacity: cardOpacity, transition: 'opacity 0.35s ease', pointerEvents: isEncrypting ? 'none' : undefined }}>
                 <div className="card-thumb" style={{ cursor: 'pointer' }} onClick={() => handleFileClick(f)}>
-                  {(isImg || isPublic) ? (
+                  {hasThumb ? (
                     <img src={thumbSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
                   ) : (
                     <span style={{ fontSize: '1.2rem', color: 'var(--tx2)' }}>{f.ext.replace('.', '').toUpperCase()}</span>
+                  )}
+                  {isEncrypting && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)', color: '#fff', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.5px' }}>
+                      🔒 Encrypting…
+                    </div>
                   )}
 
                   {/* Selection Checkbox */}
@@ -962,15 +1097,16 @@ export const VaultView = () => {
                     {f.name || f.originalName}
                   </div>
                   <div className="card-meta">
-                    <span className="card-category">{isPublic ? (f.raw?.category || 'Public') : 'Vault'}</span>
+                    <span className="card-category">{isPublic ? (f.raw?.category || (f.kind === 'photo' ? 'Photo' : f.kind === 'book' ? 'Book' : 'Public')) : 'Vault'}</span>
                     {isPublic ? (
                       <div className="card-actions">
                         <button
-                          onClick={(e) => { e.stopPropagation(); encryptPublicFile(f.id, f.name || f.originalName); }}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--ac)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                          onClick={(e) => { e.stopPropagation(); encryptItems([f]); }}
+                          disabled={encryptingIds.has(f.id)}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--ac)', cursor: encryptingIds.has(f.id) ? 'wait' : 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
                           title="Encrypt into Vault"
                         >
-                          🔒 Encrypt
+                          {encryptingIds.has(f.id) ? '🔒 Encrypting…' : '🔒 Encrypt'}
                         </button>
                       </div>
                     ) : (
@@ -1071,6 +1207,59 @@ export const VaultView = () => {
                   >🔓 Restore</button>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {showLinkImport && (
+          <div
+            onClick={() => setShowLinkImport(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: '460px', maxWidth: '92vw', padding: '24px' }}
+            >
+              <h3 style={{ marginTop: 0 }}>Import Links into the Vault</h3>
+              <p style={{ color: 'var(--tx2)', fontSize: '0.85rem', marginTop: 0 }}>
+                Paste URLs (one per line), a JSON array/export, or browser bookmarks HTML. Imported links are stored encrypted at rest.
+              </p>
+              <textarea
+                value={linkImportText}
+                onInput={(e: any) => setLinkImportText(e.target.value)}
+                placeholder={'https://example.com/page\nhttps://...'}
+                style={{ width: '100%', minHeight: '160px', resize: 'vertical', padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.8rem', boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                <label
+                  htmlFor="vaultLinkImportFile"
+                  style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                  title="Load a bookmarks .html / .json / .txt file"
+                >
+                  Load file…
+                </label>
+                <input
+                  type="file"
+                  id="vaultLinkImportFile"
+                  accept=".json,.html,.htm,.txt,text/html,application/json,text/plain"
+                  style={{ display: 'none' }}
+                  onChange={(e: any) => { const f = e.target.files && e.target.files[0]; if (f) handleLinkImportFile(f); e.target.value = ''; }}
+                />
+                <div style={{ flex: 1 }} />
+                <button
+                  onClick={() => { setShowLinkImport(false); setLinkImportText(''); }}
+                  style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitLinkImport}
+                  disabled={!linkImportText.trim()}
+                  style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '6px', cursor: linkImportText.trim() ? 'pointer' : 'default', fontWeight: 600, opacity: linkImportText.trim() ? 1 : 0.5 }}
+                >
+                  Import & Encrypt
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -235,4 +235,4 @@ function apiPhotosUpload(req, res) {
   });
 }
 
-module.exports = { apiPhotosList, apiPhotoFolders, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload };
+module.exports = { apiPhotosList, apiPhotoFolders, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload, getPhotoPath: _getFp };

@@ -6,6 +6,7 @@ import { CategoriesView } from '../sections/CategoriesView';
 import { ActorsView } from '../sections/ActorsView';
 import { StudiosView } from '../sections/StudiosView';
 import { PhotosView } from '../sections/PhotosView';
+import { ScreenshotsView } from '../sections/ScreenshotsView';
 import { LinksView } from '../sections/LinksView';
 import { VisionModal } from '../modals/VisionModal';
 import { PagesView } from '../sections/PagesView';
@@ -103,6 +104,7 @@ export const MainContent = () => {
     if (view === 'actors') return <ActorsView />;
     if (view === 'studios') return <StudiosView />;
     if (view === 'photos') return <PhotosView />;
+    if (view === 'screenshots') return <ScreenshotsView />;
     if (view === 'links') return <LinksView />;
     if (view === 'download-queue') return <DownloadQueueView />;
     if (view === 'collections') return <CollectionsView />;

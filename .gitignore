@@ -8,7 +8,8 @@ node_modules/
 db/wildcards
 db/actors.json
 db/categories.json
-
+dist/
+dist
 android-app
 android-app/www/assets/*
 dist/public/assets/

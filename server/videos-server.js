@@ -428,9 +428,9 @@ async function scan(dir, base = dir, isExternal = false) {
   return out;
 }
 
-async function allVideos() {
+async function allVideos(forceAll = false) {
   const db = require('./db-server');
-  if (db.getCurrentProfile() === 'Vault') {
+  if (db.getCurrentProfile() === 'Vault' && !forceAll) {
     const { loadVaultMeta } = require('./db-server');
     const meta = loadVaultMeta();
     const list = [];
@@ -571,7 +571,6 @@ async function initVideoMeta() {
 // ── Video API handlers ───────────────────────────────────────────────
 
 async function apiVideos(req, res, params) {
-  const videos      = await allVideos();
   const favs        = loadFavs();
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
@@ -579,6 +578,7 @@ async function apiVideos(req, res, params) {
   // all=1 (vault unlocked only): bypass the per-profile enabled-categories
   // filter so the Vault's Global view can import files from any profile
   const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
+  const videos      = await allVideos(showAll);
   let list = videos
     .filter(v => showAll || isCategoryEnabled(v.catPath, enabledPaths))
     .map(v => {
@@ -2177,77 +2177,170 @@ async function apiEncryptCategory(req, res) {
   }
 }
 
-async function apiEncryptVideo(req, res, id) {
-  const { isUnlocked, encryptLocalFileToVault, getVaultKey } = require('./vault-server');
-  const { loadVaultConfig } = require('./db-server');
-  
-  if (!loadVaultConfig()) {
-    return json(res, { error: 'Master vault password is not set' }, 400);
-  }
-  
-  if (!isUnlocked()) {
-    return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
-  }
-  
-  const vids = await allVideos();
-  const v = vids.find(x => x.id === id);
-  if (!v) return json(res, { error: 'Not found' }, 404);
-  
-  if (v.encrypted) return json(res, { error: 'Already encrypted' }, 400);
-  
-  const full = path.join(VIDEOS_DIR, v.rel);
-  if (!fs.existsSync(full)) return json(res, { error: 'File not found on disk' }, 404);
+// Encrypt a single scanned video entry into the Vault: shred the original,
+// move + encrypt its thumbnail, drop the public DB entry. Returns the new
+// vault id. Throws on failure. Shared by the single-file endpoint and the
+// generic batch encryptor so both behave identically.
+async function _encryptVideoEntry(v) {
+  const { encryptLocalFileToVault, getVaultKey } = require('./vault-server');
+
+  // External files store their absolute path in `rel`; local ones are relative to VIDEOS_DIR.
+  const full = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
+  if (!fs.existsSync(full)) throw new Error('File not found on disk');
 
   const meta = loadVideoMeta();
   const videoMeta = meta[v.id] || null;
   const vaultKey = getVaultKey();
 
+  // Pass the real filename (with extension) — v.name has the extension stripped
+  const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
+  if (!vaultId) throw new Error('Encryption failed');
+
+  // Assign vault file to a vault folder matching the video's top-level category
+  if (v.catPath) {
+    const { loadVaultMeta: lvm, saveVaultMeta: svm } = require('./db-server');
+    const vaultMeta = lvm();
+    const folderName = v.catPath.split(/[/\\]/)[0];
+    const existingFolder = Object.entries(vaultMeta).find(([, m]) => m.type === 'folder' && m.name.toLowerCase() === folderName.toLowerCase());
+    let folderId = existingFolder ? existingFolder[0] : null;
+    if (!folderId) {
+      folderId = require('crypto').randomBytes(16).toString('hex');
+      vaultMeta[folderId] = { type: 'folder', name: folderName, id: folderId };
+    }
+    if (vaultMeta[vaultId]) vaultMeta[vaultId].folder = folderId;
+    svm(vaultMeta);
+  }
+
+  // Wipe the public thumbnail: move it under the vault id and encrypt it in
+  // place so no plaintext preview of the encrypted file is left on disk.
+  const oldThumb = path.join(THUMBS_DIR, v.id);
+  const newThumb = path.join(THUMBS_DIR, vaultId);
+  if (fs.existsSync(oldThumb)) {
+    if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
+    fs.renameSync(oldThumb, newThumb);
+    const tFiles = fs.readdirSync(newThumb);
+    for (const tf of tFiles) {
+      if (tf.endsWith('.jpg')) await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
+    }
+  }
+
+  // Remove the original entry from the public database(s)
+  const { deleteVideoMetaEverywhere } = require('./db-server');
+  deleteVideoMetaEverywhere(v.id);
+  return vaultId;
+}
+
+// Encrypt a photo/book that lives as a plain file on disk. Resolves the
+// file path per media kind, encrypts it into the Vault and wipes any
+// generated thumbnail. Returns the new vault id or null when unresolved.
+async function _encryptDiskMediaItem(item) {
+  const { encryptLocalFileToVault } = require('./vault-server');
+  let fp = null;
+
+  if (item.kind === 'photo') {
+    try { fp = require('./photos-server').getPhotoPath(item.id); } catch { fp = null; }
+  } else if (item.kind === 'book') {
+    const { BOOKS_DIR } = require('./config-server');
+    let filename = '';
+    try { filename = Buffer.from(item.id, 'base64url').toString('utf-8'); } catch { filename = ''; }
+    const cand = path.join(BOOKS_DIR, path.basename(filename));
+    if ((cand.startsWith(BOOKS_DIR + path.sep) || cand === BOOKS_DIR) && fs.existsSync(cand)) fp = cand;
+  }
+
+  if (!fp || !fs.existsSync(fp)) throw new Error('File not found on disk');
+
+  const vaultId = await encryptLocalFileToVault(fp, path.basename(fp), null, null);
+  if (!vaultId) throw new Error('Encryption failed');
+
+  // Wipe any generated thumbnail keyed by the original id
   try {
-    // Pass the real filename (with extension) — v.name has the extension stripped
-    const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
+    const oldThumb = path.join(THUMBS_DIR, item.id);
+    if (fs.existsSync(oldThumb)) fs.rmSync(oldThumb, { recursive: true, force: true });
+  } catch { }
+  return vaultId;
+}
 
-    if (!vaultId) {
-      return json(res, { error: 'Encryption failed' }, 500);
-    }
+// Background batch encryptor used by the Vault's Global view. Encrypts a
+// mixed list of [{ id, kind, name }] into the Vault, reporting progress
+// through the shared tracker so it shows in Sync & Background Tasks.
+async function runEncryptBatch(items) {
+  if (_encryptionProgress.running) return false;
+  _encryptionCancel = false;
+  const { isUnlocked } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
 
-    // Assign vault file to a vault folder matching the video's top-level category
-    if (v.catPath) {
-      const { loadVaultMeta: lvm, saveVaultMeta: svm } = require('./db-server');
-      const vaultMeta = lvm();
-      const folderName = v.catPath.split(/[/\\]/)[0];
-      const existingFolder = Object.entries(vaultMeta).find(([, m]) => m.type === 'folder' && m.name.toLowerCase() === folderName.toLowerCase());
-      let folderId = existingFolder ? existingFolder[0] : null;
-      if (!folderId) {
-        folderId = require('crypto').randomBytes(16).toString('hex');
-        vaultMeta[folderId] = { type: 'folder', name: folderName, id: folderId };
-      }
-      if (vaultMeta[vaultId]) vaultMeta[vaultId].folder = folderId;
-      svm(vaultMeta);
-    }
+  if (!loadVaultConfig()) { updateEncryptionProgress({ error: 'Master vault password is not set', running: false }); return false; }
+  if (!isUnlocked()) { updateEncryptionProgress({ error: 'Vault is locked. Unlock it first', running: false }); return false; }
 
-    const oldThumb = path.join(THUMBS_DIR, v.id);
-    const newThumb = path.join(THUMBS_DIR, vaultId);
-
-    if (fs.existsSync(oldThumb)) {
-      if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
-      fs.renameSync(oldThumb, newThumb);
-      const tFiles = fs.readdirSync(newThumb);
-      for (const tf of tFiles) {
-        if (tf.endsWith('.jpg')) {
-           await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
+  updateEncryptionProgress({ running: true, type: 'encrypt', category: 'Vault import', total: items.length, done: 0, current: '', error: '', ok: false });
+  let done = 0;
+  try {
+    const vids = await allVideos(true);
+    const vidMap = new Map(vids.map(v => [v.id, v]));
+    for (const it of items) {
+      if (_encryptionCancel) { updateEncryptionProgress({ error: 'Cancelled', running: false }); return false; }
+      try {
+        if (it.kind === 'photo' || it.kind === 'book') {
+          await _encryptDiskMediaItem(it);
+        } else {
+          const v = vidMap.get(it.id);
+          if (v && !v.encrypted) await _encryptVideoEntry(v);
         }
+      } catch (e) {
+        console.error('[encrypt-batch] failed for', it.id, e.message);
       }
+      done++;
+      updateEncryptionProgress({ done, current: it.name || it.id });
     }
+    invalidateScanCache();
+    updateEncryptionProgress({ ok: true, running: false });
+    return true;
+  } catch (e) {
+    console.error('[runEncryptBatch] error:', e);
+    updateEncryptionProgress({ error: e.message || String(e), running: false });
+    return false;
+  }
+}
 
-    // Remove the original entry from the public database(s)
-    const { deleteVideoMetaEverywhere } = require('./db-server');
-    deleteVideoMetaEverywhere(v.id);
+async function apiEncryptVideo(req, res, id) {
+  const { isUnlocked } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
 
+  if (!loadVaultConfig()) return json(res, { error: 'Master vault password is not set' }, 400);
+  if (!isUnlocked()) return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
+
+  // forceAll=true so the file is found regardless of the active profile —
+  // when the Vault profile is active, allVideos() would otherwise return only
+  // already-encrypted files and this would 404 every public file.
+  const vids = await allVideos(true);
+  const v = vids.find(x => x.id === id);
+  if (!v) return json(res, { error: 'Not found' }, 404);
+  if (v.encrypted) return json(res, { error: 'Already encrypted' }, 400);
+
+  try {
+    const vaultId = await _encryptVideoEntry(v);
     invalidateScanCache();
     json(res, { ok: true, vaultId });
   } catch (e) {
     json(res, { error: e.message }, 500);
   }
+}
+
+// Start a background batch encryption of mixed media into the Vault.
+async function apiEncryptBatch(req, res) {
+  const { isUnlocked } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
+
+  if (!loadVaultConfig()) return json(res, { error: 'Master vault password is not set' }, 400);
+  if (!isUnlocked()) return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
+
+  const body = await readBody(req);
+  const items = Array.isArray(body.items) ? body.items.filter(it => it && it.id) : [];
+  if (!items.length) return json(res, { error: 'No items provided' }, 400);
+  if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
+
+  runEncryptBatch(items).catch(err => console.error('[apiEncryptBatch] background error:', err));
+  json(res, { ok: true, total: items.length });
 }
 
 async function encryptFileInPlace(filePath, key) {
@@ -2872,7 +2965,7 @@ module.exports = {
   apiImport,
   apiAddChapter, apiDeleteChapter,
   apiRenameCategory, apiDeleteCategory, apiHideCategory,
-  apiEncryptVideo, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey,
+  apiEncryptVideo, apiEncryptBatch, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey,
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
   apiCategorizePlan, apiCategorizeExecute,
   apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress,

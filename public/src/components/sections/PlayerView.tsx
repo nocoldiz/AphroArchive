@@ -338,6 +338,35 @@ export const PlayerView = () => {
     }, 'image/jpeg', 0.92);
   };
 
+  const takeScreenshot = async () => {
+    const vid = videoRef.current;
+    if (!vid) { (window as any).toast?.('Video not loaded'); return; }
+    const canvas = document.createElement('canvas');
+    canvas.width = vid.videoWidth || 1280;
+    canvas.height = vid.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(vid, 0, 0);
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const safeName = (video?.name || 'video').replace(/[^a-zA-Z0-9._\- ]/g, '_');
+      const timestamp = Math.floor(vid.currentTime);
+      try {
+        const r = await fetch('/api/screenshots/upload', {
+          method: 'POST',
+          headers: { 'x-filename': `${safeName}_${timestamp}s.jpg`, 'Content-Type': 'image/jpeg' },
+          body: blob,
+        });
+        const d = await r.json();
+        if (d.ok) {
+          (window as any).toast?.('Screenshot saved');
+        } else {
+          (window as any).toast?.('Screenshot failed');
+        }
+      } catch { (window as any).toast?.('Screenshot failed'); }
+    }, 'image/jpeg', 0.92);
+  };
+
   const handleEncrypt = async () => {
     if (!video) return;
     if (!confirm(`Encrypt video "${video.name}" and move to Vault?`)) return;
@@ -510,6 +539,15 @@ export const PlayerView = () => {
                     <polyline points="21 15 16 10 5 21"/>
                   </svg>
                   <span>Frame → Image Gen</span>
+                </button>
+              )}
+
+              {!video.isLink && (
+                <button onClick={takeScreenshot} title="Save current frame to Screenshots" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
+                  </svg>
+                  <span>Take Screenshot</span>
                 </button>
               )}
 

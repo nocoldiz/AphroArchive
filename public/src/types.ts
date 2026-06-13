@@ -114,6 +114,16 @@ export interface PhotoFile {
   aiPrompt?: string;
 }
 
+export interface ScreenshotFile {
+  id: string;
+  filename: string;
+  folder: string;
+  ext: string;
+  size: number;
+  sizeF: string;
+  date: number;
+}
+
 export interface PageItem {
   id: string;
   name: string;
