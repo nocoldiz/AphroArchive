@@ -9,7 +9,7 @@ db/wildcards
 db/actors.json
 db/categories.json
 
-
+android-app
 android-app/www/assets/*
 dist/public/assets/
 video_downloads/

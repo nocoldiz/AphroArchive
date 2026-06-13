@@ -319,6 +319,15 @@ input {
   color: var(--tx)
 }
 
+.sidebar-folder-chevron {
+  cursor: pointer;
+  opacity: 0.6
+}
+
+.sidebar-folder-chevron:hover {
+  opacity: 1
+}
+
 .sidebar-item .count-badge {
   font-family: var(--m);
   font-size: 0.7rem;

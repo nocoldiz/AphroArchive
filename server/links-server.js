@@ -12,7 +12,7 @@ const os    = require('os');
 const url   = require('url');
 const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
 const { json, readBody, serveStatic }   = require('./helpers-server');
-const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories, loadAllVideoTags } = require('./db-server');
+const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories, loadAllVideoTags } = require('./db-server');
 const { wordMatchAny, wordMatch } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
@@ -1038,6 +1038,45 @@ async function apiImportLinksJson(req, res) {
   json(res, { ok: true, added, skipped, total });
 }
 
+// ── Single-item operations (avoid full-cache rewrite) ────────────────
+
+const _LINK_UPDATABLE_FIELDS = ['title', 'category', 'img', 'scrapedVideoUrl', 'hasVideo', 'embedUrl', 'hasEmbed', 'tags', 'downloaded', 'localVideoId', 'fav', 'vault'];
+
+async function apiUpdateLinkItem(req, res) {
+  try {
+    const body = await readBody(req);
+    if (!body.url) return json(res, { error: 'url required' }, 400);
+
+    const existing = getLink(body.url);
+    if (!existing) return json(res, { error: 'Link not found' }, 404);
+
+    const updated = { ...existing };
+    for (const f of _LINK_UPDATABLE_FIELDS) if (body[f] !== undefined) updated[f] = body[f];
+
+    upsertLink(updated);
+    json(res, { ok: true, item: updated });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiDeleteLinkItem(req, res) {
+  try {
+    const body = await readBody(req);
+    if (!body.url) return json(res, { error: 'url required' }, 400);
+    deleteLink(body.url);
+    json(res, { ok: true });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiDeleteLinkItems(req, res) {
+  try {
+    const body = await readBody(req);
+    const urls = Array.isArray(body.urls) ? body.urls : [];
+    if (!urls.length) return json(res, { error: 'urls required' }, 400);
+    const deleted = deleteLinks(urls);
+    json(res, { ok: true, deleted });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
 async function apiLinkMove(req, res) {
   try {
     const body = await readBody(req);
@@ -1073,4 +1112,5 @@ module.exports = {
   apiImportLinks,
   apiExportLinksJson, apiImportLinksJson,
   apiLinkMove,
+  apiUpdateLinkItem, apiDeleteLinkItem, apiDeleteLinkItems,
 };

@@ -74,6 +74,7 @@ export interface AppPrefs {
   commentsProvider?: 'local' | 'openrouter';
   isMuted?: boolean;
   thumbBlurMode?: string;
+  hideEmptyFolders?: boolean;
 }
 export interface ThumbnailGroup {
   id: string;

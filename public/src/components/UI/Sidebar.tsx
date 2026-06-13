@@ -13,23 +13,49 @@ interface SidebarItemProps {
   onContextMenu?: (e: any) => void;
   isActive?: boolean;
   indent?: boolean;
+  depth?: number;
+  hasChildren?: boolean;
+  expanded?: boolean;
+  onToggleExpand?: (e: any) => void;
 }
 
-const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, onContextMenu, isActive, indent }: SidebarItemProps) => (
-  <div
-    className={`sidebar-item ${isActive ? 'on' : ''}`}
-    id={id}
-    onClick={onClick}
-    onDragOver={onDragOver}
-    onDragLeave={onDragLeave}
-    onDrop={onDrop}
-    onContextMenu={onContextMenu}
-    style={indent ? { paddingLeft: '32px', fontSize: '0.85rem' } : {}}
-  >
-    <span>{icon}{label}</span>
-    {badge !== undefined && <span className="count-badge">{badge}</span>}
-  </div>
-);
+const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, onContextMenu, isActive, indent, depth, hasChildren, expanded, onToggleExpand }: SidebarItemProps) => {
+  const isTree = depth !== undefined;
+  const style: any = isTree
+    ? { paddingLeft: `${32 + depth! * 16}px`, fontSize: '0.85rem' }
+    : indent ? { paddingLeft: '32px', fontSize: '0.85rem' } : {};
+  return (
+    <div
+      className={`sidebar-item ${isActive ? 'on' : ''}`}
+      id={id}
+      onClick={onClick}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onContextMenu={onContextMenu}
+      style={style}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', minWidth: 0, overflow: 'hidden' }}>
+        {isTree && (
+          hasChildren ? (
+            <svg
+              className="sidebar-folder-chevron"
+              width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+              style={{ marginRight: '4px', flexShrink: 0, transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform var(--tr)' }}
+              onClick={(e: any) => { e.preventDefault(); e.stopPropagation(); onToggleExpand?.(e); }}
+            >
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          ) : (
+            <span style={{ display: 'inline-block', width: '14px', flexShrink: 0 }} />
+          )
+        )}
+        {icon}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      </span>
+      {badge !== undefined && <span className="count-badge">{badge}</span>}
+    </div>
+  );
+};
 
 const SectionHeader = ({ label, id, style, onClick, action }: { label: string, id: string, style?: any, onClick?: () => void, action?: any }) => (
   <h3 className="sidebar-heading" id={id} style={style} onClick={onClick}>
@@ -152,6 +178,70 @@ export const Sidebar = () => {
 
   const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
+  const renderCategoryNode = (node: CatTreeNode, depth: number): any => {
+    const c = node.cat;
+    const lockIcon = inVaultMode
+      ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2.5" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      : c.partial
+        ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="3" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+        : c.encrypted
+          ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px', opacity: 0.7, verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          : null;
+    const hasChildren = node.children.length > 0;
+    const expanded = expandedFolders.has(c.path);
+    const label = depth === 0 ? c.name : (c.name.split(' / ').pop() || c.name);
+    return (
+      <div key={c.path}>
+        <SidebarItem
+          label={label}
+          icon={lockIcon}
+          badge={c.count}
+          depth={depth}
+          hasChildren={hasChildren}
+          expanded={expanded}
+          onToggleExpand={() => toggleFolderExpand(c.path)}
+          onClick={() => selectCategory(c.path)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if ((window as any).showContextMenu) {
+              (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
+            }
+          }}
+          onDragOver={!inVaultMode ? (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            e.currentTarget.classList.add('drop-over');
+          } : undefined}
+          onDragLeave={!inVaultMode ? (e) => {
+            e.currentTarget.classList.remove('drop-over');
+          } : undefined}
+          onDrop={!inVaultMode ? (e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drop-over');
+            const id = e.dataTransfer.getData('text/plain');
+            if (!id) return;
+            fetch(`/api/videos/${id}/move`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ category: c.path })
+            })
+            .then(r => r.json())
+            .then(data => {
+              if (data.ok) {
+                if ((window as any).loadVideos) (window as any).loadVideos();
+              } else {
+                alert(data.error || 'Move failed');
+              }
+            })
+            .catch(err => console.error('Move failed', err));
+          } : undefined}
+          isActive={currentCategory.value === c.path}
+        />
+        {hasChildren && expanded && node.children.map(child => renderCategoryNode(child, depth + 1))}
+      </div>
+    );
+  };
+
   // Use the counts already provided by the server's categories API — no client-side recomputation
   const sf = sourceFilter.value;
   const vids = allVideos.value;
@@ -181,6 +271,38 @@ export const Sidebar = () => {
       if (b.path === 'uncategorized') return 1;
       return a.name.localeCompare(b.name);
     }), [categories.value, filteredVids]);
+
+  // Build a folder tree from the flat category list. Categories with `count === 0`
+  // are dropped when the user enables "hide empty folders" — their (also-empty) subtrees go with them.
+  interface CatTreeNode { cat: typeof displayCategories[number]; children: CatTreeNode[] }
+  const categoryTree = useMemo(() => {
+    const hideEmpty = !!appPrefs.value.hideEmptyFolders;
+    const list = hideEmpty ? displayCategories.filter(c => c.count > 0) : displayCategories;
+    const byPath = new Map<string, CatTreeNode>();
+    const roots: CatTreeNode[] = [];
+    for (const c of list) {
+      byPath.set(c.path, { cat: c, children: [] });
+    }
+    for (const node of byPath.values()) {
+      const slash = node.cat.path.lastIndexOf('/');
+      const parent = slash === -1 ? undefined : byPath.get(node.cat.path.slice(0, slash));
+      if (parent) parent.children.push(node);
+      else roots.push(node);
+    }
+    return roots;
+  }, [displayCategories, appPrefs.value.hideEmptyFolders]);
+
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    try { return new Set<string>(JSON.parse(localStorage.getItem('sidebarFolderExpanded') || '[]')); } catch { return new Set<string>(); }
+  });
+  const toggleFolderExpand = (path: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path); else next.add(path);
+      localStorage.setItem('sidebarFolderExpanded', JSON.stringify([...next]));
+      return next;
+    });
+  };
 
   // Count per tag group: pre-computed v.tags match OR live name-match against group terms
   const displayTags = useMemo(() => tagGroups
@@ -472,60 +594,7 @@ export const Sidebar = () => {
               isActive={!currentCategory.value && !currentTag.value}
               indent
             />
-            {displayCategories.map(c => {
-              const lockIcon = inVaultMode
-                ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2.5" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                : c.partial
-                  ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="3" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
-                  : c.encrypted
-                    ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px', opacity: 0.7, verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    : null;
-              return (
-                <SidebarItem
-                  key={c.name}
-                  label={c.name}
-                  icon={lockIcon}
-                  badge={c.count}
-                  onClick={() => selectCategory(c.path)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    if ((window as any).showContextMenu) {
-                      (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
-                    }
-                  }}
-                  onDragOver={!inVaultMode ? (e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    e.currentTarget.classList.add('drop-over');
-                  } : undefined}
-                  onDragLeave={!inVaultMode ? (e) => {
-                    e.currentTarget.classList.remove('drop-over');
-                  } : undefined}
-                  onDrop={!inVaultMode ? (e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.remove('drop-over');
-                    const id = e.dataTransfer.getData('text/plain');
-                    if (!id) return;
-                    fetch(`/api/videos/${id}/move`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ category: c.path })
-                    })
-                    .then(r => r.json())
-                    .then(data => {
-                      if (data.ok) {
-                        if ((window as any).loadVideos) (window as any).loadVideos();
-                      } else {
-                        alert(data.error || 'Move failed');
-                      }
-                    })
-                    .catch(err => console.error('Move failed', err));
-                  } : undefined}
-                  isActive={currentCategory.value === c.path}
-                  indent
-                />
-              );
-            })}
+            {categoryTree.map(node => renderCategoryNode(node, 0))}
             {inVaultMode && displayCategories.length === 0 && (
               <div style={{ padding: '6px 16px', fontSize: '0.8rem', color: 'var(--tx3)' }}>No encrypted folders</div>
             )}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { memo } from 'preact/compat';
 import { rebuildLinkVidIds, currentVideo, currentView } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
@@ -12,6 +13,8 @@ interface LinkItem {
   embedUrl?: string;
   hasEmbed?: boolean;
   category?: string;
+  tags?: string[];
+  addedAt?: number;
 }
 
 interface LinkCardProps {
@@ -21,11 +24,34 @@ interface LinkCardProps {
   onUpdate: (url: string, updates: Partial<LinkItem>) => void;
   selected?: boolean;
   onToggleSelect?: (url: string) => void;
+  activeCats?: ActiveCat[];
 }
 
-const LinkCard = ({ item, onRemove, onToggleStar, onVault, selected, onToggleSelect }: LinkCardProps & { onVault?: (url: string) => void }) => {
+const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selected, onToggleSelect, activeCats }: LinkCardProps & { onVault?: (url: string) => void }) => {
   const hostname = new URL(item.url).hostname;
   const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(item.title);
+  const [editCategory, setEditCategory] = useState(item.category || '');
+
+  const startEdit = (e: any) => {
+    e.stopPropagation();
+    setEditTitle(item.title);
+    setEditCategory(item.category || '');
+    setEditing(true);
+  };
+
+  const saveEdit = (e: any) => {
+    e.stopPropagation();
+    const title = editTitle.trim() || item.title;
+    onUpdate(item.url, { title, category: editCategory });
+    setEditing(false);
+  };
+
+  const cancelEdit = (e: any) => {
+    e.stopPropagation();
+    setEditing(false);
+  };
 
   const openPlayer = () => {
     currentVideo.value = {
@@ -43,10 +69,10 @@ const LinkCard = ({ item, onRemove, onToggleStar, onVault, selected, onToggleSel
   };
 
   return (
-    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={openPlayer}>
+    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: editing ? 'default' : 'pointer', position: 'relative' }} onClick={editing ? undefined : openPlayer}>
       <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
         {item.img ? (
-          <img src={item.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={item.img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>No Thumb</div>
         )}
@@ -89,16 +115,69 @@ const LinkCard = ({ item, onRemove, onToggleStar, onVault, selected, onToggleSel
           ×
         </button>
       </div>
-      <div style={{ padding: '10px' }}>
-        <div class="bf-card-title" style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</div>
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(item.url)}`} width="12" height="12" />
-          {hostname}
-        </div>
+      <div style={{ padding: '10px' }} onClick={(e) => editing && e.stopPropagation()}>
+        {editing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <input
+              type="text"
+              value={editTitle}
+              onInput={(e: any) => setEditTitle(e.target.value)}
+              aria-label="Link title"
+              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }}
+            />
+            <select
+              value={editCategory}
+              onChange={(e: any) => setEditCategory(e.target.value)}
+              aria-label="Link category"
+              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.8rem' }}
+            >
+              <option value="">Uncategorized</option>
+              {(activeCats || []).map(c => (
+                <option key={c.name} value={c.name}>{c.path}</option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+              <button type="button" class="sort-btn" onClick={cancelEdit} style={{ fontSize: '0.75rem', padding: '3px 8px' }}>Cancel</button>
+              <button type="button" class="sort-btn on" onClick={saveEdit} style={{ fontSize: '0.75rem', padding: '3px 8px' }}>Save</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div class="bf-card-title" style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</div>
+              <button
+                type="button"
+                onClick={startEdit}
+                title="Edit title / category"
+                style={{ flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
+              <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(item.url)}`} width="12" height="12" loading="lazy" alt="" />
+              {hostname}
+            </div>
+            {item.tags && item.tags.length > 0 && (
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                {item.tags.slice(0, 4).map(t => (
+                  <span key={t} style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85 }}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 };
+
+const LinkCard = memo(LinkCardImpl);
 
 interface DownloadJob {
   id: string;
@@ -490,6 +569,7 @@ export const LinksView = () => {
   const [items, setItems] = useState<LinkItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<LinkItem[]>([]);
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title' | 'domain'>('newest');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [groupByCategory, setGroupByCategory] = useState(true);
   const [activeCats, setActiveCats] = useState<ActiveCat[]>([]);
@@ -604,8 +684,18 @@ export const LinksView = () => {
       filtered = filtered.filter(item => item.title.toLowerCase().includes(term) || item.url.toLowerCase().includes(term));
     }
 
-    setVisibleItems(filtered);
-  }, [search, items, selectedWebsite]);
+    const domainOf = (item: LinkItem) => { try { return new URL(item.url).hostname; } catch { return item.url; } };
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'oldest': return (a.addedAt || 0) - (b.addedAt || 0);
+        case 'title': return a.title.localeCompare(b.title);
+        case 'domain': return domainOf(a).localeCompare(domainOf(b));
+        default: return (b.addedAt || 0) - (a.addedAt || 0);
+      }
+    });
+
+    setVisibleItems(sorted);
+  }, [search, items, selectedWebsite, sortBy]);
 
   // Download poller
   useEffect(() => {
@@ -713,33 +803,33 @@ export const LinksView = () => {
     const seenUrls = new Set<string>();
     const seenNames = new Set<string>();
     const cleaned: any[] = [];
+    const removedUrls: string[] = [];
     for (const item of items) {
       const u = item.url;
       const nm = (item.title || '').trim().toLowerCase();
-      if (!u || seenUrls.has(u) || (nm && seenNames.has(nm))) continue;
+      if (!u || seenUrls.has(u) || (nm && seenNames.has(nm))) { if (u) removedUrls.push(u); continue; }
       seenUrls.add(u);
       if (nm) seenNames.add(nm);
       cleaned.push(item);
     }
-    const removed = items.length - cleaned.length;
-    if (removed <= 0) {
+    if (!removedUrls.length) {
       const w = window as any;
       if (w.toast) w.toast('No duplicates found (by link or name)');
       return;
     }
-    if (!confirm(`Remove ${removed} duplicate links (same URL or same name)? Keep ${cleaned.length}?`)) return;
+    if (!confirm(`Remove ${removedUrls.length} duplicate links (same URL or same name)? Keep ${cleaned.length}?`)) return;
     setItems(cleaned);
     updateMatches(cleaned);
     try {
-      await fetch('/api/links/cache', {
-        method: 'POST',
+      await fetch('/api/links/items', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: cleaned })
+        body: JSON.stringify({ urls: removedUrls })
       });
       const w = window as any;
-      if (w.toast) w.toast(`Removed ${removed} duplicates`);
+      if (w.toast) w.toast(`Removed ${removedUrls.length} duplicates`);
     } catch (e: any) {
-      alert('Error saving after dedup: ' + e.message);
+      alert('Error removing duplicates: ' + e.message);
     }
   };
 
@@ -747,30 +837,31 @@ export const LinksView = () => {
     const newItems = items.filter(it => it.url !== url);
     setItems(newItems);
     updateMatches(newItems);
-    await fetch('/api/links/cache', {
-      method: 'POST',
+    await fetch('/api/links/item', {
+      method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: newItems })
+      body: JSON.stringify({ url })
     });
   };
 
   const toggleStar = async (url: string) => {
-    const newItems = items.map(it => it.url === url ? { ...it, fav: !it.fav } : it);
-    setItems(newItems);
-    await fetch('/api/links/cache', {
-      method: 'POST',
+    const item = items.find(it => it.url === url);
+    if (!item) return;
+    const fav = !item.fav;
+    setItems(prev => prev.map(it => it.url === url ? { ...it, fav } : it));
+    await fetch('/api/links/item', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: newItems })
+      body: JSON.stringify({ url, fav })
     });
   };
 
   const updateItem = async (url: string, updates: Partial<LinkItem>) => {
-    const newItems = items.map(it => it.url === url ? { ...it, ...updates } : it);
-    setItems(newItems);
-    await fetch('/api/links/cache', {
-      method: 'POST',
+    setItems(prev => prev.map(it => it.url === url ? { ...it, ...updates } : it));
+    await fetch('/api/links/item', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: newItems })
+      body: JSON.stringify({ url, ...updates })
     });
   };
 
@@ -1002,6 +1093,20 @@ export const LinksView = () => {
             </select>
           </div>
           <span className="sg-sep"></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title="Sort">
+            <select
+              value={sortBy}
+              onChange={(e: any) => setSortBy(e.target.value)}
+              aria-label="Sort links"
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '3px 6px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="title">Title A-Z</option>
+              <option value="domain">Domain A-Z</option>
+            </select>
+          </div>
+          <span className="sg-sep"></span>
           <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
             <button className={`ss-tab ${viewMode === 'grid' ? 'on' : ''}`} onClick={() => setViewMode('grid')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'grid' ? 'var(--ac)' : 'transparent', color: viewMode === 'grid' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Grid</button>
             <button className={`ss-tab ${viewMode === 'list' ? 'on' : ''}`} onClick={() => setViewMode('list')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'list' ? 'var(--ac)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>List</button>
@@ -1053,7 +1158,7 @@ export const LinksView = () => {
         <div class="empty-state">No links found</div>
       ) : (() => {
         const renderCard = (item: LinkItem) => (
-          <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} />
+          <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} activeCats={activeCats} />
         );
         const renderRow = (item: LinkItem) => (
           <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>

@@ -668,6 +668,15 @@ export const SettingsView = () => {
 
         {/* ══ Folders ═════════════════════════════════════════════════ */}
         {activeTab === 'folders' && <>
+          {/* Folder Display */}
+          <div style={card}>
+            <h3 style={{ ...cardH, marginBottom: '8px' }}>Folder Display</h3>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px' }}>
+              <input type="checkbox" checked={!!prefs.hideEmptyFolders} onChange={(e) => updatePrefs({ hideEmptyFolders: (e.currentTarget as HTMLInputElement).checked })} style={{ width: '16px', height: '16px' }} />
+              Hide folders and subfolders with 0 videos
+            </label>
+          </div>
+
           {/* Source Folders */}
           <div style={card}>
             <h3 style={{ ...cardH, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>

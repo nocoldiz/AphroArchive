@@ -1041,6 +1041,26 @@ function deleteLink(url) {
   } catch (e) { console.error('Failed to delete link:', e); }
 }
 
+// Delete many links by URL in a single transaction.
+function deleteLinks(urls) {
+  if (!Array.isArray(urls) || !urls.length) return 0;
+  try {
+    const stmt = db.prepare('DELETE FROM links WHERE url = ?');
+    let count = 0;
+    txn(() => { for (const u of urls) count += stmt.run(u).changes; });
+    return count;
+  } catch (e) { console.error('Failed to delete links:', e); return 0; }
+}
+
+// Fetch a single link by URL from the current user's DB.
+function getLink(url) {
+  if (!url) return null;
+  try {
+    const row = db.prepare(`SELECT ${_LINK_COLS} FROM links WHERE url = ?`).get(url);
+    return row ? _rowToLink(row) : null;
+  } catch (e) { console.error('Failed to get link:', e); return null; }
+}
+
 // Bulk replace — only use for full imports (JSON import, browser favs import).
 // For scraping or individual edits, prefer upsertLink.
 function saveLinksCache(data) {
@@ -1630,7 +1650,7 @@ module.exports = {
   loadWebsites, saveWebsites,
   loadStarredSites, saveStarredSites,
   loadOgThumbCache, saveOgThumbCache,
-  loadLinksCache, loadVaultLinks, saveLinksCache, upsertLink, deleteLink,
+  loadLinksCache, loadVaultLinks, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
   loadActors, saveActors, loadCategories, saveCategories, loadStudios, saveStudios, invalidateDbTypeCache,
