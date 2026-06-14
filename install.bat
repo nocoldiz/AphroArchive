@@ -97,7 +97,7 @@ if not errorlevel 1 (
         echo            pip install openai-whisper
         set ERRORS=1
     ) else (
-        echo [INFO] Installing openai-whisper via pip (this may take a while)...
+        echo [INFO] Installing openai-whisper via pip ^(this may take a while^)...
         echo        This requires ~2 GB for models downloaded on first use.
         !PYTHON_CMD! -m pip install openai-whisper --quiet
         if not errorlevel 1 (
@@ -111,6 +111,20 @@ if not errorlevel 1 (
         ) else (
             echo [WARN] whisper installation failed. Try manually: pip install openai-whisper
             set ERRORS=1
+        )
+    )
+)
+
+REM ─── Pre-download Whisper base model ────────────────────────────────
+if not "!PYTHON_CMD!"=="" (
+    where whisper >nul 2>&1
+    if not errorlevel 1 (
+        echo [INFO] Pre-downloading Whisper base model ~^(~139 MB^)...
+        !PYTHON_CMD! -c "import whisper; whisper.load_model('base')"
+        if not errorlevel 1 (
+            echo [OK] Whisper base model ready
+        ) else (
+            echo [WARN] Base model pre-download failed. Will download automatically on first use.
         )
     )
 )

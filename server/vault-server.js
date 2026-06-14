@@ -227,6 +227,8 @@ async function _reEncryptFile(filePath, oldKey, newKey) {
       } catch (e) { reject(e); }
     });
     dec.on('error', reject);
+    src.on('error', reject);
+    dst.on('error', reject);
     src.pipe(dec);
   });
 
@@ -1050,19 +1052,14 @@ async function apiVaultCreateTextFile(req, res) {
   const outPath = path.join(VAULT_DIR, id + '.enc');
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
-  const out = fs.createWriteStream(outPath);
-  out.write(iv);
 
   let size = 0;
   try {
     const buf = Buffer.from(content, 'utf-8');
     size = buf.length;
     const enc = cipher.update(buf);
-    if (enc.length) out.write(enc);
     const fin = cipher.final();
-    if (fin.length) out.write(fin);
-    out.write(cipher.getAuthTag());
-    out.end();
+    fs.writeFileSync(outPath, Buffer.concat([iv, enc, fin, cipher.getAuthTag()]));
   } catch (e) {
     return json(res, { error: 'Encryption failed' }, 500);
   }

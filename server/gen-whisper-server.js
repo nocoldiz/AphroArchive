@@ -8,12 +8,48 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { VIDEOS_DIR, WHISPER_BIN } = require('./config-server');
 const { json, safePath } = require('./helpers-server');
-const { loadPrefs } = require('./db-server');
+const { loadPrefs, setVideoMetaFields } = require('./db-server');
 
 const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
 const SUBTITLE_EXT = new Set(['.vtt', '.srt', '.ass', '.ssa', '.sub', '.smi']);
 
+// Common language names whisper outputs → 2-letter codes
+const LANG_NAME_TO_CODE = {
+  afrikaans: 'af', albanian: 'sq', amharic: 'am', arabic: 'ar', armenian: 'hy',
+  azerbaijani: 'az', basque: 'eu', belarusian: 'be', bengali: 'bn', bosnian: 'bs',
+  bulgarian: 'bg', catalan: 'ca', chinese: 'zh', croatian: 'hr', czech: 'cs',
+  danish: 'da', dutch: 'nl', english: 'en', estonian: 'et', finnish: 'fi',
+  french: 'fr', galician: 'gl', georgian: 'ka', german: 'de', greek: 'el',
+  gujarati: 'gu', haitian: 'ht', hausa: 'ha', hebrew: 'he', hindi: 'hi',
+  hungarian: 'hu', icelandic: 'is', indonesian: 'id', italian: 'it', japanese: 'ja',
+  kannada: 'kn', kazakh: 'kk', korean: 'ko', latvian: 'lv', lithuanian: 'lt',
+  macedonian: 'mk', malay: 'ms', maltese: 'mt', marathi: 'mr', nepali: 'ne',
+  norwegian: 'no', pashto: 'ps', persian: 'fa', polish: 'pl', portuguese: 'pt',
+  punjabi: 'pa', romanian: 'ro', russian: 'ru', serbian: 'sr', sinhala: 'si',
+  slovak: 'sk', slovenian: 'sl', somali: 'so', spanish: 'es', swahili: 'sw',
+  swedish: 'sv', tagalog: 'tl', tamil: 'ta', telugu: 'te', thai: 'th',
+  turkish: 'tr', ukrainian: 'uk', urdu: 'ur', uzbek: 'uz', vietnamese: 'vi',
+  welsh: 'cy', yoruba: 'yo',
+};
+
 function toId(rel) { return Buffer.from(rel).toString('base64url'); }
+
+function fpToId(fp) {
+  const resolved = path.resolve(fp);
+  const videosResolved = path.resolve(VIDEOS_DIR);
+  if (resolved.startsWith(videosResolved + path.sep) || resolved === videosResolved) {
+    return toId(path.relative(VIDEOS_DIR, fp).replace(/\\/g, '/'));
+  }
+  return toId(fp);
+}
+
+function parseDetectedLanguage(output) {
+  // Whisper outputs: "Detected language 'english' with probability..." or "Detected language: english"
+  const m = output.match(/Detected language[':]\s*'?(\w+)/i);
+  if (!m) return null;
+  const name = m[1].toLowerCase();
+  return LANG_NAME_TO_CODE[name] || name;
+}
 
 function scanVideos(dir, base, isExternal = false) {
   const out = [];
@@ -60,16 +96,28 @@ function hasSubtitle(fp) {
   return false;
 }
 
+// Returns detected language string or null
 function runWhisper(fp, model, language) {
   return new Promise((resolve, reject) => {
     const dir = path.dirname(fp);
     const args = [fp, '--output_format', 'vtt', '--output_dir', dir, '--model', model || 'base'];
     if (language && language !== 'auto') args.push('--language', language);
-    execFile(WHISPER_BIN, args, { timeout: 15 * 60 * 1000 }, (err) => {
-      if (err) reject(err);
-      else resolve();
+    execFile(WHISPER_BIN, args, { timeout: 15 * 60 * 1000 }, (err, stdout, stderr) => {
+      if (err) { reject(err); return; }
+      const combined = (stdout || '') + (stderr || '');
+      resolve(parseDetectedLanguage(combined));
     });
   });
+}
+
+function saveDetectedLanguage(fp, detectedLang) {
+  if (!detectedLang) return;
+  try {
+    const id = fpToId(fp);
+    setVideoMetaFields(id, { language: detectedLang });
+  } catch (e) {
+    console.error('[whisper] Failed to save language for', fp, e.message);
+  }
 }
 
 // ── Global batch job state & SSE clients ─────────────────────────────
@@ -109,7 +157,9 @@ async function runBatch() {
     _job.current = path.basename(item.fp);
     broadcast({ type: 'progress', done: _job.done, total: _job.total, current: _job.current });
     try {
-      await runWhisper(item.fp, model, language);
+      const detectedLang = await runWhisper(item.fp, model, language);
+      // Only save language if we ran in auto-detect mode
+      if (!language || language === 'auto') saveDetectedLanguage(item.fp, detectedLang);
     } catch (e) {
       console.error('[whisper] Failed:', item.fp, e.message);
       _job.failed++;
@@ -134,8 +184,10 @@ async function processSingleQueue() {
     const { fp } = _singleQueue.shift();
     if (hasSubtitle(fp)) continue;
     const prefs = loadPrefs();
+    const language = prefs.whisperLanguage || 'auto';
     try {
-      await runWhisper(fp, prefs.whisperModel || 'base', prefs.whisperLanguage || 'auto');
+      const detectedLang = await runWhisper(fp, prefs.whisperModel || 'base', language);
+      if (!language || language === 'auto') saveDetectedLanguage(fp, detectedLang);
     } catch (e) {
       console.error('[whisper] Single-video failed:', fp, e.message);
     }
@@ -143,9 +195,35 @@ async function processSingleQueue() {
   _singleRunning = false;
 }
 
+// ── Model download ────────────────────────────────────────────────────
+
+const _downloadingModels = new Set();
+const VALID_MODELS = new Set(['tiny', 'base', 'small', 'medium', 'large', 'turbo']);
+
+function downloadModel(model) {
+  return new Promise((resolve) => {
+    // Use Python to download (works regardless of PATH for whisper command)
+    const pythonCmds = process.platform === 'win32' ? ['python'] : ['python3', 'python'];
+    const code = `import whisper; whisper.load_model('${model}')`;
+
+    function tryNext(i) {
+      if (i >= pythonCmds.length) {
+        // Fall back to running whisper CLI — it will download the model on demand
+        execFile(WHISPER_BIN, ['--help'], { timeout: 60 * 1000 }, () => resolve());
+        return;
+      }
+      execFile(pythonCmds[i], ['-c', code], { timeout: 20 * 60 * 1000 }, (err) => {
+        if (err) tryNext(i + 1);
+        else resolve();
+      });
+    }
+    tryNext(0);
+  });
+}
+
 // ── API Handlers ──────────────────────────────────────────────────────
 
-function apiGenWhisperStart(req, res) {
+function apiGenWhisperStart(_req, res) {
   const prefs = loadPrefs();
   if (!(prefs.whisperEnabled ?? true)) return json(res, { ok: false, error: 'Whisper disabled in settings' });
   if (_job && _job.running) return json(res, { ok: false, error: 'Already running' });
@@ -153,7 +231,7 @@ function apiGenWhisperStart(req, res) {
   json(res, { ok: true });
 }
 
-function apiGenWhisperStop(req, res) {
+function apiGenWhisperStop(_req, res) {
   if (_job) _job.stop = true;
   json(res, { ok: true });
 }
@@ -179,7 +257,7 @@ function apiGenWhisperStatus(req, res) {
   req.on('close', () => _clients.delete(res));
 }
 
-function apiGenWhisperPoll(req, res) {
+function apiGenWhisperPoll(_req, res) {
   const prefs = loadPrefs();
   const enabled = prefs.whisperEnabled ?? true;
   if (_job) {
@@ -189,7 +267,7 @@ function apiGenWhisperPoll(req, res) {
   }
 }
 
-async function apiWhisperEnqueue(req, res, id) {
+async function apiWhisperEnqueue(_req, res, id) {
   const prefs = loadPrefs();
   if (!(prefs.whisperEnabled ?? true)) return json(res, { ok: false, skipped: 'disabled' });
   const fp = safePath(id);
@@ -202,4 +280,27 @@ async function apiWhisperEnqueue(req, res, id) {
   json(res, { ok: true, queued: true });
 }
 
-module.exports = { apiGenWhisperStart, apiGenWhisperStop, apiGenWhisperStatus, apiGenWhisperPoll, apiWhisperEnqueue };
+async function apiWhisperDownloadModel(req, res) {
+  const body = await require('./helpers-server').readBody(req);
+  const model = body.model;
+  if (!VALID_MODELS.has(model)) return json(res, { error: 'Invalid model' }, 400);
+  if (_downloadingModels.has(model)) return json(res, { ok: true, already: true });
+  _downloadingModels.add(model);
+  try {
+    await downloadModel(model);
+    json(res, { ok: true });
+  } catch (e) {
+    json(res, { ok: false, error: e.message }, 500);
+  } finally {
+    _downloadingModels.delete(model);
+  }
+}
+
+function apiWhisperDownloadingModels(_req, res) {
+  json(res, { downloading: [..._downloadingModels] });
+}
+
+module.exports = {
+  apiGenWhisperStart, apiGenWhisperStop, apiGenWhisperStatus, apiGenWhisperPoll,
+  apiWhisperEnqueue, apiWhisperDownloadModel, apiWhisperDownloadingModels,
+};

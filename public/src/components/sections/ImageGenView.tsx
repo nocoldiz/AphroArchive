@@ -31,14 +31,8 @@ import {
 
 interface AssetFile { name: string; size: number; mtime?: number; }
 interface WildcardFile { name: string; file: string; count: number; preview: string[]; }
-interface LoraEntry  { name: string; strength: number; }
 
 interface GenParams {
-  model:         string;
-  model_type:    'sd15' | 'sdxl' | 'pony' | 'flux';
-  vae:           string;
-  textEncoder:   string;
-  clipEncoder:   string;
   prompt:        string;
   negative:      string;
   width:         number;
@@ -437,37 +431,25 @@ function GalleryDrawer({ gallery, open, onClose, onDeleteImage, onLightbox, genW
 // ── Main view ─────────────────────────────────────────────────────────
 
 export const ImageGenView = () => {
-  const comfyuiPath = appPrefs.value.comfyuiPath || '';
-
   const [engineStatus, setEngineStatus] = useState<EngineStatus>({ state: 'stopped', step: 0, total: 0, pct: 0, message: 'Engine not started' });
   const [engineRunning, setEngineRunning] = useState(false);
   const [engineReady,   setEngineReady]   = useState(false);
   const [engineDevice,  setEngineDevice]  = useState('');
   const [queueLength,   setQueueLength]   = useState(0);
 
-  const [models,       setModels]       = useState<AssetFile[]>([]);
-  const [vaes,         setVaes]         = useState<AssetFile[]>([]);
-  const [loras,        setLoras]        = useState<AssetFile[]>([]);
   const [wildcards,    setWildcards]    = useState<WildcardFile[]>([]);
-  const [textEncoders, setTextEncoders] = useState<AssetFile[]>([]);
-  const [clips,        setClips]        = useState<AssetFile[]>([]);
   const [gallery,   setGallery]   = useState<GalleryImage[]>([]);
   const [lightbox,  setLightbox]  = useState<GalleryImage | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [params, setParams] = useState<GenParams>({
-    model: '', model_type: 'sd15', vae: '', textEncoder: '', clipEncoder: '',
     prompt: '', negative: DEFAULT_NEGATIVE,
     width: 512, height: 768, steps: 20, cfg: 7.5,
     sampler: 'euler', seed: -1, batch: 1,
   });
-  const [selectedLoras, setSelectedLoras] = useState<LoraEntry[]>([]);
 
   const [configOpen,    setConfigOpen]    = useState(false);
   const [wildcardsOpen, setWildcardsOpen] = useState(true);
-  const [modelsDir, setModelsDir] = useState('');
-  const [vaesDir,   setVaesDir]   = useState('');
-  const [lorasDir,  setLorasDir]  = useState('');
   const [outputDir, setOutputDir] = useState('');
   const [devicePref, setDevicePref] = useState<'auto'|'cpu'|'cuda'|'mps'>('auto');
 
@@ -530,27 +512,15 @@ export const ImageGenView = () => {
 
   const loadAll = useCallback(async () => {
     try {
-      if (appPrefs.value.comfyuiPath) {
-        await fetch('/api/imagegen/comfyui/sync', { method: 'POST' }).catch(() => {});
-      }
       const [cfgRes, assetsRes, galleryRes] = await Promise.all([
         fetch('/api/imagegen/config').then(r => r.json()),
         fetch('/api/imagegen/assets').then(r => r.json()),
         fetch('/api/imagegen/gallery').then(r => r.json()),
       ]);
-      setModels(assetsRes.models || []);
-      setVaes(assetsRes.vaes || []);
-      setLoras(assetsRes.loras || []);
       setWildcards(assetsRes.wildcards || []);
-      setTextEncoders(assetsRes.textEncoders || []);
-      setClips(assetsRes.clips || []);
       setGallery(galleryRes || []);
-      setModelsDir(cfgRes.modelsDir || '');
-      setVaesDir(cfgRes.vaesDir || '');
-      setLorasDir(cfgRes.lorasDir || '');
       setOutputDir(cfgRes.outputDir || '');
       setDevicePref((cfgRes.device || 'auto') as 'auto'|'cpu'|'cuda'|'mps');
-      if (cfgRes.model) setParams(p => ({ ...p, model: cfgRes.model, model_type: cfgRes.modelType || 'sd15', vae: cfgRes.vae || '', textEncoder: cfgRes.textEncoder || '', clipEncoder: cfgRes.clipEncoder || '' }));
       setEngineRunning(cfgRes.engine?.running || false);
       setEngineReady(cfgRes.engine?.ready || false);
       setEngineDevice(cfgRes.engine?.device || '');
@@ -559,7 +529,6 @@ export const ImageGenView = () => {
   }, []);
 
   useEffect(() => { loadAll(); }, []);
-  useEffect(() => { if (comfyuiPath) loadAll(); }, [comfyuiPath]);
 
   // Consume imagegenInputState set by ContextMenu or PlayerView
   useEffect(() => {
@@ -685,15 +654,12 @@ export const ImageGenView = () => {
 
   const buildGenerateBody = (imagePath = '') => ({
     ...params,
-    loras: selectedLoras.map(l => l.name),
-    lora_strengths: selectedLoras.map(l => l.strength),
     mode: (imagePath || (imgMode === 'img2img' && inputImages.length > 0)) ? 'img2img' : 'txt2img',
     image_path: imagePath || (imgMode === 'img2img' && inputImages.length > 0 ? inputImages[0].serverPath : ''),
     strength: imgStrength,
   });
 
   const generate = async () => {
-    if (!params.model)        { alert('Select a model first'); return; }
     if (!params.prompt.trim()){ alert('Enter a prompt');        return; }
     if (!engineRunning) await startEngine();
     const body = buildGenerateBody();
@@ -706,7 +672,6 @@ export const ImageGenView = () => {
 
   // Generate with same prompt for each input image (batch mode)
   const generateBatch = async () => {
-    if (!params.model)        { alert('Select a model first'); return; }
     if (!params.prompt.trim()){ alert('Enter a prompt');        return; }
     if (inputImages.length === 0) { alert('Load at least one image'); return; }
     if (!engineRunning) await startEngine();
@@ -723,27 +688,11 @@ export const ImageGenView = () => {
   };
 
   const saveConfig = async () => {
-    await fetch('/api/imagegen/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelsDir, vaesDir, lorasDir, outputDir, model: params.model, vae: params.vae, textEncoder: params.textEncoder, clipEncoder: params.clipEncoder, modelType: params.model_type, device: devicePref }) });
+    await fetch('/api/imagegen/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ outputDir, device: devicePref }) });
     await loadAll(); setConfigOpen(false);
   };
 
   const setParam = <K extends keyof GenParams>(k: K, v: GenParams[K]) => setParams(p => ({ ...p, [k]: v }));
-
-  const autoDetectType = (name: string): GenParams['model_type'] => {
-    const n = name.toLowerCase();
-    if (n.includes('flux')) return 'flux';
-    if (n.includes('pony') || n.includes('pdxl')) return 'pony';
-    if (n.includes('xl') || n.includes('sdxl')) return 'sdxl';
-    if (n.endsWith('.gguf')) return 'flux';
-    return 'sd15';
-  };
-
-  const selectModel = (name: string) => {
-    setParams(p => ({ ...p, model: name, model_type: autoDetectType(name) }));
-  };
-  const addLora = (name: string) => { if (selectedLoras.find(l => l.name === name)) return; setSelectedLoras(p => [...p, { name, strength: 0.7 }]); };
-  const removeLora = (name: string) => setSelectedLoras(p => p.filter(l => l.name !== name));
-  const setLoraStrength = (name: string, s: number) => setSelectedLoras(p => p.map(l => l.name === name ? { ...l, strength: s } : l));
 
   const doStaticGenerate = async () => {
     setGenLoading(true);
@@ -1053,10 +1002,6 @@ export const ImageGenView = () => {
           ? <button onClick={startEngine} style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '5px', padding: '4px 12px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>Start Engine</button>
           : <button onClick={stopEngine}  style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '4px 12px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>Stop</button>
         }
-        {comfyuiPath && (
-          <button onClick={async () => { const r = await fetch('/api/imagegen/comfyui/start', { method: 'POST' }); const d = await r.json(); if (d.error) alert(d.error); else if (!d.already) (window as any).toast?.('ComfyUI started'); }}
-            style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>ComfyUI ▶</button>
-        )}
         <button onClick={() => setConfigOpen(v => !v)} title="Paths config"
           style={{ background: configOpen ? 'var(--ac)' : 'none', color: configOpen ? '#fff' : 'var(--tx3)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px' }}>⚙ Config</button>
       </div>
@@ -1071,7 +1016,7 @@ export const ImageGenView = () => {
       {/* Config panel */}
       {configOpen && (
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--brd)', background: 'var(--bg3)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px', flexShrink: 0 }}>
-          {([['Models dir', modelsDir, setModelsDir], ['VAEs dir', vaesDir, setVaesDir], ['LoRAs dir', lorasDir, setLorasDir], ['Output dir', outputDir, setOutputDir]] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
+          {([['Output dir', outputDir, setOutputDir]] as [string, string, (v: string) => void][]).map(([label, val, setter]) => (
             <div key={label}>
               <label style={{ color: 'var(--tx3)', display: 'block', marginBottom: '2px', fontSize: '11px' }}>{label}</label>
               <input value={val} onInput={(e: any) => setter(e.target.value)} placeholder="Absolute path…"
@@ -1095,24 +1040,7 @@ export const ImageGenView = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
             <button onClick={saveConfig} style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '5px', padding: '6px 16px', cursor: 'pointer', fontSize: '12px', flex: 1 }}>Save &amp; Reload</button>
-            {comfyuiPath && (
-              <button onClick={async () => {
-                const r = await fetch('/api/imagegen/comfyui/sync', { method: 'POST' });
-                const d = await r.json();
-                if (d.error) { alert(d.error); return; }
-                setModelsDir(d.modelsDir || ''); setVaesDir(d.vaesDir || ''); setLorasDir(d.lorasDir || '');
-                await loadAll();
-              }} title={`Sync dirs from ComfyUI: ${comfyuiPath}`}
-                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
-                ↺ ComfyUI
-              </button>
-            )}
           </div>
-          {comfyuiPath && (
-            <div style={{ fontSize: '10px', color: 'var(--tx3)', gridColumn: '1 / -1' }}>
-              ComfyUI: <code style={{ color: 'var(--ac)' }}>{comfyuiPath}</code> — click ↺ ComfyUI to sync model dirs
-            </div>
-          )}
         </div>
       )}
 
@@ -1267,69 +1195,6 @@ export const ImageGenView = () => {
           {/* ── RIGHT: Model + Params ────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
-            {/* Model */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px', fontWeight: 600 }}>Model</label>
-              <select value={params.model} onChange={(e: any) => selectModel(e.target.value)} title="Model"
-                style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }}>
-                <option value="">— select model —</option>
-                {models.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
-              </select>
-            </div>
-
-            {/* Model type */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {(['sd15', 'sdxl', 'pony', 'flux'] as const).map(t => (
-                <button key={t} onClick={() => setParam('model_type', t)}
-                  style={{ flex: 1, background: params.model_type === t ? 'var(--ac)' : 'var(--bg2)', color: params.model_type === t ? '#fff' : 'var(--tx2)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px', fontSize: '12px', cursor: 'pointer', textTransform: 'uppercase', fontWeight: 600 }}>{t}</button>
-              ))}
-            </div>
-
-            {/* VAE */}
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>VAE (optional)</label>
-              <select value={params.vae} onChange={(e: any) => setParam('vae', e.target.value)} title="VAE"
-                style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px' }}>
-                <option value="">— built-in —</option>
-                {vaes.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
-              </select>
-            </div>
-
-            {/* Flux text encoders — shown only when model_type is flux */}
-            {params.model_type === 'flux' && (clips.length > 0 || textEncoders.length > 0) && (
-              <div style={{ borderTop: '1px solid var(--brd)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--ac)', fontWeight: 600, marginBottom: '2px' }}>Flux Text Encoders (optional)</div>
-                <div style={{ fontSize: '11px', color: 'var(--tx3)', marginBottom: '4px' }}>
-                  CLIP-L and T5/Qwen text encoders override the ones bundled in the model file. Leave blank to use embedded encoders.
-                  {params.model.toLowerCase().includes('unet/') && params.model.toLowerCase().endsWith('.gguf') && (
-                    <span style={{ color: '#ff9800', display: 'block', marginTop: '3px' }}>
-                      Note: unet-only GGUF models require img2img mode to be disabled — txt2img only.
-                    </span>
-                  )}
-                </div>
-                {clips.length > 0 && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '3px' }}>CLIP-L (text encoder 1)</label>
-                    <select value={params.clipEncoder} onChange={(e: any) => setParam('clipEncoder', e.target.value)} title="CLIP encoder"
-                      style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px 7px', fontSize: '12px' }}>
-                      <option value="">— use embedded —</option>
-                      {clips.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                )}
-                {textEncoders.length > 0 && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '3px' }}>T5 / Qwen text encoder (text encoder 2)</label>
-                    <select value={params.textEncoder} onChange={(e: any) => setParam('textEncoder', e.target.value)} title="Text encoder 2"
-                      style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px 7px', fontSize: '12px' }}>
-                      <option value="">— use embedded —</option>
-                      {textEncoders.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Size presets */}
             <div>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '5px' }}>Size</label>
@@ -1394,25 +1259,6 @@ export const ImageGenView = () => {
               <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>-1 = random</span>
             </div>
 
-            {/* LoRAs */}
-            {loras.length > 0 && (
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--tx2)', marginBottom: '4px' }}>LoRAs</label>
-                <select onChange={(e: any) => { addLora(e.target.value); e.target.value = ''; }} title="Add LoRA"
-                  style={{ width: '100%', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', marginBottom: '5px' }}>
-                  <option value="">+ Add LoRA…</option>
-                  {loras.filter(l => !selectedLoras.find(s => s.name === l.name)).map(l => <option key={l.name} value={l.name}>{l.name}</option>)}
-                </select>
-                {selectedLoras.map(l => (
-                  <div key={l.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                    <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
-                    <input type="range" min={0} max={1} step={0.05} value={l.strength} title={`${l.name} strength`} onInput={(e: any) => setLoraStrength(l.name, parseFloat(e.target.value))} style={{ width: '70px', accentColor: 'var(--ac)' }} />
-                    <span style={{ fontSize: '11px', color: 'var(--tx3)', width: '28px' }}>{l.strength.toFixed(2)}</span>
-                    <button onClick={() => removeLora(l.name)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '13px' }}>✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
@@ -1424,13 +1270,13 @@ export const ImageGenView = () => {
             </button>
           ) : (
             <>
-              <button onClick={generate} disabled={!params.model}
-                style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', opacity: !params.model ? 0.5 : 1 }}>
+              <button onClick={generate}
+                style={{ flex: 1, background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer' }}>
                 ✦ {imgMode === 'img2img' && inputImages.length > 0 ? 'Img2Img' : 'Generate'} {totalImages > 1 ? `(${totalImages} images)` : ''}
               </button>
               {inputImages.length > 1 && (
-                <button onClick={generateBatch} disabled={!params.model || batchRunning}
-                  style={{ background: '#9333ea', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', opacity: (!params.model || batchRunning) ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+                <button onClick={generateBatch} disabled={batchRunning}
+                  style={{ background: '#9333ea', color: '#fff', border: 'none', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', opacity: batchRunning ? 0.5 : 1, whiteSpace: 'nowrap' }}>
                   ⚡ Batch ({inputImages.length}×)
                 </button>
               )}

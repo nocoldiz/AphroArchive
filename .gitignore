@@ -1,5 +1,6 @@
 ﻿videos
 __pycache__/
+*.pyc
 books
 audio
 photos
@@ -11,8 +12,8 @@ db/actors.json
 db/categories.json
 dist/
 dist
-Bulkdownloader/links_downloaded.txt
-Bulkdownloader/links_to_download.txt
+bulkdownloader/links_downloaded.txt
+bulkdownloader/links_to_download.txt
 build/
 android-app
 android-app/www/assets/*

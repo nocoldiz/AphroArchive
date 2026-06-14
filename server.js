@@ -236,6 +236,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-whisper/status' && req.method === 'GET') return genWhisper.apiGenWhisperStatus(req, res);
   if (p === '/api/gen-whisper/poll' && req.method === 'GET') return genWhisper.apiGenWhisperPoll(req, res);
   if ((m = p.match(/^\/api\/whisper\/enqueue\/([^/]+)$/)) && req.method === 'POST') return genWhisper.apiWhisperEnqueue(req, res, m[1]);
+  if (p === '/api/whisper/download-model' && req.method === 'POST') return genWhisper.apiWhisperDownloadModel(req, res);
+  if (p === '/api/whisper/downloading-models' && req.method === 'GET') return genWhisper.apiWhisperDownloadingModels(req, res);
   if ((m = p.match(/^\/api\/subtitle-embedded\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return videos.apiSubtitleEmbedded(req, res, m[1], m[2]);
 
   // ── Re-encode ────────────────────────────────────────────────────────
