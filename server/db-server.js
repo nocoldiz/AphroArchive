@@ -223,6 +223,7 @@ function ensureSchema(database) {
   try { database.exec('ALTER TABLE links ADD COLUMN fav INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE links ADD COLUMN vault INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE videos ADD COLUMN language TEXT'); } catch {}
+  try { database.exec('ALTER TABLE videos ADD COLUMN reencoded INTEGER DEFAULT 0'); } catch {}
 }
 
 function switchProfile(profileName) {
@@ -566,6 +567,7 @@ function _readVideoMetaFromDb(database) {
       note: row.note || '',
       date: row.date || '',
       language: row.language || '',
+      reencoded: row.reencoded ? 1 : 0,
       actors: getActors.all(row.id).map(r => r.actor),
       tags: getTags.all(row.id).map(r => r.tag)
     };
@@ -681,14 +683,14 @@ function saveVideoMeta(m) {
 
 function setVideoMetaFields(id, fields) {
   const meta = loadVideoMeta();
-  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '', language: '' };
+  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '', language: '', reencoded: 0 };
   Object.assign(meta[id], fields);
 
   try {
     txn(() => {
-      const stmt = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, studio=excluded.studio, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date, language=excluded.language');
+      const stmt = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date, language, reencoded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, studio=excluded.studio, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date, language=excluded.language, reencoded=excluded.reencoded');
       const current = meta[id];
-      stmt.run(id, current.title || '', current.studio || '', current.category || '', current.rating || null, current.note || '', current.date || '', current.language || '');
+      stmt.run(id, current.title || '', current.studio || '', current.category || '', current.rating || null, current.note || '', current.date || '', current.language || '', current.reencoded ? 1 : 0);
 
       if (fields.actors) {
         db.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);

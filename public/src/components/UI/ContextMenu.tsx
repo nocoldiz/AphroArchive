@@ -345,6 +345,18 @@ export const ContextMenu = () => {
             <ContextItem label="Delete" icon="trash" onClick={handleDelete} />
             <ContextItem label="Hide" icon="eye-off" onClick={handleHide} />
             <ContextItem label="Open folder" icon="folder" onClick={handleOpenFolder} />
+            <ContextItem label="Re-encode to H.265" icon="zap" onClick={async () => {
+              closeMenu();
+              if (!confirm(`Re-encode all videos in "${data.name}" to H.265?\nThis runs in the background and may take a while.`)) return;
+              const r = await fetch('/api/reencode/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: data.path }),
+              });
+              const d = await r.json().catch(() => ({}));
+              if (d.ok) toast('Re-encoding started — check Sync & Tasks for progress');
+              else toast(d.error || 'Failed to start re-encode');
+            }} />
             <ContextItem label="Compress Videos" icon="download" onClick={handleCompress} />
             <ContextItem label="Download ZIP" icon="download" onClick={handleDownloadZip} />
             <ContextItem label="Manage Subfolders" icon="folder" onClick={handleManageSubfolders} />
@@ -392,6 +404,22 @@ export const ContextMenu = () => {
             <ContextItem label="Actors" icon="user" onClick={() => {
               actorModalState.value = { visible: true, vidId: data.id };
             }} />
+            {!data.reencoded && !data.isLink && !data.isVault && (
+              <ContextItem label="Re-encode to H.265" icon="zap" onClick={async () => {
+                closeMenu();
+                const r = await fetch('/api/reencode/start', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ids: [data.id] }),
+                });
+                const d = await r.json().catch(() => ({}));
+                if (d.ok) {
+                  if ((window as any).toast) (window as any).toast('Re-encoding started — check Sync & Tasks for progress');
+                } else {
+                  if ((window as any).toast) (window as any).toast(d.error || 'Failed to start re-encode');
+                }
+              }} />
+            )}
             <ContextItem label="Encrypt" icon="lock" onClick={() => {
               closeMenu();
               // Normal users must unlock the vault (password prompt) before encrypting

@@ -90,10 +90,12 @@ export const SyncManager = () => {
     videoThumbs: ScraperStatus;
     bmMeta: ScraperStatus;
     bmThumbs: ScraperStatus;
+    reencode: ScraperStatus;
   }>({
     videoThumbs: { running: false },
     bmMeta: { running: false },
     bmThumbs: { running: false },
+    reencode: { running: false },
   });
   const [encProgress, setEncProgress] = useState<EncProgress>({
     running: false, type: '', category: '', total: 0, done: 0, current: '',
@@ -104,16 +106,18 @@ export const SyncManager = () => {
   useEffect(() => {
     const poll = async () => {
       try {
-        const [vtRes, bmMetaRes, bmThRes, encRes] = await Promise.all([
+        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes] = await Promise.all([
           fetch('/api/gen-thumbs/poll'),
           fetch('/api/links/scrape-status'),
           fetch('/api/links/thumb-status'),
           fetch('/api/encryption/status'),
+          fetch('/api/reencode/poll'),
         ]);
-        const vt = vtRes.ok ? await vtRes.json() : { running: false };
-        const bm = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
-        const bt = bmThRes.ok ? await bmThRes.json() : { running: false };
-        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt });
+        const vt   = vtRes.ok    ? await vtRes.json()    : { running: false };
+        const bm   = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
+        const bt   = bmThRes.ok  ? await bmThRes.json()  : { running: false };
+        const reenc = reencRes.ok ? await reencRes.json() : { running: false };
+        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc });
         if (encRes.ok) {
           const enc = await encRes.json();
           // Detect transition from running → done
@@ -146,7 +150,7 @@ export const SyncManager = () => {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs].filter(s => s.running).length
+  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode].filter(s => s.running).length
     + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
@@ -247,6 +251,18 @@ export const SyncManager = () => {
               status={scrapers.bmThumbs}
               onStart={() => scraperAction('/api/links/generate-all')}
               onStop={() => scraperAction('/api/links/stop-generating')}
+            />
+
+            <ScraperRow
+              label="Re-encode to H.265"
+              icon={
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+              }
+              status={scrapers.reencode}
+              onStart={() => scraperAction('/api/reencode/start')}
+              onStop={() => scraperAction('/api/reencode/stop')}
             />
 
             {/* Actor Data */}

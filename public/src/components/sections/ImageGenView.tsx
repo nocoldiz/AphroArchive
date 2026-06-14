@@ -15,7 +15,7 @@ import {
   BUILDER_CATEGORY_WILDCARDS,
   AGE_PRESETS,
   buildPromptFromBuilder,
-} from '../../characterPrompts';
+} from '../../../../plugins/prompts/characterPrompts';
 import {
   inspireRandomBuilder,
   pickRandomForCategory,
@@ -25,7 +25,7 @@ import {
   isNsfwPhrase,
   SFW_THRESHOLD,
   sanitizeBuilderStateForLevel,
-} from '../../nsfwCharacterPrompts';
+} from '../../../../plugins/prompts/nsfwCharacterPrompts';
 
 // ── Types ─────────────────────────────────────────────────────────────
 

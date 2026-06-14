@@ -1,0 +1,9 @@
+{
+  "id": "prompts",
+  "name": "AI Prompts",
+  "description": "Saved prompts with wildcard builder, combinatorial expansion, and one-click send to AI services",
+  "location": "sidebar",
+  "type": "view",
+  "view": "prompts",
+  "enabledByDefault": true
+}

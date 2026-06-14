@@ -102,6 +102,8 @@ export const SettingsView = () => {
   const [genRunning, setGenRunning] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
   const [genStatus, setGenStatus] = useState('');
+  const [reencRunning, setReencRunning] = useState(false);
+  const [reencStatus, setReencStatus] = useState('');
 
   const [oldPw, setOldPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -230,13 +232,20 @@ export const SettingsView = () => {
   useEffect(() => {
     const poll = async () => {
       try {
-        const [bmMetaRes, bmThRes] = await Promise.all([
+        const [bmMetaRes, bmThRes, reencRes] = await Promise.all([
           fetch('/api/links/scrape-status'),
           fetch('/api/links/thumb-status'),
+          fetch('/api/reencode/poll'),
         ]);
-        const bm = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
-        const bt = bmThRes.ok ? await bmThRes.json() : { running: false };
+        const bm   = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
+        const bt   = bmThRes.ok   ? await bmThRes.json()   : { running: false };
+        const reenc = reencRes.ok ? await reencRes.json()  : { running: false };
         setScrapers({ bmMeta: bm, bmThumbs: bt });
+        setReencRunning(!!reenc.running);
+        if (reenc.running) {
+          const pct = reenc.total > 0 ? Math.round(reenc.done / reenc.total * 100) : 0;
+          setReencStatus(`${reenc.done}/${reenc.total} (${pct}%)${reenc.current ? ' — ' + reenc.current : ''}`);
+        }
       } catch {}
     };
     poll();
@@ -810,6 +819,19 @@ export const SettingsView = () => {
                   </>
                 ) : (
                   <button style={btnSm()} onClick={() => scraperAction('/api/links/generate-all')}>Start</button>
+                )}
+              </div>
+
+              {/* Re-encode to H.265 */}
+              <div style={rowStyle}>
+                <span style={lbl}>Re-encode to H.265</span>
+                {reencRunning ? (
+                  <>
+                    <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{reencStatus || 'running…'}</span>
+                    <button style={btnSm('var(--bg3)')} onClick={() => scraperAction('/api/reencode/stop')}>Stop</button>
+                  </>
+                ) : (
+                  <button style={btnSm()} onClick={() => scraperAction('/api/reencode/start')}>Re-encode all</button>
                 )}
               </div>
 

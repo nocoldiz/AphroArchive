@@ -41,8 +41,9 @@ const DatabaseView = lazy(() => import('../sections/DatabaseView').then(m => ({ 
 const ActorScraperView = lazy(() => import('../sections/ActorScraperView').then(m => ({ default: m.ActorScraperView })));
 const AssistantView = lazy(() => import('../sections/AssistantView').then(m => ({ default: m.AssistantView })));
 const CategorizerView = lazy(() => import('../sections/CategorizerView').then(m => ({ default: m.CategorizerView })));
-const PromptsView = lazy(() => import('../sections/PromptsView').then(m => ({ default: m.PromptsView })));
+const PromptsView = lazy(() => import('../../../../plugins/prompts/PromptsView').then(m => ({ default: m.PromptsView })));
 const DuplicatesView = lazy(() => import('../sections/DuplicatesView').then(m => ({ default: m.DuplicatesView })));
+const LibraryHealthView = lazy(() => import('../sections/LibraryHealthView').then(m => ({ default: m.LibraryHealthView })));
 
 const ViewLoading = () => <div className="skeleton" style={{ margin: '40px auto', width: '120px', height: '24px' }} />;
 
@@ -124,6 +125,7 @@ export const MainContent = () => {
     if (view === 'assistant') return <AssistantView />;
     if (view === 'categorizer') return <CategorizerView />;
     if (view === 'duplicates') return <DuplicatesView />;
+    if (view === 'library-health') return <LibraryHealthView />;
     return <BrowseView />;
   };
 

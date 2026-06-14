@@ -81,6 +81,7 @@ export async function routeToPath(path: string) {
     '/assistant':      'assistant',
     '/categorizer':    'categorizer',
     '/duplicates':     'duplicates',
+    '/library-health': 'library-health',
     '/browse':         'browse',
     '/instagram':      'instagram',
     '/reddit':         'reddit',

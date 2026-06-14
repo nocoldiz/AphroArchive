@@ -10,7 +10,7 @@ import {
   BUILDER_CATEGORY_WILDCARDS,
   AGE_PRESETS,
   buildPromptFromBuilder,
-} from '../../characterPrompts';
+} from './characterPrompts';
 import {
   inspireRandomBuilder,
   pickRandomForCategory,
@@ -20,7 +20,7 @@ import {
   isNsfwPhrase,
   SFW_THRESHOLD,
   sanitizeBuilderStateForLevel,
-} from '../../nsfwCharacterPrompts';
+} from './nsfwCharacterPrompts';
 
 const PROMPT_SITES = [
   // ── General chat ──

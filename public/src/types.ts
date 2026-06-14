@@ -14,6 +14,7 @@
   studio?: string;
   actors?: string[];
   isVault?: boolean;
+  reencoded?: boolean;
   catPath?: string;
   fav?: boolean;
   chapters?: any[];

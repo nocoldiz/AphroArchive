@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
 import { currentView, allVideos, categories } from '../../store';
-import { PromptsView } from './PromptsView';
+import { PromptsView } from '../../../../plugins/prompts/PromptsView';
 import {
   SYSTEM_PROMPTS,
   JAILBREAK_METHODS,
@@ -11,7 +11,7 @@ import {
   type SystemPromptKey,
 } from '../../assistantPrompts';
 // Optional: quick access to character randomizer from chat too
-import { quickRandomCharacterPrompt } from '../../characterPrompts';
+import { quickRandomCharacterPrompt } from '../../../../plugins/prompts/characterPrompts';
 
 // ── Types ─────────────────────────────────────────────────────────────
 

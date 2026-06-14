@@ -29,6 +29,8 @@ const actors = require('./server/actors-server');
 const vault = require('./server/vault-server');
 const thumbnails = require('./server/thumbnails-server');
 const genThumbs = require('./server/gen-thumbs-server');
+const reencode = require('./server/reencode-server');
+const libraryHealth = require('./server/library-health-server');
 const collections = require('./server/collections-server');
 const downloads = require('./server/downloads-server');
 const links = require('./server/links-server');
@@ -226,6 +228,18 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-thumbs/stop' && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
   if (p === '/api/gen-thumbs/status' && req.method === 'GET') return genThumbs.apiGenThumbsStatus(req, res);
   if (p === '/api/gen-thumbs/poll' && req.method === 'GET') return genThumbs.apiGenThumbsStatusPoll(req, res);
+
+  // ── Re-encode ────────────────────────────────────────────────────────
+  if (p === '/api/reencode/start' && req.method === 'POST') return reencode.apiReencodeStart(req, res);
+  if (p === '/api/reencode/stop' && req.method === 'POST') return reencode.apiReencodeStop(req, res);
+  if (p === '/api/reencode/status' && req.method === 'GET') return reencode.apiReencodeStatus(req, res);
+  if (p === '/api/reencode/poll' && req.method === 'GET') return reencode.apiReencodePoll(req, res);
+
+  // ── Library Health ───────────────────────────────────────────────────
+  if (p === '/api/library/health/scan' && req.method === 'POST') return libraryHealth.apiHealthScan(req, res);
+  if (p === '/api/library/health/status' && req.method === 'GET') return libraryHealth.apiHealthStatus(req, res);
+  if (p === '/api/library/health/results' && req.method === 'GET') return libraryHealth.apiHealthResults(req, res);
+  if (p === '/api/library/health/fix' && req.method === 'POST') return libraryHealth.apiHealthFix(req, res);
 
   // ── Collections ──────────────────────────────────────────────────────
   if (p === '/api/collections' && req.method === 'GET') return collections.apiCollections(req, res);
