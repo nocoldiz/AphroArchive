@@ -105,6 +105,12 @@ async function apiSavePrefs(req, res) {
   if ('homeDashboard' in body) {
     prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];
   }
+  if ('whisperEnabled' in body) prefs.whisperEnabled = !!body.whisperEnabled;
+  if ('whisperModel' in body) {
+    const valid = new Set(['tiny', 'base', 'small', 'medium', 'large', 'turbo']);
+    if (valid.has(body.whisperModel)) prefs.whisperModel = body.whisperModel;
+  }
+  if ('whisperLanguage' in body) prefs.whisperLanguage = String(body.whisperLanguage || 'auto').trim().slice(0, 10);
   savePrefs(prefs);
   if (feedFoldersChanged) {
     try {

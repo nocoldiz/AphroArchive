@@ -32,7 +32,10 @@ const MOCK_MIME = {
 };
 
 // Shared state object — fake db functions read/write through this reference.
-const state = { hidden: [], vaultConfig: null, vaultMeta: {}, reEncryptSqlite: null, prefs: {} };
+const state = {
+  hidden: [], vaultConfig: null, vaultMeta: {}, reEncryptSqlite: null, prefs: {},
+  links: [],  // public links list
+};
 
 /** Replace a module in require.cache with a fake before it is ever loaded. */
 function injectMock(relPath, exports) {
@@ -66,6 +69,9 @@ injectMock('../server/db-server', {
   loadPrefs: vi.fn(() => state.prefs || {}),
   setVaultKey: vi.fn(() => {}),
   reEncryptVaultSqlite: vi.fn((o, n) => { state.reEncryptSqlite = { o, n }; }),
+  loadLinksCache: vi.fn(() => ({ items: state.links })),
+  deleteLink: vi.fn((url) => { state.links = state.links.filter(l => l.url !== url); }),
+  upsertLink: vi.fn((link) => { state.links.push(link); }),
 });
 
 injectMock('../server/feed-watcher-server', {
@@ -122,6 +128,7 @@ function resetAll() {
   state.vaultMeta = {};
   state.reEncryptSqlite = null;
   state.prefs = {};
+  state.links = [];
   cleanup();
   for (const d of [MOCK_VAULT_DIR, MOCK_PROCESS_DIR]) if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
   // Fully reset module-internal state (key + failed-attempt counters)
@@ -453,5 +460,456 @@ describe('Configurable auto-lock timeout', () => {
     // 1 minute → still unlocked shortly after setup.
     await new Promise(r => setTimeout(r, 30));
     expect(vault.isUnlocked()).toBe(true);
+  });
+});
+
+// ── NEW: encryptBufferToVault ────────────────────────────────────────
+
+describe('encryptBufferToVault()', () => {
+  const PW = 'bufpw123!';
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+  });
+
+  it('returns null when vault is locked', () => {
+    vault.apiVaultLock({}, makeRes());
+    expect(vault.encryptBufferToVault(Buffer.from('x'), 'test.jpg')).toBeNull();
+  });
+
+  it('encrypts a buffer and returns an id', () => {
+    const id = vault.encryptBufferToVault(Buffer.from('image data'), 'photo.jpg');
+    expect(typeof id).toBe('string');
+    expect(id.length).toBeGreaterThan(0);
+    expect(fs.existsSync(path.join(MOCK_VAULT_DIR, id + '.enc'))).toBe(true);
+  });
+
+  it('stores correct metadata', () => {
+    const id = vault.encryptBufferToVault(Buffer.from('pdf content'), 'doc.pdf');
+    expect(state.vaultMeta[id].originalName).toBe('doc.pdf');
+    expect(state.vaultMeta[id].ext).toBe('.pdf');
+    expect(state.vaultMeta[id].size).toBe(11); // 'pdf content'.length
+  });
+
+  it('stores file in a folder when folder param is given', () => {
+    const content = Buffer.from('x');
+    const id = vault.encryptBufferToVault(content, 'shot.jpg', 'folder-uuid');
+    expect(state.vaultMeta[id].folder).toBe('folder-uuid');
+  });
+
+  it('decryptToBuffer round-trips the encrypted content', () => {
+    const original = Buffer.from('round-trip payload');
+    const id = vault.encryptBufferToVault(original, 'clip.mp4');
+    const result = vault.decryptToBuffer(id);
+    expect(result).not.toBeNull();
+    expect(result.buffer.equals(original)).toBe(true);
+  });
+});
+
+// ── NEW: Vault Favourites ────────────────────────────────────────────
+
+describe('apiVaultFavsGet() / apiVaultFavsToggle()', () => {
+  const PW = 'favspw123!';
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+  });
+
+  it('returns locked error when vault is locked', () => {
+    vault.apiVaultLock({}, makeRes());
+    const res = makeRes();
+    vault.apiVaultFavsGet({}, res);
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns empty array when no favs', () => {
+    const res = makeRes();
+    vault.apiVaultFavsGet({}, res);
+    expect(res.jsonBody).toEqual([]);
+  });
+
+  it('toggles a fav on', () => {
+    const res = makeRes();
+    vault.apiVaultFavsToggle({}, res, 'abc123');
+    expect(res.jsonBody.ok).toBe(true);
+    expect(res.jsonBody.fav).toBe(true);
+    const listRes = makeRes();
+    vault.apiVaultFavsGet({}, listRes);
+    expect(listRes.jsonBody).toContain('abc123');
+  });
+
+  it('toggles a fav off when already set', () => {
+    vault.apiVaultFavsToggle({}, makeRes(), 'abc123');
+    const res = makeRes();
+    vault.apiVaultFavsToggle({}, res, 'abc123');
+    expect(res.jsonBody.fav).toBe(false);
+    const listRes = makeRes();
+    vault.apiVaultFavsGet({}, listRes);
+    expect(listRes.jsonBody).not.toContain('abc123');
+  });
+
+  it('persists favs across get calls', () => {
+    vault.apiVaultFavsToggle({}, makeRes(), 'id1');
+    vault.apiVaultFavsToggle({}, makeRes(), 'id2');
+    const res = makeRes();
+    vault.apiVaultFavsGet({}, res);
+    expect(res.jsonBody).toHaveLength(2);
+    expect(res.jsonBody).toContain('id1');
+    expect(res.jsonBody).toContain('id2');
+  });
+});
+
+// ── NEW: Vault Links ─────────────────────────────────────────────────
+
+describe('Vault Links (apiVaultGetLinks / apiVaultImportLinks / apiVaultLinkFav / apiVaultRestoreLink)', () => {
+  const PW = 'linkspw123!';
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+  });
+
+  it('apiVaultGetLinks returns locked error when vault is locked', async () => {
+    vault.apiVaultLock({}, makeRes());
+    const res = makeRes();
+    await vault.apiVaultGetLinks({}, res);
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('apiVaultGetLinks returns empty array initially', async () => {
+    const res = makeRes();
+    await vault.apiVaultGetLinks({}, res);
+    expect(res.jsonBody).toEqual([]);
+  });
+
+  it('apiVaultImportLinks adds URLs', async () => {
+    const res = makeRes();
+    await vault.apiVaultImportLinks(
+      makeJsonReq('/import', { urls: ['https://a.com', 'https://b.com'] }), res);
+    expect(res.jsonBody.ok).toBe(true);
+    expect(res.jsonBody.added).toBe(2);
+    const listRes = makeRes();
+    await vault.apiVaultGetLinks({}, listRes);
+    expect(listRes.jsonBody).toHaveLength(2);
+  });
+
+  it('apiVaultImportLinks skips duplicate URLs', async () => {
+    await vault.apiVaultImportLinks(
+      makeJsonReq('/import', { urls: ['https://a.com'] }), makeRes());
+    const res = makeRes();
+    await vault.apiVaultImportLinks(
+      makeJsonReq('/import', { urls: ['https://a.com', 'https://b.com'] }), res);
+    expect(res.jsonBody.added).toBe(1);
+    expect(res.jsonBody.skipped).toBe(1);
+  });
+
+  it('apiVaultImportLinks rejects empty URL list', async () => {
+    const res = makeRes();
+    await vault.apiVaultImportLinks(makeJsonReq('/import', { urls: [] }), res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('apiVaultLinkFav toggles favourite on a vault link', async () => {
+    await vault.apiVaultImportLinks(
+      makeJsonReq('/import', { urls: ['https://fav.com'] }), makeRes());
+    const res = makeRes();
+    await vault.apiVaultLinkFav(
+      makeJsonReq('/fav', { url: 'https://fav.com' }), res);
+    expect(res.jsonBody.ok).toBe(true);
+    expect(res.jsonBody.fav).toBe(true);
+  });
+
+  it('apiVaultLinkFav returns 404 for unknown URL', async () => {
+    const res = makeRes();
+    await vault.apiVaultLinkFav(
+      makeJsonReq('/fav', { url: 'https://nope.com' }), res);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('apiVaultRestoreLink moves a link back to public list', async () => {
+    await vault.apiVaultImportLinks(
+      makeJsonReq('/import', { urls: ['https://restore.com'] }), makeRes());
+
+    const res = makeRes();
+    await vault.apiVaultRestoreLink(
+      makeJsonReq('/restore', { url: 'https://restore.com' }), res);
+    expect(res.jsonBody.ok).toBe(true);
+
+    // No longer in vault links
+    const listRes = makeRes();
+    await vault.apiVaultGetLinks({}, listRes);
+    expect(listRes.jsonBody.find(l => l.url === 'https://restore.com')).toBeUndefined();
+
+    // Moved to public links via upsertLink
+    expect(state.links.find(l => l.url === 'https://restore.com')).toBeDefined();
+  });
+
+  it('apiVaultRestoreLink returns 404 for unknown URL', async () => {
+    const res = makeRes();
+    await vault.apiVaultRestoreLink(
+      makeJsonReq('/restore', { url: 'https://ghost.com' }), res);
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+// ── NEW: File rename ─────────────────────────────────────────────────
+
+describe('apiVaultRename()', () => {
+  const PW = 'renamepw123!';
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+  });
+
+  it('renames a file display name', async () => {
+    const addRes = makeRes();
+    await vault.apiVaultAdd(makeStreamReq('original.mp4', Buffer.from('x')), addRes);
+    const id = addRes.jsonBody.id;
+
+    const res = makeRes();
+    await vault.apiVaultRename(makeJsonReq('/rename', { name: 'renamed' }), res, id);
+    expect(res.jsonBody.ok).toBe(true);
+    expect(state.vaultMeta[id].name).toBe('renamed');
+  });
+
+  it('rejects rename of non-existent file', async () => {
+    const res = makeRes();
+    await vault.apiVaultRename(makeJsonReq('/rename', { name: 'x' }), res, 'ghost-id');
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('rejects empty name', async () => {
+    const addRes = makeRes();
+    await vault.apiVaultAdd(makeStreamReq('f.mp4', Buffer.from('x')), addRes);
+    const res = makeRes();
+    await vault.apiVaultRename(makeJsonReq('/rename', { name: '' }), res, addRes.jsonBody.id);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('returns locked error when vault is locked', async () => {
+    vault.apiVaultLock({}, makeRes());
+    const res = makeRes();
+    await vault.apiVaultRename(makeJsonReq('/rename', { name: 'x' }), res, 'id');
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+// ── NEW: Folder operations ───────────────────────────────────────────
+
+describe('Folder operations (delete / rename / move)', () => {
+  const PW = 'folderpw123!';
+  let folderId;
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+    const r = makeRes();
+    await vault.apiVaultCreateFolder(makeJsonReq('/folders', { name: 'TestFolder' }), r);
+    folderId = r.jsonBody.id;
+  });
+
+  it('apiVaultDeleteFolder removes the folder', async () => {
+    const res = makeRes();
+    await vault.apiVaultDeleteFolder({}, res, folderId);
+    expect(res.jsonBody.ok).toBe(true);
+    expect(state.vaultMeta[folderId]).toBeUndefined();
+  });
+
+  it('apiVaultDeleteFolder returns 404 for missing folder', async () => {
+    const res = makeRes();
+    await vault.apiVaultDeleteFolder({}, res, 'ghost-id');
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('apiVaultDeleteFolder re-parents child files to grandparent', async () => {
+    // Add a file inside TestFolder
+    const addRes = makeRes();
+    await vault.apiVaultAdd(makeStreamReq('child.mp4', Buffer.from('x')), addRes);
+    const fileId = addRes.jsonBody.id;
+    // Move file into the folder
+    await vault.apiVaultMoveFile(makeJsonReq('/move', { folder: folderId }), makeRes(), fileId);
+
+    // Delete the folder
+    await vault.apiVaultDeleteFolder({}, makeRes(), folderId);
+
+    // File should now be in root (folder: null)
+    expect(state.vaultMeta[fileId].folder).toBeNull();
+  });
+
+  it('apiVaultRenameFolder renames a folder', async () => {
+    const res = makeRes();
+    await vault.apiVaultRenameFolder(
+      makeJsonReq('/rename', { name: 'Renamed' }), res, folderId);
+    expect(res.jsonBody.ok).toBe(true);
+    expect(state.vaultMeta[folderId].name).toBe('Renamed');
+  });
+
+  it('apiVaultRenameFolder returns 404 for non-folder id', async () => {
+    const addRes = makeRes();
+    await vault.apiVaultAdd(makeStreamReq('f.mp4', Buffer.from('x')), addRes);
+    const res = makeRes();
+    await vault.apiVaultRenameFolder(
+      makeJsonReq('/rename', { name: 'x' }), res, addRes.jsonBody.id);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('apiVaultMoveFolder moves a folder to a new parent', async () => {
+    // Create a second folder to be the new parent
+    const parentRes = makeRes();
+    await vault.apiVaultCreateFolder(makeJsonReq('/folders', { name: 'Parent' }), parentRes);
+    const parentId = parentRes.jsonBody.id;
+
+    const res = makeRes();
+    await vault.apiVaultMoveFolder(
+      makeJsonReq('/move', { parent: parentId }), res, folderId);
+    expect(res.jsonBody.ok).toBe(true);
+    expect(state.vaultMeta[folderId].parent).toBe(parentId);
+  });
+
+  it('apiVaultMoveFolder rejects moving into own descendant', async () => {
+    // TestFolder → child folder
+    const childRes = makeRes();
+    await vault.apiVaultCreateFolder(
+      makeJsonReq('/folders', { name: 'Child', parent: folderId }), childRes);
+    const childId = childRes.jsonBody.id;
+
+    // Try to move TestFolder into its own child
+    const res = makeRes();
+    await vault.apiVaultMoveFolder(
+      makeJsonReq('/move', { parent: childId }), res, folderId);
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+// ── NEW: Move file ───────────────────────────────────────────────────
+
+describe('apiVaultMoveFile()', () => {
+  const PW = 'movepw123!';
+  let fileId, folderId;
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+    const addRes = makeRes();
+    await vault.apiVaultAdd(makeStreamReq('mv.mp4', Buffer.from('x')), addRes);
+    fileId = addRes.jsonBody.id;
+
+    const folderRes = makeRes();
+    await vault.apiVaultCreateFolder(makeJsonReq('/folders', { name: 'Dest' }), folderRes);
+    folderId = folderRes.jsonBody.id;
+  });
+
+  it('moves a file into a folder', async () => {
+    const res = makeRes();
+    await vault.apiVaultMoveFile(makeJsonReq('/move', { folder: folderId }), res, fileId);
+    expect(res.jsonBody.ok).toBe(true);
+    expect(state.vaultMeta[fileId].folder).toBe(folderId);
+  });
+
+  it('moves a file to root (null folder)', async () => {
+    await vault.apiVaultMoveFile(makeJsonReq('/move', { folder: folderId }), makeRes(), fileId);
+    const res = makeRes();
+    await vault.apiVaultMoveFile(makeJsonReq('/move', { folder: null }), res, fileId);
+    expect(res.jsonBody.ok).toBe(true);
+    expect(state.vaultMeta[fileId].folder).toBeNull();
+  });
+
+  it('returns 404 for a folder id that does not exist', async () => {
+    const res = makeRes();
+    await vault.apiVaultMoveFile(makeJsonReq('/move', { folder: 'ghost' }), res, fileId);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('returns 404 for an unknown file id', async () => {
+    const res = makeRes();
+    await vault.apiVaultMoveFile(makeJsonReq('/move', { folder: null }), res, 'ghost-id');
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+// ── NEW: Restore file ────────────────────────────────────────────────
+
+describe('apiVaultRestoreFile()', () => {
+  const PW = 'restorepw123!';
+  let fileId;
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+    if (!fs.existsSync(MOCK_VIDEOS_DIR)) fs.mkdirSync(MOCK_VIDEOS_DIR, { recursive: true });
+    const addRes = makeRes();
+    await vault.apiVaultAdd(makeStreamReq('restore-me.mp4', Buffer.from('restore payload')), addRes);
+    fileId = addRes.jsonBody.id;
+  });
+
+  it('decrypts and writes file to destDir', async () => {
+    const res = makeRes();
+    await vault.apiVaultRestoreFile(
+      makeJsonReq('/restore', { destDir: MOCK_VIDEOS_DIR }), res, fileId);
+    expect(res.jsonBody.ok).toBe(true);
+    const written = path.join(MOCK_VIDEOS_DIR, res.jsonBody.name);
+    expect(fs.existsSync(written)).toBe(true);
+    expect(fs.readFileSync(written).toString()).toBe('restore payload');
+  });
+
+  it('removes encrypted file after restore', async () => {
+    const encPath = path.join(MOCK_VAULT_DIR, fileId + '.enc');
+    expect(fs.existsSync(encPath)).toBe(true);
+    await vault.apiVaultRestoreFile(
+      makeJsonReq('/restore', { destDir: MOCK_VIDEOS_DIR }), makeRes(), fileId);
+    expect(fs.existsSync(encPath)).toBe(false);
+  });
+
+  it('removes metadata after restore', async () => {
+    await vault.apiVaultRestoreFile(
+      makeJsonReq('/restore', { destDir: MOCK_VIDEOS_DIR }), makeRes(), fileId);
+    expect(state.vaultMeta[fileId]).toBeUndefined();
+  });
+
+  it('returns 404 for unknown id', async () => {
+    const res = makeRes();
+    await vault.apiVaultRestoreFile(
+      makeJsonReq('/restore', { destDir: MOCK_VIDEOS_DIR }), res, 'ghost-id');
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('returns locked error when vault is locked', async () => {
+    vault.apiVaultLock({}, makeRes());
+    const res = makeRes();
+    await vault.apiVaultRestoreFile(
+      makeJsonReq('/restore', { destDir: MOCK_VIDEOS_DIR }), res, fileId);
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+// ── NEW: Text file update ────────────────────────────────────────────
+
+describe('apiVaultUpdateTextFile()', () => {
+  const PW = 'txtpw123!';
+  let txtId;
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+    const r = makeRes();
+    await vault.apiVaultCreateTextFile(makeJsonReq('/text', { name: 'note.txt', content: 'initial' }), r);
+    txtId = r.jsonBody.id;
+  });
+
+  it('updates text file content', async () => {
+    const res = makeRes();
+    await vault.apiVaultUpdateTextFile(makeJsonReq('/update', { content: 'updated' }), res, txtId);
+    expect(res.jsonBody.ok).toBe(true);
+    const dec = vault.decryptToBuffer(txtId);
+    expect(dec.buffer.toString()).toBe('updated');
+  });
+
+  it('rejects update on non-text files', async () => {
+    const addRes = makeRes();
+    await vault.apiVaultAdd(makeStreamReq('vid.mp4', Buffer.from('x')), addRes);
+    const res = makeRes();
+    await vault.apiVaultUpdateTextFile(makeJsonReq('/update', { content: 'x' }), res, addRes.jsonBody.id);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('returns 404 for missing id', async () => {
+    const res = makeRes();
+    await vault.apiVaultUpdateTextFile(makeJsonReq('/update', { content: 'x' }), res, 'ghost');
+    expect(res.statusCode).toBe(404);
   });
 });

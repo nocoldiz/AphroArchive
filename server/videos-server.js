@@ -5,12 +5,12 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { exec, execFile, execFileSync, spawn } = require('child_process');
 const crypto = require('crypto');
 const {
   VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
-  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN
+  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN, FFPROBE_BIN
 } = require('./config-server');
 const { pipeline } = require('stream');
 const { promisify } = require('util');
@@ -1314,6 +1314,22 @@ async function apiRename(req, res, id) {
   if (fs.existsSync(np) && np !== fp) return json(res, { error: 'Name already exists' }, 409);
   try {
     fs.renameSync(fp, np);
+
+    // Rename subtitle sidecars to match the new video filename
+    const oldBase = path.basename(fp, ext);
+    const newBase = safe;
+    try {
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!ent.isFile()) continue;
+        const subExt = path.extname(ent.name).toLowerCase();
+        if (!SUBTITLE_EXT.has(subExt)) continue;
+        const nameNoExt = ent.name.slice(0, -subExt.length);
+        if (nameNoExt !== oldBase && !nameNoExt.startsWith(oldBase + '.')) continue;
+        const suffix = nameNoExt.slice(oldBase.length);
+        try { fs.renameSync(path.join(dir, ent.name), path.join(dir, newBase + suffix + subExt)); } catch {}
+      }
+    } catch {}
+
     invalidateScanCache();
     const newRel = path.relative(VIDEOS_DIR, np);
     const newId  = toId(newRel);
@@ -1357,6 +1373,29 @@ async function apiMove(req, res, id) {
         throw renameErr;
       }
     }
+
+    // Move subtitle sidecars alongside the video
+    const oldDir  = path.dirname(fp);
+    const oldBase = path.basename(fp, path.extname(fp));
+    try {
+      for (const ent of fs.readdirSync(oldDir, { withFileTypes: true })) {
+        if (!ent.isFile()) continue;
+        const subExt = path.extname(ent.name).toLowerCase();
+        if (!SUBTITLE_EXT.has(subExt)) continue;
+        const nameNoExt = ent.name.slice(0, -subExt.length);
+        if (nameNoExt !== oldBase && !nameNoExt.startsWith(oldBase + '.')) continue;
+        const oldSub = path.join(oldDir, ent.name);
+        const newSub = path.join(resolvedTarget, ent.name);
+        if (!fs.existsSync(newSub)) {
+          try {
+            fs.renameSync(oldSub, newSub);
+          } catch (e) {
+            if (e.code === 'EXDEV') { fs.copyFileSync(oldSub, newSub); fs.unlinkSync(oldSub); }
+          }
+        }
+      }
+    } catch {}
+
     invalidateScanCache();
 
     // Compute rel/id based on the scan root the *new* file lives under (main uses relative; sources use abs)
@@ -1867,7 +1906,7 @@ async function apiStudioVideos(req, res, studioName) {
 
 // ── Subtitles ────────────────────────────────────────────────────────
 
-const SUBTITLE_EXT = new Set(['.srt', '.vtt']);
+const SUBTITLE_EXT = new Set(['.vtt', '.srt', '.ass', '.ssa', '.sub', '.smi']);
 
 function apiSubtitles(req, res, id) {
   const fp = safePath(id);
@@ -1875,6 +1914,8 @@ function apiSubtitles(req, res, id) {
   const dir  = path.dirname(fp);
   const base = path.basename(fp, path.extname(fp));
   const found = [];
+
+  // File-based subtitles
   try {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
       if (!ent.isFile()) continue;
@@ -1888,6 +1929,25 @@ function apiSubtitles(req, res, id) {
       }
     }
   } catch {}
+
+  // Embedded subtitle streams (detected via ffprobe)
+  try {
+    const out = execFileSync(FFPROBE_BIN,
+      ['-v', 'quiet', '-print_format', 'json', '-show_streams', '-select_streams', 's', fp],
+      { timeout: 5000 }
+    ).toString();
+    const streams = JSON.parse(out).streams || [];
+    for (let i = 0; i < streams.length; i++) {
+      const s = streams[i];
+      const lang = (s.tags && s.tags.language) || '';
+      const title = (s.tags && s.tags.title) || '';
+      const label = title
+        ? `${title}${lang ? ` (${lang})` : ''}`
+        : (lang || `Embedded ${i + 1}`);
+      found.unshift({ filename: null, label, type: 'embedded', streamIndex: i });
+    }
+  } catch {}
+
   json(res, found);
 }
 
@@ -1922,12 +1982,44 @@ function apiSubtitleFile(req, res, id, filename) {
   if (nameNoExt !== base && !nameNoExt.startsWith(base + '.')) {
     res.writeHead(400); res.end('Filename mismatch'); return;
   }
+  // Subtitle must reside in the same directory as the video (dir already validated by safePath)
   const full = path.resolve(dir, path.basename(filename));
-  if (!full.startsWith(path.resolve(VIDEOS_DIR))) { res.writeHead(403); res.end('Forbidden'); return; }
+  if (path.dirname(full) !== path.resolve(dir)) { res.writeHead(403); res.end('Forbidden'); return; }
   if (!fs.existsSync(full)) { res.writeHead(404); res.end('Not found'); return; }
-  const ct = ext === '.vtt' ? 'text/vtt' : 'text/plain';
-  res.writeHead(200, { 'Content-Type': ct });
-  fs.createReadStream(full).pipe(res);
+
+  res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8' });
+
+  if (ext === '.vtt') {
+    fs.createReadStream(full).pipe(res);
+  } else if (ext === '.srt') {
+    // Fast in-memory SRT → VTT conversion
+    try {
+      const srt = fs.readFileSync(full, 'utf8');
+      const vtt = 'WEBVTT\n\n' + srt
+        .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+        .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+      res.end(vtt);
+    } catch { res.end('WEBVTT\n'); }
+  } else {
+    // ASS / SSA / SUB / SMI — convert via ffmpeg
+    const child = spawn(FFMPEG_BIN, ['-i', full, '-f', 'webvtt', '-'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    child.stdout.pipe(res);
+    child.on('error', () => { try { res.end('WEBVTT\n'); } catch {} });
+  }
+}
+
+function apiSubtitleEmbedded(req, res, id, streamIndexStr) {
+  const fp = safePath(id);
+  if (!fp) { res.writeHead(404); res.end('Not found'); return; }
+  const si = parseInt(streamIndexStr, 10);
+  if (!Number.isFinite(si) || si < 0) { res.writeHead(400); res.end('Bad stream index'); return; }
+  res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8' });
+  const child = spawn(FFMPEG_BIN,
+    ['-i', fp, '-map', `0:s:${si}`, '-f', 'webvtt', '-'],
+    { stdio: ['ignore', 'pipe', 'ignore'] }
+  );
+  child.stdout.pipe(res);
+  child.on('error', () => { try { res.end('WEBVTT\n'); } catch {} });
 }
 
 // ── Global import (video / audio / book by extension) ─────────────────
@@ -2330,6 +2422,20 @@ async function _encryptVideoEntry(v) {
       }
     }
   }
+
+  // Delete subtitle sidecars — they cannot follow the video into the encrypted vault
+  const subDir  = path.dirname(full);
+  const subBase = path.basename(full, path.extname(full));
+  try {
+    for (const ent of fs.readdirSync(subDir, { withFileTypes: true })) {
+      if (!ent.isFile()) continue;
+      const subExt = path.extname(ent.name).toLowerCase();
+      if (!SUBTITLE_EXT.has(subExt)) continue;
+      const nameNoExt = ent.name.slice(0, -subExt.length);
+      if (nameNoExt !== subBase && !nameNoExt.startsWith(subBase + '.')) continue;
+      try { fs.unlinkSync(path.join(subDir, ent.name)); } catch {}
+    }
+  } catch {}
 
   // Remove the original entry from the public database(s)
   const { deleteVideoMetaEverywhere } = require('./db-server');
@@ -3070,7 +3176,7 @@ module.exports = {
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
   apiDbTags, apiDbTagVideos,
   apiStudios, apiStudioVideos,
-  apiSubtitles, apiSaveSubtitles, apiSubtitleFile,
+  apiSubtitles, apiSaveSubtitles, apiSubtitleFile, apiSubtitleEmbedded,
   apiImport,
   apiAddChapter, apiDeleteChapter,
   apiRenameCategory, apiDeleteCategory, apiHideCategory,

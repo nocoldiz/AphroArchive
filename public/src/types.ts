@@ -75,6 +75,9 @@ export interface AppPrefs {
   comfyuiPositiveNodeId?: string;
   disabledPlugins?: string[];
   homeDashboard?: any[];
+  whisperEnabled?: boolean;
+  whisperModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'turbo';
+  whisperLanguage?: string;
 }
 export interface ThumbnailGroup {
   id: string;

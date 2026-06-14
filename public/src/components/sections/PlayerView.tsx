@@ -214,6 +214,11 @@ export const PlayerView = () => {
       setChapters(d.video?.chapters || []);
       setSuggested(d.suggested || []);
       setSubtitles(tracks);
+      // Enqueue whisper if enabled and no file-based subtitle exists yet
+      const hasFileSub = tracks.some((t: any) => t.filename);
+      if (!hasFileSub && !video.isLink) {
+        fetch(`/api/whisper/enqueue/${video.id}`, { method: 'POST' }).catch(() => {});
+      }
     }).catch(() => {});
   }, [video]);
 

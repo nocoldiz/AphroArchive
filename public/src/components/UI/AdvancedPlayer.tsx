@@ -9,8 +9,10 @@ interface Chapter {
 }
 
 interface Subtitle {
-  filename: string;
+  filename: string | null;
   label: string;
+  type?: 'embedded';
+  streamIndex?: number;
 }
 
 interface AdvancedPlayerProps {
@@ -56,8 +58,11 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   const [loading, setLoading] = useState(false);
   const [ccOn, setCcOn] = useState(false);
   const [ccText, setCcText] = useState('');
+  const [selectedSubIdx, setSelectedSubIdx] = useState<number | null>(null);
+  const [showSubPicker, setShowSubPicker] = useState(false);
   const controlsTimeoutRef = useRef<any>(null);
   const recRef = useRef<any>(null);
+  const subPickerRef = useRef<HTMLDivElement>(null);
   const ccOnRef = useRef(false);
   const onNextRef = useRef(onNext);
   const onPrevRef = useRef(onPrev);
@@ -229,6 +234,38 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       (document.exitFullscreen || (document as any).webkitExitFullscreen)?.call(document);
     }
   };
+
+  // ── Subtitle track mode control ──────────────────────────────────────
+  // Auto-select first track when subtitles arrive; then reflect user picks.
+  useEffect(() => {
+    if (subtitles.length > 0 && selectedSubIdx === null) setSelectedSubIdx(0);
+    if (subtitles.length === 0) setSelectedSubIdx(null);
+  }, [subtitles]);
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    const apply = () => {
+      const tracks = vid.textTracks;
+      for (let i = 0; i < tracks.length; i++) {
+        tracks[i].mode = selectedSubIdx === i ? 'showing' : 'disabled';
+      }
+    };
+    const t = setTimeout(apply, 80);
+    return () => clearTimeout(t);
+  }, [selectedSubIdx, subtitles]);
+
+  // Close subtitle picker on outside click
+  useEffect(() => {
+    if (!showSubPicker) return;
+    const onDown = (e: MouseEvent) => {
+      if (subPickerRef.current && !subPickerRef.current.contains(e.target as Node)) {
+        setShowSubPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showSubPicker]);
 
   // ── Live captions via the browser SpeechRecognition API ────────────
   // Listens through the microphone, so video audio must be audible (speakers).
@@ -424,11 +461,13 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       >
         {subtitles.map((t, i) => (
           <track
-            key={t.filename}
+            key={t.type === 'embedded' ? `emb-${t.streamIndex}` : t.filename!}
             kind="subtitles"
             label={t.label}
-            src={`/api/subtitle-file/${videoId}/${encodeURIComponent(t.filename)}`}
-            default={i === 0}
+            src={t.type === 'embedded'
+              ? `/api/subtitle-embedded/${videoId}/${t.streamIndex}`
+              : `/api/subtitle-file/${videoId}/${encodeURIComponent(t.filename!)}`
+            }
           />
         ))}
       </video>
@@ -596,6 +635,39 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
                 style={{ width: '80px', cursor: 'pointer' }}
               />
             </div>
+
+            {/* Subtitle picker */}
+            {subtitles.length > 0 && (
+              <div ref={subPickerRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowSubPicker(v => !v)}
+                  title="Subtitles"
+                  style={{ background: 'none', border: selectedSubIdx !== null ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: selectedSubIdx !== null ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px' }}
+                >
+                  SUB
+                </button>
+                {showSubPicker && (
+                  <div style={{ position: 'absolute', bottom: '28px', right: 0, background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', minWidth: '160px', zIndex: 20, overflow: 'hidden' }}>
+                    <div
+                      onClick={() => { setSelectedSubIdx(null); setShowSubPicker(false); }}
+                      style={{ padding: '7px 12px', fontSize: '0.8rem', cursor: 'pointer', color: selectedSubIdx === null ? 'var(--ac, #ff4a4a)' : '#fff', background: selectedSubIdx === null ? 'rgba(255,255,255,0.07)' : 'none' }}
+                    >
+                      None
+                    </div>
+                    {subtitles.map((t, i) => (
+                      <div
+                        key={i}
+                        onClick={() => { setSelectedSubIdx(i); setShowSubPicker(false); }}
+                        style={{ padding: '7px 12px', fontSize: '0.8rem', cursor: 'pointer', color: selectedSubIdx === i ? 'var(--ac, #ff4a4a)' : '#fff', background: selectedSubIdx === i ? 'rgba(255,255,255,0.07)' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      >
+                        {t.type === 'embedded' ? '⬡ ' : ''}{t.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Live Captions */}
             <button

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { loadVideos } from '../../store';
+import { loadVideos, appPrefs } from '../../store';
 
 interface ScraperStatus {
   running: boolean;
@@ -91,11 +91,13 @@ export const SyncManager = () => {
     bmMeta: ScraperStatus;
     bmThumbs: ScraperStatus;
     reencode: ScraperStatus;
+    whisper: ScraperStatus & { enabled?: boolean };
   }>({
     videoThumbs: { running: false },
     bmMeta: { running: false },
     bmThumbs: { running: false },
     reencode: { running: false },
+    whisper: { running: false, enabled: true },
   });
   const [encProgress, setEncProgress] = useState<EncProgress>({
     running: false, type: '', category: '', total: 0, done: 0, current: '',
@@ -106,18 +108,20 @@ export const SyncManager = () => {
   useEffect(() => {
     const poll = async () => {
       try {
-        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes] = await Promise.all([
+        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes, whisperRes] = await Promise.all([
           fetch('/api/gen-thumbs/poll'),
           fetch('/api/links/scrape-status'),
           fetch('/api/links/thumb-status'),
           fetch('/api/encryption/status'),
           fetch('/api/reencode/poll'),
+          fetch('/api/gen-whisper/poll'),
         ]);
         const vt   = vtRes.ok    ? await vtRes.json()    : { running: false };
         const bm   = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
         const bt   = bmThRes.ok  ? await bmThRes.json()  : { running: false };
         const reenc = reencRes.ok ? await reencRes.json() : { running: false };
-        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc });
+        const wh   = whisperRes.ok ? await whisperRes.json() : { running: false, enabled: true };
+        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh });
         if (encRes.ok) {
           const enc = await encRes.json();
           // Detect transition from running → done
@@ -150,7 +154,7 @@ export const SyncManager = () => {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode].filter(s => s.running).length
+  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode, scrapers.whisper].filter(s => s.running).length
     + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
@@ -264,6 +268,56 @@ export const SyncManager = () => {
               onStart={() => scraperAction('/api/reencode/start')}
               onStop={() => scraperAction('/api/reencode/stop')}
             />
+
+            {/* Whisper Subtitles */}
+            <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    <line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/>
+                  </svg>
+                </span>
+                <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>
+                  Whisper Subtitles
+                  {!scrapers.whisper.enabled && <span style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginLeft: '5px' }}>(disabled in settings)</span>}
+                </span>
+                {scrapers.whisper.running ? (
+                  <>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
+                      {(scrapers.whisper.total ?? 0) > 0
+                        ? `${scrapers.whisper.done ?? 0}/${scrapers.whisper.total} (${Math.round(((scrapers.whisper.done ?? 0) / (scrapers.whisper.total ?? 1)) * 100)}%)`
+                        : 'running…'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => scraperAction('/api/gen-whisper/stop')}
+                      style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
+                    >Stop</button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!scrapers.whisper.enabled}
+                    onClick={() => scraperAction('/api/gen-whisper/start')}
+                    style={{
+                      background: scrapers.whisper.enabled ? 'var(--ac)' : 'var(--bg3)',
+                      color: scrapers.whisper.enabled ? '#fff' : 'var(--tx3)',
+                      border: 'none', borderRadius: '4px', padding: '2px 8px',
+                      fontSize: '0.72rem', cursor: scrapers.whisper.enabled ? 'pointer' : 'default',
+                    }}
+                  >Start</button>
+                )}
+              </div>
+              {scrapers.whisper.running && (scrapers.whisper.total ?? 0) > 0 && (
+                <ProgressBar done={scrapers.whisper.done} total={scrapers.whisper.total} color="var(--ac)" />
+              )}
+              {scrapers.whisper.running && scrapers.whisper.current && (
+                <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={scrapers.whisper.current}>
+                  {scrapers.whisper.current}
+                </div>
+              )}
+            </div>
 
             {/* Actor Data */}
             <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>

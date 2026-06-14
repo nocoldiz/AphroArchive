@@ -58,6 +58,15 @@ const YT_DLP_BIN = (() => {
   return fs.existsSync(inBmDir) ? inBmDir : resolveBin('yt-dlp');
 })();
 
+const WHISPER_BIN = (() => {
+  for (const name of ['whisper-ctranslate2', 'whisper']) {
+    const winName = process.platform === 'win32' ? name + '.exe' : name;
+    const local = path.join(DATA_DIR, winName);
+    if (fs.existsSync(local)) return local;
+  }
+  return process.platform === 'win32' ? 'whisper.exe' : 'whisper';
+})();
+
 const THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-thumbs');
 const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');
 const PROCESS_DIR = path.join(DATA_DIR, 'process');
@@ -149,7 +158,7 @@ function getLocalIP() {
 
 module.exports = {
   ROOT_DIR, IS_PKG, DATA_DIR, LINK_DIR,
-  FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN,
+  FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN, WHISPER_BIN,
   VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
   THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, PROCESS_DIR, IGNORED_DIR,
   DB_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, LINK_THUMBS_DIR, EDGE_BIN,

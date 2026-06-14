@@ -29,6 +29,7 @@ const actors = require('./server/actors-server');
 const vault = require('./server/vault-server');
 const thumbnails = require('./server/thumbnails-server');
 const genThumbs = require('./server/gen-thumbs-server');
+const genWhisper = require('./server/gen-whisper-server');
 const reencode = require('./server/reencode-server');
 const libraryHealth = require('./server/library-health-server');
 const collections = require('./server/collections-server');
@@ -228,6 +229,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-thumbs/stop' && req.method === 'POST') return genThumbs.apiGenThumbsStop(req, res);
   if (p === '/api/gen-thumbs/status' && req.method === 'GET') return genThumbs.apiGenThumbsStatus(req, res);
   if (p === '/api/gen-thumbs/poll' && req.method === 'GET') return genThumbs.apiGenThumbsStatusPoll(req, res);
+
+  // ── Whisper subtitle generation ──────────────────────────────────────
+  if (p === '/api/gen-whisper/start' && req.method === 'POST') return genWhisper.apiGenWhisperStart(req, res);
+  if (p === '/api/gen-whisper/stop' && req.method === 'POST') return genWhisper.apiGenWhisperStop(req, res);
+  if (p === '/api/gen-whisper/status' && req.method === 'GET') return genWhisper.apiGenWhisperStatus(req, res);
+  if (p === '/api/gen-whisper/poll' && req.method === 'GET') return genWhisper.apiGenWhisperPoll(req, res);
+  if ((m = p.match(/^\/api\/whisper\/enqueue\/([^/]+)$/)) && req.method === 'POST') return genWhisper.apiWhisperEnqueue(req, res, m[1]);
+  if ((m = p.match(/^\/api\/subtitle-embedded\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return videos.apiSubtitleEmbedded(req, res, m[1], m[2]);
 
   // ── Re-encode ────────────────────────────────────────────────────────
   if (p === '/api/reencode/start' && req.method === 'POST') return reencode.apiReencodeStart(req, res);

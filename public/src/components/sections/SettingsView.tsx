@@ -77,6 +77,9 @@ export const SettingsView = () => {
   const [commentPrompt, setCommentPrompt] = useState(prefs.aiCommentMasterPrompt || '');
   const [replyPrompt, setReplyPrompt] = useState(prefs.aiReplyMasterPrompt || '');
   const [anthropicKey, setAnthropicKey] = useState(prefs.anthropicApiKey || '');
+  const [whisperEnabled, setWhisperEnabled] = useState(prefs.whisperEnabled ?? true);
+  const [whisperModel, setWhisperModel] = useState(prefs.whisperModel || 'base');
+  const [whisperLanguage, setWhisperLanguage] = useState(prefs.whisperLanguage || 'auto');
   const [hiddenCats, setHiddenCats] = useState<string[]>([]);
 
   const [connectUrls, setConnectUrls] = useState<ConnectUrl[]>([]);
@@ -227,6 +230,9 @@ export const SettingsView = () => {
     setAnthropicKey(prefs.anthropicApiKey || '');
     setNetEnabled(!!prefs.networkEnabled);
     setOpenrouterKey(prefs.openrouterApiKey || '');
+    setWhisperEnabled(prefs.whisperEnabled ?? true);
+    setWhisperModel(prefs.whisperModel || 'base');
+    setWhisperLanguage(prefs.whisperLanguage || 'auto');
   }, [prefs]);
 
   useEffect(() => {
@@ -752,6 +758,78 @@ export const SettingsView = () => {
             </div>
             <button type="button" onClick={() => updatePrefs({ comfyuiUrl, comfyuiWorkflowJson, comfyuiPositiveNodeId })}
               style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '10px 18px', cursor: 'pointer', fontWeight: 600 }}>Save</button>
+          </div>
+
+          {/* ─── Whisper Subtitles ──────────────────────────────────── */}
+          <div style={card}>
+            <h3 style={cardH}>Whisper Subtitles</h3>
+            <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>
+              Automatically generates subtitles using OpenAI Whisper (<code>pip install openai-whisper</code>).
+              When enabled, subtitles are enqueued on video page open and can be batch-generated from Sync.
+            </p>
+
+            {/* Enable toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                <input
+                  type="checkbox"
+                  checked={whisperEnabled}
+                  onChange={(e: any) => {
+                    const v = e.target.checked;
+                    setWhisperEnabled(v);
+                    updatePrefs({ whisperEnabled: v });
+                  }}
+                />
+                Enable Whisper subtitle generation
+              </label>
+            </div>
+
+            {/* Model */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--tx2)', display: 'block', marginBottom: '4px' }}>Model</label>
+              <select
+                title="Whisper model"
+                value={whisperModel}
+                disabled={!whisperEnabled}
+                onChange={(e: any) => setWhisperModel(e.target.value)}
+                style={{ ...inp, width: 'auto', opacity: whisperEnabled ? 1 : 0.5 }}
+              >
+                <option value="tiny">tiny (~72 MB) — fastest, lowest accuracy</option>
+                <option value="base">base (~139 MB) — good balance (default)</option>
+                <option value="small">small (~461 MB) — better accuracy</option>
+                <option value="medium">medium (~1.4 GB) — high accuracy</option>
+                <option value="large">large (~2.9 GB) — best accuracy, slowest</option>
+                <option value="turbo">turbo (~809 MB) — fast + accurate (recommended)</option>
+              </select>
+            </div>
+
+            {/* Language */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--tx2)', display: 'block', marginBottom: '4px' }}>
+                Language <span style={{ color: 'var(--tx3)' }}>(leave "auto" to detect automatically)</span>
+              </label>
+              <input
+                type="text"
+                value={whisperLanguage}
+                disabled={!whisperEnabled}
+                placeholder="auto"
+                onInput={(e: any) => setWhisperLanguage(e.target.value)}
+                style={{ ...inp, width: '140px', opacity: whisperEnabled ? 1 : 0.5 }}
+              />
+              <span style={{ fontSize: '11px', color: 'var(--tx3)', marginLeft: '8px' }}>
+                ISO 639-1 code: en, it, fr, de, ja, zh, es, …
+              </span>
+            </div>
+
+            <button
+              type="button"
+              disabled={!whisperEnabled}
+              onClick={() => {
+                updatePrefs({ whisperEnabled, whisperModel: whisperModel as any, whisperLanguage });
+                if (window.toast) window.toast('Whisper settings saved');
+              }}
+              style={{ background: whisperEnabled ? 'var(--ac)' : 'var(--bg3)', color: whisperEnabled ? '#fff' : 'var(--tx3)', border: 'none', borderRadius: '6px', padding: '10px 18px', cursor: whisperEnabled ? 'pointer' : 'default', fontWeight: 600 }}
+            >Save</button>
           </div>
         </>}
 
