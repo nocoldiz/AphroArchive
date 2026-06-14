@@ -1,0 +1,115 @@
+body {
+  width: 360px;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  margin: 0;
+  padding: 10px;
+  color: #222;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+h1 {
+  font-size: 14px;
+  margin: 0;
+}
+
+.mode-toggle label {
+  margin-left: 8px;
+  cursor: pointer;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background: #f5f5f5;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+button.primary {
+  width: 100%;
+  margin-bottom: 8px;
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  font-weight: 600;
+}
+
+button.danger {
+  color: #b91c1c;
+}
+
+#filter {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 6px;
+  margin-bottom: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.count {
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 4px;
+}
+
+#links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+
+#links li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+}
+
+#links li:last-child {
+  border-bottom: none;
+}
+
+#links li .url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#links li .remove {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+footer {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+footer a {
+  margin-left: auto;
+  font-size: 11px;
+}

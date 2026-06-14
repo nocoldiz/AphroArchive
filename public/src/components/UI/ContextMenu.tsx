@@ -171,8 +171,12 @@ export const ContextMenu = () => {
 
   const handleEncrypt = async () => {
     ensureVaultUnlocked(() => {
-      setShowEncryptConfirm(true);
       closeMenu();
+      if (activeProfile.value === 'Vault') {
+        execEncrypt();
+      } else {
+        setShowEncryptConfirm(true);
+      }
     });
   };
 
@@ -333,7 +337,13 @@ export const ContextMenu = () => {
             <ContextItem label="Encrypt" icon="lock" onClick={() => {
               closeMenu();
               // Normal users must unlock the vault (password prompt) before encrypting
-              ensureVaultUnlocked(() => setShowEncryptVideoConfirm(true));
+              ensureVaultUnlocked(() => {
+                if (activeProfile.value === 'Vault') {
+                  execEncryptVideo();
+                } else {
+                  setShowEncryptVideoConfirm(true);
+                }
+              });
             }} />
             <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
               if (!confirm(`Delete video "${data.name}" from disk?\nThis action cannot be undone.`)) return;

@@ -325,6 +325,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
 };
 
 export const VideoSelBar = () => {
+  const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
   const count = selectedVideoIds.value.size;
   if (count === 0) return null;
 
@@ -335,24 +336,49 @@ export const VideoSelBar = () => {
 
   const encryptSelected = () => {
     if (!localVids.length) return;
+    ensureVaultUnlocked(() => setShowEncryptConfirm(true));
+  };
+
+  const runEncryptSelected = () => {
+    if (!localVids.length) return;
     ensureVaultUnlocked(async () => {
-      if (!confirm(`Encrypt ${localVids.length} video${localVids.length !== 1 ? 's' : ''} into the Vault?\nOriginals will be securely deleted and removed from the public database.`)) return;
       const w = window as any;
-      let ok = 0;
-      for (const v of localVids) {
+      const items = localVids.map(v => ({ id: v.id, kind: 'video', name: v.name }));
+      const r = await fetch('/api/vault/encrypt-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        if (w.toast) w.toast('Encryption failed: ' + (err.error || 'Unknown error'));
+        return;
+      }
+
+      // Background job runs server-side; progress is shown in Sync & Background
+      // Tasks. Poll here so the grid drops each video as it gets encrypted.
+      const orderedIds = items.map(i => i.id);
+      const removeDone = (ids: Set<string>) => {
+        if (!ids.size) return;
+        videos.value = videos.value.filter(x => !ids.has(x.id));
+        allVideos.value = allVideos.value.filter(x => !ids.has(x.id));
+        selectedVideoIds.value = new Set([...selectedVideoIds.value].filter(id => !ids.has(id)));
+      };
+      const poll = async () => {
         try {
-          const r = await fetch(`/api/videos/${v.id}/encrypt`, { method: 'POST' });
-          if (r.ok) {
-            ok++;
-            // Instant gallery update — remove each file as it is encrypted
-            videos.value = videos.value.filter(x => x.id !== v.id);
-            allVideos.value = allVideos.value.filter(x => x.id !== v.id);
-            selectedVideoIds.value = new Set([...selectedVideoIds.value].filter(id => id !== v.id));
+          const s = await fetch('/api/encryption/status').then(res => res.json());
+          const done = s.done || 0;
+          if (done > 0) removeDone(new Set(orderedIds.slice(0, done)));
+          if (!s.running) {
+            clearInterval(intervalId);
+            removeDone(new Set(orderedIds));
+            videoSelMode.value = selectedVideoIds.value.size > 0;
+            if (w.toast) w.toast(s.error ? ('Encryption error: ' + s.error) : `Encrypted ${orderedIds.length} video${orderedIds.length !== 1 ? 's' : ''} into the Vault`);
           }
         } catch {}
-      }
-      videoSelMode.value = selectedVideoIds.value.size > 0;
-      if (w.toast) w.toast(`Encrypted ${ok}/${localVids.length} video${localVids.length !== 1 ? 's' : ''} into the Vault`);
+      };
+      const intervalId = setInterval(poll, 700);
+      poll();
     });
   };
 
@@ -410,9 +436,10 @@ export const VideoSelBar = () => {
   };
 
   return (
-    <div className="video-sel-bar" style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
+    <>
+    <div className="video-sel-bar" style={{
+      display: 'flex',
+      alignItems: 'center',
       gap: '15px',
       background: 'rgba(0, 0, 0, 0.8)',
       backdropFilter: 'blur(10px)',
@@ -485,6 +512,28 @@ export const VideoSelBar = () => {
         Deselect all
       </button>
     </div>
+
+    {showEncryptConfirm && (
+      <div className="modal on" style={{ display: 'flex' }}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <h2>Encrypt Videos</h2>
+          </div>
+          <div className="modal-body">
+            <p>Encrypt {localVids.length} video{localVids.length !== 1 ? 's' : ''} into the Vault?</p>
+            <p>Originals will be securely deleted and removed from the public database.</p>
+          </div>
+          <div className="modal-footer">
+            <button class="modal-btn modal-btn--primary" onClick={() => {
+              setShowEncryptConfirm(false);
+              runEncryptSelected();
+            }}>Encrypt</button>
+            <button class="modal-btn" onClick={() => setShowEncryptConfirm(false)}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

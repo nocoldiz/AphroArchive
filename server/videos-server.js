@@ -2316,6 +2316,7 @@ async function apiEncryptVideo(req, res, id) {
 
   if (!loadVaultConfig()) return json(res, { error: 'Master vault password is not set' }, 400);
   if (!isUnlocked()) return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
+  if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
 
   // forceAll=true so the file is found regardless of the active profile —
   // when the Vault profile is active, allVideos() would otherwise return only
@@ -2325,11 +2326,14 @@ async function apiEncryptVideo(req, res, id) {
   if (!v) return json(res, { error: 'Not found' }, 404);
   if (v.encrypted) return json(res, { error: 'Already encrypted' }, 400);
 
+  updateEncryptionProgress({ running: true, type: 'encrypt', category: v.name, total: 1, done: 0, current: v.name, error: '', ok: false });
   try {
     const vaultId = await _encryptVideoEntry(v);
     invalidateScanCache();
+    updateEncryptionProgress({ done: 1, ok: true, running: false });
     json(res, { ok: true, vaultId });
   } catch (e) {
+    updateEncryptionProgress({ error: e.message, running: false });
     json(res, { error: e.message }, 500);
   }
 }

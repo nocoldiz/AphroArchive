@@ -43,6 +43,7 @@ export const PlayerView = () => {
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
 
   useEffect(() => {
     let timer: any;
@@ -341,7 +342,6 @@ export const PlayerView = () => {
 
   const handleEncrypt = async () => {
     if (!video) return;
-    if (!confirm(`Encrypt video "${video.name}" and move to Vault?`)) return;
 
     const r = await fetch(`/api/videos/${video.id}/encrypt`, { method: 'POST' });
     if (r.ok) {
@@ -499,7 +499,7 @@ export const PlayerView = () => {
                 <span>Playlist</span>
               </button>
 
-              <button onClick={() => handleEncrypt()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => setShowEncryptConfirm(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 <span>Encrypt</span>
               </button>
@@ -534,11 +534,12 @@ export const PlayerView = () => {
 
               {!video.isLink && !video.isVault && (
                 <button onClick={async () => {
-                  const r = await fetch('/api/videos/open-folder', {
+                  const r = await fetch('/api/open-folder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: video.id })
                   });
+                  if (!r.ok && (window as any).toast) (window as any).toast('Failed to open folder');
                 }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
@@ -710,6 +711,27 @@ export const PlayerView = () => {
           </div>
         </div>
       </div>
+
+      {showEncryptConfirm && (
+        <div className="modal on" style={{ display: 'flex' }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Encrypt Video</h2>
+            </div>
+            <div className="modal-body">
+              <p>Encrypt "{video.name}" and move it to Vault?</p>
+              <p>The video will be placed in a vault folder matching its current category.</p>
+            </div>
+            <div className="modal-footer">
+              <button class="modal-btn modal-btn--primary" onClick={() => {
+                setShowEncryptConfirm(false);
+                handleEncrypt();
+              }}>Encrypt</button>
+              <button class="modal-btn" onClick={() => setShowEncryptConfirm(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
