@@ -105,7 +105,7 @@ function getEncryptionProgress() {
 async function runEncryptCategory(catPath) {
   if (_encryptionProgress.running) return false;
   _encryptionCancel = false;
-  const { isUnlocked, encryptLocalFileToVault, getVaultKey } = require('./vault-server');
+  const { isUnlocked } = require('./vault-server');
   const { loadVaultConfig } = require('./db-server');
 
   if (!loadVaultConfig()) {
@@ -129,9 +129,6 @@ async function runEncryptCategory(catPath) {
 
     updateEncryptionProgress({ running: true, type: 'encrypt', category: catPath, total, done: 0, current: '', error: '', ok: false });
 
-    const meta = loadVideoMeta();
-    const vaultKey = getVaultKey();
-
     for (const v of videos) {
       if (_encryptionCancel) {
         updateEncryptionProgress({ error: 'Cancelled', running: false });
@@ -141,30 +138,16 @@ async function runEncryptCategory(catPath) {
       const full = path.join(VIDEOS_DIR, v.rel);
       if (!fs.existsSync(full)) continue;
 
-      const videoMeta = meta[v.id] || null;
-      // Pass the real filename (with extension) — v.name has the extension stripped
-      const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
-      if (!vaultId) {
-        console.error(`[ENC] Failed to encrypt ${v.name}`);
+      let vaultId;
+      try {
+        vaultId = await _encryptVideoEntry(v);
+      } catch (e) {
+        console.error(`[ENC] Failed to encrypt ${v.name}: ${e.message}`);
         continue;
       }
 
       encryptedCount++;
       console.log(`[ENC] ${v.name} (${encryptedCount}/${total}, ${total - encryptedCount} left)`);
-      const oldThumb = path.join(THUMBS_DIR, v.id);
-      const newThumb = path.join(THUMBS_DIR, vaultId);
-
-      if (fs.existsSync(oldThumb)) {
-        if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
-        fs.renameSync(oldThumb, newThumb);
-        const tFiles = fs.readdirSync(newThumb);
-        for (const tf of tFiles) {
-          if (tf.endsWith('.jpg')) {
-             await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
-          }
-        }
-      }
-
       updateEncryptionProgress({ done: encryptedCount, current: v.name });
     }
 
@@ -258,6 +241,12 @@ async function runDecryptCategory(catPath, targetProfile) {
         for (const tf of tFiles) {
           if (tf.endsWith('.jpg')) {
              await decryptThumbnailInPlace(path.join(newThumb, tf), vaultKey);
+          }
+        }
+        const chaptersDir = path.join(newThumb, 'chapters');
+        if (fs.existsSync(chaptersDir)) {
+          for (const cf of fs.readdirSync(chaptersDir)) {
+            if (cf.endsWith('.jpg')) await decryptThumbnailInPlace(path.join(chaptersDir, cf), vaultKey);
           }
         }
       }
@@ -2229,6 +2218,12 @@ async function _encryptVideoEntry(v) {
     const tFiles = fs.readdirSync(newThumb);
     for (const tf of tFiles) {
       if (tf.endsWith('.jpg')) await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
+    }
+    const chaptersDir = path.join(newThumb, 'chapters');
+    if (fs.existsSync(chaptersDir)) {
+      for (const cf of fs.readdirSync(chaptersDir)) {
+        if (cf.endsWith('.jpg')) await encryptFileInPlace(path.join(chaptersDir, cf), vaultKey);
+      }
     }
   }
 

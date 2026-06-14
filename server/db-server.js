@@ -576,20 +576,45 @@ function _readVideoMetaFromDb(database) {
 // Remove a video's metadata row from the public database(s). When the Vault
 // profile is active the row lives in another profile's DB, so it is deleted
 // there too — encryption must leave no trace in any public database.
+// Remove every trace of a video from a database: its metadata, tags,
+// actors, favourites, history, thumbnail/visual-hash caches, comments,
+// the scan index, and any collection it belongs to.
+function _wipeVideoEverywhere(database, id) {
+  database.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
+  database.prepare('DELETE FROM video_tags WHERE video_id = ?').run(id);
+  database.prepare('DELETE FROM videos WHERE id = ?').run(id);
+  database.prepare('DELETE FROM favourites WHERE video_id = ?').run(id);
+  database.prepare('DELETE FROM history WHERE video_id = ?').run(id);
+  database.prepare('DELETE FROM thumbs_cache WHERE video_id = ?').run(id);
+  database.prepare('DELETE FROM visual_hashes WHERE video_id = ?').run(id);
+  database.prepare('DELETE FROM comments WHERE video_id = ?').run(id);
+  database.prepare('DELETE FROM video_index WHERE id = ?').run(id);
+
+  const collections = database.prepare('SELECT id, video_ids FROM collections').all();
+  const updateColl = database.prepare('UPDATE collections SET video_ids = ? WHERE id = ?');
+  for (const row of collections) {
+    let ids;
+    try { ids = JSON.parse(row.video_ids || '[]'); } catch { continue; }
+    if (!Array.isArray(ids) || !ids.includes(id)) continue;
+    updateColl.run(JSON.stringify(ids.filter(vid => vid !== id)), row.id);
+  }
+}
+
 function deleteVideoMetaEverywhere(id) {
   _videoMeta = null;
-  const wipe = (database) => {
-    database.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
-    database.prepare('DELETE FROM video_tags WHERE video_id = ?').run(id);
-    database.prepare('DELETE FROM videos WHERE id = ?').run(id);
-  };
-  try { wipe(db); } catch (e) { console.error('Failed to delete video meta:', e); }
+  _favs = null;
+  _history = null;
+  _thumbs = null;
+  try {
+    txn(() => _wipeVideoEverywhere(db, id));
+  } catch (e) { console.error('Failed to delete video meta:', e); }
   if (currentProfile === 'Vault') {
     for (const dbPath of _otherProfileDbPaths()) {
       let other = null;
       try {
         other = new DatabaseSync(dbPath);
-        wipe(other);
+        ensureSchema(other);
+        _wipeVideoEverywhere(other, id);
       } catch (e) {
         console.error('[vault] failed to delete public meta in', path.basename(dbPath), e.message);
       } finally {
