@@ -28,6 +28,7 @@ import { PlayerView } from '../sections/PlayerView';
 import { MosaicView } from '../sections/MosaicView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
+import { SeriesView } from '../sections/SeriesView';
 import { DownloadQueueView } from '../sections/DownloadQueueView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
@@ -97,6 +98,7 @@ export const MainContent = () => {
   const renderView = () => {
     if (view === 'hub') return <HomeView />;
     if (view === 'chapters') return <ChaptersView />;
+    if (view === 'series') return <SeriesView />;
     if (view === 'scraper') return <ActorScraperView />;
     if (view === 'settings') return <SettingsView />;
     if (view === 'categories') return <CategoriesView />;

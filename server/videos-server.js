@@ -948,6 +948,95 @@ async function apiCreateCategory(req, res) {
   catch (e) { json(res, { error: e.message }, 500); }
 }
 
+// ── Physical folder management (non-Vault profiles only) ──────────────
+
+async function apiFolderCreate(req, res) {
+  const { getCurrentProfile } = require('./db-server');
+  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
+  const body = await readBody(req);
+  const parentPath = (body.parentPath || '').replace(/[<>:"|?*]/g, '_');
+  const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
+  if (!name) return json(res, { error: 'Name required' }, 400);
+  const base = getDefaultWriteRoot();
+  const dir = parentPath ? path.join(base, parentPath, name) : path.join(base, name);
+  if (!dir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid path' }, 400);
+  if (fs.existsSync(dir)) return json(res, { error: 'Already exists' }, 409);
+  try { fs.mkdirSync(dir, { recursive: true }); invalidateScanCache(); json(res, { ok: true }); }
+  catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiFolderRename(req, res) {
+  const { getCurrentProfile } = require('./db-server');
+  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
+  const body = await readBody(req);
+  const oldPath = body.path;
+  const newName = (body.newName || '').trim().replace(/[<>:"|?*]/g, '_');
+  if (!oldPath || !newName) return json(res, { error: 'path and newName required' }, 400);
+  const oldDir = resolveCategoryPhysicalPath(oldPath);
+  if (!fs.existsSync(oldDir)) return json(res, { error: 'Folder not found' }, 404);
+  const newDir = path.join(path.dirname(oldDir), newName);
+  if (fs.existsSync(newDir)) return json(res, { error: 'Target name already exists' }, 409);
+  try {
+    fs.renameSync(oldDir, newDir);
+    invalidateScanCache();
+    json(res, { ok: true });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiFolderDelete(req, res) {
+  const { getCurrentProfile } = require('./db-server');
+  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
+  const body = await readBody(req);
+  const folderPath = body.path;
+  if (!folderPath) return json(res, { error: 'path required' }, 400);
+  const dir = resolveCategoryPhysicalPath(folderPath);
+  if (!fs.existsSync(dir)) return json(res, { error: 'Folder not found' }, 404);
+  const parentDir = path.dirname(dir);
+  const base = getDefaultWriteRoot();
+  if (!dir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid path' }, 400);
+  try {
+    const moveContents = (src, dst) => {
+      for (const ent of fs.readdirSync(src, { withFileTypes: true })) {
+        const srcFull = path.join(src, ent.name);
+        let dstFull = path.join(dst, ent.name);
+        if (fs.existsSync(dstFull)) {
+          const ext = path.extname(ent.name), base = path.basename(ent.name, ext);
+          let n = 1;
+          while (fs.existsSync(dstFull)) dstFull = path.join(dst, `${base}(${n++})${ext}`);
+        }
+        fs.renameSync(srcFull, dstFull);
+      }
+    };
+    moveContents(dir, parentDir);
+    fs.rmdirSync(dir);
+    invalidateScanCache();
+    json(res, { ok: true });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiFolderMove(req, res) {
+  const { getCurrentProfile } = require('./db-server');
+  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
+  const body = await readBody(req);
+  const fromPath = body.fromPath;
+  const toParentPath = body.toParentPath || '';
+  if (!fromPath) return json(res, { error: 'fromPath required' }, 400);
+  const base = getDefaultWriteRoot();
+  const fromDir = resolveCategoryPhysicalPath(fromPath);
+  if (!fs.existsSync(fromDir)) return json(res, { error: 'Source folder not found' }, 404);
+  const folderName = path.basename(fromDir);
+  const toDir = toParentPath ? path.join(base, toParentPath, folderName) : path.join(base, folderName);
+  if (!toDir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid target path' }, 400);
+  if (toDir === fromDir) return json(res, { error: 'Source and destination are the same' }, 400);
+  if (toDir.startsWith(fromDir + path.sep)) return json(res, { error: 'Cannot move folder into itself' }, 400);
+  if (fs.existsSync(toDir)) return json(res, { error: 'Target already exists' }, 409);
+  try {
+    fs.renameSync(fromDir, toDir);
+    invalidateScanCache();
+    json(res, { ok: true });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
 async function apiVideoDetail(req, res, id) {
   const videos = await allVideos();
   const v      = videos.find(x => x.id === id);
@@ -2174,6 +2263,27 @@ async function apiEncryptCategory(req, res) {
   }
 }
 
+// Walk a category path (e.g. "Movies/Action/2020s") and ensure a matching chain
+// of vault folder entries exists, creating missing ones with proper parent links.
+// Returns the leaf folder id. Mutates vaultMeta in place; caller must saveVaultMeta.
+function _ensureVaultFolderPath(catPath, vaultMeta) {
+  const parts = catPath.replace(/\\/g, '/').split('/').filter(Boolean);
+  let parentId = null;
+  for (const name of parts) {
+    const entry = Object.entries(vaultMeta).find(
+      ([, m]) => m.type === 'folder' && m.name === name && (m.parent || null) === parentId
+    );
+    if (entry) {
+      parentId = entry[0];
+    } else {
+      const fid = require('crypto').randomUUID();
+      vaultMeta[fid] = { type: 'folder', name, parent: parentId, mtime: Date.now() };
+      parentId = fid;
+    }
+  }
+  return parentId;
+}
+
 // Encrypt a single scanned video entry into the Vault: shred the original,
 // move + encrypt its thumbnail, drop the public DB entry. Returns the new
 // vault id. Throws on failure. Shared by the single-file endpoint and the
@@ -2193,17 +2303,11 @@ async function _encryptVideoEntry(v) {
   const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
   if (!vaultId) throw new Error('Encryption failed');
 
-  // Assign vault file to a vault folder matching the video's top-level category
+  // Replicate the full category path as nested vault folders and assign the file to the leaf
   if (v.catPath) {
     const { loadVaultMeta: lvm, saveVaultMeta: svm } = require('./db-server');
     const vaultMeta = lvm();
-    const folderName = v.catPath.split(/[/\\]/)[0];
-    const existingFolder = Object.entries(vaultMeta).find(([, m]) => m.type === 'folder' && m.name.toLowerCase() === folderName.toLowerCase());
-    let folderId = existingFolder ? existingFolder[0] : null;
-    if (!folderId) {
-      folderId = require('crypto').randomBytes(16).toString('hex');
-      vaultMeta[folderId] = { type: 'folder', name: folderName, id: folderId };
-    }
+    const folderId = _ensureVaultFolderPath(v.catPath, vaultMeta);
     if (vaultMeta[vaultId]) vaultMeta[vaultId].folder = folderId;
     svm(vaultMeta);
   }
@@ -2956,6 +3060,7 @@ module.exports = {
   scan, cachedScan, allVideos, invalidateScanCache, initVideoMeta,
   apiVideosUpload, apiRescan,
   apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
+  apiFolderCreate, apiFolderRename, apiFolderDelete, apiFolderMove,
   apiGetAllCategories, apiSetEnabledCategories,
   apiVideoDetail, apiVideoDetailFast, apiPreload, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,

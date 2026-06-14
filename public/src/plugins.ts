@@ -11,6 +11,9 @@ export interface PluginMeta {
   toggleAction?: string;
   enabledByDefault?: boolean;
   contexts?: string[];
+  // When present, the plugin is also offered as a home-dashboard widget.
+  // `w`/`h` are the default column/row span on the home grid.
+  homeWidget?: { name?: string; w?: number; h?: number };
 }
 
 export const pluginsList = signal<PluginMeta[]>([]);

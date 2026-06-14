@@ -1,0 +1,8 @@
+{
+  "name": "Mood / Genre Browser",
+  "description": "Tag and genre tiles — click to filter the grid.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 4, "h": 1, "minW": 2, "minH": 1, "maxH": 2, "singleton": true }
+}

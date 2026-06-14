@@ -73,6 +73,7 @@ export interface AppPrefs {
   comfyuiWorkflowJson?: string;
   comfyuiPositiveNodeId?: string;
   disabledPlugins?: string[];
+  homeDashboard?: any[];
 }
 export interface ThumbnailGroup {
   id: string;

@@ -4,5 +4,6 @@
   "location": "topbar",
   "type": "view",
   "view": "instagram",
-  "enabledByDefault": true
+  "enabledByDefault": true,
+  "homeWidget": { "name": "Instagram Feed", "w": 1, "h": 1 }
 }

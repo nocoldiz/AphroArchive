@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { isMuted as isMutedSignal } from '../../store';
+import { getProgress, setProgress } from '../../home/progress';
 
 interface Chapter {
   id: string;
@@ -34,7 +35,12 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   const localRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalRef || localRef;
   const containerRef = useRef<HTMLDivElement>(null);
-  const startTimeRef = useRef(startTime);
+  // Resume from saved progress when no explicit start time was requested.
+  const startTimeRef = useRef(startTime || (() => {
+    const p = getProgress(videoId);
+    return p && p.t < p.d * 0.97 ? p.t : 0;
+  })());
+  const lastSaveRef = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -65,8 +71,18 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     if (!vid) return;
 
     const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onTimeUpdate = () => setCurrentTime(vid.currentTime);
+    const onPause = () => {
+      setPlaying(false);
+      setProgress(videoId, vid.currentTime, vid.duration || 0);
+    };
+    const onTimeUpdate = () => {
+      setCurrentTime(vid.currentTime);
+      const now = Date.now();
+      if (now - lastSaveRef.current > 4000) {
+        lastSaveRef.current = now;
+        setProgress(videoId, vid.currentTime, vid.duration || 0);
+      }
+    };
     const onDurationChange = () => setDuration(vid.duration);
     const onLoadedMetadata = () => {
       setDuration(vid.duration);
@@ -120,6 +136,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
     }
 
     return () => {
+      // Persist final position when navigating away mid-playback.
+      setProgress(videoId, vid.currentTime, vid.duration || 0);
       vid.removeEventListener('play', onPlay);
       vid.removeEventListener('pause', onPause);
       vid.removeEventListener('timeupdate', onTimeUpdate);

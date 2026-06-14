@@ -73,6 +73,7 @@ export async function routeToPath(path: string) {
     '/database':       'database',
     '/categories':     'categories',
     '/chapters':       'chapters',
+    '/series':         'series',
     '/actors':         'actors',
     '/studios':        'studios',
     '/download-queue': 'download-queue',

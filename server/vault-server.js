@@ -934,23 +934,62 @@ async function apiVaultCreateFolder(req, res) {
   const body = await readBody(req);
   const name = (body.name || '').trim();
   if (!name) return json(res, { error: 'Name required' }, 400);
+  const parent = body.parent || null;
   const meta = loadVaultMeta();
-  const existing = Object.values(meta).find(m => m.type === 'folder' && m.name.toLowerCase() === name.toLowerCase());
+  if (parent && !meta[parent]) return json(res, { error: 'Parent folder not found' }, 404);
+  const existing = Object.values(meta).find(m => m.type === 'folder' && m.name.toLowerCase() === name.toLowerCase() && (m.parent || null) === parent);
   if (existing) return json(res, { error: 'Folder already exists' }, 409);
   const id = crypto.randomUUID();
-  meta[id] = { type: 'folder', name, mtime: Date.now() };
+  meta[id] = { type: 'folder', name, parent, mtime: Date.now() };
   saveVaultMeta(meta);
-  json(res, { ok: true, id, name });
+  json(res, { ok: true, id, name, parent });
 }
 
 async function apiVaultDeleteFolder(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   const meta = loadVaultMeta();
   if (!meta[id] || meta[id].type !== 'folder') return json(res, { error: 'Not found' }, 404);
+  const parentId = meta[id].parent || null;
   delete meta[id];
   for (const [fid, m] of Object.entries(meta)) {
-    if (m.folder === id) meta[fid] = { ...m, folder: null };
+    if (m.folder === id) meta[fid] = { ...m, folder: parentId };
+    if (m.type === 'folder' && (m.parent || null) === id) meta[fid] = { ...m, parent: parentId };
   }
+  saveVaultMeta(meta);
+  json(res, { ok: true });
+}
+
+async function apiVaultRenameFolder(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  const meta = loadVaultMeta();
+  if (!meta[id] || meta[id].type !== 'folder') return json(res, { error: 'Not found' }, 404);
+  const body = await readBody(req);
+  const name = (body.name || '').trim();
+  if (!name) return json(res, { error: 'Name required' }, 400);
+  const parent = meta[id].parent || null;
+  const clash = Object.entries(meta).find(([fid, m]) => fid !== id && m.type === 'folder' && m.name.toLowerCase() === name.toLowerCase() && (m.parent || null) === parent);
+  if (clash) return json(res, { error: 'A folder with that name already exists here' }, 409);
+  meta[id] = { ...meta[id], name, mtime: Date.now() };
+  saveVaultMeta(meta);
+  json(res, { ok: true });
+}
+
+async function apiVaultMoveFolder(req, res, id) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  const meta = loadVaultMeta();
+  if (!meta[id] || meta[id].type !== 'folder') return json(res, { error: 'Not found' }, 404);
+  const body = await readBody(req);
+  const newParent = body.parent || null;
+  if (newParent && !meta[newParent]) return json(res, { error: 'Target parent not found' }, 404);
+  // Guard against moving a folder into one of its own descendants
+  if (newParent) {
+    let cur = newParent;
+    while (cur) {
+      if (cur === id) return json(res, { error: 'Cannot move a folder into its own subfolder' }, 400);
+      cur = meta[cur]?.parent || null;
+    }
+  }
+  meta[id] = { ...meta[id], parent: newParent, mtime: Date.now() };
   saveVaultMeta(meta);
   json(res, { ok: true });
 }
@@ -1377,7 +1416,8 @@ async function apiVaultRestoreLink(req, res) {
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
-  apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultMoveFile, apiVaultCreateTextFile,
+  apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultRenameFolder, apiVaultMoveFolder,
+  apiVaultMoveFile, apiVaultCreateTextFile,
   apiVaultUpdateTextFile,
   apiVaultChangePassword, apiVaultDeleteVault,
   apiVaultFavsGet, apiVaultFavsToggle,

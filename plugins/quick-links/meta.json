@@ -1,0 +1,8 @@
+{
+  "name": "Quick Links",
+  "description": "Shortcut cards to every section of the app.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 4, "h": 3, "minW": 2, "minH": 2, "maxH": 4, "singleton": true }
+}

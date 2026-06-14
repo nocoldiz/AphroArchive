@@ -1,0 +1,8 @@
+{
+  "name": "Recommended For You",
+  "description": "On-device picks scored from your watch history.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 2, "h": 2, "minW": 2, "minH": 2, "maxH": 3, "singleton": true }
+}

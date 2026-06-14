@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { vaultMode, isVaultUnlocked, currentVideo, currentView, contextMenuState, vaultGlobalView } from '../../store';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
+import { FolderTree, type FolderEntry } from '../UI/FolderTree';
 
 interface VaultFile {
   id: string;
@@ -452,36 +453,49 @@ export const VaultView = () => {
     if (w.toast) w.toast('Moved');
   };
 
-  const handleNewFolder = async () => {
-    const name = prompt('Folder name:');
-    if (!name || !name.trim()) return;
+  const handleCreateFolder = async (name: string, parentId: string | null) => {
     const res = await fetch('/api/vault/folders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() })
+      body: JSON.stringify({ name, parent: parentId })
     });
     const d = await res.json();
-    if (!res.ok) {
-      alert(d.error || 'Failed to create folder');
-      return;
-    }
-    setFolders([...folders, { id: d.id, name: d.name, type: 'folder', mtime: Date.now() }]);
-    const w = window as any;
-    if (w.toast) w.toast('Folder created');
+    if (!res.ok) { (window as any).toast?.(d.error || 'Failed to create folder'); return; }
+    setFolders(prev => [...prev, { id: d.id, name: d.name, parent: parentId, type: 'folder', mtime: Date.now() }]);
+    (window as any).toast?.('Folder created');
+  };
+
+  const handleRenameFolder = async (id: string, newName: string) => {
+    const res = await fetch(`/api/vault/folders/${id}/rename`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    });
+    if (!res.ok) { const d = await res.json(); (window as any).toast?.(d.error || 'Rename failed'); return; }
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f));
+    (window as any).toast?.('Folder renamed');
   };
 
   const handleDeleteFolder = async (id: string, name: string) => {
-    if (!confirm(`Delete folder "${name}"? Files inside will be moved to root.`)) return;
+    const parentId = folders.find(f => f.id === id)?.parent || null;
+    if (!confirm(`Delete folder "${name}"? Contents will move to parent folder.`)) return;
     const res = await fetch('/api/vault/folders/' + id, { method: 'DELETE' });
-    if (!res.ok) {
-      alert('Failed to delete folder');
-      return;
-    }
-    setFolders(folders.filter(f => f.id !== id));
-    setFiles(files.map(f => f.folder === id ? { ...f, folder: null } : f));
-    if (curFolder === id) setCurFolder(null);
-    const w = window as any;
-    if (w.toast) w.toast('Folder deleted');
+    if (!res.ok) { (window as any).toast?.('Failed to delete folder'); return; }
+    setFolders(prev => prev.filter(f => f.id !== id).map(f => f.parent === id ? { ...f, parent: parentId } : f));
+    setFiles(prev => prev.map(f => f.folder === id ? { ...f, folder: parentId } : f));
+    if (curFolder === id) setCurFolder(parentId);
+    (window as any).toast?.('Folder deleted');
+  };
+
+  const handleMoveFolder = async (id: string, newParentId: string | null) => {
+    const res = await fetch(`/api/vault/folders/${id}/move`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent: newParentId })
+    });
+    if (!res.ok) { const d = await res.json(); (window as any).toast?.(d.error || 'Move failed'); return; }
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, parent: newParentId } : f));
+    (window as any).toast?.('Folder moved');
   };
 
   const handleFileClick = (f: VaultFile) => {
@@ -877,13 +891,6 @@ export const VaultView = () => {
             </button>
 
             <button
-              onClick={handleNewFolder}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
-            >
-              + New Folder
-            </button>
-
-            <button
               onClick={() => {
                 const w = window as any;
                 if (w.startMosaicWithPhotos) {
@@ -1015,33 +1022,18 @@ export const VaultView = () => {
           </div>
         )}
 
-        {/* Folders Row */}
-        {!curFolder && !searchQuery && !typeFilter && (
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
-            {folders.map(f => (
-              <div
-                key={f.id}
-                style={{
-                  padding: '12px 16px',
-                  background: 'var(--bg2)',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  border: '1px solid var(--brd)'
-                }}
-              >
-                <span onClick={() => { setCurFolder(f.id); setRenderLimit(100); }} style={{ cursor: 'pointer' }}>📁</span>
-                <span onClick={() => { setCurFolder(f.id); setRenderLimit(100); }} style={{ fontWeight: '500', cursor: 'pointer' }}>{f.name}</span>
-                <button
-                  onClick={() => handleDeleteFolder(f.id, f.name)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.8rem', marginLeft: 'auto' }}
-                  title="Delete Folder"
-                >
-                  ❌
-                </button>
-              </div>
-            ))}
+        {/* Nested Folder Tree */}
+        {!searchQuery && !typeFilter && (
+          <div style={{ marginBottom: '16px' }}>
+            <FolderTree
+              folders={folders as FolderEntry[]}
+              currentFolderId={curFolder}
+              onNavigate={(id) => { setCurFolder(id); setRenderLimit(100); }}
+              onCreateFolder={handleCreateFolder}
+              onRenameFolder={handleRenameFolder}
+              onDeleteFolder={handleDeleteFolder}
+              onMoveFolder={handleMoveFolder}
+            />
           </div>
         )}
 

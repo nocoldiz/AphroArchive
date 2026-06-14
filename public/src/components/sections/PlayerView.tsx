@@ -6,6 +6,7 @@ import { AiComments } from '../UI/AiComments';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 import { VideoCard } from '../UI/VideoGrid';
 import { AdvancedPlayer } from '../UI/AdvancedPlayer';
+import { playerSeries, playerSeason } from '../../series';
 
 // BCP-47 codes — fed to SpeechRecognition.lang for live subtitle generation
 const LANGUAGES: { code: string; label: string }[] = [
@@ -143,9 +144,28 @@ export const PlayerView = () => {
         skipNextUpUpdate.value = false;
         return;
       }
+      // When the session was launched from the Series screen, fill Next Up with
+      // the series' episodes (restricted to the selected season) instead of the
+      // current grid. Drop out of series mode if this video isn't part of it.
+      const series = playerSeries.value;
+      if (series) {
+        if (series.episodes.some(e => e.video.id === video.id)) {
+          const season = playerSeason.value;
+          const eps = season != null ? series.episodes.filter(e => e.season === season) : series.episodes;
+          const i = eps.findIndex(e => e.video.id === video.id);
+          const ordered = i !== -1
+            ? [...eps.slice(i + 1), ...eps.slice(0, i)]
+            : eps.filter(e => e.video.id !== video.id);
+          playerNextUp.value = ordered.map(e => e.video);
+          return;
+        }
+        playerSeries.value = null;
+        playerSeason.value = null;
+      }
+
       const allVis = filteredVideos.value;
       const idx = allVis.findIndex(v => v.id === video.id);
-      
+
       if (idx !== -1) {
         const after = allVis.slice(idx + 1);
         const before = allVis.slice(0, idx);
@@ -371,6 +391,15 @@ export const PlayerView = () => {
     currentView.value = 'hub';
   };
 
+  const series = playerSeries.value;
+  const inSeries = !!series && series.episodes.some(e => e.video.id === video.id);
+  const switchSeason = (n: number) => {
+    if (!series) return;
+    playerSeason.value = n;
+    const eps = series.episodes.filter(e => e.season === n);
+    if (eps.length) currentVideo.value = eps[0].video;
+  };
+
   return (
     <>
       {showAddToCollectionModal.value && <AddToCollectionModal onClose={() => showAddToCollectionModal.value = false} />}
@@ -463,6 +492,24 @@ export const PlayerView = () => {
               <span>{((video.size || 0) / 1024 / 1024).toFixed(1)} MB</span>
               <span>{video.duration ? (video.duration / 60).toFixed(1) + 'm' : '—'}</span>
             </div>
+
+            {inSeries && (
+              <div className="player-series-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{series!.name}</span>
+                {series!.seasons.length > 1 && series!.seasons.map(n => (
+                  <button
+                    key={n}
+                    onClick={() => switchSeason(n)}
+                    style={{
+                      padding: '5px 12px', borderRadius: '16px', cursor: 'pointer', fontSize: '0.8rem',
+                      border: '1px solid var(--brd)',
+                      background: playerSeason.value === n ? 'var(--ac)' : 'var(--bg2)',
+                      color: playerSeason.value === n ? '#fff' : 'var(--tx)',
+                    }}
+                  >Season {n}</button>
+                ))}
+              </div>
+            )}
 
             <div className="player-info-actions" style={{ display: 'flex', gap: '10px', marginBottom: '25px', flexWrap: 'wrap' }}>
               <button onClick={() => toggleFav()} className={video.fav ? 'st' : ''} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>

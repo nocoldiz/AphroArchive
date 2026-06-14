@@ -4,5 +4,6 @@
   "location": "topbar",
   "type": "view",
   "view": "reddit",
-  "enabledByDefault": true
+  "enabledByDefault": true,
+  "homeWidget": { "name": "Reddit Feed", "w": 1, "h": 1 }
 }

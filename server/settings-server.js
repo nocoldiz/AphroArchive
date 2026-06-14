@@ -4,7 +4,9 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
-const { VIDEOS_DIR } = require('./config-server');
+const path = require('path');
+const { VIDEOS_DIR, PATHS_FILE, CACHE_DIR, DB_DIR, VAULT_DIR,
+        DEFAULT_CACHE_DIR, DEFAULT_DB_DIR, DEFAULT_VAULT_DIR } = require('./config-server');
 const { json, readBody }  = require('./helpers-server');
 const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios, loadVaultConfig } = require('./db-server');
 
@@ -98,6 +100,10 @@ async function apiSavePrefs(req, res) {
   if ('comfyuiPositiveNodeId' in body) prefs.comfyuiPositiveNodeId = String(body.comfyuiPositiveNodeId || '').trim();
   if ('disabledPlugins' in body) {
     if (Array.isArray(body.disabledPlugins)) prefs.disabledPlugins = body.disabledPlugins.map(String);
+  }
+  // Home dashboard widget layout (opaque array of widget instances).
+  if ('homeDashboard' in body) {
+    prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];
   }
   savePrefs(prefs);
   if (feedFoldersChanged) {
@@ -193,4 +199,34 @@ function apiBrowseFoldersNative(req, res) {
   });
 }
 
-module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative, apiVerifyVaultPassword };
+function apiGetPaths(req, res) {
+  let cfg = {};
+  try { cfg = fs.existsSync(PATHS_FILE) ? JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8')) : {}; } catch {}
+  json(res, {
+    cacheDir: CACHE_DIR,
+    dbDir:    DB_DIR,
+    vaultDir: VAULT_DIR,
+    defaults: { cacheDir: DEFAULT_CACHE_DIR, dbDir: DEFAULT_DB_DIR, vaultDir: DEFAULT_VAULT_DIR },
+    custom:   { cacheDir: cfg.cacheDir || '', dbDir: cfg.dbDir || '', vaultDir: cfg.vaultDir || '' },
+    exists:   { cacheDir: fs.existsSync(CACHE_DIR), dbDir: fs.existsSync(DB_DIR), vaultDir: fs.existsSync(VAULT_DIR) },
+  });
+}
+
+async function apiSavePaths(req, res) {
+  const body = await readBody(req);
+  let cfg = {};
+  try { cfg = fs.existsSync(PATHS_FILE) ? JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8')) : {}; } catch {}
+  if ('cacheDir' in body) cfg.cacheDir = String(body.cacheDir || '').trim();
+  if ('dbDir'    in body) cfg.dbDir    = String(body.dbDir    || '').trim();
+  if ('vaultDir' in body) cfg.vaultDir = String(body.vaultDir || '').trim();
+  // Remove empty keys so defaults take effect
+  for (const k of ['cacheDir', 'dbDir', 'vaultDir']) { if (!cfg[k]) delete cfg[k]; }
+  try {
+    fs.writeFileSync(PATHS_FILE, JSON.stringify(cfg, null, 2), 'utf8');
+    json(res, { ok: true, restartRequired: true });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative, apiVerifyVaultPassword, apiGetPaths, apiSavePaths };

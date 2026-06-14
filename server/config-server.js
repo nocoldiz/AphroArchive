@@ -18,14 +18,20 @@ function resolveBin(name) {
   return fs.existsSync(local) ? local : (process.platform === 'win32' ? winName : name);
 }
 
-const LINK_DIR = path.join(DATA_DIR, 'cache');
-const FFMPEG_BIN = resolveBin('ffmpeg');
-const FFPROBE_BIN = resolveBin('ffprobe');
-const YT_DLP_BIN = (() => {
-  const winName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
-  const inBmDir = path.join(LINK_DIR, winName);
-  return fs.existsSync(inBmDir) ? inBmDir : resolveBin('yt-dlp');
-})();
+// ── Custom storage paths (paths.json) ───────────────────────────────
+const PATHS_FILE = path.join(DATA_DIR, 'paths.json');
+function _loadPathsCfg() {
+  try { return fs.existsSync(PATHS_FILE) ? JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8')) : {}; }
+  catch (e) { return {}; }
+}
+function _resolveCustomDir(custom, defaultDir) {
+  if (!custom) return defaultDir;
+  const p = path.resolve(custom);
+  if (fs.existsSync(p)) return p;
+  console.warn(`[paths] '${p}' not found, using default: ${defaultDir}`);
+  return defaultDir;
+}
+const _pathsCfg = _loadPathsCfg();
 
 const VIDEOS_DIR = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || path.join(DATA_DIR, 'videos'));
 const AUDIO_DIR = path.join(DATA_DIR, 'audio');
@@ -34,13 +40,28 @@ const DIST_PUBLIC = path.join(ROOT_DIR, 'dist', 'public');
 const PUBLIC_DIR = fs.existsSync(path.join(DIST_PUBLIC, 'index.html'))
   ? DIST_PUBLIC
   : path.join(ROOT_DIR, 'public');
-const CACHE_DIR = path.join(DATA_DIR, 'cache');
+
+const DEFAULT_CACHE_DIR = path.join(DATA_DIR, 'cache');
+const DEFAULT_DB_DIR    = path.join(DATA_DIR, 'db');
+const DEFAULT_VAULT_DIR = path.join(VIDEOS_DIR, 'hidden');
+
+const CACHE_DIR = _resolveCustomDir(_pathsCfg.cacheDir, DEFAULT_CACHE_DIR);
+const DB_DIR    = _resolveCustomDir(_pathsCfg.dbDir,    DEFAULT_DB_DIR);
+const VAULT_DIR = _resolveCustomDir(_pathsCfg.vaultDir, DEFAULT_VAULT_DIR);
+
+const LINK_DIR = CACHE_DIR;
+const FFMPEG_BIN = resolveBin('ffmpeg');
+const FFPROBE_BIN = resolveBin('ffprobe');
+const YT_DLP_BIN = (() => {
+  const winName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+  const inBmDir = path.join(CACHE_DIR, winName);
+  return fs.existsSync(inBmDir) ? inBmDir : resolveBin('yt-dlp');
+})();
+
 const THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-thumbs');
 const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');
-const VAULT_DIR = path.join(VIDEOS_DIR, 'hidden');
 const PROCESS_DIR = path.join(DATA_DIR, 'process');
 const IGNORED_DIR = path.join(VIDEOS_DIR, 'Z');
-const DB_DIR = path.join(DATA_DIR, 'db');
 const BOOKS_DIR = path.join(DATA_DIR, 'books');
 const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
 const SCREENSHOTS_DIR = path.join(DATA_DIR, 'screenshots');
@@ -132,6 +153,7 @@ module.exports = {
   VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
   THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, PROCESS_DIR, IGNORED_DIR,
   DB_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, LINK_THUMBS_DIR, EDGE_BIN,
+  PATHS_FILE, DEFAULT_CACHE_DIR, DEFAULT_DB_DIR, DEFAULT_VAULT_DIR,
   FAVOURITES_FILE, HISTORY_FILE, THUMBS_CACHE_FILE,
   VAULT_CONFIG_FILE, VAULT_META_FILE, BROWSER_WHITELIST_FILE,
   COLLECTIONS_FILE, RATINGS_FILE, HIDDEN_FILE, PREFS_FILE,

@@ -165,6 +165,10 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/duplicates/results' && req.method === 'GET') return duplicates.apiDuplicatesResults(req, res);
   if (p === '/api/auto-sort' && req.method === 'POST') return videos.apiAutoSort(req, res);
   if (p === '/api/import' && req.method === 'POST') return videos.apiImport(req, res);
+  if (p === '/api/folders/create' && req.method === 'POST') return videos.apiFolderCreate(req, res);
+  if (p === '/api/folders/rename' && req.method === 'PATCH') return videos.apiFolderRename(req, res);
+  if (p === '/api/folders/delete' && req.method === 'DELETE') return videos.apiFolderDelete(req, res);
+  if (p === '/api/folders/move' && req.method === 'PATCH') return videos.apiFolderMove(req, res);
   if (p === '/api/categories/rename' && req.method === 'PATCH') return videos.apiRenameCategory(req, res);
   if (p === '/api/categories/delete' && req.method === 'DELETE') return videos.apiDeleteCategory(req, res);
   if (p === '/api/categories/hide' && req.method === 'POST') return videos.apiHideCategory(req, res);
@@ -317,6 +321,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/veracrypt/dismount' && req.method === 'POST') return veracrypt.apiVeracryptDismount(req, res);
   if (p === '/api/veracrypt/import' && req.method === 'POST') return veracrypt.apiVeracryptImport(req, res);
   if (p === '/api/vault/folders' && req.method === 'POST') return vault.apiVaultCreateFolder(req, res);
+  if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)\/rename$/)) && req.method === 'PATCH') return vault.apiVaultRenameFolder(req, res, m[1]);
+  if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)\/move$/)) && req.method === 'PATCH') return vault.apiVaultMoveFolder(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDeleteFolder(req, res, m[1]);
   if (p === '/api/vault/favs' && req.method === 'GET') return vault.apiVaultFavsGet(req, res);
   if ((m = p.match(/^\/api\/vault\/favs\/([^/]+)$/)) && req.method === 'POST') return vault.apiVaultFavsToggle(req, res, m[1]);
@@ -437,6 +443,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/settings\/(hidden|whitelist)$/)) && req.method === 'PUT') return settings.apiSettingsSave(req, res, m[1]);
   if (p === '/api/settings/prefs' && req.method === 'GET') return settings.apiGetPrefs(req, res);
   if (p === '/api/settings/prefs' && req.method === 'PUT') return settings.apiSavePrefs(req, res);
+  if (p === '/api/settings/paths' && req.method === 'GET') return settings.apiGetPaths(req, res);
+  if (p === '/api/settings/paths' && req.method === 'PUT') return settings.apiSavePaths(req, res);
   if (p === '/api/plugins' && req.method === 'GET') return plugins.apiGetPlugins(req, res);
   if (p === '/api/browse-folders' && req.method === 'GET') return settings.apiBrowseFolders(req, res, params);
   if (p === '/api/browse-folders-native' && req.method === 'GET') return settings.apiBrowseFoldersNative(req, res);

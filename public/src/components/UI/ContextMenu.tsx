@@ -1,5 +1,6 @@
 import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { FolderTree, type FolderEntry } from './FolderTree';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -9,6 +10,10 @@ export const ContextMenu = () => {
   const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
   const [showEncryptVideoConfirm, setShowEncryptVideoConfirm] = useState(false);
   const [showVaultUnlockModal, setShowVaultUnlockModal] = useState(false);
+  const [showSubfoldersModal, setShowSubfoldersModal] = useState(false);
+  const [physicalFolders, setPhysicalFolders] = useState<FolderEntry[]>([]);
+  const [physicalFolderRoot, setPhysicalFolderRoot] = useState('');
+  const [physicalCurFolder, setPhysicalCurFolder] = useState<string | null>(null);
   const encryptPollRef = useRef<any>(null);
 
   const [targetProfile, setTargetProfile] = useState('default');
@@ -29,7 +34,7 @@ export const ContextMenu = () => {
     };
   }, [visible]);
 
-  if (!visible && !showEncryptConfirm && !showEncryptVideoConfirm && !showUnlockModal) return null;
+  if (!visible && !showEncryptConfirm && !showEncryptVideoConfirm && !showUnlockModal && !showSubfoldersModal) return null;
 
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -169,6 +174,58 @@ export const ContextMenu = () => {
     contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
 
+  const toFolderEntries = (cats: any[], rootPath: string): FolderEntry[] =>
+    cats
+      .filter((c: any) => c.path && c.path !== rootPath && c.path.startsWith(rootPath + '/'))
+      .map((c: any) => {
+        const rel = c.path.slice(rootPath.length + 1);
+        const parts = rel.split('/');
+        const parentRel = parts.slice(0, -1).join('/');
+        const parentPath = parentRel ? rootPath + '/' + parentRel : null;
+        return { id: c.path, name: parts[parts.length - 1], parent: parentPath, mtime: 0 };
+      });
+
+  const refreshPhysicalFolders = async (root: string) => {
+    const res = await fetch('/api/categories');
+    if (res.ok) setPhysicalFolders(toFolderEntries(await res.json(), root));
+  };
+
+  const handleManageSubfolders = async () => {
+    closeMenu();
+    const root = data.path;
+    const res = await fetch('/api/categories');
+    const cats = res.ok ? await res.json() : [];
+    setPhysicalFolders(toFolderEntries(cats, root));
+    setPhysicalFolderRoot(root);
+    setPhysicalCurFolder(null);
+    setShowSubfoldersModal(true);
+  };
+
+  const physicalCreateFolder = async (name: string, parentId: string | null) => {
+    await fetch('/api/folders/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parentPath: parentId || physicalFolderRoot, name }) });
+    await refreshPhysicalFolders(physicalFolderRoot);
+  };
+
+  const physicalRenameFolder = async (id: string, newName: string) => {
+    const res = await fetch('/api/folders/rename', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: id, newName }) });
+    if (!res.ok) { toast('Rename failed'); return; }
+    await refreshPhysicalFolders(physicalFolderRoot);
+  };
+
+  const physicalDeleteFolder = async (id: string, name: string) => {
+    if (!confirm(`Delete subfolder "${name}"? Contents will move to parent.`)) return;
+    const parent = physicalFolders.find(f => f.id === id)?.parent || null;
+    await fetch('/api/folders/delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: id }) });
+    if (physicalCurFolder === id) setPhysicalCurFolder(parent);
+    await refreshPhysicalFolders(physicalFolderRoot);
+  };
+
+  const physicalMoveFolder = async (id: string, newParentId: string | null) => {
+    const res = await fetch('/api/folders/move', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fromPath: id, toParentPath: newParentId || physicalFolderRoot }) });
+    if (!res.ok) { toast('Move failed'); return; }
+    await refreshPhysicalFolders(physicalFolderRoot);
+  };
+
   const handleEncrypt = async () => {
     ensureVaultUnlocked(() => {
       closeMenu();
@@ -290,6 +347,7 @@ export const ContextMenu = () => {
             <ContextItem label="Open folder" icon="folder" onClick={handleOpenFolder} />
             <ContextItem label="Compress Videos" icon="download" onClick={handleCompress} />
             <ContextItem label="Download ZIP" icon="download" onClick={handleDownloadZip} />
+            <ContextItem label="Manage Subfolders" icon="folder" onClick={handleManageSubfolders} />
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
             {data.encrypted ? (
               <ContextItem label="Restore to Profile" icon="lock" onClick={handleUnlock} />
@@ -455,6 +513,30 @@ export const ContextMenu = () => {
                 execEncryptVideo();
               }}>Encrypt</button>
               <button class="modal-btn" onClick={() => setShowEncryptVideoConfirm(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSubfoldersModal && (
+        <div className="modal on" style={{ display: 'flex' }}>
+          <div className="modal-content" style={{ maxWidth: 560, width: '90vw' }}>
+            <div className="modal-header">
+              <h2>Subfolders — {data?.name}</h2>
+            </div>
+            <div className="modal-body">
+              <FolderTree
+                folders={physicalFolders}
+                currentFolderId={physicalCurFolder}
+                onNavigate={setPhysicalCurFolder}
+                onCreateFolder={physicalCreateFolder}
+                onRenameFolder={physicalRenameFolder}
+                onDeleteFolder={physicalDeleteFolder}
+                onMoveFolder={physicalMoveFolder}
+              />
+            </div>
+            <div className="modal-footer">
+              <button class="modal-btn" onClick={() => { setShowSubfoldersModal(false); refresh(); }}>Done</button>
             </div>
           </div>
         </div>

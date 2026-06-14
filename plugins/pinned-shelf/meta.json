@@ -1,0 +1,8 @@
+{
+  "name": "Pinned Shelf",
+  "description": "Pin a folder, tag, actor or playlist as a named row. Add several.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 4, "h": 2, "minW": 2, "minH": 2, "maxH": 3, "singleton": false }
+}

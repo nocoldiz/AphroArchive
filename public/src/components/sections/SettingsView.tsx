@@ -85,6 +85,15 @@ export const SettingsView = () => {
 
   const [verifyStatus, setVerifyStatus] = useState<Record<number, { ok?: boolean; error?: string; checking?: boolean }>>({});
 
+  const [storagePaths, setStoragePaths] = useState<{
+    cacheDir: string; dbDir: string; vaultDir: string;
+    defaults: { cacheDir: string; dbDir: string; vaultDir: string };
+    custom: { cacheDir: string; dbDir: string; vaultDir: string };
+    exists: { cacheDir: boolean; dbDir: boolean; vaultDir: boolean };
+  } | null>(null);
+  const [pathInputs, setPathInputs] = useState({ cacheDir: '', dbDir: '', vaultDir: '' });
+  const [pathSaved, setPathSaved] = useState(false);
+
   const [comfyuiPath, setComfyuiPath] = useState(prefs.comfyuiPath || '');
   const [comfyuiUrl, setComfyuiUrl] = useState(prefs.comfyuiUrl || 'http://127.0.0.1:8188');
   const [comfyuiWorkflowJson, setComfyuiWorkflowJson] = useState(prefs.comfyuiWorkflowJson || '');
@@ -157,6 +166,13 @@ export const SettingsView = () => {
       setVerifyStatus(prev => ({ ...prev, [idx]: { ok: false, error: msg } }));
     }
   };
+
+  useEffect(() => {
+    fetch('/api/settings/paths').then(r => r.json()).then(data => {
+      setStoragePaths(data);
+      setPathInputs({ cacheDir: data.custom.cacheDir, dbDir: data.custom.dbDir, vaultDir: data.custom.vaultDir });
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     subscribeGenThumbs();
@@ -594,6 +610,90 @@ export const SettingsView = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Storage Paths */}
+          <div style={card}>
+            <h3 style={{ ...cardH, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="icon-database" /> Storage Paths
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
+              Override where cache, database, and vault files are stored. Applied to all profiles. Requires a server restart to take effect. If the configured folder is deleted, the default path is used.
+            </p>
+            {storagePaths && (() => {
+              const browse = async (key: 'cacheDir' | 'dbDir' | 'vaultDir') => {
+                try {
+                  const r = await fetch('/api/browse-folders-native');
+                  const d = await r.json();
+                  if (d.path) setPathInputs(prev => ({ ...prev, [key]: d.path }));
+                  else if (d.error) alert(d.error);
+                } catch {}
+              };
+              const savePath = async (key: 'cacheDir' | 'dbDir' | 'vaultDir') => {
+                const val = pathInputs[key].trim();
+                try {
+                  const r = await fetch('/api/settings/paths', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [key]: val }) });
+                  const d = await r.json();
+                  if (d.ok) {
+                    setPathSaved(true);
+                    if (window.toast) window.toast('Saved — restart server to apply');
+                    setTimeout(() => setPathSaved(false), 3000);
+                    const r2 = await fetch('/api/settings/paths');
+                    const d2 = await r2.json();
+                    setStoragePaths(d2);
+                    setPathInputs({ cacheDir: d2.custom.cacheDir, dbDir: d2.custom.dbDir, vaultDir: d2.custom.vaultDir });
+                  } else if (d.error) { if (window.toast) window.toast(d.error); }
+                } catch {}
+              };
+              const rows: { key: 'cacheDir' | 'dbDir' | 'vaultDir'; label: string; hint: string }[] = [
+                { key: 'cacheDir', label: 'Cache Folder', hint: 'Thumbnails, favourites, ratings, history and other cached data.' },
+                { key: 'dbDir',    label: 'Database Folder', hint: 'SQLite database files for all profiles.' },
+                { key: 'vaultDir', label: 'Vault / Hidden Folder', hint: 'Encrypted vault storage (videos/hidden by default).' },
+              ];
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {rows.map(({ key, label, hint }) => {
+                    const isDefault = !storagePaths.custom[key];
+                    const active = storagePaths[key];
+                    return (
+                      <div key={key}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tx)' }}>{label}</span>
+                          {isDefault
+                            ? <span style={{ fontSize: '11px', color: 'var(--tx3)', background: 'var(--bg3)', padding: '1px 6px', borderRadius: '4px' }}>default</span>
+                            : <span style={{ fontSize: '11px', color: 'var(--ac)', background: 'var(--bg3)', padding: '1px 6px', borderRadius: '4px' }}>custom</span>
+                          }
+                          {!storagePaths.exists[key] && (
+                            <span style={{ fontSize: '11px', color: '#e05', background: 'rgba(220,0,50,0.1)', padding: '1px 6px', borderRadius: '4px' }}>not found</span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: '12px', color: 'var(--tx3)', margin: '0 0 6px' }}>{hint}</p>
+                        <div style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '6px', wordBreak: 'break-all' }}>
+                          Active: <code style={{ color: 'var(--tx2)' }}>{active}</code>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <input
+                            value={pathInputs[key]}
+                            onInput={(e: any) => setPathInputs(prev => ({ ...prev, [key]: e.target.value }))}
+                            placeholder={storagePaths.defaults[key]}
+                            style={{ ...inp, flex: 1, width: 'auto', fontSize: '13px' }}
+                          />
+                          <button className="modal-btn modal-btn--secondary" onClick={() => browse(key)}>Browse…</button>
+                          {!isDefault && (
+                            <button className="modal-btn modal-btn--danger" style={{ padding: '6px 10px', fontSize: '12px' }}
+                              onClick={() => setPathInputs(prev => ({ ...prev, [key]: '' }))}>Reset</button>
+                          )}
+                          <button className="modal-btn modal-btn--primary" onClick={() => savePath(key)}>Save</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {pathSaved && (
+                    <p style={{ fontSize: '13px', color: 'var(--ac)', margin: '0' }}>Saved — restart the server to apply changes.</p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* ComfyUI Path */}
