@@ -888,7 +888,7 @@ export const SettingsView = () => {
                   <div>
                     <div style={{ fontSize: '14px', color: 'var(--tx)', fontWeight: 600 }}>{p.name}</div>
                     {p.description && <div style={{ fontSize: '12px', color: 'var(--tx3)' }}>{p.description}</div>}
-                    <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px' }}>{p.location === 'sidebar' ? 'Sidebar' : 'Topbar'}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px' }}>{p.location === 'sidebar' ? 'Sidebar' : p.location === 'home' || p.type === 'widget' ? 'Home widget' : 'Topbar'}</div>
                   </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
                     <input type="checkbox" checked={isPluginEnabled(p.id)} onChange={() => togglePlugin(p.id)} style={{ width: '16px', height: '16px' }} />

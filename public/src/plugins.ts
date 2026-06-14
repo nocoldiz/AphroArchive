@@ -5,15 +5,22 @@ export interface PluginMeta {
   id: string;
   name: string;
   description?: string;
-  location: 'topbar' | 'sidebar';
-  type: 'view' | 'toggle';
+  location: 'topbar' | 'sidebar' | 'home';
+  type: 'view' | 'toggle' | 'widget';
   view?: string;
   toggleAction?: string;
   enabledByDefault?: boolean;
   contexts?: string[];
-  // When present, the plugin is also offered as a home-dashboard widget.
-  // `w`/`h` are the default column/row span on the home grid.
-  homeWidget?: { name?: string; w?: number; h?: number };
+  // When present, the plugin is offered as a home-dashboard widget. The
+  // render code (if any) lives in plugins/<id>/widget.tsx; view/toggle
+  // plugins without one render as a shortcut button. `w`/`h` are the
+  // default column/row span; min/max constrain resizing.
+  homeWidget?: {
+    name?: string;
+    w?: number; h?: number;
+    minW?: number; minH?: number; maxH?: number;
+    singleton?: boolean;
+  };
 }
 
 export const pluginsList = signal<PluginMeta[]>([]);

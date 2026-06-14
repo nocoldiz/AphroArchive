@@ -16,6 +16,9 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 5173,
+    // Home-dashboard widgets live in <repo>/plugins/*/widget.tsx, one level
+    // above the Vite root (public/); allow the dev server to read them.
+    fs: { allow: ['..'] },
     proxy: {
       '/api': 'http://localhost:3000',
       '/stream': 'http://localhost:3000',

@@ -201,18 +201,33 @@ Plugins live in `plugins/<id>/meta.json`. The `PluginMeta` interface:
   id: string;          // directory name
   name: string;
   description?: string;
-  location: 'topbar' | 'sidebar';
-  type: 'view' | 'toggle';
+  location: 'topbar' | 'sidebar' | 'home';
+  type: 'view' | 'toggle' | 'widget';
   view?: string;       // currentView value to navigate to (type='view')
   toggleAction?: string; // window[toggleAction]() to call (type='toggle')
   enabledByDefault?: boolean;
   contexts?: string[]; // views where this plugin button should show
+  homeWidget?: {       // present → offered on the home dashboard (see below)
+    name?: string; w?: number; h?: number;
+    minW?: number; minH?: number; maxH?: number; singleton?: boolean;
+  };
 }
 ```
 
-Current plugins: `instagram` (view→instagram), `reddit` (view→reddit), `mosaic` (toggle→`toggleMosaic`, contexts=[browse,player,home]), `zapping` (toggle→`toggleZapping`).
+Current plugins: `instagram` (view→instagram), `reddit` (view→reddit), `mosaic` (toggle→`toggleMosaic`, contexts=[browse,player,home]), `zapping` (toggle→`toggleZapping`). Plus the home-dashboard widget plugins (`type: 'widget'`, `location: 'home'`): `hero`, `continue-watching`, `new-additions`, `recommended`, `recently-watched`, `tonight`, `surprise`, `mood`, `pinned-shelf`, `quick-links`.
 
 `isPluginEnabled(id)` checks `appPrefs.disabledPlugins`. `runPluginAction(plugin, currentView)` dispatches navigation or calls the toggle function. `togglePlugin(id)` persists the change via `updatePrefs`.
+
+### Home Dashboard (`public/src/home/`)
+
+The home view (`currentView === 'hub'`) is a resizable widget grid (`HomeView` → `Dashboard`), not a fixed card list. **Widgets are plugins.** Each lives in `plugins/<id>/` with a `meta.json` declaring a `homeWidget` block and (optionally) a `widget.tsx` that default-exports `(instance: WidgetInstance) => ComponentChildren`. `home/widgets.tsx` bundles every `plugins/*/widget.tsx` via `import.meta.glob` and merges it with the plugin metadata from `/api/plugins`; view/toggle plugins that declare a `homeWidget` but ship no `widget.tsx` render as a shortcut button. Vite's `server.fs.allow: ['..']` lets the dev server read the plugin folder above its `public/` root.
+
+- `home/dashboardStore.ts` — layout signals + persistence. Layout is an ordered `WidgetInstance[]` (`{ iid, type, w, h, config }`); persisted to both `localStorage` and `appPrefs.homeDashboard` (server settings, allowlisted in `settings-server.js`). `DASH_COLS=4`, `DASH_ROW_H=130`.
+- `home/Dashboard.tsx` — the grid, Edit mode (drag-to-reorder, per-widget resize grip that snaps span to the grid, remove) and the "Add widget" picker. Responsive: 4 / 2 / 1 columns by width.
+- `home/shared.tsx` — presentational helpers widgets import (`WidgetShell`, `MiniCard`, `Row`, `thumbFor`, `nav`, `openVid`).
+- `home/progress.ts` — localStorage playback-progress map powering Continue Watching + AdvancedPlayer auto-resume. `home/recommend.ts` — on-device taste scoring. `home/homeData.ts` — cached `/api/history`.
+
+To add a widget: create `plugins/<id>/meta.json` (+ optional `widget.tsx`). No registry edit needed.
 
 ### Frontend (`public/`)
 
