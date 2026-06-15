@@ -18,7 +18,7 @@ const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_
   BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
-const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites } = require('./server/db-server');
+const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites, getMediaCounts } = require('./server/db-server');
 const { initVideoMeta } = require('./server/videos-server');
 const { getLocalIPs, getLocalIP } = require('./server/config-server');
 
@@ -195,6 +195,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/encryption/stop' && req.method === 'POST') return videos.apiEncryptionStop(req, res);
 
   if (p === '/api/scan/events' && req.method === 'GET') return videos.apiScanEvents(req, res);
+  if (p === '/api/media-counts' && req.method === 'GET') { const { json: j } = require('./server/helpers-server'); return j(res, getMediaCounts()); }
   if (p === '/api/preload' && req.method === 'GET') return videos.apiPreload(req, res);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetailFast(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
@@ -232,6 +233,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/tags$/)) && req.method === 'GET') return videos.apiVideoTags(req, res, m[1]);
   if ((m = p.match(/^\/api\/db-tags\/(.+)$/)) && req.method === 'GET') return videos.apiDbTagVideos(req, res, decodeURIComponent(m[1]));
   if ((m = p.match(/^\/api\/tags\/(.+)$/)) && req.method === 'GET') return videos.apiTagVideos(req, res, decodeURIComponent(m[1]));
+  if ((m = p.match(/^\/api\/tags\/(.+)$/)) && req.method === 'DELETE') return videos.apiDeleteTag(req, res, decodeURIComponent(m[1]));
+  if ((m = p.match(/^\/api\/tags\/(.+)$/)) && req.method === 'PATCH') return videos.apiRenameTag(req, res, decodeURIComponent(m[1]));
   if (p === '/api/channels' && req.method === 'GET') return videos.apiChannels(req, res);
   if ((m = p.match(/^\/api\/channels\/(.+)$/)) && req.method === 'GET') return videos.apiChannelVideos(req, res, decodeURIComponent(m[1]));
 
@@ -395,6 +398,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/import-links' && req.method === 'POST') return vault.apiVaultImportLinks(req, res);
   if (p === '/api/vault/move-links' && req.method === 'POST') return vault.apiVaultMoveLinks(req, res);
   if (p === '/api/vault/restore-link' && req.method === 'POST') return vault.apiVaultRestoreLink(req, res);
+  if (p === '/api/vault/restore-links' && req.method === 'POST') return vault.apiVaultRestoreLinks(req, res);
   if (p === '/api/vault/link-fav' && req.method === 'POST') return vault.apiVaultLinkFav(req, res);
 
   // ── Presets ──────────────────────────────────────────────────────────

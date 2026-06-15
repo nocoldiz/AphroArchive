@@ -1417,6 +1417,26 @@ async function apiVaultRestoreLink(req, res) {
   json(res, { ok: true });
 }
 
+async function apiVaultRestoreLinks(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  resetVaultTimer();
+  const body = await readBody(req);
+  const urls = Array.isArray(body.urls) ? body.urls : [];
+  if (!urls.length) return json(res, { error: 'No URLs provided' }, 400);
+  const urlSet = new Set(urls);
+  const links = _loadVaultLinksEnc();
+  const restored = [];
+  const remaining = [];
+  for (const link of links) {
+    if (urlSet.has(link.url)) { restored.push(link); }
+    else { remaining.push(link); }
+  }
+  _saveVaultLinksEnc(remaining);
+  const { upsertLink } = require('./db-server');
+  for (const link of restored) upsertLink({ ...link, vault: 0 });
+  json(res, { ok: true, restored: restored.length });
+}
+
 module.exports = {
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
@@ -1428,7 +1448,7 @@ module.exports = {
   apiVaultReadBook, apiVaultStreamPage, apiVaultPageResource,
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
-  apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultLinkFav,
+  apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
   deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
   encryptBufferToVault,
   shredFile: _shredFile,

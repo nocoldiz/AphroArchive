@@ -115,7 +115,7 @@ export const CategoriesView = () => {
             };
             const onContextMenu = (e: MouseEvent) => {
               if (item.type === 'cat' && w.showContextMenu) {
-                w.showContextMenu(e, 'category', {
+                w.showContextMenu(e, 'folder', {
                   path: item.path,
                   name: item.name,
                   encrypted: !!item.encrypted,

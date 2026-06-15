@@ -336,6 +336,10 @@ input {
   background: var(--bg2)
 }
 
+.sidebar-item.on::after {
+  transform: scaleX(0)
+}
+
 .sidebar-item.drop-over {
   border-left-color: var(--ac);
   background: var(--acg);
@@ -3739,7 +3743,11 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-right: 16px
+  padding-right: 16px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 20
 }
 
 .sidebar-heading-chevron {
@@ -3751,6 +3759,14 @@ input {
 
 .sidebar-heading.closed .sidebar-heading-chevron {
   transform: rotate(-90deg)
+}
+
+.sidebar-heading:hover {
+  background: var(--bg2)
+}
+
+.sidebar-heading.closed {
+  border-bottom: 1px solid var(--brd)
 }
 
 .sidebar-heading-add {
@@ -8047,6 +8063,29 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   z-index: 999;
 }
 
+/* ── Two-pane sidebar ── */
+.side.two-pane {
+  width: 440px;
+  flex-direction: row;
+}
+
+.side-nav-pane {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--brd);
+}
+
+.side-filter-pane {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Hide the first separator in the filter pane so it doesn't add a gap at the top */
+.side-filter-pane > .side-sep:first-child,
+.side-filter-pane > div:first-child > .side-sep:first-child {
+  display: none;
+}
+
 @media (max-width: 860px) {
   .burger-btn {
     display: flex;
@@ -8074,6 +8113,21 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
     background: var(--bg2) !important;
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 5px 0 15px rgba(0, 0, 0, 0.5);
+  }
+
+  .side.two-pane {
+    flex-direction: column;
+  }
+
+  .side.two-pane .side-nav-pane {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--brd);
+    flex-shrink: 1;
+  }
+
+  .side.two-pane .side-filter-pane {
+    flex: 1;
   }
 
   .side.open {

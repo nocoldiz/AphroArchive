@@ -2019,6 +2019,41 @@ function saveSeries(seriesArray) {
   });
 }
 
+function deleteTagFromAllVideos(tag) {
+  _videoMeta = null;
+  try { db.prepare('DELETE FROM video_tags WHERE LOWER(tag) = LOWER(?)').run(tag); } catch (e) { console.error(e); }
+}
+
+function renameTagInAllVideos(oldTag, newTag) {
+  _videoMeta = null;
+  try { db.prepare('UPDATE video_tags SET tag = ? WHERE LOWER(tag) = LOWER(?)').run(newTag, oldTag); } catch (e) { console.error(e); }
+}
+
+// ── Media counts (sidebar badges) ────────────────────────────────────────
+function getMediaCounts() {
+  const { PAGES_DIR, SCREENSHOTS_DIR } = require('./config-server');
+  const PAGE_EXT = new Set(['.html', '.htm', '.xhtml', '.mhtml']);
+  const IMG_EXT  = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp']);
+  const dirCount = (dir, extSet) => {
+    try { return fs.readdirSync(dir).filter(f => extSet.has(path.extname(f).toLowerCase())).length; } catch { return 0; }
+  };
+  try {
+    const q = (sql) => { try { return db.prepare(sql).get().c; } catch { return 0; } };
+    return {
+      links:       q('SELECT COUNT(*) as c FROM links WHERE vault = 0 OR vault IS NULL'),
+      audio:       q('SELECT COUNT(*) as c FROM audio_meta') + q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'audio'"),
+      books:       q('SELECT COUNT(*) as c FROM books_meta') + q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'book'"),
+      photos:      q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'photo'"),
+      files:       q('SELECT COUNT(*) as c FROM files_meta'),
+      pages:       dirCount(PAGES_DIR, PAGE_EXT),
+      screenshots: dirCount(SCREENSHOTS_DIR, IMG_EXT),
+    };
+  } catch (e) {
+    console.error('Failed to get media counts:', e);
+    return { links: 0, audio: 0, books: 0, photos: 0, files: 0, pages: 0, screenshots: 0 };
+  }
+}
+
 module.exports = {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -2048,7 +2083,9 @@ module.exports = {
   switchProfile, getCurrentProfile: () => currentProfile,
   isDbOnDisk: () => !_dbInMemory,
   closeDb: () => { if (db) { db.close(); db = null; } },
+  getMediaCounts,
   saveLinksToDb, loadAllVideoTags,
   loadSeries, upsertSeries, deleteSeries, saveSeries,
   loadAlbums, upsertAlbum, deleteAlbum, saveAlbums,
+  deleteTagFromAllVideos, renameTagInAllVideos,
 };

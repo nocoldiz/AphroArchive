@@ -162,6 +162,13 @@ export const DownloadQueueView = () => {
     } catch (e) { console.error(e); }
   };
 
+  const clearAllJobs = async () => {
+    try {
+      await fetch('/api/download/jobs', { method: 'DELETE' });
+      setJobs([]);
+    } catch (e) { console.error(e); }
+  };
+
   const getJobForUrl = (url: string) => jobs.find(j => j.url === url);
 
   const activeJobs = jobs.filter(j => j.status === 'queued' || j.status === 'running');
@@ -201,13 +208,30 @@ export const DownloadQueueView = () => {
         </div>
       </div>
 
-      {activeJobs.length > 0 && (
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px' }}>
-          <strong>{activeJobs.length} active</strong> — {activeJobs.map(j => (
-            <span key={j.id} style={{ marginRight: '12px', color: 'var(--tx2)' }}>
-              {j.title} {j.status === 'running' && j.progress != null ? `${j.progress.toFixed(0)}%` : j.status}
-            </span>
-          ))}
+      {jobs.length > 0 && (
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px', padding: '10px 16px', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            {activeJobs.length > 0 ? (
+              <>
+                <strong>{activeJobs.length} active</strong> — {activeJobs.map(j => (
+                  <span key={j.id} style={{ marginRight: '12px', color: 'var(--tx2)' }}>
+                    {j.title} {j.status === 'running' && j.progress != null ? `${j.progress.toFixed(0)}%` : j.status}
+                  </span>
+                ))}
+              </>
+            ) : (
+              <span style={{ color: 'var(--tx3)' }}>{jobs.length} job{jobs.length !== 1 ? 's' : ''} in queue</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={clearAllJobs}
+            className="modal-btn modal-btn--secondary"
+            style={{ padding: '4px 10px', fontSize: '12px', color: '#f44336', borderColor: '#f44336' }}
+            title="Cancel running jobs and remove all entries from the queue"
+          >
+            Clear Queue
+          </button>
         </div>
       )}
 

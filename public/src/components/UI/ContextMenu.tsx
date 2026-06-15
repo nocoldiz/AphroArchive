@@ -194,6 +194,39 @@ export const ContextMenu = () => {
     contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
 
+  const handleRenameTag = async () => {
+    const tagName = data.name;
+    const newName = prompt('Rename tag to:', tagName);
+    if (!newName || newName === tagName) return;
+    closeMenu();
+    const r = await fetch(`/api/tags/${encodeURIComponent(tagName)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newName })
+    });
+    if (r.ok) {
+      toast(`Tag renamed to "${newName}"`);
+      data.onRefresh?.();
+      refresh();
+    } else {
+      toast('Rename failed');
+    }
+  };
+
+  const handleDeleteTag = async () => {
+    const tagName = data.name;
+    if (!confirm(`Remove tag "${tagName}" from all videos?`)) return;
+    closeMenu();
+    const r = await fetch(`/api/tags/${encodeURIComponent(tagName)}`, { method: 'DELETE' });
+    if (r.ok) {
+      toast(`Tag "${tagName}" removed from all videos`);
+      data.onRefresh?.();
+      refresh();
+    } else {
+      toast('Delete failed');
+    }
+  };
+
   const toFolderEntries = (cats: any[], rootPath: string): FolderEntry[] =>
     cats
       .filter((c: any) => c.path && c.path !== rootPath && c.path.startsWith(rootPath + '/'))
@@ -502,6 +535,8 @@ export const ContextMenu = () => {
               onClick={handleTogglePinTag}
             />
             <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
+            <ContextItem label="Rename Tag" icon="edit" onClick={handleRenameTag} />
+            <ContextItem label="Remove from all videos" icon="trash" color="#ff4a4a" onClick={handleDeleteTag} />
           </>
         )}
         {(type === 'file' || type === 'book' || type === 'audio' || type === 'photo' || type === 'page') && (

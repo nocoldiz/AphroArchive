@@ -84,6 +84,7 @@ export interface AppPrefs {
   whisperModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'turbo';
   whisperLanguage?: string;
   autoChapterDetection?: boolean;
+  sidebarLayout?: 'default' | 'two-pane';
 }
 export interface ThumbnailGroup {
   id: string;

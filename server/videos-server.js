@@ -1985,6 +1985,21 @@ function apiTagSuggestions(req, res) {
   json(res, result.sort((a, b) => a.localeCompare(b)));
 }
 
+function apiDeleteTag(req, res, tagName) {
+  const { deleteTagFromAllVideos } = require('./db-server');
+  deleteTagFromAllVideos(tagName);
+  json(res, { ok: true });
+}
+
+async function apiRenameTag(req, res, tagName) {
+  const body = await readBody(req);
+  const newName = (body.newName || '').trim();
+  if (!newName) return json(res, { error: 'newName required' }, 400);
+  const { renameTagInAllVideos } = require('./db-server');
+  renameTagInAllVideos(tagName, newName);
+  json(res, { ok: true });
+}
+
 // ── Channels ──────────────────────────────────────────────────────────
 
 async function apiChannels(req, res) {
@@ -3379,6 +3394,7 @@ module.exports = {
   apiSetRating, apiDeleteRating,
   apiUpdateVideoMeta, apiOpenFolder, apiOpenFolderInExplorer, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
+  apiDeleteTag, apiRenameTag,
   apiDbTags, apiDbTagVideos,
   apiChannels, apiChannelVideos,
   apiAudioTracks,

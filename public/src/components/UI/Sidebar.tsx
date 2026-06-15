@@ -1,5 +1,5 @@
-﻿import { useState, useEffect, useMemo } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos } from '../../store';
+﻿import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos, linkTotalCount, mediaCounts } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 
 interface SidebarItemProps {
@@ -58,8 +58,8 @@ const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave,
   );
 };
 
-const SectionHeader = ({ label, id, style, onClick, action }: { label: string, id: string, style?: any, onClick?: () => void, action?: any }) => (
-  <h3 className="sidebar-heading" id={id} style={style} onClick={onClick}>
+const SectionHeader = ({ label, id, open, style, onClick, action }: { label: string, id: string, open?: boolean, style?: any, onClick?: () => void, action?: any }) => (
+  <h3 className={`sidebar-heading${open === false ? ' closed' : ''}`} id={id} style={style} onClick={onClick}>
     {label}
     <svg className="sidebar-heading-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
       <path d="m6 9 6 6 6-6" />
@@ -122,6 +122,9 @@ export const Sidebar = () => {
   const [vaultFoldersOpen, setVaultFoldersOpen] = useState(() => sectionState('vaultFolders'));
   const [pluginsOpen, setPluginsOpen] = useState(() => sectionState('plugins'));
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const filterScrollRef = useRef<HTMLDivElement>(null);
+
   const toggleLibrary = makeToggle('library', setLibraryOpen);
   const toggleManage = makeToggle('manage', setManageOpen);
   const toggleBrowse = makeToggle('browse', setBrowseOpen);
@@ -135,20 +138,50 @@ export const Sidebar = () => {
     loadPlugins();
   }, []);
 
-  const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
+  // Update sticky top offsets so headings stack instead of overlap
+  useEffect(() => {
+    [scrollRef, filterScrollRef].forEach(ref => {
+      const container = ref.current;
+      if (!container) return;
+      const headings = container.querySelectorAll<HTMLElement>('.sidebar-heading');
+      const total = headings.length;
+      let offset = 0;
+      headings.forEach((el, i) => {
+        el.style.top = `${offset}px`;
+        el.style.zIndex = String(20 + total - i);
+        offset += el.offsetHeight || 30;
+      });
+    });
+  });
 
-  const linkCount = allVideos.value.filter(v => (v as any).isLink).length;
+  const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
+  const isTwoPane = appPrefs.value.sidebarLayout !== 'default';
 
   useEffect(() => {
+    const el = document.getElementById('side');
+    if (el) el.classList.toggle('two-pane', isTwoPane);
+  }, [isTwoPane]);
+
+  const linkCount = linkTotalCount.value;
+  const mc = mediaCounts.value;
+
+  const reloadTags = () => {
     fetch('/api/db-tags')
       .then(r => r.json())
       .then((data: any[]) => setTagGroups(data.map(g => ({ displayName: g.displayName, terms: g.terms || [] }))))
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    reloadTags();
 
     fetch('/api/photos/folders')
       .then(r => r.json())
       .then(setPhotoFolders)
       .catch(() => {});
+
+    (window as any)._sidebarReloadTags = reloadTags;
+    return () => { delete (window as any)._sidebarReloadTags; };
   }, [activeProfile.value]);
 
   useEffect(() => {
@@ -229,7 +262,7 @@ export const Sidebar = () => {
           onContextMenu={(e) => {
             e.preventDefault();
             if ((window as any).showContextMenu) {
-              (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
+              (window as any).showContextMenu(e, 'folder', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
             }
           }}
           onDragOver={!inVaultMode ? (e) => {
@@ -364,12 +397,12 @@ export const Sidebar = () => {
     return pins.map(n => byName.get(n)).filter(Boolean) as typeof displayTags;
   }, [appPrefs.value.pinnedTags, displayTags]);
 
-  return (
+  const opacityStyle = { transition: 'opacity 0.25s ease', opacity: isLoadingVideos.value ? 0.4 : 1 } as const;
+
+  const navContent = (
     <>
-      {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
-      <div className="side-scroll" style={{ transition: 'opacity 0.25s ease', opacity: isLoadingVideos.value ? 0.4 : 1 }}>
       {/* Library */}
-      <SectionHeader label="Library" id="sh3-library" onClick={toggleLibrary} />
+      <SectionHeader label="Library" id="sh3-library" open={libraryOpen} onClick={toggleLibrary} />
       <div className="side-section" id="librarySection" style={{ display: libraryOpen ? 'block' : 'none' }}>
         <SidebarItem
           id="home-sidebar"
@@ -409,9 +442,9 @@ export const Sidebar = () => {
         {renderSectionPlugins('library')}
       </div>
 
-      {/* Browse — the Vault is a superuser, so this stays visible in vault mode */}
+      {/* Browse */}
       <><div className="side-sep"></div>
-      <SectionHeader label="Browse" id="sh3-browse" onClick={toggleBrowse} />
+      <SectionHeader label="Browse" id="sh3-browse" open={browseOpen} onClick={toggleBrowse} />
       <div style={{ display: browseOpen ? 'block' : 'none' }}>
         <div className="side-section" id="browseSection">
           <SidebarItem
@@ -462,13 +495,14 @@ export const Sidebar = () => {
       </div>
       </>
 
-      {/* Media — the Vault is a superuser, so this stays visible in vault mode */}
+      {/* Media */}
       <><div className="side-sep"></div>
-      <SectionHeader label="Media" id="sh3-media" onClick={toggleMedia} />
+      <SectionHeader label="Media" id="sh3-media" open={mediaOpen} onClick={toggleMedia} />
       <div className="side-section" id="mediaSection" style={{ display: mediaOpen ? 'block' : 'none' }}>
         <SidebarItem
           id="videos-media-sidebar"
           label="Videos"
+          badge={vids.filter(v => !(v as any).isLink).length || undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>}
           onClick={() => setView('hub', 'goHome')}
           isActive={currentView.value === 'hub' && !currentFolder.value}
@@ -483,6 +517,7 @@ export const Sidebar = () => {
         <SidebarItem
           id="photos-sidebar"
           label="Photos"
+          badge={mc.photos || undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>}
           onClick={() => { currentPhotoFolder.value = ''; setView('photos', 'showPhotos'); setPhotoFoldersOpen(true); }}
           isActive={currentView.value === 'photos' && !currentPhotoFolder.value}
@@ -499,6 +534,7 @@ export const Sidebar = () => {
         <SidebarItem
           id="screenshots-sidebar"
           label="Screenshots"
+          badge={mc.screenshots || undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>}
           onClick={() => setView('screenshots')}
           isActive={currentView.value === 'screenshots'}
@@ -506,6 +542,7 @@ export const Sidebar = () => {
         <SidebarItem
           id="audio-sidebar"
           label="Audio"
+          badge={mc.audio || undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>}
           onClick={() => setView('audio', 'showAudio')}
           isActive={currentView.value === 'audio'}
@@ -513,6 +550,7 @@ export const Sidebar = () => {
         <SidebarItem
           id="books-sidebar"
           label="Books"
+          badge={mc.books || undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>}
           onClick={() => setView('books', 'showBooks')}
           isActive={currentView.value === 'books'}
@@ -520,6 +558,7 @@ export const Sidebar = () => {
         <SidebarItem
           id="files-sidebar"
           label="Files"
+          badge={mc.files || undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>}
           onClick={() => setView('files')}
           isActive={currentView.value === 'files'}
@@ -527,6 +566,7 @@ export const Sidebar = () => {
         <SidebarItem
           id="pages-sidebar"
           label="Pages"
+          badge={mc.pages || undefined}
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="13" y2="17" /></svg>}
           onClick={() => setView('pages', 'showPages')}
           isActive={currentView.value === 'pages'}
@@ -540,13 +580,12 @@ export const Sidebar = () => {
         />
         {renderSectionPlugins('media')}
       </div>
-
       </>
 
       {/* Plugins — only plugins without a sidebarSection (unplaced plugins) */}
       {pluginsList.value.some(p => p.location === 'sidebar' && !p.sidebarSection && isPluginEnabled(p.id)) && <>
         <div className="side-sep"></div>
-        <SectionHeader label="Plugins" id="sh3-plugins" onClick={togglePlugins} />
+        <SectionHeader label="Plugins" id="sh3-plugins" open={pluginsOpen} onClick={togglePlugins} />
         <div className="side-section" id="pluginsSection" style={{ display: pluginsOpen ? 'block' : 'none' }}>
           {pluginsList.value.filter(p => p.location === 'sidebar' && !p.sidebarSection && isPluginEnabled(p.id)).map(p => (
             <SidebarItem
@@ -567,7 +606,7 @@ export const Sidebar = () => {
 
       {/* Tools */}
       <div className="side-sep"></div>
-      <SectionHeader label="Tools" id="sh3-manage" onClick={toggleManage} />
+      <SectionHeader label="Tools" id="sh3-manage" open={manageOpen} onClick={toggleManage} />
       <div className="side-section" id="manageSection" style={{ display: manageOpen ? 'block' : 'none' }}>
         <SidebarItem
           id="subtitles-sidebar"
@@ -613,9 +652,11 @@ export const Sidebar = () => {
           isActive={currentView.value === 'settings'}
         />
       </div>
+    </>
+  );
 
-
-
+  const filterContent = (
+    <>
       {/* Vault folders — shown only when vault is open */}
       {inVaultMode && vaultFolders.length > 0 && (
         <>
@@ -623,6 +664,7 @@ export const Sidebar = () => {
           <SectionHeader
             label="Vault Folders"
             id="sh3-vault-folders"
+            open={vaultFoldersOpen}
             onClick={toggleVaultFolders}
           />
           <div className="side-section" id="vaultFoldersSection" style={{ display: vaultFoldersOpen ? 'block' : 'none' }}>
@@ -646,6 +688,7 @@ export const Sidebar = () => {
           <SectionHeader
             label={inVaultMode ? 'Encrypted Folders' : 'Folders'}
             id="sh3-cats"
+            open={catsOpen}
             onClick={toggleCats}
             action={
               <span className="sidebar-heading-actions">
@@ -678,7 +721,7 @@ export const Sidebar = () => {
                 onContextMenu={(e) => {
                   e.preventDefault();
                   if ((window as any).showContextMenu) {
-                    (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
+                    (window as any).showContextMenu(e, 'folder', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
                   }
                 }}
                 isActive={currentFolder.value === c.path}
@@ -699,6 +742,7 @@ export const Sidebar = () => {
           <SectionHeader
             label="Tags"
             id="sh3-tags"
+            open={tagsOpen}
             onClick={toggleTags}
             action={
               <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; }}>
@@ -727,7 +771,7 @@ export const Sidebar = () => {
                 onContextMenu={(e) => {
                   e.preventDefault();
                   if ((window as any).showContextMenu) {
-                    (window as any).showContextMenu(e, 'tag', { name: t.name, terms: t.terms });
+                    (window as any).showContextMenu(e, 'tag', { name: t.name, terms: t.terms, onRefresh: reloadTags });
                   }
                 }}
                 isActive={currentTag.value === t.name}
@@ -751,7 +795,7 @@ export const Sidebar = () => {
                 onContextMenu={(e) => {
                   e.preventDefault();
                   if ((window as any).showContextMenu) {
-                    (window as any).showContextMenu(e, 'tag', { name: t.name, terms: t.terms });
+                    (window as any).showContextMenu(e, 'tag', { name: t.name, terms: t.terms, onRefresh: reloadTags });
                   }
                 }}
                 isActive={currentTag.value === t.name}
@@ -760,6 +804,29 @@ export const Sidebar = () => {
           </div>
         </>
       )}
+    </>
+  );
+
+  if (isTwoPane) {
+    return (
+      <>
+        {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
+        <div ref={scrollRef} className="side-scroll side-nav-pane" style={opacityStyle}>
+          {navContent}
+        </div>
+        <div ref={filterScrollRef} className="side-scroll side-filter-pane" style={opacityStyle}>
+          {filterContent}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
+      <div ref={scrollRef} className="side-scroll" style={opacityStyle}>
+        {navContent}
+        {filterContent}
       </div>
     </>
   );

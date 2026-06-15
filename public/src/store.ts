@@ -6,6 +6,8 @@ import * as api from './api';
 export const videos = signal<Video[]>([]);
 export const allVideos = signal<Video[]>([]); // Full unfiltered list
 export const folders = signal<Folder[]>([]);
+export const linkTotalCount = signal<number>(0);
+export const mediaCounts = signal<{ links: number; audio: number; books: number; photos: number; files: number; pages: number; screenshots: number }>({ links: 0, audio: 0, books: 0, photos: 0, files: 0, pages: 0, screenshots: 0 });
 export const actors = signal<Actor[]>([]);
 export const channels = signal<Channel[]>([]);
 export const appPrefs = signal<Partial<AppPrefs>>({});
@@ -681,10 +683,11 @@ async function loadVideosInner() {
   const isVaultGlobal = activeProfile.value === 'Vault' && vaultGlobalView.value;
   const videosUrl = isVaultGlobal ? '/api/videos?all=1' : '/api/videos';
   const foldersUrl = isVaultGlobal ? '/api/folders?all=1' : '/api/folders';
-  const [res, bRes, cRes] = await Promise.all([
+  const [res, bRes, cRes, mcRes] = await Promise.all([
     fetch(videosUrl),
     fetch('/api/links/cache?limit=0').catch(() => null),
     fetch(foldersUrl).catch(() => null),
+    fetch('/api/media-counts').catch(() => null),
   ]);
   if (!res.ok) throw new Error('Failed to fetch videos');
   const data = await res.json();
@@ -697,6 +700,14 @@ async function loadVideosInner() {
     if (bRes) {
       const bData = await bRes.json();
       linksData = bData.items || [];
+      linkTotalCount.value = bData.total ?? linksData.length;
+    }
+  } catch (e) {}
+
+  try {
+    if (mcRes && mcRes.ok) {
+      const mc = await mcRes.json();
+      mediaCounts.value = { links: mc.links || 0, audio: mc.audio || 0, books: mc.books || 0, photos: mc.photos || 0, files: mc.files || 0, pages: mc.pages || 0, screenshots: mc.screenshots || 0 };
     }
   } catch (e) {}
 
