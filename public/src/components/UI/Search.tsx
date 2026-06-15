@@ -1,4 +1,4 @@
-import { searchQuery, currentView, currentFolder, currentTag, currentTagTerms } from '../../store';
+﻿import { searchQuery, currentView, currentFolder, currentTag, currentTagTerms } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 
 const SEARCH_DEBOUNCE_MS = 200;
@@ -27,7 +27,7 @@ export const Search = () => {
         const parse = (s: string) => (s || '').split('\n').map(l => l.trim()).filter(Boolean);
         const hiddenTerms = parse(d.hidden);
         const isHiddenTerm = (name: string) => hiddenTerms.some(t => new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(name));
-        const terms = [...parse(d.actors), ...parse(d.studios), ...parse(d.categories)].filter(t => !isHiddenTerm(t));
+        const terms = [...parse(d.actors), ...parse(d.channels), ...parse(d.categories)].filter(t => !isHiddenTerm(t));
         setAcTerms(terms);
       })
       .catch(() => {});

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+﻿import { useState, useEffect } from 'preact/hooks';
 import { importModalState } from '../../store';
 
 interface Preset {
@@ -8,7 +8,7 @@ interface Preset {
   counts: {
     categories?: number;
     actors?: number;
-    studios?: number;
+    channels?: number;
     websites?: number;
   };
 }
@@ -295,7 +295,7 @@ export const OnboardingWizard = () => {
               <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Initial Data Preset</span>
             </div>
             <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: 'var(--tx3)' }}>
-              Start with a curated set of categories, actors, and studios, or begin with a blank slate.
+              Start with a curated set of categories, actors, and channels, or begin with a blank slate.
             </p>
 
             {/* Blank option */}
@@ -339,7 +339,7 @@ export const OnboardingWizard = () => {
                     <div style={{ fontSize: '0.65rem', color: 'var(--tx3)', marginTop: '2px', display: 'flex', gap: '6px' }}>
                       {p.counts.categories && <span>{p.counts.categories} folders</span>}
                       {p.counts.actors && <span>{p.counts.actors} actors</span>}
-                      {p.counts.studios && <span>{p.counts.studios} studios</span>}
+                      {p.counts.channels && <span>{p.counts.channels} channels</span>}
                     </div>
                   </div>
                 </button>

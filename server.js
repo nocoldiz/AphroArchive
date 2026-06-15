@@ -218,15 +218,15 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-chapters/status' && req.method === 'GET') return autoChapters.apiGenChaptersStatus(req, res);
   if (p === '/api/gen-chapters/poll' && req.method === 'GET') return autoChapters.apiGenChaptersPoll(req, res);
 
-  // ── Tags / Studios ───────────────────────────────────────────────────
+  // ── Tags / Channels ───────────────────────────────────────────────────
   if (p === '/api/tags' && req.method === 'GET') return videos.apiTags(req, res);
   if (p === '/api/db-tags' && req.method === 'GET') return videos.apiDbTags(req, res);
   if (p === '/api/tag-suggestions' && req.method === 'GET') return videos.apiTagSuggestions(req, res);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/tags$/)) && req.method === 'GET') return videos.apiVideoTags(req, res, m[1]);
   if ((m = p.match(/^\/api\/db-tags\/(.+)$/)) && req.method === 'GET') return videos.apiDbTagVideos(req, res, decodeURIComponent(m[1]));
   if ((m = p.match(/^\/api\/tags\/(.+)$/)) && req.method === 'GET') return videos.apiTagVideos(req, res, decodeURIComponent(m[1]));
-  if (p === '/api/studios' && req.method === 'GET') return videos.apiStudios(req, res);
-  if ((m = p.match(/^\/api\/studios\/(.+)$/)) && req.method === 'GET') return videos.apiStudioVideos(req, res, decodeURIComponent(m[1]));
+  if (p === '/api/channels' && req.method === 'GET') return videos.apiChannels(req, res);
+  if ((m = p.match(/^\/api\/channels\/(.+)$/)) && req.method === 'GET') return videos.apiChannelVideos(req, res, decodeURIComponent(m[1]));
 
   // ── Actors ───────────────────────────────────────────────────────────
   if (p === '/api/actors' && req.method === 'GET') return actors.apiActors(req, res);
@@ -405,8 +405,8 @@ const server = http.createServer(async (req, res) => {
   // ── Database ─────────────────────────────────────────────────────────
   if (p === '/api/db/folder-tags' && req.method === 'GET') return database.apiGetFolderTags(req, res);
   if (p === '/api/db/folder-tags' && req.method === 'POST') return database.apiUpdateFolderTags(req, res);
-  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/export$/)) && req.method === 'GET') return database.apiDbExportJson(req, res, m[1]);
-  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/import$/)) && req.method === 'POST') return database.apiDbImportJson(req, res, m[1]);
+  if ((m = p.match(/^\/api\/db\/(actors|categories|channels|websites)\/export$/)) && req.method === 'GET') return database.apiDbExportJson(req, res, m[1]);
+  if ((m = p.match(/^\/api\/db\/(actors|categories|channels|websites)\/import$/)) && req.method === 'POST') return database.apiDbImportJson(req, res, m[1]);
   if (p === '/api/db/series' && req.method === 'GET') return seriesDb.apiGetSeries(req, res);
   if (p === '/api/db/series' && req.method === 'POST') return seriesDb.apiUpsertSeries(req, res);
   if (p === '/api/db/series/export' && req.method === 'GET') return seriesDb.apiExportSeries(req, res);
@@ -417,9 +417,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/db/albums/export' && req.method === 'GET') return albumsDb.apiExportAlbums(req, res);
   if (p === '/api/db/albums/import' && req.method === 'POST') return albumsDb.apiImportAlbums(req, res);
   if ((m = p.match(/^\/api\/db\/albums\/(.+)$/)) && req.method === 'DELETE') return albumsDb.apiDeleteAlbum(req, res, m[1]);
-  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
-  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'POST') return database.apiDbUpsert(req, res, m[1]);
-  if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/(.+)$/)) && req.method === 'DELETE') return database.apiDbDelete(req, res, m[1], decodeURIComponent(m[2]));
+  if ((m = p.match(/^\/api\/db\/(actors|categories|channels|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
+  if ((m = p.match(/^\/api\/db\/(actors|categories|channels|websites)$/)) && req.method === 'POST') return database.apiDbUpsert(req, res, m[1]);
+  if ((m = p.match(/^\/api\/db\/(actors|categories|channels|websites)\/(.+)$/)) && req.method === 'DELETE') return database.apiDbDelete(req, res, m[1], decodeURIComponent(m[2]));
   if (p === '/api/db/import' && req.method === 'POST') return database.apiDbImport(req, res);
 
   // ── Books ────────────────────────────────────────────────────────────
@@ -552,7 +552,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|screenshots|pages|search|favourites|folders|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|folder\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|channels|books|audio|photos|screenshots|pages|search|favourites|folders|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|folder\/|cat\/|actor\/|channel\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

@@ -1,8 +1,24 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
-//  database.js — CRUD API for actors/categories/studios JSON files
+//  database.js — CRUD API for actors/categories/channels JSON files
 //                and direct video file import from local paths
 // ═══════════════════════════════════════════════════════════════════
+
+function channelToJson(s) {
+  return {
+    website: s.website || null,
+    short_description: s.description || null,
+    handle: s.handle || null,
+    channel_id: s.channel_id || null,
+    country: s.country || null,
+    language: s.language || null,
+    subscribers: s.subscribers || null,
+    upload_schedule: s.upload_schedule || null,
+    joined: s.joined || null,
+    total_views: s.total_views || null,
+    social_links: s.social_links || null,
+  };
+}
 
 const fs   = require('fs');
 const path = require('path');
@@ -13,7 +29,7 @@ const {
   loadActors, saveActors,
   loadWebsites, saveWebsites,
   loadFolderMappings, saveFolderMappings,
-  loadStudios, saveStudios,
+  loadChannels, saveChannels,
   invalidateDbTypeCache,
 } = require('./db-server');
 
@@ -30,10 +46,10 @@ function apiDbGet(req, res, type) {
     cats.forEach(c => { obj[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     return json(res, obj);
   }
-  if (type === 'studios') {
-    const studios = loadStudios();
+  if (type === 'channels') {
+    const channels = loadChannels();
     const obj = {};
-    studios.forEach(s => { obj[s.name] = { website: s.website, short_description: s.description }; });
+    channels.forEach(s => { obj[s.name] = channelToJson(s); });
     return json(res, obj);
   }
   if (type === 'actors') {
@@ -68,12 +84,12 @@ async function apiDbUpsert(req, res, type) {
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
-  if (type === 'studios') {
-    const studios = loadStudios();
+  if (type === 'channels') {
+    const channels = loadChannels();
     const raw = {};
-    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    channels.forEach(s => { raw[s.name] = channelToJson(s); });
     raw[name] = data || {};
-    saveStudios(raw);
+    saveChannels(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
@@ -104,12 +120,12 @@ async function apiDbDelete(req, res, type, name) {
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
-  if (type === 'studios') {
-    const studios = loadStudios();
+  if (type === 'channels') {
+    const channels = loadChannels();
     const raw = {};
-    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    channels.forEach(s => { raw[s.name] = channelToJson(s); });
     delete raw[name];
-    saveStudios(raw);
+    saveChannels(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
@@ -193,10 +209,10 @@ function apiDbExportJson(req, res, type) {
     const cats = loadFolderMappings();
     data = {};
     cats.forEach(c => { data[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
-  } else if (type === 'studios') {
-    const studios = loadStudios();
+  } else if (type === 'channels') {
+    const channels = loadChannels();
     data = {};
-    studios.forEach(s => { data[s.name] = { website: s.website || null, short_description: s.description || null }; });
+    channels.forEach(s => { data[s.name] = channelToJson(s); });
   } else if (type === 'websites') {
     data = loadWebsites();
   } else {
@@ -230,12 +246,12 @@ async function apiDbImportJson(req, res, type) {
     cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     Object.assign(raw, body);
     saveFolderMappings(raw);
-  } else if (type === 'studios') {
-    const studios = loadStudios();
+  } else if (type === 'channels') {
+    const channels = loadChannels();
     const raw = {};
-    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    channels.forEach(s => { raw[s.name] = channelToJson(s); });
     Object.assign(raw, body);
-    saveStudios(raw);
+    saveChannels(raw);
   } else {
     return json(res, { error: 'Unknown type' }, 400);
   }

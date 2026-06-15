@@ -13,7 +13,7 @@
   tags?: string[];
   actors?: string[];
   note?: string;
-  studio?: string;
+  channel?: string;
   width?: number | null;
   height?: number | null;
   watched?: boolean;
@@ -45,7 +45,7 @@ export interface Actor {
   photo?: string;
 }
 
-export interface Studio {
+export interface Channel {
   name: string;
   count: number;
 }

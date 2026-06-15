@@ -269,55 +269,35 @@ export const SyncManager = () => {
               onStop={() => scraperAction('/api/reencode/stop')}
             />
 
-            {/* Whisper Subtitles */}
-            <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    <line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/>
-                  </svg>
-                </span>
-                <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>
-                  Whisper Subtitles
-                  {!scrapers.whisper.enabled && <span style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginLeft: '5px' }}>(disabled in settings)</span>}
-                </span>
-                {scrapers.whisper.running ? (
-                  <>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
-                      {(scrapers.whisper.total ?? 0) > 0
-                        ? `${scrapers.whisper.done ?? 0}/${scrapers.whisper.total} (${Math.round(((scrapers.whisper.done ?? 0) / (scrapers.whisper.total ?? 1)) * 100)}%)`
-                        : 'running…'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => scraperAction('/api/gen-whisper/stop')}
-                      style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
-                    >Stop</button>
-                  </>
-                ) : (
+            {/* Whisper Subtitles — shown only when running, like Encryption */}
+            {scrapers.whisper.running && (
+              <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                      <line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/>
+                    </svg>
+                  </span>
+                  <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Generating Subtitles</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
+                    {(scrapers.whisper.total ?? 0) > 0 ? `${scrapers.whisper.done ?? 0}/${scrapers.whisper.total}` : '…'}
+                  </span>
                   <button
                     type="button"
-                    disabled={!scrapers.whisper.enabled}
-                    onClick={() => scraperAction('/api/gen-whisper/start')}
-                    style={{
-                      background: scrapers.whisper.enabled ? 'var(--ac)' : 'var(--bg3)',
-                      color: scrapers.whisper.enabled ? '#fff' : 'var(--tx3)',
-                      border: 'none', borderRadius: '4px', padding: '2px 8px',
-                      fontSize: '0.72rem', cursor: scrapers.whisper.enabled ? 'pointer' : 'default',
-                    }}
-                  >Start</button>
+                    onClick={() => scraperAction('/api/gen-whisper/stop')}
+                    title="Stop"
+                    style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
+                  >Stop</button>
+                </div>
+                {(scrapers.whisper.total ?? 0) > 0 && <ProgressBar done={scrapers.whisper.done} total={scrapers.whisper.total} />}
+                {scrapers.whisper.current && (
+                  <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={scrapers.whisper.current}>
+                    {scrapers.whisper.current}
+                  </div>
                 )}
               </div>
-              {scrapers.whisper.running && (scrapers.whisper.total ?? 0) > 0 && (
-                <ProgressBar done={scrapers.whisper.done} total={scrapers.whisper.total} color="var(--ac)" />
-              )}
-              {scrapers.whisper.running && scrapers.whisper.current && (
-                <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={scrapers.whisper.current}>
-                  {scrapers.whisper.current}
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Actor Data */}
             <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px', borderBottom: '1px solid var(--brd)' }}>

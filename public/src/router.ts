@@ -1,4 +1,4 @@
-import { currentView, currentActor, currentStudio, currentFolder, currentTag, currentVideo, allVideos, enableUrlSync, setRouteResolving } from './store';
+﻿import { currentView, currentActor, currentChannel, currentFolder, currentTag, currentVideo, allVideos, enableUrlSync, setRouteResolving } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
@@ -53,7 +53,7 @@ export async function routeToPath(path: string) {
     currentFolder.value = '';
     currentTag.value = null;
     currentActor.value = null;
-    currentStudio.value = null;
+    currentChannel.value = null;
     return;
   }
 
@@ -75,7 +75,7 @@ export async function routeToPath(path: string) {
     '/chapters':       'chapters',
     '/series':         'series',
     '/actors':         'actors',
-    '/studios':        'studios',
+    '/channels':        'channels',
     '/download-queue': 'download-queue',
     '/prompts':        'prompts',
     '/assistant':      'assistant',
@@ -96,7 +96,7 @@ export async function routeToPath(path: string) {
     currentFolder.value = '';
     currentTag.value = null;
     currentActor.value = null;
-    currentStudio.value = null;
+    currentChannel.value = null;
     return;
   }
 
@@ -132,9 +132,9 @@ export async function routeToPath(path: string) {
     return;
   }
 
-  if ((m = path.match(/^\/studio\/(.+)$/))) {
-    currentStudio.value = decodeURIComponent(m[1]);
-    currentView.value = 'studios';
+  if ((m = path.match(/^\/channel\/(.+)$/))) {
+    currentChannel.value = decodeURIComponent(m[1]);
+    currentView.value = 'channels';
     return;
   }
 
@@ -160,7 +160,7 @@ export function setupRouter() {
       if (w._renderLimit < total) {
         w._renderLimit += 60;
         if (w.curTag) w.openTag(w.curTag);
-        else if (w.studioMode && w.curStudio) w.openStudio(w.curStudio);
+        else if (w.channelMode && w.curChannel) w.openChannel(w.curChannel);
         else if (w.actorMode && w.curActor) w.openActor(w.curActor);
         else if (w.render) w.render();
       }

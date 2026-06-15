@@ -1,4 +1,4 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, studioModalState, appPrefs } from '../../store';
+﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, appPrefs } from '../../store';
 import { zapOn, zapStartTime } from '../../zap';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
@@ -34,7 +34,7 @@ export const PlayerView = () => {
 
   const [actors, setActors] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
-  const [studio, setStudio] = useState<string>('');
+  const [channel, setChannel] = useState<string>('');
   const [rating, setRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [chapters, setChapters] = useState<any[]>([]);
@@ -221,7 +221,7 @@ export const PlayerView = () => {
     ]).then(([d, tracks]) => {
       setActors(d.actors || []);
       setTags(d.tags || []);
-      setStudio(d.studio || '');
+      setChannel(d.channel || '');
       setRating(d.video?.rating ?? null);
       setNote(d.video?.note || '');
       setLanguage(d.video?.language || '');
@@ -309,8 +309,8 @@ export const PlayerView = () => {
     es.onerror = () => { setBatchStatus(null); es.close(); };
   };
 
-  // Refetch actors/tags/studio after the tag/actor/studio modal closes for this video
-  const anyMetaModalOpen = tagModalState.value.visible || actorModalState.value.visible || studioModalState.value.visible;
+  // Refetch actors/tags/channel after the tag/actor/channel modal closes for this video
+  const anyMetaModalOpen = tagModalState.value.visible || actorModalState.value.visible || channelModalState.value.visible;
   const wasMetaModalOpen = useRef(false);
   useEffect(() => {
     if (anyMetaModalOpen) {
@@ -322,7 +322,7 @@ export const PlayerView = () => {
     fetch(`/api/videos/${video.id}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => {
       setActors(d.actors || []);
       setTags(d.tags || []);
-      setStudio(d.studio || '');
+      setChannel(d.channel || '');
     }).catch(() => {});
   }, [video, anyMetaModalOpen]);
 
@@ -793,14 +793,14 @@ export const PlayerView = () => {
               </select>
             </div>
 
-            <div className="player-studio-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
-              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Studio</span>
-              {studio ? (
-                <span style={{ color: 'var(--ac)', cursor: 'pointer', fontWeight: 500 }} onClick={() => (window as any).openStudio(studio)}>{studio}</span>
+            <div className="player-channel-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Channel</span>
+              {channel ? (
+                <span style={{ color: 'var(--ac)', cursor: 'pointer', fontWeight: 500 }} onClick={() => (window as any).openChannel(channel)}>{channel}</span>
               ) : (
                 <span style={{ color: 'var(--tx3)', fontSize: '0.85rem' }}>None</span>
               )}
-              <button className="p-tag-add-btn" onClick={() => (window as any).openStudioModal(video.id)} style={{ marginLeft: '10px', width: '22px', height: '22px', fontSize: '0.75rem' }}>
+              <button className="p-tag-add-btn" onClick={() => (window as any).openChannelModal(video.id)} style={{ marginLeft: '10px', width: '22px', height: '22px', fontSize: '0.75rem' }}>
                 ✎
               </button>
             </div>

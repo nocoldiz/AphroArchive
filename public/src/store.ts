@@ -1,5 +1,5 @@
-import { signal, computed } from '@preact/signals';
-import { Video, Folder, Actor, Studio, AppPrefs, ThumbnailGroup } from './types';
+﻿import { signal, computed } from '@preact/signals';
+import { Video, Folder, Actor, Channel, AppPrefs, ThumbnailGroup } from './types';
 import * as api from './api';
 
 // ─── Core State ──────────────────────────────────────────────────────
@@ -7,7 +7,7 @@ export const videos = signal<Video[]>([]);
 export const allVideos = signal<Video[]>([]); // Full unfiltered list
 export const folders = signal<Folder[]>([]);
 export const actors = signal<Actor[]>([]);
-export const studios = signal<Studio[]>([]);
+export const channels = signal<Channel[]>([]);
 export const appPrefs = signal<Partial<AppPrefs>>({});
 
 // ─── Navigation & View State ──────────────────────────────────────────
@@ -58,7 +58,7 @@ export const actorModalState = signal<{
   vidId: null
 });
 
-export const studioModalState = signal<{
+export const channelModalState = signal<{
   visible: boolean;
   vidId: string | null;
 }>({
@@ -133,7 +133,7 @@ export const currentTag = signal<string | null>(null);
 export const currentTagTerms = signal<string[]>([]);
 export const currentPhotoFolder = signal<string>('');
 export const currentActor = signal<string | null>(null);
-export const currentStudio = signal<string | null>(null);
+export const currentChannel = signal<string | null>(null);
 export const linkVidIds = signal<Set<string>>(new Set());
 
 export function rebuildLinkVidIds(items: any[]) {
@@ -274,7 +274,7 @@ export async function reloadAppData() {
   currentTag.value = null;
   currentTagTerms.value = [];
   currentActor.value = null;
-  currentStudio.value = null;
+  currentChannel.value = null;
   currentPhotoFolder.value = '';
   searchQuery.value = '';
   if (location.pathname !== '/') history.pushState(null, '', '/');
@@ -404,8 +404,8 @@ w.vaultFolders = [];
 w.vaultCurFolder = null;
 w.VAULT_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);
 w.VAULT_IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic']);
-w.studioMode = false;
-w.curStudio = null;
+w.channelMode = false;
+w.curChannel = null;
 w.actorMode = false;
 w.curActor = null;
 w.thumbMap = {};
@@ -433,7 +433,7 @@ w.curVTags = [];
 w.curVAllCategories = [];
 w.curVActors = [];
 w.curVRating = null;
-w.curVStudio = '';
+w.curVChannel = '';
 w.mosTileCount = 6;
 w.mosHoveredIdx = -1;
 w.mosTilesState = [];
@@ -931,9 +931,9 @@ export function syncUrlToState() {
     currentFolder.value = '';
     currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
-  } else if ((m = p.match(/^\/studio\/([^/]+)$/))) {
-    currentView.value = 'studios';
-    currentStudio.value = decodeURIComponent(m[1]);
+  } else if ((m = p.match(/^\/channel\/([^/]+)$/))) {
+    currentView.value = 'channels';
+    currentChannel.value = decodeURIComponent(m[1]);
     currentFolder.value = '';
     currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
@@ -971,8 +971,8 @@ function doUpdateUrl() {
     path = `/video/${encodeURIComponent(video.id)}`;
   } else if (view === 'actors' && currentActor.value) {
     path = `/actor/${encodeURIComponent(currentActor.value)}`;
-  } else if (view === 'studios' && currentStudio.value) {
-    path = `/studio/${encodeURIComponent(currentStudio.value)}`;
+  } else if (view === 'channels' && currentChannel.value) {
+    path = `/channel/${encodeURIComponent(currentChannel.value)}`;
   } else if (view === 'browse' && currentFolder.value) {
     path = `/folder/${encodeURIComponent(currentFolder.value)}`;
   } else if (view === 'browse' && currentTag.value) {
@@ -1106,7 +1106,7 @@ w.refresh = async (full = false) => {
   if (w.foldersMode) { closeView('folders-view', 'foldersMode'); closeView('folders-view-sidebar', 'foldersMode'); }
   if (w.recentMode) { closeView('recent-sidebar', 'recentMode'); }
   if (w.vaultMode) { closeView('vault-view', 'vaultMode'); closeView('vault-sidebar', 'vaultMode'); }
-  if (w.studioMode) { closeView('studios-view', 'studioMode'); closeView('studio-detail-view', 'studioMode'); closeView('studio-sidebar', 'studioMode'); }
+  if (w.channelMode) { closeView('channels-view', 'channelMode'); closeView('channel-detail-view', 'channelMode'); closeView('channel-sidebar', 'channelMode'); }
   if (w.actorMode) { closeView('actors-view', 'actorMode'); closeView('actor-detail-view', 'actorMode'); closeView('actor-sidebar', 'actorMode'); }
   
   currentTag.value = null; currentTagTerms.value = [];
@@ -1135,10 +1135,10 @@ w.openActor = (name: string) => {
   history.pushState(null, '', `/actor/${encodeURIComponent(name)}`);
 };
 
-w.openStudio = (name: string) => {
-  currentView.value = 'studios';
-  currentStudio.value = name;
-  history.pushState(null, '', `/studio/${encodeURIComponent(name)}`);
+w.openChannel = (name: string) => {
+  currentView.value = 'channels';
+  currentChannel.value = name;
+  history.pushState(null, '', `/channel/${encodeURIComponent(name)}`);
 };
 
 w.showImportFavs = () => {

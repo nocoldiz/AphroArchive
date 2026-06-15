@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  videos.js — Video scanning, listing, and all video API handlers
 // ═══════════════════════════════════════════════════════════════════
@@ -15,7 +15,7 @@ const {
 const { pipeline } = require('stream');
 const { promisify } = require('util');
 const pipe = promisify(pipeline);
-const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, studioMatchAny, actorMatchesAny } = require('./helpers-server');
+const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, channelMatchAny, actorMatchesAny } = require('./helpers-server');
 const {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -24,7 +24,7 @@ const {
   resolveCategoryPhysicalPath,
   loadVideoMeta, saveVideoMeta, setVideoMetaFields,
   loadThumbsCache, saveThumbsCache,
-  loadActors, loadFolderMappings, loadStudios,
+  loadActors, loadFolderMappings, loadChannels,
   loadAudioMeta, saveAudioMeta,
   loadBooksMeta, saveBooksMeta,
   loadRatings,
@@ -546,7 +546,7 @@ async function initVideoMeta() {
     const videos     = await cachedScan();
     let changed      = false;
     const categories = loadFolderMappings();
-    const studios    = loadStudios();
+    const channels    = loadChannels();
     const actors     = loadActors();
     let oldRatings   = {};
     try { oldRatings = loadRatings(); } catch {}
@@ -554,13 +554,13 @@ async function initVideoMeta() {
     for (const v of videos) {
       if (!meta[v.id]) {
         const detectedTags   = categories.filter(e => wordMatchAny(v.name, e.terms)).map(e => e.displayName);
-        const detectedStudio = studios.find(e => studioMatchAny(v.name, e.terms));
+        const detectedChannel = channels.find(e => channelMatchAny(v.name, e.terms));
         const detectedActors = actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name);
         meta[v.id] = {
           title: v.name,
           actors: detectedActors,
           tags: detectedTags,
-          studio: detectedStudio ? detectedStudio.name : '',
+          channel: detectedChannel ? detectedChannel.name : '',
           rating: oldRatings[v.id] || null,
           category: v.catPath,
           note: '', date: v.modified,
@@ -1143,7 +1143,7 @@ async function apiVideoDetail(req, res, id) {
     .slice(0, 12)
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
-  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
+  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), channel: vMeta.channel || '' });
 }
 
 // ── Lightweight video detail (fast single-lookup) ──────────────────
@@ -1220,7 +1220,7 @@ async function apiVideoDetailFast(req, res, id) {
 
   const video = { ...v, fav, rating: vMeta.rating ?? null, language: vMeta.language || '', reencoded: !!vMeta.reencoded, duration, durationF: formatDuration(duration), tags: metaTags, chapters: vMeta.chapters || [] };
 
-  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
+  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), channel: vMeta.channel || '' });
 }
 
 // ── Preload endpoint (fast startup data) ──────────────────────────
@@ -1623,7 +1623,7 @@ async function apiUpdateVideoMeta(req, res, id) {
   const videos = await allVideos();
   if (!videos.find(v => v.id === id)) return json(res, { error: 'Not found' }, 404);
   const body    = await readBody(req);
-  const allowed = ['title', 'actors', 'tags', 'studio', 'rating', 'category', 'note', 'date', 'language', 'reencoded'];
+  const allowed = ['title', 'actors', 'tags', 'channel', 'rating', 'category', 'note', 'date', 'language', 'reencoded'];
   const fields  = {};
   for (const key of allowed) { if (key in body) fields[key] = body[key]; }
   setVideoMetaFields(id, fields);
@@ -1945,19 +1945,19 @@ function apiTagSuggestions(req, res) {
   json(res, result.sort((a, b) => a.localeCompare(b)));
 }
 
-// ── Studios ──────────────────────────────────────────────────────────
+// ── Channels ──────────────────────────────────────────────────────────
 
-async function apiStudios(req, res) {
-  const studios = loadStudios();
+async function apiChannels(req, res) {
+  const channels = loadChannels();
   const allVids = await allVideos();
   const enabledPaths = loadEnabledFolders();
   const videos = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const meta    = loadVideoMeta();
-  const result  = studios
+  const result  = channels
     .map(e => ({
       name: e.name,
       count: videos.filter(v => {
-        const ms = (meta[v.id]?.studio || '').toLowerCase();
+        const ms = (meta[v.id]?.channel || '').toLowerCase();
         return ms === e.name.toLowerCase() || wordMatchAny(v.name, e.terms);
       }).length,
       website: e.website,
@@ -1967,24 +1967,24 @@ async function apiStudios(req, res) {
   json(res, result);
 }
 
-async function apiStudioVideos(req, res, studioName) {
-  const studios = loadStudios();
-  const entry   = studios.find(e => e.name.toLowerCase() === studioName.toLowerCase());
+async function apiChannelVideos(req, res, channelName) {
+  const channels = loadChannels();
+  const entry   = channels.find(e => e.name.toLowerCase() === channelName.toLowerCase());
   if (!entry) return json(res, { error: 'Not found' }, 404);
   const allVids   = await allVideos();
   const enabledPaths = loadEnabledFolders();
   const videos = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const meta     = loadVideoMeta();
   const favs     = loadFavs();
-  const studioLo = entry.name.toLowerCase();
+  const channelLo = entry.name.toLowerCase();
 
   const parsed = require('url').parse(req.url, true);
   const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
 
   let list = videos
     .filter(v => {
-      const ms = (meta[v.id]?.studio || '').toLowerCase();
-      return ms === studioLo || wordMatchAny(v.name, entry.terms);
+      const ms = (meta[v.id]?.channel || '').toLowerCase();
+      return ms === channelLo || wordMatchAny(v.name, entry.terms);
     })
     .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
 
@@ -1992,7 +1992,7 @@ async function apiStudioVideos(req, res, studioName) {
 
   list.sort((a, b) => b.mtime - a.mtime);
 
-  json(res, { studio: entry.name, videos: list });
+  json(res, { channel: entry.name, videos: list });
 }
 
 // ── Subtitles ────────────────────────────────────────────────────────
@@ -2182,7 +2182,7 @@ async function apiAddChapter(req, res, id) {
   if (time === undefined) return json(res, { error: 'Time required' }, 400);
 
   const meta = loadVideoMeta();
-  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
+  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], channel: '', rating: null, category: '', note: '', date: '' };
   if (!meta[id].chapters) meta[id].chapters = [];
   
   const chapterId = Date.now().toString();
@@ -3266,7 +3266,7 @@ module.exports = {
   apiUpdateVideoMeta, apiOpenFolder, apiOpenFolderInExplorer, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
   apiDbTags, apiDbTagVideos,
-  apiStudios, apiStudioVideos,
+  apiChannels, apiChannelVideos,
   apiSubtitles, apiSaveSubtitles, apiSubtitleFile, apiSubtitleEmbedded,
   apiImport,
   apiAddChapter, apiDeleteChapter,

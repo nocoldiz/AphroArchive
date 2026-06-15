@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+﻿import { useState, useEffect } from 'preact/hooks';
 import { profileModalState, profiles, activeProfile, switchProfile, loadProfiles, reloadAppData } from '../../store';
 
 interface Preset {
@@ -184,7 +184,7 @@ export const ProfileModal = () => {
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
-              {cloneSource && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: 'var(--tx3)' }}>Categories, tags, studios and websites will be copied. Videos and links will not.</p>}
+              {cloneSource && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: 'var(--tx3)' }}>Categories, tags, channels and websites will be copied. Videos and links will not.</p>}
             </div>
 
             {!cloneSource && (

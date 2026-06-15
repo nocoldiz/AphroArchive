@@ -1,7 +1,7 @@
-// ─── On-device recommendation scoring ────────────────────────────────
+﻿// ─── On-device recommendation scoring ────────────────────────────────
 // Pure client-side scoring used by the "Recommended For You" and
 // "What to Watch Tonight" widgets. Builds a taste profile from watch
-// history (categories / tags / actors / studios) and scores unwatched
+// history (categories / tags / actors / channels) and scores unwatched
 // videos by overlap. No network, no model.
 
 import { Video } from '../types';
@@ -10,7 +10,7 @@ interface TasteProfile {
   cats: Map<string, number>;
   tags: Map<string, number>;
   actors: Map<string, number>;
-  studios: Map<string, number>;
+  channels: Map<string, number>;
   watched: Set<string>;
 }
 
@@ -22,7 +22,7 @@ function bump(m: Map<string, number>, key: string | undefined, weight: number) {
 export function buildTaste(history: Video[]): TasteProfile {
   const p: TasteProfile = {
     cats: new Map(), tags: new Map(), actors: new Map(),
-    studios: new Map(), watched: new Set(),
+    channels: new Map(), watched: new Set(),
   };
   // Most recent history first → earlier entries weigh slightly more.
   history.forEach((v, i) => {
@@ -32,7 +32,7 @@ export function buildTaste(history: Video[]): TasteProfile {
     bump(p.cats, v.catPath || v.category, recency);
     (v.tags || []).forEach(t => bump(p.tags, t.toLowerCase(), recency));
     (v.actors || []).forEach(a => bump(p.actors, a, recency * 1.5));
-    bump(p.studios, v.studio, recency);
+    bump(p.channels, v.channel, recency);
   });
   return p;
 }
@@ -42,7 +42,7 @@ export function scoreVideo(v: Video, p: TasteProfile): number {
   s += (p.cats.get(v.catPath || v.category) || 0) * 3;
   (v.tags || []).forEach(t => { s += (p.tags.get(t.toLowerCase()) || 0) * 2; });
   (v.actors || []).forEach(a => { s += (p.actors.get(a) || 0) * 4; });
-  s += (p.studios.get(v.studio || '') || 0) * 2;
+  s += (p.channels.get(v.channel || '') || 0) * 2;
   return s;
 }
 

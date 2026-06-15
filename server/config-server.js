@@ -97,7 +97,7 @@ const AUDIO_META_FILE = path.join(AUDIO_DIR, '.meta.json');
 const PRESETS_DIR = path.join(ROOT_DIR, 'presets');   // DB preset templates (checked into git)
 const ACTORS_JSON = path.join(DB_DIR, 'actors.json');
 const CATEGORIES_JSON = path.join(DB_DIR, 'categories.json');
-const STUDIOS_JSON = path.join(DB_DIR, 'studios.json');
+const CHANNELS_JSON = path.join(DB_DIR, 'channels.json');
 const WEBSITES_JSON = path.join(DB_DIR, 'websites.json');
 const BM_CACHE_FILE = path.join(CACHE_DIR, 'links_cache.json');
 const OG_THUMB_CACHE_FILE = path.join(LINK_DIR, 'og_thumb_cache.json');
@@ -169,7 +169,7 @@ module.exports = {
   VAULT_CONFIG_FILE, VAULT_META_FILE, BROWSER_WHITELIST_FILE,
   COLLECTIONS_FILE, RATINGS_FILE, HIDDEN_FILE, PREFS_FILE,
   VIDEO_META_FILE, BOOKS_META_FILE, AUDIO_META_FILE,
-  ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, WEBSITES_JSON,
+  ACTORS_JSON, CATEGORIES_JSON, CHANNELS_JSON, WEBSITES_JSON,
   BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
   VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT, MIME, STATIC_MIME,
   getLocalIPs, getLocalIP, PLUGINS_DIR, WIDGETS_DIR,

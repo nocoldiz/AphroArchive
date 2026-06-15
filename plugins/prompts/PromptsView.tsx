@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+﻿import { useState, useEffect, useRef } from 'preact/hooks';
 import {
   type ModelTarget,
   MODEL_TARGETS,
@@ -52,7 +52,7 @@ const PROMPT_SITES = [
   // ── Local ──
   { id: 'comfyui',    name: 'ComfyUI',      url: 'http://127.0.0.1:8188', local: true },
   { id: 'a1111',      name: 'A1111',        url: 'http://127.0.0.1:7860', local: true },
-  { id: 'lmstudio',   name: 'LM Studio',    url: 'http://localhost:1234',  local: true },
+  { id: 'lmchannel',   name: 'LM Channel',    url: 'http://localhost:1234',  local: true },
 ];
 
 interface Prompt {

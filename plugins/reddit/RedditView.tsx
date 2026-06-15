@@ -9,7 +9,7 @@ export const RedditView = () => {
   const [photos, setPhotos] = useState<any[]>([]);
   const [books, setBooks] = useState<any[]>([]);
   const [actors, setActors] = useState<any[]>([]);
-  const [studios, setStudios] = useState<any[]>([]);
+  const [channels, setChannels] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
   
   const [curSub, setCurSub] = useState('all');
@@ -48,7 +48,7 @@ export const RedditView = () => {
         fetch('/api/photos').then(r => r.json()),
         fetch('/api/books').then(r => r.json()),
         fetch('/api/actors').then(r => r.json()),
-        fetch('/api/studios').then(r => r.json()),
+        fetch('/api/channels').then(r => r.json()),
         fetch('/api/tags').then(r => r.json()),
         fetch('/api/settings/lists').then(r => r.json())
       ]);
@@ -57,7 +57,7 @@ export const RedditView = () => {
       setPhotos(p);
       setBooks(b);
       setActors(a);
-      setStudios(st);
+      setChannels(st);
       setTags(t);
       if (lists.hidden) setHiddenTerms(lists.hidden);
 
@@ -101,9 +101,9 @@ export const RedditView = () => {
     } else if (curSub.startsWith('actor:')) {
       const actor = curSub.slice(6);
       list = vids.filter(v => v.actors && v.actors.some((a: string) => a.toLowerCase() === actor.toLowerCase()));
-    } else if (curSub.startsWith('studio:')) {
-      const studio = curSub.slice(7);
-      list = vids.filter(v => v.studio && v.studio.toLowerCase() === studio.toLowerCase());
+    } else if (curSub.startsWith('channel:')) {
+      const channel = curSub.slice(7);
+      list = vids.filter(v => v.channel && v.channel.toLowerCase() === channel.toLowerCase());
     }
 
     if (hiddenTerms.length > 0) {

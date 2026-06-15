@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'preact/hooks';
+﻿import { useState, useEffect, useMemo } from 'preact/hooks';
 import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 
@@ -23,7 +23,7 @@ interface SidebarItemProps {
 const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, onContextMenu, isActive, indent, depth, hasChildren, expanded, onToggleExpand }: SidebarItemProps) => {
   const isTree = depth !== undefined;
   const style: any = isTree
-    ? { paddingLeft: `${32 + depth! * 16}px`, fontSize: '0.85rem' }
+    ? { paddingLeft: depth! > 0 ? `${depth! * 16}px` : undefined, fontSize: '0.85rem' }
     : indent ? { paddingLeft: '32px', fontSize: '0.85rem' } : {};
   return (
     <div
@@ -410,11 +410,11 @@ export const Sidebar = () => {
             isActive={currentView.value === 'actors'}
           />
           <SidebarItem
-            id="studio-sidebar"
-            label="Studios"
+            id="channel-sidebar"
+            label="Channels"
             icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="2" y="7" width="20" height="15" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>}
-            onClick={() => setView('studios', 'showStudios')}
-            isActive={currentView.value === 'studios'}
+            onClick={() => setView('channels', 'showChannels')}
+            isActive={currentView.value === 'channels'}
           />
           <SidebarItem
             id="chapters-sidebar"
@@ -646,7 +646,6 @@ export const Sidebar = () => {
               badge={filteredVids.length}
               onClick={() => { currentView.value = 'browse'; currentFolder.value = ''; currentTag.value = null; currentTagTerms.value = []; isSidebarOpen.value = false; }}
               isActive={!currentFolder.value && !currentTag.value}
-              indent
             />
             {pinnedCats.map(c => (
               <SidebarItem
@@ -662,7 +661,6 @@ export const Sidebar = () => {
                   }
                 }}
                 isActive={currentFolder.value === c.path}
-                indent
               />
             ))}
             {categoryTree.map(node => renderCategoryNode(node, 0))}
@@ -712,7 +710,6 @@ export const Sidebar = () => {
                   }
                 }}
                 isActive={currentTag.value === t.name}
-                indent
               />
             ))}
             {displayTags.filter(t => !(appPrefs.value.pinnedTags || []).includes(t.name)).map(t => (
@@ -737,7 +734,6 @@ export const Sidebar = () => {
                   }
                 }}
                 isActive={currentTag.value === t.name}
-                indent
               />
             ))}
           </div>

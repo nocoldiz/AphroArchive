@@ -1,72 +1,72 @@
-/** @jsxImportSource preact */
+﻿/** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 import { VideoCard } from '../UI/VideoGrid';
 import { Video } from '../../types';
-import { currentStudio, cardSize } from '../../store';
+import { currentChannel, cardSize } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
-interface Studio {
+interface Channel {
   name: string;
   count: number;
   website?: string;
   description?: string;
 }
 
-export const StudiosView = () => {
-  const [studios, setStudios] = useState<Studio[]>([]);
+export const ChannelsView = () => {
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [search, setSearch] = useState('');
-  const [studioVideos, setStudioVideos] = useState<Video[]>([]);
+  const [channelVideos, setChannelVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [sort, setSort] = useState<'name' | 'count-desc'>('name');
 
-  const activeStudioName = currentStudio.value;
+  const activeChannelName = currentChannel.value;
 
   useEffect(() => {
-    if (!activeStudioName) {
+    if (!activeChannelName) {
       setLoading(true);
-      fetch('/api/studios')
+      fetch('/api/channels')
         .then(r => r.json())
         .then(d => {
-          setStudios(d);
+          setChannels(d);
           setLoading(false);
         })
         .catch(() => {
-          setStudios([]);
+          setChannels([]);
           setLoading(false);
         });
     }
-  }, [activeStudioName]);
+  }, [activeChannelName]);
 
   useEffect(() => {
-    if (activeStudioName) {
+    if (activeChannelName) {
       setLoadingVideos(true);
-      fetch(`/api/studios/${encodeURIComponent(activeStudioName)}`)
+      fetch(`/api/channels/${encodeURIComponent(activeChannelName)}`)
         .then(r => r.json())
         .then(d => {
-          setStudioVideos(d.videos || []);
+          setChannelVideos(d.videos || []);
           setLoadingVideos(false);
         })
         .catch(() => {
-          setStudioVideos([]);
+          setChannelVideos([]);
           setLoadingVideos(false);
         });
     }
-  }, [activeStudioName]);
+  }, [activeChannelName]);
 
-  const filteredStudios = search.trim()
-    ? studios.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
-    : studios;
+  const filteredChannels = search.trim()
+    ? channels.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
+    : channels;
 
-  const sortedStudios = [...filteredStudios];
+  const sortedChannels = [...filteredChannels];
   if (sort === 'name') {
-    sortedStudios.sort((a, b) => a.name.localeCompare(b.name));
+    sortedChannels.sort((a, b) => a.name.localeCompare(b.name));
   } else if (sort === 'count-desc') {
-    sortedStudios.sort((a, b) => b.count - a.count);
+    sortedChannels.sort((a, b) => b.count - a.count);
   }
 
-  const activeStudios = sortedStudios.filter(s => s.count > 0);
-  const otherStudios = sortedStudios.filter(s => s.count === 0);
+  const activeChannels = sortedChannels.filter(s => s.count > 0);
+  const otherChannels = sortedChannels.filter(s => s.count === 0);
 
   const colors = ['#e84040', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
   const getColor = (name: string) => {
@@ -77,14 +77,14 @@ export const StudiosView = () => {
     return colors[Math.abs(hash) % colors.length];
   };
 
-  const renderStudioCard = (s: Studio) => {
+  const renderChannelCard = (s: Channel) => {
     const c = getColor(s.name);
 
     return (
       <div
         key={s.name}
         className={`cv-card fade-in ${s.count === 0 ? 'cv-card-unmatched' : ''}`}
-        onClick={() => currentStudio.value = s.name}
+        onClick={() => currentChannel.value = s.name}
         style={{ cursor: 'pointer' }}
       >
         <div className="cv-thumb" style={{ background: `${c}22`, color: c, position: 'relative', overflow: 'hidden' }}>
@@ -106,23 +106,23 @@ export const StudiosView = () => {
     );
   };
 
-  if (activeStudioName) {
+  if (activeChannelName) {
     return (
-      <div id="studio-detail-view" className="studio-detail-view on" style={{ padding: '20px' }}>
+      <div id="channel-detail-view" className="channel-detail-view on" style={{ padding: '20px' }}>
         <div className="view-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-          <button className="btn" onClick={() => currentStudio.value = null} style={{ marginRight: '15px' }}>
+          <button className="btn" onClick={() => currentChannel.value = null} style={{ marginRight: '15px' }}>
             ← Back
           </button>
-          <h1 style={{ margin: 0 }}>{activeStudioName}</h1>
+          <h1 style={{ margin: 0 }}>{activeChannelName}</h1>
         </div>
 
         {loadingVideos ? (
           <div className="cv-loading">Loading videos…</div>
-        ) : studioVideos.length === 0 ? (
-          <div className="empty-state">No videos found for this studio</div>
+        ) : channelVideos.length === 0 ? (
+          <div className="empty-state">No videos found for this channel</div>
         ) : (
           <div className="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
-            {studioVideos.map(v => <VideoCard key={v.id} video={v} isSelected={false} />)}
+            {channelVideos.map(v => <VideoCard key={v.id} video={v} isSelected={false} />)}
           </div>
         )}
       </div>
@@ -130,9 +130,9 @@ export const StudiosView = () => {
   }
 
   return (
-    <div id="studios-view" className="studios-view on" style={{ padding: '20px' }}>
+    <div id="channels-view" className="channels-view on" style={{ padding: '20px' }}>
       <div className="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ margin: 0 }}>Studios</h1>
+        <h1 style={{ margin: 0 }}>Channels</h1>
         <SectionControls
           showStarred={false}
           showShuffle={false}
@@ -150,24 +150,24 @@ export const StudiosView = () => {
       </div>
 
       {loading ? (
-        <div className="cv-loading">Loading studios…</div>
-      ) : filteredStudios.length === 0 ? (
-        <div className="empty-state">No studios found</div>
+        <div className="cv-loading">Loading channels…</div>
+      ) : filteredChannels.length === 0 ? (
+        <div className="empty-state">No channels found</div>
       ) : (
         <>
-          {activeStudios.length > 0 && (
+          {activeChannels.length > 0 && (
             <div className="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px', marginBottom: '40px' }}>
-              {activeStudios.map(renderStudioCard)}
+              {activeChannels.map(renderChannelCard)}
             </div>
           )}
 
-          {otherStudios.length > 0 && (
+          {otherChannels.length > 0 && (
             <>
               <div className="actor-section-sep" style={{ margin: '20px 0', borderBottom: '1px solid var(--border)', paddingBottom: '5px' }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Other Studios</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Other Channels</span>
               </div>
               <div className="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
-                {otherStudios.map(renderStudioCard)}
+                {otherChannels.map(renderChannelCard)}
               </div>
             </>
           )}

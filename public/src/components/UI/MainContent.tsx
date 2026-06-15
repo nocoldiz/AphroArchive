@@ -4,7 +4,7 @@ import { SettingsView } from '../sections/SettingsView';
 import { ThumbnailsView } from '../sections/ThumbnailsView';
 import { CategoriesView } from '../sections/CategoriesView';
 import { ActorsView } from '../sections/ActorsView';
-import { StudiosView } from '../sections/StudiosView';
+import { ChannelsView } from '../sections/ChannelsView';
 import { PhotosView } from '../sections/PhotosView';
 import { ScreenshotsView } from '../sections/ScreenshotsView';
 import { LinksView } from '../sections/LinksView';
@@ -16,7 +16,7 @@ import { BooksView } from '../sections/BooksView';
 import { CollectionsView } from '../sections/CollectionsView';
 import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
-import { StudioModal } from '../modals/StudioModal';
+import { ChannelModal } from '../modals/ChannelModal';
 import { VaultZipModal } from '../modals/VaultZipModal';
 import { LinkIframeModal } from '../modals/LinkIframeModal';
 import { ContextMenu } from './ContextMenu';
@@ -106,7 +106,7 @@ export const MainContent = () => {
     if (view === 'settings') return <SettingsView />;
     if (view === 'folders') return <CategoriesView />;
     if (view === 'actors') return <ActorsView />;
-    if (view === 'studios') return <StudiosView />;
+    if (view === 'channels') return <ChannelsView />;
     if (view === 'photos') return <PhotosView />;
     if (view === 'screenshots') return <ScreenshotsView />;
     if (view === 'links') return <LinksView />;
@@ -140,7 +140,7 @@ export const MainContent = () => {
       <ContextMenu />
       <TagModal />
       <ActorModal />
-      <StudioModal />
+      <ChannelModal />
       <VaultZipModal />
       <LinkIframeModal />
       <RenameModal />

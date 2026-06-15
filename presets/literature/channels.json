@@ -1,0 +1,26 @@
+﻿{
+  "Warner Bros": {
+    "website": "https://www.wbd.com/",
+    "short_description": ""
+  },
+  "Walt Disney Studios": {
+    "website": "https://www.disneystudios.com/",
+    "short_description": ""
+  },
+  "Universal Pictures": {
+    "website": "https://www.universalpictures.com/",
+    "short_description": ""
+  },
+  "Paramount Pictures": {
+    "website": "https://www.paramount.com/brands/paramount-pictures",
+    "short_description": ""
+  },
+  "Sony Pictures": {
+    "website": "https://www.sonypictures.com/",
+    "short_description": ""
+  },
+  "A24": {
+    "website": "https://a24films.com/",
+    "short_description": ""
+  }
+}

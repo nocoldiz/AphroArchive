@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  db.js — All load/save functions for persistent data
 // ═══════════════════════════════════════════════════════════════════
@@ -13,7 +13,7 @@ const {
   COLLECTIONS_FILE,
   HIDDEN_FILE,
   WEBSITES_JSON,
-  ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON,
+  ACTORS_JSON, CATEGORIES_JSON, CHANNELS_JSON,
   BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
   BOOKS_META_FILE, AUDIO_META_FILE,
   LINK_DIR,
@@ -31,7 +31,7 @@ let _videoMeta  = null;
 let _thumbs     = null;
 let _actors          = null;
 let _folderMappings  = null;
-let _studios         = null;
+let _channels         = null;
 
 let db;
 let currentProfile = 'default';
@@ -44,12 +44,36 @@ function txn(fn) {
   catch (e) { try { db.exec('ROLLBACK'); } catch {} throw e; }
 }
 
+function runMigrations(database) {
+  // studio → channel rename (June 2026)
+  try {
+    const videoCols = database.prepare('PRAGMA table_info(videos)').all();
+    if (videoCols.some(c => c.name === 'studio')) {
+      database.exec('ALTER TABLE videos RENAME COLUMN studio TO channel');
+    }
+  } catch {}
+  try {
+    const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='studios'").all();
+    if (tables.length > 0) {
+      database.exec('ALTER TABLE studios RENAME TO channels');
+    }
+  } catch {}
+  // extend channels table with YouTube metadata columns
+  const channelCols = (() => { try { return database.prepare('PRAGMA table_info(channels)').all().map(c => c.name); } catch { return []; } })();
+  const newChannelCols = { handle: 'TEXT', channel_id: 'TEXT', country: 'TEXT', language: 'TEXT', subscribers: 'TEXT', upload_schedule: 'TEXT', joined: 'TEXT', total_views: 'TEXT', social_links: 'TEXT' };
+  for (const [col, type] of Object.entries(newChannelCols)) {
+    if (!channelCols.includes(col)) {
+      try { database.exec(`ALTER TABLE channels ADD COLUMN ${col} ${type}`); } catch {}
+    }
+  }
+}
+
 function ensureSchema(database) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS videos (
       id TEXT PRIMARY KEY,
       title TEXT,
-      studio TEXT,
+      channel TEXT,
       category TEXT,
       rating INTEGER,
       note TEXT,
@@ -193,10 +217,19 @@ function ensureSchema(database) {
       FOREIGN KEY (category_name) REFERENCES categories(name) ON DELETE CASCADE
     );
 
-    CREATE TABLE IF NOT EXISTS studios (
+    CREATE TABLE IF NOT EXISTS channels (
       name TEXT PRIMARY KEY,
       website TEXT,
-      description TEXT
+      description TEXT,
+      handle TEXT,
+      channel_id TEXT,
+      country TEXT,
+      language TEXT,
+      subscribers TEXT,
+      upload_schedule TEXT,
+      joined TEXT,
+      total_views TEXT,
+      social_links TEXT
     );
 
     CREATE TABLE IF NOT EXISTS websites (
@@ -272,6 +305,7 @@ function switchProfile(profileName) {
   db.exec('PRAGMA journal_mode=WAL');
   db.exec('PRAGMA busy_timeout=5000');
   ensureSchema(db);
+  runMigrations(db);
 
   // Clear caches
   _favs       = null;
@@ -280,7 +314,7 @@ function switchProfile(profileName) {
   _thumbs     = null;
   _actors          = null;
   _folderMappings  = null;
-  _studios         = null;
+  _channels         = null;
 
   return db;
 }
@@ -597,7 +631,7 @@ function _readVideoMetaFromDb(database) {
   for (const row of rows) {
     out[row.id] = {
       title: row.title || '',
-      studio: row.studio || '',
+      channel: row.channel || '',
       category: row.category || '',
       rating: row.rating,
       note: row.note || '',
@@ -698,12 +732,12 @@ function saveVideoMeta(m) {
       db.prepare('DELETE FROM video_tags').run();
       db.prepare('DELETE FROM videos').run();
 
-      const insertVideo = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+      const insertVideo = db.prepare('INSERT INTO videos (id, title, channel, category, rating, note, date, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
       const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
       const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
 
       for (const [id, data] of Object.entries(m)) {
-        insertVideo.run(id, data.title || '', data.studio || '', data.category || '', data.rating || null, data.note || '', data.date || '', data.language || '');
+        insertVideo.run(id, data.title || '', data.channel || '', data.category || '', data.rating || null, data.note || '', data.date || '', data.language || '');
         if (Array.isArray(data.actors)) {
           for (const actor of data.actors) insertActor.run(id, actor);
         }
@@ -719,14 +753,14 @@ function saveVideoMeta(m) {
 
 function setVideoMetaFields(id, fields) {
   const meta = loadVideoMeta();
-  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '', language: '', reencoded: 0 };
+  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], channel: '', rating: null, category: '', note: '', date: '', language: '', reencoded: 0 };
   Object.assign(meta[id], fields);
 
   try {
     txn(() => {
-      const stmt = db.prepare('INSERT INTO videos (id, title, studio, category, rating, note, date, language, reencoded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, studio=excluded.studio, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date, language=excluded.language, reencoded=excluded.reencoded');
+      const stmt = db.prepare('INSERT INTO videos (id, title, channel, category, rating, note, date, language, reencoded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, channel=excluded.channel, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date, language=excluded.language, reencoded=excluded.reencoded');
       const current = meta[id];
-      stmt.run(id, current.title || '', current.studio || '', current.category || '', current.rating || null, current.note || '', current.date || '', current.language || '', current.reencoded ? 1 : 0);
+      stmt.run(id, current.title || '', current.channel || '', current.category || '', current.rating || null, current.note || '', current.date || '', current.language || '', current.reencoded ? 1 : 0);
 
       if (fields.actors) {
         db.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
@@ -1334,7 +1368,7 @@ function deleteAllPrompts() {
   try { db.prepare('DELETE FROM prompts').run(); } catch (e) { console.error('Failed to delete all prompts:', e); }
 }
 
-// ── Actors / Categories / Studios (DB JSON files) ────────────────────
+// ── Actors / Categories / Channels (DB JSON files) ────────────────────
 
 function parseActorAge(dob) {
   if (!dob || /not listed/i.test(dob)) return null;
@@ -1494,51 +1528,88 @@ function saveFolderMappings(cats) {
   }
 }
 
-function _parseStudios(raw) {
+function _parseChannels(raw) {
   return Object.keys(raw).map(name => {
     const entry = raw[name];
-    return { name, terms: [name], website: entry.website || null, description: entry.short_description || null };
+    return {
+      name, terms: [name],
+      website: entry.website || null,
+      description: entry.short_description || entry.description || null,
+      handle: entry.handle || null,
+      channel_id: entry.channel_id || null,
+      country: entry.country || null,
+      language: entry.language || null,
+      subscribers: entry.subscribers || null,
+      upload_schedule: entry.upload_schedule || null,
+      joined: entry.joined || null,
+      total_views: entry.total_views || null,
+      social_links: entry.social_links ? JSON.stringify(entry.social_links) : null,
+    };
   });
 }
 
-function loadStudios() {
-  if (!_studios) {
+function loadChannels() {
+  if (!_channels) {
     try {
-      const rows = db.prepare('SELECT * FROM studios').all();
-      _studios = rows.map(row => ({
+      const rows = db.prepare('SELECT * FROM channels').all();
+      _channels = rows.map(row => ({
         name: row.name,
         terms: [row.name],
         website: row.website,
-        description: row.description
+        description: row.description,
+        handle: row.handle || null,
+        channel_id: row.channel_id || null,
+        country: row.country || null,
+        language: row.language || null,
+        subscribers: row.subscribers || null,
+        upload_schedule: row.upload_schedule || null,
+        joined: row.joined || null,
+        total_views: row.total_views || null,
+        social_links: row.social_links ? (() => { try { return JSON.parse(row.social_links); } catch { return null; } })() : null,
       }));
     } catch (e) {
-      console.error('Failed to load studios from SQLite:', e);
-      _studios = [];
+      console.error('Failed to load channels from SQLite:', e);
+      _channels = [];
     }
   }
-  return _studios;
+  return _channels;
 }
 
-function saveStudios(studios) {
-  _studios = null;
+function saveChannels(channels) {
+  _channels = null;
   try {
     txn(() => {
-      db.prepare('DELETE FROM studios').run();
-      const insertStudio = db.prepare('INSERT INTO studios (name, website, description) VALUES (?, ?, ?)');
-      for (const [name, data] of Object.entries(studios)) {
-        insertStudio.run(name, data.website || null, data.short_description || data.description || null);
+      db.prepare('DELETE FROM channels').run();
+      const insertChannel = db.prepare(
+        'INSERT INTO channels (name, website, description, handle, channel_id, country, language, subscribers, upload_schedule, joined, total_views, social_links) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      );
+      for (const [name, data] of Object.entries(channels)) {
+        insertChannel.run(
+          name,
+          data.website || null,
+          data.short_description || data.description || null,
+          data.handle || null,
+          data.channel_id || null,
+          data.country || null,
+          data.language || null,
+          data.subscribers || null,
+          data.upload_schedule || null,
+          data.joined || null,
+          data.total_views || null,
+          data.social_links ? JSON.stringify(data.social_links) : null,
+        );
       }
     });
   } catch (e) {
-    console.error('Failed to save studios to SQLite:', e);
+    console.error('Failed to save channels to SQLite:', e);
   }
 }
 
-// Called by database.js after writing actors/categories/studios to disk
+// Called by database.js after writing actors/categories/channels to disk
 function invalidateDbTypeCache(type) {
   if (type === 'actors')     _actors     = null;
   if (type === 'categories') _folderMappings = null;
-  if (type === 'studios')    _studios    = null;
+  if (type === 'channels')    _channels    = null;
 }
 
 // ── Generic DB file helpers ──────────────────────────────────────────
@@ -1614,7 +1685,7 @@ function getSingleVideoMeta(id) {
     const tags = db.prepare('SELECT tag FROM video_tags WHERE video_id = ?').all(id).map(r => r.tag);
     return {
       title: row.title || '',
-      studio: row.studio || '',
+      channel: row.channel || '',
       category: row.category || '',
       rating: row.rating,
       note: row.note || '',
@@ -1824,7 +1895,7 @@ module.exports = {
   loadLinksCache, loadVaultLinks, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
-  loadActors, saveActors, loadFolderMappings, saveFolderMappings, loadStudios, saveStudios, invalidateDbTypeCache,
+  loadActors, saveActors, loadFolderMappings, saveFolderMappings, loadChannels, saveChannels, invalidateDbTypeCache,
   loadEnabledFolders, saveEnabledFolders,
   loadComments, saveComments, clearAllComments,
   loadVisualHashes, setVisualHash, saveVisualHashes,

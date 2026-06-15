@@ -1,4 +1,4 @@
-/** @jsxImportSource preact */
+﻿/** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { presetPickerState, activeProfile, dbPendingOpen, loadVideos } from '../../store';
 import { ActorScraperView } from './ActorScraperView';
@@ -68,7 +68,7 @@ export const DatabaseView = () => {
     { id: 'folders', name: 'Folders' },
     { id: 'actors', name: 'Actors' },
     { id: 'categories', name: 'Tags' },
-    { id: 'studios', name: 'Studios' },
+    { id: 'channels', name: 'Channels' },
     { id: 'websites', name: 'Websites' },
     { id: 'wildcards', name: 'Wildcards' },
     { id: 'series', name: 'Series' },
@@ -204,7 +204,7 @@ export const DatabaseView = () => {
 
   const handleReset = async () => {
     const profile = activeProfile.value;
-    if (!confirm(`Reset profile "${profile}" to its initial preset data? This will overwrite categories, studios, and websites!`)) return;
+    if (!confirm(`Reset profile "${profile}" to its initial preset data? This will overwrite categories, channels, and websites!`)) return;
     
     setLoading(true);
     try {
@@ -314,7 +314,7 @@ export const DatabaseView = () => {
   };
 
   const handleExportAll = async () => {
-    const dbTabs = ['actors', 'categories', 'studios', 'websites'];
+    const dbTabs = ['actors', 'categories', 'channels', 'websites'];
     const [results, seriesRes, albumsRes] = await Promise.all([
       Promise.all(dbTabs.map(t => fetch(`/api/db/${t}/export`).then(r => r.json()))),
       fetch('/api/db/series/export').then(r => r.json()),
@@ -342,7 +342,7 @@ export const DatabaseView = () => {
       alert('Invalid JSON file');
       return;
     }
-    const knownTabs = ['actors', 'categories', 'studios', 'websites'];
+    const knownTabs = ['actors', 'categories', 'channels', 'websites'];
     const toImport = knownTabs.filter(t => data[t]);
     const hasSeries = Array.isArray(data.series) && data.series.length > 0;
     const hasAlbums = Array.isArray(data.albums) && data.albums.length > 0;
@@ -1022,7 +1022,7 @@ export const DatabaseView = () => {
                 {activeTab === 'categories' && (
                   <div>Tags: {Array.isArray(info.tags) ? info.tags.join(', ') : ''}</div>
                 )}
-                {activeTab === 'studios' && (
+                {activeTab === 'channels' && (
                   <>
                     {info.website && <a href={info.website} target="_blank" style={{ color: 'var(--ac)' }}>Website ↗</a>}
                     {info.short_description && <div style={{ marginTop: '5px' }}>{info.short_description}</div>}
@@ -1091,7 +1091,7 @@ export const DatabaseView = () => {
                 </div>
               )}
 
-              {activeTab === 'studios' && (
+              {activeTab === 'channels' && (
                 <>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Website URL</label>

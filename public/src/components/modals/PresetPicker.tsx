@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+﻿import { useState, useEffect } from 'preact/hooks';
 import { presetPickerState } from '../../store';
 
 interface Preset {
@@ -8,7 +8,7 @@ interface Preset {
   counts: {
     categories?: number;
     actors?: number;
-    studios?: number;
+    channels?: number;
     websites?: number;
   };
 }
@@ -115,7 +115,7 @@ export const PresetPicker = () => {
                 <div className="preset-card-counts" style={{ fontSize: '0.7rem', color: 'var(--tx3)', marginTop: '4px', display: 'flex', gap: '8px' }}>
                   {p.counts.categories && <span>{p.counts.categories} folders</span>}
                   {p.counts.actors && <span>{p.counts.actors} actors</span>}
-                  {p.counts.studios && <span>{p.counts.studios} studios</span>}
+                  {p.counts.channels && <span>{p.counts.channels} channels</span>}
                   {p.counts.websites && <span>{p.counts.websites} websites</span>}
                 </div>
               </div>

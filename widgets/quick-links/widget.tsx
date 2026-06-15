@@ -1,4 +1,4 @@
-// Quick Links widget — shortcut cards into every section.
+﻿// Quick Links widget — shortcut cards into every section.
 import { favFilter, showConnectModal } from '../../public/src/store';
 import { WidgetShell, nav } from '../../public/src/home/shared';
 
@@ -18,7 +18,7 @@ export default function QuickLinksWidget() {
         <Card label="Vault" desc="Encrypted storage" onClick={() => nav('vault', '/vault')} />
         <Card label="Folders" desc="Browse by folder" onClick={() => nav('categories', '/categories')} />
         <Card label="Actors" desc="Actor database" onClick={() => nav('actors', '/actors')} />
-        <Card label="Studios" desc="Studio database" onClick={() => nav('studios', '/studios')} />
+        <Card label="Channels" desc="Channel database" onClick={() => nav('channels', '/channels')} />
         <Card label="Photos" desc="Photo gallery" onClick={() => nav('photos', '/photos')} />
         <Card label="Audio" desc="Music player" onClick={() => nav('audio', '/audio')} />
         <Card label="Books" desc="E-book reader" onClick={() => nav('books', '/books')} />

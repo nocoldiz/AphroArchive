@@ -1,0 +1,458 @@
+﻿{
+  "WWE": {
+    "website": "https://www.youtube.com/@WWE",
+    "handle": "@WWE",
+    "channel_id": "UCJ5v_MCY6GNUBTO8-D3XoAg",
+    "country": "US",
+    "language": "English",
+    "subscribers": "100M+",
+    "upload_schedule": "Daily",
+    "joined": "2007",
+    "total_views": "70B+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/wwe/",
+      "twitter": "https://twitter.com/WWE",
+      "facebook": "https://www.facebook.com/wwe",
+      "tiktok": "https://www.tiktok.com/@wwe"
+    }
+  },
+  "AEW": {
+    "website": "https://www.youtube.com/@AEW",
+    "handle": "@AEW",
+    "channel_id": "UCiKLF5fFUfaRhcxqMBNugNA",
+    "country": "US",
+    "language": "English",
+    "subscribers": "3M+",
+    "upload_schedule": "Several times per week",
+    "joined": "2019",
+    "total_views": "3B+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/allelitewrestling/",
+      "twitter": "https://twitter.com/AEW",
+      "facebook": "https://www.facebook.com/allelitewrestling"
+    }
+  },
+  "NJPW": {
+    "website": "https://www.youtube.com/@njpw1972",
+    "handle": "@njpw1972",
+    "channel_id": "UCpH-8MR04mrR0RmcqFHK9iA",
+    "country": "JP",
+    "language": "Japanese/English",
+    "subscribers": "500K+",
+    "upload_schedule": "Several times per week",
+    "joined": "2011",
+    "total_views": "500M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/njpw1972/",
+      "twitter": "https://twitter.com/njpwglobal"
+    }
+  },
+  "Impact Wrestling": {
+    "website": "https://www.youtube.com/@IMPACTWRESTLING",
+    "handle": "@IMPACTWRESTLING",
+    "country": "US",
+    "language": "English",
+    "subscribers": "700K+",
+    "upload_schedule": "Several times per week",
+    "joined": "2008",
+    "total_views": "800M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/impactwrestling/",
+      "twitter": "https://twitter.com/IMPACTWRESTLING"
+    }
+  },
+  "Ring of Honor": {
+    "website": "https://www.youtube.com/@ringofhonor",
+    "handle": "@ringofhonor",
+    "country": "US",
+    "language": "English",
+    "subscribers": "300K+",
+    "upload_schedule": "Weekly",
+    "joined": "2011",
+    "total_views": "200M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/ringofhonor/",
+      "twitter": "https://twitter.com/ringofhonor"
+    }
+  },
+  "NWA Wrestling": {
+    "website": "https://www.youtube.com/@NWAWrestling",
+    "handle": "@NWAWrestling",
+    "country": "US",
+    "language": "English",
+    "subscribers": "250K+",
+    "upload_schedule": "Weekly",
+    "joined": "2016",
+    "total_views": "150M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/nwa/",
+      "twitter": "https://twitter.com/nwa"
+    }
+  },
+  "MLW": {
+    "website": "https://www.youtube.com/@MLWWrestling",
+    "handle": "@MLWWrestling",
+    "country": "US",
+    "language": "English",
+    "subscribers": "200K+",
+    "upload_schedule": "Several times per week",
+    "joined": "2013",
+    "total_views": "200M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/majorleaguewrestling/",
+      "twitter": "https://twitter.com/MLW"
+    }
+  },
+  "GCW": {
+    "website": "https://www.youtube.com/@GameChangerWrestling",
+    "handle": "@GameChangerWrestling",
+    "country": "US",
+    "language": "English",
+    "subscribers": "150K+",
+    "upload_schedule": "Weekly",
+    "joined": "2015",
+    "total_views": "100M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/gcwrestling_net/",
+      "twitter": "https://twitter.com/GCWrestling_Net"
+    }
+  },
+  "CMLL Lucha Libre": {
+    "website": "https://www.youtube.com/@CMLLLuchaLibre",
+    "handle": "@CMLLLuchaLibre",
+    "country": "MX",
+    "language": "Spanish",
+    "subscribers": "600K+",
+    "upload_schedule": "Weekly (Friday Arena México)",
+    "joined": "2009",
+    "total_views": "600M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/cmllucha/",
+      "twitter": "https://twitter.com/CMLL_OFICIAL"
+    }
+  },
+  "Lucha Libre AAA": {
+    "website": "https://www.youtube.com/@luchalibreaaa",
+    "handle": "@luchalibreaaa",
+    "country": "MX",
+    "language": "Spanish",
+    "subscribers": "1M+",
+    "upload_schedule": "Several times per week",
+    "joined": "2008",
+    "total_views": "1B+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/luchalibreaaa/",
+      "twitter": "https://twitter.com/luchalibreaaa"
+    }
+  },
+  "STARDOM World": {
+    "website": "https://www.youtube.com/@stardomworld",
+    "handle": "@stardomworld",
+    "country": "JP",
+    "language": "Japanese",
+    "subscribers": "150K+",
+    "upload_schedule": "Several times per week",
+    "joined": "2012",
+    "total_views": "100M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/wwr_stardom/",
+      "twitter": "https://twitter.com/wwr_stardom"
+    }
+  },
+  "DDT Pro-Wrestling": {
+    "website": "https://www.youtube.com/@DDTProWrestling",
+    "handle": "@DDTProWrestling",
+    "country": "JP",
+    "language": "Japanese",
+    "subscribers": "80K+",
+    "upload_schedule": "Weekly",
+    "joined": "2012",
+    "total_views": "50M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/ddtpro"
+    }
+  },
+  "TJPW": {
+    "website": "https://www.youtube.com/@TJPW_English",
+    "handle": "@TJPW_English",
+    "country": "JP",
+    "language": "Japanese/English",
+    "subscribers": "50K+",
+    "upload_schedule": "Weekly",
+    "joined": "2019",
+    "total_views": "20M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/tjpw_wres_eng"
+    }
+  },
+  "Progress Wrestling": {
+    "website": "https://www.youtube.com/@PROGRESSWrestling",
+    "handle": "@PROGRESSWrestling",
+    "country": "GB",
+    "language": "English",
+    "subscribers": "100K+",
+    "upload_schedule": "Weekly",
+    "joined": "2012",
+    "total_views": "80M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/progresswrestling/",
+      "twitter": "https://twitter.com/ThisIs_Progress"
+    }
+  },
+  "Revolution Pro Wrestling": {
+    "website": "https://www.youtube.com/@RevolutionProWrestling",
+    "handle": "@RevolutionProWrestling",
+    "country": "GB",
+    "language": "English",
+    "subscribers": "50K+",
+    "upload_schedule": "Weekly",
+    "joined": "2013",
+    "total_views": "40M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/RevProUK"
+    }
+  },
+  "Beyond Wrestling": {
+    "website": "https://www.youtube.com/@BeyondWrestling",
+    "handle": "@BeyondWrestling",
+    "country": "US",
+    "language": "English",
+    "subscribers": "40K+",
+    "upload_schedule": "Weekly",
+    "joined": "2014",
+    "total_views": "20M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/BeyondWrestling"
+    }
+  },
+  "Warrior Wrestling": {
+    "website": "https://www.youtube.com/@WarriorWrestling",
+    "handle": "@WarriorWrestling",
+    "country": "US",
+    "language": "English",
+    "subscribers": "30K+",
+    "upload_schedule": "Monthly",
+    "joined": "2016",
+    "total_views": "10M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/WarriorWrstlng"
+    }
+  },
+  "WrestleTalk": {
+    "website": "https://www.youtube.com/@WrestleTalk",
+    "handle": "@WrestleTalk",
+    "country": "GB",
+    "language": "English",
+    "subscribers": "1M+",
+    "upload_schedule": "Daily",
+    "joined": "2012",
+    "total_views": "800M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/wrestletalk_tv/",
+      "twitter": "https://twitter.com/WrestleTalk_TV"
+    }
+  },
+  "Wrestling Bios": {
+    "website": "https://www.youtube.com/@WrestlingBios",
+    "handle": "@WrestlingBios",
+    "country": "GB",
+    "language": "English",
+    "subscribers": "600K+",
+    "upload_schedule": "Weekly",
+    "joined": "2016",
+    "total_views": "300M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/WrestlingBios"
+    }
+  },
+  "Cultaholic Wrestling": {
+    "website": "https://www.youtube.com/@CultaholicWrestling",
+    "handle": "@CultaholicWrestling",
+    "country": "GB",
+    "language": "English",
+    "subscribers": "600K+",
+    "upload_schedule": "Daily",
+    "joined": "2015",
+    "total_views": "400M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/cultaholic/",
+      "twitter": "https://twitter.com/Cultaholic"
+    }
+  },
+  "WhatCulture Wrestling": {
+    "website": "https://www.youtube.com/@WhatCultureWrestling",
+    "handle": "@WhatCultureWrestling",
+    "country": "GB",
+    "language": "English",
+    "subscribers": "1.5M+",
+    "upload_schedule": "Daily",
+    "joined": "2014",
+    "total_views": "1.5B+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/whatculturewwe/",
+      "twitter": "https://twitter.com/WhatCultureWWE"
+    }
+  },
+  "Wrestling With Wregret": {
+    "website": "https://www.youtube.com/@WrestlingWithWregret",
+    "handle": "@WrestlingWithWregret",
+    "country": "US",
+    "language": "English",
+    "subscribers": "300K+",
+    "upload_schedule": "Weekly",
+    "joined": "2011",
+    "total_views": "200M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/brianzane"
+    }
+  },
+  "Chris Van Vliet": {
+    "website": "https://www.youtube.com/@ChrisVanVliet",
+    "handle": "@ChrisVanVliet",
+    "country": "CA",
+    "language": "English",
+    "subscribers": "1M+",
+    "upload_schedule": "Weekly",
+    "joined": "2010",
+    "total_views": "500M+",
+    "short_description": "",
+    "social_links": {
+      "instagram": "https://www.instagram.com/chrisvanvliet/",
+      "twitter": "https://twitter.com/ChrisVanVliet"
+    }
+  },
+  "Jim Cornette": {
+    "website": "https://www.youtube.com/@JimCornette",
+    "handle": "@JimCornette",
+    "country": "US",
+    "language": "English",
+    "subscribers": "300K+",
+    "upload_schedule": "Weekly",
+    "joined": "2014",
+    "total_views": "200M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/TheJimCornette"
+    }
+  },
+  "Fightful Wrestling": {
+    "website": "https://www.youtube.com/@FightfulWrestling",
+    "handle": "@FightfulWrestling",
+    "country": "US",
+    "language": "English",
+    "subscribers": "200K+",
+    "upload_schedule": "Daily",
+    "joined": "2016",
+    "total_views": "100M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/FightfulWrestle"
+    }
+  },
+  "POST Wrestling": {
+    "website": "https://www.youtube.com/@POSTWrestling",
+    "handle": "@POSTWrestling",
+    "country": "CA",
+    "language": "English",
+    "subscribers": "100K+",
+    "upload_schedule": "Several times per week",
+    "joined": "2015",
+    "total_views": "50M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/POSTWrestling"
+    }
+  },
+  "Wrestling Inc": {
+    "website": "https://www.youtube.com/@WrestlingInc",
+    "handle": "@WrestlingInc",
+    "country": "US",
+    "language": "English",
+    "subscribers": "150K+",
+    "upload_schedule": "Daily",
+    "joined": "2010",
+    "total_views": "100M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/WrestlingInc"
+    }
+  },
+  "Highspots Wrestling Network": {
+    "website": "https://www.youtube.com/@HighspotsWrestlingNetwork",
+    "handle": "@HighspotsWrestlingNetwork",
+    "country": "US",
+    "language": "English",
+    "subscribers": "50K+",
+    "upload_schedule": "Weekly",
+    "joined": "2012",
+    "total_views": "30M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/Highspots"
+    }
+  },
+  "Solomonster Sounds Off": {
+    "website": "https://www.youtube.com/@solomonster",
+    "handle": "@solomonster",
+    "country": "US",
+    "language": "English",
+    "subscribers": "100K+",
+    "upload_schedule": "Weekly",
+    "joined": "2011",
+    "total_views": "80M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/solomonster"
+    }
+  },
+  "Bodyslam.net": {
+    "website": "https://www.youtube.com/@BodyslamNet",
+    "handle": "@BodyslamNet",
+    "country": "US",
+    "language": "English",
+    "subscribers": "80K+",
+    "upload_schedule": "Daily",
+    "joined": "2017",
+    "total_views": "50M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/BodyslamNet"
+    }
+  },
+  "The Chairshot": {
+    "website": "https://www.youtube.com/@ThechairshotNet",
+    "handle": "@ThechairshotNet",
+    "country": "US",
+    "language": "English",
+    "subscribers": "20K+",
+    "upload_schedule": "Several times per week",
+    "joined": "2017",
+    "total_views": "10M+",
+    "short_description": "",
+    "social_links": {
+      "twitter": "https://twitter.com/TheChairshot"
+    }
+  }
+}

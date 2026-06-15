@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  helpers.js — Pure utility functions shared across modules
 // ═══════════════════════════════════════════════════════════════════
@@ -78,9 +78,9 @@ function wordMatchAny(name, terms) {
   return terms.some(t => wordMatch(name, t));
 }
 
-// Normalize a string for fuzzy studio matching: lowercase, strip spaces/dashes/underscores
+// Normalize a string for fuzzy channel matching: lowercase, strip spaces/dashes/underscores
 const _normCache = new Map();
-function normStudio(s) {
+function normChannel(s) {
   let res = _normCache.get(s);
   if (!res) {
     res = s.toLowerCase().replace(/[\s\-_]+/g, '');
@@ -89,11 +89,11 @@ function normStudio(s) {
   }
   return res;
 }
-function studioMatchAny(name, terms) {
-  const normName = normStudio(name);
+function channelMatchAny(name, terms) {
+  const normName = normChannel(name);
   return terms.some(t => {
     if (wordMatch(name, t)) return true;
-    const normT = normStudio(t);
+    const normT = normChannel(t);
     return normT.length > 2 && normName.includes(normT);
   });
 }
@@ -177,7 +177,7 @@ function serveStatic(req, res, filePath) {
 module.exports = {
   formatBytes, formatDuration,
   toId, fromId, safePath,
-  wordMatch, wordMatchAny, studioMatchAny, actorMatches, actorMatchesAny,
+  wordMatch, wordMatchAny, channelMatchAny, actorMatches, actorMatchesAny,
   json, readBody,
   serveStatic,
 };
