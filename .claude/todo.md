@@ -33,23 +33,20 @@
 
 ## Missing Features
 
-- [ ] **Resume playback** — Store `{id: timestamp}` in localStorage; restore on video open.
-- [ ] **Batch operations** — Selection works (drag-box + shift-hover via `useVideoSelection.ts`; `openBulkMove` exists); still missing: bulk add-tag, bulk add-actor, bulk delete, bulk add-to-collection.
-- [ ] **Watch-time tracking** — Record seconds watched per video; show completion percentage on cards.
+- [x] **Resume playback** — Store `{id: timestamp}` in localStorage; restore on video open. (`home/progress.ts` + `AdvancedPlayer.tsx` startTimeRef)
+- [x] **Batch operations** — `VideoSelBar` now has Tag / Actor / Playlist inline panels in addition to Delete, Move, Encrypt, Download.
+- [x] **Watch-time tracking** — Completion progress bar shown on card thumbnails via `home/progress.ts`.
 - [x] **Subtitle support** — `PlayerView` fetches `/api/subtitles/:id`; `AdvancedPlayer` renders `<track>` elements served from `/api/subtitle-file/:id/:filename`.
 - [x] **Export metadata** — `GET /api/db/:type/export` and `POST /api/db/:type/import-json` for actors, studios, categories, websites.
 - [ ] **Smart duplicate handling** — When duplicates are detected, offer to keep the highest-resolution file and move the others to trash rather than just flagging.
-- [ ] **Search result count** — Show "X results" after filtering so the user knows how many videos matched.
-- [ ] **API documentation** — Add an `api.md` or OpenAPI spec describing each endpoint, its parameters, and response shape.
-- [ ] **Folder watch / auto-refresh** — Watch VIDEOS_DIR with `fs.watch` and push a lightweight update event to the frontend so new files appear without a manual refresh.
+- [x] **Search result count** — "X videos" count shown above the grid in `VideoGrid`.
+- [x] **Folder watch / auto-refresh** — `videos-server.js` broadcasts `scan_changed` SSE on cache invalidation; `store.ts` reconnects and calls `loadVideos()` with a 1.5 s debounce.
 - [x] **Multi-user support** — Full profiles system: each profile has its own SQLite DB; switching resets state without a page reload (`profiles-server.js`, `store.ts:switchProfile`).
 - [ ] **Cast / network streaming** — Add a "cast" button that serves the video URL for use with Chromecast or similar via the browser Cast API.
 - [x] **Playback speed control** — `AdvancedPlayer.tsx` has a speed select (0.5×–2×); `playbackRate` applied to the `<video>` element.
-- [ ] **A/B loop** — Mark a start and end point to repeat a clip segment.
+- [x] **A/B loop** — A/B buttons in `AdvancedPlayer` controls; green/red markers on seekbar; loops back to A when playhead hits B.
 - [x] **Scene timestamps / chapters** — `ChaptersView.tsx` exists, `/chapters` is a registered route, and `Video.chapters` field is in the type and SQLite schema.
-- [ ] **Video notes** — Add a private freeform text note to any video, shown on the player page.
-- [ ] **Library stats dashboard** — Total size, video count, most-tagged actors, longest video, etc.
-- [ ] **Recently watched row** — A horizontal scroll row on the home page showing the last 10–20 videos played.
+- [x] **Video notes** — Freeform textarea in `PlayerView` below Tags row; auto-saves on blur via `PATCH /api/videos/:id/meta`.
 
 ## UX Improvements
 
@@ -59,13 +56,22 @@
 - [ ] **Category breadcrumb clickable** — The breadcrumb showing current category/collection is display-only. Make each segment a navigation link.
 - [ ] **Keyboard navigation in grid** — Arrow keys should move focus between video cards; Enter opens the video.
 - [ ] **ARIA labels** — Add `aria-label` to icon buttons (star, favourite, play) that have no visible text.
-- [ ] **Accessible colour contrast** — Audit `--tx3` and muted text against backgrounds for WCAG AA compliance.
 - [ ] **Error messages with guidance** — Replace generic "Failed" toasts with context: "Could not generate thumbnail — ffmpeg not found."
 - [ ] **Restore scroll position on back** — Going back from the player should return to the same scroll position in the grid.
 - [ ] **Custom thumbnail selection** — Pick which of the generated thumbnails to use as the card image.
 - [ ] **Accent color picker** — Let the user change the red accent (`--ac`) to another color from the settings page.
 - [ ] **Auto-play countdown** — After a video ends, show a 5-second countdown before playing the next one with a cancel button.
 - [ ] **Drag to category** — Drag a video card onto a sidebar category to move it.
+- [ ] **Shift+click range select** — Clicking a card while holding Shift should select all cards between the last-clicked and the current one, same as a file manager.
+- [ ] **Select all / deselect all** — While in multi-select mode, a "Select All" button in the action bar selects every visible card; Escape clears selection.
+- [ ] **Inline quick-actions on card hover** — Show play, fav, and "add to queue" icon buttons on a card on hover without needing to open the detail page.
+- [ ] **Right-click context menu on grid background** — Clicking empty space in the grid shows: "Refresh library", "Select all", "Create folder here".
+- [ ] **Double-click to fullscreen** — Double-clicking the video element in `AdvancedPlayer` toggles fullscreen (in addition to the F key).
+- [ ] **Seek on arrow-key hold** — While a key is held down the seek speed ramps up (×2 after 1s, ×4 after 2s) for fast navigation through long videos.
+- [ ] **Volume memory per video** — Optionally store per-video volume offset so loud/quiet videos can be pre-adjusted without affecting the global level.
+- [ ] **Media Session API** — Populate `navigator.mediaSession` metadata (title, artwork) so the OS/browser media overlay shows track info and playback controls.
+- [ ] **Sidebar collapse to icon rail** — Clicking the sidebar toggle collapses it to a narrow icon-only rail rather than hiding it entirely.
+- [ ] **Pinned categories in sidebar** — Star a category to pin it at the top of the sidebar list; persisted in prefs.
 
 ## Plugin System
 
@@ -85,7 +91,6 @@
 - [ ] **Structured logging** — Replace `console.log` with a minimal logger that includes timestamp and level, and can be silenced in production.
 - [ ] **Graceful shutdown** — Handle `SIGINT`/`SIGTERM` to flush any in-progress downloads and clean up vault temp files before exit.
 - [ ] **Input length limits** — Actor names, category names, collection names, and URLs should be capped at reasonable lengths on the server.
-- [ ] **Test coverage** — Add at minimum unit tests for `wordMatch`, `matchesWhitelist`, `safePath`, and the vault encrypt/decrypt round-trip.
 - [ ] **Config file support** — Allow paths (VIDEOS_DIR, SETTINGS_DIR, port) to be set via a config file or environment variables rather than being hardcoded.
 - [ ] **Dead import in MainContent** — `VideoGrid` is imported at the top of `MainContent.tsx` but never used there (it's used by individual view components). Remove the import.
 
@@ -108,6 +113,11 @@
 - [ ] **Saved searches** — Link a filter/query combo and recall it with one click.
 - [ ] **Recent searches** — Dropdown of last 10 search terms when clicking the search bar.
 - [ ] **Search within actors/studios pages** — The actor and studio detail pages have no search; hard to find a video when an actor has 100+ entries.
+- [ ] **Search suggestions / autocomplete** — As the user types, suggest matching titles, actor names, tags, and categories in a dropdown.
+- [ ] **Full-text search across metadata** — Index title + notes + actor names + tags into SQLite FTS5 so a single query matches all fields simultaneously.
+- [ ] **Boolean search syntax** — Support `actor:Jane tag:action -tag:short duration:>30m` query syntax in the search bar.
+- [ ] **Rating filter** — Slider or star buttons to show only videos with rating ≥ N stars.
+- [ ] **Fuzzy search** — Tolerate typos using SQLite FTS5 porter stemmer; surface near-matches alongside exact ones.
 
 ## Library Management
 
@@ -116,34 +126,52 @@
 - [ ] **Content-based duplicate detection** — Hash file contents (not just names) to catch renamed duplicates the current dupe scanner misses.
 - [ ] **Batch rename with pattern** — Rename multiple files at once using a template like `{actor} - {title}` with live preview.
 - [ ] **Category merge** — Merge two categories into one, moving all files and updating metadata.
+- [ ] **Trash / soft delete** — Instead of permanent deletion, move files to a `trash/` folder; show a recoverable trash view; auto-purge after 30 days.
+- [ ] **Watched folder auto-import** — Poll configurable "drop folders"; when a new file appears, move it to VIDEOS_DIR, generate thumbnail, and add to DB automatically.
+- [ ] **Library health check** — Scan for: missing thumbnail, zero duration, file no longer on disk, orphaned DB entries for deleted files. Show a report with fix buttons.
+- [ ] **Rename rules engine** — User-defined regex → replacement rules applied to filenames at import or on demand (e.g. strip release group tags `[GROUP]`).
+
+## Video Tools (ffmpeg)
+
+- [ ] **Video joiner modal** — When 2+ videos are selected, a "Join" button appears in the multi-select action bar. Opens a modal with:
+  - Drag-to-reorder list of the selected videos (title + thumbnail)
+  - Target folder picker (browse-folders dropdown)
+  - Output filename field (pre-filled from the first video's name)
+  - Toggle: delete originals after join / keep originals
+  - On confirm: `POST /api/videos/join` streams the ffmpeg concat job; SSE progress bar in the modal. Merged file inherits the union of all source videos' tags, actors, and studio; category = target folder.
+- [ ] **Clip export** — In the player, set start/end timestamps with bracket markers on the seekbar; "Export Clip" sends `POST /api/clips/export`; ffmpeg trims the file; SSE progress shown inline.
+- [ ] **A/B loop** — Two loop-point buttons (A and B) in the player toolbar; holding the section between them repeats indefinitely until cancelled.
+- [ ] **Auto-chapter detection** — ffmpeg scene-change filter (`select='gt(scene,0.4)'`) generates candidate chapter timestamps; user reviews and confirms in the Chapters editor before saving.
+- [ ] **Batch re-encode to H.265** — Multi-select videos → "Re-encode" action; server queues ffmpeg HEVC jobs one at a time; shows before/after size estimate; preserves all metadata; optionally replaces the original.
+- [ ] **Video info panel** — Expandable section on the video detail page showing container, video codec, resolution, framerate, audio codec, bitrate, colour space — fetched from ffprobe on first open and cached.
+- [ ] **Resolution / codec badges on cards** — Show `4K`, `1080p`, `HEVC`, `AV1` etc. as small overlaid badges on video cards, sourced from the ffprobe cache.
+- [ ] **Volume normalization** — One-click loudness normalization per video using ffprobe loudness scan + `dynaudnorm` filter; applies at playback time without re-encoding.
 
 ## Player — Advanced Controls
 
-- [ ] **Audio track selection** — Let users switch between multiple audio tracks in multi-language MKV/MP4 files via a dropdown in the player toolbar.
-- [ ] **Subtitle file management** — Upload `.srt`/`.vtt` subtitle files per video; store them as sidecars; let users switch or disable them from the player.
-- [ ] **Subtitle auto-search** — Query OpenSubtitles API by filename hash and offer matched subtitle files for one-click download and attachment.
-- [x] **Live captions (CC)** — `AdvancedPlayer.tsx` uses the browser `SpeechRecognition` API to generate live captions from mic input; CC button toggles on/off with overlay display.
-- [ ] **Whisper transcription** — Generate subtitles locally via `whisper.cpp` or the OpenAI Whisper API; save result as `.vtt` sidecar linked to the video.
 - [x] **Keyboard shortcuts in player** — `AdvancedPlayer.tsx`: Space=play/pause, ←/→=seek ±10s, ↑/↓=volume, M=mute, F=fullscreen, C=CC, N=next, P=prev.
-- [ ] **Picture-in-Picture** — Button that calls `videoEl.requestPictureInPicture()` so the player floats while browsing the library.
-- [ ] **Theater mode** — Dim everything outside the player; close sidebar and topbar; toggle with keyboard shortcut T.
+- [x] **Live captions (CC)** — `AdvancedPlayer.tsx` uses the browser `SpeechRecognition` API to generate live captions from mic input; CC button toggles on/off with overlay display.
 - [x] **Player screenshot** — `takeScreenshot()` in `PlayerView.tsx` draws the current frame to canvas and `POST /api/screenshots/upload`; "Take Screenshot" button is visible in the action bar.
-- [ ] **Clip export** — Select start/end timestamps in the player and export a clip using ffmpeg via `POST /api/clips/export`; progress streamed as SSE.
-- [ ] **Volume normalization** — Auto-adjust playback volume using loudness metadata from ffprobe; let users toggle it per-session.
-- [ ] **360° / VR video** — Detect equirectangular videos (filename hint or aspect 2:1) and render them in a Three.js sphere with mouse-drag panning.
-- [ ] **Video quality selector** — If multiple resolution versions exist for the same title (e.g. 720p + 1080p + 4K), group them and let the user switch quality from the player.
-- [ ] **Mini-player** — A compact sticky player bar that appears when navigating away from PlayerView; keeps the video playing with basic controls visible.
 - [x] **Chapter jump UI** — `PlayerView.tsx` renders a chapter list in the sidebar; `AdvancedPlayer` shows chapter markers on the seekbar; `jumpToChapter(time)` seeks and plays.
-- [ ] **Frame-by-frame stepping** — While paused, advance/rewind one frame at a time (via `requestVideoFrameCallback` or 1/fps seek).
+- [ ] **Subtitle file management** — Upload `.srt`/`.vtt` files per video from the player; list loaded subtitles; switch between tracks or disable; stored as sidecars.
+- [ ] **Subtitle auto-search** — Query OpenSubtitles by filename hash and offer matched files for one-click download and attachment.
+- [ ] **Audio track selection** — Switch between multiple audio tracks in multi-language MKV/MP4 files via a player toolbar dropdown.
+- [ ] **Picture-in-Picture** — "PiP" button calls `videoEl.requestPictureInPicture()` so the player floats while browsing the library.
+- [ ] **Theater mode** — Dim everything outside the player; hide sidebar and topbar; toggle with keyboard shortcut T.
+- [ ] **Mini-player** — Compact sticky player bar that keeps playback going when navigating away from PlayerView; click to return to full player.
+- [ ] **Frame-by-frame stepping** — While paused, step one frame forward/backward via `requestVideoFrameCallback` or 1/fps seek; bound to , and . keys.
+- [ ] **Skip intro / credits** — Per-video intro-end and credits-start timestamps stored in chapters; show a "Skip" button automatically when playback enters that range.
+- [ ] **Video quality selector** — If multiple resolution files exist for the same base name (e.g. 720p + 1080p), group them and offer a quality picker in the player.
+- [ ] **360° / VR video** — Detect equirectangular videos (2:1 aspect or `_360` filename hint) and render in a Three.js sphere with mouse/gyro panning.
 
 ## Player — Queue & Autoplay
 
 - [x] **Smart autoplay queue** — `playerNextUp` signal auto-fills from `filteredVideos`; `onEnded` calls `onNext()`; `PlayerView` shows the Next Up sidebar list.
-- [ ] **Shuffle queue** — When shuffle is on, maintain a pre-shuffled queue so "next" and "back" are deterministic within a session.
 - [x] **Playlist builder / drag reorder** — Next Up list in `PlayerView` supports drag-and-drop reordering and per-item remove; saving as a collection goes through `AddToCollectionModal`.
 - [ ] **"Play all from here"** — Right-click a video card → "Play all from here" enqueues everything after it in the current sorted view.
-- [ ] **Up-next overlay** — While the last 30s of a video plays, show a dismissible card previewing the next-up video.
-- [ ] **Skip intro / credits** — Store per-video intro-start and credits-start timestamps; show a "Skip Intro" button when the player enters that range.
+- [ ] **Up-next overlay** — While the last 30s of a video plays, show a dismissible floating card previewing the next video with a cancel and "play now" button.
+- [ ] **Auto-play countdown** — After a video ends, 5-second countdown before the next one starts; Cancel button stops autoplay for the session.
+- [ ] **Shuffle queue** — When shuffle is on, maintain a pre-shuffled order per session so "next" and "back" are deterministic; re-roll only when shuffle is toggled.
 
 ## Metadata & Scraping
 
@@ -151,14 +179,12 @@
 - [ ] **IMDB rating display** — Fetch and store IMDB rating + vote count alongside TMDB data; show star badge on cards.
 - [ ] **NFO sidecar support** — Read and write Kodi-compatible `.nfo` XML files alongside video files so metadata survives outside the SQLite DB and is portable.
 - [ ] **Backdrop / banner images** — Store wide backdrop images from TMDB per title; use them as hero banners on the video detail page and as category backgrounds.
-- [ ] **Poster mode** — Card layout variant that shows portrait poster art (from TMDB) instead of the generated thumbnail, giving a Netflix-style grid.
-- [ ] **Trailer integration** — Fetch official trailer YouTube URL from TMDB; add "Play Trailer" button on the video detail page (opens in the link iframe player).
-- [ ] **Genre tags from TMDB** — When TMDB metadata is fetched, auto-create genre tags (Action, Drama, etc.) on the video so tag filtering works by genre.
-- [ ] **Batch TMDB scrape** — "Enrich library" button that queues all unmatched videos for TMDB lookup with a progress bar; respect TMDB rate limits.
+- [ ] **Poster mode** — Card layout variant that shows portrait poster art (from TMDB) instead of the generated thumbnail.
+- [ ] **Trailer integration** — Fetch official trailer YouTube URL from TMDB; "Play Trailer" button on the detail page (opens in the link iframe player).
+- [ ] **Genre tags from TMDB** — When TMDB metadata is fetched, auto-create genre tags (Action, Drama, etc.) so tag filtering works by genre.
+- [ ] **Batch TMDB scrape** — "Enrich library" button that queues all unmatched videos for TMDB lookup with a progress bar; respects rate limits.
 - [ ] **Manual metadata override** — Edit title, year, synopsis, genre, and custom poster URL inline on the video detail page without leaving the app.
-- [ ] **Language / audio format tags** — Auto-read audio codec and channel count from ffprobe and show badges (DTS, AC3, AAC, Dolby Atmos, 5.1) on the detail page.
-- [ ] **Resolution / HDR badges** — Parse video stream metadata (4K, 1080p, HDR10, Dolby Vision) from ffprobe and show as badges on cards and the detail page.
-- [ ] **File info panel** — Expandable section on video detail showing container, video codec, audio codec, bitrate, framerate, colour space — sourced from ffprobe.
+- [ ] **Language / audio format tags** — Auto-read audio codec and channel count from ffprobe; show badges (DTS, AC3, AAC, Atmos, 5.1) on the detail page.
 
 ## TV Shows & Series
 
@@ -169,7 +195,7 @@
 - [ ] **Next episode auto-play** — At the end of an episode, auto-queue the next episode of the same series in order.
 - [ ] **Missing episodes indicator** — Compare local episodes against TMDB season episode count and highlight gaps.
 
-## Home Page dashboard widgets
+## Home Page Dashboard Widgets
 
 Replaced the static home cards with a customizable widget dashboard
 (`public/src/home/`): a resizable grid with an Edit mode, drag-to-reorder,
@@ -185,133 +211,88 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 - [x] **Home page editor** — Edit mode toolbar + widget picker to add/remove/reorder/resize sections.
 - [x] **Hero banner** — Cycling featured/recent spotlight with backdrop image and play button.
 - [x] **Mood / genre browser** — Tag/genre tiles; click to filter the grid (falls back to categories).
-- [x] **"What to Watch Tonight"** — Rule-based daily pick factoring watch history + time of day (shorter picks late at night).
 - [x] **Recently watched** — Recently Watched widget (up to 20 history entries) with link to the `/recent` view.
 
 ## Library Views & Layouts
 
-- [ ] **List view** — Compact table layout with columns: thumbnail, title, duration, size, rating, date added — sortable by clicking headers.
+- [ ] **List view** — Compact table layout with columns: thumbnail, title, duration, size, rating, date added — sortable by clicking column headers.
 - [ ] **Table view** — Dense spreadsheet-style view with inline editable rating and tag cells.
 - [ ] **Banner view** — Wide-card layout using backdrop images (16:9) instead of square thumbnails.
-- [ ] **Decade / year browser** — Group videos by release decade or year; useful for movie collections.
-- [ ] **Map view** — If country-of-origin metadata is available, show a world map with dots; click a country to filter.
-- [ ] **Timeline view** — Visualize watch history on a calendar heatmap (GitHub contribution style) showing days with most viewing activity.
-- [ ] **Grid density presets** — Quick buttons for S / M / L / XL card sizes beyond the existing slider.
-
-## Search & Discovery (Expanded)
-
-- [ ] **Full-text search across metadata** — Index title + synopsis + notes + actor names + tags into SQLite FTS5 so a single query matches all fields.
-- [ ] **Boolean search syntax** — Support `actor:Jane tag:action -tag:short duration:>30m` query syntax in the search bar.
-- [ ] **Resolution filter** — Filter by 4K / 1080p / 720p / SD using the resolution badge data from ffprobe.
-- [ ] **Rating filter** — Slider to show only videos with rating ≥ N stars.
-- [ ] **Search by file size** — Useful for finding space-hungry files; filter >2GB or <500MB.
-- [ ] **Search suggestions / autocomplete** — As the user types, suggest matching titles, actor names, tags, and categories in a dropdown.
-- [ ] **Tag cloud view** — Visual tag cloud in the search panel where tag size reflects frequency; click to filter.
-- [ ] **"Not watched" filter** — Toggle to show only videos with no history entry; pairs with the Unwatched filter task already listed.
-- [ ] **Fuzzy search** — Tolerate typos in search queries using trigram matching (SQLite FTS5 supports this with porter stemmer).
+- [ ] **Decade / year browser** — Group videos by release year or decade; useful for movie collections with TMDB metadata.
+- [ ] **Grid density presets** — Quick S / M / L / XL size buttons next to the card-size slider for one-click switching.
 
 ## Streaming & Network
 
-- [ ] **HLS transcoding** — On-the-fly ffmpeg HLS segmentation for formats the browser can't play natively (MKV, HEVC, AV1 on some clients); serve via `GET /api/hls/:id/index.m3u8`.
-- [ ] **Hardware-accelerated encode** — Auto-detect NVENC (NVIDIA), QSV (Intel), VAAPI (Linux), or VideoToolbox (macOS) and pass the appropriate ffmpeg flag for transcode jobs.
+- [ ] **HLS transcoding** — On-the-fly ffmpeg HLS segmentation for formats the browser can't play natively (MKV, HEVC, AV1); serve via `GET /api/hls/:id/index.m3u8`.
+- [ ] **Hardware-accelerated encode** — Auto-detect NVENC (NVIDIA), QSV (Intel), VAAPI (Linux), VideoToolbox (macOS) and pass the right ffmpeg flag for HLS transcode jobs.
 - [ ] **Adaptive bitrate** — Generate multiple HLS quality levels (360p, 720p, 1080p) so the player switches automatically on slow connections.
 - [ ] **DLNA / UPnP server** — Expose the library as a DLNA media server so smart TVs and players on the LAN can browse and play natively without a browser.
-- [ ] **Remote access mode** — Reverse proxy setup guide + optional basic-auth header check so the server can be safely exposed on a VPN or with a password.
+- [ ] **Remote access mode** — Reverse proxy setup guide + optional basic-auth header check for safe VPN/password-protected access.
 - [ ] **Chromecast / Cast API** — Implement the Google Cast sender SDK in the player; detect available devices and show a cast button.
-- [ ] **AirPlay support** — Use `<video>` `x-webkit-airplay="allow"` attribute and guide users on AirPlay-compatible browsers/devices.
-- [ ] **PWA manifest & service worker** — Add `manifest.json` + a service worker so the app can be installed as a PWA on desktop/mobile and caches the shell for offline startup.
-- [ ] **WebSocket live updates** — Replace the `/api/ping` poll and manual refresh pattern with a WebSocket channel that pushes `scan_complete`, `download_done`, and `vault_locked` events.
-- [ ] **Bandwidth throttle option** — For streaming over slow links, cap output bitrate via ffmpeg `-b:v` in HLS mode.
-
-## AI & Automation
-
-- [ ] **Auto-chapter detection** — Use scene-change detection (`ffmpeg select='gt(scene,0.4)'`) to auto-generate chapter markers; save to the chapters field.
-- [ ] **Whisper batch transcription** — Queue all videos for Whisper transcription (local or API); store `.vtt` sidecars; enable full-text subtitle search.
-- [ ] **AI auto-tagging from vision** — Send first thumbnail to the vision model; parse response to suggest relevant tags (genre, mood, setting); user confirms before saving.
-- [ ] **Smart categorization suggestions** — When adding untagged videos, AI suggests which existing category and tags best fit based on filename + visual content.
-- [ ] **"More like this" recommendations** — Button on the detail page that scores the full library by shared actors, tags, studio, duration, and TMDB genre match; shows top 12 results.
-- [ ] **Watch pattern analysis** — Analyse history to surface "you tend to watch X on weekends" or "you haven't finished any videos over 2h" insights in the stats dashboard.
-- [ ] **Auto-synopsis from filename** — For unmatched videos, use the AI assistant to generate a plausible one-sentence description from the filename and tags.
-- [ ] **Download suggestion queue** — AI reviews your links list and watch history and suggests content you haven't downloaded yet that matches your tastes.
+- [ ] **AirPlay support** — Add `x-webkit-airplay="allow"` to the `<video>` element; guide users on AirPlay-compatible browsers/devices.
+- [ ] **PWA manifest & service worker** — `manifest.json` + service worker so the app installs as a PWA on desktop/mobile and caches the shell for offline startup.
+- [ ] **WebSocket live updates** — Replace the `/api/ping` poll with a WebSocket channel that pushes `scan_complete`, `download_done`, and `vault_locked` events to all tabs.
 
 ## Download & Acquisition (Expanded)
 
 - [ ] **Torrent / magnet support** — Integrate `webtorrent` to download magnet links and `.torrent` files via the download queue; seeds while the file is being watched.
-- [ ] **RSS / feed auto-downloader** — Subscribe to RSS/Atom feeds (Nyaa, Showrss, YouTube channel RSS); automatically queue new items matching per-feed filters.
-- [ ] **Post-download automation rules** — User-defined rules: "if category matches X, move to folder Y and add tag Z"; run after every download completes.
-- [ ] **Browser extension** — Minimal extension that sends the current tab URL to `/api/downloads/add` via the local server; works like a "send to AphroArchive" button.
-- [ ] **Download scheduling** — Set time windows for downloads (e.g., 2–6 AM only); pause/resume the queue outside those windows.
-- [ ] **Download deduplication** — Before queuing a URL, check if it already exists in the links cache or has already been downloaded; warn the user.
-- [ ] **yt-dlp format picker** — Let users choose video quality/format for individual yt-dlp downloads (best, 1080p, 720p, audio-only) instead of always using best.
-- [ ] **Batch URL import** — Paste or upload a list of URLs; preview all of them before queuing; tag them all with a single category in one step.
-- [ ] **Download history / log** — Persistent log of all completed/failed downloads with timestamp, size, duration, and error message; searchable.
-- [ ] **Archive.org integration** — Queue Internet Archive item URLs; `yt-dlp` supports them natively, but add a dedicated search for `archive.org/search` in the link scraper.
+- [ ] **RSS / feed auto-downloader** — Subscribe to RSS/Atom feeds (Nyaa, Showrss, YouTube channel RSS); automatically queue new items matching per-feed keyword filters.
+- [ ] **Post-download automation rules** — User-defined rules: "if category matches X, move to folder Y and add tag Z"; runs after every download completes.
+- [ ] **Browser extension** — Minimal extension that sends the current tab URL to `POST /api/downloads/add` via the local server; works like a "send to AphroArchive" button.
+- [ ] **Download scheduling** — Set active time windows (e.g., 2–6 AM only); queue pauses automatically outside those windows.
+- [ ] **Download deduplication** — Before queuing a URL, check if it already exists in the links cache or was previously downloaded; warn the user.
+- [ ] **yt-dlp format picker** — Let users choose quality/format per download (best, 1080p, 720p, audio-only) instead of always using best.
+- [ ] **Batch URL import** — Paste or upload a list of URLs; preview all before queuing; assign a single category to all in one step.
+- [ ] **Clipboard paste to download** — A "Paste & Queue" button reads the clipboard URL and immediately adds it to the download queue.
+- [ ] **Estimated disk space warning** — Before queuing large downloads, estimate the final file size from yt-dlp metadata and warn if less than X GB free.
 
 ## Customization & Themes
 
-- [ ] **Theme builder** — Live editor for the CSS custom properties (`--ac`, `--bg`, `--tx`, `--card`, etc.) with a colour picker; save as named themes.
-- [ ] **Custom CSS injection** — Text area in Settings → Appearance where users can paste arbitrary CSS that is injected into `<style>` after the main stylesheet.
-- [ ] **Font selector** — Dropdown of system/web-safe fonts to use for the UI; persisted in prefs.
-- [ ] **Compact / comfortable / spacious density** — Global density switch that adjusts padding, font size, and card margins app-wide.
-- [ ] **Custom sidebar sections** — Let users add a sidebar entry pointing to any category, tag, collection, or actor for one-click navigation; drag to reorder.
-- [ ] **Custom keyboard shortcuts** — Settings panel mapping actions (play, favourite, add-to-collection, etc.) to user-chosen key combos stored in prefs.
-- [ ] **Icon pack selector** — Swap the default icon set (Feather/Lucide) for an alternative pack (e.g. Material, Phosphor) loaded from a plugin.
-- [ ] **Animated backgrounds** — Optional subtle animated gradient or particle background on the home page; toggle in appearance settings.
+- [ ] **Theme builder** — Live editor for CSS custom properties (`--ac`, `--bg`, `--tx`, `--card`) with colour pickers; save as named themes alongside the built-in ones.
+- [ ] **Custom CSS injection** — Textarea in Settings → Appearance; injected into `<style>` after the main stylesheet so users can override anything.
+- [ ] **Font selector** — Dropdown of system/web-safe fonts; persisted in prefs and applied via `font-family` on `:root`.
+- [ ] **Compact / comfortable / spacious density** — Global density switch that adjusts `--gap`, `--pad`, font size, and card margins app-wide.
+- [ ] **Custom sidebar sections** — Users can add a sidebar entry pointing to any category, tag, collection, or actor for one-click navigation; drag to reorder.
+- [ ] **Custom keyboard shortcuts** — Settings panel mapping actions (play, favourite, add-to-collection, open-player) to user-chosen key combos stored in prefs.
+- [ ] **Animated backgrounds** — Optional subtle animated gradient or particle effect on the home page; toggle in appearance settings.
 
 ## Mobile & TV (10-Foot UI)
 
-- [ ] **Responsive breakpoints** — Ensure the grid, sidebar, topbar, and player all reflow cleanly at 480px / 768px / 1024px / 1440px widths.
-- [ ] **Touch-friendly player controls** — Larger hit targets, swipe-left/right to seek ±10s, swipe-up/down for volume on mobile.
+- [ ] **Responsive breakpoints** — Grid, sidebar, topbar, and player reflow cleanly at 480px / 768px / 1024px / 1440px.
+- [ ] **Touch-friendly player controls** — Larger hit targets; swipe left/right on the video to seek ±10s; swipe up/down for volume.
 - [ ] **TV / couch mode** — Toggle a "10-foot UI" that enlarges cards, hides dense controls, and makes the app fully navigable with only arrow keys + Enter/Back.
-- [ ] **Fullscreen grid navigation** — In TV mode, the grid becomes the full viewport with D-pad navigation; selected card shows a play/info action bar.
-- [ ] **Android TV / Fire TV APK** — Wrap the app in a Capacitor TV build targeting Android TV leanback launcher.
 - [ ] **Gamepad support** — Map Xbox/PS controller buttons: A=play, B=back, X=favourite, Y=info, bumpers=seek, triggers=volume, left stick=scroll.
-- [ ] **Gesture shortcuts on mobile** — Swipe down on the player to minimise to mini-player; swipe up to fullscreen; pinch to zoom (for photos/vault images).
-
-## Library Health & Maintenance
-
-- [ ] **Library health check** — Scan for: missing thumbnail, zero duration, file no longer on disk, broken path, orphaned DB entries (metadata for deleted files).
-- [ ] **File integrity check** — Compute and store MD5/SHA256 hash at import time; periodic re-check flags files that changed unexpectedly (corruption detection).
-- [ ] **Storage usage breakdown** — Pie chart in stats dashboard: videos vs. thumbnails vs. vault vs. audio vs. books vs. cache, with per-category size breakdown.
-- [ ] **Auto-delete watched** — Optional rule: after a video is watched N times, move it to trash or a designated folder automatically.
-- [ ] **Trash / soft delete** — Instead of permanent deletion, move files to a `trash/` folder; show a recoverable trash view; auto-purge after 30 days.
-- [ ] **Watched folder auto-import** — Poll configurable "drop folders"; when a new file appears, move it to VIDEOS_DIR, generate thumbnail, and add to DB automatically.
-- [ ] **Rename rules engine** — User-defined regex → replacement rules applied to filenames at import or on demand (e.g. strip release group tags `[GROUP]`).
-- [ ] **Batch re-encode to H.265** — Select videos and queue an ffmpeg re-encode job to HEVC to save space; show before/after size estimate; preserve metadata.
+- [ ] **Gesture shortcuts on mobile** — Swipe down on the player to minimise to mini-player; swipe up to fullscreen; pinch to zoom (photos/vault images).
 
 ## Social & Personal Tracking
 
-- [ ] **Watchlist / Plan to Watch** — "Add to Watchlist" button per video; dedicated Watchlist view; differentiate from Favourites which implies already-watched love.
-- [ ] **Personal review / journal** — Rich-text note field per video with a date stamp and star rating; exportable as Markdown.
-- [ ] **Watch statistics page** — Charts: videos watched per week, total hours by month, top actors/categories, completion rate, average rating given.
+- [ ] **Watchlist / Plan to Watch** — "Add to Watchlist" button per video; dedicated Watchlist view; differentiated from Favourites which implies already-watched love.
+- [ ] **Personal review / journal** — Freetext note field per video with a date stamp and star rating; exportable as Markdown; different from the quick `note` DB field.
 - [ ] **Trakt.tv sync** — Import watch history from Trakt; push new watches to Trakt via their API; two-way scrobbling.
 - [ ] **Letterboxd watchlist import** — Import the CSV watchlist/diary export from Letterboxd to seed the watchlist and history.
 - [ ] **IMDB watchlist import** — Import the CSV export of an IMDB watchlist to pre-populate watch targets.
 - [ ] **Mood tags** — User-defined mood labels (relaxing, intense, funny, sad) attachable to videos; filter by mood from the search panel.
-- [ ] **Rewatch tracker** — Count and display how many times each video has been watched; sort/filter by rewatch count.
-- [ ] **Watch streaks** — Track consecutive days with at least one video watched; show current streak and longest streak in the stats page.
+- [ ] **Rewatch tracker** — Count and display how many times each video has been watched; sort/filter the grid by rewatch count.
 
 ## Integrations & Import/Export
 
-- [ ] **Plex library import** — Read a Plex `Library/Application Support` SQLite DB and import metadata (ratings, watch history, posters) into AphroArchive.
+- [ ] **Plex library import** — Read a Plex SQLite DB and import metadata (ratings, watch history, posters) into AphroArchive.
 - [ ] **Jellyfin library import** — Parse Jellyfin's NFO files and user data JSON to pre-populate the DB without re-scraping.
-- [ ] **Kodi NFO compatibility** — On export/import, write and read `.nfo` XML in the Kodi standard so the library is portable to Kodi and back.
-- [ ] **Obsidian vault link** — Export each video as a Markdown note (title, metadata, tags, journal) into a user-specified Obsidian vault folder; live-sync on changes.
-- [ ] **Full backup / restore** — One-click export: ZIP of SQLite DB + all sidecars + prefs (no binary files); one-click restore from ZIP on a new machine.
-- [ ] **Webhook on events** — POST to a user-configured URL on events: video watched, download complete, vault unlocked; payload is JSON with event type and data.
-- [ ] **Zapier / n8n integration** — Document the webhook format so users can build automations (e.g. notify Discord when a download finishes).
+- [ ] **Kodi NFO compatibility** — Write and read `.nfo` XML in the Kodi standard on export/import so the library is portable to/from Kodi.
+- [ ] **Full backup / restore** — One-click export: ZIP of SQLite DB + all sidecars + prefs (no binary video files); one-click restore from ZIP on a new machine.
+- [ ] **Webhook on events** — POST to a user-configured URL on: video watched, download complete, vault unlock; JSON payload with event type and data.
 - [ ] **OPDS feed** — Expose books as an OPDS catalogue feed so any e-reader app (Moon+ Reader, KOReader) can browse and download directly.
 
 ## Privacy & Security (Expanded)
 
 - [ ] **Per-video privacy flag** — Mark individual videos as private; they are hidden from the main grid unless a "show private" toggle is active.
-- [ ] **Stealth mode** — A full-library hide mode (beyond panic key) triggered by a keyboard shortcut; replaces all thumbnails with grey boxes and blurs titles until deactivated.
+- [ ] **Stealth mode** — Full-library hide triggered by a keyboard shortcut; replaces all thumbnails with grey boxes and blurs titles until deactivated.
 - [ ] **App PIN lock** — Optional PIN required on startup (or after N minutes of inactivity) before the library is accessible; separate from vault password.
-- [ ] **HTTPS support** — Generate a self-signed cert (or accept a user-provided cert/key) and optionally run on HTTPS; needed for Cast API and PWA install.
-- [ ] **IP allowlist** — Accept connections only from `127.0.0.1` and user-configured IPs/subnets; reject all others with 403 before any route handling.
-- [ ] **Audit log** — Append-only log of vault unlock/lock, profile switch, download queue events, and panic activations; viewable in Settings; optionally encrypted.
+- [ ] **HTTPS support** — Accept a user-provided cert/key pair and optionally run on HTTPS; needed for Cast API, PWA install on mobile, and AirPlay.
+- [ ] **IP allowlist** — Accept connections only from `127.0.0.1` and user-configured subnets; reject all others with 403 before any route handling.
+- [ ] **Audit log** — Append-only log of vault unlock/lock, profile switch, download events, and panic activations; viewable in Settings; optionally encrypted.
 - [ ] **CSP headers** — Add `Content-Security-Policy` response headers to prevent XSS from injected content in scraped page titles or filenames.
 
 ---
 
-> Highest priority: **resume playback**, **multi-filter**, **batch operations**, **restore scroll on back**, **video list caching**
+> Highest priority: **video joiner**, **resume playback**, **multi-filter**, **batch operations**, **restore scroll on back**

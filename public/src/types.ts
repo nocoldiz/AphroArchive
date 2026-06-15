@@ -11,8 +11,12 @@
   starred: boolean;
   rating?: number;
   tags?: string[];
-  studio?: string;
   actors?: string[];
+  note?: string;
+  studio?: string;
+  width?: number | null;
+  height?: number | null;
+  watched?: boolean;
   isVault?: boolean;
   reencoded?: boolean;
   catPath?: string;
@@ -77,6 +81,7 @@ export interface AppPrefs {
   whisperEnabled?: boolean;
   whisperModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'turbo';
   whisperLanguage?: string;
+  autoChapterDetection?: boolean;
 }
 export interface ThumbnailGroup {
   id: string;

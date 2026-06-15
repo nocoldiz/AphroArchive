@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos, ensureVaultUnlocked, moveModalState } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
+import { getProgress } from '../../home/progress';
 
 
 
@@ -313,6 +314,18 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
         </div>
 
         {video.rating && <div className="rating-badge" style={{ zIndex: 2 }}>{'★'.repeat(video.rating)}</div>}
+        {(() => {
+          if (video.isLink) return null;
+          const p = getProgress(video.id);
+          if (!p || p.d <= 0) return null;
+          const pct = Math.min(100, (p.t / p.d) * 100);
+          if (pct < 1) return null;
+          return (
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: 'rgba(0,0,0,0.35)', zIndex: 4 }}>
+              <div style={{ width: `${pct}%`, height: '100%', background: 'var(--ac)' }} />
+            </div>
+          );
+        })()}
       </div>
       <div className="card-body">
         <div className="card-title" title={video.name}>{video.name}</div>
@@ -326,6 +339,9 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
 
 export const VideoSelBar = () => {
   const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
+  const [activePanel, setActivePanel] = useState<null | 'tag' | 'actor' | 'collection'>(null);
+  const [bulkInput, setBulkInput] = useState('');
+  const [colList, setColList] = useState<{ name: string; count: number }[]>([]);
   const count = selectedVideoIds.value.size;
   if (count === 0) return null;
 
@@ -333,6 +349,63 @@ export const VideoSelBar = () => {
   const linkVids = selectedVids.filter(v => v.isLink);
   const hasLinks = linkVids.length > 0;
   const localVids = selectedVids.filter(v => !v.isLink);
+
+  const togglePanel = (panel: 'tag' | 'actor' | 'collection') => {
+    if (activePanel === panel) { setActivePanel(null); return; }
+    setBulkInput('');
+    if (panel === 'collection') {
+      fetch('/api/collections').then(r => r.json()).then(d => setColList(d || [])).catch(() => {});
+    }
+    setActivePanel(panel);
+  };
+
+  const applyBulkTag = async () => {
+    const tag = bulkInput.trim();
+    if (!tag || !localVids.length) return;
+    for (const v of localVids) {
+      const existing = v.tags || [];
+      if (existing.some(t => t.toLowerCase() === tag.toLowerCase())) continue;
+      await fetch(`/api/videos/${v.id}/meta`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: [...existing, tag] }),
+      }).catch(() => {});
+    }
+    (window as any).toast?.(`Tag "${tag}" added to ${localVids.length} video${localVids.length !== 1 ? 's' : ''}`);
+    setBulkInput('');
+    setActivePanel(null);
+  };
+
+  const applyBulkActor = async () => {
+    const actor = bulkInput.trim();
+    if (!actor || !localVids.length) return;
+    for (const v of localVids) {
+      const existing = v.actors || [];
+      if (existing.some(a => a.toLowerCase() === actor.toLowerCase())) continue;
+      await fetch(`/api/videos/${v.id}/meta`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actors: [...existing, actor] }),
+      }).catch(() => {});
+    }
+    (window as any).toast?.(`Actor "${actor}" added to ${localVids.length} video${localVids.length !== 1 ? 's' : ''}`);
+    setBulkInput('');
+    setActivePanel(null);
+  };
+
+  const applyBulkCollection = async (colName: string) => {
+    let added = 0;
+    for (const v of selectedVids) {
+      const r = await fetch(`/api/collections/${encodeURIComponent(colName)}/videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: v.id }),
+      }).catch(() => null);
+      if (r?.ok) added++;
+    }
+    (window as any).toast?.(`Added ${added} video${added !== 1 ? 's' : ''} to "${colName}"`);
+    setActivePanel(null);
+  };
 
   const encryptSelected = () => {
     if (!localVids.length) return;
@@ -502,16 +575,87 @@ export const VideoSelBar = () => {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         Move to
       </button>
-      <button 
+      {localVids.length > 0 && (
+        <button
+          onClick={() => togglePanel('tag')}
+          style={{ background: activePanel === 'tag' ? 'var(--ac)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Tag
+        </button>
+      )}
+      {localVids.length > 0 && (
+        <button
+          onClick={() => togglePanel('actor')}
+          style={{ background: activePanel === 'actor' ? 'var(--ac)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Actor
+        </button>
+      )}
+      <button
+        onClick={() => togglePanel('collection')}
+        style={{ background: activePanel === 'collection' ? 'var(--ac)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Playlist
+      </button>
+      <button
         onClick={() => {
           selectedVideoIds.value = new Set();
           videoSelMode.value = false;
+          setActivePanel(null);
         }}
         style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer' }}
       >
         Deselect all
       </button>
     </div>
+    {activePanel === 'tag' && (
+      <div style={{ position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '14px 16px', display: 'flex', gap: '8px', zIndex: 1001, minWidth: '280px' }}>
+        <input
+          autoFocus
+          value={bulkInput}
+          onInput={(e: any) => setBulkInput(e.target.value)}
+          onKeyDown={(e: any) => e.key === 'Enter' && applyBulkTag()}
+          placeholder="Tag name…"
+          style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', padding: '6px 10px', fontSize: '0.9rem' }}
+        />
+        <button onClick={applyBulkTag} style={{ background: 'var(--ac)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 600 }}>Add</button>
+      </div>
+    )}
+    {activePanel === 'actor' && (
+      <div style={{ position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '14px 16px', display: 'flex', gap: '8px', zIndex: 1001, minWidth: '280px' }}>
+        <input
+          autoFocus
+          value={bulkInput}
+          onInput={(e: any) => setBulkInput(e.target.value)}
+          onKeyDown={(e: any) => e.key === 'Enter' && applyBulkActor()}
+          placeholder="Actor name…"
+          style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', padding: '6px 10px', fontSize: '0.9rem' }}
+        />
+        <button onClick={applyBulkActor} style={{ background: 'var(--ac)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 600 }}>Add</button>
+      </div>
+    )}
+    {activePanel === 'collection' && (
+      <div style={{ position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '14px 16px', zIndex: 1001, minWidth: '240px', maxHeight: '220px', overflowY: 'auto' }}>
+        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>Add {count} video{count !== 1 ? 's' : ''} to playlist</div>
+        {colList.length === 0 ? (
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem' }}>No playlists yet</div>
+        ) : colList.map(col => (
+          <div
+            key={col.name}
+            onClick={() => applyBulkCollection(col.name)}
+            style={{ padding: '8px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '0.87rem', color: '#fff', display: 'flex', justifyContent: 'space-between' }}
+            onMouseOver={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseOut={(e: any) => e.currentTarget.style.background = 'none'}
+          >
+            <span>{col.name}</span>
+            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.78rem' }}>{col.count}</span>
+          </div>
+        ))}
+      </div>
+    )}
 
     {showEncryptConfirm && (
       <div className="modal on" style={{ display: 'flex' }}>
@@ -589,6 +733,9 @@ export const VideoGrid = () => {
   return (
     <>
       <VideoSelBar />
+      <div style={{ padding: '4px 2px 0', color: 'var(--tx3)', fontSize: '0.8rem' }}>
+        {list.length} video{list.length !== 1 ? 's' : ''}
+      </div>
       <div className="video-grid" id="video-grid" ref={gridRef} data-thumb-mode={thumbBlurMode.value}>
         {visible.map((v, i) => (
           <VideoCard

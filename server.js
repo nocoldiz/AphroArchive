@@ -54,6 +54,7 @@ const duplicates = require('./server/duplicates-server');
 const { startBackgroundWorker } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
 const assistant   = require('./server/assistant-server');
+const autoChapters = require('./server/auto-chapters-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -183,6 +184,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/encryption/status' && req.method === 'GET') return videos.apiEncryptionStatus(req, res);
   if (p === '/api/encryption/stop' && req.method === 'POST') return videos.apiEncryptionStop(req, res);
 
+  if (p === '/api/scan/events' && req.method === 'GET') return videos.apiScanEvents(req, res);
   if (p === '/api/preload' && req.method === 'GET') return videos.apiPreload(req, res);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetailFast(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
@@ -201,6 +203,12 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/subtitle-file\/([^/]+)\/(.+)$/)) && req.method === 'GET') return videos.apiSubtitleFile(req, res, m[1], decodeURIComponent(m[2]));
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters$/)) && req.method === 'POST') return videos.apiAddChapter(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDeleteChapter(req, res, m[1], m[2]);
+  if ((m = p.match(/^\/api\/auto-chapters\/([^/]+)$/)) && req.method === 'GET') return autoChapters.apiGetAutoChapters(req, res, m[1]);
+  if ((m = p.match(/^\/api\/auto-chapters\/([^/]+)\/detect$/)) && req.method === 'POST') return autoChapters.apiDetectAutoChapters(req, res, m[1]);
+  if (p === '/api/gen-chapters/start' && req.method === 'POST') return autoChapters.apiGenChaptersStart(req, res);
+  if (p === '/api/gen-chapters/stop' && req.method === 'POST') return autoChapters.apiGenChaptersStop(req, res);
+  if (p === '/api/gen-chapters/status' && req.method === 'GET') return autoChapters.apiGenChaptersStatus(req, res);
+  if (p === '/api/gen-chapters/poll' && req.method === 'GET') return autoChapters.apiGenChaptersPoll(req, res);
 
   // ── Tags / Studios ───────────────────────────────────────────────────
   if (p === '/api/tags' && req.method === 'GET') return videos.apiTags(req, res);

@@ -266,9 +266,30 @@ async function runDecryptCategory(catPath, targetProfile) {
   }
 }
 
+const _scanSseClients = new Set();
+
+function broadcastScanChange() {
+  const msg = `data: ${JSON.stringify({ type: 'scan_changed' })}\n\n`;
+  for (const res of _scanSseClients) {
+    try { res.write(msg); } catch { _scanSseClients.delete(res); }
+  }
+}
+
+function apiScanEvents(req, res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+  res.write(': connected\n\n');
+  _scanSseClients.add(res);
+  req.on('close', () => _scanSseClients.delete(res));
+}
+
 function invalidateScanCache() {
   _scanCache = null;
   clearVideoIndex();
+  broadcastScanChange();
 }
 
 function _onVideoDirChange() {
@@ -564,6 +585,9 @@ async function apiVideos(req, res, params) {
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
   const enabledPaths = loadEnabledCategories();
+  const prefs       = loadPrefs();
+  const historyEnabled = prefs.chronologyMode !== 'dont-save';
+  const historySet  = historyEnabled ? new Set(loadHistory()) : null;
   // all=1 (vault unlocked only): bypass the per-profile enabled-categories
   // filter so the Vault's Global view can import files from any profile
   const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
@@ -574,27 +598,45 @@ async function apiVideos(req, res, params) {
       const cached   = thumbsCache[v.id];
       const duration = cached?.duration || null;
       const vMeta    = meta[v.id] || {};
-      return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, reencoded: !!vMeta.reencoded, duration, durationF: formatDuration(duration), tags: vMeta.tags || v.tags || [], chapters: vMeta.chapters || [] };
+      return {
+        ...v,
+        fav: favs.includes(v.id),
+        rating: vMeta.rating ?? null,
+        reencoded: !!vMeta.reencoded,
+        duration,
+        durationF: formatDuration(duration),
+        tags: vMeta.tags || v.tags || [],
+        actors: vMeta.actors || [],
+        note: vMeta.note || '',
+        chapters: vMeta.chapters || [],
+        width: cached?.width || null,
+        height: cached?.height || null,
+        ...(historySet ? { watched: historySet.has(v.id) } : {}),
+      };
     });
   const q    = params.get('q');
   const cat  = params.get('category');
   const sort = params.get('sort') || 'date';
   const fav  = params.get('fav') === '1' || params.get('fav') === 'true';
-  
+
   const relevance = new Map();
   if (q) {
     const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
     list = list.filter(v => {
-      const vName = v.name.toLowerCase();
-      const vCat  = v.category.toLowerCase();
-      const vTags = (meta[v.id]?.tags || v.tags || []).map(t => t.toLowerCase());
-      
+      const vName    = v.name.toLowerCase();
+      const vCat     = v.category.toLowerCase();
+      const vTags    = (v.tags || []).map(t => t.toLowerCase());
+      const vActors  = (v.actors || []).map(a => a.toLowerCase());
+      const vNote    = (v.note || '').toLowerCase();
+
       const match = tokens.every(token =>
         vName.includes(token) ||
         vCat.includes(token) ||
-        vTags.some(t => t.includes(token))
+        vTags.some(t => t.includes(token)) ||
+        vActors.some(a => a.includes(token)) ||
+        vNote.includes(token)
       );
-      
+
       if (match) {
         let score = 0;
         tokens.forEach(token => {
@@ -602,6 +644,8 @@ async function apiVideos(req, res, params) {
           if (vName.startsWith(token)) score += 5;
           if (vCat.includes(token)) score += 3;
           if (vTags.some(t => t.includes(token))) score += 5;
+          if (vActors.some(a => a.includes(token))) score += 8;
+          if (vNote.includes(token)) score += 2;
         });
         if (vName.includes(q.toLowerCase())) score += 20;
         relevance.set(v.id, score);
@@ -3184,4 +3228,5 @@ module.exports = {
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
   apiCategorizePlan, apiCategorizeExecute,
   apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress,
+  apiScanEvents,
 };

@@ -13,16 +13,23 @@ const crypto = require('crypto');
 
 // ── ffprobe helper ───────────────────────────────────────────────────
 
-function ffprobeDuration(fp) {
+function ffprobeInfo(fp) {
   return new Promise(resolve => {
     try {
-      execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', fp],
+      execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', fp],
         { timeout: 15000 },
         (err, out) => {
-          if (err) return resolve(null);
-          try { resolve(parseFloat(JSON.parse(out).format.duration) || null); } catch { resolve(null); }
+          if (err) return resolve({ duration: null, width: null, height: null });
+          try {
+            const d = JSON.parse(out);
+            const duration = parseFloat(d.format?.duration) || null;
+            const vs = (d.streams || []).find(s => s.codec_type === 'video');
+            const width = vs?.width || null;
+            const height = vs?.height || null;
+            resolve({ duration, width, height });
+          } catch { resolve({ duration: null, width: null, height: null }); }
         });
-    } catch { resolve(null); }
+    } catch { resolve({ duration: null, width: null, height: null }); }
   });
 }
 
@@ -54,8 +61,8 @@ const genLock = new Set();
 async function genThumbs(id, fp) {
   const dir = path.join(THUMBS_DIR, id);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const dur = await ffprobeDuration(fp);
-  if (!dur) return { count: 0, duration: null };
+  const { duration: dur, width, height } = await ffprobeInfo(fp);
+  if (!dur) return { count: 0, duration: null, width: null, height: null };
   const times = [0.1, 0.25, 0.5, 0.75, 0.9].map(p => (dur * p).toFixed(2));
   let n = 0;
   await Promise.all(times.map((t, i) => new Promise(resolve => {
@@ -65,7 +72,7 @@ async function genThumbs(id, fp) {
         err => { if (!err) n++; resolve(); });
     } catch { resolve(); }
   })));
-  return { count: n, duration: dur };
+  return { count: n, duration: dur, width, height };
 }
 
 // ── Thumbnail API handlers ────────────────────────────────────────────
@@ -76,7 +83,7 @@ async function apiThumbGen(req, res, id) {
   const cache = loadThumbsCache();
   const stat = fs.statSync(fp);
   if (cache[id] && cache[id].mtime === stat.mtimeMs && cache[id].count > 0)
-    return json(res, { count: cache[id].count, duration: cache[id].duration || null });
+    return json(res, { count: cache[id].count, duration: cache[id].duration || null, width: cache[id].width || null, height: cache[id].height || null });
   if (genLock.has(id)) return json(res, { count: 0, busy: true });
 
   const altDir = findAltThumbDir(fp, id);
@@ -85,19 +92,21 @@ async function apiThumbGen(req, res, id) {
     if (jpgs.length > 0) {
       const c = loadThumbsCache();
       const duration = (c[id] && c[id].duration) || null;
-      c[id] = { mtime: stat.mtimeMs, count: jpgs.length, duration };
+      const width = (c[id] && c[id].width) || null;
+      const height = (c[id] && c[id].height) || null;
+      c[id] = { mtime: stat.mtimeMs, count: jpgs.length, duration, width, height };
       saveThumbsCache(c);
-      return json(res, { count: jpgs.length, duration });
+      return json(res, { count: jpgs.length, duration, width, height });
     }
   }
 
   genLock.add(id);
   try {
-    const { count, duration } = await genThumbs(id, fp);
+    const { count, duration, width, height } = await genThumbs(id, fp);
     const c = loadThumbsCache();
-    c[id] = { mtime: stat.mtimeMs, count, duration };
+    c[id] = { mtime: stat.mtimeMs, count, duration, width, height };
     saveThumbsCache(c);
-    json(res, { count, duration });
+    json(res, { count, duration, width, height });
   } catch { json(res, { count: 0 }); } finally { genLock.delete(id); }
 }
 

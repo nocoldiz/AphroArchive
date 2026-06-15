@@ -20,6 +20,7 @@ interface AdvancedPlayerProps {
   videoId: string;
   subtitles: Subtitle[];
   chapters: Chapter[];
+  autoChapters?: Chapter[];
   onNext?: () => void;
   onPrev?: () => void;
   isMuted?: boolean;
@@ -33,7 +34,7 @@ const loadSavedVolume = () => {
   return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
 };
 
-export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPrev, isMuted = false, videoRef: externalRef, startTime = 0, language = '' }: AdvancedPlayerProps) => {
+export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters = [], onNext, onPrev, isMuted = false, videoRef: externalRef, startTime = 0, language = '' }: AdvancedPlayerProps) => {
   const localRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalRef || localRef;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,6 +61,10 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   const [ccText, setCcText] = useState('');
   const [selectedSubIdx, setSelectedSubIdx] = useState<number | null>(null);
   const [showSubPicker, setShowSubPicker] = useState(false);
+  const [loopA, setLoopA] = useState<number | null>(null);
+  const [loopB, setLoopB] = useState<number | null>(null);
+  const loopARef = useRef<number | null>(null);
+  const loopBRef = useRef<number | null>(null);
   const controlsTimeoutRef = useRef<any>(null);
   const recRef = useRef<any>(null);
   const subPickerRef = useRef<HTMLDivElement>(null);
@@ -68,6 +73,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
   const onPrevRef = useRef(onPrev);
   useEffect(() => { onNextRef.current = onNext; });
   useEffect(() => { onPrevRef.current = onPrev; });
+  useEffect(() => { loopARef.current = loopA; }, [loopA]);
+  useEffect(() => { loopBRef.current = loopB; }, [loopB]);
 
   const toast = (msg: string) => (window as any).toast?.(msg);
 
@@ -86,6 +93,11 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
       if (now - lastSaveRef.current > 4000) {
         lastSaveRef.current = now;
         setProgress(videoId, vid.currentTime, vid.duration || 0);
+      }
+      const a = loopARef.current;
+      const b = loopBRef.current;
+      if (a !== null && b !== null && vid.currentTime >= b) {
+        vid.currentTime = a;
       }
     };
     const onDurationChange = () => setDuration(vid.duration);
@@ -588,7 +600,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
             </div>
           )}
 
-          {/* Chapter Markers */}
+          {/* User chapter markers — always visible */}
           {chapters.map(c => (
             <div key={c.id} style={{
               position: 'absolute',
@@ -596,10 +608,29 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
               top: 0,
               width: '2px',
               height: '100%',
-              background: 'rgba(255,255,255,0.7)',
-              zIndex: 2
+              background: 'rgba(255,255,255,0.85)',
+              zIndex: 3
             }} title={c.title} />
           ))}
+          {/* Auto-detected chapter markers — distinct cyan colour */}
+          {autoChapters.map(c => (
+            <div key={c.id} style={{
+              position: 'absolute',
+              left: `${(c.time / duration) * 100}%`,
+              top: '15%',
+              width: '2px',
+              height: '70%',
+              background: 'rgba(80,200,255,0.7)',
+              zIndex: 2
+            }} title={`Auto: ${c.title}`} />
+          ))}
+          {/* A/B loop markers */}
+          {loopA !== null && duration > 0 && (
+            <div style={{ position: 'absolute', left: `${(loopA / duration) * 100}%`, top: 0, width: '3px', height: '100%', background: '#4ade80', zIndex: 4 }} title={`A: ${formatDuration(loopA)}`} />
+          )}
+          {loopB !== null && duration > 0 && (
+            <div style={{ position: 'absolute', left: `${(loopB / duration) * 100}%`, top: 0, width: '3px', height: '100%', background: '#f87171', zIndex: 4 }} title={`B: ${formatDuration(loopB)}`} />
+          )}
         </div>
 
         {/* Control Buttons */}
@@ -612,6 +643,27 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, onNext, onPr
             <button onClick={() => setLocalZap(!localZap)} style={{ background: 'none', border: 'none', color: localZap ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '1.2rem' }} title="Local Zap Mode">⚡</button>
             <button onClick={onNext} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
             <span style={{ fontSize: '0.9rem' }}>{formatDuration(currentTime)} / {formatDuration(duration)}</span>
+            <button
+              onClick={() => { setLoopA(currentTime); if (loopB !== null && currentTime >= loopB) setLoopB(null); }}
+              title="Set loop start (A)"
+              style={{ background: loopA !== null ? 'rgba(74,222,128,0.25)' : 'none', border: loopA !== null ? '1px solid #4ade80' : '1px solid rgba(255,255,255,0.3)', color: loopA !== null ? '#4ade80' : '#fff', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+            >
+              {loopA !== null ? `A ${formatDuration(loopA)}` : 'A'}
+            </button>
+            <button
+              onClick={() => { setLoopB(currentTime); if (loopA !== null && currentTime <= loopA) setLoopA(null); }}
+              title="Set loop end (B)"
+              style={{ background: loopB !== null ? 'rgba(248,113,113,0.25)' : 'none', border: loopB !== null ? '1px solid #f87171' : '1px solid rgba(255,255,255,0.3)', color: loopB !== null ? '#f87171' : '#fff', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+            >
+              {loopB !== null ? `B ${formatDuration(loopB)}` : 'B'}
+            </button>
+            {(loopA !== null || loopB !== null) && (
+              <button
+                onClick={() => { setLoopA(null); setLoopB(null); }}
+                title="Clear A/B loop"
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.8rem', padding: '0 2px' }}
+              >✕</button>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>

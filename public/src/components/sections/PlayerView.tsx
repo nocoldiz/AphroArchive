@@ -1,4 +1,4 @@
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, renameModalState, moveModalState, tagModalState, actorModalState, studioModalState } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, categories, loadVideos, matchLinkCat, renameModalState, moveModalState, tagModalState, actorModalState, studioModalState, appPrefs } from '../../store';
 import { zapOn, zapStartTime } from '../../zap';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
@@ -41,10 +41,17 @@ export const PlayerView = () => {
   const [subtitles, setSubtitles] = useState<any[]>([]);
   const [language, setLanguage] = useState<string>('');
 
+  const [note, setNote] = useState<string>('');
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
+
+  const [autoChapters, setAutoChapters] = useState<any[]>([]);
+  const [isDetectingChapters, setIsDetectingChapters] = useState(false);
+  const [showPlayerOptions, setShowPlayerOptions] = useState(false);
+  const [batchStatus, setBatchStatus] = useState<{ running: boolean; done: number; total: number } | null>(null);
+  const playerOptionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let timer: any;
@@ -210,6 +217,7 @@ export const PlayerView = () => {
       setTags(d.tags || []);
       setStudio(d.studio || '');
       setRating(d.video?.rating ?? null);
+      setNote(d.video?.note || '');
       setLanguage(d.video?.language || '');
       setChapters(d.video?.chapters || []);
       setSuggested(d.suggested || []);
@@ -221,6 +229,79 @@ export const PlayerView = () => {
       }
     }).catch(() => {});
   }, [video]);
+
+  // Auto-chapter detection: load cache on video change, trigger background detect if enabled
+  useEffect(() => {
+    if (!video || video.isLink || video.isVault) { setAutoChapters([]); return; }
+    const autoEnabled = !!appPrefs.value.autoChapterDetection;
+    fetch(`/api/auto-chapters/${video.id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.chapters && d.chapters.length > 0) {
+          setAutoChapters(d.chapters);
+        } else if (autoEnabled && d.chapters === null) {
+          // Not yet detected — trigger background detection
+          setIsDetectingChapters(true);
+          fetch(`/api/auto-chapters/${video.id}/detect`, { method: 'POST' })
+            .then(r => r.json())
+            .then(d2 => { if (d2.chapters) setAutoChapters(d2.chapters); })
+            .catch(() => {})
+            .finally(() => setIsDetectingChapters(false));
+        } else {
+          setAutoChapters([]);
+        }
+      })
+      .catch(() => setAutoChapters([]));
+  }, [video?.id]);
+
+  // Close options dropdown on outside click
+  useEffect(() => {
+    if (!showPlayerOptions) return;
+    const handler = (e: MouseEvent) => {
+      if (playerOptionsRef.current && !playerOptionsRef.current.contains(e.target as Node)) {
+        setShowPlayerOptions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPlayerOptions]);
+
+  const detectChaptersNow = async () => {
+    if (!video || video.isLink || video.isVault || isDetectingChapters) return;
+    setIsDetectingChapters(true);
+    setShowPlayerOptions(false);
+    try {
+      const r = await fetch(`/api/auto-chapters/${video.id}/detect`, { method: 'POST' });
+      const d = await r.json();
+      if (d.chapters) setAutoChapters(d.chapters);
+      (window as any).toast?.(`Found ${d.chapters?.length ?? 0} scene(s)`);
+    } catch { (window as any).toast?.('Detection failed'); }
+    finally { setIsDetectingChapters(false); }
+  };
+
+  const toggleAutoChapterDetection = async () => {
+    const next = !appPrefs.value.autoChapterDetection;
+    appPrefs.value = { ...appPrefs.value, autoChapterDetection: next };
+    await fetch('/api/settings/prefs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ autoChapterDetection: next }),
+    }).catch(() => {});
+    if (!next) setAutoChapters([]);
+  };
+
+  const startBatchDetect = async () => {
+    setShowPlayerOptions(false);
+    setBatchStatus({ running: true, done: 0, total: 0 });
+    await fetch('/api/gen-chapters/start', { method: 'POST' }).catch(() => {});
+    const es = new EventSource('/api/gen-chapters/status');
+    es.onmessage = (e) => {
+      const ev = JSON.parse(e.data);
+      if (ev.type === 'done') { setBatchStatus({ running: false, done: ev.done, total: ev.total }); es.close(); }
+      else if (ev.type === 'progress') setBatchStatus({ running: true, done: ev.done, total: ev.total });
+    };
+    es.onerror = () => { setBatchStatus(null); es.close(); };
+  };
 
   // Refetch actors/tags/studio after the tag/actor/studio modal closes for this video
   const anyMetaModalOpen = tagModalState.value.visible || actorModalState.value.visible || studioModalState.value.visible;
@@ -336,6 +417,15 @@ export const PlayerView = () => {
     }
   };
 
+  const saveNote = async () => {
+    if (!video || video.isVault || video.isLink) return;
+    await fetch(`/api/videos/${video.id}/meta`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    }).catch(() => {});
+  };
+
   const takeScreenshot = async () => {
     const vid = videoRef.current;
     if (!vid) { (window as any).toast?.('Video not loaded'); return; }
@@ -445,6 +535,7 @@ export const PlayerView = () => {
                 videoId={video.id}
                 subtitles={subtitles}
                 chapters={chapters}
+                autoChapters={appPrefs.value.autoChapterDetection ? autoChapters : []}
                 language={language}
                 videoRef={videoRef}
                 isMuted={isMuted.value}
@@ -463,6 +554,7 @@ export const PlayerView = () => {
                 videoId={video.id}
                 subtitles={subtitles}
                 chapters={chapters}
+                autoChapters={appPrefs.value.autoChapterDetection ? autoChapters : []}
                 language={language}
                 videoRef={videoRef}
                 isMuted={isMuted.value}
@@ -620,6 +712,50 @@ export const PlayerView = () => {
                   </button>
                 </>
               )}
+
+              {/* Options dropdown — auto-chapter detection + batch */}
+              {!video.isLink && (
+                <div ref={playerOptionsRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setShowPlayerOptions(v => !v)}
+                    title="Player options"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: showPlayerOptions ? '1px solid var(--ac)' : '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: showPlayerOptions ? 'var(--ac)' : 'var(--tx)' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    <span>Options</span>
+                  </button>
+                  {showPlayerOptions && (
+                    <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px', minWidth: '240px', zIndex: 50, padding: '8px 0', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                      <div style={{ padding: '6px 14px 4px', fontSize: '0.7rem', color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Chapters</div>
+                      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '8px 14px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        <span>Auto-detect chapters</span>
+                        <input type="checkbox" checked={!!appPrefs.value.autoChapterDetection} onChange={toggleAutoChapterDetection} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--ac)' }} />
+                      </label>
+                      <button
+                        onClick={detectChaptersNow}
+                        disabled={isDetectingChapters}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 14px', background: 'none', border: 'none', color: isDetectingChapters ? 'var(--tx3)' : 'var(--tx)', cursor: isDetectingChapters ? 'default' : 'pointer', fontSize: '0.85rem', textAlign: 'left' }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        {isDetectingChapters ? 'Detecting…' : 'Detect for this video'}
+                      </button>
+                      <button
+                        onClick={startBatchDetect}
+                        disabled={!!(batchStatus && batchStatus.running)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 14px', background: 'none', border: 'none', color: (batchStatus && batchStatus.running) ? 'var(--tx3)' : 'var(--tx)', cursor: (batchStatus && batchStatus.running) ? 'default' : 'pointer', fontSize: '0.85rem', textAlign: 'left' }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12H3M3 12l4-4M3 12l4 4"/><path d="M21 6H9M21 18H9"/></svg>
+                        {batchStatus && batchStatus.running ? `Detecting all… ${batchStatus.done}/${batchStatus.total}` : 'Detect all missing'}
+                      </button>
+                      {batchStatus && !batchStatus.running && (
+                        <div style={{ padding: '4px 14px 8px', fontSize: '0.78rem', color: 'var(--tx3)' }}>Done — {batchStatus.done} processed</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {isDownloading && (
@@ -693,6 +829,20 @@ export const PlayerView = () => {
               </div>
             </div>
 
+            {!video.isLink && !video.isVault && (
+              <div className="player-note-row" style={{ marginBottom: '20px' }}>
+                <span style={{ display: 'block', color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Notes</span>
+                <textarea
+                  value={note}
+                  onInput={(e: any) => setNote(e.target.value)}
+                  onBlur={saveNote}
+                  placeholder="Private note…"
+                  rows={3}
+                  style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 12px', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                />
+              </div>
+            )}
+
             <AiComments />
             {relatedVideos.length > 0 && (
               <div style={{ marginTop: '30px' }}>
@@ -727,6 +877,37 @@ export const PlayerView = () => {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Auto-detected chapters — only shown when option is enabled */}
+          {appPrefs.value.autoChapterDetection && autoChapters.length > 0 && (
+            <div className="playlist-panel" style={{ marginBottom: '20px' }}>
+              <div className="playlist-header">
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'rgba(80,200,255,0.9)', display: 'inline-block', flexShrink: 0 }} />
+                  Scene Detection
+                </span>
+                <span className="playlist-count">{autoChapters.length}</span>
+              </div>
+              <div className="playlist-list">
+                {autoChapters.map((c: any) => (
+                  <div key={c.id} className="playlist-item" onClick={() => jumpToChapter(c.time)}>
+                    <img src={`/api/thumbs/${video.id}/${Math.min(4, Math.round((c.time / (videoRef.current?.duration || 1)) * 4))}`} className="pl-thumb" alt={c.title} onError={(e: any) => e.target.style.display = 'none'} />
+                    <div className="pl-info">
+                      <div className="pl-name">{c.title}</div>
+                      <div className="pl-meta">{formatDuration(c.time)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isDetectingChapters && (
+            <div style={{ padding: '10px 14px', fontSize: '0.82rem', color: 'var(--tx3)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(80,200,255,0.7)', animation: 'pulse 1.2s ease-in-out infinite' }} />
+              Detecting scenes…
             </div>
           )}
 

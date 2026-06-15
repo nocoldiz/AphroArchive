@@ -141,11 +141,17 @@ export const showAddToCollectionModal = signal<boolean>(false);
 export const showConnectModal = signal<boolean>(false);
 export const galleryFilter = signal<string>(localStorage.getItem('galleryFilter') || '');
 export const sourceFilter = signal<string>(localStorage.getItem('sourceFilter') || 'both');
+export const ratingFilter = signal<number>(parseInt(localStorage.getItem('ratingFilter') || '0', 10));
+export const resolutionFilter = signal<string>(localStorage.getItem('resolutionFilter') || '');
+export const notWatchedFilter = signal<boolean>(localStorage.getItem('notWatchedFilter') === 'true');
 
 if (typeof window !== 'undefined') {
   favFilter.subscribe(val => localStorage.setItem('favFilter', val ? 'true' : 'false'));
   galleryFilter.subscribe(val => localStorage.setItem('galleryFilter', val));
   sourceFilter.subscribe(val => localStorage.setItem('sourceFilter', val));
+  ratingFilter.subscribe(val => localStorage.setItem('ratingFilter', String(val)));
+  resolutionFilter.subscribe(val => localStorage.setItem('resolutionFilter', val));
+  notWatchedFilter.subscribe(val => localStorage.setItem('notWatchedFilter', val ? 'true' : 'false'));
 }
 
 if (typeof window !== 'undefined') {
@@ -429,22 +435,95 @@ w.dualActive = 'left';
 w.dualR = { q: '', cat: '', curTag: null };
 w._dualTagVids = [];
 
+// ─── Folder-watch auto-refresh via SSE ───────────────────────────────
+// The server broadcasts scan_changed when fs.watch detects a file change.
+// We debounce so rapid bursts (e.g. bulk copy) coalesce into one reload.
+if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
+  let _scanRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const _connectScanSse = () => {
+    const es = new EventSource('/api/scan/events');
+    es.onmessage = () => {
+      if (_scanRefreshTimer) clearTimeout(_scanRefreshTimer);
+      _scanRefreshTimer = setTimeout(() => { loadVideos().catch(() => {}); }, 1500);
+    };
+    es.onerror = () => {
+      es.close();
+      setTimeout(_connectScanSse, 5000);
+    };
+  };
+  _connectScanSse();
+}
+
 // ─── Computed State ──────────────────────────────────────────────────
 let _shuffleKeys = new Map<string, number>();
 let _shuffleSeedApplied = -1;
 
+function _trigrams(s: string): Set<string> {
+  const g = new Set<string>();
+  const sl = s.toLowerCase().replace(/\s+/g, '');
+  for (let i = 0; i < sl.length - 2; i++) g.add(sl.slice(i, i + 3));
+  return g;
+}
+
+function _fuzzyMatch(text: string, query: string): boolean {
+  if (query.length < 3) return text.toLowerCase().includes(query.toLowerCase());
+  const qt = _trigrams(query);
+  if (qt.size === 0) return false;
+  const tt = _trigrams(text);
+  let common = 0;
+  for (const g of qt) if (tt.has(g)) common++;
+  return common / qt.size >= 0.4;
+}
+
+function _videoMatchesSearch(v: Video, tokens: string[]): boolean {
+  const name    = v.name.toLowerCase();
+  const cat     = (v.category || '').toLowerCase();
+  const tags    = (v.tags || []).map(t => t.toLowerCase());
+  const actors  = (v.actors || []).map(a => a.toLowerCase());
+  const note    = (v.note || '').toLowerCase();
+  return tokens.every(token =>
+    name.includes(token) ||
+    cat.includes(token) ||
+    tags.some(t => t.includes(token)) ||
+    actors.some(a => a.includes(token)) ||
+    note.includes(token)
+  );
+}
+
+function _resolveResolutionTier(v: Video): string {
+  const w = v.width, h = v.height;
+  if (!w && !h) return '';
+  if ((w && w >= 3840) || (h && h >= 2160)) return '4k';
+  if ((w && w >= 1920) || (h && h >= 1080)) return '1080p';
+  if ((w && w >= 1280) || (h && h >= 720)) return '720p';
+  return 'sd';
+}
+
 export const filteredVideos = computed(() => {
   let list = [...videos.value];
-  
-  if (searchQuery.value) {
+  const q = searchQuery.value;
+
+  if (q) {
     list = [...allVideos.value];
-    const q = searchQuery.value.toLowerCase();
-    list = list.filter(v => v.name.toLowerCase().includes(q));
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+
+    // Exact token match first
+    let exact = list.filter(v => _videoMatchesSearch(v, tokens));
+
+    // Fuzzy fallback: if exact yields nothing, use trigram matching on the full query
+    if (exact.length === 0) {
+      exact = list.filter(v =>
+        _fuzzyMatch(v.name, q) ||
+        (v.actors || []).some(a => _fuzzyMatch(a, q)) ||
+        (v.tags || []).some(t => _fuzzyMatch(t, q))
+      );
+    }
+    list = exact;
   } else {
     if (isRecentMode.value) {
       list = [...recentVideos.value];
     }
-    
+
     if (currentCategory.value === 'uncategorized') {
       list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isLink && v.catPath === 'Links'));
     } else if (currentCategory.value) {
@@ -474,11 +553,11 @@ export const filteredVideos = computed(() => {
       list = list.filter(v => v.starred || v.fav);
     }
   }
-  
+
   if (galleryFilter.value) {
     const gf = galleryFilter.value.toLowerCase();
-    list = list.filter(v => 
-      v.name.toLowerCase().includes(gf) || 
+    list = list.filter(v =>
+      v.name.toLowerCase().includes(gf) ||
       (v.category && v.category.toLowerCase().includes(gf)) ||
       (v.tags && v.tags.some(t => t.toLowerCase().includes(gf)))
     );
@@ -488,6 +567,27 @@ export const filteredVideos = computed(() => {
     list = list.filter(v => !v.isLink);
   } else if (sourceFilter.value === 'remote') {
     list = list.filter(v => !!v.isLink);
+  }
+
+  // Rating filter: only show videos with rating >= threshold
+  const minRating = ratingFilter.value;
+  if (minRating > 0) {
+    list = list.filter(v => v.rating != null && v.rating >= minRating);
+  }
+
+  // Resolution filter
+  const resFlt = resolutionFilter.value;
+  if (resFlt) {
+    list = list.filter(v => {
+      const tier = _resolveResolutionTier(v);
+      if (!tier) return true; // unknown resolution passes through
+      return tier === resFlt;
+    });
+  }
+
+  // Not-watched filter: only show videos that have no history entry
+  if (notWatchedFilter.value) {
+    list = list.filter(v => !v.watched);
   }
 
   // Apply sorting or shuffle
@@ -513,7 +613,7 @@ export const filteredVideos = computed(() => {
       list.sort((a, b) => b.mtime - a.mtime);
     }
   }
-  
+
   return list;
 });
 
