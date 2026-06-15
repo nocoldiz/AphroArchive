@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos, ensureVaultUnlocked, moveModalState } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
@@ -564,8 +564,8 @@ export const VideoSelBar = () => {
     for (const v of linkVids) {
       let targetCat = v.category || '';
       if (targetCat === 'Links' || targetCat === 'Uncategorized' || !targetCat) {
-        const catsList = categories.value || [];
-        const match = matchLinkCat(v.name, catsList);
+        const catsList = folders.value || [];
+        const match = matchLinkFolder(v.name, catsList);
         if (match && match.catPath !== 'Links') {
           targetCat = match.catPath;
         } else {
@@ -654,7 +654,7 @@ export const VideoSelBar = () => {
       )}
 
       <button
-        onClick={() => moveModalState.value = { visible: true, vidIds: [...selectedVideoIds.value], linkUrl: null, currentCategory: '' }}
+        onClick={() => moveModalState.value = { visible: true, vidIds: [...selectedVideoIds.value], linkUrl: null, currentFolder: '' }}
         style={{ background: 'var(--ac)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>

@@ -1,0 +1,208 @@
+[
+  {
+    "id": "thriller",
+    "name": "Thriller",
+    "artist": "Michael Jackson",
+    "year": 1982,
+    "tracks": [
+      { "trackNumber": 1, "title": "Wanna Be Startin' Somethin'", "duration": 363 },
+      { "trackNumber": 2, "title": "Baby Be Mine", "duration": 260 },
+      { "trackNumber": 3, "title": "The Girl Is Mine", "duration": 222 },
+      { "trackNumber": 4, "title": "Thriller", "duration": 358 },
+      { "trackNumber": 5, "title": "Beat It", "duration": 258 },
+      { "trackNumber": 6, "title": "Billie Jean", "duration": 294 },
+      { "trackNumber": 7, "title": "Human Nature", "duration": 244 },
+      { "trackNumber": 8, "title": "P.Y.T. (Pretty Young Thing)", "duration": 239 },
+      { "trackNumber": 9, "title": "The Lady in My Life", "duration": 300 }
+    ]
+  },
+  {
+    "id": "dark-side-of-the-moon",
+    "name": "The Dark Side of the Moon",
+    "artist": "Pink Floyd",
+    "year": 1973,
+    "tracks": [
+      { "trackNumber": 1, "title": "Speak to Me", "duration": 90 },
+      { "trackNumber": 2, "title": "Breathe (In the Air)", "duration": 163 },
+      { "trackNumber": 3, "title": "On the Run", "duration": 216 },
+      { "trackNumber": 4, "title": "Time", "duration": 421 },
+      { "trackNumber": 5, "title": "The Great Gig in the Sky", "duration": 283 },
+      { "trackNumber": 6, "title": "Money", "duration": 382 },
+      { "trackNumber": 7, "title": "Us and Them", "duration": 462 },
+      { "trackNumber": 8, "title": "Any Colour You Like", "duration": 205 },
+      { "trackNumber": 9, "title": "Brain Damage", "duration": 228 },
+      { "trackNumber": 10, "title": "Eclipse", "duration": 123 }
+    ]
+  },
+  {
+    "id": "abbey-road",
+    "name": "Abbey Road",
+    "artist": "The Beatles",
+    "year": 1969,
+    "tracks": [
+      { "trackNumber": 1, "title": "Come Together", "duration": 259 },
+      { "trackNumber": 2, "title": "Something", "duration": 182 },
+      { "trackNumber": 3, "title": "Maxwell's Silver Hammer", "duration": 207 },
+      { "trackNumber": 4, "title": "Oh! Darling", "duration": 207 },
+      { "trackNumber": 5, "title": "Octopus's Garden", "duration": 170 },
+      { "trackNumber": 6, "title": "I Want You (She's So Heavy)", "duration": 467 },
+      { "trackNumber": 7, "title": "Here Comes the Sun", "duration": 185 },
+      { "trackNumber": 8, "title": "Because", "duration": 165 },
+      { "trackNumber": 9, "title": "You Never Give Me Your Money", "duration": 242 },
+      { "trackNumber": 10, "title": "Sun King", "duration": 146 },
+      { "trackNumber": 11, "title": "Mean Mr. Mustard", "duration": 66 },
+      { "trackNumber": 12, "title": "Polythene Pam", "duration": 72 },
+      { "trackNumber": 13, "title": "She Came In Through the Bathroom Window", "duration": 117 },
+      { "trackNumber": 14, "title": "Golden Slumbers", "duration": 91 },
+      { "trackNumber": 15, "title": "Carry That Weight", "duration": 96 },
+      { "trackNumber": 16, "title": "The End", "duration": 141 },
+      { "trackNumber": 17, "title": "Her Majesty", "duration": 23 }
+    ]
+  },
+  {
+    "id": "nevermind",
+    "name": "Nevermind",
+    "artist": "Nirvana",
+    "year": 1991,
+    "tracks": [
+      { "trackNumber": 1, "title": "Smells Like Teen Spirit", "duration": 301 },
+      { "trackNumber": 2, "title": "In Bloom", "duration": 255 },
+      { "trackNumber": 3, "title": "Come as You Are", "duration": 219 },
+      { "trackNumber": 4, "title": "Breed", "duration": 184 },
+      { "trackNumber": 5, "title": "Lithium", "duration": 256 },
+      { "trackNumber": 6, "title": "Polly", "duration": 178 },
+      { "trackNumber": 7, "title": "Territorial Pissings", "duration": 142 },
+      { "trackNumber": 8, "title": "Drain You", "duration": 223 },
+      { "trackNumber": 9, "title": "Lounge Act", "duration": 156 },
+      { "trackNumber": 10, "title": "Stay Away", "duration": 212 },
+      { "trackNumber": 11, "title": "On a Plain", "duration": 194 },
+      { "trackNumber": 12, "title": "Something in the Way", "duration": 231 }
+    ]
+  },
+  {
+    "id": "random-access-memories",
+    "name": "Random Access Memories",
+    "artist": "Daft Punk",
+    "year": 2013,
+    "tracks": [
+      { "trackNumber": 1, "title": "Give Life Back to Music", "duration": 274 },
+      { "trackNumber": 2, "title": "The Game of Love", "duration": 269 },
+      { "trackNumber": 3, "title": "Giorgio by Moroder", "duration": 544 },
+      { "trackNumber": 4, "title": "Within", "duration": 229 },
+      { "trackNumber": 5, "title": "Instant Crush", "duration": 337 },
+      { "trackNumber": 6, "title": "Lose Yourself to Dance", "duration": 353 },
+      { "trackNumber": 7, "title": "Touch", "duration": 498 },
+      { "trackNumber": 8, "title": "Get Lucky", "duration": 369 },
+      { "trackNumber": 9, "title": "Beyond", "duration": 279 },
+      { "trackNumber": 10, "title": "Motherboard", "duration": 341 },
+      { "trackNumber": 11, "title": "Fragments of Time", "duration": 282 },
+      { "trackNumber": 12, "title": "Doin' It Right", "duration": 278 },
+      { "trackNumber": 13, "title": "Contact", "duration": 399 }
+    ]
+  },
+  {
+    "id": "back-in-black",
+    "name": "Back in Black",
+    "artist": "AC/DC",
+    "year": 1980,
+    "tracks": [
+      { "trackNumber": 1, "title": "Hells Bells", "duration": 312 },
+      { "trackNumber": 2, "title": "Shoot to Thrill", "duration": 317 },
+      { "trackNumber": 3, "title": "What Do You Do for Money Honey", "duration": 212 },
+      { "trackNumber": 4, "title": "Given the Dog a Bone", "duration": 211 },
+      { "trackNumber": 5, "title": "Let Me Put My Love into You", "duration": 252 },
+      { "trackNumber": 6, "title": "Back in Black", "duration": 255 },
+      { "trackNumber": 7, "title": "You Shook Me All Night Long", "duration": 210 },
+      { "trackNumber": 8, "title": "Have a Drink on Me", "duration": 225 },
+      { "trackNumber": 9, "title": "Shake a Leg", "duration": 244 },
+      { "trackNumber": 10, "title": "Rock and Roll Ain't Noise Pollution", "duration": 261 }
+    ]
+  },
+  {
+    "id": "blonde-on-blonde",
+    "name": "Blonde on Blonde",
+    "artist": "Bob Dylan",
+    "year": 1966,
+    "tracks": [
+      { "trackNumber": 1, "title": "Rainy Day Women #12 & 35", "duration": 270 },
+      { "trackNumber": 2, "title": "Pledging My Time", "duration": 234 },
+      { "trackNumber": 3, "title": "Visions of Johanna", "duration": 505 },
+      { "trackNumber": 4, "title": "One of Us Must Know (Sooner or Later)", "duration": 300 },
+      { "trackNumber": 5, "title": "I Want You", "duration": 192 },
+      { "trackNumber": 6, "title": "Stuck Inside of Mobile with the Memphis Blues Again", "duration": 447 },
+      { "trackNumber": 7, "title": "Leopard-Skin Pill-Box Hat", "duration": 226 },
+      { "trackNumber": 8, "title": "Just Like a Woman", "duration": 278 },
+      { "trackNumber": 9, "title": "Most Likely You Go Your Way and I'll Go Mine", "duration": 208 },
+      { "trackNumber": 10, "title": "Temporary Like Achilles", "duration": 312 },
+      { "trackNumber": 11, "title": "Absolutely Sweet Marie", "duration": 240 },
+      { "trackNumber": 12, "title": "4th Time Around", "duration": 244 },
+      { "trackNumber": 13, "title": "Obviously 5 Believers", "duration": 213 },
+      { "trackNumber": 14, "title": "Sad Eyed Lady of the Lowlands", "duration": 689 }
+    ]
+  },
+  {
+    "id": "to-pimp-a-butterfly",
+    "name": "To Pimp a Butterfly",
+    "artist": "Kendrick Lamar",
+    "year": 2015,
+    "tracks": [
+      { "trackNumber": 1, "title": "Wesley's Theory", "duration": 305 },
+      { "trackNumber": 2, "title": "For Free? (Interlude)", "duration": 138 },
+      { "trackNumber": 3, "title": "King Kunta", "duration": 234 },
+      { "trackNumber": 4, "title": "Institutionalized", "duration": 280 },
+      { "trackNumber": 5, "title": "These Walls", "duration": 299 },
+      { "trackNumber": 6, "title": "u", "duration": 268 },
+      { "trackNumber": 7, "title": "Alright", "duration": 219 },
+      { "trackNumber": 8, "title": "For Sale? (Interlude)", "duration": 155 },
+      { "trackNumber": 9, "title": "Momma", "duration": 273 },
+      { "trackNumber": 10, "title": "Hood Politics", "duration": 245 },
+      { "trackNumber": 11, "title": "How Much a Dollar Cost", "duration": 268 },
+      { "trackNumber": 12, "title": "Complexion (A Zulu Love)", "duration": 281 },
+      { "trackNumber": 13, "title": "The Blacker the Berry", "duration": 320 },
+      { "trackNumber": 14, "title": "You Ain't Gotta Lie (Momma Said)", "duration": 228 },
+      { "trackNumber": 15, "title": "i", "duration": 336 },
+      { "trackNumber": 16, "title": "Mortal Man", "duration": 720 }
+    ]
+  },
+  {
+    "id": "21",
+    "name": "21",
+    "artist": "Adele",
+    "year": 2011,
+    "tracks": [
+      { "trackNumber": 1, "title": "Rolling in the Deep", "duration": 228 },
+      { "trackNumber": 2, "title": "Rumour Has It", "duration": 224 },
+      { "trackNumber": 3, "title": "Turning Tables", "duration": 248 },
+      { "trackNumber": 4, "title": "Don't You Remember", "duration": 236 },
+      { "trackNumber": 5, "title": "Set Fire to the Rain", "duration": 242 },
+      { "trackNumber": 6, "title": "He Won't Go", "duration": 273 },
+      { "trackNumber": 7, "title": "Take It All", "duration": 208 },
+      { "trackNumber": 8, "title": "I'll Be Waiting", "duration": 234 },
+      { "trackNumber": 9, "title": "One and Only", "duration": 348 },
+      { "trackNumber": 10, "title": "Lovesong", "duration": 262 },
+      { "trackNumber": 11, "title": "Someone Like You", "duration": 285 }
+    ]
+  },
+  {
+    "id": "after-hours",
+    "name": "After Hours",
+    "artist": "The Weeknd",
+    "year": 2020,
+    "tracks": [
+      { "trackNumber": 1, "title": "Alone Again", "duration": 253 },
+      { "trackNumber": 2, "title": "Too Late", "duration": 234 },
+      { "trackNumber": 3, "title": "Hardest to Love", "duration": 212 },
+      { "trackNumber": 4, "title": "Scared to Live", "duration": 191 },
+      { "trackNumber": 5, "title": "Snowchild", "duration": 267 },
+      { "trackNumber": 6, "title": "Escape from LA", "duration": 352 },
+      { "trackNumber": 7, "title": "Heartless", "duration": 198 },
+      { "trackNumber": 8, "title": "Faith", "duration": 402 },
+      { "trackNumber": 9, "title": "Blinding Lights", "duration": 200 },
+      { "trackNumber": 10, "title": "In Your Eyes", "duration": 238 },
+      { "trackNumber": 11, "title": "Save Your Tears", "duration": 215 },
+      { "trackNumber": 12, "title": "Repeat After Me (Interlude)", "duration": 199 },
+      { "trackNumber": 13, "title": "After Hours", "duration": 361 },
+      { "trackNumber": 14, "title": "Until I Bleed Out", "duration": 253 }
+    ]
+  }
+]

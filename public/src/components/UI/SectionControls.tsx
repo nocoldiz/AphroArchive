@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter, currentCategory, updatePrefs } from '../../store';
+import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter, currentFolder, updatePrefs } from '../../store';
 import { CategoryTagsModal } from './CategoryTagsModal';
 
 interface SectionControlsProps {
@@ -76,7 +76,7 @@ export const SectionControls = ({
   const setCSize = onCardSizeChange || ((val: number) => cardSize.value = val);
 
   const [tagsOpen, setTagsOpen] = useState(false);
-  const activeCat = currentCategory.value;
+  const activeCat = currentFolder.value;
   const showTagsBtn = activeCat && activeCat !== 'uncategorized';
 
   return (
@@ -189,7 +189,7 @@ export const SectionControls = ({
       {children}
     </div>
     {tagsOpen && showTagsBtn && (
-      <CategoryTagsModal catPath={activeCat} onClose={() => setTagsOpen(false)} />
+      <CategoryTagsModal folderPath={activeCat} onClose={() => setTagsOpen(false)} />
     )}
     </>
   );

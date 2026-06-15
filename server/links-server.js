@@ -12,7 +12,7 @@ const os    = require('os');
 const url   = require('url');
 const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
 const { json, readBody, serveStatic }   = require('./helpers-server');
-const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories, loadAllVideoTags } = require('./db-server');
+const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink, loadOgThumbCache, saveOgThumbCache, loadFolderMappings, loadEnabledFolders, loadAllVideoTags } = require('./db-server');
 const { wordMatchAny, wordMatch } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
@@ -416,10 +416,10 @@ function scrapeLink(pageUrl) {
   });
 }
 
-function autoCategorizeLinks(items) {
-  const cats = loadCategories();
+function autoFolderizeLinks(items) {
+  const cats = loadFolderMappings();
   const allTags = loadAllVideoTags();
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
   const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
 
   for (const item of items) {
@@ -526,7 +526,7 @@ function startScrapingWorker({ reset = false } = {}) {
     }
     // Auto-categorise any remaining un-tagged items at the end
     const finalCache = loadLinksCache();
-    autoCategorizeLinks(finalCache.items || []);
+    autoFolderizeLinks(finalCache.items || []);
     saveLinksCache(finalCache);
     console.log(`[scrape] done — ${_scrapeJob.done} ok, ${_scrapeJob.failed} failed`);
     _scrapeJob.running = false;
@@ -563,7 +563,7 @@ function apiGetLinksCache(req, res) {
   const cache = loadLinksCache();
   let items = cache.items || [];
 
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
   if (enabledPaths.length > 0) {
     const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
     items = items.filter(item => {
@@ -604,7 +604,7 @@ async function apiSaveLinksCache(req, res) {
     if (_scrapeJob && _scrapeJob.running) {
       _scrapeJob.stop = true;
     }
-    autoCategorizeLinks(items);
+    autoFolderizeLinks(items);
     saveLinksCache({ items });
     json(res, { ok: true, count: items.length });
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -714,8 +714,8 @@ async function apiScrape(req, res) {
 
 // ── Browser favourites ────────────────────────────────────────────────
 
-function loadCategoryAndTagNames() {
-  const cats = loadCategories();
+function loadFolderAndTagNames() {
+  const cats = loadFolderMappings();
   const names = new Set();
   for (const cat of cats) {
     // Add the display name and category name
@@ -867,7 +867,7 @@ function apiBrowserFavs(req, res) {
       return json(res, { items });
     }
 
-    const matchNames = loadCategoryAndTagNames();
+    const matchNames = loadFolderAndTagNames();
     if (!matchNames.length) return json(res, { cat_tag_empty: true, items: [] });
     json(res, { items: items.filter(b => matchesCategoryOrTag(b.url, matchNames)) });
   } catch (e) {
@@ -881,7 +881,7 @@ async function apiBrowserFavsFile(req, res) {
     const body     = await readBody(req);
     const { data, filename, browser } = body;
     if (!data) return json(res, { error: 'No file data' }, 400);
-    const matchNames = loadCategoryAndTagNames();
+    const matchNames = loadFolderAndTagNames();
     if (!matchNames.length) return json(res, { cat_tag_empty: true, items: [] });
 
     const buf         = Buffer.from(data, 'base64');
@@ -937,7 +937,7 @@ async function apiImportLinks(req, res) {
   const cache = loadLinksCache();
   const existingUrls = new Set((cache.items || []).map(i => i.url));
   const existingNames = new Set((cache.items || []).map(i => (i.title || '').trim().toLowerCase()).filter(Boolean));
-  const cats = loadCategories();
+  const cats = loadFolderMappings();
   const allTags = loadAllVideoTags();
 
   let added = 0, skipped = 0;
@@ -968,7 +968,7 @@ async function apiImportLinks(req, res) {
   }
 
   if (newItems.length) {
-    autoCategorizeLinks(newItems);
+    autoFolderizeLinks(newItems);
     for (const it of newItems) upsertLink(it);
   }
 

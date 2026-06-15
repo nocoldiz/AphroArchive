@@ -1,11 +1,11 @@
 import { VideoGrid } from '../UI/VideoGrid';
-import { galleryFilter, sortMode, isShuffle, favFilter, recentVideos, currentView, cardSize, currentCategory, currentTag, currentTagTerms } from '../../store';
+import { galleryFilter, sortMode, isShuffle, favFilter, recentVideos, currentView, cardSize, currentFolder, currentTag, currentTagTerms } from '../../store';
 import { SearchExtras } from '../UI/SearchExtras';
 import { SectionControls } from '../UI/SectionControls';
 
 const Breadcrumb = () => {
   const goAll = () => {
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null;
     currentTagTerms.value = [];
   };
@@ -21,7 +21,7 @@ const Breadcrumb = () => {
     );
   }
 
-  const cat = currentCategory.value;
+  const cat = currentFolder.value;
   if (!cat) return <h2 id="section-title">All Videos</h2>;
   if (cat === 'uncategorized') {
     return (
@@ -45,7 +45,7 @@ const Breadcrumb = () => {
             <span className="crumb-sep"> / </span>
             {isLast
               ? <span className="crumb">{seg}</span>
-              : <span className="crumb crumb--link" onClick={() => { currentCategory.value = path; currentTag.value = null; currentTagTerms.value = []; }}>{seg}</span>}
+              : <span className="crumb crumb--link" onClick={() => { currentFolder.value = path; currentTag.value = null; currentTagTerms.value = []; }}>{seg}</span>}
           </span>
         );
       })}

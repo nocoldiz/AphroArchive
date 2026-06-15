@@ -1,4 +1,4 @@
-import { searchQuery, currentView, currentCategory, currentTag, currentTagTerms } from '../../store';
+import { searchQuery, currentView, currentFolder, currentTag, currentTagTerms } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 
 const SEARCH_DEBOUNCE_MS = 200;
@@ -62,13 +62,13 @@ export const Search = () => {
       if (wasEmpty && !preSearchRef.current) {
         preSearchRef.current = {
           view: currentView.value,
-          cat: currentCategory.value,
+          cat: currentFolder.value,
           tag: currentTag.value,
           terms: currentTagTerms.value,
         };
       }
       if (currentView.value !== 'browse') currentView.value = 'browse';
-      currentCategory.value = '';
+      currentFolder.value = '';
       currentTag.value = null;
       currentTagTerms.value = [];
     } else {
@@ -76,7 +76,7 @@ export const Search = () => {
       const prev = preSearchRef.current;
       preSearchRef.current = null;
       if (prev) {
-        currentCategory.value = prev.cat;
+        currentFolder.value = prev.cat;
         currentTag.value = prev.tag;
         currentTagTerms.value = prev.terms;
         currentView.value = prev.view;

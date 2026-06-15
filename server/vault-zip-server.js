@@ -202,31 +202,31 @@ async function apiVaultDownloadZip(req, res) {
   res.end(zip);
 }
 
-async function apiCategoryDownloadZip(req, res) {
+async function apiFolderDownloadZip(req, res) {
   const body     = await readBody(req);
-  const category = typeof body.category === 'string' ? body.category.trim() : '';
+  const folder   = typeof body.category === 'string' ? body.category.trim() : '';
   const password = typeof body.password === 'string' ? body.password.trim() : '';
 
-  if (!category) return json(res, { error: 'Category required' }, 400);
+  if (!folder) return json(res, { error: 'Category required' }, 400);
 
   const videos = require('./videos-server');
   const allVids = await videos.allVideos();
-  
+
   let list = allVids;
-  if (category === 'uncategorized' || category === '__uncategorized__' || category === '') {
-    const { loadCategories } = require('./db-server');
-    const defined = loadCategories();
+  if (folder === 'uncategorized' || folder === '__uncategorized__' || folder === '') {
+    const { loadFolderMappings } = require('./db-server');
+    const defined = loadFolderMappings();
     list = list.filter(v => v.catPath === '' && !defined.some(e => require('./helpers-server').wordMatchAny(v.name, e.terms)));
   } else {
-    const { loadCategories } = require('./db-server');
-    const defined = loadCategories();
-    const catLo = category.toLowerCase();
+    const { loadFolderMappings } = require('./db-server');
+    const defined = loadFolderMappings();
+    const catLo = folder.toLowerCase();
     const matchingEntry = defined.find(e => e.name.toLowerCase() === catLo);
-    const cl = category.toLowerCase().replace(/\\/g, '/');
+    const cl = folder.toLowerCase().replace(/\\/g, '/');
     list = list.filter(v => {
       const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
       const isChild = vp === cl || vp.startsWith(cl + '/');
-      return isChild || v.category === category || (matchingEntry && v.catPath === '' && require('./helpers-server').wordMatchAny(v.name, matchingEntry.terms));
+      return isChild || v.category === folder || (matchingEntry && v.catPath === '' && require('./helpers-server').wordMatchAny(v.name, matchingEntry.terms));
     });
   }
 
@@ -238,17 +238,17 @@ async function apiCategoryDownloadZip(req, res) {
   const { VIDEOS_DIR } = require('./config-server');
   const path = require('path');
   const fs = require('fs');
-  
+
   for (const v of list) {
     const fp = path.join(VIDEOS_DIR, v.rel);
     if (!fs.existsSync(fp)) continue;
-    
+
     const stat = fs.statSync(fp);
     totalSize += stat.size;
     if (totalSize > 500 * 1024 * 1024) {
       return json(res, { error: 'Category too large for ZIP (max 500MB)' }, 400);
     }
-    
+
     const data = fs.readFileSync(fp);
     files.push({ name: path.basename(v.rel), data });
   }
@@ -260,7 +260,7 @@ async function apiCategoryDownloadZip(req, res) {
     return json(res, { error: 'ZIP build failed: ' + e.message }, 500);
   }
 
-  const filename = 'category-' + category.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + Date.now() + '.zip';
+  const filename = 'folder-' + folder.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + Date.now() + '.zip';
   res.writeHead(200, {
     'Content-Type':        'application/zip',
     'Content-Length':      zip.length,
@@ -377,7 +377,7 @@ async function apiVaultImportZip(req, res) {
 }
 
 module.exports = {
-  apiVaultDownloadZip, apiCategoryDownloadZip,
+  apiVaultDownloadZip, apiFolderDownloadZip,
   apiVaultZipEntries, apiVaultImportZip,
   buildZip,
 };

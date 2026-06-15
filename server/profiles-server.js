@@ -63,6 +63,8 @@ function listProfileTemplates() {
           categories: count('categories.json'),
           studios:    count('studios.json'),
           websites:   count('websites.json'),
+          series:     count('series.json'),
+          albums:     count('albums.json'),
         },
       };
     });
@@ -70,18 +72,22 @@ function listProfileTemplates() {
 
 function loadPresetData(id) {
   const dir = path.join(PROFILES_DIR, id);
-  const result = { actors: {}, categories: {}, studios: {}, websites: [] };
+  const result = { actors: {}, categories: {}, studios: {}, websites: [], series: [], albums: [] };
   const tryLoad = (file) => { try { return JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')); } catch { return null; } };
   const a = tryLoad('actors.json');     if (a && !Array.isArray(a)) Object.assign(result.actors, a);
   const c = tryLoad('categories.json'); if (c && !Array.isArray(c)) Object.assign(result.categories, c);
   const s = tryLoad('studios.json');    if (s && !Array.isArray(s)) Object.assign(result.studios, s);
   const w = tryLoad('websites.json');   if (Array.isArray(w)) result.websites = w;
+  const se = tryLoad('series.json');    if (Array.isArray(se)) result.series = se;
+  const al = tryLoad('albums.json');    if (Array.isArray(al)) result.albums = al;
   return result;
 }
 
 function mergePresets(ids) {
-  const merged = { actors: {}, categories: {}, studios: {}, websites: [] };
+  const merged = { actors: {}, categories: {}, studios: {}, websites: [], series: [], albums: [] };
   const seenUrls = new Set();
+  const seenSeriesKeys = new Set();
+  const seenAlbumIds = new Set();
   for (const id of ids) {
     const data = loadPresetData(id);
     Object.assign(merged.actors,     data.actors);
@@ -92,6 +98,16 @@ function mergePresets(ids) {
       seenUrls.add(site.url);
       merged.websites.push(site);
     }
+    for (const s of (data.series || [])) {
+      if (!s.key || seenSeriesKeys.has(s.key)) continue;
+      seenSeriesKeys.add(s.key);
+      merged.series.push(s);
+    }
+    for (const al of (data.albums || [])) {
+      if (!al.id || seenAlbumIds.has(al.id)) continue;
+      seenAlbumIds.add(al.id);
+      merged.albums.push(al);
+    }
   }
   return merged;
 }
@@ -101,7 +117,7 @@ function readExistingDb() {
   const actors = {};
   db.loadActors().forEach(a => { actors[a.name] = { date_of_birth: a.date_of_birth, nationality: a.nationality, imdb_page: a.imdb_page }; });
   const categories = {};
-  db.loadCategories().forEach(c => { categories[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
+  db.loadFolderMappings().forEach(c => { categories[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
   const studios = {};
   db.loadStudios().forEach(s => { studios[s.name] = { website: s.website, short_description: s.description }; });
   return { actors, categories, studios, websites: db.loadWebsites() };
@@ -111,7 +127,7 @@ function writeDb(merged, mergeWithExisting = false) {
   const db = require('./db-server');
   let data = merged;
   if (mergeWithExisting) {
-    const existingCats = db.loadCategories();
+    const existingCats = db.loadFolderMappings();
     const existingStudios = db.loadStudios();
     const existingWebsites = db.loadWebsites();
     
@@ -142,10 +158,24 @@ function writeDb(merged, mergeWithExisting = false) {
     };
   }
   
-  db.saveCategories(data.categories);
+  db.saveFolderMappings(data.categories);
   db.saveStudios(data.studios);
   db.saveWebsites(data.websites);
   db.saveActors(data.actors);
+  if (Array.isArray(data.series) && data.series.length > 0) {
+    if (mergeWithExisting) {
+      for (const s of data.series) db.upsertSeries(s);
+    } else {
+      db.saveSeries(data.series);
+    }
+  }
+  if (Array.isArray(data.albums) && data.albums.length > 0) {
+    if (mergeWithExisting) {
+      for (const a of data.albums) db.upsertAlbum(a);
+    } else {
+      db.saveAlbums(data.albums);
+    }
+  }
 }
 
 // GET /api/presets
@@ -231,10 +261,12 @@ async function apiCreateProfile(req, res) {
 
   if (preset) {
     const data = loadPresetData(preset);
-    db.saveCategories(data.categories);
+    db.saveFolderMappings(data.categories);
     db.saveStudios(data.studios);
     db.saveWebsites(data.websites);
     db.saveActors(data.actors);
+    if (Array.isArray(data.series) && data.series.length > 0) db.saveSeries(data.series);
+    if (Array.isArray(data.albums) && data.albums.length > 0) db.saveAlbums(data.albums);
   }
   markSetupDone();
 

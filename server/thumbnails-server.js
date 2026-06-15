@@ -8,7 +8,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
 const { json, safePath, fromId } = require('./helpers-server');
-const { loadThumbsCache, saveThumbsCache, loadPrefs } = require('./db-server');
+const { loadThumbsCache, saveThumbsCache, loadPrefs, loadVideoIndex, loadEnabledFolders } = require('./db-server');
 const crypto = require('crypto');
 
 // ── ffprobe helper ───────────────────────────────────────────────────
@@ -154,14 +154,14 @@ async function genChapterThumb(id, fp, time, chapterId) {
 }
 
 async function apiThumbImg(req, res, id, idx) {
-  const { allVideos, getUnlockedCategoryKey } = require('./videos-server');
+  const { allVideos, getUnlockedFolderKey } = require('./videos-server');
   const v = (await allVideos()).find(v => v.id === id);
   let fp = path.resolve(path.join(THUMBS_DIR, id, `${idx}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
 
   const encFp = fp + '.enc';
   if (v && v.encrypted && fs.existsSync(encFp)) {
-    const key = getUnlockedCategoryKey(v.catPath);
+    const key = getUnlockedFolderKey(v.catPath);
     if (!key) { res.writeHead(401); res.end(); return; }
     try {
       const dec = decryptBuffer(fs.readFileSync(encFp), key);
@@ -198,14 +198,14 @@ function decryptBuffer(raw, key) {
 }
 
 async function apiChapterThumbImg(req, res, id, chapterId) {
-  const { allVideos, getUnlockedCategoryKey } = require('./videos-server');
+  const { allVideos, getUnlockedFolderKey } = require('./videos-server');
   const v = (await allVideos()).find(v => v.id === id);
   let fp = path.resolve(path.join(THUMBS_DIR, id, 'chapters', `${chapterId}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
 
   const encFp = fp + '.enc';
   if (v && v.encrypted && fs.existsSync(encFp)) {
-    const key = getUnlockedCategoryKey(v.catPath);
+    const key = getUnlockedFolderKey(v.catPath);
     if (!key) { res.writeHead(401); res.end(); return; }
     try {
       const dec = decryptBuffer(fs.readFileSync(encFp), key);
@@ -234,9 +234,35 @@ async function apiChapterThumbImg(req, res, id, chapterId) {
 async function apiThumbnailsList(req, res) {
   try {
     if (!fs.existsSync(THUMBS_DIR)) return json(res, []);
+
+    const index = loadVideoIndex();
+    const enabledPaths = loadEnabledFolders();
+
+    let visibleIds = null;
+    if (index && index.length > 0) {
+      visibleIds = new Set();
+      for (const v of index) {
+        const catPath = v.catPath || '';
+        if (!catPath || catPath === 'uncategorized' || catPath === 'Links') {
+          visibleIds.add(v.id);
+          continue;
+        }
+        if (enabledPaths.length > 0) {
+          const pathLo = catPath.toLowerCase().replace(/\\/g, '/');
+          const enabled = enabledPaths.some(ep => {
+            const epLo = ep.toLowerCase().replace(/\\/g, '/');
+            return pathLo === epLo || pathLo.startsWith(epLo + '/');
+          });
+          if (!enabled) continue;
+        }
+        visibleIds.add(v.id);
+      }
+    }
+
     const dirs = fs.readdirSync(THUMBS_DIR).filter(d => !d.startsWith('.'));
     const results = [];
     for (const id of dirs) {
+      if (visibleIds && !visibleIds.has(id)) continue;
       const dirPath = path.join(THUMBS_DIR, id);
       if (!fs.statSync(dirPath).isDirectory()) continue;
       const files = fs.readdirSync(dirPath).filter(f => (f.endsWith('.jpg') || f.endsWith('.jpg.enc')) && !isNaN(parseInt(f)));

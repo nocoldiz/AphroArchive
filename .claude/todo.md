@@ -2,12 +2,12 @@
 
 
 
-## Bookmark Import: Match categories/tags instead of saved websites
+## Bookmark Import: Match folders/tags instead of saved websites
 
 - [x] Analyze codebase: understand current bookmark import flow
 - [x] Modify `server/links-server.js` `apiBrowserFavs` — filter bookmarks by category names and tag names instead of whitelist
 - [x] Modify `server/links-server.js` `apiBrowserFavsFile` — same filter for uploaded bookmark files
-- [x] Modify `public/src/components/sections/LinksView.tsx` `importFavs` — frontend filter by categories/tags instead of websites
+- [x] Modify `public/src/components/sections/LinksView.tsx` `importFavs` — frontend filter by folders/tags instead of websites
 
 ## Security (Fix First)
 
@@ -37,7 +37,7 @@
 - [x] **Batch operations** — `VideoSelBar` now has Tag / Actor / Playlist inline panels in addition to Delete, Move, Encrypt, Download.
 - [x] **Watch-time tracking** — Completion progress bar shown on card thumbnails via `home/progress.ts`.
 - [x] **Subtitle support** — `PlayerView` fetches `/api/subtitles/:id`; `AdvancedPlayer` renders `<track>` elements served from `/api/subtitle-file/:id/:filename`.
-- [x] **Export metadata** — `GET /api/db/:type/export` and `POST /api/db/:type/import-json` for actors, studios, categories, websites.
+- [x] **Export metadata** — `GET /api/db/:type/export` and `POST /api/db/:type/import-json` for actors, studios, folders, websites.
 - [x] **Smart duplicate handling** — Each group has a "Keep Best & Delete Rest" button; best = highest resolution (w×h), then largest size, then fav, then named category. `★ keep` badge shown on the chosen file; resolution shown in metadata row.
 - [x] **Search result count** — "X videos" count shown above the grid in `VideoGrid`.
 - [x] **Folder watch / auto-refresh** — `videos-server.js` broadcasts `scan_changed` SSE on cache invalidation; `store.ts` reconnects and calls `loadVideos()` with a 1.5 s debounce.
@@ -110,7 +110,7 @@
 - [ ] **Saved searches** — Link a filter/query combo and recall it with one click.
 - [ ] **Recent searches** — Dropdown of last 10 search terms when clicking the search bar.
 - [ ] **Search within actors/studios pages** — The actor and studio detail pages have no search; hard to find a video when an actor has 100+ entries.
-- [ ] **Search suggestions / autocomplete** — As the user types, suggest matching titles, actor names, tags, and categories in a dropdown.
+- [ ] **Search suggestions / autocomplete** — As the user types, suggest matching titles, actor names, tags, and folders in a dropdown.
 - [ ] **Full-text search across metadata** — Index title + notes + actor names + tags into SQLite FTS5 so a single query matches all fields simultaneously.
 - [ ] **Boolean search syntax** — Support `actor:Jane tag:action -tag:short duration:>30m` query syntax in the search bar.
 - [ ] **Rating filter** — Slider or star buttons to show only videos with rating ≥ N stars.
@@ -118,11 +118,11 @@
 
 ## Library Management
 
-- [x] **Tag management from the UI** — `DatabaseView.tsx` with full CRUD via `POST /api/db/:type/upsert` and `DELETE /api/db/:type/:name` for actors, studios, categories, websites.
-- [x] **Folder/category creation** — `POST /api/folders/create` on server; `window.createCategory()` in `store.ts` calls `POST /api/main-categories`.
+- [x] **Tag management from the UI** — `DatabaseView.tsx` with full CRUD via `POST /api/db/:type/upsert` and `DELETE /api/db/:type/:name` for actors, studios, folders, websites.
+- [x] **Folder/category creation** — `POST /api/folders/create` on server; `window.createCategory()` in `store.ts` calls `POST /api/main-folders`.
 - [ ] **Content-based duplicate detection** — Hash file contents (not just names) to catch renamed duplicates the current dupe scanner misses.
 - [ ] **Batch rename with pattern** — Rename multiple files at once using a template like `{actor} - {title}` with live preview.
-- [ ] **Category merge** — Merge two categories into one, moving all files and updating metadata.
+- [ ] **Category merge** — Merge two folders into one, moving all files and updating metadata.
 - [ ] **Trash / soft delete** — Instead of permanent deletion, move files to a `trash/` folder; show a recoverable trash view; auto-purge after 30 days.
 - [ ] **Watched folder auto-import** — Poll configurable "drop folders"; when a new file appears, move it to VIDEOS_DIR, generate thumbnail, and add to DB automatically.
 - [ ] **Library health check** — Scan for: missing thumbnail, zero duration, file no longer on disk, orphaned DB entries for deleted files. Show a report with fix buttons.
@@ -201,12 +201,12 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 
 - [x] **Continue Watching row** — Resumes in-progress videos (localStorage progress tracked in AdvancedPlayer), sorted by most recently paused, with per-card progress bar + remove.
 - [x] **New Additions row** — Horizontally scrollable row of the last 20 videos added.
-- [x] **Recommended For You** — On-device scoring by shared categories, tags, actors, studios vs. watch history (`home/recommend.ts`).
+- [x] **Recommended For You** — On-device scoring by shared folders, tags, actors, studios vs. watch history (`home/recommend.ts`).
 - [x] **"Surprise Me" button** — Opens a random (unwatched-preferred) video immediately.
 - [x] **Pinned shelves** — Pinned Shelf widget: pin any folder, tag, actor, or playlist as a named row; add multiple, reorder in edit mode.
 - [x] **Home page editor** — Edit mode toolbar + widget picker to add/remove/reorder/resize sections.
 - [x] **Hero banner** — Cycling featured/recent spotlight with backdrop image and play button.
-- [x] **Mood / genre browser** — Tag/genre tiles; click to filter the grid (falls back to categories).
+- [x] **Mood / genre browser** — Tag/genre tiles; click to filter the grid (falls back to folders).
 - [x] **Recently watched** — Recently Watched widget (up to 20 history entries) with link to the `/recent` view.
 
 ## Library Views & Layouts

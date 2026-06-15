@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'preact/hooks';
 import { moveModalState, loadVideos } from '../../store';
 import { moveVideo } from '../../api';
-import { Category } from '../../types';
+import { Folder } from '../../types';
 
 export const MoveModal = () => {
   const state = moveModalState.value;
-  const [mainCats, setMainCats] = useState<Category[]>([]);
+  const [mainCats, setMainCats] = useState<Folder[]>([]);
   const [error, setError] = useState('');
   const [newCat, setNewCat] = useState('');
 
   useEffect(() => {
     if (state.visible) {
-      fetch('/api/main-categories')
+      fetch('/api/main-folders')
         .then(r => r.json())
         .then(data => setMainCats(data))
         .catch(e => setError('Failed to load folders'));
@@ -62,7 +62,7 @@ export const MoveModal = () => {
 
         <div className="move-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
           {mainCats.map(c => {
-            const isCur = c.path === state.currentCategory;
+            const isCur = c.path === state.currentFolder;
             return (
               <div
                 key={c.path}

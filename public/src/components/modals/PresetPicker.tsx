@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { presetPickerState, loadVideos, loadCategories } from '../../store';
+import { presetPickerState } from '../../store';
 
 interface Preset {
   id: string;

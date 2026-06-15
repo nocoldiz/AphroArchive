@@ -1,4 +1,4 @@
-import { currentView, currentActor, currentStudio, currentCategory, currentTag, currentVideo, allVideos, enableUrlSync, setRouteResolving } from './store';
+import { currentView, currentActor, currentStudio, currentFolder, currentTag, currentVideo, allVideos, enableUrlSync, setRouteResolving } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
@@ -50,7 +50,7 @@ export async function routeToPath(path: string) {
 
   if (path === '/' || path === '' || path === '/home' || path === '/hub') {
     currentView.value = 'hub';
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null;
     currentActor.value = null;
     currentStudio.value = null;
@@ -71,7 +71,7 @@ export async function routeToPath(path: string) {
     '/pages':          'pages',
     '/search':         'search',
     '/database':       'database',
-    '/categories':     'categories',
+    '/folders':        'folders',
     '/chapters':       'chapters',
     '/series':         'series',
     '/actors':         'actors',
@@ -82,6 +82,7 @@ export async function routeToPath(path: string) {
     '/categorizer':    'categorizer',
     '/duplicates':     'duplicates',
     '/library-health': 'library-health',
+    '/subtitles':      'subtitles',
     '/browse':         'browse',
     '/instagram':      'instagram',
     '/reddit':         'reddit',
@@ -92,7 +93,7 @@ export async function routeToPath(path: string) {
 
   if (directViews[path]) {
     currentView.value = directViews[path];
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null;
     currentActor.value = null;
     currentStudio.value = null;
@@ -105,13 +106,21 @@ export async function routeToPath(path: string) {
   // Parameterised routes (non-video)
   if ((m = path.match(/^\/tag\/(.+)$/))) {
     currentTag.value = decodeURIComponent(m[1]);
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentView.value = 'browse';
     return;
   }
 
+  if ((m = path.match(/^\/folder\/(.+)$/))) {
+    currentFolder.value = decodeURIComponent(m[1]);
+    currentTag.value = null;
+    currentView.value = 'browse';
+    return;
+  }
+
+  // Legacy /cat/ URLs — redirect to /folder/
   if ((m = path.match(/^\/cat\/(.+)$/))) {
-    currentCategory.value = decodeURIComponent(m[1]);
+    currentFolder.value = decodeURIComponent(m[1]);
     currentTag.value = null;
     currentView.value = 'browse';
     return;

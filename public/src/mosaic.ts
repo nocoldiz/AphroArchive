@@ -1,5 +1,5 @@
 ﻿import { signal } from '@preact/signals';
-import { allVideos, categories, currentCategory, linkVidIds, currentView, playerNextUp, filteredVideos } from './store';
+import { allVideos, folders, currentFolder, linkVidIds, currentView, playerNextUp, filteredVideos } from './store';
 import { zapOn, stopZapping } from './zap';
 
 // ─── Mosaic State ───
@@ -66,8 +66,8 @@ export function startMosaic() {
     (window as any).curV = null;
   }
   
-  const cat = currentCategory.value;
-  const catObj = categories.value.find(x => x.path === cat);
+  const cat = currentFolder.value;
+  const catObj = folders.value.find(x => x.path === cat);
   $('mosaic-category-label').text(cat ? (catObj?.name || cat) + ' — Mosaic' : 'All Videos — Mosaic');
   
   const cntLbl = document.getElementById('mosaic-count-label');

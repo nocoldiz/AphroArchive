@@ -280,6 +280,35 @@ async function apiWhisperEnqueue(_req, res, id) {
   json(res, { ok: true, queued: true });
 }
 
+// Force-enqueue ignores hasSubtitle so it overwrites existing subtitle files
+function forceEnqueue(fp) {
+  if (!_singleQueue.some(q => q.fp === fp)) {
+    _singleQueue.unshift({ fp, force: true });
+  }
+  processSingleQueueForce().catch(console.error);
+}
+
+let _singleRunningForce = false;
+
+async function processSingleQueueForce() {
+  if (_singleRunningForce) return;
+  _singleRunningForce = true;
+  while (_singleQueue.length) {
+    const item = _singleQueue.shift();
+    if (!item) continue;
+    if (!item.force && hasSubtitle(item.fp)) continue;
+    const prefs = loadPrefs();
+    const language = prefs.whisperLanguage || 'auto';
+    try {
+      const detectedLang = await runWhisper(item.fp, prefs.whisperModel || 'base', language);
+      if (!language || language === 'auto') saveDetectedLanguage(item.fp, detectedLang);
+    } catch (e) {
+      console.error('[whisper] Force-enqueue failed:', item.fp, e.message);
+    }
+  }
+  _singleRunningForce = false;
+}
+
 async function apiWhisperDownloadModel(req, res) {
   const body = await require('./helpers-server').readBody(req);
   const model = body.model;
@@ -303,4 +332,5 @@ function apiWhisperDownloadingModels(_req, res) {
 module.exports = {
   apiGenWhisperStart, apiGenWhisperStop, apiGenWhisperStatus, apiGenWhisperPoll,
   apiWhisperEnqueue, apiWhisperDownloadModel, apiWhisperDownloadingModels,
+  forceEnqueue,
 };

@@ -69,12 +69,12 @@ function nextDlId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-function enqueueDownload(dlUrl, category, pendingCategory) {
+function enqueueDownload(dlUrl, folder, pendingFolder) {
   const id = nextDlId();
   downloadJobs.set(id, {
     id, url: dlUrl, title: dlUrl,
-    category: category || '',
-    pendingCategory: pendingCategory || category || '',
+    folder: folder || '',
+    pendingFolder: pendingFolder || folder || '',
     status: 'queued', progress: 0, speed: '', eta: '', error: null,
     addedAt: Date.now(), outputPath: null, videoId: null, _kill: null,
     kind: 'video', mediaType: null,
@@ -84,9 +84,9 @@ function enqueueDownload(dlUrl, category, pendingCategory) {
   return id;
 }
 
-async function autoMoveVideo(videoId, pendingCategory) {
+async function autoMoveVideo(videoId, pendingFolder) {
   try {
-    const cleanCat = (pendingCategory || '').trim();
+    const cleanCat = (pendingFolder || '').trim();
     if (!cleanCat) return;
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
     if (isVirtual) return;
@@ -258,10 +258,10 @@ async function runJob(next) {
         next.videoId = toId(next.outputPath);
       }
     }
-    if (next.pendingCategory && next.videoId) {
-      await autoMoveVideo(next.videoId, next.pendingCategory);
+    if (next.pendingFolder && next.videoId) {
+      await autoMoveVideo(next.videoId, next.pendingFolder);
       // Update videoId after move
-      const cleanCat = next.pendingCategory.trim();
+      const cleanCat = next.pendingFolder.trim();
       const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
       if (!isVirtual && next.outputPath) {
         const newPath = path.join(writeRoot, cleanCat, path.basename(next.outputPath));
@@ -290,7 +290,7 @@ async function runJob(next) {
 // reports the saved file via a `RESULT_FILE:` line.
 function runUniversal(job) {
   return new Promise((resolve, reject) => {
-    const cleanCat = (job.category || '').trim();
+    const cleanCat = (job.folder || '').trim();
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
     const writeRoot = getDefaultWriteRoot();
     const physicalCat = isVirtual ? '' : cleanCat;
@@ -351,9 +351,9 @@ async function apiDownloadAdd(req, res) {
   }
   const urls = Array.isArray(body.urls) ? body.urls : (body.url ? [body.url] : []);
   if (!urls.length) return json(res, { error: 'URL required' }, 400);
-  const category        = (body.category || '').trim();
-  const pendingCategory = (body.pendingCategory || category).trim();
-  const ids             = urls.map(u => enqueueDownload(u, category, pendingCategory));
+  const folder        = (body.category || '').trim();
+  const pendingFolder = (body.pendingCategory || folder).trim();
+  const ids           = urls.map(u => enqueueDownload(u, folder, pendingFolder));
   json(res, { ok: true, ids });
 }
 
@@ -399,7 +399,7 @@ async function apiDownloadUpdateJob(req, res, id) {
   const job = downloadJobs.get(id);
   if (!job) return json(res, { error: 'Not found' }, 404);
   const body = await readBody(req);
-  if (body.pendingCategory !== undefined) job.pendingCategory = body.pendingCategory;
+  if (body.pendingCategory !== undefined) job.pendingFolder = body.pendingCategory;
   saveJobs();
   json(res, { ok: true });
 }

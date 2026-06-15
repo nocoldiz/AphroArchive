@@ -30,6 +30,7 @@ const vault = require('./server/vault-server');
 const thumbnails = require('./server/thumbnails-server');
 const genThumbs = require('./server/gen-thumbs-server');
 const genWhisper = require('./server/gen-whisper-server');
+const subtitles = require('./server/subtitles-server');
 const reencode = require('./server/reencode-server');
 const libraryHealth = require('./server/library-health-server');
 const collections = require('./server/collections-server');
@@ -40,6 +41,8 @@ const audio = require('./server/audio-server');
 const photos = require('./server/photos-server');
 const screenshots = require('./server/screenshots-server');
 const database = require('./server/database-server');
+const seriesDb = require('./server/series-server');
+const albumsDb = require('./server/albums-server');
 const profiles = require('./server/profiles-server');
 const remote = require('./server/remote-server');
 const settings = require('./server/settings-server');
@@ -83,10 +86,10 @@ ensureDirSync(path.join(VIDEOS_DIR, 'downloads'));
 ensureDirSync(cfg.LINK_THUMBS_DIR);
 ensureDirSync(path.dirname(BM_CACHE_FILE));
 
-// ── Seed default category folders ────────────────────────────────────
+// ── Seed default folders ─────────────────────────────────────────────
 
-const DEFAULT_CATEGORIES = [];
-for (const name of DEFAULT_CATEGORIES) {
+const DEFAULT_FOLDERS = [];
+for (const name of DEFAULT_FOLDERS) {
   fs.mkdirSync(path.join(VIDEOS_DIR, name), { recursive: true });
 }
 
@@ -154,14 +157,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/videos/categorize-execute' && req.method === 'POST') return videos.apiCategorizeExecute(req, res);
   if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
-  if (p === '/api/categories' && req.method === 'GET') return videos.apiCategories(req, res, params);
-  if (p === '/api/categories-overview' && req.method === 'GET') return videos.apiCategoriesOverview(req, res);
-  if (p === '/api/all-categories' && req.method === 'GET') return videos.apiGetAllCategories(req, res);
-  if (p === '/api/enabled-categories' && req.method === 'POST') return videos.apiSetEnabledCategories(req, res);
-  if (p === '/api/main-categories' && req.method === 'GET') return videos.apiMainCategories(req, res);
-  if (p === '/api/main-categories' && req.method === 'POST') return videos.apiCreateCategory(req, res);
+  if (p === '/api/folders' && req.method === 'GET') return videos.apiFolders(req, res, params);
+  if (p === '/api/folders-overview' && req.method === 'GET') return videos.apiFoldersOverview(req, res);
+  if (p === '/api/all-folders' && req.method === 'GET') return videos.apiGetAllFolders(req, res);
+  if (p === '/api/enabled-folders' && req.method === 'POST') return videos.apiSetEnabledFolders(req, res);
+  if (p === '/api/main-folders' && req.method === 'GET') return videos.apiMainFolders(req, res);
+  if (p === '/api/main-folders' && req.method === 'POST') return videos.apiCreateFolder(req, res);
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);
-  if (p === '/api/open-category-folder' && req.method === 'POST') return videos.apiOpenCategoryFolder(req, res);
+  if (p === '/api/open-folder-in-explorer' && req.method === 'POST') return videos.apiOpenFolderInExplorer(req, res);
   if (p === '/api/favourites' && req.method === 'GET') return videos.apiFavourites(req, res);
   if (p === '/api/favourites' && req.method === 'DELETE') return videos.apiClearFavourites(req, res);
   if (p === '/api/history' && req.method === 'GET') return videos.apiGetHistory(req, res);
@@ -178,14 +181,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/folders/rename' && req.method === 'PATCH') return videos.apiFolderRename(req, res);
   if (p === '/api/folders/delete' && req.method === 'DELETE') return videos.apiFolderDelete(req, res);
   if (p === '/api/folders/move' && req.method === 'PATCH') return videos.apiFolderMove(req, res);
-  if (p === '/api/categories/rename' && req.method === 'PATCH') return videos.apiRenameCategory(req, res);
-  if (p === '/api/categories/delete' && req.method === 'DELETE') return videos.apiDeleteCategory(req, res);
-  if (p === '/api/categories/hide' && req.method === 'POST') return videos.apiHideCategory(req, res);
-  if (p === '/api/categories/encrypt' && req.method === 'POST') return videos.apiEncryptCategory(req, res);
-  if (p === '/api/categories/unlock' && req.method === 'POST') return videos.apiUnlockCategory(req, res);
-  if (p === '/api/categories/decrypt' && req.method === 'POST') return videos.apiDecryptCategory(req, res);
-  if (p === '/api/categories/encrypt-all' && req.method === 'POST') return videos.apiEncryptAllCategories(req, res);
-  if (p === '/api/categories/compress' && req.method === 'POST') return videos.apiCompressCategory(req, res);
+  if (p === '/api/folders/relabel' && req.method === 'PATCH') return videos.apiRenameFolder(req, res);
+  if (p === '/api/folders/purge' && req.method === 'DELETE') return videos.apiDeleteFolder(req, res);
+  if (p === '/api/folders/hide' && req.method === 'POST') return videos.apiHideFolder(req, res);
+  if (p === '/api/folders/encrypt' && req.method === 'POST') return videos.apiEncryptFolder(req, res);
+  if (p === '/api/folders/unlock' && req.method === 'POST') return videos.apiUnlockFolder(req, res);
+  if (p === '/api/folders/decrypt' && req.method === 'POST') return videos.apiDecryptFolder(req, res);
+  if (p === '/api/folders/encrypt-all' && req.method === 'POST') return videos.apiEncryptAllFolders(req, res);
+  if (p === '/api/folders/compress' && req.method === 'POST') return videos.apiCompressFolder(req, res);
   if (p === '/api/encryption/status' && req.method === 'GET') return videos.apiEncryptionStatus(req, res);
   if (p === '/api/encryption/stop' && req.method === 'POST') return videos.apiEncryptionStop(req, res);
 
@@ -252,6 +255,13 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/whisper/download-model' && req.method === 'POST') return genWhisper.apiWhisperDownloadModel(req, res);
   if (p === '/api/whisper/downloading-models' && req.method === 'GET') return genWhisper.apiWhisperDownloadingModels(req, res);
   if ((m = p.match(/^\/api\/subtitle-embedded\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return videos.apiSubtitleEmbedded(req, res, m[1], m[2]);
+
+  // ── Subtitles management ─────────────────────────────────────────────
+  if (p === '/api/subtitles' && req.method === 'GET') return subtitles.apiSubtitlesList(req, res);
+  if ((m = p.match(/^\/api\/subtitles\/([^/]+)\/content$/)) && req.method === 'GET') return subtitles.apiSubtitleContent(req, res, m[1]);
+  if ((m = p.match(/^\/api\/subtitles\/([^/]+)\/content$/)) && req.method === 'PUT') return subtitles.apiSaveSubtitleContent(req, res, m[1]);
+  if ((m = p.match(/^\/api\/subtitles\/([^/]+)\/delete$/)) && req.method === 'POST') return subtitles.apiDeleteSubtitle(req, res, m[1]);
+  if (p === '/api/subtitles/regenerate' && req.method === 'POST') return subtitles.apiRegenerateBulk(req, res);
 
   // ── Re-encode ────────────────────────────────────────────────────────
   if (p === '/api/reencode/start' && req.method === 'POST') return reencode.apiReencodeStart(req, res);
@@ -351,7 +361,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/ai-tag$/)) && req.method === 'POST') return vault.apiVaultAiTag(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)\/rename$/)) && req.method === 'PUT') return vault.apiVaultRename(req, res, m[1]);
   if (p === '/api/vault/download-zip' && req.method === 'POST') return vaultZip.apiVaultDownloadZip(req, res);
-  if (p === '/api/category/download-zip' && req.method === 'POST') return vaultZip.apiCategoryDownloadZip(req, res);
+  if (p === '/api/folder/download-zip' && req.method === 'POST') return vaultZip.apiFolderDownloadZip(req, res);
   if (p === '/api/vault/zip-entries' && req.method === 'POST') return vaultZip.apiVaultZipEntries(req, res);
   if (p === '/api/vault/import-zip' && req.method === 'POST') return vaultZip.apiVaultImportZip(req, res);
   if (p === '/api/veracrypt/status' && req.method === 'GET') return veracrypt.apiVeracryptStatus(req, res);
@@ -393,10 +403,20 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/profiles/clone' && req.method === 'POST') return profiles.apiCloneProfile(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
-  if (p === '/api/db/category-tags' && req.method === 'GET') return database.apiGetCategoryTags(req, res);
-  if (p === '/api/db/category-tags' && req.method === 'POST') return database.apiUpdateCategoryTags(req, res);
+  if (p === '/api/db/folder-tags' && req.method === 'GET') return database.apiGetFolderTags(req, res);
+  if (p === '/api/db/folder-tags' && req.method === 'POST') return database.apiUpdateFolderTags(req, res);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/export$/)) && req.method === 'GET') return database.apiDbExportJson(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/import$/)) && req.method === 'POST') return database.apiDbImportJson(req, res, m[1]);
+  if (p === '/api/db/series' && req.method === 'GET') return seriesDb.apiGetSeries(req, res);
+  if (p === '/api/db/series' && req.method === 'POST') return seriesDb.apiUpsertSeries(req, res);
+  if (p === '/api/db/series/export' && req.method === 'GET') return seriesDb.apiExportSeries(req, res);
+  if (p === '/api/db/series/import' && req.method === 'POST') return seriesDb.apiImportSeries(req, res);
+  if ((m = p.match(/^\/api\/db\/series\/(.+)$/)) && req.method === 'DELETE') return seriesDb.apiDeleteSeries(req, res, m[1]);
+  if (p === '/api/db/albums' && req.method === 'GET') return albumsDb.apiGetAlbums(req, res);
+  if (p === '/api/db/albums' && req.method === 'POST') return albumsDb.apiUpsertAlbum(req, res);
+  if (p === '/api/db/albums/export' && req.method === 'GET') return albumsDb.apiExportAlbums(req, res);
+  if (p === '/api/db/albums/import' && req.method === 'POST') return albumsDb.apiImportAlbums(req, res);
+  if ((m = p.match(/^\/api\/db\/albums\/(.+)$/)) && req.method === 'DELETE') return albumsDb.apiDeleteAlbum(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'GET') return database.apiDbGet(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)$/)) && req.method === 'POST') return database.apiDbUpsert(req, res, m[1]);
   if ((m = p.match(/^\/api\/db\/(actors|categories|studios|websites)\/(.+)$/)) && req.method === 'DELETE') return database.apiDbDelete(req, res, m[1], decodeURIComponent(m[2]));
@@ -532,7 +552,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|screenshots|pages|search|favourites|categories|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|cat\/|actor\/|studio\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|studios|books|audio|photos|screenshots|pages|search|favourites|folders|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|folder\/|cat\/|actor\/|studio\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

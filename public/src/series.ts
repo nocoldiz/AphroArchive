@@ -2,6 +2,31 @@ import { signal, computed } from '@preact/signals';
 import { allVideos } from './store';
 import { Video } from './types';
 
+export interface DbEpisode {
+  season: number;
+  episode: number;
+  name: string | null;
+  duration: number | null;
+  videoId: string | null;
+}
+
+export interface DbSeriesEntry {
+  key: string;
+  name: string;
+  cover: string;
+  episodes: DbEpisode[];
+}
+
+export const dbSeriesList = signal<DbSeriesEntry[]>([]);
+
+export async function loadDbSeries() {
+  try {
+    const r = await fetch('/api/db/series');
+    const d = await r.json();
+    dbSeriesList.value = d.series || [];
+  } catch {}
+}
+
 export interface Episode {
   video: Video;
   season: number;
@@ -75,3 +100,27 @@ export const seriesList = computed<SeriesEntry[]>(() => {
 // active series and the season whose episodes fill the Next Up playlist.
 export const playerSeries = signal<SeriesEntry | null>(null);
 export const playerSeason = signal<number | null>(null);
+
+// Combined list: auto-detected series with actual files, plus DB-only series
+// (those in the DB whose key doesn't match any auto-detected series).
+// DB-only entries carry no real Video objects — episodes.length === 0 but
+// dbEpisodes is populated for display.
+export const mergedSeriesList = computed<(SeriesEntry & { dbEpisodes?: DbEpisode[] })[]>(() => {
+  const auto = seriesList.value;
+  const db = dbSeriesList.value;
+  if (db.length === 0) return auto;
+
+  const autoKeys = new Set(auto.map(s => s.key));
+  const dbOnly = db
+    .filter(s => !autoKeys.has(s.key))
+    .map(s => ({
+      name: s.name,
+      key: s.key,
+      episodes: [] as Episode[],
+      seasons: [...new Set(s.episodes.map(e => e.season))].sort((a, b) => a - b),
+      cover: s.cover || '',
+      dbEpisodes: s.episodes,
+    }));
+
+  return [...auto, ...dbOnly].sort((a, b) => a.name.localeCompare(b.name));
+});

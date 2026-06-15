@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals';
-import { allVideos, currentCategory, linkVidIds, currentView, currentVideo } from './store';
+import { allVideos, currentFolder, linkVidIds, currentView, currentVideo } from './store';
 
 export interface ZapQueueItem {
   video: any;
@@ -29,7 +29,7 @@ const toast = (msg: string) => {
 };
 
 function getRandomVidForZapping(excludeIds?: Set<string>) {
-  const cat = currentCategory.value;
+  const cat = currentFolder.value;
   const V = allVideos.value;
   const bms = linkVidIds.value;
   const isStreamable = (v: any) => !v.isLink && !bms.has(v.id) && (!excludeIds || !excludeIds.has(v.id));

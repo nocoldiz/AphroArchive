@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { currentCategory, currentTag, currentView, cardSize } from '../../store';
+import { currentFolder, currentTag, currentView, cardSize } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
 interface CategoryOverviewItem {
@@ -20,7 +20,7 @@ export const CategoriesView = () => {
   const prevEncRunning = useRef(false);
 
   const loadOverview = () => {
-    fetch('/api/categories-overview')
+    fetch('/api/folders-overview')
       .then(r => r.json())
       .then(d => {
         setData(d);
@@ -105,10 +105,10 @@ export const CategoriesView = () => {
             }
             const onclick = () => {
               if (item.type === 'cat') {
-                currentCategory.value = item.path;
+                currentFolder.value = item.path;
                 currentView.value = 'browse';
               } else {
-                currentCategory.value = '';
+                currentFolder.value = '';
                 currentTag.value = item.name;
                 currentView.value = 'browse';
               }

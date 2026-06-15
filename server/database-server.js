@@ -12,7 +12,7 @@ const { json, readBody } = require('./helpers-server');
 const {
   loadActors, saveActors,
   loadWebsites, saveWebsites,
-  loadCategories, saveCategories,
+  loadFolderMappings, saveFolderMappings,
   loadStudios, saveStudios,
   invalidateDbTypeCache,
 } = require('./db-server');
@@ -25,7 +25,7 @@ function apiDbGet(req, res, type) {
     return json(res, obj);
   }
   if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     const obj = {};
     cats.forEach(c => { obj[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     return json(res, obj);
@@ -60,11 +60,11 @@ async function apiDbUpsert(req, res, type) {
     return json(res, { ok: true });
   }
   if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     const raw = {};
     cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     raw[name] = data || {};
-    saveCategories(raw);
+    saveFolderMappings(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
@@ -96,11 +96,11 @@ async function apiDbDelete(req, res, type, name) {
     return json(res, { ok: true });
   }
   if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     const raw = {};
     cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     delete raw[name];
-    saveCategories(raw);
+    saveFolderMappings(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
@@ -147,25 +147,25 @@ async function apiDbImport(req, res) {
   json(res, { results });
 }
 
-function apiGetCategoryTags(req, res) {
+function apiGetFolderTags(req, res) {
   const url = new URL('http://x' + req.url);
-  const catPath = (url.searchParams.get('path') || '').trim();
-  const cats = loadCategories();
-  const pathLo = catPath.toLowerCase();
+  const folderPath = (url.searchParams.get('path') || '').trim();
+  const cats = loadFolderMappings();
+  const pathLo = folderPath.toLowerCase();
   const matched = cats.find(c =>
     (c.displayName || '').toLowerCase() === pathLo ||
     c.name.toLowerCase() === pathLo
   );
-  if (!matched) return json(res, { found: false, name: catPath, displayName: catPath, tags: [] });
+  if (!matched) return json(res, { found: false, name: folderPath, displayName: folderPath, tags: [] });
   json(res, { found: true, name: matched.name, displayName: matched.displayName, tags: matched.terms.slice(1) });
 }
 
-async function apiUpdateCategoryTags(req, res) {
+async function apiUpdateFolderTags(req, res) {
   const body = await readBody(req);
-  const { catPath, tags } = body;
-  if (!catPath || typeof catPath !== 'string') return json(res, { error: 'catPath required' }, 400);
-  const cats = loadCategories();
-  const pathLo = catPath.toLowerCase();
+  const { folderPath, tags } = body;
+  if (!folderPath || typeof folderPath !== 'string') return json(res, { error: 'folderPath required' }, 400);
+  const cats = loadFolderMappings();
+  const pathLo = folderPath.toLowerCase();
   const matched = cats.find(c =>
     (c.displayName || '').toLowerCase() === pathLo ||
     c.name.toLowerCase() === pathLo
@@ -176,9 +176,9 @@ async function apiUpdateCategoryTags(req, res) {
   if (matched) {
     raw[matched.name] = { displayName: matched.displayName, tags: cleanTags };
   } else {
-    raw[catPath] = { displayName: catPath, tags: cleanTags };
+    raw[folderPath] = { displayName: folderPath, tags: cleanTags };
   }
-  saveCategories(raw);
+  saveFolderMappings(raw);
   invalidateDbTypeCache('categories');
   json(res, { ok: true });
 }
@@ -190,7 +190,7 @@ function apiDbExportJson(req, res, type) {
     data = {};
     actors.forEach(a => { data[a.name] = { date_of_birth: a.date_of_birth || null, nationality: a.nationality || null, imdb_page: a.imdb_page || null }; });
   } else if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     data = {};
     cats.forEach(c => { data[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
   } else if (type === 'studios') {
@@ -225,11 +225,11 @@ async function apiDbImportJson(req, res, type) {
     Object.assign(raw, body);
     saveActors(raw);
   } else if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     const raw = {};
     cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     Object.assign(raw, body);
-    saveCategories(raw);
+    saveFolderMappings(raw);
   } else if (type === 'studios') {
     const studios = loadStudios();
     const raw = {};
@@ -243,4 +243,4 @@ async function apiDbImportJson(req, res, type) {
   return json(res, { ok: true, count: Object.keys(body).length });
 }
 
-module.exports = { apiDbGet, apiDbUpsert, apiDbDelete, apiDbImport, apiGetCategoryTags, apiUpdateCategoryTags, apiDbExportJson, apiDbImportJson };
+module.exports = { apiDbGet, apiDbUpsert, apiDbDelete, apiDbImport, apiGetFolderTags, apiUpdateFolderTags, apiDbExportJson, apiDbImportJson };

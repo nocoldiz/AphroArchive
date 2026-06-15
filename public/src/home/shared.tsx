@@ -4,7 +4,7 @@
 
 import { ComponentChildren } from 'preact';
 import { Video } from '../types';
-import { currentView, currentCategory, allVideos } from '../store';
+import { currentView, currentFolder, allVideos } from '../store';
 
 export type { WidgetInstance } from './dashboardStore';
 
@@ -25,7 +25,7 @@ export function fmtTime(s: number) {
   return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(sec).padStart(2, '0');
 }
 
-export { currentCategory };
+export { currentFolder };
 
 export const WidgetShell = ({ title, action, children }: {
   title: string;

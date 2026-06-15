@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode } from '../../store';
+import { contextMenuState, folderMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 
@@ -49,17 +49,17 @@ export const ContextMenu = () => {
   };
 
   const handleRename = async () => {
-    const newName = prompt('Rename category to:', data.name);
+    const newName = prompt('Rename folder to:', data.name);
     if (!newName || newName === data.name) return;
 
-    const r = await fetch('/api/categories/rename', {
+    const r = await fetch('/api/folders/relabel', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ oldPath: data.path, newName })
     });
 
     if (r.ok) {
-      toast('Category renamed');
+      toast('Folder renamed');
       refresh();
     } else {
       const err = await r.json();
@@ -68,16 +68,16 @@ export const ContextMenu = () => {
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete category "${data.name}"?\nAll videos inside will be moved to the main videos folder.`)) return;
+    if (!confirm(`Delete folder "${data.name}"?\nAll videos inside will be moved to the main videos folder.`)) return;
 
-    const r = await fetch('/api/categories/delete', {
+    const r = await fetch('/api/folders/purge', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path })
     });
 
     if (r.ok) {
-      toast('Category deleted, videos moved to main folder');
+      toast('Folder deleted, videos moved to main folder');
       refresh();
     } else {
       toast('Delete failed');
@@ -86,14 +86,14 @@ export const ContextMenu = () => {
 
   const handleHide = async () => {
     try {
-      const r = await fetch('/api/categories/hide', {
+      const r = await fetch('/api/folders/hide', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: data.path })
       });
 
       if (r.ok) {
-        toast(`Category "${data.name}" hidden`);
+        toast(`Folder "${data.name}" hidden`);
         closeMenu();
         await loadVideos();
         const tagRes = await fetch('/api/tags');
@@ -103,12 +103,12 @@ export const ContextMenu = () => {
         toast('Hide failed');
       }
     } catch (e: any) {
-      toast('Error hiding category: ' + e.message);
+      toast('Error hiding folder: ' + e.message);
     }
   };
 
   const handleOpenFolder = async () => {
-    const r = await fetch('/api/open-category-folder', {
+    const r = await fetch('/api/open-folder-in-explorer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path })
@@ -119,7 +119,7 @@ export const ContextMenu = () => {
   const handleCompress = async () => {
     if (!confirm(`Start high-compression for all videos in "${data.name}"?\nThis runs in the background and may take a while.`)) return;
 
-    const r = await fetch('/api/categories/compress', {
+    const r = await fetch('/api/folders/compress', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path })
@@ -138,7 +138,7 @@ export const ContextMenu = () => {
 
     toast('Generating ZIP...');
     try {
-      const res = await fetch('/api/category/download-zip', {
+      const res = await fetch('/api/folder/download-zip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category: data.path, password }),
@@ -206,14 +206,14 @@ export const ContextMenu = () => {
       });
 
   const refreshPhysicalFolders = async (root: string) => {
-    const res = await fetch('/api/categories');
+    const res = await fetch('/api/folders');
     if (res.ok) setPhysicalFolders(toFolderEntries(await res.json(), root));
   };
 
   const handleManageSubfolders = async () => {
     closeMenu();
     const root = data.path;
-    const res = await fetch('/api/categories');
+    const res = await fetch('/api/folders');
     const cats = res.ok ? await res.json() : [];
     setPhysicalFolders(toFolderEntries(cats, root));
     setPhysicalFolderRoot(root);
@@ -278,7 +278,7 @@ export const ContextMenu = () => {
             (v.catPath || '') === catPath && (v.name || '').toLowerCase() === nameLo;
           allVideos.value = allVideos.value.filter((v: any) => !remove(v));
           videos.value = videos.value.filter((v: any) => !remove(v));
-          categories.value = categories.value.map((c: any) =>
+          folders.value = folders.value.map((c: any) =>
             c.path === catPath ? { ...c, count: Math.max(0, (c.count || 1) - 1) } : c
           );
         }
@@ -292,7 +292,7 @@ export const ContextMenu = () => {
   };
 
   const execEncrypt = async () => {
-    const r = await fetch('/api/categories/encrypt', {
+    const r = await fetch('/api/folders/encrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path })
@@ -320,7 +320,7 @@ export const ContextMenu = () => {
 
   const execUnlock = async () => {
     setShowUnlockModal(false);
-    const r = await fetch('/api/categories/decrypt', {
+    const r = await fetch('/api/folders/decrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: data.path, targetProfile })
@@ -359,7 +359,7 @@ export const ContextMenu = () => {
         padding: '5px 0',
         minWidth: `${menuWidth}px`
       }}>
-        {type === 'category' && (
+        {type === 'folder' && (
           <>
             <ContextItem
               label={(appPrefs.value.pinnedFolders || []).includes(data.path) ? 'Unpin folder' : 'Pin folder to top'}
@@ -376,7 +376,7 @@ export const ContextMenu = () => {
               const r = await fetch('/api/reencode/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ category: data.path }),
+                body: JSON.stringify({ folder: data.path }),
               });
               const d = await r.json().catch(() => ({}));
               if (d.ok) toast('Re-encoding started — check Sync & Tasks for progress');
@@ -418,7 +418,7 @@ export const ContextMenu = () => {
               if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
             }} />
             <ContextItem label="Rename" icon="edit" onClick={() => (window as any).openRen && (window as any).openRen(data.id, data.name)} />
-            <ContextItem label="Move to Category" icon="folder" onClick={() => (window as any).openMov && (window as any).openMov(data.id, data.name, data.catPath || '')} />
+            <ContextItem label="Move to Folder" icon="folder" onClick={() => (window as any).openMov && (window as any).openMov(data.id, data.name, data.catPath || '')} />
             <ContextItem label="Add to Playlist" icon="list" onClick={() => {
               currentVideo.value = data;
               showAddToCollectionModal.value = true;
@@ -490,7 +490,7 @@ export const ContextMenu = () => {
             }} />
             <ContextItem label="Create folder here" icon="folder" onClick={() => {
               closeMenu();
-              (window as any).createCategory?.();
+              (window as any).createFolder?.();
             }} />
           </>
         )}
@@ -531,10 +531,10 @@ export const ContextMenu = () => {
         <div className="modal on" style={{ display: 'flex' }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h2>Restore Category</h2>
+              <h2>Restore Folder</h2>
             </div>
             <div className="modal-body">
-              <p>Choose the target profile to restore this category to:</p>
+              <p>Choose the target profile to restore this folder to:</p>
               <select
                 value={targetProfile}
                 onChange={(e: any) => setTargetProfile(e.target.value)}
@@ -558,10 +558,10 @@ export const ContextMenu = () => {
         <div className="modal on" style={{ display: 'flex' }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h2>Encrypt Category</h2>
+              <h2>Encrypt Folder</h2>
             </div>
             <div className="modal-body">
-              <p>Encrypt category "{data.name}" and move it to Vault?</p>
+              <p>Encrypt folder "{data.name}" and move it to Vault?</p>
               <p>This will encrypt all files inside and move them into the vault.</p>
             </div>
             <div className="modal-footer">
@@ -583,7 +583,7 @@ export const ContextMenu = () => {
             </div>
             <div className="modal-body">
               <p>Encrypt "{data.name}" and move it to Vault?</p>
-              <p>The video will be placed in a vault folder matching its current category.</p>
+              <p>The video will be placed in a vault folder matching its current folder.</p>
             </div>
             <div className="modal-footer">
               <button class="modal-btn modal-btn--primary" onClick={() => {

@@ -641,7 +641,7 @@ export const LinksView = () => {
       .then(r => r.json())
       .then(setWebsites)
       .catch(() => {});
-    fetch('/api/categories')
+    fetch('/api/folders')
       .then(r => r.json())
       .then(data => setActiveCats(Array.isArray(data) ? data : []))
       .catch(() => {});

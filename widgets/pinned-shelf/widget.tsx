@@ -2,7 +2,7 @@
 // actor or playlist. Multiple instances allowed; each is configured inline.
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { Video } from '../../public/src/types';
-import { allVideos, categories } from '../../public/src/store';
+import { allVideos, folders } from '../../public/src/store';
 import { WidgetShell, Row, WidgetInstance } from '../../public/src/home/shared';
 import { updateInstance } from '../../public/src/home/dashboardStore';
 
@@ -13,7 +13,7 @@ function PinnedShelfConfig({ instance, onDone }: { instance: WidgetInstance; onD
   const [title, setTitle] = useState(cfg.title || '');
 
   const options = useMemo(() => {
-    if (kind === 'category') return categories.value.filter(c => c.path && c.path !== 'Links').map(c => c.path);
+    if (kind === 'category') return folders.value.filter(c => c.path && c.path !== 'Links').map(c => c.path);
     if (kind === 'tag') {
       const s = new Set<string>();
       allVideos.value.forEach(v => (v.tags || []).forEach(t => s.add(t)));
@@ -25,7 +25,7 @@ function PinnedShelfConfig({ instance, onDone }: { instance: WidgetInstance; onD
       return [...s].sort();
     }
     return [];
-  }, [kind, categories.value, allVideos.value]);
+  }, [kind, folders.value, allVideos.value]);
 
   const save = () => {
     if (!value) { (window as any).toast?.('Pick a source first'); return; }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
-import { currentView, currentCategory, categories, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos } from '../../store';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, showConnectModal, isSidebarOpen, sourceFilter, allVideos, currentPhotoFolder, dbPendingOpen, isVaultUnlocked, activeProfile, switchProfile, searchQuery, isLoadingVideos } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 
 interface SidebarItemProps {
@@ -174,7 +174,7 @@ export const Sidebar = () => {
 
   const selectCategory = (catName: string) => {
     currentView.value = 'browse';
-    currentCategory.value = catName;
+    currentFolder.value = catName;
     currentTag.value = null; currentTagTerms.value = [];
     searchQuery.value = '';
     isSidebarOpen.value = false;
@@ -242,7 +242,7 @@ export const Sidebar = () => {
             })
             .catch(err => console.error('Move failed', err));
           } : undefined}
-          isActive={currentCategory.value === c.path}
+          isActive={currentFolder.value === c.path}
         />
         {hasChildren && expanded && node.children.map(child => renderCategoryNode(child, depth + 1))}
       </div>
@@ -258,7 +258,7 @@ export const Sidebar = () => {
     ? vids.filter(v => !!(v as any).isLink)
     : vids, [sf, vids]);
 
-  const displayCategories = useMemo(() => categories.value
+  const displayFolders = useMemo(() => folders.value
     .map(c => {
       // Use the count from the server response; if missing (e.g. for link-only cats), compute from filteredVids
       let count = c.count || 0;
@@ -277,14 +277,14 @@ export const Sidebar = () => {
       if (a.path === 'uncategorized') return -1;
       if (b.path === 'uncategorized') return 1;
       return a.name.localeCompare(b.name);
-    }), [categories.value, filteredVids]);
+    }), [folders.value, filteredVids]);
 
   // Build a folder tree from the flat category list. Categories with `count === 0`
   // are dropped when the user enables "hide empty folders" — their (also-empty) subtrees go with them.
-  interface CatTreeNode { cat: typeof displayCategories[number]; children: CatTreeNode[] }
+  interface CatTreeNode { cat: typeof displayFolders[number]; children: CatTreeNode[] }
   const categoryTree = useMemo(() => {
     const hideEmpty = !!appPrefs.value.hideEmptyFolders;
-    const list = hideEmpty ? displayCategories.filter(c => c.count > 0) : displayCategories;
+    const list = hideEmpty ? displayFolders.filter(c => c.count > 0) : displayFolders;
     const byPath = new Map<string, CatTreeNode>();
     const roots: CatTreeNode[] = [];
     for (const c of list) {
@@ -297,16 +297,16 @@ export const Sidebar = () => {
       else roots.push(node);
     }
     return roots;
-  }, [displayCategories, appPrefs.value.hideEmptyFolders]);
+  }, [displayFolders, appPrefs.value.hideEmptyFolders]);
 
   // Pinned folders surface at the top of the Folders list. Preserve the
   // user's pin order; drop any pins whose folder no longer exists.
   const pinnedCats = useMemo(() => {
     const pins = appPrefs.value.pinnedFolders || [];
-    if (!pins.length) return [] as typeof displayCategories;
-    const byPath = new Map(displayCategories.map(c => [c.path, c]));
-    return pins.map(p => byPath.get(p)).filter(Boolean) as typeof displayCategories;
-  }, [appPrefs.value.pinnedFolders, displayCategories]);
+    if (!pins.length) return [] as typeof displayFolders;
+    const byPath = new Map(displayFolders.map(c => [c.path, c]));
+    return pins.map(p => byPath.get(p)).filter(Boolean) as typeof displayFolders;
+  }, [appPrefs.value.pinnedFolders, displayFolders]);
 
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
     try { return new Set<string>(JSON.parse(localStorage.getItem('sidebarFolderExpanded') || '[]')); } catch { return new Set<string>(); }
@@ -399,8 +399,8 @@ export const Sidebar = () => {
             id="categories-view-sidebar"
             label="Folders"
             icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>}
-            onClick={() => setView('categories', 'showCategoriesView')}
-            isActive={currentView.value === 'categories'}
+            onClick={() => setView('folders', 'showCategoriesView')}
+            isActive={currentView.value === 'folders'}
           />
           <SidebarItem
             id="actor-sidebar"
@@ -458,7 +458,7 @@ export const Sidebar = () => {
           label="Videos"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>}
           onClick={() => setView('hub', 'goHome')}
-          isActive={currentView.value === 'hub' && !currentCategory.value}
+          isActive={currentView.value === 'hub' && !currentFolder.value}
         />
         <SidebarItem
           id="series-sidebar"
@@ -543,6 +543,13 @@ export const Sidebar = () => {
       <SectionHeader label="Tools" id="sh3-manage" onClick={toggleManage} />
       <div className="side-section" id="manageSection" style={{ display: manageOpen ? 'block' : 'none' }}>
         <SidebarItem
+          id="subtitles-sidebar"
+          label="Subtitles"
+          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M6 11h4"/><path d="M6 15h8"/><path d="M16 3l-4-2-4 2"/></svg>}
+          onClick={() => setView('subtitles')}
+          isActive={currentView.value === 'subtitles'}
+        />
+        <SidebarItem
           id="categorizer-sidebar"
           label="Categorizer"
           icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>}
@@ -612,7 +619,7 @@ export const Sidebar = () => {
       )}
 
       {/* Categories — encrypted-only in vault mode */}
-      {(!inVaultMode || displayCategories.length > 0) && (
+      {(!inVaultMode || displayFolders.length > 0) && (
         <>
           <div className="side-sep"></div>
           <SectionHeader
@@ -623,7 +630,7 @@ export const Sidebar = () => {
               <span className="sidebar-heading-actions">
                 {isLoadingVideos.value && <span className="sidebar-loading-spin" />}
                 {!inVaultMode && (
-                  <button type="button" className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createCategory(); }}>
+                  <button type="button" className="sidebar-heading-add" title="New folder" onClick={(e) => { e.stopPropagation(); (window as any).createFolder(); }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
@@ -637,8 +644,8 @@ export const Sidebar = () => {
             <SidebarItem
               label="All Videos"
               badge={filteredVids.length}
-              onClick={() => { currentView.value = 'browse'; currentCategory.value = ''; currentTag.value = null; currentTagTerms.value = []; isSidebarOpen.value = false; }}
-              isActive={!currentCategory.value && !currentTag.value}
+              onClick={() => { currentView.value = 'browse'; currentFolder.value = ''; currentTag.value = null; currentTagTerms.value = []; isSidebarOpen.value = false; }}
+              isActive={!currentFolder.value && !currentTag.value}
               indent
             />
             {pinnedCats.map(c => (
@@ -654,12 +661,12 @@ export const Sidebar = () => {
                     (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
                   }
                 }}
-                isActive={currentCategory.value === c.path}
+                isActive={currentFolder.value === c.path}
                 indent
               />
             ))}
             {categoryTree.map(node => renderCategoryNode(node, 0))}
-            {inVaultMode && displayCategories.length === 0 && (
+            {inVaultMode && displayFolders.length === 0 && (
               <div style={{ padding: '6px 16px', fontSize: '0.8rem', color: 'var(--tx3)' }}>No encrypted folders</div>
             )}
           </div>
@@ -675,7 +682,7 @@ export const Sidebar = () => {
             id="sh3-tags"
             onClick={toggleTags}
             action={
-              <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'categories', action: 'add' }; }}>
+              <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
@@ -691,7 +698,7 @@ export const Sidebar = () => {
                 badge={t.count}
                 icon={<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none" style={{ ...iconStyle, color: 'var(--ac)' }}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
                 onClick={() => {
-                  currentCategory.value = '';
+                  currentFolder.value = '';
                   currentTag.value = t.name;
                   currentTagTerms.value = t.terms;
                   searchQuery.value = '';
@@ -716,7 +723,7 @@ export const Sidebar = () => {
                 badge={t.count}
                 icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>}
                 onClick={() => {
-                  currentCategory.value = '';
+                  currentFolder.value = '';
                   currentTag.value = t.name;
                   currentTagTerms.value = t.terms;
                   searchQuery.value = '';

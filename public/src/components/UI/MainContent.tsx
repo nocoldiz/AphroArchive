@@ -31,6 +31,8 @@ import { SeriesView } from '../sections/SeriesView';
 import { DownloadQueueView } from '../sections/DownloadQueueView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
+import { SubtitlesView } from '../sections/SubtitlesView';
+import { SubtitleEditorModal } from '../modals/SubtitleEditorModal';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
 // Heavy/rare views — code-split so the initial bundle stays small
@@ -102,7 +104,7 @@ export const MainContent = () => {
     if (view === 'series') return <SeriesView />;
     if (view === 'scraper') return <ActorScraperView />;
     if (view === 'settings') return <SettingsView />;
-    if (view === 'categories') return <CategoriesView />;
+    if (view === 'folders') return <CategoriesView />;
     if (view === 'actors') return <ActorsView />;
     if (view === 'studios') return <StudiosView />;
     if (view === 'photos') return <PhotosView />;
@@ -126,6 +128,7 @@ export const MainContent = () => {
     if (view === 'categorizer') return <CategorizerView />;
     if (view === 'duplicates') return <DuplicatesView />;
     if (view === 'library-health') return <LibraryHealthView />;
+    if (view === 'subtitles') return <SubtitlesView />;
     return <BrowseView />;
   };
 
@@ -145,6 +148,7 @@ export const MainContent = () => {
       <VisionModal />
       <VaultUnlockModal />
       <ImportModal />
+      <SubtitleEditorModal />
     </>
   );
 };

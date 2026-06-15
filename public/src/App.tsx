@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, categories } from './store';
+import { videos, loadVideos, loadFolders, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { OnboardingWizard } from './components/modals/OnboardingWizard';
@@ -51,7 +51,7 @@ export function App() {
     fetch('/api/preload').then(r => r.json()).then(preload => {
       (window as any).__preloaded = preload;
       // Populate folder list immediately from DB index so sidebar shows names before full scan
-      if (preload.catCounts && categories.value.length === 0) {
+      if (preload.catCounts && folders.value.length === 0) {
         const initial = Object.entries(preload.catCounts as Record<string, number>)
           .map(([p, count]) => ({ name: p.replace(/\//g, ' / '), path: p, count }))
           .sort((a, b) => {
@@ -59,12 +59,12 @@ export function App() {
             if (b.path === 'uncategorized') return 1;
             return a.name.localeCompare(b.name);
           });
-        categories.value = initial;
+        folders.value = initial;
       }
     }).catch(() => {});
 
     loadVideos();
-    loadCategories();
+    loadFolders();
     loadPrefs();
 
     // Restore vault unlock state and auto-navigate if we're in the Vault profile

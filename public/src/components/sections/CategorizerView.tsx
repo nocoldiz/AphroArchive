@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'preact/hooks';
-import { allVideos, categories, loadCategories, loadVideos } from '../../store';
+import { allVideos, folders, loadFolders, loadVideos } from '../../store';
 import { Video } from '../../types';
 
 type Side   = 'left' | 'right';
@@ -22,7 +22,7 @@ function linkUrl(id: string): string {
 export const CategorizerView = () => {
   // Signal reads in the component body keep Preact reactive
   const allVids = allVideos.value;
-  const cats    = categories.value.filter(c => c.path !== 'uncategorized');
+  const cats    = folders.value.filter(c => c.path !== 'uncategorized');
 
   const [catL, setCatL] = useState('');
   const [catR, setCatR] = useState('');
@@ -47,7 +47,7 @@ export const CategorizerView = () => {
   const lastClickR   = useRef(-1);
 
   useEffect(() => {
-    if (categories.value.length === 0) loadCategories();
+    if (folders.value.length === 0) loadFolders();
     if (allVideos.value.length === 0) loadVideos();
   }, []);
 
@@ -271,7 +271,7 @@ export const CategorizerView = () => {
     const newName = renameName.trim().replace(/[<>:"/\\|?*]/g, '_');
     if (!newName || !oldPath) { setRenameSide(null); return; }
     try {
-      const r = await fetch('/api/categories/rename', {
+      const r = await fetch('/api/folders/rename', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ oldPath, newName }),
@@ -300,7 +300,7 @@ export const CategorizerView = () => {
     const catDisplay = allCats.find(c => c.path === cat)?.name || cat;
     if (!confirm(`Delete folder "${catDisplay}"? All its videos will be moved to the default folder.`)) return;
     try {
-      const r = await fetch('/api/categories/delete', {
+      const r = await fetch('/api/folders/delete', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: cat }),

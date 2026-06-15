@@ -78,7 +78,7 @@ export const DownloadQueueView = () => {
     try {
       const [lr, cr] = await Promise.all([
         fetch('/api/links/cache?limit=0').then(r => r.json()),
-        fetch('/api/categories').then(r => r.json()),
+        fetch('/api/folders').then(r => r.json()),
       ]);
       setLinks((lr.items || []).map((i: any) => ({ ...i, tags: typeof i.tags === 'string' ? JSON.parse(i.tags || '[]') : (i.tags || []) })));
       setCategories(cr || []);

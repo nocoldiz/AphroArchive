@@ -8,12 +8,12 @@ const path = require('path');
 const { VIDEOS_DIR, PATHS_FILE, CACHE_DIR, DB_DIR, VAULT_DIR,
         DEFAULT_CACHE_DIR, DEFAULT_DB_DIR, DEFAULT_VAULT_DIR } = require('./config-server');
 const { json, readBody }  = require('./helpers-server');
-const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios, loadVaultConfig } = require('./db-server');
+const { loadPrefs, savePrefs, loadHidden, saveHidden, loadFolderMappings, loadActors, loadStudios, loadVaultConfig } = require('./db-server');
 
 function apiSettingsLists(req, res) {
   json(res, {
     hidden:     loadHidden().join('\n'),
-    categories: loadCategories().map(c => c.name).join('\n'),
+    categories: loadFolderMappings().map(c => c.name).join('\n'),
     actors:     loadActors().map(a => a.name).join('\n'),
     studios:    loadStudios().map(s => s.name).join('\n'),
   });

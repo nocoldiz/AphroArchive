@@ -1,11 +1,11 @@
 import { signal, computed } from '@preact/signals';
-import { Video, Category, Actor, Studio, AppPrefs, ThumbnailGroup } from './types';
+import { Video, Folder, Actor, Studio, AppPrefs, ThumbnailGroup } from './types';
 import * as api from './api';
 
 // ─── Core State ──────────────────────────────────────────────────────
 export const videos = signal<Video[]>([]);
 export const allVideos = signal<Video[]>([]); // Full unfiltered list
-export const categories = signal<Category[]>([]);
+export const folders = signal<Folder[]>([]);
 export const actors = signal<Actor[]>([]);
 export const studios = signal<Studio[]>([]);
 export const appPrefs = signal<Partial<AppPrefs>>({});
@@ -100,12 +100,12 @@ export const moveModalState = signal<{
   visible: boolean;
   vidIds: string[];
   linkUrl: string | null;
-  currentCategory: string;
+  currentFolder: string;
 }>({
   visible: false,
   vidIds: [],
   linkUrl: null,
-  currentCategory: ''
+  currentFolder: ''
 });
 
 export const presetPickerState = signal<{
@@ -118,7 +118,17 @@ export const presetPickerState = signal<{
 
 export const importModalState = signal<{ visible: boolean }>({ visible: false });
 
-export const currentCategory = signal<string>('');
+export const subtitleEditorModalState = signal<{
+  visible: boolean;
+  videoId: string;
+  videoName: string;
+}>({
+  visible: false,
+  videoId: '',
+  videoName: '',
+});
+
+export const currentFolder = signal<string>('');
 export const currentTag = signal<string | null>(null);
 export const currentTagTerms = signal<string[]>([]);
 export const currentPhotoFolder = signal<string>('');
@@ -200,7 +210,7 @@ if (typeof window !== 'undefined') {
 }
 export const vaultMode = signal<boolean>(false);
 export const isVaultUnlocked = signal<boolean>(false);
-export const categoryMasterPassword = signal<string | null>(null);
+export const folderMasterPassword = signal<string | null>(null);
 export const videoSelMode = signal<boolean>(false);
 export const selectedVideoIds = signal<Set<string>>(new Set());
 export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true');
@@ -260,7 +270,7 @@ export async function loadProfiles() {
 export async function reloadAppData() {
   currentVideo.value = null;
   currentView.value = 'hub';
-  currentCategory.value = '';
+  currentFolder.value = '';
   currentTag.value = null;
   currentTagTerms.value = [];
   currentActor.value = null;
@@ -269,7 +279,7 @@ export async function reloadAppData() {
   searchQuery.value = '';
   if (location.pathname !== '/') history.pushState(null, '', '/');
 
-  await Promise.all([loadVideos(), loadCategories(), loadPrefs()]);
+  await Promise.all([loadVideos(), loadFolders(), loadPrefs()]);
 
   try {
     const s = await (await fetch('/api/vault/status')).json();
@@ -309,15 +319,15 @@ if (typeof document !== 'undefined') {
   });
 }
 
-(window as any)._categoriesSignal = categories;
+(window as any)._foldersSignal = folders;
 (window as any)._videosSignal = videos;
 (window as any)._currentViewSignal = currentView;
 
 // Compatibility getters/setters for legacy globals
 Object.defineProperty(window, 'V', { get() { return videos.value; }, set(v) { videos.value = v; } });
-Object.defineProperty(window, 'cats', { get() { return categories.value; }, set(v) { categories.value = v; } });
+Object.defineProperty(window, 'cats', { get() { return folders.value; }, set(v) { folders.value = v; } });
 Object.defineProperty(window, 'sort', { get() { return sortMode.value; }, set(v) { sortMode.value = v; } });
-Object.defineProperty(window, 'cat', { get() { return currentCategory.value; }, set(v) { currentCategory.value = v; } });
+Object.defineProperty(window, 'cat', { get() { return currentFolder.value; }, set(v) { currentFolder.value = v; } });
 Object.defineProperty(window, 'q', { get() { return searchQuery.value; }, set(v) { searchQuery.value = v; } });
 Object.defineProperty(window, 'galleryFilter', { get() { return galleryFilter.value; }, set(v) { galleryFilter.value = v; } });
 Object.defineProperty(window, 'curV', { get() { return currentVideo.value; }, set(v) { currentVideo.value = v; } });
@@ -328,11 +338,11 @@ Object.defineProperty(window, 'videoSelMode', { get() { return videoSelMode.valu
 (window as any).openRen = (id: string, name: string) => {
   renameModalState.value = { visible: true, vidId: id, linkUrl: null, currentName: name };
 };
-(window as any).openMov = (id: string, name: string, curCatPath: string) => {
-  moveModalState.value = { visible: true, vidIds: [id], linkUrl: null, currentCategory: curCatPath };
+(window as any).openMov = (id: string, name: string, curFolderPath: string) => {
+  moveModalState.value = { visible: true, vidIds: [id], linkUrl: null, currentFolder: curFolderPath };
 };
 (window as any).openBulkMove = (ids: string[]) => {
-  moveModalState.value = { visible: true, vidIds: ids, linkUrl: null, currentCategory: '' };
+  moveModalState.value = { visible: true, vidIds: ids, linkUrl: null, currentFolder: '' };
 };
 
 (window as any).openPresetPickerManual = () => {
@@ -373,7 +383,7 @@ w.booksMode = false;
 w.audioMode = false;
 w.photosMode = false;
 w.pagesMode = false;
-w.categoriesMode = false;
+w.foldersMode = false;
 w.remoteMode = false;
 w.vaultSel = new Set();
 Object.defineProperty(w, 'videoSel', {
@@ -533,13 +543,13 @@ export const filteredVideos = computed(() => {
       list = [...recentVideos.value];
     }
 
-    if (currentCategory.value === 'uncategorized') {
+    if (currentFolder.value === 'uncategorized') {
       list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isLink && v.catPath === 'Links'));
-    } else if (currentCategory.value) {
-      const cl = currentCategory.value.toLowerCase().replace(/\\/g, '/');
+    } else if (currentFolder.value) {
+      const cl = currentFolder.value.toLowerCase().replace(/\\/g, '/');
       list = list.filter(v => {
         const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
-        return vp === cl || vp.startsWith(cl + '/') || v.category === currentCategory.value;
+        return vp === cl || vp.startsWith(cl + '/') || v.category === currentFolder.value;
       });
     }
 
@@ -627,13 +637,13 @@ export const filteredVideos = computed(() => {
 });
 
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
-export function matchLinkCat(title: string, cats: any[], explicitCategory?: string): { catPath: string; category: string } {
-  if (explicitCategory) {
-    const found = cats.find((c: any) =>
-      c.path === explicitCategory ||
-      c.name === explicitCategory ||
-      (c.displayName && c.displayName === explicitCategory) ||
-      c.path === explicitCategory.replace(/\\/g, '/')
+export function matchLinkFolder(title: string, folderList: any[], explicitFolder?: string): { catPath: string; category: string } {
+  if (explicitFolder) {
+    const found = folderList.find((c: any) =>
+      c.path === explicitFolder ||
+      c.name === explicitFolder ||
+      (c.displayName && c.displayName === explicitFolder) ||
+      c.path === explicitFolder.replace(/\\/g, '/')
     );
     if (found) {
       return { catPath: found.path, category: found.name };
@@ -641,10 +651,10 @@ export function matchLinkCat(title: string, cats: any[], explicitCategory?: stri
   }
 
   const norm = (title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  for (const cat of cats) {
-    if (cat.path === 'Links') continue;
-    const key = cat.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    if (key && norm.includes(key)) return { catPath: cat.path, category: cat.name };
+  for (const folder of folderList) {
+    if (folder.path === 'Links') continue;
+    const key = folder.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (key && norm.includes(key)) return { catPath: folder.path, category: folder.name };
   }
   return { catPath: '', category: '' };
 }
@@ -663,17 +673,17 @@ export async function loadVideos() {
 async function loadVideosInner() {
   const isVaultGlobal = activeProfile.value === 'Vault' && vaultGlobalView.value;
   const videosUrl = isVaultGlobal ? '/api/videos?all=1' : '/api/videos';
-  const categoriesUrl = isVaultGlobal ? '/api/categories?all=1' : '/api/categories';
+  const foldersUrl = isVaultGlobal ? '/api/folders?all=1' : '/api/folders';
   const [res, bRes, cRes] = await Promise.all([
     fetch(videosUrl),
     fetch('/api/links/cache?limit=0').catch(() => null),
-    fetch(categoriesUrl).catch(() => null),
+    fetch(foldersUrl).catch(() => null),
   ]);
   if (!res.ok) throw new Error('Failed to fetch videos');
   const data = await res.json();
 
   const cats = cRes ? await cRes.json().catch(() => []) : [];
-  if (Array.isArray(cats)) categories.value = cats;
+  if (Array.isArray(cats)) folders.value = cats;
 
   let linksData: any[] = [];
   try {
@@ -694,7 +704,7 @@ async function loadVideosInner() {
   const linkVideos = linksData
     .filter((b: any) => b.url && !b.downloaded)
     .map((b: any) => {
-      const { catPath, category } = matchLinkCat(b.title, cats, b.category);
+      const { catPath, category } = matchLinkFolder(b.title, cats, b.category);
       return {
         id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
         name: b.title || b.url,
@@ -746,7 +756,7 @@ async function loadVideosInner() {
         countMap.set(cur, (countMap.get(cur) || 0) + 1);
       }
     }
-    categories.value = cats.map((c: any) => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (countMap.get(c.path) || 0) }));
+    folders.value = cats.map((c: any) => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (countMap.get(c.path) || 0) }));
   }
 
   // Don't call syncUrlToState here — it races with routeToPath's async
@@ -763,10 +773,10 @@ async function loadVideosInner() {
   }
 }
 
-export async function loadCategories() {
-  const res = await fetch('/api/categories');
+export async function loadFolders() {
+  const res = await fetch('/api/folders');
   const data = await res.json();
-  categories.value = data;
+  folders.value = data;
 }
 
 export async function loadPrefs() {
@@ -826,7 +836,7 @@ w.goHome = () => {
   if (w.mosaicOn && w.stopMosaic) w.stopMosaic();
   if (w.stopZapping) w.stopZapping();
   currentView.value = 'hub';
-  currentCategory.value = '';
+  currentFolder.value = '';
   currentTag.value = null; currentTagTerms.value = [];
   searchQuery.value = '';
   if (location.pathname !== '/') history.pushState(null, '', '/');
@@ -863,7 +873,7 @@ currentView.subscribe(view => {
     'home-view', 'vault-view', 'scraper-view', 'collections-view',
     'books-view', 'audio-view', 'photos-view', 'thumbnails-view', 'pages-view',
     'prompts-view', 'search-sites-view', 'settings-view', 'database-view',
-    'categories-view', 'chapters-view'
+    'folders-view', 'chapters-view'
   ];
   legacyViews.forEach(id => {
     const el = document.getElementById(id);
@@ -892,7 +902,7 @@ export function syncUrlToState() {
   if (p === '/' || p === '/hub' || p === '/home') {
     currentView.value = 'hub';
     currentVideo.value = null;
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null; currentTagTerms.value = [];
     return;
   }
@@ -905,26 +915,26 @@ export function syncUrlToState() {
       currentVideo.value = vid;
       currentView.value = 'player';
     }
-  } else if ((m = p.match(/^\/cat\/([^/]+)$/))) {
+  } else if ((m = p.match(/^\/folder\/([^/]+)$/)) || (m = p.match(/^\/cat\/([^/]+)$/))) {
     currentView.value = 'browse';
-    currentCategory.value = decodeURIComponent(m[1]);
+    currentFolder.value = decodeURIComponent(m[1]);
     currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else if ((m = p.match(/^\/tag\/([^/]+)$/))) {
     currentView.value = 'browse';
     currentTag.value = decodeURIComponent(m[1]);
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentVideo.value = null;
   } else if ((m = p.match(/^\/actor\/([^/]+)$/))) {
     currentView.value = 'actors';
     currentActor.value = decodeURIComponent(m[1]);
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else if ((m = p.match(/^\/studio\/([^/]+)$/))) {
     currentView.value = 'studios';
     currentStudio.value = decodeURIComponent(m[1]);
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null; currentTagTerms.value = [];
     currentVideo.value = null;
   } else {
@@ -932,7 +942,7 @@ export function syncUrlToState() {
     const view = p.replace(/^\//, '');
     currentView.value = view;
     currentVideo.value = null;
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null; currentTagTerms.value = [];
   }
 }
@@ -963,8 +973,8 @@ function doUpdateUrl() {
     path = `/actor/${encodeURIComponent(currentActor.value)}`;
   } else if (view === 'studios' && currentStudio.value) {
     path = `/studio/${encodeURIComponent(currentStudio.value)}`;
-  } else if (view === 'browse' && currentCategory.value) {
-    path = `/cat/${encodeURIComponent(currentCategory.value)}`;
+  } else if (view === 'browse' && currentFolder.value) {
+    path = `/folder/${encodeURIComponent(currentFolder.value)}`;
   } else if (view === 'browse' && currentTag.value) {
     path = `/tag/${encodeURIComponent(currentTag.value)}`;
   } else if (view === 'player') {
@@ -994,7 +1004,7 @@ function scheduleUrlUpdate() {
 
 if (typeof window !== 'undefined') {
   currentView.subscribe(scheduleUrlUpdate);
-  currentCategory.subscribe(scheduleUrlUpdate);
+  currentFolder.subscribe(scheduleUrlUpdate);
   currentTag.subscribe(scheduleUrlUpdate);
   currentVideo.subscribe(scheduleUrlUpdate);
   // popstate and initial routing are handled by setupRouter() in router.ts
@@ -1010,7 +1020,7 @@ if (typeof window !== 'undefined') {
   const scrollKey = () => {
     const v = currentView.value;
     if (v === 'browse' || v === 'hub' || v === 'favourites' || v === 'recent') {
-      return `${v}:${currentCategory.value}:${currentTag.value || ''}`;
+      return `${v}:${currentFolder.value}:${currentTag.value || ''}`;
     }
     return null;
   };
@@ -1029,16 +1039,16 @@ if (typeof window !== 'undefined') {
 }
 
 w.loadC = async () => {
-  const data = await api.fetchCategories();
-  categories.value = data;
+  const data = await api.fetchFolders();
+  folders.value = data;
   if (w.renCats) w.renCats();
 };
 
-w.createCategory = async () => {
+w.createFolder = async () => {
   const name = prompt('New folder name:');
   if (!name || !name.trim()) return;
   try {
-    const d = await api.createCategory(name.trim());
+    const d = await api.createFolder(name.trim());
     w.toast('Created folder: ' + d.name);
     await w.loadC();
     w.refresh(true);
@@ -1093,7 +1103,7 @@ w.refresh = async (full = false) => {
     w[modeVar] = false;
   };
   
-  if (w.categoriesMode) { closeView('categories-view', 'categoriesMode'); closeView('categories-view-sidebar', 'categoriesMode'); }
+  if (w.foldersMode) { closeView('folders-view', 'foldersMode'); closeView('folders-view-sidebar', 'foldersMode'); }
   if (w.recentMode) { closeView('recent-sidebar', 'recentMode'); }
   if (w.vaultMode) { closeView('vault-view', 'vaultMode'); closeView('vault-sidebar', 'vaultMode'); }
   if (w.studioMode) { closeView('studios-view', 'studioMode'); closeView('studio-detail-view', 'studioMode'); closeView('studio-sidebar', 'studioMode'); }

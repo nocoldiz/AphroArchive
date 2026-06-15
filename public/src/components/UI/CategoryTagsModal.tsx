@@ -1,36 +1,36 @@
 import { useState, useEffect } from 'preact/hooks';
 
 interface Props {
-  catPath: string;
+  folderPath: string;
   onClose: () => void;
 }
 
-export function CategoryTagsModal({ catPath, onClose }: Props) {
+export function CategoryTagsModal({ folderPath, onClose }: Props) {
   const [tagsText, setTagsText] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [catName, setCatName] = useState(catPath);
+  const [catName, setCatName] = useState(folderPath);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/db/category-tags?path=${encodeURIComponent(catPath)}`)
+    fetch(`/api/db/folder-tags?path=${encodeURIComponent(folderPath)}`)
       .then(r => r.json())
       .then(d => {
-        setCatName(d.displayName || catPath);
+        setCatName(d.displayName || folderPath);
         setTagsText((d.tags || []).join(', '));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [catPath]);
+  }, [folderPath]);
 
   const handleSave = async () => {
     setSaving(true);
     const tags = tagsText.split(',').map(t => t.trim()).filter(Boolean);
     try {
-      await fetch('/api/db/category-tags', {
+      await fetch('/api/db/folder-tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ catPath, tags }),
+        body: JSON.stringify({ folderPath, tags }),
       });
       onClose();
     } catch {

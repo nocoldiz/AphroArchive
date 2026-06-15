@@ -31,7 +31,7 @@
   hasEmbed?: boolean;
 }
 
-export interface Category {
+export interface Folder {
   name: string;
   path: string;
   count: number;
@@ -110,6 +110,21 @@ export interface AudioFile {
   size: number;
   sizeF: string;
   date: number;
+}
+
+export interface AlbumTrack {
+  trackNumber: number;
+  title: string;
+  duration: number | null;
+}
+
+export interface Album {
+  id: string;
+  name: string;
+  artist: string;
+  year?: number | null;
+  cover?: string;
+  tracks: AlbumTrack[];
 }
 
 export interface PhotoFile {

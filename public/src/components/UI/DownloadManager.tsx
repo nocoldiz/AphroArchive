@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { categories, loadVideos } from '../../store';
+import { folders, loadVideos } from '../../store';
 
 interface DownloadJob {
   id: string;
@@ -79,7 +79,7 @@ export const DownloadManager = () => {
   const activeDlCount = jobs.filter(j => j.status === 'queued' || j.status === 'running').length;
   const badgeCount = activeDlCount;
 
-  const cats = (categories.value as any[]).filter(
+  const cats = (folders.value as any[]).filter(
     c => c.path && c.path !== 'uncategorized' && c.path !== 'Links'
   );
 
