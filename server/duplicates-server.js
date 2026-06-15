@@ -2,8 +2,8 @@
 
 const fs = require('fs');
 const { execFile } = require('child_process');
-const { THUMBS_DIR, FFMPEG_BIN } = require('./config-server');
-const { json } = require('./helpers-server');
+const { THUMBS_DIR, FFMPEG_BIN, VIDEOS_DIR } = require('./config-server');
+const { json, fromId } = require('./helpers-server');
 const { loadVisualHashes, setVisualHash, saveVisualHashes, loadThumbsCache } = require('./db-server');
 const path = require('path');
 
@@ -48,10 +48,22 @@ async function runScan(allVideos) {
   broadcast({ type: 'start', total: allVideos.length });
 
   const hashes = loadVisualHashes();
+  const activeIds = new Set(allVideos.map(v => v.id));
 
   const list = [];
   for (const v of allVideos) {
     if (_job.stop) break;
+
+    // Skip files that no longer exist on disk (stale scan cache)
+    const rel = fromId(v.id);
+    const fp = path.isAbsolute(rel) ? path.resolve(rel) : path.resolve(VIDEOS_DIR, rel);
+    if (!fs.existsSync(fp)) {
+      delete hashes[v.id];
+      _job.done++;
+      if (_job.done % 20 === 0) broadcast({ type: 'progress', done: _job.done, total: _job.total });
+      continue;
+    }
+
     let hash = hashes[v.id];
     if (!hash) {
       hash = await getVisualHash(v.id);
@@ -65,6 +77,10 @@ async function runScan(allVideos) {
     if (_job.done % 20 === 0) broadcast({ type: 'progress', done: _job.done, total: _job.total });
   }
 
+  // Prune hashes for IDs no longer in the video library
+  for (const id of Object.keys(hashes)) {
+    if (!activeIds.has(id)) delete hashes[id];
+  }
   saveVisualHashes(hashes);
 
   if (_job.stop) {

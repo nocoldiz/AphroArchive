@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
-import { currentView, allVideos, categories } from '../../public/src/store';
+import { currentView, allVideos, folders } from '../../public/src/store';
 import { PromptsView } from '../prompts/PromptsView';
 import {
   SYSTEM_PROMPTS,
@@ -147,7 +147,7 @@ export const AssistantView = () => {
   const buildLibContext = useCallback(async () => {
     try {
       const vids = allVideos.value;
-      const cats = categories.value;
+      const cats = folders.value;
       const tagCounts: Record<string, number> = {};
       for (const v of vids) {
         for (const t of ((v as any).tags || []) as string[]) {
@@ -156,7 +156,7 @@ export const AssistantView = () => {
       }
       const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 25).map(([t]) => t).join(', ');
       const catNames = cats.slice(0, 30).map((c: any) => c.name).join(', ');
-      const summary = `Total videos: ${vids.length}. Categories: ${catNames}. Top tags: ${topTags}.`;
+      const summary = `Total videos: ${vids.length}. folders: ${catNames}. Top tags: ${topTags}.`;
       setLibSummary(summary);
       return summary;
     } catch { return ''; }
@@ -538,7 +538,7 @@ export const AssistantView = () => {
                 'Describe a detailed creampie scene',
               ] : [
                 'Write a short mystery story about a lost film',
-                'What categories do I have?',
+                'What folders do I have?',
                 'Generate an image prompt for a fantasy scene',
                 'Suggest tags for a video about cooking',
               ]).map(s => (

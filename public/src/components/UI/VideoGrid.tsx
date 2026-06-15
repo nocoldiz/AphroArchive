@@ -407,7 +407,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
           if (pct < 1) return null;
           return (
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: 'rgba(0,0,0,0.35)', zIndex: 4 }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: 'var(--ac)' }} />
+              <div className="card-progress-fill" style={{ '--w': `${pct}%` } as any} />
             </div>
           );
         })()}
@@ -865,6 +865,18 @@ export const VideoGrid = () => {
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
   }, [list, renderLimit]);
+
+  // Fade in year/decade group headers as they enter the viewport.
+  useEffect(() => {
+    if (groupByYear.value === 'none') return;
+    const headers = document.querySelectorAll<HTMLElement>('.year-group-header');
+    if (!headers.length) return;
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) (e.target as HTMLElement).classList.add('visible'); });
+    }, { threshold: 0.15 });
+    headers.forEach(h => obs.observe(h));
+    return () => obs.disconnect();
+  }, [list]);
 
   // Arrow-key navigation between cards + Escape to clear selection.
   useEffect(() => {

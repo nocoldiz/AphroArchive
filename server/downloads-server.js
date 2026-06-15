@@ -34,9 +34,11 @@ function loadJobs() {
     if (!fs.existsSync(JOBS_FILE)) return;
     const saved = JSON.parse(fs.readFileSync(JOBS_FILE, 'utf-8'));
     for (const j of saved) {
+      if (j.status === 'done' || j.status === 'error') continue; // don't restore finished jobs
       if (j.status === 'running') j.status = 'queued'; // restart interrupted downloads
       downloadJobs.set(j.id, { ...j, _kill: null });
     }
+    saveJobs(); // rewrite file without the done/error entries
   } catch {}
 }
 

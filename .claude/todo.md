@@ -276,14 +276,14 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 
 ## Animations & Transitions
 
-- [ ] **View fade transition** — 150 ms `opacity` fade on `#main-root` when `currentView` changes; implemented as a CSS class toggled around the signal update.
-- [ ] **Grid card entrance animation** — Cards fade + translate-up with a short staggered delay (total ≤ 250 ms) on initial grid render or after a filter change; disabled when `prefers-reduced-motion` is set.
-- [ ] **Modal backdrop blur** — `backdrop-filter: blur(6px)` on modal overlays instead of a flat dim; consistent across `ContextMenu`, `TagModal`, `VaultUnlockModal`, and all other modals.
-- [ ] **Sidebar link hover underline slide** — CSS `transform: scaleX()` animated underline on sidebar nav items (starts from left on hover, retracts on leave).
-- [ ] **Topbar search expand animation** — Search bar smoothly expands to full width with a width transition when focused; collapses back on blur if empty.
-- [ ] **Toast slide-in** — Toasts slide in from the bottom-right with a spring ease; slide out on dismiss; currently appear instantly.
-- [ ] **Progress bar fill animation** — Watch-progress bars on card thumbnails animate to their stored value on mount instead of appearing at the final width instantly.
-- [ ] **Scroll-triggered section headers** — When grouped by year/decade, section header labels fade in as they enter the viewport (IntersectionObserver).
+- [x] **View fade transition** — 150 ms `opacity` fade on `#main-root` when `currentView` changes; implemented as a CSS class toggled around the signal update.
+- [x] **Grid card entrance animation** — Cards fade + translate-up with a short staggered delay (total ≤ 250 ms) on initial grid render or after a filter change; disabled when `prefers-reduced-motion` is set.
+- [x] **Modal backdrop blur** — `backdrop-filter: blur(6px)` on modal overlays instead of a flat dim; consistent across `ContextMenu`, `TagModal`, `VaultUnlockModal`, and all other modals.
+- [x] **Sidebar link hover underline slide** — CSS `transform: scaleX()` animated underline on sidebar nav items (starts from left on hover, retracts on leave).
+- [x] **Topbar search expand animation** — Search bar smoothly expands to full width with a width transition when focused; collapses back on blur if empty.
+- [x] **Toast slide-in** — Toasts slide in from the bottom-right with a spring ease; slide out on dismiss; currently appear instantly.
+- [x] **Progress bar fill animation** — Watch-progress bars on card thumbnails animate to their stored value on mount instead of appearing at the final width instantly.
+- [x] **Scroll-triggered section headers** — When grouped by year/decade, section header labels fade in as they enter the viewport (IntersectionObserver).
 
 ## Mobile & TV (10-Foot UI)
 

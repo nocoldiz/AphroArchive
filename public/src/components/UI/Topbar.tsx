@@ -6,37 +6,6 @@ import { zapOn } from '../../zap';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { useEffect } from 'preact/hooks';
 
-const PLUGIN_ICONS: Record<string, preact.JSX.Element> = {
-  mosaic: (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  ),
-  zapping: (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-    </svg>
-  ),
-  instagram: (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-    </svg>
-  ),
-  reddit: (
-    <svg width="15" height="15" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="12" fill="#ff4500" />
-      <ellipse cx="12" cy="15" rx="7" ry="4.5" fill="#fff" />
-      <circle cx="9.5" cy="14.5" r="1.2" fill="#ff4500" />
-      <circle cx="14.5" cy="14.5" r="1.2" fill="#ff4500" />
-      <path d="M10 17.5 Q12 19 14 17.5" stroke="#ff4500" strokeWidth="1" strokeLinecap="round" fill="none" />
-    </svg>
-  ),
-};
 
 export const Topbar = () => {
   const view = currentView.value;
@@ -158,7 +127,11 @@ export const Topbar = () => {
                 title={p.name}
                 class={isActive ? 'on' : ''}
               >
-                {PLUGIN_ICONS[p.id]}
+                {p.icon && (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    dangerouslySetInnerHTML={{ __html: p.icon }}
+                  />
+                )}
               </button>
             );
           })}

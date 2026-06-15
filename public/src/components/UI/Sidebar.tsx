@@ -172,6 +172,24 @@ export const Sidebar = () => {
     }
   };
 
+  const renderSectionPlugins = (section: string) =>
+    pluginsList.value
+      .filter(p => p.location === 'sidebar' && p.sidebarSection === section && isPluginEnabled(p.id))
+      .map(p => (
+        <SidebarItem
+          key={p.id}
+          label={p.name}
+          icon={p.icon ? (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              style={{ verticalAlign: '-2px', marginRight: '5px' }}
+              dangerouslySetInnerHTML={{ __html: p.icon }}
+            />
+          ) : undefined}
+          onClick={() => runPluginAction(p, currentView)}
+          isActive={p.type === 'view' && currentView.value === p.view}
+        />
+      ));
+
   const selectCategory = (catName: string) => {
     currentView.value = 'browse';
     currentFolder.value = catName;
@@ -388,6 +406,7 @@ export const Sidebar = () => {
           onClick={() => setView('download-queue')}
           isActive={currentView.value === 'download-queue'}
         />
+        {renderSectionPlugins('library')}
       </div>
 
       {/* Browse — the Vault is a superuser, so this stays visible in vault mode */}
@@ -439,13 +458,7 @@ export const Sidebar = () => {
           onClick={() => setView('links', 'showImportFavs')}
           isActive={currentView.value === 'links'}
         />
-        <SidebarItem
-          id="prompts-sidebar"
-          label="Prompts"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>}
-          onClick={() => setView('prompts')}
-          isActive={currentView.value === 'prompts'}
-        />
+        {renderSectionPlugins('browse')}
       </div>
       </>
 
@@ -525,19 +538,26 @@ export const Sidebar = () => {
           onClick={() => setView('thumbnails')}
           isActive={currentView.value === 'thumbnails'}
         />
+        {renderSectionPlugins('media')}
       </div>
 
       </>
 
-      {/* Plugins */}
-      {pluginsList.value.some(p => p.location === 'sidebar' && isPluginEnabled(p.id)) && <>
+      {/* Plugins — only plugins without a sidebarSection (unplaced plugins) */}
+      {pluginsList.value.some(p => p.location === 'sidebar' && !p.sidebarSection && isPluginEnabled(p.id)) && <>
         <div className="side-sep"></div>
         <SectionHeader label="Plugins" id="sh3-plugins" onClick={togglePlugins} />
         <div className="side-section" id="pluginsSection" style={{ display: pluginsOpen ? 'block' : 'none' }}>
-          {pluginsList.value.filter(p => p.location === 'sidebar' && isPluginEnabled(p.id)).map(p => (
+          {pluginsList.value.filter(p => p.location === 'sidebar' && !p.sidebarSection && isPluginEnabled(p.id)).map(p => (
             <SidebarItem
               key={p.id}
               label={p.name}
+              icon={p.icon ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  style={{ verticalAlign: '-2px', marginRight: '5px' }}
+                  dangerouslySetInnerHTML={{ __html: p.icon }}
+                />
+              ) : undefined}
               onClick={() => runPluginAction(p, currentView)}
               isActive={p.type === 'view' && currentView.value === p.view}
             />
@@ -570,13 +590,7 @@ export const Sidebar = () => {
           onClick={() => setView('duplicates')}
           isActive={currentView.value === 'duplicates'}
         />
-        <SidebarItem
-          id="assistant-sidebar"
-          label="Assistant"
-          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
-          onClick={() => setView('assistant')}
-          isActive={currentView.value === 'assistant'}
-        />
+        {renderSectionPlugins('tools')}
         <SidebarItem
           id="database-sidebar"
           label="Database"

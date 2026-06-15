@@ -108,9 +108,14 @@ input {
 
 .search-w {
   flex: 1;
-  max-width: 520px;
+  max-width: 340px;
   margin: 0 auto;
-  position: relative
+  position: relative;
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)
+}
+
+.search-w:focus-within {
+  max-width: 520px
 }
 
 .search-w input {
@@ -299,7 +304,25 @@ input {
   cursor: pointer;
   transition: all var(--tr);
   border-left: 3px solid transparent;
-  color: var(--tx2)
+  color: var(--tx2);
+  position: relative
+}
+
+.sidebar-item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 3px;
+  right: 0;
+  height: 1px;
+  background: var(--ac);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--tr)
+}
+
+.sidebar-item:hover::after {
+  transform: scaleX(1)
 }
 
 .sidebar-item:hover {
@@ -512,6 +535,13 @@ input {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s ease, transform 0.35s ease;
+}
+.year-group-header.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 .year-group-count {
   font-size: 0.78rem;
@@ -1499,9 +1529,8 @@ input {
 /* ── Toast ── */
 .toast {
   position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%) translateY(80px);
+  bottom: 24px;
+  right: 24px;
   background: var(--bg2);
   border: 1px solid var(--brd);
   padding: 9px 22px;
@@ -1509,12 +1538,15 @@ input {
   font-size: 0.85rem;
   box-shadow: var(--sh);
   z-index: 600;
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: translateY(16px);
+  transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
   pointer-events: none
 }
 
 .toast.show {
-  transform: translateX(-50%) translateY(0)
+  opacity: 1;
+  transform: translateY(0)
 }
 
 .toast.toast--error {
@@ -1820,6 +1852,42 @@ input {
     opacity: 1;
     transform: none
   }
+}
+
+/* View fade transition */
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.view-fade {
+  animation: viewFadeIn 150ms ease forwards;
+}
+
+/* Progress bar fill animation */
+@keyframes progFill {
+  from { width: 0 }
+  to { width: var(--w) }
+}
+.card-progress-fill {
+  height: 100%;
+  background: var(--ac);
+  animation: progFill 0.55s ease forwards;
+}
+
+/* Modal enter animation */
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.97) translateY(-6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-dialog, .modal-content {
+  animation: modalIn 180ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-fade, .fade-in { animation: none; }
+  .card-progress-fill { animation: none; width: var(--w); }
+  .modal-dialog, .modal-content { animation: none; }
+  .year-group-header { opacity: 1 !important; transform: none !important; transition: none !important; }
 }
 
 /* ── Duplicates ── */

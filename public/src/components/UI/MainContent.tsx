@@ -137,7 +137,9 @@ export const MainContent = () => {
   return (
     <>
       <Suspense fallback={<ViewLoading />}>
-        {renderView()}
+        <div key={view} className="view-fade">
+          {renderView()}
+        </div>
       </Suspense>
       <ContextMenu />
       <TagModal />

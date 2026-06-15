@@ -11,6 +11,10 @@ export interface PluginMeta {
   toggleAction?: string;
   enabledByDefault?: boolean;
   contexts?: string[];
+  /** Which existing sidebar section this plugin's button belongs to. Plugins without this go into the generic "Plugins" section. */
+  sidebarSection?: 'library' | 'browse' | 'media' | 'tools';
+  /** SVG innerHTML for the button icon in the sidebar or topbar. */
+  icon?: string;
   // When present, the plugin is offered as a home-dashboard widget. The
   // render code (if any) lives in plugins/<id>/widget.tsx; view/toggle
   // plugins without one render as a shortcut button. `w`/`h` are the
