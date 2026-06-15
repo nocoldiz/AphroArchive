@@ -25,7 +25,6 @@ import { MoveModal } from '../modals/MoveModal';
 import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
 import { PlayerView } from '../sections/PlayerView';
-import { MosaicView } from '../sections/MosaicView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
 import { SeriesView } from '../sections/SeriesView';
@@ -35,8 +34,9 @@ import { ImportModal } from '../modals/ImportModal';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
 // Heavy/rare views — code-split so the initial bundle stays small
-const RedditView = lazy(() => import('../sections/RedditView').then(m => ({ default: m.RedditView })));
-const InstagramView = lazy(() => import('../sections/InstagramView').then(m => ({ default: m.InstagramView })));
+const RedditView = lazy(() => import('../../../../plugins/reddit/RedditView').then(m => ({ default: m.RedditView })));
+const InstagramView = lazy(() => import('../../../../plugins/instagram/InstagramView').then(m => ({ default: m.InstagramView })));
+const MosaicView = lazy(() => import('../../../../plugins/mosaic/MosaicView').then(m => ({ default: m.MosaicView })));
 const DatabaseView = lazy(() => import('../sections/DatabaseView').then(m => ({ default: m.DatabaseView })));
 const ActorScraperView = lazy(() => import('../sections/ActorScraperView').then(m => ({ default: m.ActorScraperView })));
 const AssistantView = lazy(() => import('../../../../plugins/assistant/AssistantView').then(m => ({ default: m.AssistantView })));

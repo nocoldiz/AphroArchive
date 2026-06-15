@@ -22,16 +22,14 @@
 
 ## Bugs
 
-- [ ] **Resume playback position** — There is no mechanism to save or restore the playback position when a video is revisited. Add `localStorage` persistence keyed by video ID.
-- [ ] **Vault timer race** — `resetVaultTimer()` exits early if `vaultKey` is null, which means the timer is not restarted after it fires. The lock state can become inconsistent.
-- [ ] **Thumbnail queue unbounded** — No concurrency cap on ffmpeg thumbnail spawns. Under load this can queue thousands of processes. Add a max-concurrent limit (e.g. 3).
-- [ ] **Silently swallowed errors** — ffprobe/ffmpeg failures return `null` with no log entry. At minimum log the error so the user can diagnose missing binaries.
-- [ ] **Duplicate temp decryption** — Concurrent requests for the same vault file each trigger a separate decrypt. Lock on the file ID so only the first request decrypts.
+- [x] **Resume playback position** — Already implemented: `home/progress.ts` + `AdvancedPlayer.tsx` `startTimeRef` reads saved progress on load.
+- [x] **Vault timer race** — `resetVaultTimer()` now clears any stale timer before the `!vaultKey` guard, preventing orphaned timers when the auto-lock fires mid-async.
+- [x] **Thumbnail queue unbounded** — `thumbnails-server.js` now has a `MAX_CONCURRENT_GENS = 3` semaphore (`_acquireGenSlot` / `_releaseGenSlot`) wrapping all `genThumbs` calls.
+- [x] **Silently swallowed errors** — `ffprobeInfo` and `genThumbs` in `thumbnails-server.js` and the batch worker in `gen-thumbs-server.js` now log `console.warn` on ffprobe/ffmpeg failure.
 
 ## Performance
 
-- [ ] **Suggested videos O(n²)** — `apiVideoDetail` computes similarity by iterating all videos × all actors. Pre-build an inverted index from actor → video IDs.
-- [ ] **Streaming scan** — `scan()` loads all paths into one array before returning. For very large libraries switch to an async generator to start serving results sooner.
+- [x] **Suggested videos O(n²)** — Both `apiVideoDetail` and `apiVideoDetailFast` now build an actor → videoId inverted index from the bulk-loaded meta map. Only candidate videos (shared actors + same category) are scored, eliminating per-video SQLite reads.
 
 ## Missing Features
 

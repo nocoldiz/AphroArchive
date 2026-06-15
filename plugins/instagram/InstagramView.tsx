@@ -6,9 +6,9 @@ const formatDuration = (seconds: number) => {
   const s = Math.floor(seconds % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
-import { allVideos, appPrefs, currentVideo, currentView, isMuted } from '../../store';
-import { Video } from '../../types';
-import { AiComments } from '../UI/AiComments';
+import { allVideos, appPrefs, currentVideo, currentView, isMuted } from '../../public/src/store';
+import { Video } from '../../public/src/types';
+import { AiComments } from '../../public/src/components/UI/AiComments';
 import './InstagramView.css';
 
 interface VaultFile {

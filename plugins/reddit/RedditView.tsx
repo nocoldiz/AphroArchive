@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from 'preact/hooks';
-import { currentVideo, currentView, allVideos, appPrefs, tagModalState, actorModalState, showAddToCollectionModal, isMuted } from '../../store';
+import { currentVideo, currentView, allVideos, appPrefs, tagModalState, actorModalState, showAddToCollectionModal, isMuted } from '../../public/src/store';
 import './RedditView.css';
 
 export const RedditView = () => {

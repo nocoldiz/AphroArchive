@@ -45,8 +45,10 @@ function getVaultTimeoutMs() {
 }
 
 function resetVaultTimer() {
-  if (!vaultKey) return;
+  // Always clear any stale timer first — prevents orphaned timers if called
+  // concurrently after an auto-lock fires (vaultKey = null) mid-async.
   if (vaultTimer) { clearTimeout(vaultTimer); vaultTimer = null; }
+  if (!vaultKey) return;
   const ms = getVaultTimeoutMs();
   if (!ms || ms <= 0) return; // 0 → auto-lock disabled
   vaultTimer = setTimeout(() => {

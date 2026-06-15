@@ -19,7 +19,10 @@ function ffprobeInfo(fp) {
       execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', fp],
         { timeout: 15000 },
         (err, out) => {
-          if (err) return resolve({ duration: null, width: null, height: null });
+          if (err) {
+            console.warn('[ffprobe] failed for', fp, '—', err.message);
+            return resolve({ duration: null, width: null, height: null });
+          }
           try {
             const d = JSON.parse(out);
             const duration = parseFloat(d.format?.duration) || null;
@@ -29,7 +32,10 @@ function ffprobeInfo(fp) {
             resolve({ duration, width, height });
           } catch { resolve({ duration: null, width: null, height: null }); }
         });
-    } catch { resolve({ duration: null, width: null, height: null }); }
+    } catch (e) {
+      console.warn('[ffprobe] spawn failed —', e.message);
+      resolve({ duration: null, width: null, height: null });
+    }
   });
 }
 
@@ -58,21 +64,47 @@ function videoFpFromId(id) {
 
 const genLock = new Set();
 
+// Global cap: at most 3 concurrent ffmpeg thumbnail spawns across all requests.
+const MAX_CONCURRENT_GENS = 3;
+let _activeGens = 0;
+const _genWaiters = [];
+
+function _acquireGenSlot() {
+  if (_activeGens < MAX_CONCURRENT_GENS) {
+    _activeGens++;
+    return Promise.resolve();
+  }
+  return new Promise(r => _genWaiters.push(r));
+}
+
+function _releaseGenSlot() {
+  _activeGens--;
+  if (_genWaiters.length) {
+    _activeGens++;
+    _genWaiters.shift()();
+  }
+}
+
 async function genThumbs(id, fp) {
-  const dir = path.join(THUMBS_DIR, id);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const { duration: dur, width, height } = await ffprobeInfo(fp);
-  if (!dur) return { count: 0, duration: null, width: null, height: null };
-  const times = [0.1, 0.25, 0.5, 0.75, 0.9].map(p => (dur * p).toFixed(2));
-  let n = 0;
-  await Promise.all(times.map((t, i) => new Promise(resolve => {
-    try {
-      execFile(FFMPEG_BIN, ['-ss', t, '-i', fp, '-vframes', '1', '-vf', 'scale=480:-1', '-q:v', '3', '-y', path.join(dir, `${i}.jpg`)],
-        { timeout: 30000 },
-        err => { if (!err) n++; resolve(); });
-    } catch { resolve(); }
-  })));
-  return { count: n, duration: dur, width, height };
+  await _acquireGenSlot();
+  try {
+    const dir = path.join(THUMBS_DIR, id);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const { duration: dur, width, height } = await ffprobeInfo(fp);
+    if (!dur) return { count: 0, duration: null, width: null, height: null };
+    const times = [0.1, 0.25, 0.5, 0.75, 0.9].map(p => (dur * p).toFixed(2));
+    let n = 0;
+    await Promise.all(times.map((t, i) => new Promise(resolve => {
+      try {
+        execFile(FFMPEG_BIN, ['-ss', t, '-i', fp, '-vframes', '1', '-vf', 'scale=480:-1', '-q:v', '3', '-y', path.join(dir, `${i}.jpg`)],
+          { timeout: 30000 },
+          err => { if (err) console.warn('[ffmpeg] thumb failed', fp, i, '—', err.message); else n++; resolve(); });
+      } catch (e) { console.warn('[ffmpeg] spawn failed —', e.message); resolve(); }
+    })));
+    return { count: n, duration: dur, width, height };
+  } finally {
+    _releaseGenSlot();
+  }
 }
 
 // ── Thumbnail API handlers ────────────────────────────────────────────

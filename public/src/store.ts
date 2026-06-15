@@ -645,7 +645,7 @@ export async function loadVideos() {
   try {
     await loadVideosInner();
   } catch (e) {
-    if ((window as any).toast) (window as any).toast('Failed to load videos');
+    (window as any).toastError?.('Could not load videos — is the server still running? Check the terminal.');
   } finally {
     isLoadingVideos.value = false;
   }

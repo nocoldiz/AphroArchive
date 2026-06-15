@@ -1,5 +1,5 @@
 import { useEffect } from 'preact/hooks';
-import { mosaicOn, stopMosaic, buildMosaicTiles, scheduleMosaic, setMosaicIv, setMosaicCount, setMosaicQuery, mosTileCount, mosaicIv, mosaicQuery } from '../../mosaic';
+import { mosaicOn, stopMosaic, buildMosaicTiles, scheduleMosaic, setMosaicIv, setMosaicCount, setMosaicQuery, mosTileCount, mosaicIv, mosaicQuery } from '../../public/src/mosaic';
 
 export const MosaicView = () => {
   useEffect(() => {

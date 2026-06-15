@@ -11,6 +11,7 @@ const ROOT_DIR = path.join(__dirname, '..');          // project root (parent of
 const IS_PKG = typeof process.pkg !== 'undefined';
 const DATA_DIR = IS_PKG ? path.dirname(process.execPath) : ROOT_DIR;
 const PLUGINS_DIR = path.join(ROOT_DIR, 'plugins');
+const WIDGETS_DIR = path.join(ROOT_DIR, 'widgets');
 
 function resolveBin(name) {
   const winName = process.platform === 'win32' ? name + '.exe' : name;
@@ -171,5 +172,5 @@ module.exports = {
   ACTORS_JSON, CATEGORIES_JSON, STUDIOS_JSON, WEBSITES_JSON,
   BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
   VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT, MIME, STATIC_MIME,
-  getLocalIPs, getLocalIP, PLUGINS_DIR,
+  getLocalIPs, getLocalIP, PLUGINS_DIR, WIDGETS_DIR,
 };

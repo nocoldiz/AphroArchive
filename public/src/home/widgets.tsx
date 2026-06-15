@@ -13,10 +13,10 @@ import { pluginsList, isPluginEnabled, runPluginAction, PluginMeta } from '../pl
 import { WidgetInstance } from './dashboardStore';
 
 // Eagerly bundle every plugin widget module (built at compile time).
-const widgetModules = import.meta.glob('../../../plugins/*/widget.tsx', { eager: true });
+const widgetModules = import.meta.glob('../../../widgets/*/widget.tsx', { eager: true });
 const RENDERERS: Record<string, (i: WidgetInstance) => ComponentChildren> = {};
 for (const path in widgetModules) {
-  const m = path.match(/plugins[\\/]([^\\/]+)[\\/]widget\.tsx$/);
+  const m = path.match(/widgets[\\/]([^\\/]+)[\\/]widget\.tsx$/);
   const mod = widgetModules[path] as { default?: (i: WidgetInstance) => ComponentChildren };
   if (m && mod?.default) RENDERERS[m[1]] = mod.default;
 }

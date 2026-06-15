@@ -1106,16 +1106,39 @@ async function apiVideoDetail(req, res, id) {
   const enabledPaths = loadEnabledCategories();
   const visibleVideos = enabledPaths.length ? videos.filter(x => isCategoryEnabled(x.catPath, enabledPaths)) : videos;
 
-  const suggested = visibleVideos
-    .filter(x => x.id !== v.id)
-    .map(x => {
-      let score      = 0;
-      const xActors  = meta[x.id]?.actors || [];
-      const shared   = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
-      score += shared.length * 100;
-      if (x.category === v.category) score += 50;
-      return { video: x, score };
-    })
+  // Build actor → [videoId] inverted index from the already-loaded meta map.
+  const actorIndex = new Map(); // actorLower → Set<videoId>
+  for (const [vid, m] of Object.entries(meta)) {
+    for (const a of (m.actors || [])) {
+      const k = a.toLowerCase();
+      let s = actorIndex.get(k);
+      if (!s) { s = new Set(); actorIndex.set(k, s); }
+      s.add(vid);
+    }
+  }
+
+  // Collect candidate video IDs that share at least one actor with this video.
+  const candidateIds = new Set();
+  for (const a of combinedActors) {
+    const s = actorIndex.get(a.toLowerCase());
+    if (s) s.forEach(id => candidateIds.add(id));
+  }
+  candidateIds.delete(v.id);
+
+  // Score only candidates (shared actors) plus same-category videos.
+  const sameCat = visibleVideos.filter(x => x.id !== v.id && x.category === v.category && !candidateIds.has(x.id));
+  const candidates = visibleVideos.filter(x => candidateIds.has(x.id));
+
+  const scored = [
+    ...candidates.map(x => {
+      const xActors = meta[x.id]?.actors || [];
+      const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
+      return { video: x, score: shared.length * 100 + (x.category === v.category ? 50 : 0) };
+    }),
+    ...sameCat.map(x => ({ video: x, score: 50 })),
+  ];
+
+  const suggested = scored
     .sort((a, b) => b.score - a.score || Math.random() - 0.5)
     .slice(0, 12)
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
@@ -1154,22 +1177,43 @@ async function apiVideoDetailFast(req, res, id) {
   allTagSet.add(...metaTags);
   cats.forEach(e => allTagSet.add(e.displayName));
 
-  // Suggested: find up to 8 related from the full allVideos list (without loading everything if possible)
+  // Build suggested using inverted actor index over bulk-loaded meta (avoids N SQLite reads).
   const enabledPaths = db.loadEnabledCategories();
   const allVisible = await allVideos();
   const visibleVideos = enabledPaths.length ? allVisible.filter(x => isCategoryEnabled(x.catPath, enabledPaths)) : allVisible;
+  const allMeta = db.loadVideoMeta();
 
-  const suggested = visibleVideos
-    .filter(x => x.id !== v.id)
-    .map(x => {
-      let score = 0;
-      const xMeta = db.getSingleVideoMeta(x.id);
-      const xActors = xMeta?.actors || [];
+  const actorIndex = new Map();
+  for (const [vid, m] of Object.entries(allMeta)) {
+    for (const a of (m.actors || [])) {
+      const k = a.toLowerCase();
+      let s = actorIndex.get(k);
+      if (!s) { s = new Set(); actorIndex.set(k, s); }
+      s.add(vid);
+    }
+  }
+
+  const candidateIds = new Set();
+  for (const a of combinedActors) {
+    const s = actorIndex.get(a.toLowerCase());
+    if (s) s.forEach(xid => candidateIds.add(xid));
+  }
+  candidateIds.delete(v.id);
+
+  const sameCat = visibleVideos.filter(x => x.id !== v.id && x.category === v.category && !candidateIds.has(x.id));
+  const candidateVids = visibleVideos.filter(x => candidateIds.has(x.id));
+
+  const scored = [
+    ...candidateVids.map(x => {
+      const xActors = allMeta[x.id]?.actors || [];
       const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
-      score += shared.length * 100;
-      if (x.category === v.category) score += 50;
-      return { video: { ...x, fav: favs.includes(x.id), rating: xMeta?.rating ?? null }, score };
-    })
+      const score = shared.length * 100 + (x.category === v.category ? 50 : 0);
+      return { video: { ...x, fav: favs.includes(x.id), rating: allMeta[x.id]?.rating ?? null }, score };
+    }),
+    ...sameCat.map(x => ({ video: { ...x, fav: favs.includes(x.id), rating: allMeta[x.id]?.rating ?? null }, score: 50 })),
+  ];
+
+  const suggested = scored
     .sort((a, b) => b.score - a.score || Math.random() - 0.5)
     .slice(0, 12)
     .map(item => item.video);
