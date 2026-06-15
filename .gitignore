@@ -1,4 +1,4 @@
-# ── Dependencies ─────────────────────────────
+﻿# ── Dependencies ─────────────────────────────
 node_modules/
 
 # ── Python ───────────────────────────────────
@@ -34,10 +34,7 @@ db/
 
 # ── Build output ─────────────────────────────
 build/
-dist/
-dist/public/assets/
-public/dist/assets/*
-!dist/public
+dist/public/*
 
 # ── Android app ──────────────────────────────
 android-app
