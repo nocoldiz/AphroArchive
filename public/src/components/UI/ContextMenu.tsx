@@ -1,7 +1,7 @@
 import { contextMenuState, profiles, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
-import { setItemPlacement } from './navItems';
+import { setItemPlacement, setSectionPlacement } from './navItems';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -563,6 +563,16 @@ export const ContextMenu = () => {
             icon={data.location === 'sidebar' ? 'list' : 'list'}
             onClick={() => {
               setItemPlacement(data.id, data.location === 'sidebar' ? 'topbar' : 'sidebar');
+              closeMenu();
+            }}
+          />
+        )}
+        {type === 'navsection' && (
+          <ContextItem
+            label={data.location === 'sidebar' ? 'Pin to Topbar' : 'Move to Sidebar'}
+            icon="list"
+            onClick={() => {
+              setSectionPlacement(data.section, data.location === 'sidebar' ? 'topbar' : 'sidebar');
               closeMenu();
             }}
           />

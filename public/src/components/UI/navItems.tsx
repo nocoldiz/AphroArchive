@@ -49,9 +49,23 @@ export async function setItemPlacement(id: string, loc: BarLocation) {
   await updatePrefs({ itemPlacements: next });
 }
 
+export function sectionPlacementFor(section: NavSection): BarLocation {
+  return (appPrefs.value.sectionPlacements?.[section] as BarLocation) ?? 'topbar';
+}
+
+export async function setSectionPlacement(section: NavSection, loc: BarLocation) {
+  const next = { ...(appPrefs.value.sectionPlacements || {}) };
+  next[section] = loc;
+  await updatePrefs({ sectionPlacements: next });
+}
+
 /** Open the move context menu for any movable item (nav item, plugin, or filter block). */
 export function openMoveMenu(e: any, id: string, label: string, location: BarLocation) {
   (window as any).showContextMenu?.(e, 'navitem', { id, label, location });
+}
+
+export function openSectionMoveMenu(e: any, section: NavSection, label: string, location: BarLocation) {
+  (window as any).showContextMenu?.(e, 'navsection', { section, label, location });
 }
 
 /** Wrap stored icon paths in an svg at the given size. */

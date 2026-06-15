@@ -104,6 +104,7 @@ export const moveModalState = signal<{
   vidIds: string[];
   linkUrl: string | null;
   currentFolder: string;
+  isVault?: boolean;
 }>({
   visible: false,
   vidIds: [],

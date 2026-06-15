@@ -21,7 +21,8 @@ const IV_PREFIX_LEN = 12;
 const TAG_LEN = 16;
 // ── Module state ─────────────────────────────────────────────────────
 
-let vaultKey = null;
+let vaultKey      = null;
+let vaultPassword = null; // raw password string — needed for WinZip AES zip mounts
 let failedAttempts = 0;
 let cooldownUntil = 0;
 
@@ -75,8 +76,10 @@ function resetVaultTimer() {
   if (!ms || ms <= 0) return; // 0 → auto-lock disabled
   vaultTimer = setTimeout(() => {
     vaultKey = null;
+    vaultPassword = null;
     vaultTimer = null;
     try { setVaultKey(null); } catch { }
+    try { require('./vault-zip-mount-server').unmountAll(); } catch {}
   }, ms);
 }
 
@@ -858,6 +861,7 @@ async function apiVaultSetup(req, res) {
     }
     saveVaultConfig(cfg);
     vaultKey = encKey;
+    vaultPassword = pw;
     setVaultKey(encKey);
     failedAttempts = 0; cooldownUntil = 0;
     resetVaultTimer();
@@ -865,6 +869,7 @@ async function apiVaultSetup(req, res) {
     json(res, { ok: true });
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on setup failed:', e.message); }
     processHiddenFolder();
+    try { require('./vault-zip-mount-server').scanAndMountZips(pw); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
@@ -908,10 +913,12 @@ async function apiVaultUnlock(req, res) {
     // Correct password — reset counters
     failedAttempts = 0; cooldownUntil = 0;
     vaultKey = encKey;
+    vaultPassword = pw;
     setVaultKey(encKey);
     resetVaultTimer();
     json(res, { ok: true });
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on unlock failed:', e.message); }
+    try { require('./vault-zip-mount-server').scanAndMountZips(pw); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
     processHiddenFolder();
     try { require('./feed-watcher-server').processPendingPrivateFeed(); } catch {}
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -920,15 +927,21 @@ async function apiVaultUnlock(req, res) {
 function apiVaultLock(req, res) {
   clearVaultTimer();
   vaultKey = null;
+  vaultPassword = null;
   setVaultKey(null);
+  try { require('./vault-zip-mount-server').unmountAll(); } catch {}
   json(res, { ok: true });
 }
 
 function apiVaultFiles(req, res) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   resetVaultTimer();
-  const meta = loadVaultMeta();
-  const items = Object.entries(meta).map(([id, m]) => ({ id, ...m })).sort((a, b) => b.mtime - a.mtime);
+  const meta  = loadVaultMeta();
+  const items = Object.entries(meta).map(([id, m]) => ({ id, ...m }));
+  let mounted = [];
+  try { mounted = require('./vault-zip-mount-server').getMountedItems(); } catch {}
+  items.push(...mounted);
+  items.sort((a, b) => b.mtime - a.mtime);
   json(res, items);
 }
 

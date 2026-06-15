@@ -1,11 +1,11 @@
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
-import { FilterDropdowns } from './LibraryFilters';
+import { FilterDropdowns, SectionDropdowns } from './LibraryFilters';
 import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles } from '../../store';
 import { zapOn } from '../../zap';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
-import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu } from './navItems';
+import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, sectionPlacementFor } from './navItems';
 import { useEffect } from 'preact/hooks';
 
 
@@ -20,7 +20,10 @@ export const Topbar = () => {
   if (view === 'instagram' || view === 'reddit') return null;
 
   // Nav items the user moved out of the sidebar; rendered as icons after search.
-  const movedNavItems = getNavItems().filter(it => placementFor(it.id, it.defaultLoc) === 'topbar');
+  // Exclude items whose whole section is already shown as a dropdown.
+  const movedNavItems = getNavItems().filter(it =>
+    placementFor(it.id, it.defaultLoc) === 'topbar' && sectionPlacementFor(it.section) !== 'topbar'
+  );
   const movedPlugins = pluginsList.value
     .filter(p => pluginLocation(p) === 'topbar' && isPluginEnabled(p.id))
     .filter(p => !p.contexts || p.contexts.includes(view));
@@ -66,6 +69,7 @@ export const Topbar = () => {
       </div>
 
       <FilterDropdowns />
+      <SectionDropdowns />
 
       <div className="search-w">
         <Search />

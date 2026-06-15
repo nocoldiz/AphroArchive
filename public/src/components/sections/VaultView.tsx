@@ -538,6 +538,7 @@ export const VaultView = () => {
     }
     const extLower = (f.ext || '').toLowerCase();
     if (VAULT_VIDEO_EXTS.has(extLower)) {
+      const isZipMounted = !!(f as any).zipMount;
       currentVideo.value = {
         id: f.id,
         name: f.name || f.originalName,
@@ -549,7 +550,8 @@ export const VaultView = () => {
         path: '',
         relPath: '',
         mtime: f.mtime || Date.now(),
-        starred: false
+        starred: false,
+        ...(isZipMounted && { streamUrl: `/api/vault/zip-stream/${(f as any).entryId}` }),
       };
       currentView.value = 'player';
     } else if (VAULT_PHOTO_EXTS.has(extLower)) {
@@ -1081,6 +1083,7 @@ export const VaultView = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px' }}>
           {visibleFiles.map(f => {
             const isPublic = f.isVault === false;
+            const isZipMount = !!(f as any).zipMount;
             const isImg = VAULT_PHOTO_EXTS.has(f.ext.toLowerCase());
             const isVid = VAULT_VIDEO_EXTS.has(f.ext.toLowerCase());
             const isFav = favIds.has(f.id);
@@ -1088,7 +1091,8 @@ export const VaultView = () => {
             const isEncrypting = encryptingIds.has(f.id);
             // Public photos serve their image directly; videos use the thumb endpoint; books have no preview.
             // Vault photos stream the (small) image; vault videos use the encrypted poster.
-            const hasThumb = isPublic ? f.kind !== 'book' : (isImg || isVid);
+            // Zip-mounted entries have no poster — fall through to the ext badge.
+            const hasThumb = isPublic ? f.kind !== 'book' : (!isZipMount && (isImg || isVid));
             const thumbSrc = isPublic
               ? (f.kind === 'photo' ? `/api/photos/${f.id}/img` : f.raw?.isLink ? (f.raw.img || '') : `/api/thumbs/${f.id}/0`)
               : (isImg ? `/api/vault/stream/${f.id}` : `/api/vault/thumb/${f.id}${thumbBust ? `?_=${thumbBust}` : ''}`);
@@ -1128,7 +1132,7 @@ export const VaultView = () => {
                     <input type="checkbox" checked={isSelected} onChange={() => { }} style={{ cursor: 'pointer' }} />
                   </div>
 
-                  {!isPublic && (
+                  {!isPublic && !isZipMount && (
                     <div
                       style={{ position: 'absolute', top: '4px', right: '4px', cursor: 'pointer' }}
                       onClick={(e) => { e.stopPropagation(); handleToggleFav(f.id); }}
@@ -1139,6 +1143,11 @@ export const VaultView = () => {
                   {isPublic && (
                     <span style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(232,64,64,0.85)', color: '#fff', fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', letterSpacing: '0.5px' }}>
                       UNENCRYPTED
+                    </span>
+                  )}
+                  {isZipMount && (
+                    <span style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(80,130,255,0.85)', color: '#fff', fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', letterSpacing: '0.5px' }}>
+                      ZIP
                     </span>
                   )}
                   {f.sizeF && <span className="size-badge">{f.sizeF}</span>}
@@ -1160,6 +1169,8 @@ export const VaultView = () => {
                           {encryptingIds.has(f.id) ? '🔒 Encrypting…' : '🔒 Encrypt'}
                         </button>
                       </div>
+                    ) : isZipMount ? (
+                      <div className="card-actions" />
                     ) : (
                     <div className="card-actions">
                       <select

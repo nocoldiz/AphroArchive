@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen } from '../../store';
-import { placementFor, openMoveMenu, FILTER_IDS } from './navItems';
+import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection } from './navItems';
 
 interface SidebarItemProps {
   id?: string;
@@ -375,6 +375,79 @@ const Chevron = ({ open }: { open: boolean }) => (
     <path d="m6 9 6 6 6-6" />
   </svg>
 );
+
+const sectionIconPaths: Record<NavSection, any> = {
+  library: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></>,
+  media: <><rect x="2" y="2" width="20" height="20" rx="2" /><line x1="7" y1="2" x2="7" y2="22" /><line x1="17" y1="2" x2="17" y2="22" /><line x1="2" y1="12" x2="22" y2="12" /></>,
+  tools: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
+};
+
+const sectionLabels: Record<NavSection, string> = { library: 'Library', media: 'Media', tools: 'Tools' };
+const sectionOrder: NavSection[] = ['library', 'media', 'tools'];
+const dropdownItemStyle = { verticalAlign: '-2px', marginRight: '5px' };
+
+export const SectionDropdowns = () => {
+  const [open, setOpen] = useState<NavSection | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const activeSections = sectionOrder.filter(s => sectionPlacementFor(s) === 'topbar');
+  if (!activeSections.length) return null;
+
+  const navItems = getNavItems();
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(null); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="filter-dropdowns" ref={ref}>
+      {activeSections.map(sec => {
+        const items = navItems.filter(it => it.section === sec);
+        const label = sectionLabels[sec];
+        return (
+          <div className="filter-dropdown" key={sec}>
+            <button
+              type="button"
+              className={`filter-dropdown-btn${open === sec ? ' on' : ''}`}
+              onClick={() => setOpen(o => o === sec ? null : sec)}
+              onContextMenu={(e) => { e.preventDefault(); openSectionMoveMenu(e, sec, label, 'topbar'); }}
+            >
+              {navIcon(sectionIconPaths[sec], 14, { marginRight: '6px' })}
+              {label}
+              <Chevron open={open === sec} />
+            </button>
+            {open === sec && (
+              <div className="filter-dropdown-menu">
+                <div className="filter-dropdown-body">
+                  {items.map(item => (
+                    <SidebarItem
+                      key={item.id}
+                      label={item.label}
+                      icon={navIcon(item.paths, 13, dropdownItemStyle)}
+                      badge={item.badge}
+                      isActive={item.isActive}
+                      onClick={() => { item.onClick(); setOpen(null); }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 /**
  * The two topbar dropdowns (Folders + Tags) shown right of the logo when the

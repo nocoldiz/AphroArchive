@@ -18,6 +18,7 @@
   height?: number | null;
   watched?: boolean;
   isVault?: boolean;
+  streamUrl?: string;
   reencoded?: boolean;
   catPath?: string;
   fav?: boolean;
@@ -90,6 +91,8 @@ export interface AppPrefs {
    * should render in. Absent keys fall back to the item's default location.
    */
   itemPlacements?: Record<string, 'topbar' | 'sidebar'>;
+  /** Per-section bar placement overrides. Maps 'library'|'media'|'tools' → bar. */
+  sectionPlacements?: Record<string, 'topbar' | 'sidebar'>;
 }
 export interface ThumbnailGroup {
   id: string;

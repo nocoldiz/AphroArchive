@@ -629,6 +629,23 @@ export const LinksView = () => {
   const [scrapeJob, setScrapeJob] = useState<{ running: boolean, total: number, done: number, failed: number, current: string } | null>(null);
   const scrapePollerRef = useRef<any>(null);
 
+  const BATCH_SIZE = 500;
+  const [totalCount, setTotalCount] = useState(0);
+  const [allLoaded, setAllLoaded] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pendingSelectAll, setPendingSelectAll] = useState(false);
+  const loadRemainingLinksRef = useRef<AbortController | null>(null);
+
+  const TABLE_ROW_H = 33;
+  const GRID_CARD_H = 225;
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [tableScrollTop, setTableScrollTop] = useState(0);
+  const [tableContainerH, setTableContainerH] = useState(600);
+  const gridScrollRef = useRef<HTMLDivElement>(null);
+  const [gridScrollTop, setGridScrollTop] = useState(0);
+  const [gridContainerH, setGridContainerH] = useState(600);
+  const [gridContainerW, setGridContainerW] = useState(800);
+
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -655,18 +672,54 @@ export const LinksView = () => {
 
   const loadLinks = async () => {
     setLoading(true);
+    setAllLoaded(false);
+    loadRemainingLinksRef.current?.abort();
     try {
-      const r = await fetch('/api/links/cache?limit=0');
+      const r = await fetch(`/api/links/cache?limit=${BATCH_SIZE}&page=1`);
       const d = await r.json();
       if (d.items) {
         setItems(d.items);
+        setTotalCount(d.total);
         updateMatches(d.items);
+        if (!d.hasMore) {
+          setAllLoaded(true);
+        } else {
+          setLoading(false);
+          loadRemainingLinks(d.items, d.total);
+          return;
+        }
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadRemainingLinks = async (initialItems: LinkItem[], total: number) => {
+    const controller = new AbortController();
+    loadRemainingLinksRef.current = controller;
+    setLoadingMore(true);
+    let allItems = [...initialItems];
+    let page = 2;
+    while (allItems.length < total) {
+      if (controller.signal.aborted) return;
+      try {
+        const r = await fetch(`/api/links/cache?limit=${BATCH_SIZE}&page=${page}`, { signal: controller.signal });
+        const d = await r.json();
+        if (!d.items || d.items.length === 0) break;
+        allItems = [...allItems, ...d.items];
+        setItems([...allItems]);
+        if (!d.hasMore) break;
+        page++;
+      } catch (e: any) {
+        if (e.name === 'AbortError') return;
+        break;
+      }
+    }
+    updateMatches(allItems);
+    setAllLoaded(true);
+    setLoadingMore(false);
   };
 
   useEffect(() => { loadLinks(); }, []);
@@ -767,6 +820,33 @@ export const LinksView = () => {
 
     setVisibleItems(sorted);
   }, [search, items, selectedWebsite, showWebsitesOnly, showNoTagsOnly, showFavsOnly, tagFilter, websiteHostnames, sortBy]);
+
+  useEffect(() => {
+    if (pendingSelectAll && allLoaded) {
+      setSelectedUrls(new Set(items.map(i => i.url)));
+      setPendingSelectAll(false);
+    }
+  }, [pendingSelectAll, allLoaded, items]);
+
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el || viewMode !== 'table') return;
+    const update = () => setTableContainerH(el.clientHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewMode]);
+
+  useEffect(() => {
+    const el = gridScrollRef.current;
+    if (!el || viewMode !== 'grid') return;
+    const update = () => { setGridContainerH(el.clientHeight); setGridContainerW(el.clientWidth); };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewMode]);
 
   // Download poller
   useEffect(() => {
@@ -1349,12 +1429,23 @@ export const LinksView = () => {
           <button
             className="sort-btn"
             onClick={() => {
-              const allSelected = items.length > 0 && items.every(i => selectedUrls.has(i.url));
-              allSelected ? setSelectedUrls(new Set()) : setSelectedUrls(new Set(items.map(i => i.url)));
+              const allSelected = allLoaded && items.length > 0 && items.every(i => selectedUrls.has(i.url));
+              if (allSelected) {
+                setSelectedUrls(new Set());
+                setPendingSelectAll(false);
+              } else if (!allLoaded) {
+                setPendingSelectAll(true);
+              } else {
+                setSelectedUrls(new Set(items.map(i => i.url)));
+              }
             }}
             title="Select / deselect all links (including filtered-out ones)"
           >
-            {items.length > 0 && items.every(i => selectedUrls.has(i.url)) ? 'Deselect All' : `Select All${selectedUrls.size ? ` (${selectedUrls.size})` : ''}`}
+            {pendingSelectAll
+              ? `Selecting… (${items.length}/${totalCount})`
+              : allLoaded && items.length > 0 && items.every(i => selectedUrls.has(i.url))
+                ? 'Deselect All'
+                : `Select All${selectedUrls.size ? ` (${selectedUrls.size})` : ''}`}
           </button>
           <button
             className="sort-btn"
@@ -1386,6 +1477,9 @@ export const LinksView = () => {
           </div>
           <span>{pct}% in library</span>
         </div>
+        {loadingMore && (
+          <span style={{ fontSize: '12px', color: 'var(--tx3)' }}>Loading {items.length} / {totalCount}…</span>
+        )}
         {scrapeJob && scrapeJob.running && (
           <div class="scrape-progress" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Scraping: {scrapeJob.done}/{scrapeJob.total}</span>
@@ -1401,68 +1495,101 @@ export const LinksView = () => {
         <div class="cv-loading">Loading links…</div>
       ) : visibleItems.length === 0 ? (
         <div class="empty-state">No links found</div>
-      ) : viewMode === 'grid' ? (
-        <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-          {visibleItems.map(item => (
-            <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} activeCats={activeCats} onTagClick={setTagFilter} />
-          ))}
-        </div>
-      ) : viewMode === 'table' ? (() => {
+      ) : viewMode === 'grid' ? (() => {
+        const cardsPerRow = Math.max(1, Math.floor((gridContainerW + 15) / 215));
+        const rowCount = Math.ceil(visibleItems.length / cardsPerRow);
+        const OVERSCAN = 3;
+        const startRow = Math.max(0, Math.floor(gridScrollTop / GRID_CARD_H) - OVERSCAN);
+        const endRow = Math.min(rowCount, Math.ceil((gridScrollTop + gridContainerH) / GRID_CARD_H) + OVERSCAN);
+        const visibleCards = visibleItems.slice(startRow * cardsPerRow, Math.min(visibleItems.length, endRow * cardsPerRow));
+        const topPad = startRow * GRID_CARD_H;
+        const bottomPad = (rowCount - endRow) * GRID_CARD_H;
+        return (
+          <div
+            ref={gridScrollRef}
+            style={{ overflow: 'auto', height: 'calc(100vh - 320px)', minHeight: '400px' }}
+            onScroll={(e: any) => setGridScrollTop(e.currentTarget.scrollTop)}
+          >
+            <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+              {topPad > 0 && <div style={{ gridColumn: '1 / -1', height: topPad }} />}
+              {visibleCards.map(item => (
+                <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} activeCats={activeCats} onTagClick={setTagFilter} />
+              ))}
+              {bottomPad > 0 && <div style={{ gridColumn: '1 / -1', height: bottomPad }} />}
+            </div>
+          </div>
+        );
+      })() : viewMode === 'table' ? (() => {
+        const OVERSCAN = 8;
+        const startIdx = Math.max(0, Math.floor(tableScrollTop / TABLE_ROW_H) - OVERSCAN);
+        const endIdx = Math.min(visibleItems.length, Math.ceil((tableScrollTop + tableContainerH) / TABLE_ROW_H) + OVERSCAN);
+        const visibleRows = visibleItems.slice(startIdx, endIdx);
+        const topPad = startIdx * TABLE_ROW_H;
+        const bottomPad = (visibleItems.length - endIdx) * TABLE_ROW_H;
         const allSel = visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url));
         return (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--brd)', background: 'var(--bg3)', position: 'sticky', top: 0, zIndex: 1 }}>
-                <th style={{ padding: '7px 8px', width: '32px' }}>
-                  <input type="checkbox" checked={allSel} onChange={() => allSel ? deselectUrls(visibleItems.map(i => i.url)) : selectUrls(visibleItems.map(i => i.url))} />
-                </th>
-                <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Title</th>
-                <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>URL</th>
-                <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Website</th>
-                <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Tags</th>
-                <th style={{ width: '56px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleItems.map((item, i) => {
-                const hostname = (() => { try { return new URL(item.url).hostname; } catch { return item.url; } })();
-                return (
-                  <tr
-                    key={item.url}
-                    onClick={() => { currentVideo.value = { id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), name: item.title, path: item.scrapedVideoUrl || '', relPath: item.url, category: item.category || 'Links', isLink: true, img: item.img, embedUrl: item.embedUrl, linkUrl: item.url } as any; currentView.value = 'player'; }}
-                    style={{ cursor: 'pointer', borderBottom: '1px solid var(--brd)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}
-                  >
-                    <td style={{ padding: '6px 8px' }} onClick={(e: any) => e.stopPropagation()}>
-                      <input type="checkbox" checked={selectedUrls.has(item.url)} onChange={() => toggleSelect(item.url)} aria-label={`Select ${item.title}`} />
-                    </td>
-                    <td style={{ padding: '6px 10px', maxWidth: '280px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                        <img src={`https://www.google.com/s2/favicons?sz=14&domain_url=${encodeURIComponent(item.url)}`} width="14" height="14" alt="" style={{ flexShrink: 0 }} loading="lazy" />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '6px 10px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--tx3)', fontSize: '12px' }} title={item.url}>{item.url}</td>
-                    <td style={{ padding: '6px 10px', color: 'var(--tx3)', whiteSpace: 'nowrap', fontSize: '12px' }}>{hostname}</td>
-                    <td style={{ padding: '6px 10px' }}>
-                      {item.tags && item.tags.length > 0 && (
-                        <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
-                          {item.tags.slice(0, 3).map(t => (
-                            <span key={t} onClick={(e: any) => { e.stopPropagation(); setTagFilter(t); }} title={`Filter by "${t}"`} style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85, whiteSpace: 'nowrap', cursor: 'pointer' }}>{t}</span>
-                          ))}
+          <div
+            ref={tableScrollRef}
+            style={{ overflow: 'auto', height: 'calc(100vh - 320px)', minHeight: '400px' }}
+            onScroll={(e: any) => setTableScrollTop(e.currentTarget.scrollTop)}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--brd)', background: 'var(--bg3)', position: 'sticky', top: 0, zIndex: 1 }}>
+                  <th style={{ padding: '7px 8px', width: '32px' }}>
+                    <input type="checkbox" checked={allSel} onChange={() => allSel ? deselectUrls(visibleItems.map(i => i.url)) : selectUrls(visibleItems.map(i => i.url))} />
+                  </th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Title</th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>URL</th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Website</th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Tags</th>
+                  <th style={{ width: '56px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {topPad > 0 && <tr style={{ height: topPad }}><td colSpan={6} style={{ padding: 0 }} /></tr>}
+                {visibleRows.map((item, ri) => {
+                  const i = startIdx + ri;
+                  const hostname = (() => { try { return new URL(item.url).hostname; } catch { return item.url; } })();
+                  return (
+                    <tr
+                      key={item.url}
+                      onClick={() => { currentVideo.value = { id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), name: item.title, path: item.scrapedVideoUrl || '', relPath: item.url, category: item.category || 'Links', isLink: true, img: item.img, embedUrl: item.embedUrl, linkUrl: item.url } as any; currentView.value = 'player'; }}
+                      style={{ height: TABLE_ROW_H, cursor: 'pointer', borderBottom: '1px solid var(--brd)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}
+                    >
+                      <td style={{ padding: '6px 8px' }} onClick={(e: any) => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedUrls.has(item.url)} onChange={() => toggleSelect(item.url)} aria-label={`Select ${item.title}`} />
+                      </td>
+                      <td style={{ padding: '6px 10px', maxWidth: '280px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                          <img src={`https://www.google.com/s2/favicons?sz=14&domain_url=${encodeURIComponent(item.url)}`} width="14" height="14" alt="" style={{ flexShrink: 0 }} loading="lazy" />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</span>
                         </div>
-                      )}
-                    </td>
-                    <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }} onClick={(e: any) => e.stopPropagation()}>
-                      <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--tx3)', display: 'inline-flex', alignItems: 'center', marginRight: '6px' }} title="Open in browser">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                      </a>
-                      <button type="button" onClick={() => removeItem(item.url)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '0 2px', fontSize: '16px', lineHeight: 1 }} title="Remove">×</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td style={{ padding: '6px 10px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--tx3)', fontSize: '12px' }} title={item.url}>{item.url}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--tx3)', whiteSpace: 'nowrap', fontSize: '12px' }}>{hostname}</td>
+                      <td style={{ padding: '6px 10px' }}>
+                        {item.tags && item.tags.length > 0 && (
+                          <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                            {item.tags.slice(0, 3).map(t => (
+                              <span key={t} onClick={(e: any) => { e.stopPropagation(); setTagFilter(t); }} title={`Filter by "${t}"`} style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85, whiteSpace: 'nowrap', cursor: 'pointer' }}>{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }} onClick={(e: any) => e.stopPropagation()}>
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--tx3)', display: 'inline-flex', alignItems: 'center', marginRight: '6px' }} title="Open in browser">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                        </a>
+                        <button type="button" onClick={() => removeItem(item.url)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '0 2px', fontSize: '16px', lineHeight: 1 }} title="Remove">×</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {bottomPad > 0 && <tr style={{ height: bottomPad }}><td colSpan={6} style={{ padding: 0 }} /></tr>}
+              </tbody>
+            </table>
+          </div>
         );
       })() : (() => {
         // Grouped by website — collapsible tables, all collapsed by default

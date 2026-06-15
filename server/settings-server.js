@@ -113,6 +113,17 @@ async function apiSavePrefs(req, res) {
     }
     prefs.itemPlacements = out;
   }
+  if ('sectionPlacements' in body) {
+    const out = {};
+    const src = body.sectionPlacements;
+    if (src && typeof src === 'object' && !Array.isArray(src)) {
+      for (const k of Object.keys(src)) {
+        const v = src[k];
+        if ((k === 'library' || k === 'media' || k === 'tools') && (v === 'topbar' || v === 'sidebar')) out[String(k)] = v;
+      }
+    }
+    prefs.sectionPlacements = out;
+  }
   // Home dashboard widget layout (opaque array of widget instances).
   if ('homeDashboard' in body) {
     prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];

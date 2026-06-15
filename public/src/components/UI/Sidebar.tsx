@@ -2,7 +2,7 @@ import { useState, useEffect } from 'preact/hooks';
 import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { SidebarItem, FoldersFilter, TagsFilter } from './LibraryFilters';
-import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, FILTER_IDS, type NavItem, type NavSection } from './navItems';
+import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, type NavItem, type NavSection } from './navItems';
 
 const SectionHeader = ({ label, id, open, style, onClick, action, onContextMenu }: { label: string, id: string, open?: boolean, style?: any, onClick?: () => void, action?: any, onContextMenu?: (e: any) => void }) => (
   <h3 className={`sidebar-heading${open === false ? ' closed' : ''}`} id={id} style={style} onClick={onClick} onContextMenu={onContextMenu}>
@@ -132,13 +132,20 @@ export const Sidebar = () => {
   const navContent = (
     <>
       {sectionsMeta.map((sec, i) => {
+        if (sectionPlacementFor(sec.key) === 'topbar') return null;
         const items = sidebarItems.filter(it => it.section === sec.key);
         const hasPlugins = pluginsList.value.some(p => pluginLocation(p) === 'sidebar' && p.sidebarSection === sec.key && isPluginEnabled(p.id));
         if (!items.length && !hasPlugins) return null;
         return (
           <div key={sec.key}>
             {i > 0 && <div className="side-sep"></div>}
-            <SectionHeader label={sec.label} id={sec.id} open={sec.open} onClick={sec.toggle} />
+            <SectionHeader
+              label={sec.label}
+              id={sec.id}
+              open={sec.open}
+              onClick={sec.toggle}
+              onContextMenu={(e) => { e.preventDefault(); openSectionMoveMenu(e, sec.key, sec.label, 'sidebar'); }}
+            />
             <div className="side-section" style={{ display: sec.open ? 'block' : 'none' }}>
               {items.map(renderItem)}
               {renderSectionPlugins(sec.key)}
