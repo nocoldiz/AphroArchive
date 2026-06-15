@@ -2,7 +2,7 @@ import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
 import { FilterDropdowns, SectionDropdowns } from './LibraryFilters';
-import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles } from '../../store';
+import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles, openExternalFolder } from '../../store';
 import { zapOn } from '../../zap';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, sectionPlacementFor } from './navItems';
@@ -148,6 +148,13 @@ export const Topbar = () => {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
+          </svg>
+        </button>
+
+        <button id="openFolderBtn" onClick={openExternalFolder} title="Open a folder temporarily (without importing)" className="hsm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v3" />
+            <path d="M2 13.5 4 19a2 2 0 0 0 1.9 1.4h12.2A2 2 0 0 0 20 19l2-5.5a1 1 0 0 0-.95-1.5H2.95A1 1 0 0 0 2 13.5z" />
           </svg>
         </button>
 

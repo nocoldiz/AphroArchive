@@ -221,12 +221,16 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
   }
 }
 
-// Re-encrypt a single .enc file with a new key (streaming, no full-file buffer)
-async function _reEncryptFile(filePath, oldKey, newKey) {
-  const stat = fs.statSync(filePath);
+// Re-encrypt one .enc file from oldKey to newKey, writing the result to a
+// separate destination (streaming, no full-file buffer, source left intact).
+// Throws on a bad auth tag / truncated file so callers can abort before any
+// destructive change.
+async function _reEncryptFileTo(srcPath, dstPath, oldKey, newKey) {
+  const stat = fs.statSync(srcPath);
   const total = stat.size, ivLen = 12, tagLen = 16;
+  if (total < ivLen + tagLen) throw new Error('File too small to re-encrypt: ' + path.basename(srcPath));
 
-  const fd = fs.openSync(filePath, 'r');
+  const fd = fs.openSync(srcPath, 'r');
   const oldIv = Buffer.alloc(ivLen);
   fs.readSync(fd, oldIv, 0, ivLen, 0);
   const oldTag = Buffer.alloc(tagLen);
@@ -234,13 +238,11 @@ async function _reEncryptFile(filePath, oldKey, newKey) {
   fs.closeSync(fd);
 
   const newIv = crypto.randomBytes(12);
-  const tmpPath = filePath + '.tmp';
-
   const dec = crypto.createDecipheriv('aes-256-gcm', oldKey, oldIv);
   dec.setAuthTag(oldTag);
   const enc = crypto.createCipheriv('aes-256-gcm', newKey, newIv);
-  const src = fs.createReadStream(filePath, { start: ivLen, end: total - tagLen - 1 });
-  const dst = fs.createWriteStream(tmpPath);
+  const src = fs.createReadStream(srcPath, { start: ivLen, end: total - tagLen - 1 });
+  const dst = fs.createWriteStream(dstPath);
   dst.write(newIv);
 
   await new Promise((resolve, reject) => {
@@ -261,9 +263,25 @@ async function _reEncryptFile(filePath, oldKey, newKey) {
     dst.on('error', reject);
     src.pipe(dec);
   });
+}
 
-  fs.unlinkSync(filePath);
-  fs.renameSync(tmpPath, filePath);
+// Collect every encrypted blob under VAULT_DIR — top-level video/text/special
+// `*.enc` files AND the per-page resource blobs nested in `<pageId>/<id>.enc`
+// subfolders. Used by the password-change re-encryption so nothing is missed.
+function _collectVaultEncFiles() {
+  const out = [];
+  if (!fs.existsSync(VAULT_DIR)) return out;
+  const walk = (dir) => {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const ent of entries) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(full);
+      else if (ent.isFile() && ent.name.endsWith('.enc')) out.push(full);
+    }
+  };
+  walk(VAULT_DIR);
+  return out;
 }
 // ── Auto-import hidden files ─────────────────────────────────────────
 
@@ -1071,12 +1089,19 @@ async function apiVaultChangePassword(req, res) {
   const oldPw = (body.oldPassword || body.oldPw || '').trim();
   const newPw = (body.newPassword || body.newPw || '').trim();
 
+  // Re-encrypting a large library can far outlast the auto-lock window; hold it
+  // off so the vault key isn't pulled out from under the migration.
+  suspendAutoLock();
+  const tmpPairs = []; // [originalPath, rekeyTmpPath] produced in phase 1
+  const cleanupTmps = () => {
+    for (const [, tmp] of tmpPairs) { try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {} }
+  };
   try {
     // Authenticate with the old password before validating the new one.
     const oldIters = cfg.iterations || PBKDF2_ITERATIONS_LEGACY;
     const { encKey: oldKey, verifyHash: oldHash } = await deriveKeys(oldPw, cfg.salt, oldIters);
-    if (!_timingEqualHex(oldHash, cfg.verifyHash)) return json(res, { error: 'Old password is wrong' }, 401);
-    if (newPw.length < 6) return json(res, { error: 'New password must be at least 6 characters' }, 400);
+    if (!_timingEqualHex(oldHash, cfg.verifyHash)) { resumeAutoLock(); return json(res, { error: 'Old password is wrong' }, 401); }
+    if (newPw.length < 6) { resumeAutoLock(); return json(res, { error: 'New password must be at least 6 characters' }, 400); }
 
     // Keep the same salt type as the original setup (static or random).
     // If useRandomSalt is explicitly set in body, honour it; otherwise preserve the original choice.
@@ -1086,25 +1111,33 @@ async function apiVaultChangePassword(req, res) {
     const newSalt = keepStatic ? STATIC_SALT : crypto.randomBytes(32).toString('hex');
     const { encKey: newKey, verifyHash: newHash } = await deriveKeys(newPw, newSalt, PBKDF2_ITERATIONS_CURRENT);
 
-    // Re-encrypt all .enc files in VAULT_DIR
-    if (fs.existsSync(VAULT_DIR)) {
-      const files = fs.readdirSync(VAULT_DIR).filter(f => f.endsWith('.enc') && !f.startsWith('_'));
-      for (const file of files) {
-        await _reEncryptFile(path.join(VAULT_DIR, file), oldKey, newKey);
-      }
+    // ── Phase 1: re-encrypt EVERY blob (videos, text, posters, the special
+    // _vault_*.enc files, and nested page resources) to a sibling `.rekey`
+    // temp WITHOUT touching the originals. If any file fails (bad auth tag,
+    // locked file, disk full) we abort here — no destructive change has
+    // happened, so the vault still opens with the old password. ────────────
+    for (const full of _collectVaultEncFiles()) {
+      const tmp = full + '.rekey';
+      await _reEncryptFileTo(full, tmp, oldKey, newKey);
+      tmpPairs.push([full, tmp]);
     }
 
-    // Re-encrypt the special encrypted-JSON files (_vault_favs.enc, _vault_links.enc)
-    if (fs.existsSync(VAULT_DIR)) {
-      const specials = fs.readdirSync(VAULT_DIR).filter(f => f.startsWith('_') && f.endsWith('.enc'));
-      for (const file of specials) {
-        await _reEncryptFile(path.join(VAULT_DIR, file), oldKey, newKey);
-      }
+    // ── Phase 2: every blob re-encrypted successfully — now swap each temp
+    // over its original. These are quick rename ops with a low failure risk. ─
+    for (const [full, tmp] of tmpPairs) {
+      fs.unlinkSync(full);
+      fs.renameSync(tmp, full);
     }
 
-    // Re-encrypt prompts and comments stored in the Vault SQLite database
+    // Re-encrypt prompts and comments stored in the Vault SQLite database.
     const { reEncryptVaultSqlite } = require('./db-server');
     reEncryptVaultSqlite(oldKey, newKey);
+
+    // The vault metadata file is itself encrypted with the vault key. Snapshot
+    // it while the OLD key is still active, then re-save it after the key
+    // switch so it re-encrypts under the new key. Without this every entry
+    // (names, folders, favourites) is orphaned on the next read.
+    const metaSnapshot = loadVaultMeta();
 
     // Save new config. The duress password is independent of the main
     // password (own salt+hash), so carry it across a password change unless
@@ -1122,10 +1155,17 @@ async function apiVaultChangePassword(req, res) {
     }
     saveVaultConfig(newCfg);
     vaultKey = newKey;
+    vaultPassword = newPw; // keep in sync — zip mounts decrypt with this
     setVaultKey(newKey);
+    saveVaultMeta(metaSnapshot); // re-encrypts the meta under the new key
     resetVaultTimer();
     json(res, { ok: true });
-  } catch (e) { json(res, { error: e.message }, 500); }
+  } catch (e) {
+    cleanupTmps();
+    json(res, { error: 'Password change failed (vault unchanged): ' + e.message }, 500);
+  } finally {
+    resumeAutoLock();
+  }
 }
 
 // Decrypt a vault file and restore it to a normal directory.
@@ -1212,8 +1252,17 @@ function _silentWipe() {
     _shredDir(VAULT_DIR);
   }
 
-  try { if (fs.existsSync(VAULT_CONFIG_FILE)) fs.unlinkSync(VAULT_CONFIG_FILE); } catch {}
-  try { if (fs.existsSync(VAULT_META_FILE)) fs.unlinkSync(VAULT_META_FILE); } catch {}
+  let error = null;
+  for (const f of [VAULT_CONFIG_FILE, VAULT_META_FILE]) {
+    try { if (fs.existsSync(f)) fs.unlinkSync(f); }
+    catch (e) { error = e; }
+  }
+  // The vault counts as "configured" iff the config file still exists. If the
+  // unlink failed (drive offline/read-only, file locked, permission denied) the
+  // wipe silently did nothing — report that so callers don't claim success while
+  // the vault remains. Never throws: the duress self-destruct path relies on
+  // _silentWipe() staying silent.
+  return { ok: !fs.existsSync(VAULT_CONFIG_FILE), error };
 }
 
 async function apiVaultDeleteVault(req, res) {
@@ -1228,7 +1277,10 @@ async function apiVaultDeleteVault(req, res) {
     return json(res, { error: 'Confirmation required' }, 400);
   }
 
-  _silentWipe();
+  const { ok, error } = _silentWipe();
+  if (!ok) {
+    return json(res, { error: 'Failed to delete vault: ' + (error ? error.message : 'the vault config could not be removed') }, 500);
+  }
   json(res, { ok: true });
 }
 
@@ -1300,30 +1352,38 @@ async function apiVaultMoveFolder(req, res, id) {
 
 async function apiVaultReadBook(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  if (!_safeId(id)) return json(res, { error: 'Bad id' }, 400);
 
   const meta = loadVaultMeta();
   const fileMeta = meta[id];
   if (!fileMeta) return json(res, { error: 'Not found' }, 404);
 
   const encPath = path.join(VAULT_DIR, id + '.enc');
-  const raw = fs.readFileSync(encPath);
-  const ivLen = 12, tagLen = 16;
-  const iv = raw.slice(0, ivLen);
-  const tag = raw.slice(raw.length - tagLen);
-  const ct = raw.slice(ivLen, raw.length - tagLen);
+  if (!fs.existsSync(encPath)) return json(res, { error: 'Encrypted file not found' }, 404);
 
-  const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
-  dec.setAuthTag(tag);
-  const decrypted = Buffer.concat([dec.update(ct), dec.final()]);
+  try {
+    const raw = fs.readFileSync(encPath);
+    const ivLen = 12, tagLen = 16;
+    if (raw.length < ivLen + tagLen) return json(res, { error: 'File corrupted' }, 500);
+    const iv = raw.slice(0, ivLen);
+    const tag = raw.slice(raw.length - tagLen);
+    const ct = raw.slice(ivLen, raw.length - tagLen);
 
-  const ext = (fileMeta.ext || path.extname(fileMeta.originalName || '')).toLowerCase();
+    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    const decrypted = Buffer.concat([dec.update(ct), dec.final()]);
 
-  if (ext === '.pdf' || ext === '.epub') {
-    const mime = ext === '.pdf' ? 'application/pdf' : 'application/epub+zip';
-    res.writeHead(200, { 'Content-Type': mime, 'Content-Length': decrypted.length, ...NO_CACHE_HEADERS });
-    res.end(decrypted);
-  } else {
-    json(res, { title: fileMeta.originalName, content: decrypted.toString('utf-8'), ext, type: 'vault' });
+    const ext = (fileMeta.ext || path.extname(fileMeta.originalName || '')).toLowerCase();
+
+    if (ext === '.pdf' || ext === '.epub') {
+      const mime = ext === '.pdf' ? 'application/pdf' : 'application/epub+zip';
+      res.writeHead(200, { 'Content-Type': mime, 'Content-Length': decrypted.length, ...NO_CACHE_HEADERS });
+      res.end(decrypted);
+    } else {
+      json(res, { title: fileMeta.originalName, content: decrypted.toString('utf-8'), ext, type: 'vault' });
+    }
+  } catch (e) {
+    json(res, { error: 'Decryption failed: ' + e.message }, 500);
   }
 }
 

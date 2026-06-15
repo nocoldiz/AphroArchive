@@ -257,8 +257,8 @@ const tileSty: any = {
 const inputSty: any = { width: '100%', padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: 6 };
 
 const Modal = ({ title, children, onClose, onConfirm, confirmLabel }: any) => (
-  <div className="modal on" style={{ display: 'flex' }} onClick={onClose}>
-    <div className="modal-content" onClick={(e: any) => e.stopPropagation()}>
+  <div className="modal-overlay on" onClick={onClose}>
+    <div className="modal-dialog" onClick={(e: any) => e.stopPropagation()}>
       <div className="modal-header"><h2>{title}</h2></div>
       <div className="modal-body">{children}</div>
       <div className="modal-footer">

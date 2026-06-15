@@ -788,6 +788,25 @@ function setVideoMetaFields(id, fields) {
   if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], channel: '', rating: null, category: '', note: '', date: '', language: '', reencoded: 0 };
   Object.assign(meta[id], fields);
 
+  // In the Vault profile a vault item's canonical metadata lives in
+  // VAULT_META_FILE (item.videoMeta) — that's what loadVideoMeta()/allVideos()
+  // read back. Writing it to the SQLite videos table instead (as below) would
+  // be a lost write: no Vault read path consults that table, so the edit would
+  // vanish on the next reload. Persist vault-item edits to the vault store.
+  if (currentProfile === 'Vault') {
+    try {
+      const vmeta = loadVaultMeta();
+      const item = vmeta[id];
+      if (item && item.type !== 'folder') {
+        item.videoMeta = { ...(item.videoMeta || {}), ...fields };
+        saveVaultMeta(vmeta); // invalidates _videoMeta so the merge picks it up
+        return;
+      }
+    } catch (e) {
+      console.error('Failed to persist vault item meta:', e);
+    }
+  }
+
   try {
     txn(() => {
       const stmt = db.prepare('INSERT INTO videos (id, title, channel, category, rating, note, date, language, reencoded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, channel=excluded.channel, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date, language=excluded.language, reencoded=excluded.reencoded');

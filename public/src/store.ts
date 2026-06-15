@@ -5,7 +5,27 @@ import * as api from './api';
 // ─── Core State ──────────────────────────────────────────────────────
 export const videos = signal<Video[]>([]);
 export const allVideos = signal<Video[]>([]); // Full unfiltered list
-export const folders = signal<Folder[]>([]);
+// Persist the default profile's folder list so the sidebar can show folder
+// names instantly on next load (while the real /api/folders scan runs), instead
+// of flashing an empty list. Scoped to 'default' to avoid persisting encrypted
+// vault folder names to disk.
+const FOLDERS_CACHE_KEY = 'foldersCache:default';
+function readFoldersCache(): Folder[] {
+  try {
+    const arr = JSON.parse(localStorage.getItem(FOLDERS_CACHE_KEY) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+function writeFoldersCache(list: Folder[]) {
+  try {
+    // Counts are recomputed once videos load, so cache names/paths only.
+    localStorage.setItem(FOLDERS_CACHE_KEY, JSON.stringify(
+      list.filter(f => !f.opened).map(f => ({ name: f.name, path: f.path, count: 0, encrypted: f.encrypted, partial: f.partial }))
+    ));
+  } catch {}
+}
+
+export const folders = signal<Folder[]>(readFoldersCache());
 export const linkTotalCount = signal<number>(0);
 export const mediaCounts = signal<{ links: number; audio: number; books: number; photos: number; files: number; pages: number; screenshots: number }>({ links: 0, audio: 0, books: 0, photos: 0, files: 0, pages: 0, screenshots: 0 });
 export const actors = signal<Actor[]>([]);
@@ -332,6 +352,12 @@ export async function switchProfile(name: string) {
 }
 
 if (typeof document !== 'undefined') {
+  folders.subscribe(list => {
+    if (list.length && activeProfile.value === 'default' && !vaultGlobalView.value) {
+      writeFoldersCache(list);
+    }
+  });
+
   isMuted.subscribe(muted => {
     const mediaElements = document.querySelectorAll('video, audio');
     mediaElements.forEach((el: any) => el.muted = muted);
@@ -680,6 +706,45 @@ export function matchLinkFolder(title: string, folderList: any[], explicitFolder
     if (key && norm.includes(key)) return { catPath: folder.path, category: folder.name };
   }
   return { catPath: '', category: '' };
+}
+
+// Open an arbitrary folder from disk and add it to the folder list
+// temporarily (not imported into the DB). Thumbnails are generated lazily
+// by the grid and persist on disk, so reopening reuses them.
+export async function openExternalFolder() {
+  const w = window as any;
+  try {
+    const picked = await fetch('/api/browse-folders-native').then(r => r.json());
+    if (picked.error) { w.toastError?.(picked.error); return; }
+    if (!picked.path) return; // cancelled
+    const res = await fetch('/api/opened/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: picked.path })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { w.toastError?.(data.error || 'Could not open folder'); return; }
+    await loadVideos();
+    currentView.value = 'browse';
+    currentFolder.value = data.folder?.path || '';
+    w.toast?.(`Opened "${data.folder?.name}" — ${data.count} file${data.count === 1 ? '' : 's'}`);
+  } catch (e) {
+    w.toastError?.('Could not open folder');
+  }
+}
+
+export async function closeOpenedFolder(openedRoot: string) {
+  try {
+    await fetch('/api/opened/close', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: openedRoot })
+    });
+    if (currentFolder.value && folders.value.some(f => f.opened && f.openedRoot === openedRoot && f.path === currentFolder.value)) {
+      currentFolder.value = '';
+    }
+    await loadVideos();
+  } catch {}
 }
 
 export async function loadVideos() {

@@ -58,6 +58,18 @@ function safePath(id) {
     // Handle potential errors
   }
 
+  // Temporarily opened folders (Open button) — not in the DB, but streamable.
+  try {
+    const { getOpenedRoots } = require('./opened-folders-server');
+    for (const root of getOpenedRoots()) {
+      if (full === root || full.startsWith(root + path.sep)) {
+        if (fs.existsSync(full)) return full;
+      }
+    }
+  } catch (e) {
+    // opened-folders module not ready / unavailable
+  }
+
   return null;
 }
 

@@ -256,7 +256,8 @@ export const ContextMenu = () => {
   };
 
   const physicalCreateFolder = async (name: string, parentId: string | null) => {
-    await fetch('/api/folders/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parentPath: parentId || physicalFolderRoot, name }) });
+    const r = await fetch('/api/folders/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parentPath: parentId || physicalFolderRoot, name }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || 'Failed to create folder'); return; }
     await refreshPhysicalFolders(physicalFolderRoot);
   };
 

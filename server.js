@@ -25,6 +25,7 @@ const { getLocalIPs, getLocalIP } = require('./server/config-server');
 // ── Modules ──────────────────────────────────────────────────────────
 
 const videos = require('./server/videos-server');
+const openedFolders = require('./server/opened-folders-server');
 const actors = require('./server/actors-server');
 const vault = require('./server/vault-server');
 const thumbnails = require('./server/thumbnails-server');
@@ -166,6 +167,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/enabled-folders' && req.method === 'POST') return videos.apiSetEnabledFolders(req, res);
   if (p === '/api/main-folders' && req.method === 'GET') return videos.apiMainFolders(req, res);
   if (p === '/api/main-folders' && req.method === 'POST') return videos.apiCreateFolder(req, res);
+  if (p === '/api/opened/open' && req.method === 'POST') return openedFolders.apiOpenedOpen(req, res);
+  if (p === '/api/opened/list' && req.method === 'GET') return openedFolders.apiOpenedList(req, res);
+  if (p === '/api/opened/close' && req.method === 'POST') return openedFolders.apiOpenedClose(req, res);
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);
   if (p === '/api/open-folder-in-explorer' && req.method === 'POST') return videos.apiOpenFolderInExplorer(req, res);
   if (p === '/api/favourites' && req.method === 'GET') return videos.apiFavourites(req, res);

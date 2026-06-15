@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen } from '../../store';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder } from '../../store';
 import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection } from './navItems';
 
 interface SidebarItemProps {
@@ -18,9 +18,10 @@ interface SidebarItemProps {
   hasChildren?: boolean;
   expanded?: boolean;
   onToggleExpand?: (e: any) => void;
+  action?: any;
 }
 
-export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, onContextMenu, isActive, indent, depth, hasChildren, expanded, onToggleExpand }: SidebarItemProps) => {
+export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, onContextMenu, isActive, indent, depth, hasChildren, expanded, onToggleExpand, action }: SidebarItemProps) => {
   const isTree = depth !== undefined;
   const style: any = isTree
     ? { paddingLeft: depth! > 0 ? `${depth! * 16}px` : undefined, fontSize: '0.85rem' }
@@ -53,7 +54,10 @@ export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDra
         )}
         {icon}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       </span>
-      {badge !== undefined && <span className="count-badge">{badge}</span>}
+      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+        {badge !== undefined && <span className="count-badge">{badge}</span>}
+        {action}
+      </span>
     </div>
   );
 };
@@ -117,7 +121,9 @@ export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
     }), [folders.value, filteredVids]);
 
   const categoryTree = useMemo(() => {
-    const hideEmpty = !!appPrefs.value.hideEmptyFolders;
+    // Keep folders visible while videos are still loading (counts aren't known
+    // yet) so cached folder names show right away instead of an empty list.
+    const hideEmpty = !!appPrefs.value.hideEmptyFolders && !isLoadingVideos.value;
     const list = hideEmpty ? displayFolders.filter(c => c.count > 0) : displayFolders;
     const byPath = new Map<string, CatTreeNode>();
     const roots: CatTreeNode[] = [];
@@ -129,7 +135,7 @@ export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
       else roots.push(node);
     }
     return roots;
-  }, [displayFolders, appPrefs.value.hideEmptyFolders]);
+  }, [displayFolders, appPrefs.value.hideEmptyFolders, isLoadingVideos.value]);
 
   const pinnedCats = useMemo(() => {
     const pins = appPrefs.value.pinnedFolders || [];
@@ -163,6 +169,9 @@ export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
 
   const renderCategoryNode = (node: CatTreeNode, depth: number): any => {
     const c = node.cat;
+    const openIcon = c.opened
+      ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v3" /><path d="M2 13.5 4 19a2 2 0 0 0 1.9 1.4h12.2A2 2 0 0 0 20 19l2-5.5a1 1 0 0 0-.95-1.5H2.95A1 1 0 0 0 2 13.5z" /></svg>
+      : null;
     const lockIcon = inVaultMode
       ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2.5" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       : c.partial
@@ -177,12 +186,22 @@ export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
       <div key={c.path}>
         <SidebarItem
           label={label}
-          icon={lockIcon}
+          icon={openIcon || lockIcon}
           badge={c.count}
           depth={depth}
           hasChildren={hasChildren}
           expanded={expanded}
           onToggleExpand={() => toggleFolderExpand(c.path)}
+          action={depth === 0 && c.opened && c.openedRoot ? (
+            <button
+              type="button"
+              title="Close opened folder"
+              onClick={(e: any) => { e.preventDefault(); e.stopPropagation(); closeOpenedFolder(c.openedRoot!); }}
+              style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tx3)', padding: '2px' }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          ) : undefined}
           onClick={() => selectCategory(c.path)}
           onContextMenu={(e) => {
             e.preventDefault();

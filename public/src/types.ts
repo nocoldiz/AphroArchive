@@ -38,6 +38,9 @@ export interface Folder {
   count: number;
   encrypted?: boolean;
   partial?: boolean;
+  // Temporarily opened folder (Open button) — not part of the library DB.
+  opened?: boolean;
+  openedRoot?: string;
 }
 
 export interface Actor {

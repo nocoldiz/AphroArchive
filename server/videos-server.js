@@ -551,10 +551,18 @@ async function allVideos(forceAll = false) {
 
   list.push(...bmVideos);
 
-  return list.filter(v => {
+  list = list.filter(v => {
     if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
   });
+
+  // Append files from temporarily opened folders (not persisted to the DB).
+  try {
+    const { getOpenedItems } = require('./opened-folders-server');
+    list.push(...getOpenedItems());
+  } catch (e) {}
+
+  return list;
 }
 
 function isUnlocked(catPath) {
@@ -641,7 +649,7 @@ async function apiVideos(req, res, params) {
   const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
   const videos      = await allVideos(showAll);
   let list = videos
-    .filter(v => showAll || isFolderEnabled(v.catPath, enabledPaths))
+    .filter(v => showAll || v.isOpened || isFolderEnabled(v.catPath, enabledPaths))
     .map(v => {
       const cached   = thumbsCache[v.id];
       const duration = cached?.duration || null;
@@ -901,6 +909,14 @@ async function apiFolders(req, res, params) {
 
   const enabledPaths = db.loadEnabledFolders();
   const filtered = showAll ? cats : cats.filter(c => isFolderEnabled(c.path, enabledPaths));
+
+  // Append temporarily opened folders (always visible, regardless of enabled set).
+  try {
+    const { getOpenedFolderEntries } = require('./opened-folders-server');
+    for (const entry of getOpenedFolderEntries()) {
+      filtered.push({ ...entry, encrypted: false, partial: false, unlocked: true });
+    }
+  } catch (e) {}
 
   filtered.sort((a, b) => {
     if (a.path === 'uncategorized') return -1;
@@ -1497,6 +1513,22 @@ async function apiMove(req, res, id) {
   if (path.resolve(newPath) === path.resolve(fp)) return json(res, { error: 'Already in this category' }, 400);
   if (fs.existsSync(newPath)) return json(res, { error: 'A file with that name already exists in the target category' }, 409);
 
+  // Files from a temporarily opened folder are *copied* into the library
+  // (the original is left in place), not moved.
+  let isOpened = false;
+  try { isOpened = require('./opened-folders-server').isOpenedPath(fp); } catch {}
+  if (isOpened) {
+    try {
+      fs.copyFileSync(fp, newPath);
+      invalidateScanCache();
+      const newResolved = path.resolve(newPath);
+      const newId = newResolved.startsWith(path.resolve(VIDEOS_DIR))
+        ? toId(path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/'))
+        : toId(newPath);
+      return json(res, { ok: true, newId, copied: true });
+    } catch (e) { return json(res, { error: e.message }, 500); }
+  }
+
   try {
     try {
       fs.renameSync(fp, newPath);
@@ -1659,11 +1691,13 @@ async function apiSetRating(req, res, id) {
   const stars = parseInt(body.stars, 10);
   if (!Number.isFinite(stars) || stars < 1 || stars > 5) return json(res, { error: 'stars must be 1–5' }, 400);
   setVideoMetaFields(id, { rating: stars });
+  broadcastScanChange();
   json(res, { ok: true, rating: stars });
 }
 
 function apiDeleteRating(req, res, id) {
   setVideoMetaFields(id, { rating: null });
+  broadcastScanChange();
   json(res, { ok: true });
 }
 
@@ -1675,6 +1709,10 @@ async function apiUpdateVideoMeta(req, res, id) {
   const fields  = {};
   for (const key of allowed) { if (key in body) fields[key] = body[key]; }
   setVideoMetaFields(id, fields);
+  // Notify connected clients so the new tags/actors/channel/etc. appear on the
+  // card right away instead of only after a manual reload. The frontend SSE
+  // handler debounces, so rapid edits (e.g. adding several tags) coalesce.
+  broadcastScanChange();
   json(res, { ok: true });
 }
 
@@ -3464,5 +3502,5 @@ module.exports = {
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
   apiCategorizePlan, apiCategorizeExecute,
   apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress, apiVaultImportProgress,
-  apiScanEvents,
+  apiScanEvents, broadcastScanChange,
 };
