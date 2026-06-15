@@ -45,7 +45,9 @@
     "assets": [
       "dist/public/**/*",
       "presets/**/*",
-      "db/wildcards/**/*"
+      "db/wildcards/**/*",
+      "plugins/**/*",
+      "widgets/**/*"
     ],
     "targets": [
       "node24-win-x64",

@@ -193,6 +193,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/folders/compress' && req.method === 'POST') return videos.apiCompressFolder(req, res);
   if (p === '/api/encryption/status' && req.method === 'GET') return videos.apiEncryptionStatus(req, res);
   if (p === '/api/encryption/stop' && req.method === 'POST') return videos.apiEncryptionStop(req, res);
+  if (p === '/api/encryption/import-progress' && req.method === 'POST') return videos.apiVaultImportProgress(req, res);
 
   if (p === '/api/scan/events' && req.method === 'GET') return videos.apiScanEvents(req, res);
   if (p === '/api/media-counts' && req.method === 'GET') { const { json: j } = require('./server/helpers-server'); return j(res, getMediaCounts()); }
@@ -366,6 +367,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/files' && req.method === 'GET') return vault.apiVaultFiles(req, res);
   if (p === '/api/vault/add' && req.method === 'POST') return vault.apiVaultAdd(req, res);
   if ((m = p.match(/^\/api\/vault\/stream\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultStream(req, res, m[1]);
+  if (p === '/api/vault/gen-thumbs' && req.method === 'POST') return vault.apiVaultGenThumbs(req, res);
+  if (p === '/api/vault/gen-thumbs/status' && req.method === 'GET') return vault.apiVaultGenThumbsStatus(req, res);
+  if ((m = p.match(/^\/api\/vault\/thumb\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultThumb(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'DELETE') return vault.apiVaultDelete(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/files\/([^/]+)$/)) && req.method === 'PATCH') return vault.apiVaultMoveFile(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/download\/([^/]+)$/)) && req.method === 'GET') return vault.apiVaultDownload(req, res, m[1]);

@@ -51,6 +51,7 @@ export const DuplicatesView = () => {
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [keepingGroup, setKeepingGroup] = useState<number | null>(null);
+  const [keepingAll, setKeepingAll] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
   const loadSizeBased = async () => {
@@ -151,6 +152,32 @@ export const DuplicatesView = () => {
     if (w.toast) w.toast(`Kept best, deleted ${[...newDeleted].filter(id => toDelete.some(v => v.id === id)).length} duplicate${toDelete.length !== 1 ? 's' : ''}`);
   };
 
+  const handleKeepBestAll = async () => {
+    const targets = visibleGroups
+      .map(group => {
+        const bestId = pickBest(group);
+        return { bestId, toDelete: group.filter(v => v.id !== bestId) };
+      })
+      .filter(t => t.toDelete.length > 0);
+    const totalToDelete = targets.reduce((n, t) => n + t.toDelete.length, 0);
+    if (totalToDelete === 0) return;
+    if (!confirm(`Keep the best file in each of the ${targets.length} group${targets.length !== 1 ? 's' : ''} and permanently delete the other ${totalToDelete} file${totalToDelete !== 1 ? 's' : ''}?`)) return;
+    setKeepingAll(true);
+    const newDeleted = new Set(deleted);
+    for (const t of targets) {
+      for (const v of t.toDelete) {
+        try {
+          const r = await fetch(`/api/videos/${v.id}`, { method: 'DELETE' });
+          if (r.ok) newDeleted.add(v.id);
+        } catch {}
+      }
+    }
+    setDeleted(newDeleted);
+    setKeepingAll(false);
+    const w = window as any;
+    if (w.toast) w.toast(`Kept best in ${targets.length} group${targets.length !== 1 ? 's' : ''}, deleted ${totalToDelete} duplicate${totalToDelete !== 1 ? 's' : ''}`);
+  };
+
   const handleDelete = async (video: VideoItem) => {
     if (!confirm(`Delete "${video.name}"?\n\nThis will permanently remove the file.`)) return;
     setDeletingId(video.id);
@@ -245,9 +272,19 @@ export const DuplicatesView = () => {
 
       {/* Summary */}
       {!loading && !scanning && visibleGroups.length > 0 && (
-        <div style={{ marginBottom: '16px', fontSize: '0.85rem', color: 'var(--tx3)' }}>
-          {visibleGroups.length} duplicate group{visibleGroups.length !== 1 ? 's' : ''} found
-          {totalWasted > 0 && <> · <span style={{ color: 'var(--ac)' }}>{fmt(totalWasted)} potentially recoverable</span></>}
+        <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
+            {visibleGroups.length} duplicate group{visibleGroups.length !== 1 ? 's' : ''} found
+            {totalWasted > 0 && <> · <span style={{ color: 'var(--ac)' }}>{fmt(totalWasted)} potentially recoverable</span></>}
+          </div>
+          <button
+            onClick={handleKeepBestAll}
+            disabled={keepingAll}
+            title="Keep the highest-resolution file in every group and delete all other duplicates"
+            style={{ marginLeft: 'auto', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: keepingAll ? 'wait' : 'pointer', fontSize: '0.82rem', fontWeight: 600, opacity: keepingAll ? 0.6 : 1 }}
+          >
+            {keepingAll ? 'Cleaning up…' : 'Keep Best in All Groups'}
+          </button>
         </div>
       )}
 

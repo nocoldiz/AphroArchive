@@ -82,6 +82,29 @@ export const VaultView = () => {
   const [renderLimit, setRenderLimit] = useState(100);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // Vault thumbnail batch generation
+  const [thumbGen, setThumbGen] = useState<{ running: boolean; done: number; total: number }>({ running: false, done: 0, total: 0 });
+  const [thumbBust, setThumbBust] = useState(0); // cache-buster to refresh posters after a run
+  const thumbPollRef = useRef<any>(null);
+
+  const startThumbGen = async () => {
+    try { await fetch('/api/vault/gen-thumbs', { method: 'POST' }); } catch { return; }
+    if (thumbPollRef.current) clearInterval(thumbPollRef.current);
+    thumbPollRef.current = setInterval(async () => {
+      try {
+        const s = await fetch('/api/vault/gen-thumbs/status').then(r => r.json());
+        setThumbGen(s);
+        if (!s.running) {
+          clearInterval(thumbPollRef.current); thumbPollRef.current = null;
+          setThumbBust(Date.now());
+          const w = window as any; if (w.toast) w.toast(`Generated ${s.done} thumbnail(s)`);
+        }
+      } catch { clearInterval(thumbPollRef.current); thumbPollRef.current = null; }
+    }, 1500);
+  };
+
+  useEffect(() => () => { if (thumbPollRef.current) clearInterval(thumbPollRef.current); }, []);
+
   useEffect(() => {
     fetchStatus();
   }, []);
@@ -971,6 +994,15 @@ export const VaultView = () => {
             )}
 
             <button
+              onClick={startThumbGen}
+              disabled={thumbGen.running}
+              title="Generate encrypted poster thumbnails for vault videos"
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: thumbGen.running ? 'default' : 'pointer', opacity: thumbGen.running ? 0.6 : 1 }}
+            >
+              {thumbGen.running ? `Thumbnails… ${thumbGen.done}/${thumbGen.total}` : 'Generate Thumbnails'}
+            </button>
+
+            <button
               onClick={async () => { await fetch('/api/vault/lock', { method: 'POST' }); fetchStatus(); }}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
             >
@@ -1050,21 +1082,35 @@ export const VaultView = () => {
           {visibleFiles.map(f => {
             const isPublic = f.isVault === false;
             const isImg = VAULT_PHOTO_EXTS.has(f.ext.toLowerCase());
+            const isVid = VAULT_VIDEO_EXTS.has(f.ext.toLowerCase());
             const isFav = favIds.has(f.id);
             const isSelected = selectedIds.has(f.id);
             const isEncrypting = encryptingIds.has(f.id);
             // Public photos serve their image directly; videos use the thumb endpoint; books have no preview.
-            const hasThumb = isPublic ? f.kind !== 'book' : isImg;
+            // Vault photos stream the (small) image; vault videos use the encrypted poster.
+            const hasThumb = isPublic ? f.kind !== 'book' : (isImg || isVid);
             const thumbSrc = isPublic
               ? (f.kind === 'photo' ? `/api/photos/${f.id}/img` : f.raw?.isLink ? (f.raw.img || '') : `/api/thumbs/${f.id}/0`)
-              : `/api/vault/stream/${f.id}`;
+              : (isImg ? `/api/vault/stream/${f.id}` : `/api/vault/thumb/${f.id}${thumbBust ? `?_=${thumbBust}` : ''}`);
             // While encrypting: fade the thumbnail to half opacity, then it vanishes on completion.
             const cardOpacity = isEncrypting ? 0.45 : (isPublic ? 0.92 : undefined);
             return (
               <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined, opacity: cardOpacity, transition: 'opacity 0.35s ease', pointerEvents: isEncrypting ? 'none' : undefined }}>
                 <div className="card-thumb" style={{ cursor: 'pointer' }} onClick={() => handleFileClick(f)}>
                   {hasThumb ? (
-                    <img src={thumbSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+                    <>
+                      <img
+                        src={thumbSrc}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        loading="lazy"
+                        onError={(e: any) => { e.currentTarget.style.display = 'none'; const ph = e.currentTarget.nextElementSibling; if (ph) ph.style.display = 'flex'; }}
+                      />
+                      {/* Shown only if the poster fails to load (e.g. not generated yet) */}
+                      <span style={{ display: 'none', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', color: 'var(--tx2)' }}>
+                        {f.ext.replace('.', '').toUpperCase()}
+                      </span>
+                    </>
                   ) : (
                     <span style={{ fontSize: '1.2rem', color: 'var(--tx2)' }}>{f.ext.replace('.', '').toUpperCase()}</span>
                   )}

@@ -48,3 +48,6 @@ bulkdownloader/links_to_download.txt
 
 # ── Binaries ─────────────────────────────────
 yt-dlp.exe
+
+# ── Local fast build script ──────────────────
+build_fast.bat

@@ -46,7 +46,7 @@ export const OnboardingWizard = () => {
   const [presetMode, setPresetMode] = useState<'blank' | 'preset' | ''>('');
 
   const [mediaPaths, setMediaPaths] = useState<string[]>([]);
-  const [pathInput, setPathInput] = useState('');
+  const [pathInput, setPathInput] = useState('./videos');
   const [browsingPath, setBrowsingPath] = useState(false);
   const [currentDir, setCurrentDir] = useState('');
   const [dirs, setDirs] = useState<string[]>([]);

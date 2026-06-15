@@ -1129,31 +1129,6 @@ export const LinksView = () => {
     });
   };
 
-  const saveToDb = async () => {
-    if (!items.length) {
-      alert('No links to save');
-      return;
-    }
-    setLoading(true);
-    try {
-      const r = await fetch('/api/links/save-to-db', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
-      });
-      const d = await r.json();
-      if (d.ok) {
-        const w = window as any;
-        if (w.toast) w.toast(`Saved ${d.count} links to DB`);
-      } else {
-        alert('Failed to save links: ' + (d.error || 'Unknown error'));
-      }
-    } catch (e: any) {
-      alert('Error saving links: ' + e.message);
-    }
-    setLoading(false);
-  };
-
   const startScraping = async () => {
     try {
       const r = await fetch('/api/links/start-scraping', { method: 'POST' });
@@ -1236,7 +1211,6 @@ export const LinksView = () => {
           <input ref={importFileRef as any} type="file" accept=".json,application/json" aria-label="Import links from JSON file" style={{ display: 'none' }} onChange={onImportFileChange as any} />
           <button class="sort-btn" onClick={clearAll}>Clear All</button>
           <button class="sort-btn" onClick={removeDuplicates} title="Remove links that have duplicate URL or duplicate name/title">Remove Duplicates</button>
-          <button class="sort-btn" onClick={saveToDb}>Save to DB</button>
           <button class="sort-btn" onClick={startScraping}>Start Scraping</button>
           <button class="sort-btn" onClick={rescrapeAll}>Rescrape All</button>
         </div>

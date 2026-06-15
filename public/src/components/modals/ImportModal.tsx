@@ -148,16 +148,31 @@ export const ImportModal = () => {
         return parent;
       };
 
-      for (let i = 0; i < items.length; i++) {
-        const file = items[i];
-        try {
-          const folderId = preserveStructure ? await ensureFolder(dirOf(file)) : baseId;
-          const headers: Record<string, string> = { 'x-filename': encodeURIComponent(file.name) };
-          if (folderId) headers['x-folder'] = folderId;
-          const r = await fetch('/api/vault/add', { method: 'POST', headers, body: file });
-          if (r.ok) ok++;
-        } catch {}
-        setProgress({ done: i + 1, total: items.length });
+      // Surface the import in Sync & Background Tasks (server can't size the
+      // batch on its own since files stream in one request each).
+      const encProg = (phase: string, extra: Record<string, unknown> = {}) =>
+        fetch('/api/encryption/import-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phase, ...extra }),
+        }).catch(() => {});
+
+      await encProg('start', { total: items.length });
+      try {
+        for (let i = 0; i < items.length; i++) {
+          const file = items[i];
+          await encProg('update', { done: i, current: file.name });
+          try {
+            const folderId = preserveStructure ? await ensureFolder(dirOf(file)) : baseId;
+            const headers: Record<string, string> = { 'x-filename': encodeURIComponent(file.name) };
+            if (folderId) headers['x-folder'] = folderId;
+            const r = await fetch('/api/vault/add', { method: 'POST', headers, body: file });
+            if (r.ok) ok++;
+          } catch {}
+          setProgress({ done: i + 1, total: items.length });
+        }
+      } finally {
+        await encProg('done', { done: ok });
       }
       setImporting(false);
       if (w.toast) w.toast(`Encrypted ${ok} file(s) to Vault`);

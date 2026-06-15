@@ -1713,11 +1713,19 @@ async function apiOpenFolderInExplorer(req, res) {
 
 async function apiDuplicates(req, res) {
   const db = require('./db-server');
-  const videos = await allVideos();
+  // Real files only — exclude bookmark links (size 0, not on disk).
+  const videos = (await allVideos()).filter(v => !v.isLink && v.size > 0);
+  // Include all other media categories (audio, books, photos, files), not just videos.
+  const media = loadMediaIndex().map(m => ({
+    ...m,
+    category: m.category || m.mediaType || 'Uncategorized',
+  }));
+  const all = [...videos, ...media];
   const favs   = loadFavs();
   const thumbs = db.loadThumbsCache();
   const bySize = new Map();
-  for (const v of videos) {
+  for (const v of all) {
+    if (!v.size || v.size <= 0) continue;
     if (!bySize.has(v.size)) bySize.set(v.size, []);
     const th = thumbs[v.id] || {};
     bySize.get(v.size).push({ ...v, fav: favs.includes(v.id), width: th.width || null, height: th.height || null });
@@ -3395,6 +3403,37 @@ function apiEncryptionStatus(req, res) {
   json(res, getEncryptionProgress());
 }
 
+// Client-driven progress for streamed Vault imports (ImportModal uploads files
+// one at a time via /api/vault/add, so the server can't know the batch size on
+// its own). Lets the upload loop surface in Sync & Background Tasks alongside
+// the server-run encryption jobs. Phases: start | update | done.
+async function apiVaultImportProgress(req, res) {
+  const body = await readBody(req);
+  const phase = body.phase;
+  if (phase === 'start') {
+    // Don't stomp a server-run encryption/decryption that's already in flight.
+    if (_encryptionProgress.running && _encryptionProgress.category !== 'Vault import') {
+      return json(res, { ok: false, busy: true });
+    }
+    updateEncryptionProgress({
+      running: true, type: 'encrypt', category: 'Vault import',
+      total: Number(body.total) || 0, done: 0, current: '', error: '', ok: false,
+    });
+  } else if (phase === 'update') {
+    if (_encryptionProgress.category === 'Vault import') {
+      updateEncryptionProgress({ done: Number(body.done) || 0, current: body.current || '' });
+    }
+  } else if (phase === 'done') {
+    if (_encryptionProgress.category === 'Vault import') {
+      updateEncryptionProgress({
+        running: false, ok: !body.error, error: body.error || '',
+        done: body.done != null ? Number(body.done) : _encryptionProgress.done,
+      });
+    }
+  }
+  json(res, { ok: true });
+}
+
 async function apiEncryptionStop(req, res) {
   if (!_encryptionProgress.running) return json(res, { ok: true, message: 'No job running' });
   _encryptionCancel = true;
@@ -3426,6 +3465,6 @@ module.exports = {
   apiEncryptVideo, apiEncryptBatch, apiEncryptFolder, apiUnlockFolder, apiDecryptFolder, apiEncryptAllFolders, getUnlockedFolderKey,
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
   apiCategorizePlan, apiCategorizeExecute,
-  apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress,
+  apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress, apiVaultImportProgress,
   apiScanEvents,
 };

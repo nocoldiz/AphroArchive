@@ -5,8 +5,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
-const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, PROCESS_DIR } = require('./config-server');
+const { execFile } = require('child_process');
+const { VAULT_DIR, VAULT_CONFIG_FILE, VAULT_META_FILE, MIME, PROCESS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config-server');
 const { json, readBody, formatBytes: _fmtBytes } = require('./helpers-server');
 const { loadHidden, loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, loadPrefs, setVaultKey } = require('./db-server');
 const VAULT_DROP_DIR = typeof PROCESS_DIR !== 'undefined' ? PROCESS_DIR : path.join(path.dirname(VAULT_DIR), 'hidden');
@@ -606,7 +608,8 @@ function reconcileVaultOrphans() {
   try { metaMap = loadVaultMeta(); } catch { return 0; }
   if (!metaMap || typeof metaMap !== 'object') return 0;
   let files;
-  try { files = fs.readdirSync(VAULT_DIR).filter(f => f.endsWith('.enc')); } catch { return 0; }
+  // Only the video/file blobs — never the cached `.thumb.enc` posters.
+  try { files = fs.readdirSync(VAULT_DIR).filter(f => f.endsWith('.enc') && !f.endsWith('.thumb.enc')); } catch { return 0; }
 
   const known = new Set(Object.keys(metaMap));
   let recoveredFolderId = null;
@@ -659,6 +662,148 @@ function reconcileVaultOrphans() {
     }
   }
   return added;
+}
+
+// ── Vault thumbnails ─────────────────────────────────────────────────
+// Encrypted poster frames stored next to the video blobs in the hidden folder
+// as `<id>.thumb.enc`. Generating one means briefly decrypting the video to a
+// temp file (ffmpeg needs a seekable input), grabbing a frame, then encrypting
+// the JPEG back into the vault. The plaintext temp is shredded immediately.
+const VAULT_VIDEO_THUMB_EXTS = new Set([
+  '.mp4', '.mkv', '.webm', '.mov', '.avi', '.m4v', '.wmv', '.flv', '.ts', '.mpg', '.mpeg', '.m2ts',
+]);
+
+function _ffprobeDuration(fp) {
+  return new Promise(resolve => {
+    try {
+      execFile(FFPROBE_BIN, ['-v', 'quiet', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', fp],
+        { timeout: 15000 }, (err, out) => {
+          if (err) return resolve(0);
+          const d = parseFloat(String(out).trim());
+          resolve(Number.isFinite(d) && d > 0 ? d : 0);
+        });
+    } catch { resolve(0); }
+  });
+}
+
+// Stream-decrypt a vault blob to a plaintext temp file (ffmpeg can't seek an
+// encrypted/piped mp4 whose moov atom may sit at the end). Caller must shred it.
+function _decryptVaultToTemp(id) {
+  const encPath = path.join(VAULT_DIR, id + '.enc');
+  const total = fs.statSync(encPath).size;
+  const fd = fs.openSync(encPath, 'r');
+  const iv = Buffer.alloc(IV_PREFIX_LEN); fs.readSync(fd, iv, 0, IV_PREFIX_LEN, 0);
+  const tag = Buffer.alloc(TAG_LEN); fs.readSync(fd, tag, 0, TAG_LEN, total - TAG_LEN);
+  fs.closeSync(fd);
+  const tmp = path.join(os.tmpdir(), `aa-vthumb-${id}-${Date.now()}.tmp`);
+  return new Promise((resolve, reject) => {
+    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    const src = fs.createReadStream(encPath, { start: IV_PREFIX_LEN, end: total - TAG_LEN - 1 });
+    const out = fs.createWriteStream(tmp);
+    src.on('error', reject); out.on('error', reject);
+    out.on('finish', () => resolve(tmp));
+    src.pipe(dec).pipe(out);
+  });
+}
+
+// Generate (and cache, encrypted) a poster frame for a vault video. Returns the
+// plaintext JPEG buffer, or null if the entry isn't a generatable video.
+async function generateVaultThumb(id) {
+  if (!vaultKey) return null;
+  const entry = loadVaultMeta()[id];
+  if (!entry || entry.type === 'folder') return null;
+  if (!VAULT_VIDEO_THUMB_EXTS.has((entry.ext || '').toLowerCase())) return null;
+  if (!fs.existsSync(path.join(VAULT_DIR, id + '.enc'))) return null;
+
+  let tmpVid = null, tmpJpg = null;
+  try {
+    tmpVid = await _decryptVaultToTemp(id);
+    const dur = await _ffprobeDuration(tmpVid);
+    const t = dur > 6 ? Math.min(dur / 2, dur - 1) : (dur > 0 ? dur / 2 : 1);
+    tmpJpg = tmpVid + '.jpg';
+    await new Promise((resolve, reject) => {
+      execFile(FFMPEG_BIN,
+        ['-ss', String(t), '-i', tmpVid, '-frames:v', '1', '-vf', 'scale=480:-1', '-q:v', '3', '-y', tmpJpg],
+        { timeout: 60000 }, err => err ? reject(err) : resolve());
+    });
+    if (!fs.existsSync(tmpJpg)) return null;
+    const jpg = fs.readFileSync(tmpJpg);
+    const iv = crypto.randomBytes(IV_PREFIX_LEN);
+    const cipher = crypto.createCipheriv('aes-256-gcm', vaultKey, iv);
+    const blob = Buffer.concat([iv, cipher.update(jpg), cipher.final(), cipher.getAuthTag()]);
+    fs.writeFileSync(path.join(VAULT_DIR, id + '.thumb.enc'), blob);
+    return jpg;
+  } catch (e) {
+    console.error('[vault] thumb gen failed for', id, '—', e.message);
+    return null;
+  } finally {
+    if (tmpVid) { _shredFile(tmpVid); }            // wipe the plaintext temp video
+    if (tmpJpg) { try { fs.unlinkSync(tmpJpg); } catch { } }
+  }
+}
+
+function _readVaultThumb(id) {
+  const p = path.join(VAULT_DIR, id + '.thumb.enc');
+  if (!vaultKey || !fs.existsSync(p)) return null;
+  try {
+    const raw = fs.readFileSync(p);
+    if (raw.length < IV_PREFIX_LEN + TAG_LEN) return null;
+    const iv = raw.subarray(0, IV_PREFIX_LEN);
+    const tag = raw.subarray(raw.length - TAG_LEN);
+    const ct = raw.subarray(IV_PREFIX_LEN, raw.length - TAG_LEN);
+    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    dec.setAuthTag(tag);
+    return Buffer.concat([dec.update(ct), dec.final()]);
+  } catch { return null; }
+}
+
+// GET /api/vault/thumb/:id — serve the cached encrypted poster; with ?gen=1,
+// generate it on the fly if missing (used by the batch generator's UI).
+async function apiVaultThumb(req, res, id) {
+  if (!vaultKey) { res.writeHead(401, NO_CACHE_HEADERS); res.end(); return; }
+  resetVaultTimer();
+  if (!_safeId(id)) { res.writeHead(400); res.end(); return; }
+  let jpg = _readVaultThumb(id);
+  if (!jpg && /[?&]gen=1(&|$)/.test(req.url || '')) jpg = await generateVaultThumb(id);
+  if (!jpg) { res.writeHead(404, NO_CACHE_HEADERS); res.end(); return; }
+  res.writeHead(200, { 'Content-Type': 'image/jpeg', ...NO_CACHE_HEADERS });
+  res.end(jpg);
+}
+
+// Background batch generator for every vault video still missing a poster.
+let _vaultThumbJob = { running: false, done: 0, total: 0, current: '' };
+async function runVaultThumbGen() {
+  if (_vaultThumbJob.running || !vaultKey) return;
+  const meta = loadVaultMeta();
+  const todo = Object.entries(meta).filter(([id, m]) =>
+    m && m.type !== 'folder' &&
+    VAULT_VIDEO_THUMB_EXTS.has((m.ext || '').toLowerCase()) &&
+    !fs.existsSync(path.join(VAULT_DIR, id + '.thumb.enc')));
+  _vaultThumbJob = { running: true, done: 0, total: todo.length, current: '' };
+  suspendAutoLock();
+  try {
+    for (const [id, m] of todo) {
+      if (!vaultKey) break;
+      _vaultThumbJob.current = m.originalName || m.name || id;
+      await generateVaultThumb(id);
+      _vaultThumbJob.done++;
+    }
+  } finally {
+    _vaultThumbJob.running = false;
+    resumeAutoLock();
+  }
+}
+
+function apiVaultGenThumbs(req, res) {
+  if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  if (_vaultThumbJob.running) return json(res, { ok: true, already: true });
+  runVaultThumbGen().catch(e => console.error('[vault] thumb batch error —', e.message));
+  json(res, { ok: true });
+}
+
+function apiVaultGenThumbsStatus(req, res) {
+  json(res, _vaultThumbJob);
 }
 
 // Poll the drop folder periodically. unref() so the timer never keeps the
@@ -864,6 +1009,9 @@ function apiVaultDelete(req, res, id) {
   const meta = loadVaultMeta();
   if (!meta[id]) return json(res, { error: 'Not found' }, 404);
   _shredFile(path.join(VAULT_DIR, id + '.enc'));
+  // Shred the cached encrypted poster, if one was generated
+  const thumbPath = path.join(VAULT_DIR, id + '.thumb.enc');
+  if (fs.existsSync(thumbPath)) _shredFile(thumbPath);
   // Shred per-page resource subdirectory if present
   const pageDir = path.join(VAULT_DIR, id);
   if (fs.existsSync(pageDir)) _shredDir(pageDir);
@@ -1583,6 +1731,7 @@ module.exports = {
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
   deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
   encryptBufferToVault, suspendAutoLock, resumeAutoLock, reconcileVaultOrphans,
+  apiVaultThumb, apiVaultGenThumbs, apiVaultGenThumbsStatus, generateVaultThumb,
   shredFile: _shredFile,
   __resetForTest, __stopTimers,
 };
