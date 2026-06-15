@@ -78,15 +78,17 @@ function renderVideos() {
     main.appendChild(sub);
     li.appendChild(main);
 
+    const isHls = v.stream && Hls.isHls(v.url);
+    const isDash = v.stream && !isHls;
     if (!v.stream && i === 0) { const t = document.createElement('span'); t.className = 'tag best'; t.textContent = 'best'; li.appendChild(t); }
-    if (v.stream) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'HLS'; li.appendChild(t); }
+    if (isHls) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'HLS'; li.appendChild(t); }
+    if (isDash) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'DASH'; li.appendChild(t); }
     if (v.sniffed) { const t = document.createElement('span'); t.className = 'tag sniff'; t.textContent = 'net'; li.appendChild(t); }
 
     const btn = document.createElement('button');
     btn.textContent = '⬇';
-    // A stream can only be fetched by the server (yt-dlp); the browser can't
-    // save an .m3u8 playlist as a file.
-    if (v.stream && !online) { btn.disabled = true; btn.title = 'HLS needs AphroArchive running'; }
+    // HLS is rejoined client-side (works offline). DASH still needs the server.
+    if (isDash && !online) { btn.disabled = true; btn.title = 'DASH needs AphroArchive running'; }
     btn.addEventListener('click', () => downloadVideo(v));
     li.appendChild(btn);
 
@@ -103,18 +105,42 @@ function serverUrlFor(v) {
 }
 
 async function downloadVideo(v) {
+  // HLS package → rejoin the segments into one file locally (works offline).
+  if (v.stream && Hls.isHls(v.url)) return rejoinHls(v);
+
+  // DASH: no client-side joiner yet — hand to the server when available.
+  if (v.stream) {
+    if (online) {
+      try { await Aphro.addDownloads([serverUrlFor(v)]); setStatus('Queued on AphroArchive.'); loadJobs(); }
+      catch (e) { setStatus('Error: ' + e.message); }
+    } else setStatus('DASH streams need AphroArchive running.');
+    return;
+  }
+
+  // Progressive single file.
   if (online) {
-    try {
-      await Aphro.addDownloads([serverUrlFor(v)]);
-      setStatus('Queued on AphroArchive (videos/downloads).');
-      loadJobs();
-    } catch (e) { setStatus('Error: ' + e.message); }
+    try { await Aphro.addDownloads([serverUrlFor(v)]); setStatus('Queued on AphroArchive (videos/downloads).'); loadJobs(); }
+    catch (e) { setStatus('Error: ' + e.message); }
   } else {
-    if (v.stream) return setStatus('HLS streams need AphroArchive running.');
-    try {
-      await browser.downloads.download({ url: v.url });
-      setStatus('Download started.');
-    } catch (e) { setStatus('Error: ' + e.message); }
+    try { await browser.downloads.download({ url: v.url }); setStatus('Download started.'); }
+    catch (e) { setStatus('Error: ' + e.message); }
+  }
+}
+
+// Fetch every segment of an HLS stream and rejoin them into one video file.
+async function rejoinHls(v) {
+  setStatus('Reading playlist…');
+  try {
+    const { blob, ext } = await Hls.download(v.url, {
+      onProgress: (d, t) => setStatus(`Joining segments… ${Math.round(d / t * 100)}% (${d}/${t})`)
+    });
+    const base = (v.title || pageTitle() || 'video').split('/').pop().split('?')[0].replace(/\.[^.]+$/, '');
+    const name = safeName(base, ext);
+    const url = URL.createObjectURL(blob);
+    await browser.downloads.download({ url, filename: name, saveAs: true });
+    setStatus(`Saved joined video — ${(blob.size / 1048576).toFixed(1)} MB.`);
+  } catch (e) {
+    setStatus('Join failed: ' + (e.message || e));
   }
 }
 

@@ -1,45 +1,5 @@
 # AphroArchive — TODO & Roadmap
 
-  [c] Running Gradle (assembleRelease)...
-
-ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
-
-Please set the JAVA_HOME variable in your environment to match the
-location of your Java installation.
- done: dist\AphroArchive.apk  (release)
-
-[bulkdownloader] Building BulkDownloaderGUI...
-278 INFO: PyInstaller: 6.20.0, contrib hooks: 2026.5
-279 INFO: Python: 3.10.6
-294 INFO: Platform: Windows-10-10.0.26200-SP0
-294 INFO: Python environment: C:\Users\nocol\AppData\Local\Programs\Python\Python310
-296 INFO: wrote build\BulkDownloaderGUI.spec
-306 INFO: Module search paths (PYTHONPATH):
-['C:\\github\\AphroArchive',
- 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\python310.zip',
- 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\DLLs',
- 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib',
- 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310',
- 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages',
- 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\win32',
- 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\win32\\lib',
- 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\Pythonwin',
- 'C:\\github\\AphroArchive\\bulkdownloader']
-1983 INFO: Appending 'datas' from .spec
-ERROR: Unable to find 'C:\\github\\AphroArchive\\build\\bulkdownloader\\bulkdownloader.py' when adding binary and data files.
- WARN: BulkDownloaderGUI build failed
-
-[firefox] Packaging Firefox extension...
-Compress-Archive : .xpi non è un formato di file di archivio supportato. .zip è l'unico formato di file di archivio
-supportato.
-In riga:1 car:1
-+ Compress-Archive -Path 'firefox-extension\*' -DestinationPath 'dist\A ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : InvalidArgument: (.xpi:String) [Compress-Archive], IOException
-    + FullyQualifiedErrorId : NotSupportedArchiveFileExtension,Compress-Archive
-
- WARN: Firefox extension packaging failed
-
 
 
 ## Bookmark Import: Match categories/tags instead of saved websites
@@ -51,14 +11,14 @@ In riga:1 car:1
 
 ## Security (Fix First)
 
-- [ ] **Request size limit** — `readBody()` has no payload cap; a large request exhausts memory. Add a max-bytes guard before accumulating chunks.
-- [ ] **CORS lockdown** — `Access-Control-Allow-Origin: *` lets any site call the API. Restrict to `localhost` only since this is a local app.
-- [ ] **Whitelist domain matching** — `matchesWhitelist()` uses `includes()`, so `evil-example.com` matches a whitelist entry of `example.com`. Switch to exact hostname or `endsWith('.' + entry)` logic.
+- [x] **Request size limit** — `readBody()` now rejects payloads over 10 MB (destroys socket, resolves `{}`).
+- [x] **CORS lockdown** — `Access-Control-Allow-Origin` now allows only `localhost`/`127.0.0.1` and browser extension origins. Adds `Vary: Origin`.
+- [x] **Whitelist domain matching** — Old `matchesWhitelist()` replaced by `matchesCategoryOrTag()` (not a security gate). No action needed.
 - [x] **Rate limit vault unlock** — 3 failed attempts trigger a cooldown (implemented in `vault-server.js`).
-- [ ] **Actor photo content-type validation** — Downloaded IMDb images are written to disk without checking the Content-Type. Validate that it is a known image type before saving.
-- [ ] **Duplicate CORS header** — `Access-Control-Allow-Headers` is set twice; the second write drops `X-Filename`. Remove the duplicate.
-- [ ] **IV reuse risk in AES-GCM** — Current key derivation re-uses the same key across sessions. Derive a new encryption key via HKDF on each session to prevent IV collision.
-- [ ] **PBKDF2 iterations** — 100,000 rounds is below current NIST guidance (600,000+). Increase and re-derive on next unlock.
+- [x] **Actor photo content-type validation** — `httpsGetStream` now validates `Content-Type` against `ALLOWED_IMAGE_TYPES` before writing to disk.
+- [x] **Duplicate CORS header** — Only one `Access-Control-Allow-Headers` exists in `server.js`; no duplicate found.
+- [ ] **IV reuse risk in AES-GCM** — IVs are random 12 bytes per file; birthday collision requires ~2^48 ops. HKDF session keys would add defence-in-depth but need a format migration. Deferred.
+- [x] **PBKDF2 iterations** — New vaults and password changes now use 600k rounds. Existing vaults read `cfg.iterations` (fallback: 100k). Upgrade via Settings → Vault → Change Password.
 
 ## Bugs
 
@@ -92,7 +52,6 @@ In riga:1 car:1
 
 ## UX Improvements
 
-- [ ] **Progress on vault upload** — Show a progress bar when uploading a file to the vault (use `XMLHttpRequest` with `upload.onprogress`).
 - [ ] **Toast duration control** — Let toasts persist longer for errors (currently all durations are the same).
 - [ ] **Search empty state** — When search input is cleared, reset the results to the default view automatically.
 - [ ] **Category breadcrumb clickable** — The breadcrumb showing current category/collection is display-only. Make each segment a navigation link.
@@ -101,8 +60,6 @@ In riga:1 car:1
 - [ ] **Error messages with guidance** — Replace generic "Failed" toasts with context: "Could not generate thumbnail — ffmpeg not found."
 - [ ] **Restore scroll position on back** — Going back from the player should return to the same scroll position in the grid.
 - [ ] **Custom thumbnail selection** — Pick which of the generated thumbnails to use as the card image.
-- [ ] **Accent color picker** — Let the user change the red accent (`--ac`) to another color from the settings page.
-- [ ] **Auto-play countdown** — After a video ends, show a 5-second countdown before playing the next one with a cancel button.
 - [ ] **Drag to category** — Drag a video card onto a sidebar category to move it.
 - [ ] **Shift+click range select** — Clicking a card while holding Shift should select all cards between the last-clicked and the current one, same as a file manager.
 - [ ] **Select all / deselect all** — While in multi-select mode, a "Select All" button in the action bar selects every visible card; Escape clears selection.

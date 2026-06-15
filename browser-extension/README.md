@@ -39,8 +39,15 @@ Context actions for the current tab (visible only when AphroArchive is running):
   best-quality merges, dedup). Downloads are left **uncategorized** and saved to
   `videos/downloads`.
 - **Server off:** progressive files (`.mp4`, `.webm`, …) download straight through
-  the browser. HLS/DASH rows are disabled — a playlist can't be saved as a file
-  without yt-dlp.
+  the browser. **HLS streams (`.m3u8`) are rejoined client-side** — the extension
+  fetches every segment and merges them into one file, transmuxing MPEG-TS to MP4
+  (via the bundled `mux.js`) so the result plays anywhere. No server needed.
+- **Universal:** this segment-rejoining works on any HLS site, not just one. The
+  list hides audio-only tracks and per-quality variant playlists and marks the
+  best progressive rendition. DASH (`.mpd`) still routes to the server.
+  *(Limitation: a few sites — e.g. X.com — serve HLS as fragmented-MP4 with a
+  separate audio track that can't be muxed in-browser; there the progressive
+  `best` MP4 row is the offline choice, or use the server for a perfect mux.)*
 
 ### Photos on this page — *always available*
 - Collects real content images (`<img>` incl. `srcset`/lazy attrs, CSS

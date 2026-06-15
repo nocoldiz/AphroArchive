@@ -33,14 +33,23 @@ function httpsGet(reqUrl, headers) {
   });
 }
 
-function httpsGetStream(reqUrl, headers, dest) {
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+function httpsGetStream(reqUrl, headers, dest, allowedTypes) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(reqUrl);
     const client = reqUrl.startsWith('https') ? https : http;
     client.get(urlObj, { headers }, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
-        return resolve(httpsGetStream(res.headers.location, headers, dest));
+        return resolve(httpsGetStream(res.headers.location, headers, dest, allowedTypes));
       if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
+      if (allowedTypes) {
+        const ct = (res.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+        if (!allowedTypes.has(ct)) {
+          res.destroy();
+          return reject(new Error('Unexpected content-type: ' + ct));
+        }
+      }
       res.pipe(dest);
       dest.on('finish', resolve);
       dest.on('error', reject);
@@ -138,7 +147,7 @@ async function apiActorPhotoScrape(req, res, actorName) {
     if (!imgUrl) return json(res, { error: 'No photo found on IMDb for "' + entry.name + '"' }, 404);
     const out = fs.createWriteStream(destPath);
     const UA  = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-    await httpsGetStream(imgUrl, { 'User-Agent': UA, 'Referer': 'https://www.imdb.com/' }, out);
+    await httpsGetStream(imgUrl, { 'User-Agent': UA, 'Referer': 'https://www.imdb.com/' }, out, ALLOWED_IMAGE_TYPES);
     json(res, { ok: true, name: entry.name });
   } catch (e) {
     try { if (fs.existsSync(destPath)) fs.unlinkSync(destPath); } catch {}
@@ -248,7 +257,7 @@ async function scrapeAndSaveActorInfo(actorName) {
       try {
         const out = fs.createWriteStream(destPath);
         const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-        await httpsGetStream(info.imageUrl, { 'User-Agent': UA, 'Referer': 'https://www.imdb.com/' }, out);
+        await httpsGetStream(info.imageUrl, { 'User-Agent': UA, 'Referer': 'https://www.imdb.com/' }, out, ALLOWED_IMAGE_TYPES);
       } catch (e) {
         console.error('Failed to download actor photo', e);
       }

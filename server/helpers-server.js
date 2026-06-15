@@ -126,11 +126,24 @@ function json(res, data, status = 200) {
   res.end(JSON.stringify(data));
 }
 
+const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
+
 function readBody(req) {
   return new Promise((resolve) => {
-    let d = '';
-    req.on('data', c => d += c);
-    req.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({}); } });
+    const chunks = [];
+    let total = 0;
+    req.on('data', c => {
+      total += c.length;
+      if (total > MAX_BODY_BYTES) {
+        req.socket?.destroy();
+        resolve({});
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8'))); } catch { resolve({}); }
+    });
   });
 }
 

@@ -134,9 +134,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const _origin = req.headers['origin'] || '';
+  const _originAllowed = !_origin ||
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(_origin) ||
+    /^(chrome|moz|safari-web)-extension:\/\//.test(_origin);
+  res.setHeader('Access-Control-Allow-Origin', _originAllowed ? (_origin || 'null') : 'null');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-Filename');
+  res.setHeader('Vary', 'Origin');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   let m;
