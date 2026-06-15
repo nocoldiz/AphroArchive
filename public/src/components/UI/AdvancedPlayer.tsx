@@ -27,14 +27,22 @@ interface AdvancedPlayerProps {
   videoRef?: any;
   startTime?: number;
   language?: string;
+  title?: string;
 }
 
-const loadSavedVolume = () => {
-  const v = parseFloat(localStorage.getItem('playerVolume') || '1');
-  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+const clampVol = (v: number) => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+
+// Per-video volume memory: loud/quiet videos can be pre-adjusted without
+// touching the global level. Falls back to the last global volume.
+const loadSavedVolume = (videoId?: string) => {
+  if (videoId) {
+    const per = localStorage.getItem(`vol:${videoId}`);
+    if (per !== null) return clampVol(parseFloat(per));
+  }
+  return clampVol(parseFloat(localStorage.getItem('playerVolume') || '1'));
 };
 
-export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters = [], onNext, onPrev, isMuted = false, videoRef: externalRef, startTime = 0, language = '' }: AdvancedPlayerProps) => {
+export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters = [], onNext, onPrev, isMuted = false, videoRef: externalRef, startTime = 0, language = '', title = '' }: AdvancedPlayerProps) => {
   const localRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalRef || localRef;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,7 +55,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(loadSavedVolume);
+  const [volume, setVolume] = useState(() => loadSavedVolume(videoId));
   const [muted, setMuted] = useState(isMuted);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
@@ -66,6 +74,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
   const loopARef = useRef<number | null>(null);
   const loopBRef = useRef<number | null>(null);
   const controlsTimeoutRef = useRef<any>(null);
+  const seekHoldRef = useRef<{ dir: string; since: number }>({ dir: '', since: 0 });
   const recRef = useRef<any>(null);
   const subPickerRef = useRef<HTMLDivElement>(null);
   const ccOnRef = useRef(false);
@@ -112,6 +121,8 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
       setVolume(vid.volume);
       setMuted(vid.muted);
       localStorage.setItem('playerVolume', String(vid.volume));
+      // Remember this video's preferred level for next time.
+      localStorage.setItem(`vol:${videoId}`, String(vid.volume));
     };
     const onEnded = () => {
       if (onNextRef.current) onNextRef.current();
@@ -231,6 +242,40 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
     };
   }, []);
 
+  // ── Media Session ───────────────────────────────────────────────────
+  // Populate the OS/browser media overlay with title, artwork and controls.
+  useEffect(() => {
+    const ms = (navigator as any).mediaSession;
+    if (!ms || typeof (window as any).MediaMetadata === 'undefined') return;
+    try {
+      ms.metadata = new (window as any).MediaMetadata({
+        title: title || 'AphroArchive',
+        artist: 'AphroArchive',
+        artwork: [{ src: `/api/thumbs/${videoId}/0`, sizes: '480x270', type: 'image/jpeg' }],
+      });
+    } catch {}
+
+    const vid = () => videoRef.current;
+    const set = (action: string, handler: any) => { try { ms.setActionHandler(action, handler); } catch {} };
+    set('play', () => vid()?.play().catch(() => {}));
+    set('pause', () => vid()?.pause());
+    set('previoustrack', onPrevRef.current ? () => onPrevRef.current!() : null);
+    set('nexttrack', onNextRef.current ? () => onNextRef.current!() : null);
+    set('seekbackward', (d: any) => { const v = vid(); if (v) v.currentTime = Math.max(0, v.currentTime - (d.seekOffset || 10)); });
+    set('seekforward', (d: any) => { const v = vid(); if (v) v.currentTime = Math.min(v.duration || Infinity, v.currentTime + (d.seekOffset || 10)); });
+    set('seekto', (d: any) => { const v = vid(); if (v && d.seekTime != null) v.currentTime = d.seekTime; });
+
+    return () => {
+      ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'seekto'].forEach(a => set(a, null));
+    };
+  }, [title, videoId]);
+
+  // Reflect play/pause in the OS media overlay.
+  useEffect(() => {
+    const ms = (navigator as any).mediaSession;
+    if (ms) ms.playbackState = playing ? 'playing' : 'paused';
+  }, [playing]);
+
   const toggleFullscreen = () => {
     const container = containerRef.current;
     if (!container) return;
@@ -345,14 +390,24 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
       const vid = videoRef.current;
       if (!vid) return;
 
+      // While an arrow is held the OS fires repeated keydowns. Ramp the seek
+      // step up the longer it's held: ×2 after 1s, ×4 after 2s.
+      const seekStep = (dir: 'left' | 'right') => {
+        const now = Date.now();
+        if (seekHoldRef.current.dir !== dir) seekHoldRef.current = { dir, since: now };
+        const held = now - seekHoldRef.current.since;
+        const mult = held > 2000 ? 4 : held > 1000 ? 2 : 1;
+        return 10 * mult * (dir === 'right' ? 1 : -1);
+      };
+
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault();
-          vid.currentTime = Math.max(0, vid.currentTime - 10);
+          vid.currentTime = Math.max(0, vid.currentTime + seekStep('left'));
           break;
         case 'ArrowRight':
           e.preventDefault();
-          vid.currentTime = Math.min(vid.duration || Infinity, vid.currentTime + 10);
+          vid.currentTime = Math.min(vid.duration || Infinity, vid.currentTime + seekStep('right'));
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -384,8 +439,18 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        seekHoldRef.current = { dir: '', since: 0 };
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, [muted]);
 
   const togglePlay = () => {
@@ -469,6 +534,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
         muted={muted}
         style={{ width: '100%', maxHeight: isFullscreen ? '100vh' : '80vh', display: 'block' }}
         onClick={togglePlay}
+        onDblClick={(e: any) => { e.preventDefault(); toggleFullscreen(); }}
         autoPlay
       >
         {subtitles.map((t, i) => (

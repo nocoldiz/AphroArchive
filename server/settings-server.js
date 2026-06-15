@@ -106,6 +106,12 @@ async function apiSavePrefs(req, res) {
     prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];
   }
   if ('autoChapterDetection' in body) prefs.autoChapterDetection = !!body.autoChapterDetection;
+  if ('pinnedFolders' in body) {
+    if (Array.isArray(body.pinnedFolders)) prefs.pinnedFolders = body.pinnedFolders.map(String).filter(Boolean).slice(0, 100);
+  }
+  if ('pinnedTags' in body) {
+    if (Array.isArray(body.pinnedTags)) prefs.pinnedTags = body.pinnedTags.map(String).filter(Boolean).slice(0, 100);
+  }
   if ('whisperEnabled' in body) prefs.whisperEnabled = !!body.whisperEnabled;
   if ('whisperModel' in body) {
     const valid = new Set(['tiny', 'base', 'small', 'medium', 'large', 'turbo']);

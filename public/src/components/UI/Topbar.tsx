@@ -1,7 +1,7 @@
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
-import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos } from '../../store';
+import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed } from '../../store';
 import { zapOn } from '../../zap';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { useEffect } from 'preact/hooks';
@@ -62,11 +62,22 @@ export const Topbar = () => {
 
   return (
     <div className="topbar">
-      <button className="burger-btn" onClick={() => isSidebarOpen.value = !isSidebarOpen.value} title="Toggle Sidebar">
+      <button className="burger-btn" onClick={() => isSidebarOpen.value = !isSidebarOpen.value} title="Toggle Sidebar" aria-label="Toggle sidebar">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <line x1="3" y1="12" x2="21" y2="12" />
           <line x1="3" y1="6" x2="21" y2="6" />
           <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+      <button
+        className="rail-toggle"
+        onClick={() => sidebarCollapsed.value = !sidebarCollapsed.value}
+        title={sidebarCollapsed.value ? 'Expand sidebar' : 'Collapse sidebar to icons'}
+        aria-label={sidebarCollapsed.value ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="9" y1="3" x2="9" y2="21" />
         </svg>
       </button>
       <div className="logo" onClick={showHome} style={{ cursor: 'pointer' }}>

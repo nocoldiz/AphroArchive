@@ -8,6 +8,10 @@ export const Search = () => {
   const [hint, setHint] = useState('');
   const [localQuery, setLocalQuery] = useState(searchQuery.value);
   const debounceRef = useRef<any>(null);
+  // Snapshot of where the user was before they started searching, so clearing
+  // the box returns them to that view/category/tag instead of stranding them
+  // on a bare "All Videos" list.
+  const preSearchRef = useRef<{ view: string; cat: string; tag: string | null; terms: string[] } | null>(null);
 
   // Keep local input in sync when searchQuery changes externally (e.g. clear/reset)
   useEffect(() => {
@@ -50,16 +54,33 @@ export const Search = () => {
 
   const onInput = (e: any) => {
     const val = e.target.value;
+    const wasEmpty = !localQuery;
     setLocalQuery(val);
 
-    if (val && currentView.value !== 'browse') {
-      currentView.value = 'browse';
-    }
-
     if (val) {
+      // Capture the pre-search context the first time a search begins.
+      if (wasEmpty && !preSearchRef.current) {
+        preSearchRef.current = {
+          view: currentView.value,
+          cat: currentCategory.value,
+          tag: currentTag.value,
+          terms: currentTagTerms.value,
+        };
+      }
+      if (currentView.value !== 'browse') currentView.value = 'browse';
       currentCategory.value = '';
       currentTag.value = null;
       currentTagTerms.value = [];
+    } else {
+      // Box cleared — restore whatever the user was looking at before.
+      const prev = preSearchRef.current;
+      preSearchRef.current = null;
+      if (prev) {
+        currentCategory.value = prev.cat;
+        currentTag.value = prev.tag;
+        currentTagTerms.value = prev.terms;
+        currentView.value = prev.view;
+      }
     }
 
     const h = getSuggest(val);

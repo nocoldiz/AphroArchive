@@ -1,4 +1,4 @@
-import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked } from '../../store';
+import { contextMenuState, categoryMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, categories, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 
@@ -161,6 +161,26 @@ export const ContextMenu = () => {
     } catch (e: any) {
       toast('Download failed: ' + e.message);
     }
+  };
+
+  const handleTogglePin = async () => {
+    const path = data.path;
+    const pinned = appPrefs.value.pinnedFolders || [];
+    const isPinned = pinned.includes(path);
+    const next = isPinned ? pinned.filter(p => p !== path) : [...pinned, path];
+    await updatePrefs({ pinnedFolders: next });
+    toast(isPinned ? `Unpinned "${data.name}"` : `Pinned "${data.name}" to top`);
+    closeMenu();
+  };
+
+  const handleTogglePinTag = async () => {
+    const name = data.name;
+    const pinned = appPrefs.value.pinnedTags || [];
+    const isPinned = pinned.includes(name);
+    const next = isPinned ? pinned.filter(t => t !== name) : [...pinned, name];
+    await updatePrefs({ pinnedTags: next });
+    toast(isPinned ? `Unpinned "${name}"` : `Pinned "${name}" to top`);
+    closeMenu();
   };
 
   const handleHideTag = async () => {
@@ -341,6 +361,11 @@ export const ContextMenu = () => {
       }}>
         {type === 'category' && (
           <>
+            <ContextItem
+              label={(appPrefs.value.pinnedFolders || []).includes(data.path) ? 'Unpin folder' : 'Pin folder to top'}
+              icon="star"
+              onClick={handleTogglePin}
+            />
             <ContextItem label="Rename" icon="edit" onClick={handleRename} />
             <ContextItem label="Delete" icon="trash" onClick={handleDelete} />
             <ContextItem label="Hide" icon="eye-off" onClick={handleHide} />
@@ -451,8 +476,33 @@ export const ContextMenu = () => {
             <ContextItem label="Unlock all encrypted" icon="lock" onClick={() => toast('Not implemented in TSX yet')} />
           </>
         )}
+        {type === 'grid' && (
+          <>
+            <ContextItem label="Refresh library" icon="folder" onClick={() => {
+              closeMenu();
+              loadVideos();
+              toast('Refreshing library…');
+            }} />
+            <ContextItem label="Select all" icon="list" onClick={() => {
+              closeMenu();
+              selectedVideoIds.value = new Set(filteredVideos.value.map(v => v.id));
+              videoSelMode.value = filteredVideos.value.length > 0;
+            }} />
+            <ContextItem label="Create folder here" icon="folder" onClick={() => {
+              closeMenu();
+              (window as any).createCategory?.();
+            }} />
+          </>
+        )}
         {type === 'tag' && (
-          <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
+          <>
+            <ContextItem
+              label={(appPrefs.value.pinnedTags || []).includes(data.name) ? 'Unpin tag' : 'Pin tag to top'}
+              icon="star"
+              onClick={handleTogglePinTag}
+            />
+            <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
+          </>
         )}
         {(type === 'file' || type === 'book' || type === 'audio' || type === 'photo' || type === 'page') && (
           <>

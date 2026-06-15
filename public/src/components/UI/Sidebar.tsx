@@ -299,6 +299,15 @@ export const Sidebar = () => {
     return roots;
   }, [displayCategories, appPrefs.value.hideEmptyFolders]);
 
+  // Pinned folders surface at the top of the Folders list. Preserve the
+  // user's pin order; drop any pins whose folder no longer exists.
+  const pinnedCats = useMemo(() => {
+    const pins = appPrefs.value.pinnedFolders || [];
+    if (!pins.length) return [] as typeof displayCategories;
+    const byPath = new Map(displayCategories.map(c => [c.path, c]));
+    return pins.map(p => byPath.get(p)).filter(Boolean) as typeof displayCategories;
+  }, [appPrefs.value.pinnedFolders, displayCategories]);
+
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
     try { return new Set<string>(JSON.parse(localStorage.getItem('sidebarFolderExpanded') || '[]')); } catch { return new Set<string>(); }
   });
@@ -328,6 +337,14 @@ export const Sidebar = () => {
     })
     .filter(t => t.count > 0)
     .sort((a, b) => b.count - a.count), [tagGroups, appPrefs.value.hiddenTags, filteredVids]);
+
+  // Pinned tags surface at the top of the Tags list, in pin order.
+  const pinnedTagsList = useMemo(() => {
+    const pins = appPrefs.value.pinnedTags || [];
+    if (!pins.length) return [] as typeof displayTags;
+    const byName = new Map(displayTags.map(t => [t.name, t]));
+    return pins.map(n => byName.get(n)).filter(Boolean) as typeof displayTags;
+  }, [appPrefs.value.pinnedTags, displayTags]);
 
   return (
     <>
@@ -624,6 +641,23 @@ export const Sidebar = () => {
               isActive={!currentCategory.value && !currentTag.value}
               indent
             />
+            {pinnedCats.map(c => (
+              <SidebarItem
+                key={`pin-${c.path}`}
+                label={c.name}
+                badge={c.count}
+                icon={<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none" style={{ ...iconStyle, color: 'var(--ac)' }}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
+                onClick={() => selectCategory(c.path)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if ((window as any).showContextMenu) {
+                    (window as any).showContextMenu(e, 'category', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
+                  }
+                }}
+                isActive={currentCategory.value === c.path}
+                indent
+              />
+            ))}
             {categoryTree.map(node => renderCategoryNode(node, 0))}
             {inVaultMode && displayCategories.length === 0 && (
               <div style={{ padding: '6px 16px', fontSize: '0.8rem', color: 'var(--tx3)' }}>No encrypted folders</div>
@@ -650,7 +684,31 @@ export const Sidebar = () => {
             }
           />
           <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
-            {displayTags.map(t => (
+            {pinnedTagsList.map(t => (
+              <SidebarItem
+                key={`pintag-${t.name}`}
+                label={t.name}
+                badge={t.count}
+                icon={<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none" style={{ ...iconStyle, color: 'var(--ac)' }}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
+                onClick={() => {
+                  currentCategory.value = '';
+                  currentTag.value = t.name;
+                  currentTagTerms.value = t.terms;
+                  searchQuery.value = '';
+                  currentView.value = 'browse';
+                  isSidebarOpen.value = false;
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if ((window as any).showContextMenu) {
+                    (window as any).showContextMenu(e, 'tag', { name: t.name, terms: t.terms });
+                  }
+                }}
+                isActive={currentTag.value === t.name}
+                indent
+              />
+            ))}
+            {displayTags.filter(t => !(appPrefs.value.pinnedTags || []).includes(t.name)).map(t => (
               <SidebarItem
                 key={t.name}
                 id={`tag-${t.name}`}
@@ -668,7 +726,7 @@ export const Sidebar = () => {
                 onContextMenu={(e) => {
                   e.preventDefault();
                   if ((window as any).showContextMenu) {
-                    (window as any).showContextMenu(e, 'tag', { name: t.name });
+                    (window as any).showContextMenu(e, 'tag', { name: t.name, terms: t.terms });
                   }
                 }}
                 isActive={currentTag.value === t.name}

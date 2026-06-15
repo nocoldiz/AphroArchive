@@ -50,30 +50,30 @@
 
 ## UX Improvements
 
-- [ ] **Toast duration control** — Let toasts persist longer for errors (currently all durations are the same).
-- [ ] **Search empty state** — When search input is cleared, reset the results to the default view automatically.
-- [ ] **Category breadcrumb clickable** — The breadcrumb showing current category/collection is display-only. Make each segment a navigation link.
-- [ ] **Keyboard navigation in grid** — Arrow keys should move focus between video cards; Enter opens the video.
-- [ ] **ARIA labels** — Add `aria-label` to icon buttons (star, favourite, play) that have no visible text.
-- [ ] **Error messages with guidance** — Replace generic "Failed" toasts with context: "Could not generate thumbnail — ffmpeg not found."
-- [ ] **Restore scroll position on back** — Going back from the player should return to the same scroll position in the grid.
-- [ ] **Custom thumbnail selection** — Pick which of the generated thumbnails to use as the card image.
-- [ ] **Drag to category** — Drag a video card onto a sidebar category to move it.
-- [ ] **Shift+click range select** — Clicking a card while holding Shift should select all cards between the last-clicked and the current one, same as a file manager.
-- [ ] **Select all / deselect all** — While in multi-select mode, a "Select All" button in the action bar selects every visible card; Escape clears selection.
-- [ ] **Inline quick-actions on card hover** — Show play, fav, and "add to queue" icon buttons on a card on hover without needing to open the detail page.
-- [ ] **Right-click context menu on grid background** — Clicking empty space in the grid shows: "Refresh library", "Select all", "Create folder here".
-- [ ] **Double-click to fullscreen** — Double-clicking the video element in `AdvancedPlayer` toggles fullscreen (in addition to the F key).
-- [ ] **Seek on arrow-key hold** — While a key is held down the seek speed ramps up (×2 after 1s, ×4 after 2s) for fast navigation through long videos.
-- [ ] **Volume memory per video** — Optionally store per-video volume offset so loud/quiet videos can be pre-adjusted without affecting the global level.
-- [ ] **Media Session API** — Populate `navigator.mediaSession` metadata (title, artwork) so the OS/browser media overlay shows track info and playback controls.
-- [ ] **Sidebar collapse to icon rail** — Clicking the sidebar toggle collapses it to a narrow icon-only rail rather than hiding it entirely.
-- [ ] **Pinned categories in sidebar** — Star a category to pin it at the top of the sidebar list; persisted in prefs.
+- [x] **Toast duration control** — `toast()` now takes `{ type, duration }`; error toasts persist 5s with a red style. `window.toastError` helper added (`toast.ts`).
+- [x] **Search empty state** — `Search.tsx` snapshots view/category/tag on first keystroke and restores it when the box is cleared.
+- [x] **Category breadcrumb clickable** — `BrowseView.tsx` `<Breadcrumb>` renders each path segment as a navigable link ("All Videos / Parent / Child").
+- [x] **Keyboard navigation in grid** — Cards are focusable (`tabIndex`); arrow keys move focus (column count derived from row layout); Enter/Space opens (`VideoGrid.tsx`).
+- [x] **ARIA labels** — `aria-label`/`aria-pressed` added to card play/fav/queue/menu/link buttons and topbar sidebar toggles.
+- [x] **Error messages with guidance** — `loadVideos`/`deleteVideo` now use `toastError` with actionable context (server down, file locked).
+- [x] **Restore scroll position on back** — `store.ts` remembers `window.scrollY` per browse/hub/fav/recent key and restores on return (e.g. from the player).
+- [x] **Custom thumbnail selection** — `thumbPref.ts` stores a per-video preferred thumb index; PlayerView shows a 5-thumb picker; `VideoCard` honours it.
+- [x] **Drag to category** — Already implemented: `VideoCard` is `draggable`; sidebar folder items accept the drop and call `/api/videos/:id/move`.
+- [x] **Shift+click range select** — `VideoGrid` tracks `lastClickedIndex`; Shift+click selects the range, Ctrl/Cmd+click toggles one, plain click toggles while in select mode.
+- [x] **Select all / deselect all** — "Select all" button added to `VideoSelBar` and the grid context menu; Escape clears selection.
+- [x] **Inline quick-actions on card hover** — Cards now show play, fav and add-to-queue icon buttons on hover.
+- [x] **Right-click context menu on grid background** — Empty grid space opens a `grid` context menu: Refresh library, Select all, Create folder here.
+- [x] **Double-click to fullscreen** — `AdvancedPlayer` video element toggles fullscreen on `dblclick`.
+- [x] **Seek on arrow-key hold** — Held arrow keys ramp the seek step (×2 after 1s, ×4 after 2s); reset on keyup.
+- [x] **Volume memory per video** — `AdvancedPlayer` persists `vol:<id>` and restores it per video (falls back to the global level).
+- [x] **Media Session API** — `AdvancedPlayer` sets `navigator.mediaSession` metadata (title, artwork) and play/pause/seek/next/prev handlers + playbackState.
+- [x] **Sidebar collapse to icon rail** — Topbar `.rail-toggle` collapses the sidebar to a 60px icon rail (`sidebarCollapsed` signal + `body.sidebar-rail` CSS); desktop-only.
+- [x] **Pinned folders & tags in sidebar** — Context-menu "Pin folder/tag to top"; pins render at the top of the Folders/Tags lists, persisted in prefs (`pinnedFolders`, `pinnedTags`).
 
 ## Plugin System
 
-- [ ] **Plugin `contexts` not enforced** — `PluginMeta` has a `contexts` field (e.g. `mosaic` sets `["browse","player","home"]`) but the Topbar never checks it against `currentView`; context-sensitive plugins always appear. Read `currentView` in the Topbar plugin loop and hide buttons when the view isn't in `contexts`.
-- [ ] **Sidebar plugin location unimplemented** — The `PluginMeta` interface supports `location: 'sidebar'` but `Sidebar.tsx` does not render any plugins. Implement a plugin section in the sidebar for sidebar-located plugins.
+- [x] **Plugin `contexts` not enforced** — `PluginMeta` has a `contexts` field (e.g. `mosaic` sets `["browse","player","home"]`) but the Topbar never checks it against `currentView`; context-sensitive plugins always appear. Read `currentView` in the Topbar plugin loop and hide buttons when the view isn't in `contexts`.
+- [x] **Sidebar plugin location unimplemented** — The `PluginMeta` interface supports `location: 'sidebar'` but `Sidebar.tsx` does not render any plugins. Implement a plugin section in the sidebar for sidebar-located plugins.
 
 ## Orphaned / Unreachable Views
 
@@ -158,7 +158,6 @@
 - [ ] **Mini-player** — Compact sticky player bar that keeps playback going when navigating away from PlayerView; click to return to full player.
 - [ ] **Frame-by-frame stepping** — While paused, step one frame forward/backward via `requestVideoFrameCallback` or 1/fps seek; bound to , and . keys.
 - [ ] **Skip intro / credits** — Per-video intro-end and credits-start timestamps stored in chapters; show a "Skip" button automatically when playback enters that range.
-- [ ] **Video quality selector** — If multiple resolution files exist for the same base name (e.g. 720p + 1080p), group them and offer a quality picker in the player.
 - [ ] **360° / VR video** — Detect equirectangular videos (2:1 aspect or `_360` filename hint) and render in a Three.js sphere with mouse/gyro panning.
 
 ## Player — Queue & Autoplay
@@ -233,14 +232,7 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 ## Download & Acquisition (Expanded)
 
 - [ ] **Torrent / magnet support** — Integrate `webtorrent` to download magnet links and `.torrent` files via the download queue; seeds while the file is being watched.
-- [ ] **RSS / feed auto-downloader** — Subscribe to RSS/Atom feeds (Nyaa, Showrss, YouTube channel RSS); automatically queue new items matching per-feed keyword filters.
-- [ ] **Post-download automation rules** — User-defined rules: "if category matches X, move to folder Y and add tag Z"; runs after every download completes.
-- [ ] **Browser extension** — Minimal extension that sends the current tab URL to `POST /api/downloads/add` via the local server; works like a "send to AphroArchive" button.
-- [ ] **Download scheduling** — Set active time windows (e.g., 2–6 AM only); queue pauses automatically outside those windows.
 - [ ] **Download deduplication** — Before queuing a URL, check if it already exists in the links cache or was previously downloaded; warn the user.
-- [ ] **yt-dlp format picker** — Let users choose quality/format per download (best, 1080p, 720p, audio-only) instead of always using best.
-- [ ] **Batch URL import** — Paste or upload a list of URLs; preview all before queuing; assign a single category to all in one step.
-- [ ] **Clipboard paste to download** — A "Paste & Queue" button reads the clipboard URL and immediately adds it to the download queue.
 - [ ] **Estimated disk space warning** — Before queuing large downloads, estimate the final file size from yt-dlp metadata and warn if less than X GB free.
 
 ## Customization & Themes

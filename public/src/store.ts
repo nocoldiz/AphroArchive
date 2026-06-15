@@ -16,6 +16,15 @@ export const currentVideo = signal<Video | null>(null);
 export const playerNextUp = signal<Video[]>([]);
 export const skipNextUpUpdate = signal<boolean>(false);
 export const isSidebarOpen = signal<boolean>(false);
+// Desktop: collapse the sidebar to a narrow icon-only rail.
+export const sidebarCollapsed = signal<boolean>(localStorage.getItem('sidebarCollapsed') === 'true');
+
+if (typeof document !== 'undefined') {
+  sidebarCollapsed.subscribe(v => {
+    document.body.classList.toggle('sidebar-rail', v);
+    localStorage.setItem('sidebarCollapsed', v ? 'true' : 'false');
+  });
+}
 
 export const contextMenuState = signal<{
   visible: boolean;
@@ -991,6 +1000,34 @@ if (typeof window !== 'undefined') {
   // popstate and initial routing are handled by setupRouter() in router.ts
 }
 
+// ─── Scroll position memory ──────────────────────────────────────────
+// Remember where the grid was scrolled so returning from the player (or any
+// other view) lands the user back at the same spot instead of the top.
+if (typeof window !== 'undefined') {
+  const scrollMem = new Map<string, number>();
+  // Views that share the scrolling library grid — keyed together so e.g.
+  // browse→player→browse restores, but switching to Settings doesn't leak.
+  const scrollKey = () => {
+    const v = currentView.value;
+    if (v === 'browse' || v === 'hub' || v === 'favourites' || v === 'recent') {
+      return `${v}:${currentCategory.value}:${currentTag.value || ''}`;
+    }
+    return null;
+  };
+  let prevKey = scrollKey();
+  currentView.subscribe(() => {
+    // Save the outgoing view's scroll before it unmounts.
+    if (prevKey) scrollMem.set(prevKey, window.scrollY);
+    const nextKey = scrollKey();
+    prevKey = nextKey;
+    if (nextKey != null && scrollMem.has(nextKey)) {
+      const y = scrollMem.get(nextKey)!;
+      // Wait for the new view to render before restoring.
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
+    }
+  });
+}
+
 w.loadC = async () => {
   const data = await api.fetchCategories();
   categories.value = data;
@@ -1139,10 +1176,10 @@ w.openVid = (id: string) => {
 
 export async function deleteVideo(id: string, name: string) {
   if (!confirm(`Delete "${name}"?\nThis cannot be undone.`)) return;
-  const r = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
-  if (!r.ok) {
-    const w = window as any;
-    if (w.toast) w.toast('Delete failed');
+  const r = await fetch(`/api/videos/${id}`, { method: 'DELETE' }).catch(() => null);
+  if (!r || !r.ok) {
+    const err = r ? await r.json().catch(() => ({})) : {};
+    (window as any).toastError?.(`Could not delete "${name}" — ${(err as any).error || 'the file may be open in another program or already gone.'}`);
     return;
   }
   videos.value = videos.value.filter(v => v.id !== id);

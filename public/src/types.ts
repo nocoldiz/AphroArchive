@@ -73,6 +73,8 @@ export interface AppPrefs {
   isMuted?: boolean;
   thumbBlurMode?: string;
   hideEmptyFolders?: boolean;
+  pinnedFolders?: string[];
+  pinnedTags?: string[];
   comfyuiUrl?: string;
   comfyuiWorkflowJson?: string;
   comfyuiPositiveNodeId?: string;

@@ -3,6 +3,11 @@ import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos, ensureVaultUnlocked, moveModalState } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
+import { getThumbPref } from '../../thumbPref';
+
+// Index (within filteredVideos) of the most recently clicked card — anchor for
+// Shift+click range selection, file-manager style.
+let lastClickedIndex = -1;
 
 
 
@@ -47,8 +52,19 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
   const [showVideo, setShowVideo] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [dlQueued, setDlQueued] = useState(false);
+  const [thumbIdx, setThumbIdx] = useState(() => getThumbPref(video.id));
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Refresh the card image when the user picks a different preferred thumbnail.
+  useEffect(() => {
+    setThumbIdx(getThumbPref(video.id));
+    const onChange = (e: any) => {
+      if (e.detail?.videoId === video.id) setThumbIdx(e.detail.idx);
+    };
+    window.addEventListener('thumbpref-changed', onChange);
+    return () => window.removeEventListener('thumbpref-changed', onChange);
+  }, [video.id]);
 
   const openLink = useCallback((e: any) => {
     e.stopPropagation();
@@ -120,6 +136,48 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
     currentVideo.value = video;
     currentView.value = 'player';
     if ((window as any).playVideo) (window as any).playVideo(video.id);
+  };
+
+  const playFromButton = (e: any) => {
+    e.stopPropagation();
+    play();
+  };
+
+  const handleCardClick = (e: any) => {
+    const idx = index ?? -1;
+    // Shift+click: select the range between the last-clicked card and this one,
+    // file-manager style. Falls back to plain play when there's no anchor.
+    if (e.shiftKey && idx >= 0 && lastClickedIndex >= 0 && !isRelated) {
+      e.preventDefault();
+      const list = filteredVideos.value;
+      const [a, b] = lastClickedIndex < idx ? [lastClickedIndex, idx] : [idx, lastClickedIndex];
+      const next = new Set(selectedVideoIds.value);
+      for (let i = a; i <= b && i < list.length; i++) next.add(list[i].id);
+      selectedVideoIds.value = next;
+      videoSelMode.value = next.size > 0;
+      return;
+    }
+    // Ctrl/Cmd+click toggles a single card into the selection.
+    if ((e.ctrlKey || e.metaKey) && idx >= 0 && !isRelated) {
+      e.preventDefault();
+      const next = new Set(selectedVideoIds.value);
+      if (next.has(video.id)) next.delete(video.id); else next.add(video.id);
+      selectedVideoIds.value = next;
+      videoSelMode.value = next.size > 0;
+      lastClickedIndex = idx;
+      return;
+    }
+    // While in multi-select mode a plain click toggles rather than opens.
+    if (videoSelMode.value && idx >= 0 && !isRelated) {
+      const next = new Set(selectedVideoIds.value);
+      if (next.has(video.id)) next.delete(video.id); else next.add(video.id);
+      selectedVideoIds.value = next;
+      videoSelMode.value = next.size > 0;
+      lastClickedIndex = idx;
+      return;
+    }
+    if (idx >= 0 && !isRelated) lastClickedIndex = idx;
+    play();
   };
 
   const handleMouseEnter = () => {
@@ -195,9 +253,21 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
     <div
       className={`video-card fade-in ${isSelected ? 'selected' : ''}`}
       id={`v-${video.id}`}
-      onClick={play}
+      onClick={handleCardClick}
       onContextMenu={openCtx}
       data-id={video.id}
+      data-index={index}
+      tabIndex={0}
+      role="button"
+      aria-label={video.name}
+      onKeyDown={(e: any) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          // Don't hijack typing inside the inline panels.
+          if ((e.target as HTMLElement).closest('input, textarea')) return;
+          e.preventDefault();
+          play();
+        }
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       style={{
@@ -217,10 +287,11 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
     >
       <div className="card-thumb">
         <img
-          src={video.isLink ? (video.img || '') : `/api/thumbs/${video.id}/0`}
+          src={video.isLink ? (video.img || '') : `/api/thumbs/${video.id}/${thumbIdx}`}
           loading="lazy"
           className="video-thumb"
           id={`img-${video.id}`}
+          alt=""
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
         {showVideo && !video.isLink && (
@@ -256,23 +327,36 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
         }}>
           {isRelated ? (
             <>
-              <button onClick={enqueueNext} title="Add as next">
+              <button onClick={enqueueNext} title="Add as next" aria-label="Add as next in queue">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
               </button>
-              <button onClick={enqueueEnd} title="Add to end">
+              <button onClick={enqueueEnd} title="Add to end" aria-label="Add to end of queue">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5v14M5 19h14"/></svg>
               </button>
             </>
           ) : (
-            <button onClick={toggleFav} title="Favourite" className={video.fav ? 'fav-active' : ''}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            </button>
+            <>
+              {!video.isLink && (
+                <button onClick={playFromButton} title="Play" aria-label={`Play ${video.name}`}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+              )}
+              <button onClick={toggleFav} title="Favourite" aria-label={video.fav ? 'Remove from favourites' : 'Add to favourites'} aria-pressed={video.fav ? 'true' : 'false'} className={video.fav ? 'fav-active' : ''}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </button>
+              {!video.isLink && (
+                <button onClick={enqueueEnd} title="Add to queue" aria-label="Add to play queue">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h13M3 12h13M3 18h9M17 15l4 3-4 3"/></svg>
+                </button>
+              )}
+            </>
           )}
           {video.isLink && (
             <>
               <button
                 onClick={openLink}
                 title="Open in browser"
+                aria-label="Open link in browser"
                 style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', color: 'white' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -284,6 +368,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
               <button
                 onClick={downloadLink}
                 title={dlQueued ? 'Download queued…' : 'Download video'}
+                aria-label={dlQueued ? 'Download queued' : 'Download video'}
                 className={dlQueued ? 'fav-active' : ''}
                 style={{ opacity: dlQueued ? 0.5 : 1 }}
               >
@@ -295,7 +380,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
               </button>
             </>
           )}
-          <button onClick={openCtx} title="Menu">
+          <button onClick={openCtx} title="Menu" aria-label="More actions">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
           </button>
         </div>
@@ -602,6 +687,15 @@ export const VideoSelBar = () => {
       </button>
       <button
         onClick={() => {
+          selectedVideoIds.value = new Set(filteredVideos.value.map(v => v.id));
+          videoSelMode.value = true;
+        }}
+        style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer' }}
+      >
+        Select all
+      </button>
+      <button
+        onClick={() => {
           selectedVideoIds.value = new Set();
           videoSelMode.value = false;
           setActivePanel(null);
@@ -709,6 +803,50 @@ export const VideoGrid = () => {
     return () => observer.disconnect();
   }, [list, renderLimit]);
 
+  // Arrow-key navigation between cards + Escape to clear selection.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Escape clears an active multi-selection from anywhere.
+      if (e.key === 'Escape' && selectedVideoIds.value.size > 0) {
+        const tag = (e.target as HTMLElement).tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return;
+        selectedVideoIds.value = new Set();
+        videoSelMode.value = false;
+        return;
+      }
+
+      if (!['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      const grid = gridRef.current;
+      if (!grid) return;
+      const active = document.activeElement as HTMLElement | null;
+      // Only drive grid navigation when a card already has focus.
+      if (!active || !active.classList.contains('video-card') || !grid.contains(active)) return;
+
+      const cards = Array.from(grid.querySelectorAll<HTMLElement>('.video-card'));
+      if (!cards.length) return;
+      const cur = cards.indexOf(active);
+      if (cur === -1) return;
+
+      // Derive the column count from how many cards share the top row's offsetTop.
+      const firstTop = cards[0].offsetTop;
+      let cols = cards.filter(c => c.offsetTop === firstTop).length || 1;
+
+      let next = cur;
+      if (e.key === 'ArrowRight') next = cur + 1;
+      else if (e.key === 'ArrowLeft') next = cur - 1;
+      else if (e.key === 'ArrowDown') next = cur + cols;
+      else if (e.key === 'ArrowUp') next = cur - cols;
+
+      if (next >= 0 && next < cards.length) {
+        e.preventDefault();
+        cards[next].focus();
+        cards[next].scrollIntoView({ block: 'nearest' });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   if (isLoadingVideos.value) {
     return (
       <div className="video-grid" id="video-grid">
@@ -736,7 +874,18 @@ export const VideoGrid = () => {
       <div style={{ padding: '4px 2px 0', color: 'var(--tx3)', fontSize: '0.8rem' }}>
         {list.length} video{list.length !== 1 ? 's' : ''}
       </div>
-      <div className="video-grid" id="video-grid" ref={gridRef} data-thumb-mode={thumbBlurMode.value}>
+      <div
+        className="video-grid"
+        id="video-grid"
+        ref={gridRef}
+        data-thumb-mode={thumbBlurMode.value}
+        onContextMenu={(e: any) => {
+          // Only when right-clicking empty grid space, not a card.
+          if ((e.target as HTMLElement).closest('.video-card')) return;
+          e.preventDefault();
+          contextMenuState.value = { visible: true, x: e.pageX, y: e.pageY, type: 'grid', data: null };
+        }}
+      >
         {visible.map((v, i) => (
           <VideoCard
             key={v.id}

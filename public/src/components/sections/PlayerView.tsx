@@ -7,6 +7,7 @@ import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 import { VideoCard } from '../UI/VideoGrid';
 import { AdvancedPlayer } from '../UI/AdvancedPlayer';
 import { playerSeries, playerSeason } from '../../series';
+import { getThumbPref, setThumbPref } from '../../thumbPref';
 
 // BCP-47 codes — fed to SpeechRecognition.lang for live subtitle generation
 const LANGUAGES: { code: string; label: string }[] = [
@@ -42,6 +43,7 @@ export const PlayerView = () => {
   const [language, setLanguage] = useState<string>('');
 
   const [note, setNote] = useState<string>('');
+  const [cardThumb, setCardThumb] = useState<number>(() => video ? getThumbPref(video.id) : 0);
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -206,6 +208,10 @@ export const PlayerView = () => {
   const removeVideo = (id: string) => {
     playerNextUp.value = playerNextUp.value.filter(v => v.id !== id);
   };
+
+  useEffect(() => {
+    if (video) setCardThumb(getThumbPref(video.id));
+  }, [video?.id]);
 
   useEffect(() => {
     if (!video || video.isVault) return;
@@ -533,6 +539,7 @@ export const PlayerView = () => {
                 key={video.id}
                 src={`/api/vault/stream/${video.id}`}
                 videoId={video.id}
+                title={video.name}
                 subtitles={subtitles}
                 chapters={chapters}
                 autoChapters={appPrefs.value.autoChapterDetection ? autoChapters : []}
@@ -552,6 +559,7 @@ export const PlayerView = () => {
                 key={video.id}
                 src={`/api/stream/${video.id}`}
                 videoId={video.id}
+                title={video.name}
                 subtitles={subtitles}
                 chapters={chapters}
                 autoChapters={appPrefs.value.autoChapterDetection ? autoChapters : []}
@@ -840,6 +848,28 @@ export const PlayerView = () => {
                   rows={3}
                   style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 12px', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
                 />
+              </div>
+            )}
+
+            {!video.isLink && !video.isVault && (
+              <div className="player-thumb-row" style={{ marginBottom: '20px' }}>
+                <span style={{ display: 'block', color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Card thumbnail</span>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <img
+                      key={i}
+                      src={`/api/thumbs/${video.id}/${i}`}
+                      alt={`Thumbnail ${i + 1}`}
+                      onClick={() => { setThumbPref(video.id, i); setCardThumb(i); (window as any).toast?.('Card thumbnail updated'); }}
+                      onError={(e: any) => e.target.style.display = 'none'}
+                      style={{
+                        width: '96px', aspectRatio: '16/9', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer',
+                        border: cardThumb === i ? '2px solid var(--ac)' : '2px solid transparent',
+                        opacity: cardThumb === i ? 1 : 0.7,
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 

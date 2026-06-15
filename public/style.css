@@ -367,6 +367,21 @@ input {
   align-self: center
 }
 
+.crumb-sep {
+  color: var(--tx3);
+  font-weight: 400
+}
+
+.crumb--link {
+  cursor: pointer;
+  transition: color var(--tr)
+}
+
+.crumb--link:hover {
+  color: var(--ac);
+  text-decoration: underline
+}
+
 .search-extra-heading {
   font-size: 1rem;
   font-weight: 700;
@@ -7808,6 +7823,67 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   border-color: var(--tx3);
 }
 
+/* ── Sidebar collapse toggle (desktop) ── */
+.rail-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--brd);
+  background: var(--bg2);
+  cursor: pointer;
+  color: var(--tx);
+  transition: all var(--tr);
+  flex-shrink: 0;
+}
+
+.rail-toggle:hover {
+  background: var(--bg3);
+  border-color: var(--tx3);
+}
+
+/* ── Collapsed icon rail ── */
+.sidebar-rail .side {
+  width: 60px;
+}
+
+.sidebar-rail .side-scroll {
+  padding: 12px 0;
+}
+
+.sidebar-rail .sidebar-heading,
+.sidebar-rail .side-sep,
+.sidebar-rail #catsSection,
+.sidebar-rail #tagList,
+.sidebar-rail #vaultFoldersSection,
+.sidebar-rail #pluginsSection,
+.sidebar-rail #sidebar-pinned {
+  display: none !important;
+}
+
+.sidebar-rail .sidebar-item {
+  justify-content: center;
+  padding: 11px 0;
+}
+
+.sidebar-rail .sidebar-item > span {
+  justify-content: center;
+}
+
+.sidebar-rail .sidebar-item > span > span {
+  display: none;
+}
+
+.sidebar-rail .sidebar-item .count-badge {
+  display: none;
+}
+
+.sidebar-rail .sidebar-item svg {
+  margin-right: 0 !important;
+}
+
 .sidebar-overlay {
   position: fixed;
   inset: 0;
@@ -7820,6 +7896,17 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 @media (max-width: 860px) {
   .burger-btn {
     display: flex;
+  }
+
+  /* The icon rail is a desktop affordance; on mobile the sidebar is an
+     overlay driven by the burger button, so hide the rail toggle and undo
+     any collapsed width. */
+  .rail-toggle {
+    display: none;
+  }
+
+  .sidebar-rail .side {
+    width: 240px !important;
   }
 
   .side {
