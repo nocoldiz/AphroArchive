@@ -937,10 +937,28 @@ function loadVaultMeta() {
   }
 }
 
+// True when the on-disk vault meta is an encrypted wrapper ({iv,tag,ciphertext}).
+function _vaultMetaEncryptedOnDisk() {
+  try {
+    const raw = fs.readFileSync(VAULT_META_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed.iv === 'string' &&
+      typeof parsed.tag === 'string' && typeof parsed.ciphertext === 'string';
+  } catch { return false; }
+}
+
 function saveVaultMeta(m) {
   if (currentProfile === 'Vault') _videoMeta = null; // merged view includes vault meta
   const jsonStr = JSON.stringify(m);
   if (!_vaultKey) {
+    // Refuse to write plaintext over an encrypted vault meta. loadVaultMeta()
+    // returns {} when it can't decrypt, so an unguarded save here would persist
+    // that empty map as cleartext — exposing every filename AND wiping the
+    // metadata for all already-encrypted files. Only the genuinely-unconfigured
+    // (legacy cleartext) vault may be written without a key.
+    if (_vaultMetaEncryptedOnDisk()) {
+      throw new Error('Vault is locked — refusing to overwrite encrypted vault metadata');
+    }
     fs.writeFileSync(VAULT_META_FILE, jsonStr);
     return;
   }

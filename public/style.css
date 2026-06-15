@@ -202,6 +202,36 @@ input {
   padding: 7px 10px
 }
 
+/* Items the user moved out of the sidebar into the topbar — rendered as round
+   icon buttons right after the search bar. */
+.tb-moved {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.tb-moved button {
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--brd);
+  transition: all var(--tr);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tb-moved button:hover {
+  background: var(--bg3);
+  border-color: var(--tx3)
+}
+
+.tb-moved button.on {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: #fff
+}
+
 #dropOverlay {
   position: fixed;
   inset: 0;
@@ -3737,24 +3767,34 @@ input {
 }
 
 /* ── Collapsible sidebar sections ── */
-.sidebar-heading {
+.side .sidebar-heading {
   cursor: pointer;
   user-select: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-right: 16px;
-  position: sticky;
-  top: 0;
-  background: var(--bg);
-  z-index: 20
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 7px 16px;
+  margin: 0 0 4px;
+  border-radius: 6px;
+  background: transparent;
+  transition: background var(--tr), color var(--tr)
+}
+
+.side .sidebar-heading-label {
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
 }
 
 .sidebar-heading-chevron {
   width: 12px;
   height: 12px;
   flex-shrink: 0;
-  transition: transform var(--tr)
+  opacity: 0.6;
+  transition: transform var(--tr), opacity var(--tr)
 }
 
 .sidebar-heading.closed .sidebar-heading-chevron {
@@ -3762,16 +3802,20 @@ input {
 }
 
 .sidebar-heading:hover {
-  background: var(--bg2)
+  background: var(--bg2);
+  color: var(--tx2)
 }
 
+.sidebar-heading:hover .sidebar-heading-chevron {
+  opacity: 1
+}
+
+/* Collapsed headers read as a quiet list of dividers, not stacked bars */
 .sidebar-heading.closed {
-  border-bottom: 1px solid var(--brd)
+  margin-bottom: 0
 }
 
 .sidebar-heading-add {
-  margin-left: auto;
-  margin-right: 6px;
   background: none;
   border: none;
   color: var(--tx3);
@@ -8063,27 +8107,88 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   z-index: 999;
 }
 
-/* ── Two-pane sidebar ── */
-.side.two-pane {
-  width: 440px;
-  flex-direction: row;
-}
-
-.side-nav-pane {
-  width: 220px;
+/* ── Topbar Folders/Tags dropdowns ── */
+.filter-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
-  border-right: 1px solid var(--brd);
 }
 
-.side-filter-pane {
-  flex: 1;
-  min-width: 0;
+.filter-dropdown {
+  position: relative;
 }
 
-/* Hide the first separator in the filter pane so it doesn't add a gap at the top */
-.side-filter-pane > .side-sep:first-child,
-.side-filter-pane > div:first-child > .side-sep:first-child {
-  display: none;
+.filter-dropdown-btn {
+  display: flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--brd);
+  background: var(--bg2);
+  color: var(--tx2);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--tr);
+}
+
+.filter-dropdown-btn:hover {
+  background: var(--bg3);
+  border-color: var(--tx3);
+}
+
+.filter-dropdown-btn.on {
+  border-color: var(--ac);
+  color: var(--ac);
+}
+
+.filter-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 280px;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--brd);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  padding: 6px 0;
+  animation: filter-dropdown-in 0.14s ease;
+}
+
+@keyframes filter-dropdown-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.filter-dropdown-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 14px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--brd);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--tx3);
+  font-family: var(--m);
+}
+
+.filter-dropdown-body {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 860px) {
+  /* Folders/Tags dropdowns are a desktop affordance; on mobile they live in
+     the overlay sidebar instead. */
+  .filter-dropdowns {
+    display: none;
+  }
 }
 
 @media (max-width: 860px) {
@@ -8113,21 +8218,6 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
     background: var(--bg2) !important;
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 5px 0 15px rgba(0, 0, 0, 0.5);
-  }
-
-  .side.two-pane {
-    flex-direction: column;
-  }
-
-  .side.two-pane .side-nav-pane {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--brd);
-    flex-shrink: 1;
-  }
-
-  .side.two-pane .side-filter-pane {
-    flex: 1;
   }
 
   .side.open {

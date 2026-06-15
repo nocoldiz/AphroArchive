@@ -24,6 +24,19 @@ let cooldownUntil = 0;
 const DEFAULT_VAULT_TIMEOUT_MS = 5 * 60 * 1000;
 let vaultTimer = null;
 
+// Auto-lock suspension counter. Long-running background jobs (folder
+// encryption/decryption of multi-GB libraries) routinely outlast the 5-minute
+// auto-lock window. If the vault locks mid-operation, in-flight metadata writes
+// fall back to plaintext and clobber the encrypted vault meta — silently
+// orphaning every already-encrypted file. While this counter is > 0 the
+// auto-lock timer is held off; resumeAutoLock() re-arms it once the job ends.
+let _autoLockHold = 0;
+function suspendAutoLock() { _autoLockHold++; if (vaultTimer) { clearTimeout(vaultTimer); vaultTimer = null; } }
+function resumeAutoLock() {
+  if (_autoLockHold > 0) _autoLockHold--;
+  if (_autoLockHold === 0) resetVaultTimer();
+}
+
 const NO_CACHE_HEADERS = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
   'Pragma': 'no-cache',
@@ -49,6 +62,10 @@ function resetVaultTimer() {
   // concurrently after an auto-lock fires (vaultKey = null) mid-async.
   if (vaultTimer) { clearTimeout(vaultTimer); vaultTimer = null; }
   if (!vaultKey) return;
+  // A background job holds the lock open; don't re-arm until it finishes. This
+  // also stops unrelated HTTP handlers (which call resetVaultTimer) from
+  // re-arming the timer underneath a running encryption job.
+  if (_autoLockHold > 0) return;
   const ms = getVaultTimeoutMs();
   if (!ms || ms <= 0) return; // 0 → auto-lock disabled
   vaultTimer = setTimeout(() => {
@@ -444,6 +461,17 @@ async function _encryptLocalFileToVault(filePath, filename, category = null, vid
     src.on('error', reject);
     out.on('error', reject);
   });
+
+  // The stream above can take minutes for a large file. If the vault locked
+  // in that window (auto-lock, manual lock), vaultKey/_vaultKey are now gone:
+  // persisting metadata would write the vault meta back as plaintext and wipe
+  // every existing entry, and shredding the source would destroy the original
+  // for a file we can no longer index. Bail out, leaving the source intact and
+  // removing the half-orphaned ciphertext.
+  if (!vaultKey) {
+    try { fs.unlinkSync(outPath); } catch { }
+    return false;
+  }
 
   // Update Vault Metadata
   const ext = path.extname(filename).toLowerCase();
@@ -1450,7 +1478,7 @@ module.exports = {
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
   deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
-  encryptBufferToVault,
+  encryptBufferToVault, suspendAutoLock, resumeAutoLock,
   shredFile: _shredFile,
   __resetForTest, __stopTimers,
 };

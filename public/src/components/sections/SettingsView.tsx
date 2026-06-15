@@ -430,30 +430,8 @@ export const SettingsView = () => {
               </div>
             </div>
             <div style={secLast}>
-              <h3 style={{ ...secH, marginBottom: '6px' }}>Sidebar Layout</h3>
-              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Choose how the sidebar is organised.</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {([
-                  { id: 'two-pane', label: 'Two Pane', desc: 'Navigation on the left, folders and tags in a separate right column.' },
-                  { id: 'default', label: 'Single Column', desc: 'All sections stacked in one scrollable column.' },
-                ] as const).map(opt => {
-                  const isSelected = opt.id === 'two-pane' ? prefs.sidebarLayout !== 'default' : prefs.sidebarLayout === 'default';
-                  return (
-                    <div key={opt.id} onClick={() => updatePrefs({ sidebarLayout: opt.id })}
-                      style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--bg3)', border: isSelected ? '2px solid var(--ac)' : '1px solid var(--brd)', borderRadius: '8px', cursor: 'pointer', transition: 'border-color 0.2s' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '14px', color: 'var(--tx)', fontWeight: 600, marginBottom: '2px' }}>{opt.label}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--tx3)' }}>{opt.desc}</div>
-                      </div>
-                      {isSelected && (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <h3 style={{ ...secH, marginBottom: '6px' }}>Bar Layout</h3>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar.</p>
             </div>
           </div>
         )}

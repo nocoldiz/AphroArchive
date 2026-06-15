@@ -53,6 +53,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
   const [isHovered, setIsHovered] = useState(false);
   const [dlQueued, setDlQueued] = useState(false);
   const [thumbIdx, setThumbIdx] = useState(() => getThumbPref(video.id));
+  const [linkThumb, setLinkThumb] = useState('');
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -130,6 +131,32 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       observer.unobserve(el);
       thumbObserverIds.delete(el);
     };
+  }, [video.id]);
+
+  // Bookmark links often have no cached thumbnail (`img` is null until the
+  // background scraper fills it). When such a link card scrolls into view —
+  // e.g. in global search results — lazily resolve one via the server's
+  // /api/og-thumb endpoint (generated screenshot → OG image, both cached).
+  useEffect(() => {
+    if (!cardRef.current || !video.isLink || video.img) return;
+    const url = video.linkUrl || video.relPath;
+    if (!url) return;
+    const el = cardRef.current;
+    let fetched = false;
+    const observer = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting && !fetched) {
+          fetched = true;
+          observer.disconnect();
+          fetch('/api/og-thumb?url=' + encodeURIComponent(url))
+            .then(r => r.json())
+            .then(d => { if (d && d.img) setLinkThumb(d.img); })
+            .catch(() => {});
+        }
+      }
+    }, { rootMargin: '300px' });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [video.id]);
 
   const play = () => {
@@ -286,14 +313,30 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       ref={cardRef}
     >
       <div className="card-thumb">
-        <img
-          src={video.isLink ? (video.img || '') : `/api/thumbs/${video.id}/${thumbIdx}`}
-          loading="lazy"
-          className="video-thumb"
-          id={`img-${video.id}`}
-          alt=""
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
+        {video.isLink && !(video.img || linkThumb) ? (
+          <div
+            className="video-thumb link-thumb-placeholder"
+            style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--border)' }}
+          >
+            <img
+              src={`https://www.google.com/s2/favicons?sz=32&domain_url=${encodeURIComponent(video.linkUrl || video.relPath || '')}`}
+              width="32"
+              height="32"
+              loading="lazy"
+              alt=""
+              style={{ opacity: 0.7 }}
+            />
+          </div>
+        ) : (
+          <img
+            src={video.isLink ? (video.img || linkThumb) : `/api/thumbs/${video.id}/${thumbIdx}`}
+            loading="lazy"
+            className="video-thumb"
+            id={`img-${video.id}`}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        )}
         {showVideo && !video.isLink && (
           <video
             src={`/api/stream/${video.id}`}

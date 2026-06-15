@@ -1096,6 +1096,43 @@ async function apiLinkMove(req, res) {
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
+// Bulk-edit many links at once: tags (add/remove/set), category, fav, title.
+async function apiLinkBulkUpdate(req, res) {
+  try {
+    const body = await readBody(req);
+    const urls = Array.isArray(body.urls) ? body.urls : [];
+    if (!urls.length) return json(res, { error: 'urls required' }, 400);
+
+    const clean = (arr) => (Array.isArray(arr) ? arr.map(t => String(t).trim()).filter(Boolean) : null);
+    const addTags = clean(body.addTags);
+    const removeTags = clean(body.removeTags);
+    const setTags = clean(body.setTags);
+
+    const { items } = loadLinksCache();
+    const byUrl = new Map(items.map(l => [l.url, l]));
+    let updated = 0;
+    for (const url of urls) {
+      const link = byUrl.get(url);
+      if (!link) continue;
+      const next = { ...link };
+      if (setTags) {
+        next.tags = [...new Set(setTags)];
+      } else if (addTags || removeTags) {
+        let tags = Array.isArray(next.tags) ? [...next.tags] : [];
+        if (addTags) for (const t of addTags) if (!tags.includes(t)) tags.push(t);
+        if (removeTags) tags = tags.filter(t => !removeTags.includes(t));
+        next.tags = tags;
+      }
+      if (body.category !== undefined) next.category = String(body.category).trim();
+      if (body.fav !== undefined) next.fav = !!body.fav;
+      if (typeof body.title === 'string' && body.title.trim()) next.title = body.title.trim();
+      upsertLink(next);
+      updated++;
+    }
+    json(res, { ok: true, updated });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
 module.exports = {
   apiOgThumb,
   apiGetLinksCache, apiSaveLinksCache,
@@ -1112,6 +1149,6 @@ module.exports = {
   apiRescrapeAll,
   apiImportLinks,
   apiExportLinksJson, apiImportLinksJson,
-  apiLinkMove,
+  apiLinkMove, apiLinkBulkUpdate,
   apiUpdateLinkItem, apiDeleteLinkItem, apiDeleteLinkItems,
 };

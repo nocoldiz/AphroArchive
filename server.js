@@ -351,6 +351,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/links/export'      && req.method === 'GET')  return links.apiExportLinksJson(req, res);
   if (p === '/api/links/import-json' && req.method === 'POST') return links.apiImportLinksJson(req, res);
   if (p === '/api/links/move'        && req.method === 'PATCH') return links.apiLinkMove(req, res);
+  if (p === '/api/links/bulk'        && req.method === 'PATCH') return links.apiLinkBulkUpdate(req, res);
   if (p === '/api/links/item' && req.method === 'PATCH') return links.apiUpdateLinkItem(req, res);
   if (p === '/api/links/item' && req.method === 'DELETE') return links.apiDeleteLinkItem(req, res);
   if (p === '/api/links/items' && req.method === 'DELETE') return links.apiDeleteLinkItems(req, res);

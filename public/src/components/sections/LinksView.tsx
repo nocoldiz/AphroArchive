@@ -615,6 +615,8 @@ export const LinksView = () => {
   const [adding, setAdding] = useState(false);
 
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  const [bulkTagInput, setBulkTagInput] = useState('');
+  const [bulkCategory, setBulkCategory] = useState('');
 
   const toggleSelect = (url: string) =>
     setSelectedUrls(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n; });
@@ -932,6 +934,77 @@ export const LinksView = () => {
     });
   };
 
+  const toast = (msg: string) => { const w = window as any; if (w.toast) w.toast(msg); };
+
+  // Apply a bulk change to all selected links, updating local state optimistically.
+  const bulkUpdate = async (
+    payload: { addTags?: string[]; removeTags?: string[]; setTags?: string[]; category?: string; fav?: boolean },
+    apply: (it: LinkItem) => LinkItem,
+  ) => {
+    const urls = [...selectedUrls];
+    if (!urls.length) { toast('Select at least one link'); return; }
+    const urlSet = new Set(urls);
+    const next = items.map(it => urlSet.has(it.url) ? apply(it) : it);
+    setItems(next);
+    updateMatches(next);
+    const r = await fetch('/api/links/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls, ...payload }),
+    });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); alert('Bulk update failed: ' + (d.error || r.statusText)); await loadLinks(); }
+    return urls.length;
+  };
+
+  const parseTags = (s: string) => s.split(',').map(t => t.trim()).filter(Boolean);
+
+  const bulkAddTags = async () => {
+    const tags = parseTags(bulkTagInput);
+    if (!tags.length) { toast('Type one or more tags first'); return; }
+    const n = await bulkUpdate({ addTags: tags }, it => ({ ...it, tags: [...new Set([...(it.tags || []), ...tags])] }));
+    if (n) { setBulkTagInput(''); toast(`Added ${tags.length} tag(s) to ${n} link(s)`); }
+  };
+
+  const bulkRemoveTags = async () => {
+    const tags = parseTags(bulkTagInput);
+    if (!tags.length) { toast('Type one or more tags first'); return; }
+    const n = await bulkUpdate({ removeTags: tags }, it => ({ ...it, tags: (it.tags || []).filter(t => !tags.includes(t)) }));
+    if (n) { setBulkTagInput(''); toast(`Removed ${tags.length} tag(s) from ${n} link(s)`); }
+  };
+
+  const bulkSetTags = async () => {
+    const tags = parseTags(bulkTagInput);
+    const n = await bulkUpdate({ setTags: tags }, it => ({ ...it, tags: [...tags] }));
+    if (n) { setBulkTagInput(''); toast(tags.length ? `Set tags on ${n} link(s)` : `Cleared tags on ${n} link(s)`); }
+  };
+
+  const bulkSetCategory = async () => {
+    const n = await bulkUpdate({ category: bulkCategory }, it => ({ ...it, category: bulkCategory }));
+    if (n) toast(bulkCategory ? `Moved ${n} link(s) to ${bulkCategory}` : `Cleared folder on ${n} link(s)`);
+  };
+
+  const bulkSetFav = async (fav: boolean) => {
+    const n = await bulkUpdate({ fav }, it => ({ ...it, fav }));
+    if (n) toast(`${fav ? 'Starred' : 'Unstarred'} ${n} link(s)`);
+  };
+
+  const deleteSelected = async () => {
+    const urls = [...selectedUrls];
+    if (!urls.length) { toast('Select at least one link'); return; }
+    if (!confirm(`Delete ${urls.length} selected link(s)?`)) return;
+    const urlSet = new Set(urls);
+    const next = items.filter(it => !urlSet.has(it.url));
+    setItems(next);
+    updateMatches(next);
+    setSelectedUrls(new Set());
+    await fetch('/api/links/items', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    toast(`Deleted ${urls.length} link(s)`);
+  };
+
   const moveSelectedToVault = async () => {
     const urls = [...selectedUrls];
     if (!urls.length) { alert('Select at least one link'); return; }
@@ -1164,12 +1237,6 @@ export const LinksView = () => {
           <button class="sort-btn" onClick={clearAll}>Clear All</button>
           <button class="sort-btn" onClick={removeDuplicates} title="Remove links that have duplicate URL or duplicate name/title">Remove Duplicates</button>
           <button class="sort-btn" onClick={saveToDb}>Save to DB</button>
-          {isVaultUnlocked.value && !vaultGlobalView.value && (
-            <button class="sort-btn" onClick={encryptSelected} title="Encrypt selected links into Vault">Encrypt Selected</button>
-          )}
-          {isVaultUnlocked.value && vaultGlobalView.value && (
-            <button class="sort-btn" onClick={decryptSelected} title="Decrypt selected links back to public">Decrypt Selected</button>
-          )}
           <button class="sort-btn" onClick={startScraping}>Start Scraping</button>
           <button class="sort-btn" onClick={rescrapeAll}>Rescrape All</button>
         </div>
@@ -1325,8 +1392,6 @@ export const LinksView = () => {
           >
             {visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url)) ? 'Desel. Visible' : 'Select Visible'}
           </button>
-          <button className="sort-btn" onClick={downloadSelected}>Download Selected</button>
-          <button className="sort-btn" onClick={moveSelectedToVault} title="Move selected links to Vault">🔒 Vault Selected</button>
         </SectionControls>
 
       <div class="bf-stats" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
@@ -1506,6 +1571,73 @@ export const LinksView = () => {
           </div>
         );
       })()}
+
+      {/* Mass-edit action bar */}
+      {selectedUrls.size > 0 && (
+        <div
+          style={{
+            position: 'sticky', bottom: 0, zIndex: 50, marginTop: '20px',
+            background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px',
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.35)', padding: '12px 16px',
+            display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+          }}
+        >
+          <strong style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>{selectedUrls.size} selected</strong>
+          <button class="sort-btn" onClick={() => setSelectedUrls(new Set())} title="Clear selection">Clear</button>
+
+          <span className="sg-sep"></span>
+
+          {/* Mass tagging */}
+          <input
+            type="text"
+            value={bulkTagInput}
+            onInput={(e: any) => setBulkTagInput(e.target.value)}
+            onKeyDown={(e: any) => { if (e.key === 'Enter') bulkAddTags(); }}
+            placeholder="tags, comma separated"
+            aria-label="Bulk tags"
+            list="bulk-tag-suggestions"
+            style={{ minWidth: '180px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '5px 8px', fontSize: '13px' }}
+          />
+          <datalist id="bulk-tag-suggestions">
+            {allTags.map(([t]) => <option key={t} value={t} />)}
+          </datalist>
+          <button class="sort-btn" onClick={bulkAddTags} title="Add these tags to all selected links">+ Tags</button>
+          <button class="sort-btn" onClick={bulkRemoveTags} title="Remove these tags from all selected links">– Tags</button>
+          <button class="sort-btn" onClick={bulkSetTags} title="Replace tags on all selected links (empty clears them)">Set Tags</button>
+
+          <span className="sg-sep"></span>
+
+          {/* Mass move to folder */}
+          <select
+            value={bulkCategory}
+            onChange={(e: any) => setBulkCategory(e.target.value)}
+            aria-label="Bulk folder"
+            style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '5px 8px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
+          >
+            <option value="">Uncategorized</option>
+            {activeCats.map(c => <option key={c.name} value={c.name}>{c.path}</option>)}
+          </select>
+          <button class="sort-btn" onClick={bulkSetCategory} title="Move all selected links to this folder">Move</button>
+
+          <span className="sg-sep"></span>
+
+          {/* Mass favourite */}
+          <button class="sort-btn" onClick={() => bulkSetFav(true)} title="Star all selected">★ Star</button>
+          <button class="sort-btn" onClick={() => bulkSetFav(false)} title="Unstar all selected">☆ Unstar</button>
+
+          <span className="sg-sep"></span>
+
+          <button class="sort-btn" onClick={downloadSelected}>Download</button>
+          {isVaultUnlocked.value && vaultGlobalView.value ? (
+            <button class="sort-btn" onClick={decryptSelected} title="Decrypt selected links back to public">Decrypt</button>
+          ) : isVaultUnlocked.value ? (
+            <button class="sort-btn" onClick={encryptSelected} title="Encrypt selected links into Vault">🔒 Vault</button>
+          ) : (
+            <button class="sort-btn" onClick={moveSelectedToVault} title="Move selected links to Vault">🔒 Vault</button>
+          )}
+          <button class="sort-btn" onClick={deleteSelected} style={{ color: '#e53935', borderColor: '#e53935' }} title="Delete all selected links">Delete</button>
+        </div>
+      )}
 
       {/* Download Queue */}
       {jobs.length > 0 && (

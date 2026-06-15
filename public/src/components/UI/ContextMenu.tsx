@@ -1,6 +1,7 @@
 import { contextMenuState, folderMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
+import { setItemPlacement } from './navItems';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -526,6 +527,16 @@ export const ContextMenu = () => {
               (window as any).createFolder?.();
             }} />
           </>
+        )}
+        {type === 'navitem' && (
+          <ContextItem
+            label={data.location === 'sidebar' ? 'Move to Topbar' : 'Move to Sidebar'}
+            icon={data.location === 'sidebar' ? 'list' : 'list'}
+            onClick={() => {
+              setItemPlacement(data.id, data.location === 'sidebar' ? 'topbar' : 'sidebar');
+              closeMenu();
+            }}
+          />
         )}
         {type === 'tag' && (
           <>

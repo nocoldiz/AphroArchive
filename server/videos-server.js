@@ -107,7 +107,7 @@ function getEncryptionProgress() {
 async function runEncryptFolder(catPath) {
   if (_encryptionProgress.running) return false;
   _encryptionCancel = false;
-  const { isUnlocked } = require('./vault-server');
+  const { isUnlocked, suspendAutoLock, resumeAutoLock } = require('./vault-server');
   const { loadVaultConfig } = require('./db-server');
 
   if (!loadVaultConfig()) {
@@ -119,6 +119,10 @@ async function runEncryptFolder(catPath) {
     return false;
   }
 
+  // Hold the auto-lock open for the whole batch: encrypting a large folder can
+  // take far longer than the auto-lock window, and locking mid-job corrupts the
+  // vault metadata.
+  suspendAutoLock();
   try {
     const ck = getCatKey(catPath);
     const videos = (await cachedScan()).filter(v => {
@@ -174,6 +178,8 @@ async function runEncryptFolder(catPath) {
     console.error('[runEncryptFolder] error:', e);
     updateEncryptionProgress({ error: e.message || String(e), running: false });
     return false;
+  } finally {
+    resumeAutoLock();
   }
 }
 
@@ -181,7 +187,7 @@ async function runEncryptFolder(catPath) {
 async function runDecryptFolder(catPath, targetProfile) {
   if (_encryptionProgress.running) return false;
   _encryptionCancel = false;
-  const { isUnlocked, getVaultKey } = require('./vault-server');
+  const { isUnlocked, getVaultKey, suspendAutoLock, resumeAutoLock } = require('./vault-server');
   const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
 
   if (!isUnlocked()) {
@@ -189,6 +195,8 @@ async function runDecryptFolder(catPath, targetProfile) {
     return false;
   }
 
+  // Keep the vault unlocked for the duration — see runEncryptFolder.
+  suspendAutoLock();
   try {
     const meta = loadVaultMeta();
     const itemsToDecrypt = [];
@@ -265,6 +273,8 @@ async function runDecryptFolder(catPath, targetProfile) {
     console.error('[runDecryptFolder] error:', e);
     updateEncryptionProgress({ error: e.message || String(e), running: false });
     return false;
+  } finally {
+    resumeAutoLock();
   }
 }
 
@@ -2250,7 +2260,11 @@ async function apiImport(req, res) {
   let destDir, kind;
   const writeRoot = getDefaultWriteRoot();
   if (VIDEO_EXT.has(ext)) {
-    const safeCat = categoryHdr ? categoryHdr.replace(/[^a-zA-Z0-9 \-_]/g, '').trim() : '';
+    // Preserve nested folder paths ("Parent/Child") by sanitising each segment
+    // independently and re-joining with "/" so subfolders can be created.
+    const safeCat = categoryHdr
+      ? categoryHdr.split('/').map(s => s.replace(/[^a-zA-Z0-9 \-_]/g, '').trim()).filter(Boolean).join('/')
+      : '';
     destDir = safeCat ? path.join(writeRoot, safeCat) : writeRoot;
     kind = 'video';
   }
@@ -2699,7 +2713,7 @@ async function _encryptDiskMediaItem(item) {
 async function runEncryptBatch(items) {
   if (_encryptionProgress.running) return false;
   _encryptionCancel = false;
-  const { isUnlocked } = require('./vault-server');
+  const { isUnlocked, suspendAutoLock, resumeAutoLock } = require('./vault-server');
   const { loadVaultConfig } = require('./db-server');
 
   if (!loadVaultConfig()) { updateEncryptionProgress({ error: 'Master vault password is not set', running: false }); return false; }
@@ -2707,6 +2721,8 @@ async function runEncryptBatch(items) {
 
   updateEncryptionProgress({ running: true, type: 'encrypt', category: 'Vault import', total: items.length, done: 0, current: '', error: '', ok: false });
   let done = 0;
+  // Keep the vault unlocked for the duration — see runEncryptFolder.
+  suspendAutoLock();
   try {
     const vids = await allVideos(true);
     const vidMap = new Map(vids.map(v => [v.id, v]));
@@ -2732,11 +2748,13 @@ async function runEncryptBatch(items) {
     console.error('[runEncryptBatch] error:', e);
     updateEncryptionProgress({ error: e.message || String(e), running: false });
     return false;
+  } finally {
+    resumeAutoLock();
   }
 }
 
 async function apiEncryptVideo(req, res, id) {
-  const { isUnlocked } = require('./vault-server');
+  const { isUnlocked, suspendAutoLock, resumeAutoLock } = require('./vault-server');
   const { loadVaultConfig } = require('./db-server');
 
   if (!loadVaultConfig()) return json(res, { error: 'Master vault password is not set' }, 400);
@@ -2752,6 +2770,7 @@ async function apiEncryptVideo(req, res, id) {
   if (v.encrypted) return json(res, { error: 'Already encrypted' }, 400);
 
   updateEncryptionProgress({ running: true, type: 'encrypt', category: v.name, total: 1, done: 0, current: v.name, error: '', ok: false });
+  suspendAutoLock();
   try {
     const vaultId = await _encryptVideoEntry(v);
     invalidateScanCache();
@@ -2760,6 +2779,8 @@ async function apiEncryptVideo(req, res, id) {
   } catch (e) {
     updateEncryptionProgress({ error: e.message, running: false });
     json(res, { error: e.message }, 500);
+  } finally {
+    resumeAutoLock();
   }
 }
 

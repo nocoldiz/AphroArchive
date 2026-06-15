@@ -101,6 +101,18 @@ async function apiSavePrefs(req, res) {
   if ('disabledPlugins' in body) {
     if (Array.isArray(body.disabledPlugins)) prefs.disabledPlugins = body.disabledPlugins.map(String);
   }
+  // Per-item topbar/sidebar placement overrides ({ [id]: 'topbar' | 'sidebar' }).
+  if ('itemPlacements' in body) {
+    const out = {};
+    const src = body.itemPlacements;
+    if (src && typeof src === 'object' && !Array.isArray(src)) {
+      for (const k of Object.keys(src)) {
+        const v = src[k];
+        if (v === 'topbar' || v === 'sidebar') out[String(k)] = v;
+      }
+    }
+    prefs.itemPlacements = out;
+  }
   // Home dashboard widget layout (opaque array of widget instances).
   if ('homeDashboard' in body) {
     prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];

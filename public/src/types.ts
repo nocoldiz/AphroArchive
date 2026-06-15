@@ -84,7 +84,12 @@ export interface AppPrefs {
   whisperModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'turbo';
   whisperLanguage?: string;
   autoChapterDetection?: boolean;
-  sidebarLayout?: 'default' | 'two-pane';
+  /**
+   * Per-item bar placement overrides. Maps a movable item id (nav item,
+   * plugin id, or the 'folders-filter' / 'tags-filter' blocks) to the bar it
+   * should render in. Absent keys fall back to the item's default location.
+   */
+  itemPlacements?: Record<string, 'topbar' | 'sidebar'>;
 }
 export interface ThumbnailGroup {
   id: string;

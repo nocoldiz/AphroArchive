@@ -1,21 +1,29 @@
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
-import { currentView, isMuted, profiles, activeProfile, loadProfiles, switchProfile, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed } from '../../store';
+import { FilterDropdowns } from './LibraryFilters';
+import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles } from '../../store';
 import { zapOn } from '../../zap';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
+import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu } from './navItems';
 import { useEffect } from 'preact/hooks';
 
 
 export const Topbar = () => {
   const view = currentView.value;
-  
+
   useEffect(() => {
     loadProfiles();
     loadPlugins();
   }, []);
 
   if (view === 'instagram' || view === 'reddit') return null;
+
+  // Nav items the user moved out of the sidebar; rendered as icons after search.
+  const movedNavItems = getNavItems().filter(it => placementFor(it.id, it.defaultLoc) === 'topbar');
+  const movedPlugins = pluginsList.value
+    .filter(p => pluginLocation(p) === 'topbar' && isPluginEnabled(p.id))
+    .filter(p => !p.contexts || p.contexts.includes(view));
 
   const showHome = () => {
     currentView.value = 'hub';
@@ -56,9 +64,47 @@ export const Topbar = () => {
         </svg>
         <span className="logo-text">AphroArchive</span>
       </div>
-      
+
+      <FilterDropdowns />
+
       <div className="search-w">
         <Search />
+      </div>
+
+      <div className="tb-moved">
+        {movedNavItems.map(item => (
+          <button
+            key={item.id}
+            id={item.id}
+            onClick={item.onClick}
+            onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, item.id, item.label, 'topbar'); }}
+            title={item.label}
+            class={item.isActive ? 'on' : ''}
+          >
+            {navIcon(item.paths, 15)}
+          </button>
+        ))}
+        {movedPlugins.map(p => {
+          const isActive = p.type === 'toggle' && p.toggleAction === 'toggleZapping'
+            ? zapOn.value
+            : p.type === 'view' && view === p.view;
+          return (
+            <button
+              key={p.id}
+              id={`plugin-${p.id}`}
+              onClick={() => runPluginAction(p, currentView)}
+              onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar'); }}
+              title={p.name}
+              class={isActive ? 'on' : ''}
+            >
+              {p.icon && (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  dangerouslySetInnerHTML={{ __html: p.icon }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {activeProfile.value === 'Vault' && isVaultUnlocked.value && (
@@ -112,48 +158,10 @@ export const Topbar = () => {
         <SyncManager />
         <DownloadManager />
 
-        {pluginsList.value
-          .filter(p => p.location === 'topbar' && isPluginEnabled(p.id))
-          .filter(p => !p.contexts || p.contexts.includes(view))
-          .map(p => {
-            const isActive = p.type === 'toggle' && p.toggleAction === 'toggleZapping'
-              ? zapOn.value
-              : p.type === 'view' && view === p.view;
-            return (
-              <button
-                key={p.id}
-                id={`plugin-${p.id}`}
-                onClick={() => runPluginAction(p, currentView)}
-                title={p.name}
-                class={isActive ? 'on' : ''}
-              >
-                {p.icon && (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                    dangerouslySetInnerHTML={{ __html: p.icon }}
-                  />
-                )}
-              </button>
-            );
-          })}
-
         <button id="panBtn" onClick={togglePan} title="Panoramic mode">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="3" width="18" height="18" rx="2" />
             <line x1="9" y1="3" x2="9" y2="21" />
-          </svg>
-        </button>
-
-        <button id="dlQueueBtn" onClick={() => currentView.value = 'download-queue'} title="Download Queue" class={view === 'download-queue' ? 'on' : ''}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-        </button>
-
-        <button id="assistantBtn" onClick={() => currentView.value = 'assistant'} title="Assistant" class={view === 'assistant' ? 'on' : ''}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </button>
 

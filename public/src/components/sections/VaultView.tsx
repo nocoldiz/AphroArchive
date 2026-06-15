@@ -99,6 +99,14 @@ export const VaultView = () => {
     setRenderLimit(100);
   }, [status.unlocked, isGlobal]);
 
+  // Expose the active vault folder + refresh fn so the Import modal / drop
+  // overlay can target the open folder and refresh the grid after uploads.
+  useEffect(() => {
+    (window as any).vaultCurFolder = curFolder;
+    (window as any).vaultFolders = folders;
+    (window as any).loadVaultFiles = loadVaultFiles;
+  });
+
   const photoFiles = useMemo(() => files.filter(f => VAULT_PHOTO_EXTS.has((f.ext || '').toLowerCase())), [files]);
 
   useEffect(() => {
