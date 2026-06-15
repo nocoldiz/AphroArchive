@@ -8,6 +8,8 @@ interface VideoItem {
   duration?: number;
   category?: string;
   fav?: boolean;
+  width?: number | null;
+  height?: number | null;
 }
 
 type Group = VideoItem[];
@@ -26,6 +28,20 @@ const fmtDur = (s: number) => {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 };
 
+function pickBest(group: VideoItem[]): string {
+  // Prefer highest resolution (w×h). Fall back to largest size, then fav, then named category.
+  const res = (v: VideoItem) => (v.width && v.height) ? v.width * v.height : 0;
+  return group.reduce((best, v) => {
+    const br = res(best), vr = res(v);
+    if (vr !== br) return vr > br ? v : best;
+    if (v.size !== best.size) return v.size > best.size ? v : best;
+    if (v.fav && !best.fav) return v;
+    const namedCat = (x: VideoItem) => x.category && x.category !== 'Uncategorized';
+    if (namedCat(v) && !namedCat(best)) return v;
+    return best;
+  }).id;
+}
+
 export const DuplicatesView = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +50,7 @@ export const DuplicatesView = () => {
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [keepingGroup, setKeepingGroup] = useState<number | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   const loadSizeBased = async () => {
@@ -112,6 +129,26 @@ export const DuplicatesView = () => {
     esRef.current?.close();
     setScanning(false);
     setScanProgress(null);
+  };
+
+  const handleKeepBest = async (group: VideoItem[], groupIdx: number) => {
+    const bestId = pickBest(group);
+    const best = group.find(v => v.id === bestId)!;
+    const toDelete = group.filter(v => v.id !== bestId);
+    const resLabel = (best.width && best.height) ? ` (${best.width}×${best.height})` : '';
+    if (!confirm(`Keep "${best.name}"${resLabel} and permanently delete the other ${toDelete.length} file${toDelete.length !== 1 ? 's' : ''}?`)) return;
+    setKeepingGroup(groupIdx);
+    const newDeleted = new Set(deleted);
+    for (const v of toDelete) {
+      try {
+        const r = await fetch(`/api/videos/${v.id}`, { method: 'DELETE' });
+        if (r.ok) newDeleted.add(v.id);
+      } catch {}
+    }
+    setDeleted(newDeleted);
+    setKeepingGroup(null);
+    const w = window as any;
+    if (w.toast) w.toast(`Kept best, deleted ${[...newDeleted].filter(id => toDelete.some(v => v.id === id)).length} duplicate${toDelete.length !== 1 ? 's' : ''}`);
   };
 
   const handleDelete = async (video: VideoItem) => {
@@ -222,7 +259,10 @@ export const DuplicatesView = () => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {visibleGroups.map((group, gi) => (
+          {visibleGroups.map((group, gi) => {
+            const bestId = pickBest(group);
+            const isKeeping = keepingGroup === gi;
+            return (
             <div key={gi} style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px', overflow: 'hidden' }}>
               <div style={{ padding: '10px 14px', background: 'var(--bg3)', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.8rem', color: 'var(--tx3)' }}>
                 <span style={{ fontWeight: 600, color: 'var(--tx)' }}>Group {gi + 1}</span>
@@ -230,9 +270,19 @@ export const DuplicatesView = () => {
                 <span>{group.length} files</span>
                 <span>·</span>
                 <span>{fmt(group[0].size)} each</span>
+                <button
+                  onClick={() => handleKeepBest(group, gi)}
+                  disabled={isKeeping}
+                  title="Keep highest-resolution file and delete the rest"
+                  style={{ marginLeft: 'auto', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '5px', padding: '4px 12px', cursor: isKeeping ? 'wait' : 'pointer', fontSize: '0.78rem', fontWeight: 600, opacity: isKeeping ? 0.6 : 1 }}
+                >
+                  {isKeeping ? 'Deleting…' : 'Keep Best & Delete Rest'}
+                </button>
               </div>
-              {group.map((video, vi) => (
-                <div key={video.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderBottom: vi < group.length - 1 ? '1px solid var(--brd)' : 'none' }}>
+              {group.map((video, vi) => {
+                const isBest = video.id === bestId;
+                return (
+                <div key={video.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderBottom: vi < group.length - 1 ? '1px solid var(--brd)' : 'none', background: isBest ? 'rgba(74,222,128,0.05)' : undefined }}>
                   <div style={{ width: '80px', height: '50px', flexShrink: 0, borderRadius: '4px', overflow: 'hidden', background: 'var(--bg3)' }}>
                     <img
                       src={`/api/thumbs/${video.id}/0`}
@@ -243,9 +293,13 @@ export const DuplicatesView = () => {
                     />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{video.name}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '2px', display: 'flex', gap: '10px' }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {video.name}
+                      {isBest && <span style={{ fontSize: '0.7rem', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.4)', borderRadius: '4px', padding: '1px 6px', flexShrink: 0 }}>★ keep</span>}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '2px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                       <span>{fmt(video.size)}</span>
+                      {video.width && video.height ? <span>{video.width}×{video.height}</span> : null}
                       {video.duration ? <span>{fmtDur(video.duration)}</span> : null}
                       {video.category ? <span>{video.category}</span> : null}
                       {video.fav && <span style={{ color: 'var(--ac)' }}>★ fav</span>}
@@ -259,19 +313,23 @@ export const DuplicatesView = () => {
                     >
                       ▶
                     </button>
-                    <button
-                      onClick={() => handleDelete(video)}
-                      disabled={deletingId === video.id}
-                      title="Delete this file"
-                      style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '0.78rem' }}
-                    >
-                      {deletingId === video.id ? '…' : 'Delete'}
-                    </button>
+                    {!isBest && (
+                      <button
+                        onClick={() => handleDelete(video)}
+                        disabled={deletingId === video.id}
+                        title="Delete this file"
+                        style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '0.78rem' }}
+                      >
+                        {deletingId === video.id ? '…' : 'Delete'}
+                      </button>
+                    )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

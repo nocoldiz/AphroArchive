@@ -4,7 +4,7 @@ const fs = require('fs');
 const { execFile } = require('child_process');
 const { THUMBS_DIR, FFMPEG_BIN } = require('./config-server');
 const { json } = require('./helpers-server');
-const { loadVisualHashes, setVisualHash, saveVisualHashes } = require('./db-server');
+const { loadVisualHashes, setVisualHash, saveVisualHashes, loadThumbsCache } = require('./db-server');
 const path = require('path');
 
 let _job = null;
@@ -118,7 +118,15 @@ function apiDuplicatesStatus(req, res) {
 }
 
 function apiDuplicatesResults(req, res) {
-  json(res, _job ? _job.groups : []);
+  if (!_job) return json(res, []);
+  const thumbs = loadThumbsCache();
+  const enriched = _job.groups.map(g =>
+    g.map(v => {
+      const th = thumbs[v.id] || {};
+      return { ...v, width: th.width || null, height: th.height || null };
+    })
+  );
+  json(res, enriched);
 }
 
 function apiDuplicatesStop(req, res) {

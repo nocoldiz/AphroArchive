@@ -1618,12 +1618,15 @@ async function apiOpenCategoryFolder(req, res) {
 }
 
 async function apiDuplicates(req, res) {
+  const db = require('./db-server');
   const videos = await allVideos();
   const favs   = loadFavs();
+  const thumbs = db.loadThumbsCache();
   const bySize = new Map();
   for (const v of videos) {
     if (!bySize.has(v.size)) bySize.set(v.size, []);
-    bySize.get(v.size).push({ ...v, fav: favs.includes(v.id) });
+    const th = thumbs[v.id] || {};
+    bySize.get(v.size).push({ ...v, fav: favs.includes(v.id), width: th.width || null, height: th.height || null });
   }
   const groups = [...bySize.values()]
     .filter(g => g.length > 1)

@@ -1,0 +1,9 @@
+{
+  "id": "assistant",
+  "name": "Assistant",
+  "description": "AI chat assistant with story generation, image prompts, and library search",
+  "location": "sidebar",
+  "type": "view",
+  "view": "assistant",
+  "enabledByDefault": true
+}

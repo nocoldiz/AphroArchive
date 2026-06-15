@@ -39,7 +39,7 @@ const RedditView = lazy(() => import('../sections/RedditView').then(m => ({ defa
 const InstagramView = lazy(() => import('../sections/InstagramView').then(m => ({ default: m.InstagramView })));
 const DatabaseView = lazy(() => import('../sections/DatabaseView').then(m => ({ default: m.DatabaseView })));
 const ActorScraperView = lazy(() => import('../sections/ActorScraperView').then(m => ({ default: m.ActorScraperView })));
-const AssistantView = lazy(() => import('../sections/AssistantView').then(m => ({ default: m.AssistantView })));
+const AssistantView = lazy(() => import('../../../../plugins/assistant/AssistantView').then(m => ({ default: m.AssistantView })));
 const CategorizerView = lazy(() => import('../sections/CategorizerView').then(m => ({ default: m.CategorizerView })));
 const PromptsView = lazy(() => import('../../../../plugins/prompts/PromptsView').then(m => ({ default: m.PromptsView })));
 const DuplicatesView = lazy(() => import('../sections/DuplicatesView').then(m => ({ default: m.DuplicatesView })));

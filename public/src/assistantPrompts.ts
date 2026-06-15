@@ -1,7 +1,5 @@
 // public/src/assistantPrompts.ts
-// Extracted from AssistantView.tsx (and related) per advanced prompt randomizer plan.
-// All hardcoded assistant system/jailbreak/story prompts centralized here for reuse + maintainability.
-// See plan.md for details. Imported by AssistantView (and potentially others).
+// Assistant system prompts, jailbreak methods, story genres, and model list.
 
 // Types (kept minimal; original used inline)
 export type Role = 'user' | 'assistant' | 'system';
@@ -29,8 +27,7 @@ export const MODELS = [
   { id: 'anthropic/claude-opus-4', name: 'Claude Opus 4' },
 ];
 
-// Hardcoded system prompts + jailbreak methods (ported + expanded from assistant.py + config "jailbreak")
-// These power the NSFW switch, story generators, and chat behavior in AssistantView.
+// System prompts + jailbreak methods — power the NSFW switch, story generators, and chat behavior.
 export const SYSTEM_PROMPTS: Record<string, string> = {
   default: `You are AphroArchive Assistant — an AI built into a personal local video library manager called AphroArchive. You help the user search and understand their library, suggest tags or metadata, write image prompts for the built-in image generator, and answer questions. Be direct and helpful. When asked to generate an image prompt, produce a detailed, vivid prompt suitable for Stable Diffusion.`,
 

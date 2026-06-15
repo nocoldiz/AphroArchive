@@ -38,7 +38,7 @@
 - [x] **Watch-time tracking** — Completion progress bar shown on card thumbnails via `home/progress.ts`.
 - [x] **Subtitle support** — `PlayerView` fetches `/api/subtitles/:id`; `AdvancedPlayer` renders `<track>` elements served from `/api/subtitle-file/:id/:filename`.
 - [x] **Export metadata** — `GET /api/db/:type/export` and `POST /api/db/:type/import-json` for actors, studios, categories, websites.
-- [ ] **Smart duplicate handling** — When duplicates are detected, offer to keep the highest-resolution file and move the others to trash rather than just flagging.
+- [x] **Smart duplicate handling** — Each group has a "Keep Best & Delete Rest" button; best = highest resolution (w×h), then largest size, then fav, then named category. `★ keep` badge shown on the chosen file; resolution shown in metadata row.
 - [x] **Search result count** — "X videos" count shown above the grid in `VideoGrid`.
 - [x] **Folder watch / auto-refresh** — `videos-server.js` broadcasts `scan_changed` SSE on cache invalidation; `store.ts` reconnects and calls `loadVideos()` with a 1.5 s debounce.
 - [x] **Multi-user support** — Full profiles system: each profile has its own SQLite DB; switching resets state without a page reload (`profiles-server.js`, `store.ts:switchProfile`).
