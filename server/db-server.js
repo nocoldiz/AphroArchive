@@ -223,6 +223,22 @@ function ensureSchema(database) {
       mtime INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS files_meta (
+      id TEXT PRIMARY KEY,
+      filename TEXT,
+      title TEXT,
+      ext TEXT,
+      size INTEGER,
+      size_f TEXT,
+      date INTEGER,
+      abs_path TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS file_virtual_folders (
+      file_id TEXT PRIMARY KEY,
+      folder TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS category_tags (
       category_name TEXT,
       tag TEXT,
@@ -1789,6 +1805,70 @@ function clearMediaIndex() {
   }
 }
 
+// ── Files meta ────────────────────────────────────────────────────────────
+
+function loadFilesMeta() {
+  try {
+    return db.prepare('SELECT * FROM files_meta ORDER BY date DESC').all().map(r => ({
+      id: r.id, filename: r.filename, title: r.title,
+      ext: r.ext, size: r.size, sizeF: r.size_f, date: r.date, absPath: r.abs_path,
+    }));
+  } catch { return []; }
+}
+
+function upsertFileMeta(item) {
+  try {
+    db.prepare(
+      'INSERT OR REPLACE INTO files_meta (id, filename, title, ext, size, size_f, date, abs_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(item.id, item.filename, item.title || item.filename, item.ext, item.size || 0, item.sizeF || '', item.date || Date.now(), item.absPath);
+  } catch (e) { console.error('Failed to upsert file meta:', e); }
+}
+
+function deleteFileMeta(id) {
+  try {
+    db.prepare('DELETE FROM files_meta WHERE id = ?').run(id);
+  } catch (e) { console.error('Failed to delete file meta:', e); }
+}
+
+// ── File virtual folders ─────────────────────────────────────────────────
+
+function loadFileVirtualFolders() {
+  try {
+    const rows = db.prepare('SELECT * FROM file_virtual_folders').all();
+    const map = {};
+    for (const r of rows) map[r.file_id] = r.folder;
+    return map;
+  } catch { return {}; }
+}
+
+function setFileVirtualFolder(fileId, folder) {
+  try {
+    if (!folder) {
+      db.prepare('DELETE FROM file_virtual_folders WHERE file_id = ?').run(fileId);
+    } else {
+      db.prepare('INSERT OR REPLACE INTO file_virtual_folders (file_id, folder) VALUES (?, ?)').run(fileId, folder);
+    }
+  } catch (e) { console.error('Failed to set file virtual folder:', e); }
+}
+
+function renameFileVirtualFolder(oldName, newName) {
+  try {
+    db.prepare('UPDATE file_virtual_folders SET folder = ? WHERE folder = ?').run(newName, oldName);
+  } catch (e) { console.error('Failed to rename file virtual folder:', e); }
+}
+
+function deleteFileVirtualFolder(name) {
+  try {
+    db.prepare('DELETE FROM file_virtual_folders WHERE folder = ?').run(name);
+  } catch (e) { console.error('Failed to delete file virtual folder:', e); }
+}
+
+function listFileVirtualFolderNames() {
+  try {
+    return db.prepare('SELECT DISTINCT folder FROM file_virtual_folders ORDER BY folder').all().map(r => r.folder);
+  } catch { return []; }
+}
+
 function loadAllVideoTags() {
   try {
     return db.prepare('SELECT DISTINCT tag FROM video_tags ORDER BY tag').all().map(r => r.tag);
@@ -1963,6 +2043,8 @@ module.exports = {
   readDbFile, writeDbFile,
   loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, getSingleVideoMeta,
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
+  loadFilesMeta, upsertFileMeta, deleteFileMeta,
+  loadFileVirtualFolders, setFileVirtualFolder, renameFileVirtualFolder, deleteFileVirtualFolder, listFileVirtualFolderNames,
   switchProfile, getCurrentProfile: () => currentProfile,
   isDbOnDisk: () => !_dbInMemory,
   closeDb: () => { if (db) { db.close(); db = null; } },

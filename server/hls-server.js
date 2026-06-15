@@ -43,13 +43,17 @@ async function apiHlsPlaylist(req, res, id) {
   const duration = await _getDuration(id, filePath);
   if (!duration) { res.writeHead(500); res.end('Could not determine video duration'); return; }
 
+  const qs = new URL(req.url, 'http://localhost').searchParams;
+  const audio = qs.get('audio');
+  const audioSuffix = audio ? `?audio=${encodeURIComponent(audio)}` : '';
+
   const segCount = Math.ceil(duration / SEG_DUR);
   let m3u8 = '#EXTM3U\n#EXT-X-VERSION:3\n';
   m3u8 += `#EXT-X-TARGETDURATION:${SEG_DUR}\n#EXT-X-MEDIA-SEQUENCE:0\n`;
   for (let i = 0; i < segCount; i++) {
     const segDur = i === segCount - 1 ? duration - i * SEG_DUR : SEG_DUR;
     m3u8 += `#EXTINF:${segDur.toFixed(3)},\n`;
-    m3u8 += `/api/hls/${encodeURIComponent(id)}/seg${String(i).padStart(5, '0')}.ts\n`;
+    m3u8 += `/api/hls/${encodeURIComponent(id)}/seg${String(i).padStart(5, '0')}.ts${audioSuffix}\n`;
   }
   m3u8 += '#EXT-X-ENDLIST\n';
 
@@ -70,10 +74,16 @@ function apiHlsSegment(req, res, id, seg) {
 
   const startTime = n * SEG_DUR;
 
+  const audioTrack = parseInt(new URL(req.url, 'http://localhost').searchParams.get('audio') || '0', 10);
+  const mapArgs = audioTrack > 0
+    ? ['-map', '0:v:0', '-map', `0:a:${audioTrack}`]
+    : [];
+
   const proc = spawn(FFMPEG_BIN, [
     '-ss', String(startTime),
     '-i', filePath,
     '-t', String(SEG_DUR),
+    ...mapArgs,
     '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-crf', '23',
     '-c:a', 'aac', '-b:a', '128k',
     '-movflags', 'frag_keyframe',

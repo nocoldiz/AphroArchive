@@ -93,9 +93,25 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const ccOnRef = useRef(false);
   const [usingHls, setUsingHls] = useState(false);
   const hlsInstanceRef = useRef<any>(null);
+  const [audioTracks, setAudioTracks] = useState<{ index: number; language: string; title: string; codec: string; channels: number }[]>([]);
+  const [selectedAudio, setSelectedAudio] = useState(0);
+
+  const activeHlsSrc = hlsSrc
+    ? (selectedAudio > 0 ? `${hlsSrc.split('?')[0]}?audio=${selectedAudio}` : hlsSrc)
+    : undefined;
 
   useEffect(() => {
-    if (!usingHls || !hlsSrc) return;
+    setAudioTracks([]);
+    setSelectedAudio(0);
+    if (!videoId) return;
+    fetch(`/api/audio-tracks/${videoId}`)
+      .then(r => r.json())
+      .then(d => { if (d.tracks && d.tracks.length > 1) setAudioTracks(d.tracks); })
+      .catch(() => {});
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!usingHls || !activeHlsSrc) return;
     const vid = videoRef.current;
     if (!vid) return;
 
@@ -104,7 +120,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       if (!Hls.isSupported()) { toast('HLS not supported in this browser'); setUsingHls(false); return; }
       const hls = new Hls({ enableWorker: false });
       hlsInstanceRef.current = hls;
-      hls.loadSource(hlsSrc);
+      hls.loadSource(activeHlsSrc);
       hls.attachMedia(vid);
       hls.on(Hls.Events.MANIFEST_PARSED, () => vid.play().catch(() => {}));
       hls.on(Hls.Events.ERROR, (_: any, data: any) => { if (data.fatal) toast('HLS error: ' + data.details); });
@@ -112,7 +128,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
 
     // Safari supports HLS natively — just point src directly
     if (vid.canPlayType('application/vnd.apple.mpegurl')) {
-      vid.src = hlsSrc;
+      vid.src = activeHlsSrc;
       vid.play().catch(() => {});
       return;
     }
@@ -122,7 +138,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     return () => {
       if (hlsInstanceRef.current) { hlsInstanceRef.current.destroy(); hlsInstanceRef.current = null; }
     };
-  }, [usingHls, hlsSrc]);
+  }, [usingHls, activeHlsSrc]);
   const onNextRef = useRef(onNext);
   const onPrevRef = useRef(onPrev);
   useEffect(() => { onNextRef.current = onNext; });
@@ -830,6 +846,26 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Audio track selector */}
+            {audioTracks.length > 1 && (
+              <select
+                value={selectedAudio}
+                title="Audio track"
+                onChange={(e: any) => {
+                  const n = parseInt(e.target.value, 10);
+                  setSelectedAudio(n);
+                  if (n > 0 && !usingHls) setUsingHls(true);
+                }}
+                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: selectedAudio > 0 ? '1px solid var(--ac, #ff4a4a)' : 'none', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', fontSize: '0.75rem' }}
+              >
+                {audioTracks.map(t => (
+                  <option key={t.index} value={t.index} style={{ background: '#222' }}>
+                    {t.title || t.language || `Track ${t.index + 1}`}
+                  </option>
+                ))}
+              </select>
             )}
 
             {/* Live Captions */}

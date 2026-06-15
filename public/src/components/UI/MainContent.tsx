@@ -13,6 +13,7 @@ import { PagesView } from '../sections/PagesView';
 import { SearchSitesView } from '../sections/SearchSitesView';
 import { AudioView } from '../sections/AudioView';
 import { BooksView } from '../sections/BooksView';
+import { FilesView } from '../sections/FilesView';
 import { CollectionsView } from '../sections/CollectionsView';
 import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
@@ -120,6 +121,7 @@ export const MainContent = () => {
     if (view === 'search') return <SearchSitesView />;
     if (view === 'audio') return <AudioView />;
     if (view === 'books') return <BooksView />;
+    if (view === 'files') return <FilesView />;
     if (view === 'vault') return <VaultView />;
     if (view === 'prompts') return <PromptsView />;
     if (view === 'player') return <PlayerView />;

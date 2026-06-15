@@ -69,11 +69,31 @@
 - [x] **Media Session API** — `AdvancedPlayer` sets `navigator.mediaSession` metadata (title, artwork) and play/pause/seek/next/prev handlers + playbackState.
 - [x] **Sidebar collapse to icon rail** — Topbar `.rail-toggle` collapses the sidebar to a 60px icon rail (`sidebarCollapsed` signal + `body.sidebar-rail` CSS); desktop-only.
 - [x] **Pinned folders & tags in sidebar** — Context-menu "Pin folder/tag to top"; pins render at the top of the Folders/Tags lists, persisted in prefs (`pinnedFolders`, `pinnedTags`).
+- [ ] **Loading skeleton cards** — While `loadVideos` is in flight, render animated placeholder cards matching the current card size instead of a blank grid.
+- [ ] **Scroll-to-top button** — Floating button appears after scrolling down >400px in the grid; smooth-scrolls back to top; hidden otherwise.
+- [ ] **Sticky sort/count header** — The "X videos · Sort" bar in `SectionControls` stays pinned below the topbar when the grid scrolls so the count is always visible.
+- [ ] **"New" badge on cards** — Small pill overlay on video cards added within the last 7 days, derived from the `date` field in the index; disappears on hover to show the thumbnail.
+- [ ] **Rating stars on card** — If a video has a rating set, show filled star icons as a small overlay at the bottom of the thumbnail (matches the detail-page rating display).
+- [ ] **Unplayed dot indicator** — Subtle coloured dot on cards not yet in watch history; disappears after first play; toggle in appearance prefs.
+- [ ] **Duration badge on thumbnail** — Small pill (e.g. `1:23:04`) in the bottom-right corner of every card thumbnail, sourced from `thumbs_cache` duration; styled consistently with streaming service conventions.
+- [ ] **Sidebar section collapse** — Folders, Tags, Actors, and Collections groups in the sidebar have a chevron toggle; collapsed state persisted per profile in `appPrefs`.
 
 ## Plugin System
 
 - [x] **Plugin `contexts` not enforced** — `PluginMeta` has a `contexts` field (e.g. `mosaic` sets `["browse","player","home"]`) but the Topbar never checks it against `currentView`; context-sensitive plugins always appear. Read `currentView` in the Topbar plugin loop and hide buttons when the view isn't in `contexts`.
 - [x] **Sidebar plugin location unimplemented** — The `PluginMeta` interface supports `location: 'sidebar'` but `Sidebar.tsx` does not render any plugins. Implement a plugin section in the sidebar for sidebar-located plugins.
+
+## Files View (`FilesView.tsx` / `server/files-server.js`)
+
+New untracked files — scope to be defined. Suggested features:
+
+- [ ] **Wire up route** — Add `/files` to `router.ts` `directViews` and import `FilesView` in `MainContent.tsx` so it is reachable.
+- [ ] **Directory tree browser** — Left-panel tree showing the VIDEOS_DIR folder hierarchy; click to expand/collapse; selected folder filters the right-panel file list.
+- [ ] **File list with metadata columns** — Right panel table: filename, size, modified date, duration, encrypted flag; sortable by any column.
+- [ ] **Bulk file operations** — Select multiple files → Move to folder, Delete, Encrypt/Decrypt, Add to vault; reuses `VideoSelBar` pattern.
+- [ ] **Inline rename** — Double-click a filename in the list to enter edit mode; commits on Enter/blur via `POST /api/rename/:id`.
+- [ ] **Drag files between folders** — Drag rows onto tree nodes to move files; calls `POST /api/move/:id`.
+- [ ] **File type filter bar** — Tabs or pills to show All / Videos / Audio / Books / Photos; filters the list by MIME category.
 
 ## Orphaned / Unreachable Views
 
@@ -115,6 +135,8 @@
 - [ ] **Boolean search syntax** — Support `actor:Jane tag:action -tag:short duration:>30m` query syntax in the search bar.
 - [ ] **Rating filter** — Slider or star buttons to show only videos with rating ≥ N stars.
 - [ ] **Fuzzy search** — Tolerate typos using SQLite FTS5 porter stemmer; surface near-matches alongside exact ones.
+- [ ] **Active filter chips** — Show applied filters (tag, actor, duration range, etc.) as removable chip pills above the grid; clicking × on a chip removes that filter.
+- [ ] **Sort persistence per folder** — Remember the last-used sort mode per category path, not just globally; restore it when navigating back to the same folder.
 
 ## Library Management
 
@@ -150,9 +172,12 @@
 - [x] **Live captions (CC)** — `AdvancedPlayer.tsx` uses the browser `SpeechRecognition` API to generate live captions from mic input; CC button toggles on/off with overlay display.
 - [x] **Player screenshot** — `takeScreenshot()` in `PlayerView.tsx` draws the current frame to canvas and `POST /api/screenshots/upload`; "Take Screenshot" button is visible in the action bar.
 - [x] **Chapter jump UI** — `PlayerView.tsx` renders a chapter list in the sidebar; `AdvancedPlayer` shows chapter markers on the seekbar; `jumpToChapter(time)` seeks and plays.
-- [ ] **Subtitle file management** — Upload `.srt`/`.vtt` files per video from the player; list loaded subtitles; switch between tracks or disable; stored as sidecars.
+- [ ] **Seekbar scrubber preview** — On hover over the seekbar, show the nearest stored thumbnail (from the 5 existing thumbs) in a small floating preview above the cursor, matching YouTube/Netflix behavior.
+- [ ] **Playerbar auto-hide** — Controls fade out after 3 s of inactivity; reappear on any mousemove/keypress/touch; always visible when paused or in the first 2 s.
+- [ ] **Animated chapter tick crossings** — Chapter markers on the seekbar briefly pulse when the playhead crosses them as a visual cue.
+- [x] **Subtitle file management** — Upload `.srt`/`.vtt` files per video from the player; list loaded subtitles; switch between tracks or disable; stored as sidecars.
 - [ ] **Subtitle auto-search** — Query OpenSubtitles by filename hash and offer matched files for one-click download and attachment.
-- [ ] **Audio track selection** — Switch between multiple audio tracks in multi-language MKV/MP4 files via a player toolbar dropdown.
+- [x] **Audio track selection** — Switch between multiple audio tracks in multi-language MKV/MP4 files via a player toolbar dropdown.
 - [ ] **Picture-in-Picture** — "PiP" button calls `videoEl.requestPictureInPicture()` so the player floats while browsing the library.
 - [ ] **Theater mode** — Dim everything outside the player; hide sidebar and topbar; toggle with keyboard shortcut T.
 - [ ] **Mini-player** — Compact sticky player bar that keeps playback going when navigating away from PlayerView; click to return to full player.
@@ -164,10 +189,7 @@
 
 - [x] **Smart autoplay queue** — `playerNextUp` signal auto-fills from `filteredVideos`; `onEnded` calls `onNext()`; `PlayerView` shows the Next Up sidebar list.
 - [x] **Playlist builder / drag reorder** — Next Up list in `PlayerView` supports drag-and-drop reordering and per-item remove; saving as a collection goes through `AddToCollectionModal`.
-- [ ] **"Play all from here"** — Right-click a video card → "Play all from here" enqueues everything after it in the current sorted view.
-- [ ] **Up-next overlay** — While the last 30s of a video plays, show a dismissible floating card previewing the next video with a cancel and "play now" button.
-- [ ] **Auto-play countdown** — After a video ends, 5-second countdown before the next one starts; Cancel button stops autoplay for the session.
-- [ ] **Shuffle queue** — When shuffle is on, maintain a pre-shuffled order per session so "next" and "back" are deterministic; re-roll only when shuffle is toggled.
+- [x] **Shuffle queue** — When shuffle is on, maintain a pre-shuffled order per session so "next" and "back" are deterministic; re-roll only when shuffle is toggled.
 
 ## Metadata & Scraping
 
@@ -208,11 +230,19 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 - [x] **Hero banner** — Cycling featured/recent spotlight with backdrop image and play button.
 - [x] **Mood / genre browser** — Tag/genre tiles; click to filter the grid (falls back to folders).
 - [x] **Recently watched** — Recently Watched widget (up to 20 history entries) with link to the `/recent` view.
+- [ ] **Library stats widget** — Card showing total video count, combined duration, total disk size, and watched % (history count ÷ total); all derived from the in-memory caches, no extra queries.
+- [ ] **Calendar heatmap widget** — GitHub-style contribution grid (52 weeks × 7 days) coloured by watch-history density per day; hover shows date + count; links to `/recent` filtered to that day.
+- [ ] **Top actors widget** — Horizontally scrollable row of the most-watched actors with photo (from `actors/photos/`) and watch count; click navigates to actor detail.
+- [ ] **Active downloads widget** — Live mini-list of running download jobs (title, progress bar, speed); powered by SSE from `/api/downloads/jobs`; collapses when queue is empty.
 
 ## Library Views & Layouts
 
 - [x] **List view** — Compact table layout with columns: thumbnail, title, duration, size, rating, date added. Toggle in SectionControls; persisted to localStorage.
 - [x] **Decade / year browser** — Group videos by year or decade via SectionControls dropdown; renders labelled sections with video counts; works in both grid and list modes.
+- [ ] **Filmstrip mode** — A single wide horizontal-scroll row of all current-filter videos (fixed card height ~180px); useful on ultrawide screens as a quick-scan layout alongside the detail panel.
+- [ ] **Folder mosaic cards** — A "Folders" landing page showing each top-level folder as a large card with a 4-thumbnail mosaic collage and video count; navigating into it opens the normal grid.
+- [ ] **Masonry / variable-height grid** — Option to render portrait-aspect thumbnails (e.g. poster art) taller than landscape ones using CSS `grid-row: span N`; enabled when Poster mode is active.
+- [ ] **Calendar view** — Monthly calendar grid where each day cell lists video thumbnails added or watched on that date; prev/next month navigation; toggle in SectionControls.
 
 ## Streaming & Network
 
@@ -241,6 +271,19 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 - [ ] **Custom sidebar sections** — Users can add a sidebar entry pointing to any category, tag, collection, or actor for one-click navigation; drag to reorder.
 - [ ] **Custom keyboard shortcuts** — Settings panel mapping actions (play, favourite, add-to-collection, open-player) to user-chosen key combos stored in prefs.
 - [ ] **Animated backgrounds** — Optional subtle animated gradient or particle effect on the home page; toggle in appearance settings.
+- [ ] **Card metadata density toggle** — Three presets (Title Only / Title + Duration / Full: title + duration + actors + tags) that control which metadata fields appear below the thumbnail; persisted in `appPrefs`.
+- [ ] **Card label position** — Toggle between title below the thumbnail vs. a gradient overlay at the bottom of the image; the overlay variant saves vertical space and looks cinematic.
+
+## Animations & Transitions
+
+- [ ] **View fade transition** — 150 ms `opacity` fade on `#main-root` when `currentView` changes; implemented as a CSS class toggled around the signal update.
+- [ ] **Grid card entrance animation** — Cards fade + translate-up with a short staggered delay (total ≤ 250 ms) on initial grid render or after a filter change; disabled when `prefers-reduced-motion` is set.
+- [ ] **Modal backdrop blur** — `backdrop-filter: blur(6px)` on modal overlays instead of a flat dim; consistent across `ContextMenu`, `TagModal`, `VaultUnlockModal`, and all other modals.
+- [ ] **Sidebar link hover underline slide** — CSS `transform: scaleX()` animated underline on sidebar nav items (starts from left on hover, retracts on leave).
+- [ ] **Topbar search expand animation** — Search bar smoothly expands to full width with a width transition when focused; collapses back on blur if empty.
+- [ ] **Toast slide-in** — Toasts slide in from the bottom-right with a spring ease; slide out on dismiss; currently appear instantly.
+- [ ] **Progress bar fill animation** — Watch-progress bars on card thumbnails animate to their stored value on mount instead of appearing at the final width instantly.
+- [ ] **Scroll-triggered section headers** — When grouped by year/decade, section header labels fade in as they enter the viewport (IntersectionObserver).
 
 ## Mobile & TV (10-Foot UI)
 

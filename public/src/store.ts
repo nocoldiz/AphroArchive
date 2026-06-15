@@ -14,6 +14,7 @@ export const appPrefs = signal<Partial<AppPrefs>>({});
 export const currentView = signal<string>('hub');
 export const currentVideo = signal<Video | null>(null);
 export const playerNextUp = signal<Video[]>([]);
+export const playerHistory = signal<Video[]>([]);
 export const skipNextUpUpdate = signal<boolean>(false);
 export const isSidebarOpen = signal<boolean>(false);
 // Desktop: collapse the sidebar to a narrow icon-only rail.

@@ -574,7 +574,7 @@ async function apiVaultSetup(req, res) {
     // silently wipes the vault while presenting a normal "wrong password"
     // response. Stored as an independent salt+hash; never reveals the real key.
     const cfg = { salt, verifyHash, useRandomSalt: !!body.useRandomSalt, iterations: PBKDF2_ITERATIONS_CURRENT };
-    const duressPw = (body.duressPassword || '').trim();
+    const duressPw = (body.selfDestructPassword || body.duressPassword || '').trim();
     if (duressPw && duressPw !== pw && duressPw.length >= 6) {
       const duressSalt = body.useRandomSalt ? crypto.randomBytes(32).toString('hex') : salt + ':duress';
       const { verifyHash: duressHash } = await deriveKeys(duressPw, duressSalt, PBKDF2_ITERATIONS_CURRENT);
@@ -815,7 +815,7 @@ async function apiVaultChangePassword(req, res) {
     // password (own salt+hash), so carry it across a password change unless
     // the caller supplies a new one.
     const newCfg = { salt: newSalt, verifyHash: newHash, useRandomSalt: !keepStatic, iterations: PBKDF2_ITERATIONS_CURRENT };
-    const newDuressPw = (body.duressPassword || '').trim();
+    const newDuressPw = (body.selfDestructPassword || body.duressPassword || '').trim();
     if (newDuressPw && newDuressPw !== newPw && newDuressPw.length >= 6) {
       const duressSalt = keepStatic ? newSalt + ':duress' : crypto.randomBytes(32).toString('hex');
       const { verifyHash: duressHash } = await deriveKeys(newDuressPw, duressSalt, PBKDF2_ITERATIONS_CURRENT);

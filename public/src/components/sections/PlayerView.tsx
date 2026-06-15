@@ -1,4 +1,4 @@
-﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, appPrefs } from '../../store';
+﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, appPrefs } from '../../store';
 import { zapOn, zapStartTime } from '../../zap';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
@@ -43,6 +43,7 @@ export const PlayerView = () => {
   const [language, setLanguage] = useState<string>('');
 
   const [note, setNote] = useState<string>('');
+  const [subtitleUploading, setSubtitleUploading] = useState(false);
   const [cardThumb, setCardThumb] = useState<number>(() => video ? getThumbPref(video.id) : 0);
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
@@ -185,6 +186,7 @@ export const PlayerView = () => {
           .slice(0, 10);
         playerNextUp.value = list;
       }
+      playerHistory.value = [];
     }
   }, [video]);
 
@@ -423,6 +425,45 @@ export const PlayerView = () => {
     }
   };
 
+  const reloadSubtitles = async () => {
+    if (!video) return;
+    const tracks = await fetch(`/api/subtitles/${video.id}`).then(r => r.json()).catch(() => []);
+    setSubtitles(tracks);
+  };
+
+  const uploadSubtitle = async (file: File) => {
+    if (!video) return;
+    setSubtitleUploading(true);
+    try {
+      const r = await fetch(`/api/subtitles/${video.id}/upload`, {
+        method: 'POST',
+        headers: { 'x-filename': file.name, 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      const d = await r.json();
+      if (d.ok) {
+        (window as any).toast?.(`Subtitle uploaded: ${d.filename}`);
+        await reloadSubtitles();
+      } else {
+        (window as any).toast?.('Upload failed: ' + (d.error || 'Unknown error'));
+      }
+    } catch {
+      (window as any).toast?.('Upload failed');
+    }
+    setSubtitleUploading(false);
+  };
+
+  const deleteSubtitle = async (filename: string) => {
+    if (!video) return;
+    const r = await fetch(`/api/subtitle-file/${video.id}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    if (r.ok) {
+      (window as any).toast?.('Subtitle removed');
+      await reloadSubtitles();
+    } else {
+      (window as any).toast?.('Delete failed');
+    }
+  };
+
   const saveNote = async () => {
     if (!video || video.isVault || video.isLink) return;
     await fetch(`/api/videos/${video.id}/meta`, {
@@ -549,10 +590,20 @@ export const PlayerView = () => {
                 startTime={zapStartTime.value}
                 onNext={() => {
                   if (playerNextUp.value.length > 0) {
+                    playerHistory.value = [...playerHistory.value, video];
                     currentVideo.value = playerNextUp.value[0];
                   }
                 }}
-                onPrev={() => {}}
+                onPrev={() => {
+                  const hist = playerHistory.value;
+                  if (hist.length > 0) {
+                    const prev = hist[hist.length - 1];
+                    playerHistory.value = hist.slice(0, -1);
+                    skipNextUpUpdate.value = true;
+                    playerNextUp.value = [video, ...playerNextUp.value];
+                    currentVideo.value = prev;
+                  }
+                }}
               />
             ) : (
               <AdvancedPlayer
@@ -570,10 +621,20 @@ export const PlayerView = () => {
                 startTime={zapStartTime.value}
                 onNext={() => {
                   if (playerNextUp.value.length > 0) {
+                    playerHistory.value = [...playerHistory.value, video];
                     currentVideo.value = playerNextUp.value[0];
                   }
                 }}
-                onPrev={() => {}}
+                onPrev={() => {
+                  const hist = playerHistory.value;
+                  if (hist.length > 0) {
+                    const prev = hist[hist.length - 1];
+                    playerHistory.value = hist.slice(0, -1);
+                    skipNextUpUpdate.value = true;
+                    playerNextUp.value = [video, ...playerNextUp.value];
+                    currentVideo.value = prev;
+                  }
+                }}
               />
             )}
           </div>
@@ -793,6 +854,37 @@ export const PlayerView = () => {
                 ))}
               </select>
             </div>
+
+            {!video.isLink && !video.isVault && (
+              <div className="player-subtitle-row" style={{ marginBottom: '15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: subtitles.filter(s => s.filename).length > 0 ? '6px' : '0' }}>
+                  <span style={{ color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Subtitles</span>
+                  <label style={{ cursor: subtitleUploading ? 'default' : 'pointer', opacity: subtitleUploading ? 0.5 : 1 }}>
+                    <input
+                      type="file"
+                      accept=".srt,.vtt,.ass,.ssa"
+                      style={{ display: 'none' }}
+                      disabled={subtitleUploading}
+                      onChange={(e: any) => { const f = e.target.files?.[0]; if (f) uploadSubtitle(f); e.target.value = ''; }}
+                    />
+                    <span style={{ fontSize: '0.78rem', color: 'var(--ac)', border: '1px solid var(--ac)', borderRadius: '4px', padding: '2px 8px', userSelect: 'none' }}>
+                      {subtitleUploading ? 'Uploading…' : '+ Upload'}
+                    </span>
+                  </label>
+                </div>
+                {subtitles.filter(s => s.filename).map(s => (
+                  <div key={s.filename} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 0' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>{s.label}</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>{s.filename}</span>
+                    <button
+                      onClick={() => deleteSubtitle(s.filename!)}
+                      title="Remove subtitle file"
+                      style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '0 2px', fontSize: '0.75rem', lineHeight: 1 }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="player-channel-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
               <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Channel</span>

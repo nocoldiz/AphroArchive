@@ -111,7 +111,7 @@ export const SettingsView = () => {
   const [oldPw, setOldPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [newPw2, setNewPw2] = useState('');
-  const [duressPw, setDuressPw] = useState('');
+  const [selfDestructPw, setSelfDestructPw] = useState('');
   const [vaultTimeout, setVaultTimeout] = useState(
     prefs.vaultTimeoutMinutes === undefined ? 5 : prefs.vaultTimeoutMinutes,
   );
@@ -346,15 +346,15 @@ export const SettingsView = () => {
     if (!oldPw || !newPw || !newPw2) { setError('All fields required'); return; }
     if (newPw !== newPw2) { setError('New passwords do not match'); return; }
     if (newPw.length < 6) { setError('New password must be at least 6 chars'); return; }
-    if (duressPw && (duressPw.length < 6 || duressPw === newPw)) { setError('Duress password must be 6+ chars and differ from the real one'); return; }
+    if (selfDestructPw && (selfDestructPw.length < 6 || selfDestructPw === newPw)) { setError('Self-destruct password must be 6+ chars and differ from the real one'); return; }
     setLoading(true);
     try {
       const body: Record<string, string> = { oldPw, newPw };
-      if (duressPw) body.duressPassword = duressPw;
+      if (selfDestructPw) body.selfDestructPassword = selfDestructPw;
       const r = await fetch('/api/vault/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json();
       if (!r.ok) { setError(d.error || 'Failed to change password'); }
-      else { if (window.toast) window.toast('Password changed successfully!'); setOldPw(''); setNewPw(''); setNewPw2(''); setDuressPw(''); }
+      else { if (window.toast) window.toast('Password changed successfully!'); setOldPw(''); setNewPw(''); setNewPw2(''); setSelfDestructPw(''); }
     } catch (e: any) { setError(e.message || 'Failed to change password'); } finally { setLoading(false); }
   };
 
@@ -964,7 +964,7 @@ export const SettingsView = () => {
                 <input type="password" placeholder="Old Password" value={oldPw} onInput={(e) => setOldPw((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '8px' }} />
                 <input type="password" placeholder="New Password" value={newPw} onInput={(e) => setNewPw((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '8px' }} />
                 <input type="password" placeholder="Confirm New Password" value={newPw2} onInput={(e) => setNewPw2((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '8px' }} />
-                <input type="password" placeholder="Duress / self-destruct password (optional)" value={duressPw} onInput={(e) => setDuressPw((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '6px' }} />
+                <input type="password" placeholder="Self-destruct password (optional)" value={selfDestructPw} onInput={(e) => setSelfDestructPw((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '6px' }} />
                 <p style={{ fontSize: '11px', color: 'var(--tx3)', margin: '0 0 12px' }}>If set, entering this password at the unlock screen silently wipes the entire vault while showing a normal "wrong password" message.</p>
                 {error && <div style={{ color: '#e84040', fontSize: '0.85rem', marginBottom: '8px' }}>{error}</div>}
                 <button class="modal-btn modal-btn--primary" onClick={handleChangePw} style={{ width: '100%' }} disabled={loading}>{loading ? 'Processing…' : 'Change Password'}</button>

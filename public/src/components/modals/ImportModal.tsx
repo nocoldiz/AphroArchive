@@ -3,7 +3,6 @@ import { importModalState, currentView, currentFolder, isVaultUnlocked, activePr
 
 type Tab = 'links' | 'folder';
 
-const VIDEO_EXTS = new Set(['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', 'm4v', 'ts', 'mts', 'm2ts', 'mpg', 'mpeg', 'vob', 'ogv', 'divx', 'xvid', 'rm', 'rmvb', 'asf', 'amv', 'f4v', '3gp', '3g2']);
 const VIDEO_VIEWS = new Set(['browse', 'home', 'player', 'mosaic']);
 
 export const ImportModal = () => {
@@ -65,10 +64,7 @@ export const ImportModal = () => {
 
   const handleFolderPick = (e: Event) => {
     const input = e.target as HTMLInputElement;
-    const files = Array.from(input.files || []).filter(f => {
-      const ext = f.name.split('.').pop()?.toLowerCase() || '';
-      return VIDEO_EXTS.has(ext);
-    });
+    const files = Array.from(input.files || []);
     setFolderFiles(files);
     setFolderProgress(null);
     // reset input so the same folder can be re-picked
@@ -101,7 +97,7 @@ export const ImportModal = () => {
     }
     setImporting(false);
     const w = window as any;
-    if (w.toast) w.toast(inVaultMode ? `Encrypted ${ok} file(s) to Vault` : `Imported ${ok} video(s) → ${destLabel}`);
+    if (w.toast) w.toast(inVaultMode ? `Encrypted ${ok} file(s) to Vault` : `Imported ${ok} file(s)`);
     if (!inVaultMode && w.refresh) w.refresh(true);
     close();
   };
@@ -207,9 +203,9 @@ export const ImportModal = () => {
           ) : (
             <>
               <div style={{ marginBottom: '14px', fontSize: '0.78rem', color: 'var(--tx3)' }}>
-                Videos will be imported to{' '}
+                Files will be sorted by type (video, audio, photo, book, etc). Videos go to{' '}
                 <strong style={{ color: 'var(--tx)' }}>{destLabel}</strong>
-                {!destCategory && <span> — navigate to a folder first to import there</span>}
+                {!destCategory && <span> — navigate to a folder first to import videos there</span>}
               </div>
 
               {/* Hidden folder input */}

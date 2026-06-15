@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const {
   VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
-  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN, FFPROBE_BIN
+  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN, FFPROBE_BIN, FILES_DIR
 } = require('./config-server');
 const { pipeline } = require('stream');
 const { promisify } = require('util');
@@ -31,6 +31,7 @@ const {
   loadLinksCache,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
+  upsertFileMeta,
   loadEnabledFolders,
   getVideoIndexEntry, getSingleVideoMeta,
 } = require('./db-server');
@@ -432,6 +433,7 @@ async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
             else if (BOOK_EXT.has(ext)) mediaType = 'book';
             // Photos from sourceFolders only — VIDEOS_DIR photos are already handled by the photos dynamic scan
             else if (IMAGE_EXT.has(ext) && isExternal) mediaType = 'photo';
+            else if (ext !== '.enc' && ext !== '.db' && ext !== '.log' && ext !== '.tmp') mediaType = 'file';
             if (mediaType) {
               try {
                 const st = await fs.promises.stat(fp);
@@ -2037,6 +2039,29 @@ async function apiChannelVideos(req, res, channelName) {
 
 const SUBTITLE_EXT = new Set(['.vtt', '.srt', '.ass', '.ssa', '.sub', '.smi']);
 
+function apiAudioTracks(req, res, id) {
+  const fp = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+  execFile(FFPROBE_BIN,
+    ['-v', 'quiet', '-print_format', 'json', '-show_streams', '-select_streams', 'a', fp],
+    { timeout: 8000 },
+    (err, out) => {
+      if (err) return json(res, { tracks: [] });
+      try {
+        const streams = JSON.parse(out).streams || [];
+        const tracks = streams.map((s, i) => ({
+          index: i,
+          language: (s.tags && s.tags.language) || '',
+          title: (s.tags && s.tags.title) || '',
+          codec: s.codec_name || '',
+          channels: s.channels || 0,
+        }));
+        json(res, { tracks });
+      } catch { json(res, { tracks: [] }); }
+    }
+  );
+}
+
 function apiSubtitles(req, res, id) {
   const fp = safePath(id);
   if (!fp) return json(res, []);
@@ -2095,6 +2120,54 @@ async function apiSaveSubtitles(req, res, id) {
   try {
     fs.writeFileSync(full, vtt);
     json(res, { ok: true, filename });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+async function apiUploadSubtitle(req, res, id) {
+  const fp = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+
+  const xFilename = (req.headers['x-filename'] || '').replace(/[/\\]/g, '');
+  const ext = path.extname(xFilename).toLowerCase();
+  if (!SUBTITLE_EXT.has(ext)) return json(res, { error: 'Unsupported subtitle format' }, 400);
+
+  const dir = path.dirname(fp);
+  const base = path.basename(fp, path.extname(fp));
+  // Derive label from uploaded filename (strip video base prefix if present)
+  const uploaded = path.basename(xFilename, ext);
+  const label = (uploaded.startsWith(base + '.') ? uploaded.slice(base.length + 1) : uploaded)
+    .replace(/[^a-zA-Z0-9._-]/g, '') || 'sub';
+  const saveName = `${base}.${label}${ext}`;
+  const savePath = path.join(dir, saveName);
+
+  const chunks = [];
+  req.on('data', c => chunks.push(c));
+  await new Promise(resolve => req.on('end', resolve));
+  try {
+    fs.writeFileSync(savePath, Buffer.concat(chunks));
+    json(res, { ok: true, filename: saveName });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+function apiDeleteSubtitleFile(req, res, id, filename) {
+  const fp = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+  const dir = path.dirname(fp);
+  const base = path.basename(fp, path.extname(fp));
+  const safeName = path.basename(filename);
+  const ext = path.extname(safeName).toLowerCase();
+  if (!SUBTITLE_EXT.has(ext)) return json(res, { error: 'Not a subtitle file' }, 400);
+  const nameNoExt = safeName.slice(0, -ext.length);
+  if (nameNoExt !== base && !nameNoExt.startsWith(base + '.')) {
+    return json(res, { error: 'Filename mismatch' }, 400);
+  }
+  try {
+    fs.unlinkSync(path.join(dir, safeName));
+    json(res, { ok: true });
   } catch (e) {
     json(res, { error: e.message }, 500);
   }
@@ -2169,7 +2242,7 @@ async function apiImport(req, res) {
   else if (AUDIO_EXT.has(ext)) { destDir = AUDIO_DIR;  kind = 'audio'; }
   else if (BOOK_EXT.has(ext))  { destDir = BOOKS_DIR;  kind = 'book';  }
   else if (IMAGE_EXT.has(ext)) { destDir = PHOTOS_DIR; kind = 'photo'; }
-  else return json(res, { error: 'Unsupported file type: ' + ext }, 400);
+  else { destDir = FILES_DIR; kind = 'file'; }
 
   if (kind === 'video' && !path.resolve(destDir).startsWith(path.resolve(writeRoot)))
     return json(res, { error: 'Invalid category' }, 400);
@@ -2208,6 +2281,9 @@ async function apiImport(req, res) {
     const meta = loadBooksMeta();
     meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), type: 'upload' };
     saveBooksMeta(meta);
+  } else if (kind === 'file') {
+    const absPath = path.join(FILES_DIR, outName);
+    upsertFileMeta({ id: toId(absPath), filename: outName, title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), absPath });
   }
   json(res, { ok: true, kind, name: outName, id: videoId });
 }
@@ -3305,7 +3381,8 @@ module.exports = {
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
   apiDbTags, apiDbTagVideos,
   apiChannels, apiChannelVideos,
-  apiSubtitles, apiSaveSubtitles, apiSubtitleFile, apiSubtitleEmbedded,
+  apiAudioTracks,
+  apiSubtitles, apiSaveSubtitles, apiSubtitleFile, apiSubtitleEmbedded, apiUploadSubtitle, apiDeleteSubtitleFile,
   apiImport,
   apiAddChapter, apiDeleteChapter,
   apiRenameFolder, apiDeleteFolder, apiHideFolder,

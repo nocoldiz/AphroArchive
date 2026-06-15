@@ -8,7 +8,7 @@ export const VaultUnlockModal = () => {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [duressPassword, setDuressPassword] = useState('');
+  const [selfDestructPassword, setSelfDestructPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<any>({});
@@ -68,8 +68,8 @@ export const VaultUnlockModal = () => {
       setError('Passwords do not match');
       return;
     }
-    if (duressPassword && (duressPassword.length < 6 || duressPassword === password)) {
-      setError('Duress password must be 6+ chars and differ from the real one');
+    if (selfDestructPassword && (selfDestructPassword.length < 6 || selfDestructPassword === password)) {
+      setError('Self-destruct password must be 6+ chars and differ from the real one');
       return;
     }
     setLoading(true);
@@ -77,7 +77,7 @@ export const VaultUnlockModal = () => {
       const res = await fetch('/api/vault/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, useRandomSalt: saltMode === 'random', ...(duressPassword ? { duressPassword } : {}) })
+        body: JSON.stringify({ password, useRandomSalt: saltMode === 'random', ...(selfDestructPassword ? { selfDestructPassword } : {}) })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -134,10 +134,10 @@ export const VaultUnlockModal = () => {
 
                 <input
                   type="password"
-                  value={duressPassword}
-                  onInput={(e: any) => setDuressPassword(e.target.value)}
+                  value={selfDestructPassword}
+                  onInput={(e: any) => setSelfDestructPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
-                  placeholder="Duress password (optional)"
+                  placeholder="Self-destruct password (optional)"
                   style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
                 />
                 <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', marginTop: '-4px' }}>
