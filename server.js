@@ -18,7 +18,7 @@ const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_
   BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
-const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites, getMediaCounts } = require('./server/db-server');
+const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites, getMediaCounts, loadVaultMeta } = require('./server/db-server');
 const { initVideoMeta } = require('./server/videos-server');
 const { getLocalIPs, getLocalIP } = require('./server/config-server');
 
@@ -55,6 +55,7 @@ const vaultZip = require('./server/vault-zip-server');
 const veracrypt = require('./server/veracrypt-server');
 const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
+const corrupted = require('./server/corrupted-server');
 const { startBackgroundWorker } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
 const assistant   = require('./server/assistant-server');
@@ -177,6 +178,18 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/duplicates/stop' && req.method === 'POST') return duplicates.apiDuplicatesStop(req, res);
   if (p === '/api/duplicates/status' && req.method === 'GET') return duplicates.apiDuplicatesStatus(req, res);
   if (p === '/api/duplicates/results' && req.method === 'GET') return duplicates.apiDuplicatesResults(req, res);
+  if (p === '/api/corrupted/scan' && req.method === 'POST') return corrupted.apiCorruptedScan(req, res, await videos.cachedScan());
+  if (p === '/api/corrupted/stop' && req.method === 'POST') return corrupted.apiCorruptedStop(req, res);
+  if (p === '/api/corrupted/status' && req.method === 'GET') return corrupted.apiCorruptedStatus(req, res);
+  if (p === '/api/corrupted/results' && req.method === 'GET') return corrupted.apiCorruptedResults(req, res);
+  if (p === '/api/corrupted/vault/scan' && req.method === 'POST') {
+    const key = vault.getVaultKey();
+    if (!key) return json(res, { error: 'Vault is locked' }, 401);
+    return corrupted.apiCorruptedVaultScan(req, res, key, loadVaultMeta());
+  }
+  if (p === '/api/corrupted/vault/stop' && req.method === 'POST') return corrupted.apiCorruptedVaultStop(req, res);
+  if (p === '/api/corrupted/vault/status' && req.method === 'GET') return corrupted.apiCorruptedVaultStatus(req, res);
+  if (p === '/api/corrupted/vault/results' && req.method === 'GET') return corrupted.apiCorruptedVaultResults(req, res);
   if (p === '/api/auto-sort' && req.method === 'POST') return videos.apiAutoSort(req, res);
   if (p === '/api/import' && req.method === 'POST') return videos.apiImport(req, res);
   if (p === '/api/folders/create' && req.method === 'POST') return videos.apiFolderCreate(req, res);
@@ -590,7 +603,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(thumbnails|links|duplicates|vault|recent|collections|scraper|settings|database|actors|channels|books|audio|photos|screenshots|pages|search|favourites|folders|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|folder\/|cat\/|actor\/|channel\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|links|duplicates|corrupted|vault|recent|collections|scraper|settings|database|actors|channels|books|audio|photos|screenshots|pages|search|favourites|folders|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|folder\/|cat\/|actor\/|channel\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
 });

@@ -82,6 +82,7 @@ export async function routeToPath(path: string) {
     '/assistant':      'assistant',
     '/categorizer':    'categorizer',
     '/duplicates':     'duplicates',
+    '/corrupted':      'corrupted',
     '/library-health': 'library-health',
     '/subtitles':      'subtitles',
     '/browse':         'browse',

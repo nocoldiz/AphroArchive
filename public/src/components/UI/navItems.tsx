@@ -6,7 +6,7 @@ import {
 } from '../../store';
 import type { PluginMeta } from '../../plugins';
 
-export type NavSection = 'library' | 'browse' | 'media' | 'tools';
+export type NavSection = 'library' | 'media' | 'tools';
 export type BarLocation = 'topbar' | 'sidebar';
 
 export interface NavItem {
@@ -100,45 +100,48 @@ export function getNavItems(): NavItem[] {
       paths: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>,
       onClick: () => setView('download-queue'), isActive: view === 'download-queue',
     },
-
-    // ── Browse ──────────────────────────────────────────────
     {
-      id: 'categories-view-sidebar', label: 'Folders', section: 'browse', defaultLoc: 'sidebar',
-      paths: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />,
-      onClick: () => setView('folders', 'showCategoriesView'), isActive: view === 'folders',
+      id: 'database-sidebar', label: 'Database', section: 'library', defaultLoc: 'sidebar',
+      paths: <><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></>,
+      onClick: () => setView('database', 'showDatabase'), isActive: view === 'database',
     },
     {
-      id: 'actor-sidebar', label: 'Actors', section: 'browse', defaultLoc: 'sidebar',
-      paths: <><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></>,
-      onClick: () => setView('actors', 'showActors'), isActive: view === 'actors',
-    },
-    {
-      id: 'channel-sidebar', label: 'Channels', section: 'browse', defaultLoc: 'sidebar',
-      paths: <><rect x="2" y="7" width="20" height="15" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></>,
-      onClick: () => setView('channels', 'showChannels'), isActive: view === 'channels',
-    },
-    {
-      id: 'chapters-sidebar', label: 'Chapters', section: 'browse', defaultLoc: 'sidebar',
-      paths: <><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>,
-      onClick: () => setView('chapters', 'showChaptersView'), isActive: view === 'chapters',
-    },
-    {
-      id: 'search-sites-sidebar', label: 'Search', section: 'browse', defaultLoc: 'sidebar',
-      paths: <><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></>,
-      onClick: () => setView('search', 'showSearchSites'), isActive: view === 'search',
-    },
-    {
-      id: 'import-favs-sidebar', label: 'Links', section: 'browse', defaultLoc: 'sidebar',
-      paths: <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
-      onClick: () => setView('links', 'showImportFavs'), isActive: view === 'links',
-      badge: linkCount > 0 ? linkCount : undefined,
+      id: 'settings-sidebar', label: 'Settings', section: 'library', defaultLoc: 'sidebar',
+      paths: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
+      onClick: () => setView('settings', 'showSettings'), isActive: view === 'settings',
     },
 
     // ── Media ───────────────────────────────────────────────
     {
+      id: 'categories-view-sidebar', label: 'Folders', section: 'media', defaultLoc: 'sidebar',
+      paths: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />,
+      onClick: () => setView('folders', 'showCategoriesView'), isActive: view === 'folders',
+    },
+    {
+      id: 'actor-sidebar', label: 'Actors', section: 'media', defaultLoc: 'sidebar',
+      paths: <><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></>,
+      onClick: () => setView('actors', 'showActors'), isActive: view === 'actors',
+    },
+    {
+      id: 'channel-sidebar', label: 'Channels', section: 'media', defaultLoc: 'sidebar',
+      paths: <><rect x="2" y="7" width="20" height="15" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></>,
+      onClick: () => setView('channels', 'showChannels'), isActive: view === 'channels',
+    },
+    {
+      id: 'chapters-sidebar', label: 'Chapters', section: 'media', defaultLoc: 'sidebar',
+      paths: <><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>,
+      onClick: () => setView('chapters', 'showChaptersView'), isActive: view === 'chapters',
+    },
+    {
+      id: 'import-favs-sidebar', label: 'Links', section: 'media', defaultLoc: 'sidebar',
+      paths: <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
+      onClick: () => setView('links', 'showImportFavs'), isActive: view === 'links',
+      badge: linkCount > 0 ? linkCount : undefined,
+    },
+    {
       id: 'videos-media-sidebar', label: 'Videos', section: 'media', defaultLoc: 'sidebar',
       paths: <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />,
-      onClick: () => setView('hub', 'goHome'), isActive: view === 'hub' && !currentFolder.value,
+      onClick: () => setView('browse'), isActive: view === 'browse',
       badge: vids.filter(v => !(v as any).isLink).length || undefined,
     },
     {
@@ -191,6 +194,16 @@ export function getNavItems(): NavItem[] {
 
     // ── Tools ───────────────────────────────────────────────
     {
+      id: 'search-sites-sidebar', label: 'Search', section: 'tools', defaultLoc: 'sidebar',
+      paths: <><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></>,
+      onClick: () => setView('search', 'showSearchSites'), isActive: view === 'search',
+    },
+    {
+      id: 'prompts-sidebar', label: 'AI Prompts', section: 'tools', defaultLoc: 'sidebar',
+      paths: <><path d="M12 2a10 10 0 1 0 10 10" /><path d="M12 8v4l3 3" /><path d="M18 2v4h4" /></>,
+      onClick: () => setView('prompts'), isActive: view === 'prompts',
+    },
+    {
       id: 'subtitles-sidebar', label: 'Subtitles', section: 'tools', defaultLoc: 'sidebar',
       paths: <><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M6 11h4" /><path d="M6 15h8" /><path d="M16 3l-4-2-4 2" /></>,
       onClick: () => setView('subtitles'), isActive: view === 'subtitles',
@@ -206,9 +219,9 @@ export function getNavItems(): NavItem[] {
       onClick: () => setView('duplicates'), isActive: view === 'duplicates',
     },
     {
-      id: 'database-sidebar', label: 'Database', section: 'tools', defaultLoc: 'sidebar',
-      paths: <><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></>,
-      onClick: () => setView('database', 'showDatabase'), isActive: view === 'database',
+      id: 'corrupted-sidebar', label: 'Corrupted', section: 'tools', defaultLoc: 'sidebar',
+      paths: <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>,
+      onClick: () => setView('corrupted'), isActive: view === 'corrupted',
     },
     {
       id: 'connect-sidebar', label: 'Connect', section: 'tools', defaultLoc: 'sidebar',
@@ -219,11 +232,6 @@ export function getNavItems(): NavItem[] {
       id: 'assistantBtn', label: 'Assistant', section: 'tools', defaultLoc: 'topbar',
       paths: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
       onClick: () => setView('assistant'), isActive: view === 'assistant',
-    },
-    {
-      id: 'settings-sidebar', label: 'Settings', section: 'tools', defaultLoc: 'sidebar',
-      paths: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
-      onClick: () => setView('settings', 'showSettings'), isActive: view === 'settings',
     },
   ];
 }

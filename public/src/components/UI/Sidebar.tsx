@@ -56,7 +56,6 @@ export const Sidebar = () => {
 
   const [libraryOpen, setLibraryOpen] = useState(() => sectionState('library'));
   const [manageOpen, setManageOpen] = useState(() => sectionState('manage'));
-  const [browseOpen, setBrowseOpen] = useState(() => sectionState('browse'));
   const [mediaOpen, setMediaOpen] = useState(() => sectionState('media'));
   const [tagsOpen, setTagsOpen] = useState(() => sectionState('tags'));
   const [catsOpen, setCatsOpen] = useState(() => sectionState('cats'));
@@ -65,7 +64,6 @@ export const Sidebar = () => {
 
   const toggleLibrary = makeToggle('library', setLibraryOpen);
   const toggleManage = makeToggle('manage', setManageOpen);
-  const toggleBrowse = makeToggle('browse', setBrowseOpen);
   const toggleMedia = makeToggle('media', setMediaOpen);
   const toggleTags = makeToggle('tags', setTagsOpen);
   const toggleCats = makeToggle('cats', setCatsOpen);
@@ -126,12 +124,10 @@ export const Sidebar = () => {
 
   const sectionsMeta: { key: NavSection, label: string, open: boolean, toggle: () => void, id: string }[] = [
     { key: 'library', label: 'Library', open: libraryOpen, toggle: toggleLibrary, id: 'sh3-library' },
-    { key: 'browse', label: 'Browse', open: browseOpen, toggle: toggleBrowse, id: 'sh3-browse' },
     { key: 'media', label: 'Media', open: mediaOpen, toggle: toggleMedia, id: 'sh3-media' },
     { key: 'tools', label: 'Tools', open: manageOpen, toggle: toggleManage, id: 'sh3-manage' },
   ];
 
-  const opacityStyle = { transition: 'opacity 0.25s ease', opacity: isLoadingVideos.value ? 0.4 : 1 } as const;
 
   const navContent = (
     <>
@@ -236,7 +232,7 @@ export const Sidebar = () => {
   return (
     <>
       {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
-      <div className="side-scroll" style={opacityStyle}>
+      <div className="side-scroll">
         {navContent}
         {filterContent}
       </div>

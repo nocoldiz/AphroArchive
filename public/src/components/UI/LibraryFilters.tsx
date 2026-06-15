@@ -96,8 +96,12 @@ export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
 
   const displayFolders = useMemo(() => folders.value
     .map(c => {
+      if (c.path === 'uncategorized') {
+        const count = filteredVids.filter((v: any) => !v.catPath || v.catPath === '').length;
+        return { ...c, count };
+      }
       let count = c.count || 0;
-      if (count === 0 && c.path !== 'uncategorized') {
+      if (count === 0) {
         count = filteredVids.filter(v => {
           const vp = ((v as any).catPath || '').toLowerCase();
           const cl = c.path.toLowerCase();

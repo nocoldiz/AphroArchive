@@ -533,7 +533,11 @@ export const PlayerView = () => {
   };
 
   const goBack = () => {
-    currentView.value = 'hub';
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      currentView.value = 'hub';
+    }
   };
 
   const series = playerSeries.value;

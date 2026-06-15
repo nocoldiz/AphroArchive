@@ -802,10 +802,6 @@ input {
 }
 
 .chapters-view {
-  display: none
-}
-
-.chapters-view.on {
   display: block
 }
 
