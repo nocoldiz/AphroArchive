@@ -1,0 +1,39 @@
+[
+  {
+    "name": "YouTube",
+    "url": "https://www.youtube.com",
+    "searchURL": "https://www.youtube.com/results?search_query={q}",
+    "scrapeMethod": "youtube",
+    "description": "Video sharing platform",
+    "tags": [
+      "video",
+      "gaming"
+    ],
+    "embed": ""
+  },
+  {
+    "name": "Twitch",
+    "url": "https://www.twitch.tv",
+    "searchURL": "https://www.twitch.tv/search?term={q}",
+    "scrapeMethod": "twitch",
+    "description": "Live streaming platform",
+    "tags": [
+      "live",
+      "streaming",
+      "gaming"
+    ],
+    "embed": ""
+  },
+  {
+    "name": "Speedrun.com",
+    "url": "https://www.speedrun.com",
+    "searchURL": "https://www.speedrun.com/search?q={q}",
+    "scrapeMethod": "speedrun",
+    "description": "Speedrun records database",
+    "tags": [
+      "speedrun",
+      "records"
+    ],
+    "embed": ""
+  }
+]

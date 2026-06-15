@@ -18,6 +18,7 @@
     "build:bulkdownloader:mac": "bash bulkdownloader/build.sh",
     "build:bulkdownloader:linux": "bash bulkdownloader/build.sh",
     "build:bulkdownloader:html": "node -e \"require('fs').copyFileSync('bulkdownloader/index.html','dist/bulkdownloader.html');console.log('dist/bulkdownloader.html written.')\"",
+    "build:extension": "powershell -NoProfile -Command \"if(!(Test-Path dist)){New-Item -ItemType Directory dist | Out-Null}; Remove-Item dist/AphroArchive-firefox.zip,dist/AphroArchive-firefox.xpi -ErrorAction SilentlyContinue; Compress-Archive -Path 'browser-extension/*' -DestinationPath 'dist/AphroArchive-firefox.zip' -Force; Move-Item dist/AphroArchive-firefox.zip dist/AphroArchive-firefox.xpi -Force; Write-Host 'dist/AphroArchive-firefox.xpi written.'\"",
     "build:wrapper": "npm run build:linux && npm run wrapper",
     "create-wrapper": "echo '#!/bin/bash\n# Creates an isolated network namespace to bypass proxy blocks\nbwrap --dev-bind / / --unshare-net --die-with-parent /bin/bash -c \"./AphroArchive & sleep 2 && x-www-browser http://127.0.0.1:3000\"' > dist/AphroArchive-Tails.sh && chmod +x dist/AphroArchive-Tails.sh",
     "electron:dev": "electron .",
@@ -43,7 +44,7 @@
   "pkg": {
     "assets": [
       "dist/public/**/*",
-      "db/profiles/**/*",
+      "presets/**/*",
       "db/wildcards/**/*"
     ],
     "targets": [

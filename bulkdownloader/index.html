@@ -231,7 +231,7 @@ async function startDownload() {
   startBtn.disabled = true;
 
   try {
-    const res = await fetch(server() + '/api/downloads/add', {
+    const res = await fetch(server() + '/api/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls, category: category || undefined }),
@@ -254,7 +254,7 @@ async function startDownload() {
 
 async function cancelAll() {
   try {
-    await fetch(server() + '/api/downloads/cancel-all', { method: 'POST' });
+    await fetch(server() + '/api/download/cancel-all', { method: 'POST' });
     log('Cancelled all running jobs.', 'inf');
     refreshJobs();
   } catch (e) {
@@ -269,7 +269,7 @@ function statusBadge(status) {
 
 async function refreshJobs() {
   try {
-    const res = await fetch(server() + '/api/downloads/jobs');
+    const res = await fetch(server() + '/api/download/jobs');
     if (!res.ok) return;
     const jobs = await res.json();
 
@@ -313,7 +313,7 @@ async function refreshJobs() {
 
 async function deleteJob(id) {
   try {
-    await fetch(server() + '/api/downloads/' + id, { method: 'DELETE' });
+    await fetch(server() + '/api/download/jobs/' + id, { method: 'DELETE' });
     refreshJobs();
   } catch {}
 }

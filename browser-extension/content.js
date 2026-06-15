@@ -16,8 +16,21 @@ const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'jfif'];
 const ICON_HINTS = [
   'icon', 'sprite', 'logo', 'avatar', 'spinner', 'favicon', 'emoji',
   'placeholder', 'blank', '1x1', 'pixel', 'transparent', 'badge', 'loader',
-  'button', 'arrow', 'flag-', 'star.', 'rating'
+  'button', 'arrow', 'flag-', 'star.', 'rating', 'profile_images'
 ];
+
+// Normalise some hosts to their full-resolution image URL.
+function normalizeImageUrl(url) {
+  try {
+    const u = new URL(url);
+    // X.com / Twitter: pbs.twimg.com/media/<id>?format=jpg&name=<size> → name=orig
+    if (u.hostname === 'pbs.twimg.com' && u.pathname.startsWith('/media/') && u.searchParams.get('format')) {
+      u.searchParams.set('name', 'orig');
+      return u.href;
+    }
+  } catch {}
+  return url;
+}
 
 function absUrl(raw) {
   try {
@@ -107,6 +120,7 @@ function collectPhotos() {
     url = absUrl(url);
     if (!isHttp(url)) return;
     if (looksDecorative(url)) return;
+    url = normalizeImageUrl(url);
     const prev = out.get(url);
     if (!prev) out.set(url, { url, w: w || 0, h: h || 0 });
     else { if (w > prev.w) prev.w = w; if (h > prev.h) prev.h = h; }
@@ -141,14 +155,34 @@ function collectPhotos() {
   return [...out.values()];
 }
 
+// What kind of resource is this tab? Used to offer "save to books / send this
+// video|photo to library" buttons for direct files opened in the browser.
+function pageKind() {
+  const ct = (document.contentType || '').toLowerCase();
+  if (ct.startsWith('video/')) return 'video';
+  if (ct.startsWith('image/')) return 'image';
+  if (ct.startsWith('audio/')) return 'audio';
+  if (ct && ct !== 'text/html' && ct !== 'application/xhtml+xml' &&
+      (ct.startsWith('text/') || ct === 'application/json' || ct === 'application/xml')) return 'text';
+  return 'html';
+}
+
 // ── reporting ────────────────────────────────────────────────────────
 let lastPayload = '';
 
 function report() {
   const videos = collectVideos();
   const photos = collectPhotos();
-  const payload = { type: 'CONTENT_MEDIA', page: location.href, videos, photos };
-  const sig = JSON.stringify([videos.map(v => v.url), photos.map(p => p.url)]);
+  const payload = {
+    type: 'CONTENT_MEDIA',
+    page: location.href,
+    title: guessTitle(),
+    contentType: (document.contentType || '').toLowerCase(),
+    kind: pageKind(),
+    videos,
+    photos
+  };
+  const sig = JSON.stringify([videos.map(v => v.url), photos.map(p => p.url), payload.kind]);
   if (sig === lastPayload) return; // nothing changed
   lastPayload = sig;
   try {
@@ -158,12 +192,28 @@ function report() {
   }
 }
 
-// Allow the popup/background to force a fresh scan.
+// Allow the popup/background to force a fresh scan, or grab the rendered HTML.
 browser.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.type === 'RESCAN') {
+  if (!msg) return;
+  if (msg.type === 'RESCAN') {
     lastPayload = '';
     report();
     return Promise.resolve(true);
+  }
+  if (msg.type === 'GET_PAGE_HTML') {
+    const doctype = document.doctype ? '<!DOCTYPE html>\n' : '';
+    return Promise.resolve({
+      html: doctype + document.documentElement.outerHTML,
+      title: guessTitle(),
+      url: location.href
+    });
+  }
+  if (msg.type === 'GET_PAGE_TEXT') {
+    return Promise.resolve({
+      text: (document.body && document.body.innerText) || '',
+      title: guessTitle(),
+      url: location.href
+    });
   }
 });
 

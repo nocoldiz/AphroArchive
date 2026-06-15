@@ -1,0 +1,14 @@
+{
+  "Nintendo": {
+    "website": "https://www.nintendo.com",
+    "short_description": "Japanese video game company"
+  },
+  "Valve": {
+    "website": "https://www.valvesoftware.com",
+    "short_description": "Creators of Steam and Half-Life"
+  },
+  "Rockstar": {
+    "website": "https://www.rockstargames.com",
+    "short_description": "Creators of GTA and Red Dead Redemption"
+  }
+}

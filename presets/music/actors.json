@@ -1,0 +1,26 @@
+{
+  "Taylor Swift": {
+    "artist_page": "https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02",
+    "date_of_birth": "December 13, 1989",
+    "nationality": "American",
+    "songs": "Blank Space, Shake It Off, Anti-Hero, Cruel Summer, Love Story, All Too Well"
+  },
+  "The Weeknd": {
+    "artist_page": "https://open.spotify.com/artist/1Xyo4u8uXC1ZmMpatF05PJ",
+    "date_of_birth": "February 16, 1990",
+    "nationality": "Canadian",
+    "songs": "Blinding Lights, Starboy, Save Your Tears, The Hills, Can't Feel My Face"
+  },
+  "Adele": {
+    "artist_page": "https://open.spotify.com/artist/4dpARuHxo51G3z768sgnrY",
+    "date_of_birth": "May 5, 1988",
+    "nationality": "British",
+    "songs": "Rolling in the Deep, Someone Like You, Hello, Easy On Me, Set Fire to the Rain"
+  },
+  "Kendrick Lamar": {
+    "artist_page": "https://open.spotify.com/artist/2YZyLoL8N0Wb9xBt1NhZWg",
+    "date_of_birth": "June 17, 1987",
+    "nationality": "American",
+    "songs": "HUMBLE., Alright, DNA., Swimming Pools (Drank), Not Like Us, King Kunta"
+  }
+}

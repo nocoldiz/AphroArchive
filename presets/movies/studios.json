@@ -1,0 +1,26 @@
+{
+  "Warner Bros": {
+    "website": "https://www.wbd.com/",
+    "short_description": "A leading global media and entertainment company that creates and distributes a vast portfolio of content across film, television, and streaming, featuring iconic brands like DC, HBO, and Harry Potter."
+  },
+  "Walt Disney Studios": {
+    "website": "https://www.disneystudios.com/",
+    "short_description": "The foundation of The Walt Disney Company, encompassing major film labels including Disney, Pixar, Marvel Studios, Lucasfilm, 20th Century Studios, and Searchlight Pictures."
+  },
+  "Universal Pictures": {
+    "website": "https://www.universalpictures.com/",
+    "short_description": "A subsidiary of NBCUniversal that has redefined popular culture for over a century with legendary franchises such as Jurassic World, Fast & Furious, and its iconic Universal Monsters."
+  },
+  "Paramount Pictures": {
+    "website": "https://www.paramount.com/brands/paramount-pictures",
+    "short_description": "A legendary producer and global distributor of filmed entertainment since 1912, known for classic cinema and major modern hits like Mission: Impossible and Top Gun."
+  },
+  "Sony Pictures": {
+    "website": "https://www.sonypictures.com/",
+    "short_description": "A division of Sony Group Corporation encompassing motion picture production, acquisition, and distribution, featuring labels like Columbia Pictures, TriStar, and Sony Pictures Animation."
+  },
+  "A24": {
+    "website": "https://a24films.com/",
+    "short_description": "An independent entertainment company specializing in film and television production and distribution, widely acclaimed for its modern arthouse and cult hits like Moonlight and Everything Everywhere All at Once."
+  }
+}

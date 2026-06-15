@@ -202,7 +202,7 @@ echo.
 :: ============================================================
 echo [firefox] Packaging Firefox extension...
 if exist dist\AphroArchive-firefox.xpi del dist\AphroArchive-firefox.xpi
-powershell -NoProfile -Command "Compress-Archive -Path 'firefox-extension\*' -DestinationPath 'dist\AphroArchive-firefox.xpi' -Force"
+powershell -NoProfile -Command "Compress-Archive -Path 'browser-extension\*' -DestinationPath 'dist\AphroArchive-firefox.zip' -Force; Move-Item dist\AphroArchive-firefox.zip dist\AphroArchive-firefox.xpi -Force"
 if errorlevel 1 ( echo  WARN: Firefox extension packaging failed ) else ( echo  done: dist\AphroArchive-firefox.xpi )
 echo.
 

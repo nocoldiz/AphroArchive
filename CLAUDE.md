@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+
+Never create commits or use github oother than viewing past commits. never suggest creating commits
+
 ## What This Is
 
 AphroArchive is a **local video organizer** — a Node.js HTTP server. The frontend is in transition from a vanilla JS single-page app to a Preact with TSX application. It runs on Node.js and optionally packages to a standalone `.exe` via `@yao-pkg/pkg`.

@@ -1,48 +1,53 @@
-﻿videos
+# ── Dependencies ─────────────────────────────
+node_modules/
+
+# ── Python ───────────────────────────────────
 __pycache__/
 *.pyc
-books
+
+# ── Media / user data ────────────────────────
+videos
 audio
+books
 photos
-cache/
 pages
-node_modules/
-db/wildcards
-db/actors.json
-db/categories.json
-dist/
-dist
-bulkdownloader/links_downloaded.txt
-bulkdownloader/links_to_download.txt
-build/
-android-app
-android-app/www/assets/*
-dist/public/assets/
-video_downloads/
-db/websites.json
-db/studios.json
-dist/public
-android-app/www/*
-android-app/www/index.html
-!dist/public
-.AphroArchive-thumbs
-public/dist/assets/*
-.AphroArchive-actor-photos
+models
 settings
-links_cache.json
 process
+video_downloads/
+.AphroArchive-thumbs
+.AphroArchive-actor-photos
+
+# ── Caches ───────────────────────────────────
+cache/
+links_cache.json
+paths.json
 .aider.tags.cache.v4/cache.db
 .aider.tags.cache.v4/cache.db-shm
 .aider.tags.cache.v4/cache.db-wal
-yt-dlp.exe
-models
+
+# ── Databases (whole db/ folder; presets/ lives in root and is tracked) ──
+db/
 *.db
 *.db-shm
 *.db-wal
-db/*.db
-db/*.db-shm
-db/*.db-wal
-db/last-profile.txt
+
+# ── Build output ─────────────────────────────
+build/
+dist/
+dist/public/assets/
+public/dist/assets/*
+!dist/public
+
+# ── Android app ──────────────────────────────
+android-app
+android-app/www/assets/*
+android-app/www/*
 android-app/www/index.html
-android-app/www/index.html
-db/last-profile.txt
+
+# ── Bulk downloader ──────────────────────────
+bulkdownloader/links_downloaded.txt
+bulkdownloader/links_to_download.txt
+
+# ── Binaries ─────────────────────────────────
+yt-dlp.exe

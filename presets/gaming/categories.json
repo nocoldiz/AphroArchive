@@ -1,0 +1,18 @@
+{
+  "Let's Play": {
+    "displayName": "Let's Play",
+    "tags": ["gameplay", "playthrough"]
+  },
+  "Speedruns": {
+    "displayName": "Speedruns",
+    "tags": ["speedrun", "fast"]
+  },
+  "Walkthroughs": {
+    "displayName": "Walkthroughs",
+    "tags": ["guide", "tutorial"]
+  },
+  "Reviews": {
+    "displayName": "Reviews",
+    "tags": ["review", "critique"]
+  }
+}

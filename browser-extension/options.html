@@ -15,14 +15,22 @@
   </style>
 </head>
 <body>
-  <h1>Link Scraper Settings</h1>
+  <h1>AphroArchive Downloader Settings</h1>
+
+  <label for="serverUrl">AphroArchive server URL</label>
+  <input type="text" id="serverUrl" placeholder="http://localhost:3000">
+  <div class="hint">Where the AphroArchive app is running. Used to queue downloads, pick categories, send links and send photos to your gallery. Server features stay hidden until this is reachable.</div>
+
+  <label for="minPhotoSize">Minimum photo size (px)</label>
+  <input type="text" id="minPhotoSize" placeholder="150">
+  <div class="hint">Images smaller than this on either side are treated as icons/decorations and hidden. Images of unknown size (lazy-loaded / CSS backgrounds) are always kept.</div>
 
   <div class="row">
     <input type="checkbox" id="includeSubdomains">
     <label for="includeSubdomains">Treat subdomains as internal (e.g. cdn.example.com counts as part of example.com)</label>
   </div>
 
-  <label for="defaultFilter">Default filter regex</label>
+  <label for="defaultFilter">Default link filter regex</label>
   <input type="text" id="defaultFilter" placeholder="e.g. watch|episode|video|\.(mp4|m3u8)">
   <div class="hint">Pre-fills the popup's filter box. Applied to copied/exported links and the displayed list. Leave blank to show everything.</div>
 

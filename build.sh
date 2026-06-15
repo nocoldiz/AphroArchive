@@ -200,7 +200,7 @@ echo
 # ============================================================
 echo "[firefox] Packaging Firefox extension..."
 rm -f dist/AphroArchive-firefox.xpi
-(cd firefox-extension && zip -r ../dist/AphroArchive-firefox.xpi .)
+(cd browser-extension && zip -r ../dist/AphroArchive-firefox.xpi .)
 echo " done: dist/AphroArchive-firefox.xpi"
 echo
 

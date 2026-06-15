@@ -1,121 +1,450 @@
 'use strict';
 
-const listEl = document.getElementById('links');
-const countEl = document.getElementById('count');
-const modeRadios = document.querySelectorAll('input[name="mode"]');
-const scrapeBtn = document.getElementById('scrapeBtn');
-const copyBtn = document.getElementById('copyBtn');
-const exportBtn = document.getElementById('exportBtn');
-const clearBtn = document.getElementById('clearBtn');
-const filterInput = document.getElementById('filter');
-const optionsLink = document.getElementById('optionsLink');
+const $ = (id) => document.getElementById(id);
+const send = (msg) => browser.runtime.sendMessage(msg);
 
-function buildFilterRegex() {
-  const pattern = filterInput.value.trim();
-  if (!pattern) return null;
+const serverDot = $('serverDot');
+const serverUrlInput = $('serverUrl');
+const serverHint = $('serverHint');
+const statusEl = $('status');
+
+let online = false;
+let settings = { minPhotoSize: 150, serverUrl: 'http://localhost:3000', defaultFilter: '' };
+let detected = { videos: [], photos: [], page: '', title: '', kind: 'html', contentType: '' };
+let photoState = []; // [{ url, w, h, selected }]
+let activeTab = null; // { id, url, title }
+
+const setStatus = (text) => { statusEl.textContent = text || ''; };
+const IMG_EXT_RE = /\.(jpe?g|png|gif|webp|avif|bmp|jfif)(?:$|\?)/i;
+
+// ── server connection ────────────────────────────────────────────────
+async function refreshServer() {
+  Aphro.setBase(serverUrlInput.value);
   try {
-    return new RegExp(pattern, 'i');
+    const info = await Aphro.checkServer();
+    online = true;
+    document.body.classList.remove('offline');
+    serverDot.className = 'dot ok';
+    serverHint.textContent = info.available
+      ? `Connected · yt-dlp ${info.version || 'ready'} · saves to videos/downloads`
+      : 'Connected · yt-dlp NOT found on server';
   } catch {
-    return null;
+    online = false;
+    document.body.classList.add('offline');
+    serverDot.className = 'dot err';
+    serverHint.textContent = 'AphroArchive not reachable — server features hidden.';
+  }
+  renderVideos();
+}
+
+// ── detection ────────────────────────────────────────────────────────
+async function loadDetected() {
+  detected = await send({ type: 'GET_DETECTED' }) || { videos: [], photos: [], page: '', title: '', kind: 'html' };
+  renderVideos();
+  renderPhotos();
+  renderPageActions();
+}
+
+function renderVideos() {
+  const list = $('videos');
+  list.innerHTML = '';
+  const vids = detected.videos || [];
+  $('vidCount').textContent = vids.length;
+  if (!vids.length) {
+    list.innerHTML = '<li class="empty">No videos detected on this page.</li>';
+    return;
+  }
+  for (const v of vids) {
+    const li = document.createElement('li');
+
+    const main = document.createElement('div');
+    main.className = 'media-main';
+    const title = document.createElement('div');
+    title.className = 'media-title';
+    title.textContent = v.title || v.url.split('/').pop() || v.url;
+    const sub = document.createElement('div');
+    sub.className = 'media-sub';
+    sub.textContent = v.url;
+    main.appendChild(title);
+    main.appendChild(sub);
+    li.appendChild(main);
+
+    if (v.stream) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'HLS'; li.appendChild(t); }
+    if (v.sniffed) { const t = document.createElement('span'); t.className = 'tag sniff'; t.textContent = 'net'; li.appendChild(t); }
+
+    const btn = document.createElement('button');
+    btn.textContent = '⬇';
+    // A stream can only be fetched by the server (yt-dlp); the browser can't
+    // save an .m3u8 playlist as a file.
+    if (v.stream && !online) { btn.disabled = true; btn.title = 'HLS needs AphroArchive running'; }
+    btn.addEventListener('click', () => downloadVideo(v));
+    li.appendChild(btn);
+
+    list.appendChild(li);
   }
 }
 
-async function getFilteredUrls() {
-  const links = await browser.runtime.sendMessage({ type: 'GET_LINKS' });
-  const re = buildFilterRegex();
-  return Object.values(links)
-    .filter((l) => !re || re.test(l.url))
-    .sort((a, b) => b.ts - a.ts);
+async function downloadVideo(v) {
+  if (online) {
+    try {
+      await Aphro.addDownloads([v.url]);
+      setStatus('Queued on AphroArchive (videos/downloads).');
+      loadJobs();
+    } catch (e) { setStatus('Error: ' + e.message); }
+  } else {
+    try {
+      await browser.downloads.download({ url: v.url });
+      setStatus('Download started.');
+    } catch (e) { setStatus('Error: ' + e.message); }
+  }
 }
 
-async function refresh() {
-  const filtered = await getFilteredUrls();
-  countEl.textContent = filtered.length;
+$('sendVideosBtn').addEventListener('click', async () => {
+  const urls = (detected.videos || []).map(v => v.url);
+  if (!urls.length) return;
+  try {
+    const r = await Aphro.addDownloads(urls);
+    setStatus(`Queued ${r.ids ? r.ids.length : urls.length} video(s).`);
+    loadJobs();
+  } catch (e) { setStatus('Error: ' + e.message); }
+});
 
+// ── this-page actions (server only) ──────────────────────────────────
+function renderPageActions() {
+  const kind = detected.kind || 'html';
+  $('pageKindBadge').textContent = kind;
+  $('saveBookBtn').classList.toggle('hidden', kind !== 'text');
+  $('sendThisVideoBtn').classList.toggle('hidden', kind !== 'video');
+  $('sendThisPhotoBtn').classList.toggle('hidden', kind !== 'image');
+  // Saving rendered HTML only makes sense for real pages.
+  $('savePageBtn').classList.toggle('hidden', kind !== 'html');
+}
+
+const pageUrl = () => detected.page || (activeTab && activeTab.url) || '';
+const pageTitle = () => detected.title || (activeTab && activeTab.title) || 'page';
+
+function safeName(name, fallbackExt) {
+  let n = (name || '').trim().replace(/[^a-zA-Z0-9._\- ]/g, '_').slice(0, 100) || 'untitled';
+  if (fallbackExt && !/\.[a-z0-9]{1,5}$/i.test(n)) n += fallbackExt;
+  return n;
+}
+
+$('addSiteBtn').addEventListener('click', async () => {
+  const url = pageUrl();
+  if (!url) return setStatus('No page URL.');
+  let origin = url, host = url;
+  try { const u = new URL(url); origin = u.origin; host = u.hostname; } catch {}
+  try {
+    await Aphro.addWebsite(pageTitle() || host, origin);
+    setStatus(`Added "${host}" to websites DB.`);
+  } catch (e) { setStatus('Error: ' + e.message); }
+});
+
+$('savePageBtn').addEventListener('click', async () => {
+  if (!activeTab) return;
+  try {
+    const r = await browser.tabs.sendMessage(activeTab.id, { type: 'GET_PAGE_HTML' });
+    if (!r || !r.html) throw new Error('Could not read page HTML.');
+    await Aphro.savePage(safeName(r.title || pageTitle(), '.html'), r.html);
+    setStatus('Saved page to Pages.');
+  } catch (e) { setStatus('Error: ' + e.message); }
+});
+
+$('saveBookBtn').addEventListener('click', async () => {
+  const url = pageUrl();
+  try {
+    const blob = await (await fetch(url)).blob();
+    let name = safeName(decodeURIComponent(url.split('/').pop().split('?')[0]) || pageTitle(), '.txt');
+    if (!/\.(pdf|txt|doc|docx|md|epub|cbz)$/i.test(name)) name = name.replace(/\.[^.]+$/, '') + '.txt';
+    await Aphro.saveBook(name, blob);
+    setStatus(`Saved "${name}" to Books.`);
+  } catch (e) { setStatus('Error: ' + e.message); }
+});
+
+$('sendThisVideoBtn').addEventListener('click', async () => {
+  const url = pageUrl();
+  try {
+    await Aphro.addDownloads([url]);
+    setStatus('Sent video to library (videos/downloads).');
+    loadJobs();
+  } catch (e) { setStatus('Error: ' + e.message); }
+});
+
+$('sendThisPhotoBtn').addEventListener('click', async () => {
+  const url = pageUrl();
+  try {
+    const blob = await (await fetch(url)).blob();
+    await Aphro.uploadPhoto(blob, photoFilename(url, 0));
+    setStatus('Sent photo to gallery.');
+  } catch (e) { setStatus('Error: ' + e.message); }
+});
+
+$('rescanBtn').addEventListener('click', async () => {
+  await send({ type: 'RESCAN_ACTIVE' });
+  setTimeout(loadDetected, 600);
+});
+
+// ── photos ───────────────────────────────────────────────────────────
+function renderPhotos() {
+  const min = settings.minPhotoSize || 0;
+  const all = detected.photos || [];
+  // Keep images that are either big enough, or of unknown size (lazy/bg).
+  const kept = all.filter(p => (p.w === 0 && p.h === 0) || (p.w >= min || p.h >= min));
+  photoState = kept.map(p => ({ ...p, selected: true }));
+
+  $('photoCount').textContent = photoState.length;
+  $('photoNote').textContent = min ? `min ${min}px · ${all.length - kept.length} skipped` : '';
+
+  const grid = $('photos');
+  grid.innerHTML = '';
+  if (!photoState.length) {
+    grid.innerHTML = '<div class="empty">No photos detected.</div>';
+    return;
+  }
+  photoState.forEach((p) => {
+    const cell = document.createElement('div');
+    cell.className = 'photo-cell';
+    cell.title = p.url + (p.w ? ` (${p.w}×${p.h})` : '');
+
+    const img = document.createElement('img');
+    img.src = p.url;
+    img.loading = 'lazy';
+    cell.appendChild(img);
+
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = true;
+    chk.addEventListener('change', () => { p.selected = chk.checked; cell.classList.toggle('off', !chk.checked); });
+    cell.appendChild(chk);
+
+    cell.addEventListener('click', (e) => {
+      if (e.target === chk) return;
+      chk.checked = !chk.checked;
+      p.selected = chk.checked;
+      cell.classList.toggle('off', !chk.checked);
+    });
+
+    grid.appendChild(cell);
+  });
+}
+
+$('photoSelectAll').addEventListener('change', (e) => {
+  const on = e.target.checked;
+  photoState.forEach(p => p.selected = on);
+  for (const cell of $('photos').children) {
+    const chk = cell.querySelector('input');
+    if (chk) { chk.checked = on; cell.classList.toggle('off', !on); }
+  }
+});
+
+const selectedPhotos = () => photoState.filter(p => p.selected);
+
+function photoFilename(url, idx) {
+  let name = '';
+  try { name = decodeURIComponent(new URL(url).pathname.split('/').pop() || ''); } catch {}
+  if (!name || !IMG_EXT_RE.test(name)) name = `image-${idx + 1}.jpg`;
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+$('dlPhotosBtn').addEventListener('click', async () => {
+  const sel = selectedPhotos();
+  if (!sel.length) return setStatus('No photos selected.');
+  let n = 0;
+  for (const p of sel) {
+    try { await browser.downloads.download({ url: p.url }); n++; } catch {}
+  }
+  setStatus(`Started ${n} download(s).`);
+});
+
+$('zipPhotosBtn').addEventListener('click', async () => {
+  const sel = selectedPhotos();
+  if (!sel.length) return setStatus('No photos selected.');
+  setStatus(`Zipping ${sel.length} photo(s)…`);
+  const files = {};
+  const used = new Set();
+  let ok = 0;
+  for (let i = 0; i < sel.length; i++) {
+    try {
+      const buf = new Uint8Array(await (await fetch(sel[i].url)).arrayBuffer());
+      let name = photoFilename(sel[i].url, i);
+      while (used.has(name)) name = name.replace(/(\.[^.]+)?$/, `_${i}$1`);
+      used.add(name);
+      files[name] = buf;
+      ok++;
+    } catch {}
+  }
+  if (!ok) return setStatus('Could not fetch any photos.');
+  const zipped = fflate.zipSync(files, { level: 0 });
+  const host = (() => { try { return new URL(detected.page || location.href).hostname; } catch { return 'photos'; } })();
+  const blob = new Blob([zipped], { type: 'application/zip' });
+  const url = URL.createObjectURL(blob);
+  await browser.downloads.download({ url, filename: `photos-${host}.zip`, saveAs: true });
+  setStatus(`Zipped ${ok} photo(s).`);
+});
+
+$('sendPhotosBtn').addEventListener('click', async () => {
+  const sel = selectedPhotos();
+  if (!sel.length) return setStatus('No photos selected.');
+  setStatus(`Sending ${sel.length} photo(s) to gallery…`);
+  let n = 0;
+  for (let i = 0; i < sel.length; i++) {
+    try {
+      const blob = await (await fetch(sel[i].url)).blob();
+      await Aphro.uploadPhoto(blob, photoFilename(sel[i].url, i));
+      n++;
+    } catch {}
+  }
+  setStatus(`Sent ${n}/${sel.length} photo(s) to gallery.`);
+});
+
+// ── scraped links (legacy) ───────────────────────────────────────────
+function buildFilterRegex() {
+  const pattern = $('filter').value.trim();
+  if (!pattern) return null;
+  try { return new RegExp(pattern, 'i'); } catch { return null; }
+}
+
+async function getFilteredUrls() {
+  const links = await send({ type: 'GET_LINKS' });
+  const re = buildFilterRegex();
+  return Object.values(links).filter(l => !re || re.test(l.url)).sort((a, b) => b.ts - a.ts);
+}
+
+async function refreshLinks() {
+  const filtered = await getFilteredUrls();
+  $('count').textContent = filtered.length;
+  const listEl = $('links');
   listEl.innerHTML = '';
   for (const l of filtered) {
     const li = document.createElement('li');
-
     const span = document.createElement('span');
     span.className = 'url';
     span.textContent = l.url;
     span.title = l.text ? `${l.text}\n${l.url}` : l.url;
-
     const removeBtn = document.createElement('button');
     removeBtn.className = 'remove';
     removeBtn.textContent = '×';
-    removeBtn.title = 'Remove';
-    removeBtn.addEventListener('click', async () => {
-      await browser.runtime.sendMessage({ type: 'REMOVE_LINK', url: l.url });
-      refresh();
-    });
-
+    removeBtn.addEventListener('click', async () => { await send({ type: 'REMOVE_LINK', url: l.url }); refreshLinks(); });
     li.appendChild(span);
     li.appendChild(removeBtn);
     listEl.appendChild(li);
   }
 }
 
-scrapeBtn.addEventListener('click', async () => {
-  scrapeBtn.disabled = true;
-  scrapeBtn.textContent = 'Scraping...';
-  try {
-    await browser.runtime.sendMessage({ type: 'SCRAPE_TAB' });
-  } catch (err) {
-    scrapeBtn.textContent = err.message || 'Failed';
-    setTimeout(() => { scrapeBtn.textContent = 'Scrape Current Page'; }, 1500);
-    scrapeBtn.disabled = false;
+$('scrapeBtn').addEventListener('click', async () => {
+  const btn = $('scrapeBtn');
+  btn.disabled = true; btn.textContent = 'Scraping…';
+  try { await send({ type: 'SCRAPE_TAB' }); }
+  catch (err) {
+    btn.textContent = err.message || 'Failed';
+    setTimeout(() => { btn.textContent = 'Scrape Current Page'; btn.disabled = false; }, 1500);
     return;
   }
-  scrapeBtn.disabled = false;
-  scrapeBtn.textContent = 'Scrape Current Page';
-  refresh();
+  btn.disabled = false; btn.textContent = 'Scrape Current Page';
+  refreshLinks();
 });
 
-copyBtn.addEventListener('click', async () => {
+$('copyBtn').addEventListener('click', async () => {
   const filtered = await getFilteredUrls();
-  await navigator.clipboard.writeText(filtered.map((l) => l.url).join('\n'));
-  const original = copyBtn.textContent;
-  copyBtn.textContent = 'Copied!';
-  setTimeout(() => { copyBtn.textContent = original; }, 1200);
+  await navigator.clipboard.writeText(filtered.map(l => l.url).join('\n'));
+  setStatus('Copied to clipboard.');
 });
 
-exportBtn.addEventListener('click', async () => {
+$('exportBtn').addEventListener('click', async () => {
   const filtered = await getFilteredUrls();
-  const blob = new Blob([filtered.map((l) => l.url).join('\n')], { type: 'text/plain' });
+  const blob = new Blob([filtered.map(l => l.url).join('\n')], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   await browser.downloads.download({ url, filename: 'scraped-links.txt', saveAs: true });
 });
 
-clearBtn.addEventListener('click', async () => {
-  if (!confirm('Clear all scraped links?')) return;
-  await browser.runtime.sendMessage({ type: 'CLEAR_LINKS' });
-  refresh();
+$('sendLinksBtn').addEventListener('click', async () => {
+  const filtered = await getFilteredUrls();
+  if (!filtered.length) return setStatus('No links to send.');
+  try {
+    const r = await Aphro.importLinks(filtered.map(l => l.url));
+    setStatus(`Sent ${r.added ?? filtered.length} link(s) to AphroArchive.`);
+  } catch (e) { setStatus('Error: ' + e.message); }
 });
 
-filterInput.addEventListener('input', refresh);
+$('clearBtn').addEventListener('click', async () => {
+  if (!confirm('Clear all scraped links?')) return;
+  await send({ type: 'CLEAR_LINKS' });
+  refreshLinks();
+});
 
-for (const radio of modeRadios) {
-  radio.addEventListener('change', async (e) => {
-    await browser.runtime.sendMessage({ type: 'SET_MODE', mode: e.target.value });
+$('filter').addEventListener('input', refreshLinks);
+
+for (const radio of document.querySelectorAll('input[name="mode"]')) {
+  radio.addEventListener('change', (e) => send({ type: 'SET_MODE', mode: e.target.value }));
+}
+
+// ── queue ────────────────────────────────────────────────────────────
+async function loadJobs() {
+  if (!online) return;
+  try {
+    const jobs = await Aphro.getJobs();
+    $('jobCount').textContent = jobs.length;
+    const box = $('jobs');
+    box.innerHTML = '';
+    if (!jobs.length) { box.innerHTML = '<div class="empty">Queue is empty.</div>'; return; }
+    for (const j of jobs.slice().reverse()) {
+      const row = document.createElement('div');
+      row.className = 'media-row';
+      const main = document.createElement('div');
+      main.className = 'media-main';
+      const t = document.createElement('div');
+      t.className = 'media-title';
+      t.textContent = j.title || j.url;
+      const s = document.createElement('div');
+      s.className = 'media-sub';
+      const prog = j.status === 'running' ? ` ${Math.round(j.progress || 0)}% ${j.speed || ''}` : '';
+      s.textContent = `${j.status}${prog}${j.error ? ' · ' + j.error : ''}`;
+      main.appendChild(t); main.appendChild(s);
+      row.appendChild(main);
+      box.appendChild(row);
+    }
+  } catch { /* ignore */ }
+}
+
+$('refreshJobsBtn').addEventListener('click', loadJobs);
+
+// ── collapsible sections ─────────────────────────────────────────────
+for (const head of document.querySelectorAll('.sec-head')) {
+  head.addEventListener('click', () => {
+    const sec = head.parentElement;
+    const open = sec.getAttribute('data-open') === '1';
+    sec.setAttribute('data-open', open ? '0' : '1');
+    sec.querySelector('.caret').textContent = open ? '▸' : '▾';
+    if (!open && sec.classList.contains('gated-sec')) loadJobs();
   });
 }
 
-optionsLink.addEventListener('click', (e) => {
-  e.preventDefault();
-  browser.runtime.openOptionsPage();
-});
+$('optionsLink').addEventListener('click', (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
 
+// server URL edits
+serverUrlInput.addEventListener('change', async () => {
+  settings.serverUrl = serverUrlInput.value.trim();
+  await send({ type: 'SET_SETTINGS', settings: { serverUrl: settings.serverUrl } });
+  refreshServer();
+});
+$('testBtn').addEventListener('click', refreshServer);
+
+// react to background-pushed link/storage changes
+browser.storage.onChanged.addListener((changes) => { if (changes.scrapedLinks) refreshLinks(); });
+
+// ── init ─────────────────────────────────────────────────────────────
 (async () => {
-  const [mode, settings] = await Promise.all([
-    browser.runtime.sendMessage({ type: 'GET_MODE' }),
-    browser.runtime.sendMessage({ type: 'GET_SETTINGS' })
-  ]);
-  for (const radio of modeRadios) radio.checked = radio.value === mode;
-  if (settings.defaultFilter) filterInput.value = settings.defaultFilter;
-  refresh();
-})();
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (tab) activeTab = { id: tab.id, url: tab.url, title: tab.title };
 
-browser.storage.onChanged.addListener((changes) => {
-  if (changes.scrapedLinks) refresh();
-});
+  settings = await send({ type: 'GET_SETTINGS' });
+  const mode = await send({ type: 'GET_MODE' });
+  for (const radio of document.querySelectorAll('input[name="mode"]')) radio.checked = radio.value === mode;
+  serverUrlInput.value = settings.serverUrl || 'http://localhost:3000';
+  if (settings.defaultFilter) $('filter').value = settings.defaultFilter;
+
+  await loadDetected();
+  refreshLinks();
+  await refreshServer();
+  loadJobs();
+})();

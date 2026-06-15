@@ -1,0 +1,46 @@
+{
+  "Pop": {
+    "displayName": "Pop Music",
+    "tags": [
+      "Catchy",
+      "Chart-topper",
+      "Upbeat",
+      "Vocal",
+      "Synthesizer",
+      "Radio"
+    ]
+  },
+  "Hip Hop": {
+    "displayName": "Hip Hop & Rap",
+    "tags": [
+      "Beats",
+      "Rhymes",
+      "Flow",
+      "Urban",
+      "Turntablism",
+      "Sampled"
+    ]
+  },
+  "Rock": {
+    "displayName": "Rock & Roll",
+    "tags": [
+      "Guitar",
+      "Drums",
+      "Band",
+      "Solo",
+      "Distortion",
+      "Anthem"
+    ]
+  },
+  "Electronic": {
+    "displayName": "Electronic Dance Music",
+    "tags": [
+      "DJ",
+      "Bass",
+      "Club",
+      "Synthesizer",
+      "House",
+      "Techno"
+    ]
+  }
+}

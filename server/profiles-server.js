@@ -5,10 +5,10 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { DB_DIR } = require('./config-server');
+const { DB_DIR, PRESETS_DIR } = require('./config-server');
 const { json, readBody } = require('./helpers-server');
 
-const PROFILES_DIR = path.join(DB_DIR, 'profiles');
+const PROFILES_DIR = PRESETS_DIR;
 const SETUP_DONE_FILE = path.join(DB_DIR, 'setup.done');
 
 function markSetupDone() {
