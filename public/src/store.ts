@@ -208,6 +208,12 @@ if (typeof window !== 'undefined') {
   });
   sortMode.subscribe(val => localStorage.setItem('sortMode', val));
 }
+export const gridViewMode = signal<'grid' | 'list'>(localStorage.getItem('gridViewMode') as 'grid' | 'list' || 'grid');
+export const groupByYear = signal<'none' | 'year' | 'decade'>(localStorage.getItem('groupByYear') as any || 'none');
+if (typeof window !== 'undefined') {
+  gridViewMode.subscribe(val => localStorage.setItem('gridViewMode', val));
+  groupByYear.subscribe(val => localStorage.setItem('groupByYear', val));
+}
 export const vaultMode = signal<boolean>(false);
 export const isVaultUnlocked = signal<boolean>(false);
 export const folderMasterPassword = signal<string | null>(null);

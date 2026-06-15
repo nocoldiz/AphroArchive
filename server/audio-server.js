@@ -5,9 +5,9 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { AUDIO_DIR, AUDIO_EXT, MIME } = require('./config-server');
-const { json, formatBytes }          = require('./helpers-server');
-const { loadAudioMeta, saveAudioMeta } = require('./db-server');
+const { AUDIO_DIR, VIDEOS_DIR, AUDIO_EXT, MIME } = require('./config-server');
+const { json, formatBytes }                       = require('./helpers-server');
+const { loadAudioMeta, saveAudioMeta, loadMediaIndex, loadPrefs } = require('./db-server');
 
 function audioToId(n)   { return Buffer.from(n).toString('base64url'); }
 function audioFromId(id) { return Buffer.from(id, 'base64url').toString(); }
@@ -47,21 +47,31 @@ function apiAudioList(req, res) {
   const meta  = loadAudioMeta();
   const files = Object.entries(meta)
     .map(([filename, m]) => ({ id: audioToId(filename), filename, ...m }));
-    
+
+  // Include audio discovered in VIDEOS_DIR and sourceFolders by the unified scan
   try {
-    const { loadPrefs } = require('./db-server');
     const prefs = loadPrefs();
-    if (prefs.sourceFolders) {
-      for (const folder of prefs.sourceFolders) {
-        if (fs.existsSync(folder)) {
-          files.push(...scanAudio(folder, folder));
-        }
-      }
+    const available = new Set([VIDEOS_DIR]);
+    for (const sf of (prefs.sourceFolders || [])) {
+      if (fs.existsSync(sf)) available.add(sf);
+    }
+    for (const m of loadMediaIndex('audio')) {
+      if (!available.has(m.sourcePath)) continue;
+      files.push({
+        id: audioToId(m.absPath),
+        filename: m.filename,
+        title: m.name,
+        ext: m.ext,
+        size: m.size,
+        sizeF: m.sizeF,
+        date: m.mtime,
+        isExternal: true,
+      });
     }
   } catch (e) {
-    console.error('Failed to scan external audio folders:', e);
+    console.error('Failed to load scanned audio from media index:', e);
   }
-    
+
   files.sort((a, b) => b.date - a.date);
   json(res, files);
 }
@@ -94,19 +104,15 @@ function apiAudioStream(req, res, id) {
   
   if (path.isAbsolute(filename)) {
     fp = filename;
-    let allowed = false;
-    try {
-      const { loadPrefs } = require('./db-server');
-      const prefs = loadPrefs();
-      if (prefs.sourceFolders) {
-        for (const folder of prefs.sourceFolders) {
-          if (fp.startsWith(path.resolve(folder))) {
-            allowed = true;
-            break;
-          }
+    let allowed = fp.startsWith(path.resolve(VIDEOS_DIR) + path.sep) || fp.startsWith(path.resolve(VIDEOS_DIR) + '/');
+    if (!allowed) {
+      try {
+        const prefs = loadPrefs();
+        for (const folder of (prefs.sourceFolders || [])) {
+          if (fp.startsWith(path.resolve(folder))) { allowed = true; break; }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
     if (!allowed) { res.writeHead(403); res.end(); return; }
   } else {
     fp = path.join(AUDIO_DIR, path.basename(filename));

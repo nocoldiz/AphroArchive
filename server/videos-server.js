@@ -30,6 +30,7 @@ const {
   loadRatings,
   loadLinksCache,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
+  loadMediaIndex, saveMediaIndex, clearMediaIndex,
   loadEnabledFolders,
   getVideoIndexEntry, getSingleVideoMeta,
 } = require('./db-server');
@@ -289,6 +290,7 @@ function apiScanEvents(req, res) {
 function invalidateScanCache() {
   _scanCache = null;
   clearVideoIndex();
+  clearMediaIndex();
   broadcastScanChange();
 }
 
@@ -309,40 +311,48 @@ async function cachedScan() {
   // Fast path: load previously indexed list from DB
   const indexed = loadVideoIndex();
   if (indexed && indexed.length > 0) {
-    // Prune entries whose directory no longer exists on disk
-    let prefs;
-    try { prefs = loadPrefs(); } catch (e) { prefs = {}; }
-    const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
-    const dirExistsCache = new Map();
-    const dirExists = dir => {
-      if (!dirExistsCache.has(dir)) dirExistsCache.set(dir, fs.existsSync(dir));
-      return dirExistsCache.get(dir);
-    };
-    const valid = indexed.filter(v => {
-      const dir = v.isExternal
-        ? path.dirname(v.rel)
-        : (v.catPath ? path.join(VIDEOS_DIR, v.catPath) : VIDEOS_DIR);
-      if (dirExists(dir)) return true;
-      // For external files, also check against source folders by catPath
-      if (v.isExternal && v.catPath) {
-        return sourceFolders.some(sf => dirExists(path.join(sf, v.catPath)));
-      }
-      return false;
-    });
-    if (valid.length !== indexed.length) saveVideoIndex(valid);
-    _scanCache = valid;
-    return _scanCache;
+    // If media_index is empty but video_index has data, a full rescan is needed to
+    // populate media_index (happens on first run after this feature was added).
+    if (loadMediaIndex().length === 0) {
+      clearVideoIndex();
+      // Fall through to full scan below
+    } else {
+      // Prune entries whose directory no longer exists on disk
+      let prefs;
+      try { prefs = loadPrefs(); } catch (e) { prefs = {}; }
+      const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
+      const dirExistsCache = new Map();
+      const dirExists = dir => {
+        if (!dirExistsCache.has(dir)) dirExistsCache.set(dir, fs.existsSync(dir));
+        return dirExistsCache.get(dir);
+      };
+      const valid = indexed.filter(v => {
+        const dir = v.isExternal
+          ? path.dirname(v.rel)
+          : (v.catPath ? path.join(VIDEOS_DIR, v.catPath) : VIDEOS_DIR);
+        if (dirExists(dir)) return true;
+        // For external files, also check against source folders by catPath
+        if (v.isExternal && v.catPath) {
+          return sourceFolders.some(sf => dirExists(path.join(sf, v.catPath)));
+        }
+        return false;
+      });
+      if (valid.length !== indexed.length) saveVideoIndex(valid);
+      _scanCache = valid;
+      return _scanCache;
+    }
   }
 
   // DB empty: scan filesystem, then persist to DB for next start
-  let all = await scan(VIDEOS_DIR);
+  const mediaAll = [];
+  let all = await scan(VIDEOS_DIR, VIDEOS_DIR, false, mediaAll);
 
   try {
     const prefs = loadPrefs();
     if (prefs.sourceFolders) {
       for (const folder of prefs.sourceFolders) {
         if (fs.existsSync(folder)) {
-          const extFiles = await scan(folder, folder, true);
+          const extFiles = await scan(folder, folder, true, mediaAll);
           all.push(...extFiles);
         }
       }
@@ -370,20 +380,21 @@ async function cachedScan() {
   }
 
   saveVideoIndex(all);
+  saveMediaIndex(mediaAll);
   _scanCache = all;
   return _scanCache;
 }
 
 // ── Video scanning ───────────────────────────────────────────────────
 
-async function scan(dir, base = dir, isExternal = false) {
+async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
   const out = [];
   if (!fs.existsSync(dir)) return out;
   const isDirEncrypted = fs.existsSync(path.join(dir, '.cat-enc-config.json'));
-  
+
   try {
     const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-    
+
     // Process in sequential chunks to avoid overwhelming the file system
     const chunkSize = 32;
     for (let i = 0; i < entries.length; i += chunkSize) {
@@ -392,7 +403,7 @@ async function scan(dir, base = dir, isExternal = false) {
         const fp = path.join(dir, ent.name);
         if (ent.isDirectory()) {
           if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR) || isHiddenFolderName(ent.name)) return;
-          const sub = await scan(fp, base, isExternal);
+          const sub = await scan(fp, base, isExternal, mediaOut);
           out.push(...sub);
           return;
         }
@@ -413,7 +424,34 @@ async function scan(dir, base = dir, isExternal = false) {
             realExt = '.mp4';
             encrypted = true;
           }
-        } else if (!VIDEO_EXT.has(ext)) return;
+        } else if (!VIDEO_EXT.has(ext)) {
+          // Collect non-video media files into the unified media index
+          if (mediaOut) {
+            let mediaType = null;
+            if (AUDIO_EXT.has(ext)) mediaType = 'audio';
+            else if (BOOK_EXT.has(ext)) mediaType = 'book';
+            // Photos from sourceFolders only — VIDEOS_DIR photos are already handled by the photos dynamic scan
+            else if (IMAGE_EXT.has(ext) && isExternal) mediaType = 'photo';
+            if (mediaType) {
+              try {
+                const st = await fs.promises.stat(fp);
+                mediaOut.push({
+                  id: toId(fp),
+                  name: path.basename(ent.name, ext),
+                  filename: ent.name,
+                  absPath: fp,
+                  sourcePath: base,
+                  ext,
+                  mediaType,
+                  size: st.size,
+                  sizeF: formatBytes(st.size),
+                  mtime: st.mtimeMs,
+                });
+              } catch {}
+            }
+          }
+          return;
+        }
 
         const rel = path.relative(base, fp);
         const cat = path.dirname(rel);

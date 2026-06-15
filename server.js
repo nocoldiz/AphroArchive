@@ -38,6 +38,7 @@ const downloads = require('./server/downloads-server');
 const links = require('./server/links-server');
 const books = require('./server/books-server');
 const audio = require('./server/audio-server');
+const files = require('./server/files-server');
 const photos = require('./server/photos-server');
 const screenshots = require('./server/screenshots-server');
 const database = require('./server/database-server');
@@ -58,6 +59,7 @@ const { startBackgroundWorker } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
 const assistant   = require('./server/assistant-server');
 const autoChapters = require('./server/auto-chapters-server');
+const hls = require('./server/hls-server');
 
 // ── Startup: create required directories ─────────────────────────────
 
@@ -199,6 +201,8 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/encrypt$/)) && req.method === 'POST') return videos.apiEncryptVideo(req, res, m[1]);
   if (p === '/api/vault/encrypt-batch' && req.method === 'POST') return videos.apiEncryptBatch(req, res);
   if ((m = p.match(/^\/api\/stream\/([^/]+)$/)) && req.method === 'GET') return videos.apiStream(req, res, m[1]);
+  if ((m = p.match(/^\/api\/hls\/([^/]+)\/index\.m3u8$/)) && req.method === 'GET') return hls.apiHlsPlaylist(req, res, decodeURIComponent(m[1]));
+  if ((m = p.match(/^\/api\/hls\/([^/]+)\/(seg\d+\.ts)$/)) && req.method === 'GET') return hls.apiHlsSegment(req, res, decodeURIComponent(m[1]), m[2]);
   if ((m = p.match(/^\/api\/favourites\/([^/]+)$/)) && req.method === 'POST') return videos.apiToggleFav(req, res, m[1]);
   if ((m = p.match(/^\/api\/history\/([^/]+)$/)) && req.method === 'POST') return videos.apiAddHistory(req, res, m[1]);
   if ((m = p.match(/^\/api\/ratings\/([^/]+)$/)) && req.method === 'POST') return videos.apiSetRating(req, res, decodeURIComponent(m[1]));
@@ -206,9 +210,12 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/rename$/)) && req.method === 'PATCH') return videos.apiRename(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/move$/)) && req.method === 'PATCH') return videos.apiMove(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/meta$/)) && req.method === 'PATCH') return videos.apiUpdateVideoMeta(req, res, m[1]);
+  if ((m = p.match(/^\/api\/audio-tracks\/([^/]+)$/)) && req.method === 'GET') return videos.apiAudioTracks(req, res, m[1]);
   if ((m = p.match(/^\/api\/subtitles\/([^/]+)$/)) && req.method === 'GET') return videos.apiSubtitles(req, res, m[1]);
   if ((m = p.match(/^\/api\/subtitles\/([^/]+)$/)) && req.method === 'POST') return videos.apiSaveSubtitles(req, res, m[1]);
   if ((m = p.match(/^\/api\/subtitle-file\/([^/]+)\/(.+)$/)) && req.method === 'GET') return videos.apiSubtitleFile(req, res, m[1], decodeURIComponent(m[2]));
+  if ((m = p.match(/^\/api\/subtitle-file\/([^/]+)\/(.+)$/)) && req.method === 'DELETE') return videos.apiDeleteSubtitleFile(req, res, m[1], decodeURIComponent(m[2]));
+  if ((m = p.match(/^\/api\/subtitles\/([^/]+)\/upload$/)) && req.method === 'POST') return videos.apiUploadSubtitle(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters$/)) && req.method === 'POST') return videos.apiAddChapter(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDeleteChapter(req, res, m[1], m[2]);
   if ((m = p.match(/^\/api\/auto-chapters\/([^/]+)$/)) && req.method === 'GET') return autoChapters.apiGetAutoChapters(req, res, m[1]);
@@ -438,6 +445,17 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/audio\/([^/]+)\/stream$/)) && req.method === 'GET') return audio.apiAudioStream(req, res, m[1]);
   if ((m = p.match(/^\/api\/audio\/([^/]+)$/)) && req.method === 'DELETE') return audio.apiAudioDelete(req, res, m[1]);
 
+  // ── Files ────────────────────────────────────────────────────────────
+  if (p === '/api/files' && req.method === 'GET') return files.apiFilesList(req, res);
+  if (p === '/api/files/folders' && req.method === 'GET') return files.apiFileFolders(req, res);
+  if (p === '/api/files/upload' && req.method === 'POST') return files.apiFilesUpload(req, res);
+  if (p === '/api/files/folders/set' && req.method === 'POST') return files.apiFileFolderSet(req, res);
+  if (p === '/api/files/folders/rename' && req.method === 'POST') return files.apiFileFolderRename(req, res);
+  if (p === '/api/files/folders/delete' && req.method === 'POST') return files.apiFileFolderDelete(req, res);
+  if ((m = p.match(/^\/api\/files\/([^/]+)\/stream$/)) && req.method === 'GET') return files.apiFileStream(req, res, m[1]);
+  if ((m = p.match(/^\/api\/files\/([^/]+)\/download$/)) && req.method === 'GET') return files.apiFileDownload(req, res, m[1]);
+  if ((m = p.match(/^\/api\/files\/([^/]+)$/)) && req.method === 'DELETE') return files.apiFileDelete(req, res, m[1]);
+
   // ── Photos ───────────────────────────────────────────────────────────
   if (p === '/api/videos/upload' && req.method === 'POST') return videos.apiVideosUpload(req, res);
   if (p === '/api/photos' && req.method === 'GET') return photos.apiPhotosList(req, res);
@@ -547,6 +565,16 @@ const server = http.createServer(async (req, res) => {
       initVideoMeta().catch(() => {});
       startBackgroundWorker();
     }
+    return;
+  }
+
+  // Serve hls.js from browser extension for in-browser HLS playback
+  if (p === '/hls.js') {
+    const hlsJsPath = path.join(__dirname, 'browser-extension', 'hls.js');
+    if (!fs.existsSync(hlsJsPath)) { res.writeHead(404); res.end(); return; }
+    const stat = fs.statSync(hlsJsPath);
+    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=86400' });
+    fs.createReadStream(hlsJsPath).pipe(res);
     return;
   }
 

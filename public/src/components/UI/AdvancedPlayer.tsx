@@ -17,6 +17,7 @@ interface Subtitle {
 
 interface AdvancedPlayerProps {
   src: string;
+  hlsSrc?: string;
   videoId: string;
   subtitles: Subtitle[];
   chapters: Chapter[];
@@ -28,6 +29,18 @@ interface AdvancedPlayerProps {
   startTime?: number;
   language?: string;
   title?: string;
+}
+
+function loadHlsJs(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const w = window as any;
+    if (w.Hls) return resolve(w.Hls);
+    const script = document.createElement('script');
+    script.src = '/hls.js';
+    script.onload = () => resolve(w.Hls);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
 }
 
 const clampVol = (v: number) => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
@@ -42,7 +55,7 @@ const loadSavedVolume = (videoId?: string) => {
   return clampVol(parseFloat(localStorage.getItem('playerVolume') || '1'));
 };
 
-export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters = [], onNext, onPrev, isMuted = false, videoRef: externalRef, startTime = 0, language = '', title = '' }: AdvancedPlayerProps) => {
+export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, autoChapters = [], onNext, onPrev, isMuted = false, videoRef: externalRef, startTime = 0, language = '', title = '' }: AdvancedPlayerProps) => {
   const localRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalRef || localRef;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -78,6 +91,38 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
   const recRef = useRef<any>(null);
   const subPickerRef = useRef<HTMLDivElement>(null);
   const ccOnRef = useRef(false);
+  const [usingHls, setUsingHls] = useState(false);
+  const hlsInstanceRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!usingHls || !hlsSrc) return;
+    const vid = videoRef.current;
+    if (!vid) return;
+
+    const attach = (Hls: any) => {
+      if (hlsInstanceRef.current) { hlsInstanceRef.current.destroy(); hlsInstanceRef.current = null; }
+      if (!Hls.isSupported()) { toast('HLS not supported in this browser'); setUsingHls(false); return; }
+      const hls = new Hls({ enableWorker: false });
+      hlsInstanceRef.current = hls;
+      hls.loadSource(hlsSrc);
+      hls.attachMedia(vid);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => vid.play().catch(() => {}));
+      hls.on(Hls.Events.ERROR, (_: any, data: any) => { if (data.fatal) toast('HLS error: ' + data.details); });
+    };
+
+    // Safari supports HLS natively — just point src directly
+    if (vid.canPlayType('application/vnd.apple.mpegurl')) {
+      vid.src = hlsSrc;
+      vid.play().catch(() => {});
+      return;
+    }
+
+    loadHlsJs().then(attach).catch(() => { toast('Failed to load HLS player'); setUsingHls(false); });
+
+    return () => {
+      if (hlsInstanceRef.current) { hlsInstanceRef.current.destroy(); hlsInstanceRef.current = null; }
+    };
+  }, [usingHls, hlsSrc]);
   const onNextRef = useRef(onNext);
   const onPrevRef = useRef(onPrev);
   useEffect(() => { onNextRef.current = onNext; });
@@ -529,7 +574,7 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
     >
       <video
         ref={videoRef}
-        src={src}
+        src={usingHls ? undefined : src}
         preload="auto"
         muted={muted}
         style={{ width: '100%', maxHeight: isFullscreen ? '100vh' : '80vh', display: 'block' }}
@@ -810,6 +855,16 @@ export const AdvancedPlayer = ({ src, videoId, subtitles, chapters, autoChapters
               <option value="2">2x</option>
             </select>
 
+            {hlsSrc && (
+              <button
+                type="button"
+                onClick={() => setUsingHls(v => !v)}
+                title={usingHls ? 'Switch back to direct stream' : 'Transcode via HLS (for unsupported formats)'}
+                style={{ background: usingHls ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'none', border: usingHls ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: usingHls ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, padding: '2px 6px' }}
+              >
+                HLS
+              </button>
+            )}
             <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen (f)' : 'Fullscreen (f)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
               {isFullscreen ? '🡼' : '⛶'}
             </button>

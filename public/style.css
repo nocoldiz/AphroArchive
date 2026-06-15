@@ -433,6 +433,92 @@ input {
   margin-bottom: 36px
 }
 
+/* ── List View ── */
+.video-list-view {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 36px;
+  border: 1px solid var(--brd);
+  border-radius: var(--rl);
+  overflow: hidden;
+}
+.vl-header,
+.video-list-row {
+  display: grid;
+  grid-template-columns: 72px 1fr 80px 90px 70px 110px 36px;
+  align-items: center;
+  gap: 0 12px;
+  padding: 0 10px;
+  min-height: 52px;
+}
+.vl-header {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--brd);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--tx3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  min-height: 32px;
+}
+.video-list-row {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--brd);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.video-list-row:last-child { border-bottom: none; }
+.video-list-row:hover { background: var(--bg3); }
+.video-list-row.selected { background: color-mix(in srgb, var(--ac) 12%, var(--bg2)); }
+.vl-thumb {
+  width: 64px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+  background: var(--bg3);
+}
+.vl-title {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vl-dur, .vl-size, .vl-rating, .vl-date {
+  font-size: 0.78rem;
+  color: var(--tx3);
+  white-space: nowrap;
+}
+.vl-fav {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--tx3);
+  font-size: 1rem;
+  padding: 0 4px;
+  transition: color 0.15s;
+}
+.vl-fav:hover { color: var(--ac); }
+
+/* ── Year / Decade Groups ── */
+.year-group { margin-bottom: 32px; }
+.year-group-header {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--tx);
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--ac);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.year-group-count {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--tx3);
+}
+
 /* ── Card ── */
 .video-card {
   display: block;

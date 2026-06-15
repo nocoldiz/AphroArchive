@@ -8,9 +8,9 @@ const path  = require('path');
 const http  = require('http');
 const https = require('https');
 const zlib = require('zlib');
-const { BOOKS_DIR, CACHE_DIR } = require('./config-server');
-const { json, readBody, formatBytes } = require('./helpers-server');
-const { loadBooksMeta, saveBooksMeta } = require('./db-server');
+const { BOOKS_DIR, VIDEOS_DIR, CACHE_DIR } = require('./config-server');
+const { json, readBody, formatBytes }       = require('./helpers-server');
+const { loadBooksMeta, saveBooksMeta, loadMediaIndex, loadPrefs } = require('./db-server');
 
 function bookToId(filename) { return Buffer.from(filename).toString('base64url'); }
 function bookFromId(id)     { return Buffer.from(id, 'base64url').toString('utf-8'); }
@@ -117,8 +117,33 @@ async function scrapeGenericUrl(rawUrl) {
 function apiBooksList(req, res) {
   const meta  = loadBooksMeta();
   const books = Object.entries(meta)
-    .map(([filename, m]) => ({ id: bookToId(filename), filename, ...m }))
-    .sort((a, b) => b.date - a.date);
+    .map(([filename, m]) => ({ id: bookToId(filename), filename, ...m }));
+
+  // Include books discovered in VIDEOS_DIR and sourceFolders by the unified scan
+  try {
+    const prefs = loadPrefs();
+    const available = new Set([VIDEOS_DIR]);
+    for (const sf of (prefs.sourceFolders || [])) {
+      if (fs.existsSync(sf)) available.add(sf);
+    }
+    for (const m of loadMediaIndex('book')) {
+      if (!available.has(m.sourcePath)) continue;
+      books.push({
+        id: bookToId(m.absPath),
+        filename: m.filename,
+        title: m.name,
+        ext: m.ext,
+        size: m.size,
+        sizeF: m.sizeF,
+        date: m.mtime,
+        type: 'scanned',
+      });
+    }
+  } catch (e) {
+    console.error('Failed to load scanned books from media index:', e);
+  }
+
+  books.sort((a, b) => b.date - a.date);
   json(res, books);
 }
 
@@ -188,9 +213,26 @@ async function apiBooksImportUrl(req, res) {
 
 function apiBooksRead(req, res, id) {
   const filename = bookFromId(id);
-  const filePath = path.join(BOOKS_DIR, path.basename(filename));
-  if (!filePath.startsWith(BOOKS_DIR + path.sep) && filePath !== BOOKS_DIR) {
-    return json(res, { error: 'Invalid path' }, 400);
+  let filePath;
+  if (path.isAbsolute(filename)) {
+    // Book discovered by the unified media scan — validate it's inside an allowed root
+    filePath = filename;
+    const resolved = path.resolve(filePath);
+    let allowed = resolved.startsWith(path.resolve(VIDEOS_DIR) + path.sep);
+    if (!allowed) {
+      try {
+        const prefs = loadPrefs();
+        for (const sf of (prefs.sourceFolders || [])) {
+          if (resolved.startsWith(path.resolve(sf))) { allowed = true; break; }
+        }
+      } catch {}
+    }
+    if (!allowed) return json(res, { error: 'Invalid path' }, 400);
+  } else {
+    filePath = path.join(BOOKS_DIR, path.basename(filename));
+    if (!filePath.startsWith(BOOKS_DIR + path.sep) && filePath !== BOOKS_DIR) {
+      return json(res, { error: 'Invalid path' }, 400);
+    }
   }
   if (!fs.existsSync(filePath)) return json(res, { error: 'Not found' }, 404);
 

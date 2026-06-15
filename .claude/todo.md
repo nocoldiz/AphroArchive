@@ -211,15 +211,12 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 
 ## Library Views & Layouts
 
-- [ ] **List view** — Compact table layout with columns: thumbnail, title, duration, size, rating, date added — sortable by clicking column headers.
-- [ ] **Table view** — Dense spreadsheet-style view with inline editable rating and tag cells.
-- [ ] **Banner view** — Wide-card layout using backdrop images (16:9) instead of square thumbnails.
-- [ ] **Decade / year browser** — Group videos by release year or decade; useful for movie collections with TMDB metadata.
-- [ ] **Grid density presets** — Quick S / M / L / XL size buttons next to the card-size slider for one-click switching.
+- [x] **List view** — Compact table layout with columns: thumbnail, title, duration, size, rating, date added. Toggle in SectionControls; persisted to localStorage.
+- [x] **Decade / year browser** — Group videos by year or decade via SectionControls dropdown; renders labelled sections with video counts; works in both grid and list modes.
 
 ## Streaming & Network
 
-- [ ] **HLS transcoding** — On-the-fly ffmpeg HLS segmentation for formats the browser can't play natively (MKV, HEVC, AV1); serve via `GET /api/hls/:id/index.m3u8`.
+- [x] **HLS transcoding** — `GET /api/hls/:id/index.m3u8` + `GET /api/hls/:id/seg:N.ts` in `server/hls-server.js`; per-segment ffmpeg transcode; HLS toggle button in AdvancedPlayer loads hls.js from `/hls.js`.
 - [ ] **Hardware-accelerated encode** — Auto-detect NVENC (NVIDIA), QSV (Intel), VAAPI (Linux), VideoToolbox (macOS) and pass the right ffmpeg flag for HLS transcode jobs.
 - [ ] **Adaptive bitrate** — Generate multiple HLS quality levels (360p, 720p, 1080p) so the player switches automatically on slow connections.
 - [ ] **DLNA / UPnP server** — Expose the library as a DLNA media server so smart TVs and players on the LAN can browse and play natively without a browser.

@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter, currentFolder, updatePrefs } from '../../store';
+import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter, currentFolder, updatePrefs, gridViewMode, groupByYear } from '../../store';
 import { CategoryTagsModal } from './CategoryTagsModal';
 
 interface SectionControlsProps {
@@ -10,6 +10,8 @@ interface SectionControlsProps {
   showClearHistory?: boolean;
   showCardSize?: boolean;
   showFilter?: boolean;
+  showViewMode?: boolean;
+  showGroupBy?: boolean;
   
   sortOptions?: { value: string, label: string }[];
   
@@ -41,6 +43,8 @@ export const SectionControls = ({
   showClearHistory = false,
   showCardSize = true,
   showFilter = true,
+  showViewMode = true,
+  showGroupBy = true,
   sortOptions = [
     { value: 'date', label: 'Recent' },
     { value: 'name', label: 'Name' },
@@ -180,6 +184,47 @@ export const SectionControls = ({
           </select>
         </div>
       </>
+      {showViewMode && (
+        <>
+          <span className="sg-sep"></span>
+          <button
+            className={`sort-btn${gridViewMode.value === 'grid' ? ' on' : ''}`}
+            onClick={() => { gridViewMode.value = 'grid'; }}
+            title="Grid view"
+            aria-pressed={gridViewMode.value === 'grid' ? 'true' : 'false'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+          </button>
+          <button
+            className={`sort-btn${gridViewMode.value === 'list' ? ' on' : ''}`}
+            onClick={() => { gridViewMode.value = 'list'; }}
+            title="List view"
+            aria-pressed={gridViewMode.value === 'list' ? 'true' : 'false'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+        </>
+      )}
+      {showGroupBy && (
+        <>
+          <span className="sg-sep"></span>
+          <select
+            value={groupByYear.value}
+            onChange={(e: any) => { groupByYear.value = e.target.value; }}
+            title="Group by year"
+            style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '3px 6px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+          >
+            <option value="none">No grouping</option>
+            <option value="year">By year</option>
+            <option value="decade">By decade</option>
+          </select>
+        </>
+      )}
       {showTagsBtn && (
         <>
           <span className="sg-sep"></span>

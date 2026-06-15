@@ -210,6 +210,19 @@ function ensureSchema(database) {
       encrypted INTEGER DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS media_index (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      filename TEXT,
+      abs_path TEXT,
+      source_path TEXT,
+      ext TEXT,
+      media_type TEXT,
+      size INTEGER,
+      size_f TEXT,
+      mtime INTEGER
+    );
+
     CREATE TABLE IF NOT EXISTS category_tags (
       category_name TEXT,
       tag TEXT,
@@ -1729,6 +1742,53 @@ function clearVideoIndex() {
   }
 }
 
+function loadMediaIndex(type) {
+  try {
+    const rows = type
+      ? db.prepare('SELECT * FROM media_index WHERE media_type = ?').all(type)
+      : db.prepare('SELECT * FROM media_index').all();
+    return rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      filename: r.filename,
+      absPath: r.abs_path,
+      sourcePath: r.source_path,
+      ext: r.ext,
+      mediaType: r.media_type,
+      size: r.size,
+      sizeF: r.size_f,
+      mtime: r.mtime,
+    }));
+  } catch (e) {
+    console.error('Failed to load media index:', e);
+    return [];
+  }
+}
+
+function saveMediaIndex(items) {
+  try {
+    txn(() => {
+      db.prepare('DELETE FROM media_index').run();
+      const insert = db.prepare(
+        'INSERT INTO media_index (id, name, filename, abs_path, source_path, ext, media_type, size, size_f, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      );
+      for (const m of items) {
+        insert.run(m.id, m.name, m.filename, m.absPath, m.sourcePath, m.ext, m.mediaType, m.size || 0, m.sizeF || '', m.mtime || 0);
+      }
+    });
+  } catch (e) {
+    console.error('Failed to save media index:', e);
+  }
+}
+
+function clearMediaIndex() {
+  try {
+    db.prepare('DELETE FROM media_index').run();
+  } catch (e) {
+    console.error('Failed to clear media index:', e);
+  }
+}
+
 function loadAllVideoTags() {
   try {
     return db.prepare('SELECT DISTINCT tag FROM video_tags ORDER BY tag').all().map(r => r.tag);
@@ -1902,6 +1962,7 @@ module.exports = {
   loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,
   loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, getSingleVideoMeta,
+  loadMediaIndex, saveMediaIndex, clearMediaIndex,
   switchProfile, getCurrentProfile: () => currentProfile,
   isDbOnDisk: () => !_dbInMemory,
   closeDb: () => { if (db) { db.close(); db = null; } },

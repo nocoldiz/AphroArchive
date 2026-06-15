@@ -558,6 +558,7 @@ export const PlayerView = () => {
               <AdvancedPlayer
                 key={video.id}
                 src={`/api/stream/${video.id}`}
+                hlsSrc={`/api/hls/${video.id}/index.m3u8`}
                 videoId={video.id}
                 title={video.name}
                 subtitles={subtitles}

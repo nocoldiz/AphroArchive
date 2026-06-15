@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
@@ -418,6 +418,69 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
           <span className="card-category">{video.category}</span>
         </div>
       </div>
+    </div>
+  );
+};
+
+const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: boolean; index: number }) => {
+  const [thumbIdx] = useState(() => getThumbPref(video.id));
+
+  const play = () => {
+    currentVideo.value = video;
+    currentView.value = 'player';
+  };
+
+  const handleClick = (e: any) => {
+    if (e.shiftKey || e.ctrlKey || e.metaKey || videoSelMode.value) {
+      const next = new Set(selectedVideoIds.value);
+      if (next.has(video.id)) next.delete(video.id); else next.add(video.id);
+      selectedVideoIds.value = next;
+      videoSelMode.value = next.size > 0;
+      return;
+    }
+    if (video.isLink && !video.hasVideo) {
+      if (video.linkUrl) window.open(video.linkUrl, '_blank');
+      return;
+    }
+    play();
+  };
+
+  const toggleFav = async (e: any) => {
+    e.stopPropagation();
+    const r = await fetch(`/api/favourites/${video.id}`, { method: 'POST' });
+    const d = await r.json();
+    const list = [...videos.value];
+    const i = list.findIndex(v => v.id === video.id);
+    if (i !== -1) { list[i] = { ...list[i], fav: d.fav }; videos.value = list; }
+  };
+
+  const date = new Date(video.mtime * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const sizeMb = video.size > 0 ? `${(video.size / 1_048_576).toFixed(1)} MB` : '—';
+
+  return (
+    <div
+      className={`video-list-row${isSelected ? ' selected' : ''}`}
+      onClick={handleClick}
+      tabIndex={0}
+      onContextMenu={(e: any) => {
+        e.preventDefault();
+        contextMenuState.value = { visible: true, x: e.pageX, y: e.pageY, type: 'video', data: video };
+      }}
+    >
+      <img className="vl-thumb" src={`/api/thumbs/${video.id}/${thumbIdx}`} loading="lazy" alt="" />
+      <div className="vl-title" title={video.name}>{video.name}</div>
+      <div className="vl-dur">{video.duration > 0 ? formatDuration(video.duration) : '—'}</div>
+      <div className="vl-size">{sizeMb}</div>
+      <div className="vl-rating">{video.rating ? '★'.repeat(video.rating) : '—'}</div>
+      <div className="vl-date">{date}</div>
+      <button
+        type="button"
+        className="vl-fav"
+        onClick={toggleFav}
+        title={video.fav ? 'Remove from favourites' : 'Add to favourites'}
+      >
+        {video.fav ? '★' : '☆'}
+      </button>
     </div>
   );
 };
@@ -867,39 +930,110 @@ export const VideoGrid = () => {
   }
 
   const visible = list.slice(0, renderLimit);
+  const viewMode = gridViewMode.value;
+  const groupMode = groupByYear.value;
 
+  const sentinel = renderLimit < list.length ? (
+    <div ref={sentinelRef} style={{ textAlign: 'center', padding: '20px', color: 'var(--tx3)', fontSize: '0.85rem' }}>
+      Showing {visible.length} of {list.length} — scroll for more
+    </div>
+  ) : null;
+
+  const countBar = (
+    <div style={{ padding: '4px 2px 0', color: 'var(--tx3)', fontSize: '0.8rem' }}>
+      {list.length} video{list.length !== 1 ? 's' : ''}
+    </div>
+  );
+
+  const listHeader = (
+    <div className="vl-header">
+      <span className="vl-thumb" />
+      <span className="vl-title">Title</span>
+      <span className="vl-dur">Duration</span>
+      <span className="vl-size">Size</span>
+      <span className="vl-rating">Rating</span>
+      <span className="vl-date">Added</span>
+      <span className="vl-fav" />
+    </div>
+  );
+
+  // ── Grouped rendering ────────────────────────────────────────────────
+  if (groupMode !== 'none') {
+    const groupMap = new Map<string, Video[]>();
+    for (const v of visible) {
+      const year = new Date(v.mtime * 1000).getFullYear();
+      const label = groupMode === 'decade' ? `${Math.floor(year / 10) * 10}s` : String(year);
+      if (!groupMap.has(label)) groupMap.set(label, []);
+      groupMap.get(label)!.push(v);
+    }
+    const groups = [...groupMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
+    return (
+      <>
+        <VideoSelBar />
+        {countBar}
+        {groups.map(([label, items]) => (
+          <div key={label} className="year-group">
+            <h3 className="year-group-header">{label} <span className="year-group-count">({items.length})</span></h3>
+            {viewMode === 'list' ? (
+              <div className="video-list-view">
+                {listHeader}
+                {items.map((v, i) => (
+                  <VideoListRow key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="video-grid" data-thumb-mode={thumbBlurMode.value}>
+                {items.map((v, i) => (
+                  <VideoCard key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {sentinel}
+      </>
+    );
+  }
+
+  // ── List view ────────────────────────────────────────────────────────
+  if (viewMode === 'list') {
+    return (
+      <>
+        <VideoSelBar />
+        {countBar}
+        <div className="video-list-view" ref={gridRef}>
+          {listHeader}
+          {visible.map((v, i) => (
+            <VideoListRow key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
+          ))}
+        </div>
+        {sentinel}
+      </>
+    );
+  }
+
+  // ── Default grid view ────────────────────────────────────────────────
   return (
     <>
       <VideoSelBar />
-      <div style={{ padding: '4px 2px 0', color: 'var(--tx3)', fontSize: '0.8rem' }}>
-        {list.length} video{list.length !== 1 ? 's' : ''}
-      </div>
+      {countBar}
       <div
         className="video-grid"
         id="video-grid"
         ref={gridRef}
         data-thumb-mode={thumbBlurMode.value}
         onContextMenu={(e: any) => {
-          // Only when right-clicking empty grid space, not a card.
           if ((e.target as HTMLElement).closest('.video-card')) return;
           e.preventDefault();
           contextMenuState.value = { visible: true, x: e.pageX, y: e.pageY, type: 'grid', data: null };
         }}
       >
         {visible.map((v, i) => (
-          <VideoCard
-            key={v.id}
-            video={v}
-            isSelected={selectedVideoIds.value.has(v.id)}
-            index={i}
-          />
+          <VideoCard key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
         ))}
       </div>
-      {renderLimit < list.length && (
-        <div ref={sentinelRef} style={{ textAlign: 'center', padding: '20px', color: 'var(--tx3)', fontSize: '0.85rem' }}>
-          Showing {visible.length} of {list.length} — scroll for more
-        </div>
-      )}
+      {sentinel}
     </>
   );
 };
