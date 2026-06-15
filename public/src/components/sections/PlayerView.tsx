@@ -213,6 +213,9 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (video) setCardThumb(getThumbPref(video.id));
+    // Reset any chapter-based start time after the player has consumed it,
+    // so a stale value doesn't bleed into the next video opened from VideoGrid.
+    return () => { if (!zapOn.value) zapStartTime.value = 0; };
   }, [video?.id]);
 
   useEffect(() => {
@@ -685,7 +688,41 @@ export const PlayerView = () => {
                 </svg>
                 <span>Fav</span>
               </button>
-              
+
+              <button onClick={() => {
+                const pool = allVideos.value.filter((v: any) => v.id !== video.id && !v.isLink);
+                if (!pool.length) { if ((window as any).toast) (window as any).toast('No other videos'); return; }
+                const pick = pool[Math.floor(Math.random() * pool.length)];
+                (window as any).openVid(pick.id);
+              }} title="Open a random video" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" stroke="none" />
+                  <circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" stroke="none" />
+                  <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+                  <circle cx="8.5" cy="15.5" r="1.2" fill="currentColor" stroke="none" />
+                  <circle cx="15.5" cy="15.5" r="1.2" fill="currentColor" stroke="none" />
+                </svg>
+                <span>Random</span>
+              </button>
+
+              {video.linkUrl && (
+                <button onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(video.linkUrl);
+                    if ((window as any).toast) (window as any).toast('Link copied');
+                  } catch {
+                    if ((window as any).toast) (window as any).toast('Copy failed');
+                  }
+                }} title="Copy the associated link URL" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                  <span>Copy Link</span>
+                </button>
+              )}
+
               <button onClick={() => renameModalState.value = { visible: true, vidId: video.id, linkUrl: null, currentName: video.name }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />

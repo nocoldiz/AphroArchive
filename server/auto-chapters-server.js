@@ -91,6 +91,15 @@ function apiGetAutoChapters(req, res, id) {
   json(res, entry ? { chapters: entry.chapters, detectedAt: entry.detectedAt } : { chapters: null });
 }
 
+function apiGetAllAutoChapters(req, res) {
+  const cache = loadAutoChaptersCache();
+  const out = {};
+  for (const [id, entry] of Object.entries(cache)) {
+    if (entry.chapters && entry.chapters.length > 0) out[id] = entry.chapters;
+  }
+  json(res, out);
+}
+
 async function apiDetectAutoChapters(req, res, id) {
   const fp = safePath(id);
   if (!fp) return json(res, { error: 'Not found' }, 404);
@@ -240,6 +249,7 @@ function apiGenChaptersPoll(req, res) {
 
 module.exports = {
   apiGetAutoChapters,
+  apiGetAllAutoChapters,
   apiDetectAutoChapters,
   apiGenChaptersStart,
   apiGenChaptersStop,

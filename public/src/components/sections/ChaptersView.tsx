@@ -1,9 +1,18 @@
-import { useState } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import { allVideos, currentVideo, currentView } from '../../store';
+import { zapStartTime } from '../../zap';
 
 export const ChaptersView = () => {
   const [q, setQ] = useState('');
+  const [autoChaptersMap, setAutoChaptersMap] = useState<Record<string, any[]>>({});
   const videos = allVideos.value;
+
+  useEffect(() => {
+    fetch('/api/auto-chapters')
+      .then(r => r.json())
+      .then(data => setAutoChaptersMap(data))
+      .catch(() => {});
+  }, []);
 
   const formatDuration = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -13,20 +22,24 @@ export const ChaptersView = () => {
   };
 
   const openVid = (id: string, time?: number) => {
-    const w = window as any;
-    if (w.openVid) {
-      w.openVid(id, null, time);
-    } else {
-      // Fallback if openVid is not available
-      const v = videos.find(v => v.id === id);
-      if (v) {
-        currentVideo.value = v;
-        currentView.value = 'player';
-      }
+    const v = videos.find(v => v.id === id);
+    if (v) {
+      zapStartTime.value = time || 0;
+      currentVideo.value = v;
+      currentView.value = 'player';
     }
   };
 
-  let list = videos.filter(v => v.chapters && v.chapters.length > 0);
+  // Merge manual chapters with auto-detected chapters per video
+  let list = videos
+    .filter(v => !v.isLink)
+    .map(v => {
+      const manual = v.chapters || [];
+      const auto = autoChaptersMap[v.id] || [];
+      const chapters = manual.length > 0 ? manual : auto;
+      return { ...v, chapters };
+    })
+    .filter(v => v.chapters.length > 0);
 
   if (q) {
     const ql = q.toLowerCase().trim();
@@ -82,13 +95,13 @@ export const ChaptersView = () => {
               <div key={v.id} className="chapters-video-group" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '15px', border: '1px solid var(--brd)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px', borderBottom: '1px solid var(--brd)', paddingBottom: '12px' }}>
                   <div style={{ width: '50px', height: '50px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
-                    <img src={`/api/thumbs/${v.id}/0`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={`/api/thumbs/${v.id}/0`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--tx)' }}>{v.name}</div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>{v.category} • {v.chapters?.length || 0} chapters</div>
                   </div>
-                  <button className="cta-btn" style={{ marginLeft: 'auto' }} onClick={() => openVid(v.id)}>Open Video</button>
+                  <button type="button" className="cta-btn" style={{ marginLeft: 'auto' }} onClick={() => openVid(v.id)}>Open Video</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
                   {chapters.map((c: any) => (

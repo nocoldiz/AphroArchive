@@ -1,4 +1,4 @@
-import { contextMenuState, folderMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode } from '../../store';
+import { contextMenuState, folderMasterPassword, profiles, isVaultUnlocked, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 import { setItemPlacement } from './navItems';
@@ -298,57 +298,86 @@ export const ContextMenu = () => {
     });
   };
 
-  const startEncryptPoller = (catPath: string) => {
-    const seenNames = new Set<string>();
+  // Flag a set of ids as encrypting → their cards render semi-transparent.
+  const markEncrypting = (ids: string[]) => {
+    const s = new Set(encryptingVideoIds.value);
+    ids.forEach(id => s.add(id));
+    encryptingVideoIds.value = s;
+  };
+  const unmarkEncrypting = (ids: string[]) => {
+    const s = new Set(encryptingVideoIds.value);
+    ids.forEach(id => s.delete(id));
+    encryptingVideoIds.value = s;
+  };
+  // Drop ids from the grid in one pass — no full gallery reload. Folder counts
+  // are decremented by how many of the hidden videos lived in each category.
+  const hideVideos = (ids: Set<string>) => {
+    const byCat = new Map<string, number>();
+    for (const v of allVideos.value as any[]) {
+      if (ids.has(v.id)) { const c = v.catPath || ''; byCat.set(c, (byCat.get(c) || 0) + 1); }
+    }
+    allVideos.value = allVideos.value.filter((v: any) => !ids.has(v.id));
+    videos.value = videos.value.filter((v: any) => !ids.has(v.id));
+    folders.value = folders.value.map((c: any) =>
+      byCat.has(c.path) ? { ...c, count: Math.max(0, (c.count || 0) - (byCat.get(c.path) || 0)) } : c
+    );
+  };
+
+  // Poll only to detect completion — the cards are already faded out, so there's
+  // no per-tick list churn (the old "constant reload"). Hide them all at the end.
+  const startEncryptPoller = (affected: Set<string>) => {
     encryptPollRef.current = setInterval(async () => {
       try {
         const r = await fetch('/api/encryption/status');
         if (!r.ok) return;
         const p = await r.json();
-        if (p.type === 'encrypt' && p.current && !seenNames.has(p.current)) {
-          seenNames.add(p.current);
-          const nameLo = p.current.toLowerCase();
-          const remove = (v: any) =>
-            (v.catPath || '') === catPath && (v.name || '').toLowerCase() === nameLo;
-          allVideos.value = allVideos.value.filter((v: any) => !remove(v));
-          videos.value = videos.value.filter((v: any) => !remove(v));
-          folders.value = folders.value.map((c: any) =>
-            c.path === catPath ? { ...c, count: Math.max(0, (c.count || 1) - 1) } : c
-          );
-        }
         if (!p.running) {
           clearInterval(encryptPollRef.current);
           encryptPollRef.current = null;
-          if (p.ok) loadVideos();
+          if (p.ok) hideVideos(affected);
+          unmarkEncrypting([...affected]);
         }
       } catch {}
     }, 800);
   };
 
   const execEncrypt = async () => {
+    const catPath = data.path;
+    // Every video under this folder (incl. subfolders) gets encrypted server-side.
+    const affected = new Set<string>(
+      allVideos.value
+        .filter((v: any) => (v.catPath || '') === catPath || (v.catPath || '').startsWith(catPath + '/'))
+        .map((v: any) => v.id)
+    );
     const r = await fetch('/api/folders/encrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: data.path })
+      body: JSON.stringify({ path: catPath })
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       toast('Encryption failed: ' + (err.error || 'Unknown error'));
     } else {
       toast('Encrypting…');
-      startEncryptPoller(data.path);
+      markEncrypting([...affected]);        // fade the cards immediately
+      startEncryptPoller(affected);
     }
   };
 
   const execEncryptVideo = async () => {
-    const r = await fetch(`/api/videos/${data.id}/encrypt`, { method: 'POST' });
-    if (r.ok) {
-      toast('Video encrypted and moved to Vault');
-      videos.value = videos.value.filter((v: any) => v.id !== data.id);
-      allVideos.value = allVideos.value.filter((v: any) => v.id !== data.id);
-    } else {
-      const err = await r.json().catch(() => ({}));
-      toast('Encryption failed: ' + (err.error || 'Unknown error'));
+    const id = data.id;
+    markEncrypting([id]);                    // fade the card while it encrypts
+    try {
+      const r = await fetch(`/api/videos/${id}/encrypt`, { method: 'POST' });
+      if (r.ok) {
+        toast('Video encrypted and moved to Vault');
+        hideVideos(new Set([id]));           // hide just this card when done
+      } else {
+        const err = await r.json().catch(() => ({}));
+        toast('Encryption failed: ' + (err.error || 'Unknown error'));
+      }
+    } finally {
+      unmarkEncrypting([id]);
     }
   };
 

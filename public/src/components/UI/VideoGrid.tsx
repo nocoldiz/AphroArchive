@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
@@ -276,11 +276,13 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
     }
   };
 
+  const isEncrypting = encryptingVideoIds.value.has(video.id);
+
   return (
     <div
       className={`video-card fade-in ${isSelected ? 'selected' : ''}`}
       id={`v-${video.id}`}
-      onClick={handleCardClick}
+      onClick={isEncrypting ? undefined : handleCardClick}
       onContextMenu={openCtx}
       data-id={video.id}
       data-index={index}
@@ -301,7 +303,10 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
         animationDelay: `${Math.min((index ?? 0) * 35, 420)}ms`,
         border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)',
         backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : 'var(--bg2)',
-        boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined
+        boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined,
+        opacity: isEncrypting ? 0.4 : undefined,
+        pointerEvents: isEncrypting ? 'none' : undefined,
+        transition: 'opacity 0.35s ease'
       }}
       draggable={true}
       onDragStart={(e) => {

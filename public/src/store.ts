@@ -222,6 +222,10 @@ export const isVaultUnlocked = signal<boolean>(false);
 export const folderMasterPassword = signal<string | null>(null);
 export const videoSelMode = signal<boolean>(false);
 export const selectedVideoIds = signal<Set<string>>(new Set());
+// Ids of library videos currently being encrypted into the Vault — their cards
+// render semi-transparent until encryption finishes, then they're removed from
+// the grid (no full gallery reload).
+export const encryptingVideoIds = signal<Set<string>>(new Set());
 export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true');
 export const profiles = signal<string[]>(['default']);
 export const activeProfile = signal<string>('default');
@@ -677,6 +681,24 @@ export async function loadVideos() {
   } finally {
     isLoadingVideos.value = false;
   }
+}
+
+// Re-sync every video-derived surface after an encryption (or other removal)
+// WITHOUT flashing the loading skeleton, so the grid doesn't visibly reload.
+// `allVideos` feeds the grid, search, and most home widgets; the history caches
+// feed the Recent view and the recently-watched / continue-watching widgets.
+// This catches encryption started from any entry point and keeps other surfaces
+// from showing the now-removed video until a restart.
+export async function refreshLibraryQuietly() {
+  try { await loadVideosInner(); } catch {}
+  try {
+    const hist = await (await fetch('/api/history')).json();
+    if (Array.isArray(hist)) {
+      recentVideos.value = hist;
+      const { homeHistory } = await import('./home/homeData');
+      homeHistory.value = hist;
+    }
+  } catch {}
 }
 
 async function loadVideosInner() {

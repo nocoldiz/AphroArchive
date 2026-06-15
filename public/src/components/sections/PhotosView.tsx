@@ -25,6 +25,20 @@ export const PhotosView = () => {
       .then(d => {
         setPhotos(d);
         setLoading(false);
+        if (!currentPhotoFolder.value) {
+          const folderSet = new Set<string>();
+          for (const f of d as PhotoFile[]) {
+            if (!f.folder) continue;
+            const parts = f.folder.split('/');
+            let cur = '';
+            for (const part of parts) {
+              cur = cur ? cur + '/' + part : part;
+              folderSet.add(cur);
+            }
+          }
+          const first = [...folderSet].sort()[0];
+          if (first) currentPhotoFolder.value = first;
+        }
       })
       .catch(() => {
         setPhotos([]);

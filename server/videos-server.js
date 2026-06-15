@@ -328,23 +328,17 @@ async function cachedScan() {
       clearVideoIndex();
       // Fall through to full scan below
     } else {
-      // Prune entries whose directory no longer exists on disk
+      // Prune entries whose file no longer exists on disk
       let prefs;
       try { prefs = loadPrefs(); } catch (e) { prefs = {}; }
       const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
-      const dirExistsCache = new Map();
-      const dirExists = dir => {
-        if (!dirExistsCache.has(dir)) dirExistsCache.set(dir, fs.existsSync(dir));
-        return dirExistsCache.get(dir);
-      };
       const valid = indexed.filter(v => {
-        const dir = v.isExternal
-          ? path.dirname(v.rel)
-          : (v.catPath ? path.join(VIDEOS_DIR, v.catPath) : VIDEOS_DIR);
-        if (dirExists(dir)) return true;
-        // For external files, also check against source folders by catPath
-        if (v.isExternal && v.catPath) {
-          return sourceFolders.some(sf => dirExists(path.join(sf, v.catPath)));
+        // For external files rel is the absolute path; for internal it's relative to VIDEOS_DIR
+        const filePath = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
+        if (fs.existsSync(filePath)) return true;
+        // External file may have moved to a different source folder with the same catPath
+        if (v.isExternal && v.catPath && v.filename) {
+          return sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)));
         }
         return false;
       });
@@ -500,8 +494,12 @@ async function allVideos(forceAll = false) {
           id,
           name: item.originalName || item.name,
           rel: id + '.enc',
+          ext: item.ext || '',
           catPath: item.category || '',
           encrypted: true,
+          // Mark as a vault item so the player streams via /api/vault/stream/:id
+          // (decrypting on the fly) instead of /api/stream/:id, which 404s.
+          isVault: true,
           mtime: item.mtime || Date.now(),
           size: item.size || 0
         });

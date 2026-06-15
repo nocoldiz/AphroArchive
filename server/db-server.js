@@ -709,18 +709,21 @@ function deleteVideoMetaEverywhere(id) {
   try {
     txn(() => _wipeVideoEverywhere(db, id));
   } catch (e) { console.error('Failed to delete video meta:', e); }
-  if (currentProfile === 'Vault') {
-    for (const dbPath of _otherProfileDbPaths()) {
-      let other = null;
-      try {
-        other = new DatabaseSync(dbPath);
-        ensureSchema(other);
-        _wipeVideoEverywhere(other, id);
-      } catch (e) {
-        console.error('[vault] failed to delete public meta in', path.basename(dbPath), e.message);
-      } finally {
-        if (other) { try { other.close(); } catch {} }
-      }
+  // Always wipe the id from every OTHER profile's DB too — not just from the
+  // Vault profile. Each profile keeps its own `video_index` scan cache, and the
+  // fast-path prune only drops entries whose directory vanished, not whose file
+  // did. So a video encrypted (and shredded) under one user would otherwise keep
+  // showing for other users until a full rescan/restart.
+  for (const dbPath of _otherProfileDbPaths()) {
+    let other = null;
+    try {
+      other = new DatabaseSync(dbPath);
+      ensureSchema(other);
+      _wipeVideoEverywhere(other, id);
+    } catch (e) {
+      console.error('[delete] failed to wipe video meta in', path.basename(dbPath), e.message);
+    } finally {
+      if (other) { try { other.close(); } catch {} }
     }
   }
 }

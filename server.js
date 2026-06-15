@@ -220,6 +220,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/subtitles\/([^/]+)\/upload$/)) && req.method === 'POST') return videos.apiUploadSubtitle(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters$/)) && req.method === 'POST') return videos.apiAddChapter(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)\/chapters\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDeleteChapter(req, res, m[1], m[2]);
+  if (p === '/api/auto-chapters' && req.method === 'GET') return autoChapters.apiGetAllAutoChapters(req, res);
   if ((m = p.match(/^\/api\/auto-chapters\/([^/]+)$/)) && req.method === 'GET') return autoChapters.apiGetAutoChapters(req, res, m[1]);
   if ((m = p.match(/^\/api\/auto-chapters\/([^/]+)\/detect$/)) && req.method === 'POST') return autoChapters.apiDetectAutoChapters(req, res, m[1]);
   if (p === '/api/gen-chapters/start' && req.method === 'POST') return autoChapters.apiGenChaptersStart(req, res);

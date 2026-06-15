@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { loadVideos, appPrefs } from '../../store';
+import { loadVideos, appPrefs, refreshLibraryQuietly } from '../../store';
 
 interface ScraperStatus {
   running: boolean;
@@ -129,7 +129,11 @@ export const SyncManager = () => {
             if (enc.ok) {
               const w = window as any;
               if (w.toast) w.toast('Encryption complete');
-              loadVideos();
+              // Quietly re-sync all video-derived surfaces (grid, search, home
+              // widgets, recent/history) without the loading-skeleton flash, so
+              // the encrypted video disappears everywhere — not just the grid —
+              // regardless of which entry point started the job.
+              refreshLibraryQuietly();
             } else if (enc.error) {
               const w = window as any;
               if (w.toast) w.toast('Encryption error: ' + enc.error);
