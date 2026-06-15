@@ -26,6 +26,13 @@ Context actions for the current tab (visible only when AphroArchive is running):
 - **Save text to Books** — shown when the tab is a plain-text/markdown file.
 - **Send video / photo to library** — shown when the tab is a single direct video
   or image; sends it to your Videos / Photos.
+- **Save all open tabs to AphroArchive** — saves the URLs of every open tab (across
+  all windows) as bookmarks/links in your active profile, de-duplicated.
+
+### Right-click any link — *server only*
+Right-clicking a link on any page shows a **Save to AphroArchive** entry that saves
+that link as a bookmark. The entry only appears when the app is running (Firefox
+re-probes the server each time the menu opens).
 
 ### Videos on this page — *always available*
 - Detects `<video>`/`<source>`/`<audio>`, `og:video` / `twitter:player` meta and

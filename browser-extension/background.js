@@ -195,6 +195,90 @@ async function getSettings() {
   return { ...DEFAULT_SETTINGS, ...settings };
 }
 
+// ─────────────────────────────────────────────────────────────────────
+//  AphroArchive integration — "Save to AphroArchive" link context menu
+//  and the running-server probe that gates it.
+// ─────────────────────────────────────────────────────────────────────
+
+const SAVE_LINK_MENU_ID = 'aphro-save-link';
+let serverOnline = false;
+
+async function serverBase() {
+  const { serverUrl } = await getSettings();
+  return (serverUrl || 'http://localhost:3000').replace(/\/+$/, '');
+}
+
+// Is AphroArchive reachable? Used to show/hide the context-menu entry.
+async function checkServerOnline() {
+  try {
+    const res = await fetch(await serverBase() + '/api/download/check', { signal: AbortSignal.timeout(2500) });
+    return res.ok;
+  } catch { return false; }
+}
+
+// Save bookmarks/links into AphroArchive (videos/links land in the Links view).
+async function importUrlsToServer(urls) {
+  const res = await fetch(await serverBase() + '/api/links/import-urls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ urls })
+  });
+  if (!res.ok) throw new Error(await res.text().catch(() => 'HTTP ' + res.status));
+  return res.json(); // { added, ... }
+}
+
+function notify(title, message) {
+  try {
+    browser.notifications.create({ type: 'basic', title, message: (message || '').slice(0, 300) });
+  } catch {}
+}
+
+// Re-check the server and reflect availability on the menu item's visibility.
+async function refreshServerState() {
+  serverOnline = await checkServerOnline();
+  try { await browser.contextMenus.update(SAVE_LINK_MENU_ID, { visible: serverOnline }); } catch {}
+  return serverOnline;
+}
+
+async function setupMenus() {
+  try { await browser.contextMenus.removeAll(); } catch {}
+  try {
+    browser.contextMenus.create({
+      id: SAVE_LINK_MENU_ID,
+      title: 'Save to AphroArchive',
+      contexts: ['link'],
+      visible: false
+    });
+  } catch {}
+  refreshServerState();
+}
+
+browser.runtime.onInstalled.addListener(setupMenus);
+browser.runtime.onStartup.addListener(setupMenus);
+setupMenus(); // also run on event-page wake-up (removeAll de-dupes)
+
+// Firefox can re-probe the server right before the menu opens so the entry
+// only appears when the app is actually running.
+if (browser.contextMenus.onShown) {
+  browser.contextMenus.onShown.addListener(async (info) => {
+    if (!info.contexts || !info.contexts.includes('link')) return;
+    await refreshServerState();
+    try { browser.contextMenus.refresh(); } catch {}
+  });
+}
+
+browser.contextMenus.onClicked.addListener(async (info) => {
+  if (info.menuItemId !== SAVE_LINK_MENU_ID) return;
+  const url = info.linkUrl;
+  if (!url || !/^https?:/i.test(url)) return;
+  try {
+    const r = await importUrlsToServer([url]);
+    notify('Saved to AphroArchive', r && r.added === 0 ? 'Already saved: ' + url : url);
+  } catch (e) {
+    notify('AphroArchive error', e.message || String(e));
+  }
+});
+
 async function scrapeTab(tabId) {
   const settings = await getSettings();
   const [{ result }] = await browser.scripting.executeScript({

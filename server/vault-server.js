@@ -14,6 +14,9 @@ const VAULT_DROP_DIR = typeof PROCESS_DIR !== 'undefined' ? PROCESS_DIR : path.j
 // Static salt used by default — any installation with the same password derives the same key.
 // Using a custom random salt improves security against rainbow tables but breaks portability.
 const STATIC_SALT = 'AphroArchive';
+// AES-256-GCM blob layout: [12-byte IV][ciphertext][16-byte auth tag]
+const IV_PREFIX_LEN = 12;
+const TAG_LEN = 16;
 // ── Module state ─────────────────────────────────────────────────────
 
 let vaultKey = null;
@@ -559,6 +562,105 @@ async function processHiddenFolder() {
   }
 }
 
+// Magic-byte sniff for orphaned blobs whose metadata was lost — picks a
+// sensible extension so the recovered file plays/opens correctly. Defaults to
+// .mp4 since the vault is overwhelmingly video.
+function _sniffExt(head) {
+  if (!head || head.length < 4) return '.mp4';
+  const at = (i, j) => head.slice(i, j).toString('latin1');
+  if (head.length >= 8 && at(4, 8) === 'ftyp') return '.mp4';
+  if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3)
+    return at(0, 64).includes('webm') ? '.webm' : '.mkv';
+  if (at(0, 4) === 'RIFF' && at(8, 12) === 'AVI ') return '.avi';
+  if (at(0, 4) === 'RIFF' && at(8, 12) === 'WEBP') return '.webp';
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return '.jpg';
+  if (head.length >= 8 && head.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return '.png';
+  if (at(0, 4) === '%PDF') return '.pdf';
+  if (at(0, 3) === 'ID3') return '.mp3';
+  return '.mp4';
+}
+
+// Decrypt just the leading bytes of an .enc blob (no auth-tag verification —
+// GCM is a stream cipher so a prefix decrypts correctly with the right key,
+// which unlock already verified). Used only to sniff the file type cheaply.
+function _decryptHead(encPath, nBytes = 64) {
+  const fd = fs.openSync(encPath, 'r');
+  try {
+    const iv = Buffer.alloc(IV_PREFIX_LEN);
+    fs.readSync(fd, iv, 0, IV_PREFIX_LEN, 0);
+    const buf = Buffer.alloc(nBytes);
+    const read = fs.readSync(fd, buf, 0, nBytes, IV_PREFIX_LEN);
+    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+    return dec.update(buf.slice(0, read));
+  } finally { fs.closeSync(fd); }
+}
+
+// Rescan the vault folder and fold any orphaned .enc files — present on disk
+// but missing from the metadata map — back into the listing under a "Recovered"
+// folder. This makes every blob viewable whenever the password matches, even
+// after a metadata loss. Runs on each unlock. It is strictly additive: existing
+// entries are never modified and files are never deleted.
+function reconcileVaultOrphans() {
+  if (!vaultKey) return 0;
+  let metaMap;
+  try { metaMap = loadVaultMeta(); } catch { return 0; }
+  if (!metaMap || typeof metaMap !== 'object') return 0;
+  let files;
+  try { files = fs.readdirSync(VAULT_DIR).filter(f => f.endsWith('.enc')); } catch { return 0; }
+
+  const known = new Set(Object.keys(metaMap));
+  let recoveredFolderId = null;
+  let added = 0;
+
+  for (const f of files) {
+    const id = f.slice(0, -4);
+    if (known.has(id)) continue;
+    const encPath = path.join(VAULT_DIR, f);
+    let stat;
+    try { stat = fs.statSync(encPath); } catch { continue; }
+    if (stat.size < IV_PREFIX_LEN + TAG_LEN) continue; // too small to be a real blob
+
+    let ext = '.mp4';
+    try { ext = _sniffExt(_decryptHead(encPath)); } catch { /* keep default */ }
+
+    if (recoveredFolderId === null) {
+      const existing = Object.entries(metaMap).find(
+        ([, m]) => m && m.type === 'folder' && m.name === 'Recovered' && !m.parent);
+      if (existing) recoveredFolderId = existing[0];
+      else {
+        recoveredFolderId = crypto.randomUUID();
+        metaMap[recoveredFolderId] = { type: 'folder', name: 'Recovered', parent: null, mtime: Date.now() };
+      }
+    }
+
+    const size = Math.max(0, stat.size - IV_PREFIX_LEN - TAG_LEN);
+    metaMap[id] = {
+      originalName: id + ext,
+      name: id,
+      ext,
+      size,
+      sizeF: _fmtBytes(size),
+      mtime: stat.mtimeMs || Date.now(),
+      folder: recoveredFolderId,
+      category: 'Recovered',
+      videoMeta: null,
+      recovered: true,
+    };
+    added++;
+  }
+
+  if (added > 0) {
+    try {
+      saveVaultMeta(metaMap);
+      console.log(`[vault] recovered ${added} orphaned file(s) into the "Recovered" folder`);
+    } catch (e) {
+      console.error('[vault] orphan reconcile save failed:', e.message);
+      return 0;
+    }
+  }
+  return added;
+}
+
 // Poll the drop folder periodically. unref() so the timer never keeps the
 // process (or a test runner) alive on its own.
 const _sweepInterval = setInterval(() => {
@@ -616,6 +718,7 @@ async function apiVaultSetup(req, res) {
     resetVaultTimer();
     if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
     json(res, { ok: true });
+    try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on setup failed:', e.message); }
     processHiddenFolder();
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -661,6 +764,7 @@ async function apiVaultUnlock(req, res) {
     setVaultKey(encKey);
     resetVaultTimer();
     json(res, { ok: true });
+    try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on unlock failed:', e.message); }
     processHiddenFolder();
     try { require('./feed-watcher-server').processPendingPrivateFeed(); } catch {}
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -1478,7 +1582,7 @@ module.exports = {
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
   deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
-  encryptBufferToVault, suspendAutoLock, resumeAutoLock,
+  encryptBufferToVault, suspendAutoLock, resumeAutoLock, reconcileVaultOrphans,
   shredFile: _shredFile,
   __resetForTest, __stopTimers,
 };

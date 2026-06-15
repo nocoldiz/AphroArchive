@@ -199,7 +199,13 @@ def main():
     print(f"Files:   {len(enc_files)} encrypted blob(s)")
     print(f"KDF:     PBKDF2-SHA512, {iterations} iterations, salt={salt!r}\n")
 
-    password = getpass("Vault password: ")
+    # Read interactively from the console, but accept a piped password when
+    # stdin isn't a terminal (scripting / automation; also works on Windows
+    # where getpass would otherwise ignore a pipe and block).
+    if sys.stdin is not None and not sys.stdin.isatty():
+        password = sys.stdin.readline().rstrip("\r\n")
+    else:
+        password = getpass("Vault password: ")
     if cfg.get("verifyHash"):
         if not hmac.compare_digest(verify_hash(password, salt, iterations), cfg["verifyHash"]):
             sys.exit("Wrong password (verification hash mismatch). Nothing decrypted.")

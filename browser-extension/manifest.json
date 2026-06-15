@@ -3,7 +3,7 @@
   "name": "AphroArchive Downloader",
   "version": "2.0.0",
   "description": "Detect and download videos and photos from any page. Optionally hand them to a running AphroArchive app (yt-dlp powered) for queued downloads, categories and your gallery.",
-  "permissions": ["storage", "activeTab", "scripting", "tabs", "downloads", "clipboardWrite", "webRequest"],
+  "permissions": ["storage", "activeTab", "scripting", "tabs", "downloads", "clipboardWrite", "webRequest", "contextMenus", "notifications"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "scripts": ["background.js"]

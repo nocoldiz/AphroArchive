@@ -186,6 +186,18 @@ $('addSiteBtn').addEventListener('click', async () => {
   } catch (e) { setStatus('Error: ' + e.message); }
 });
 
+$('saveAllTabsBtn').addEventListener('click', async () => {
+  const tabs = await browser.tabs.query({});
+  const urls = [...new Set(
+    tabs.map(t => t.url).filter(u => u && /^https?:/i.test(u))
+  )];
+  if (!urls.length) return setStatus('No open tabs to save.');
+  try {
+    const r = await Aphro.importLinks(urls);
+    setStatus(`Saved ${r.added ?? urls.length} of ${urls.length} open tab(s) to AphroArchive.`);
+  } catch (e) { setStatus('Error: ' + e.message); }
+});
+
 $('savePageBtn').addEventListener('click', async () => {
   if (!activeTab) return;
   try {
