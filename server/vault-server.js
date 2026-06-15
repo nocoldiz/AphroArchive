@@ -896,9 +896,11 @@ async function apiVaultUnlock(req, res) {
 
       failedAttempts++;
 
-      // Exponential backoff: 2nd fail → 5s, 3rd fail → 30s
-      if (failedAttempts === 2) cooldownUntil = now + 5_000;
+      // Escalating backoff: 2→5s, 3→30s, 4→2min, 5+→5min
+      if      (failedAttempts === 2) cooldownUntil = now + 5_000;
       else if (failedAttempts === 3) cooldownUntil = now + 30_000;
+      else if (failedAttempts === 4) cooldownUntil = now + 120_000;
+      else if (failedAttempts >= 5)  cooldownUntil = now + 300_000;
 
       return json(res, { error: 'Wrong password', attempts: failedAttempts }, 401);
     }
@@ -1511,6 +1513,17 @@ function isUnlocked() {
   return !!vaultKey;
 }
 
+// Programmatic lock — used when switching away from the Vault profile so the
+// session key doesn't outlive the profile context.
+function lockVault() {
+  clearVaultTimer();
+  vaultKey = null;
+  _autoLockHold = 0;
+  try { setVaultKey(null); } catch {}
+  failedAttempts = 0;
+  cooldownUntil = 0;
+}
+
 function getVaultKey() {
   return vaultKey;
 }
@@ -1729,7 +1742,7 @@ module.exports = {
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
-  deriveKeys, NO_CACHE_HEADERS, isUnlocked, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
+  deriveKeys, NO_CACHE_HEADERS, isUnlocked, lockVault, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
   encryptBufferToVault, suspendAutoLock, resumeAutoLock, reconcileVaultOrphans,
   apiVaultThumb, apiVaultGenThumbs, apiVaultGenThumbsStatus, generateVaultThumb,
   shredFile: _shredFile,

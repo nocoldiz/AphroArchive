@@ -238,12 +238,16 @@ async function apiSwitchProfile(req, res) {
   if (!profile) return json(res, { error: 'Profile name required' }, 400);
   
   const db = require('./db-server');
-  const { isUnlocked } = require('./vault-server');
-  
+  const { isUnlocked, lockVault } = require('./vault-server');
+
   if (profile === 'Vault' && !isUnlocked()) {
     return json(res, { error: 'Vault is locked', locked: true }, 401);
   }
-  
+
+  // Switching away from Vault: drop the session key so it doesn't outlive
+  // the profile context or keep the auto-lock timer ticking in the background.
+  if (profile !== 'Vault') lockVault();
+
   db.switchProfile(profile);
   saveLastProfile(profile);
   json(res, { ok: true, current: profile });

@@ -219,7 +219,6 @@ if (typeof window !== 'undefined') {
 }
 export const vaultMode = signal<boolean>(false);
 export const isVaultUnlocked = signal<boolean>(false);
-export const folderMasterPassword = signal<string | null>(null);
 export const videoSelMode = signal<boolean>(false);
 export const selectedVideoIds = signal<Set<string>>(new Set());
 // Ids of library videos currently being encrypted into the Vault — their cards
@@ -290,7 +289,17 @@ export async function reloadAppData() {
   currentChannel.value = null;
   currentPhotoFolder.value = '';
   searchQuery.value = '';
+  encryptingVideoIds.value = new Set();
+  vaultGlobalView.value = false;
   if (location.pathname !== '/') history.pushState(null, '', '/');
+
+  // Clear legacy window vault state so stale data from the previous profile
+  // isn't visible while the new profile loads.
+  const w = window as any;
+  w.vaultFiles = []; w.vaultPl = []; w.vaultPlIdx = 0;
+  w.vaultPhotos = []; w.vaultPhotoIdx = -1;
+  w.vaultFolders = []; w.vaultCurFolder = null;
+  w.vaultSel = new Set();
 
   await Promise.all([loadVideos(), loadFolders(), loadPrefs()]);
 
