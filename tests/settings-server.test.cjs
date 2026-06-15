@@ -29,7 +29,7 @@ const state = {
   hidden: [],
   categories: [],
   actors: [],
-  studios: [],
+  channels: [],
   vaultConfig: null,
 };
 
@@ -55,9 +55,9 @@ injectMock('../server/db-server', {
   savePrefs: vi.fn((p) => { state.prefs = { ...p }; }),
   loadHidden: vi.fn(() => [...state.hidden]),
   saveHidden: vi.fn((h) => { state.hidden = [...h]; }),
-  loadCategories: vi.fn(() => state.categories.map(n => ({ name: n }))),
+  loadFolderMappings: vi.fn(() => state.categories.map(n => ({ name: n }))),
   loadActors: vi.fn(() => state.actors.map(n => ({ name: n }))),
-  loadStudios: vi.fn(() => state.studios.map(n => ({ name: n }))),
+  loadChannels: vi.fn(() => state.channels.map(n => ({ name: n }))),
   loadVaultConfig: vi.fn(() => state.vaultConfig),
 });
 
@@ -89,7 +89,7 @@ beforeEach(() => {
   state.hidden = [];
   state.categories = [];
   state.actors = [];
-  state.studios = [];
+  state.channels = [];
   state.vaultConfig = null;
   try { fs.unlinkSync(MOCK_PATHS_FILE); } catch {}
 });
@@ -122,11 +122,11 @@ function makeRes() {
 // ── apiSettingsLists() ────────────────────────────────────────────────
 
 describe('apiSettingsLists()', () => {
-  it('returns hidden, categories, actors, studios as newline text', () => {
+  it('returns hidden, categories, actors, channels as newline text', () => {
     state.hidden = ['term1', 'term2'];
     state.categories = ['Action', 'Drama'];
     state.actors = ['Jane Doe', 'John Smith'];
-    state.studios = ['Studio A'];
+    state.channels = ['Channel A'];
 
     const res = makeRes();
     settings.apiSettingsLists({}, res);
@@ -134,7 +134,7 @@ describe('apiSettingsLists()', () => {
     expect(res.jsonBody.hidden).toBe('term1\nterm2');
     expect(res.jsonBody.categories).toBe('Action\nDrama');
     expect(res.jsonBody.actors).toBe('Jane Doe\nJohn Smith');
-    expect(res.jsonBody.studios).toBe('Studio A');
+    expect(res.jsonBody.channels).toBe('Channel A');
   });
 
   it('returns empty strings when lists are empty', () => {

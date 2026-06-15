@@ -2287,6 +2287,19 @@ input {
   font-size: 0.85rem
 }
 
+/* Floating multi-select pill (browse/all modes). Keep every action on a single
+   line — when there are more buttons than fit, scroll horizontally instead of
+   letting the buttons shrink and their labels wrap to two lines. */
+.video-sel-bar {
+  flex-wrap: nowrap;
+  max-width: calc(100vw - 32px);
+  overflow-x: auto;
+}
+.video-sel-bar > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .vault-sel-bar span {
   flex: 1;
   color: var(--ac);
@@ -8101,6 +8114,54 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
   z-index: 999;
+}
+
+/* Sidebar position / hover-reveal are desktop affordances; below 860px the
+   sidebar is an overlay drawer driven by the burger button (see media query). */
+@media (min-width: 861px) {
+  /* ── Sidebar docked to the right edge ── */
+  body.sidebar-pos-right .wrap {
+    flex-direction: row-reverse;
+  }
+
+  body.sidebar-pos-right .side {
+    border-right: none;
+    border-left: 1px solid var(--brd);
+  }
+
+  /* ── Hover-reveal sidebar (slides out from the edge) ── */
+  body.sidebar-hover .side {
+    position: fixed;
+    top: 53px;
+    left: 0;
+    height: calc(100vh - 53px);
+    width: 220px;
+    z-index: 1000;
+    background: var(--bg);
+    transform: translateX(-210px);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    border-right: 3px solid var(--ac);
+  }
+
+  body.sidebar-hover .side:hover,
+  body.sidebar-hover .side:focus-within {
+    transform: translateX(0);
+    box-shadow: 6px 0 28px rgba(0, 0, 0, 0.45);
+  }
+
+  body.sidebar-hover.sidebar-pos-right .side {
+    left: auto;
+    right: 0;
+    transform: translateX(210px);
+    border-right: none;
+    border-left: 3px solid var(--ac);
+  }
+
+  body.sidebar-hover.sidebar-pos-right .side:hover,
+  body.sidebar-hover.sidebar-pos-right .side:focus-within {
+    transform: translateX(0);
+    box-shadow: -6px 0 28px rgba(0, 0, 0, 0.45);
+  }
 }
 
 /* ── Topbar Folders/Tags dropdowns ── */

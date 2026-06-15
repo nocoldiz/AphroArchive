@@ -401,6 +401,7 @@ export const VaultView = () => {
         setError(data.error || 'Wrong password');
       } else {
         setPassword('');
+        isVaultUnlocked.value = true;
         fetchStatus();
       }
     } catch (e: any) {
@@ -434,6 +435,7 @@ export const VaultView = () => {
         setPassword('');
         setConfirmPassword('');
         setSaltMode('static');
+        isVaultUnlocked.value = true;
         fetchStatus();
       }
     } catch (e: any) {
@@ -606,6 +608,26 @@ export const VaultView = () => {
     setSelectedIds(new Set());
     const w = window as any;
     if (w.toast) w.toast(`Deleted ${ids.length} items`);
+  };
+
+  // Bulk-decrypt the selected vault files back to their original folders.
+  // Only vault (encrypted) files are eligible — public files are skipped.
+  const handleDecryptSelected = async () => {
+    const ids = Array.from(selectedIds).filter(id => files.some(f => f.id === id));
+    if (!ids.length) return;
+    if (!confirm(`Decrypt & restore ${ids.length} selected file${ids.length !== 1 ? 's' : ''}?`)) return;
+
+    let ok = 0;
+    for (const id of ids) {
+      const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' });
+      if (res.ok) ok++;
+    }
+
+    setFiles(prev => prev.filter(f => !selectedIds.has(f.id)));
+    setSelectedIds(new Set());
+    const w = window as any;
+    if (w.loadVideos) w.loadVideos();
+    if (w.toast) w.toast(`Decrypted ${ok} file${ok !== 1 ? 's' : ''}`);
   };
 
   const createNewVaultTextFile = async () => {
@@ -976,6 +998,18 @@ export const VaultView = () => {
                 title="Encrypt all selected unencrypted files into the Vault"
               >
                 {encrypting ? 'Encrypting…' : `🔒 Encrypt Selected (${publicFiles.filter(f => selectedIds.has(f.id)).length})`}
+              </button>
+            )}
+            {/* Decrypt: never offered while browsing all public videos (Global
+                view); always available in the vault-only view when vault files
+                are selected. */}
+            {!isGlobal && files.some(f => selectedIds.has(f.id)) && (
+              <button
+                onClick={handleDecryptSelected}
+                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+                title="Decrypt the selected files back to their original folders"
+              >
+                🔓 Decrypt Selected ({files.filter(f => selectedIds.has(f.id)).length})
               </button>
             )}
             {selectedIds.size > 0 && (

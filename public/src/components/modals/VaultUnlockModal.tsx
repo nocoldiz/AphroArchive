@@ -83,9 +83,16 @@ export const VaultUnlockModal = () => {
       if (!res.ok) {
         setError(data.error || 'Failed to setup');
       } else {
+        // Setup leaves the vault unlocked server-side — proceed straight in
+        // instead of re-prompting for the password we just created.
         setPassword('');
         setConfirmPassword('');
-        fetchStatus();
+        setSelfDestructPassword('');
+        isVaultUnlocked.value = true;
+        vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null };
+        if (targetProfileAfterUnlock) {
+          switchProfile(targetProfileAfterUnlock);
+        }
       }
     } catch (e: any) {
       setError(e.message || 'Failed to setup');

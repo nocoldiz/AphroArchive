@@ -540,7 +540,7 @@ export const ImageGenView = () => {
     if (imagePath) {
       // Already has a server path (from frame capture)
       const name = imagePath.split(/[\\/]/).pop() || 'input.jpg';
-      setInputImages([{ url: imageUrl, serverPath: imagePath, name }]);
+      setInputImages([{ url: imageUrl || '', serverPath: imagePath, name }]);
       setImgMode('img2img');
       setImgPanelOpen(true);
     } else if (imageUrl) {

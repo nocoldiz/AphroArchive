@@ -713,7 +713,7 @@ export const PlayerView = () => {
               {video.linkUrl && (
                 <button onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(video.linkUrl);
+                    await navigator.clipboard.writeText(video.linkUrl!);
                     if ((window as any).toast) (window as any).toast('Link copied');
                   } catch {
                     if ((window as any).toast) (window as any).toast('Copy failed');

@@ -149,30 +149,30 @@ describe('wordMatchAny()', () => {
   });
 });
 
-// ─── studioMatchAny() ───────────────────────────────────────────────
+// ─── channelMatchAny() ───────────────────────────────────────────────
 
-describe('studioMatchAny()', () => {
+describe('channelMatchAny()', () => {
   it('matches via whole-word', () => {
-    expect(helpers.studioMatchAny('Brazzers Network', ['Brazzers'])).toBe(true);
+    expect(helpers.channelMatchAny('Brazzers Network', ['Brazzers'])).toBe(true);
   });
 
   it('matches after stripping spaces and dashes', () => {
-    expect(helpers.studioMatchAny('Fake-Studio-Name', ['FakeStudioName'])).toBe(true);
+    expect(helpers.channelMatchAny('Fake-Studio-Name', ['FakeStudioName'])).toBe(true);
   });
 
   it('matches underscore-separated term', () => {
-    expect(helpers.studioMatchAny('FakeStudio', ['Fake_Studio'])).toBe(true);
+    expect(helpers.channelMatchAny('FakeStudio', ['Fake_Studio'])).toBe(true);
   });
 
   it('does not match via normalised substring when term is ≤2 chars and not a whole word', () => {
     // 'xy' is 2 chars; 'xystudio' has no word boundary around 'xy', so wordMatch
     // returns false. The normalised substring guard (normT.length > 2) then also
     // prevents a match — total result is false.
-    expect(helpers.studioMatchAny('xystudio', ['xy'])).toBe(false);
+    expect(helpers.channelMatchAny('xystudio', ['xy'])).toBe(false);
   });
 
   it('returns false when nothing matches', () => {
-    expect(helpers.studioMatchAny('Alpha Studio', ['Beta', 'Gamma'])).toBe(false);
+    expect(helpers.channelMatchAny('Alpha Studio', ['Beta', 'Gamma'])).toBe(false);
   });
 });
 

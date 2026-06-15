@@ -42,10 +42,22 @@ export const isSidebarOpen = signal<boolean>(false);
 // Desktop: collapse the sidebar to a narrow icon-only rail.
 export const sidebarCollapsed = signal<boolean>(localStorage.getItem('sidebarCollapsed') === 'true');
 
+// Which edge the sidebar docks to, and whether it stays fixed or reveals on hover.
+export const sidebarSide = signal<'left' | 'right'>((localStorage.getItem('sidebarSide') as 'left' | 'right') || 'left');
+export const sidebarReveal = signal<'fixed' | 'hover'>((localStorage.getItem('sidebarReveal') as 'fixed' | 'hover') || 'fixed');
+
 if (typeof document !== 'undefined') {
   sidebarCollapsed.subscribe(v => {
     document.body.classList.toggle('sidebar-rail', v);
     localStorage.setItem('sidebarCollapsed', v ? 'true' : 'false');
+  });
+  sidebarSide.subscribe(v => {
+    document.body.classList.toggle('sidebar-pos-right', v === 'right');
+    localStorage.setItem('sidebarSide', v);
+  });
+  sidebarReveal.subscribe(v => {
+    document.body.classList.toggle('sidebar-hover', v === 'hover');
+    localStorage.setItem('sidebarReveal', v);
   });
 }
 
@@ -158,6 +170,8 @@ export const currentTagTerms = signal<string[]>([]);
 export const currentPhotoFolder = signal<string>('');
 export const currentActor = signal<string | null>(null);
 export const currentChannel = signal<string | null>(null);
+// Pending image handed to ImageGenView (set by ContextMenu / PlayerView frame capture).
+export const imagegenInputState = signal<{ imageUrl?: string; imagePath?: string } | null>(null);
 export const linkVidIds = signal<Set<string>>(new Set());
 
 export function rebuildLinkVidIds(items: any[]) {
@@ -909,6 +923,8 @@ export async function loadPrefs() {
     thumbBlurMode.value = data.thumbBlurMode;
     localStorage.setItem('thumbBlurMode', data.thumbBlurMode);
   }
+  if (data.sidebarSide && data.sidebarSide !== sidebarSide.value) sidebarSide.value = data.sidebarSide;
+  if (data.sidebarReveal && data.sidebarReveal !== sidebarReveal.value) sidebarReveal.value = data.sidebarReveal;
   _prefsLoaded = true;
 }
 
@@ -1122,6 +1138,8 @@ if (typeof window !== 'undefined') {
   currentFolder.subscribe(scheduleUrlUpdate);
   currentTag.subscribe(scheduleUrlUpdate);
   currentVideo.subscribe(scheduleUrlUpdate);
+  currentActor.subscribe(scheduleUrlUpdate);
+  currentChannel.subscribe(scheduleUrlUpdate);
   // popstate and initial routing are handled by setupRouter() in router.ts
 }
 
@@ -1238,27 +1256,25 @@ w.refresh = async (full = false) => {
   if (w.render) w.render();
 };
 
+// Navigation helpers set signals only; URL sync is handled centrally by the
+// coalesced doUpdateUrl() subscriber so back/forward and deep links stay in sync.
 w.openActorFromVideo = (name: string) => {
-  currentView.value = 'actors';
   currentActor.value = name;
-  history.pushState(null, '', `/actor/${encodeURIComponent(name)}`);
+  currentView.value = 'actors';
 };
 
 w.openActor = (name: string) => {
-  currentView.value = 'actors';
   currentActor.value = name;
-  history.pushState(null, '', `/actor/${encodeURIComponent(name)}`);
+  currentView.value = 'actors';
 };
 
 w.openChannel = (name: string) => {
-  currentView.value = 'channels';
   currentChannel.value = name;
-  history.pushState(null, '', `/channel/${encodeURIComponent(name)}`);
+  currentView.value = 'channels';
 };
 
 w.showImportFavs = () => {
   currentView.value = 'links';
-  history.pushState(null, '', '/links');
 };
 
 w.openVid = (id: string) => {
@@ -1266,7 +1282,6 @@ w.openVid = (id: string) => {
   if (v) {
     currentVideo.value = v;
     currentView.value = 'player';
-    history.pushState(null, '', `/video/${id}`);
   }
 };
 

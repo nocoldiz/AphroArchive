@@ -1,4 +1,4 @@
-import { appPrefs, updatePrefs, loadVideos } from '../../store';
+import { appPrefs, updatePrefs, loadVideos, sidebarSide, sidebarReveal } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { PERSONALITIES, Personality } from '../../personalities';
 import { JSX } from 'preact';
@@ -429,6 +429,49 @@ export const SettingsView = () => {
                 })}
               </div>
             </div>
+            <div style={sec}>
+              <h3 style={{ ...secH, marginBottom: '6px' }}>Sidebar</h3>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Choose which side the sidebar docks to and whether it stays visible or only slides out when you hover its edge.</p>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ ...label, marginBottom: '6px' }}>Position</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {([
+                    { id: 'left' as const, name: 'Left' },
+                    { id: 'right' as const, name: 'Right' },
+                  ]).map(o => {
+                    const on = (prefs.sidebarSide || 'left') === o.id;
+                    return (
+                      <button key={o.id} type="button" onClick={() => { sidebarSide.value = o.id; updatePrefs({ sidebarSide: o.id }); }}
+                        style={{ flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600,
+                          background: on ? 'var(--ac)' : 'var(--bg3)', color: on ? '#fff' : 'var(--tx)',
+                          border: on ? '1px solid var(--ac)' : '1px solid var(--brd)' }}>{o.name}</button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ ...label, marginBottom: '6px' }}>Visibility</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {([
+                    { id: 'fixed' as const, name: 'Always visible', hint: 'Pinned beside the content' },
+                    { id: 'hover' as const, name: 'Reveal on hover', hint: 'Slides out from the edge' },
+                  ]).map(o => {
+                    const on = (prefs.sidebarReveal || 'fixed') === o.id;
+                    return (
+                      <button key={o.id} type="button" onClick={() => { sidebarReveal.value = o.id; updatePrefs({ sidebarReveal: o.id }); }}
+                        style={{ flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', textAlign: 'left',
+                          background: on ? 'var(--ac)' : 'var(--bg3)', color: on ? '#fff' : 'var(--tx)',
+                          border: on ? '1px solid var(--ac)' : '1px solid var(--brd)' }}>
+                        <div style={{ fontWeight: 600 }}>{o.name}</div>
+                        <div style={{ fontSize: '11px', opacity: 0.8 }}>{o.hint}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
             <div style={secLast}>
               <h3 style={{ ...secH, marginBottom: '6px' }}>Bar Layout</h3>
               <p style={{ fontSize: '12px', color: 'var(--tx3)' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar.</p>
@@ -565,7 +608,7 @@ export const SettingsView = () => {
                       title={`Use ${m.id} model`}
                       checked={whisperModel === m.id}
                       disabled={!whisperEnabled}
-                      onChange={() => setWhisperModel(m.id)}
+                      onChange={() => setWhisperModel(m.id as typeof whisperModel)}
                     />
                     <span style={{ fontSize: '13px', fontWeight: 600, minWidth: '56px' }}>{m.id}</span>
                     <span style={{ fontSize: '12px', color: 'var(--tx3)', minWidth: '72px' }}>{m.size}</span>

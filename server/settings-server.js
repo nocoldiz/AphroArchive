@@ -95,6 +95,8 @@ async function apiSavePrefs(req, res) {
   if ('cardSize' in body && !isNaN(parseInt(body.cardSize, 10))) prefs.cardSize = parseInt(body.cardSize, 10);
   if ('isMuted' in body) prefs.isMuted = !!body.isMuted;
   if ('thumbBlurMode' in body) prefs.thumbBlurMode = String(body.thumbBlurMode || 'show').trim();
+  if ('sidebarSide' in body) prefs.sidebarSide = body.sidebarSide === 'right' ? 'right' : 'left';
+  if ('sidebarReveal' in body) prefs.sidebarReveal = body.sidebarReveal === 'hover' ? 'hover' : 'fixed';
   if ('comfyuiUrl' in body) prefs.comfyuiUrl = String(body.comfyuiUrl || '').trim();
   if ('comfyuiWorkflowJson' in body) prefs.comfyuiWorkflowJson = String(body.comfyuiWorkflowJson || '').trim();
   if ('comfyuiPositiveNodeId' in body) prefs.comfyuiPositiveNodeId = String(body.comfyuiPositiveNodeId || '').trim();

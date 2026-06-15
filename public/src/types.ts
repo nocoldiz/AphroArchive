@@ -96,6 +96,10 @@ export interface AppPrefs {
   itemPlacements?: Record<string, 'topbar' | 'sidebar'>;
   /** Per-section bar placement overrides. Maps 'library'|'media'|'tools' → bar. */
   sectionPlacements?: Record<string, 'topbar' | 'sidebar'>;
+  /** Which edge the sidebar docks to. */
+  sidebarSide?: 'left' | 'right';
+  /** Whether the sidebar stays fixed or only reveals on hover. */
+  sidebarReveal?: 'fixed' | 'hover';
 }
 export interface ThumbnailGroup {
   id: string;

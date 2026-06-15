@@ -2,7 +2,7 @@ import type { ComponentChildren, VNode } from 'preact';
 import {
   currentView, isSidebarOpen, currentFolder, currentPhotoFolder,
   allVideos, linkTotalCount, mediaCounts, showConnectModal,
-  appPrefs, updatePrefs,
+  appPrefs, updatePrefs, currentActor, currentChannel,
 } from '../../store';
 import type { PluginMeta } from '../../plugins';
 
@@ -27,6 +27,10 @@ export interface NavItem {
 export const FILTER_IDS = { folders: 'folders-filter', tags: 'tags-filter' } as const;
 
 const setView = (view: string, legacyFn?: string) => {
+  // Clear detail-scoped selections so a top-level nav click lands on the list
+  // view (e.g. /actors) rather than re-emitting a stale /actor/<name> URL.
+  currentActor.value = null;
+  currentChannel.value = null;
   currentView.value = view;
   isSidebarOpen.value = false;
   if (legacyFn && (window as any)[legacyFn]) (window as any)[legacyFn]();
