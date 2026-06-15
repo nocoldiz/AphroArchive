@@ -1,5 +1,47 @@
 # AphroArchive — TODO & Roadmap
 
+  [c] Running Gradle (assembleRelease)...
+
+ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation.
+ done: dist\AphroArchive.apk  (release)
+
+[bulkdownloader] Building BulkDownloaderGUI...
+278 INFO: PyInstaller: 6.20.0, contrib hooks: 2026.5
+279 INFO: Python: 3.10.6
+294 INFO: Platform: Windows-10-10.0.26200-SP0
+294 INFO: Python environment: C:\Users\nocol\AppData\Local\Programs\Python\Python310
+296 INFO: wrote build\BulkDownloaderGUI.spec
+306 INFO: Module search paths (PYTHONPATH):
+['C:\\github\\AphroArchive',
+ 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\python310.zip',
+ 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\DLLs',
+ 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib',
+ 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310',
+ 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages',
+ 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\win32',
+ 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\win32\\lib',
+ 'C:\\Users\\nocol\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\Pythonwin',
+ 'C:\\github\\AphroArchive\\bulkdownloader']
+1983 INFO: Appending 'datas' from .spec
+ERROR: Unable to find 'C:\\github\\AphroArchive\\build\\bulkdownloader\\bulkdownloader.py' when adding binary and data files.
+ WARN: BulkDownloaderGUI build failed
+
+[firefox] Packaging Firefox extension...
+Compress-Archive : .xpi non è un formato di file di archivio supportato. .zip è l'unico formato di file di archivio
+supportato.
+In riga:1 car:1
++ Compress-Archive -Path 'firefox-extension\*' -DestinationPath 'dist\A ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (.xpi:String) [Compress-Archive], IOException
+    + FullyQualifiedErrorId : NotSupportedArchiveFileExtension,Compress-Archive
+
+ WARN: Firefox extension packaging failed
+
+
+
 ## Bookmark Import: Match categories/tags instead of saved websites
 
 - [x] Analyze codebase: understand current bookmark import flow
