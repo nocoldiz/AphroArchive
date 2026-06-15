@@ -45,23 +45,32 @@ async function loadDetected() {
   renderPageActions();
 }
 
+// Hide audio-only tracks and per-quality HLS variant playlists; sort the rest
+// so directly-downloadable progressive videos come first, highest-res on top.
+function displayVideos() {
+  return (detected.videos || [])
+    .filter(v => !v.audioOnly && !v.variant)
+    .sort((a, b) => (a.stream - b.stream) || ((b.height || 0) - (a.height || 0)));
+}
+
 function renderVideos() {
   const list = $('videos');
   list.innerHTML = '';
-  const vids = detected.videos || [];
+  const vids = displayVideos();
   $('vidCount').textContent = vids.length;
   if (!vids.length) {
     list.innerHTML = '<li class="empty">No videos detected on this page.</li>';
     return;
   }
-  for (const v of vids) {
+  vids.forEach((v, i) => {
     const li = document.createElement('li');
 
     const main = document.createElement('div');
     main.className = 'media-main';
     const title = document.createElement('div');
     title.className = 'media-title';
-    title.textContent = v.title || v.url.split('/').pop() || v.url;
+    const res = v.height ? ` · ${v.width}×${v.height}` : '';
+    title.textContent = (v.title || v.url.split('/').pop().split('?')[0] || v.url) + res;
     const sub = document.createElement('div');
     sub.className = 'media-sub';
     sub.textContent = v.url;
@@ -69,6 +78,7 @@ function renderVideos() {
     main.appendChild(sub);
     li.appendChild(main);
 
+    if (!v.stream && i === 0) { const t = document.createElement('span'); t.className = 'tag best'; t.textContent = 'best'; li.appendChild(t); }
     if (v.stream) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'HLS'; li.appendChild(t); }
     if (v.sniffed) { const t = document.createElement('span'); t.className = 'tag sniff'; t.textContent = 'net'; li.appendChild(t); }
 
@@ -81,17 +91,26 @@ function renderVideos() {
     li.appendChild(btn);
 
     list.appendChild(li);
-  }
+  });
+}
+
+// When the server is running, hand streams (and Twitter/twimg media generally)
+// to yt-dlp via the page URL — it resolves the best muxed quality far better
+// than a raw variant playlist would.
+function serverUrlFor(v) {
+  const usesPage = v.stream || /(\.|\/)twimg\.com/i.test(v.url);
+  return (usesPage && detected.page) ? detected.page : v.url;
 }
 
 async function downloadVideo(v) {
   if (online) {
     try {
-      await Aphro.addDownloads([v.url]);
+      await Aphro.addDownloads([serverUrlFor(v)]);
       setStatus('Queued on AphroArchive (videos/downloads).');
       loadJobs();
     } catch (e) { setStatus('Error: ' + e.message); }
   } else {
+    if (v.stream) return setStatus('HLS streams need AphroArchive running.');
     try {
       await browser.downloads.download({ url: v.url });
       setStatus('Download started.');
@@ -100,11 +119,12 @@ async function downloadVideo(v) {
 }
 
 $('sendVideosBtn').addEventListener('click', async () => {
-  const urls = (detected.videos || []).map(v => v.url);
+  // De-dupe (Twitter collapses to a single tweet-page URL for the server).
+  const urls = [...new Set(displayVideos().map(serverUrlFor))];
   if (!urls.length) return;
   try {
     const r = await Aphro.addDownloads(urls);
-    setStatus(`Queued ${r.ids ? r.ids.length : urls.length} video(s).`);
+    setStatus(`Queued ${r.ids ? r.ids.length : urls.length} item(s).`);
     loadJobs();
   } catch (e) { setStatus('Error: ' + e.message); }
 });

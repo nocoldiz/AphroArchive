@@ -40,9 +40,13 @@ function clearTab(tabId) {
   updateBadge(tabId);
 }
 
+// A video is "useful" to show if it's a real video the user would pick — not an
+// audio-only track or a per-quality HLS variant playlist.
+const isUsefulVideo = (v) => !v.audioOnly && !v.variant;
+
 function updateBadge(tabId) {
   const s = detected.get(tabId);
-  const n = s ? s.videos.size : 0;
+  const n = s ? [...s.videos.values()].filter(isUsefulVideo).length : 0;
   try {
     browser.action.setBadgeText({ tabId, text: n ? String(n) : '' });
     browser.action.setBadgeBackgroundColor({ tabId, color: '#2563eb' });
@@ -67,10 +71,23 @@ function mergeContentMedia(tabId, msg) {
   updateBadge(tabId);
 }
 
+// Classify a media URL — especially the many pieces sites like X.com / Twitter
+// split a single video into (HLS master + per-quality variant playlists +
+// audio-only tracks + progressive muxed MP4s).
+function mediaInfo(url, isStream) {
+  const lower = url.toLowerCase();
+  const audioOnly = /\/aud\/|\/mp4a\//.test(lower);
+  const variant = isStream && /\/(avc1|mp4a|hevc)\//.test(lower); // a per-quality HLS playlist
+  const res = url.match(/\/(\d{2,4})x(\d{2,4})\//);
+  const width = res ? parseInt(res[1], 10) : 0;
+  const height = res ? parseInt(res[2], 10) : 0;
+  return { stream: !!isStream, audioOnly, variant, width, height };
+}
+
 function addSniffedVideo(tabId, url, isStream) {
   const s = tabStore(tabId);
   if (s.videos.has(url)) return;
-  s.videos.set(url, { url, kind: 'video', title: '', page: s.page, stream: !!isStream, sniffed: true });
+  s.videos.set(url, { url, kind: 'video', title: '', page: s.page, sniffed: true, ...mediaInfo(url, isStream) });
   updateBadge(tabId);
 }
 
