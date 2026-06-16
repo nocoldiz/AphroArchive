@@ -5,7 +5,7 @@ import sys
 import gzip
 import json
 import zlib
-import html
+iupmport html
 import base64
 import argparse
 from pathlib import Path
@@ -834,6 +834,22 @@ class UniversalVideoDownloader:
                 ydl.download([url])
             return self._resolve_final_file()
         except Exception as e:
+            err = str(e)
+            # If the impersonate target isn't available, retry without it so we
+            # don't block the entire waterfall over a missing curl_cffi target.
+            if 'impersonate' in err.lower() or (
+                'target' in err.lower() and 'not available' in err.lower()
+            ):
+                print(f'   [{label}] impersonation target unavailable — retrying without…', flush=True)
+                opts2 = {k: v for k, v in opts.items() if k != 'impersonate'}
+                try:
+                    self.last_file = None
+                    with yt_dlp.YoutubeDL(opts2) as ydl:
+                        ydl.download([url])
+                    return self._resolve_final_file()
+                except Exception as e2:
+                    print(f'   [{label}] failed: {e2}', flush=True)
+                    return None
             print(f'   [{label}] failed: {e}', flush=True)
             return None
 

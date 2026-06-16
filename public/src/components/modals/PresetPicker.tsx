@@ -5,11 +5,13 @@ interface Preset {
   id: string;
   name: string;
   description?: string;
+  hasFolders?: boolean;
   counts: {
     categories?: number;
     actors?: number;
     channels?: number;
     websites?: number;
+    folders?: number;
   };
 }
 
@@ -19,6 +21,7 @@ export const PresetPicker = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [createFolders, setCreateFolders] = useState(false);
   const [status, setStatus] = useState('');
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'orange');
 
@@ -28,6 +31,7 @@ export const PresetPicker = () => {
     setFetchError('');
     setStatus('');
     setSelected(new Set());
+    setCreateFolders(false);
     fetch('/api/presets')
       .then(r => {
         if (!r.ok) throw new Error(`Server error ${r.status}`);
@@ -49,10 +53,11 @@ export const PresetPicker = () => {
       if (!state.mergeMode && Array.isArray(selection)) {
         // Create a profile for each selected preset
         for (const p of selection) {
+          const meta = presets.find(x => x.id === p);
           await fetch('/api/profiles/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: p, preset: p }),
+            body: JSON.stringify({ name: p, preset: p, createFolders: createFolders && !!meta?.hasFolders }),
           });
         }
         // Switch to the first selected profile

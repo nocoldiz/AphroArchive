@@ -54,10 +54,15 @@ function listProfileTemplates() {
           return Array.isArray(data) ? data.length : Object.keys(data).length;
         } catch { return 0; }
       };
+      const folderTree = loadPresetFolders(d.name);
+      const folderCount = folderTree
+        ? Object.values(folderTree).reduce((n, subs) => n + 1 + (Array.isArray(subs) ? subs.length : 0), 0)
+        : 0;
       return {
         id: d.name,
         name,
         description,
+        hasFolders: !!folderTree,
         counts: {
           actors:     count('actors.json'),
           categories: count('categories.json'),
@@ -65,6 +70,7 @@ function listProfileTemplates() {
           websites:   count('websites.json'),
           series:     count('series.json'),
           albums:     count('albums.json'),
+          folders:    folderCount,
         },
       };
     });
@@ -81,6 +87,50 @@ function loadPresetData(id) {
   const se = tryLoad('series.json');    if (Array.isArray(se)) result.series = se;
   const al = tryLoad('albums.json');    if (Array.isArray(al)) result.albums = al;
   return result;
+}
+
+// Load a preset's folders.json — a 2-level tree { "Main Genre": ["Subgenre", ...] }.
+// Returns the parsed object, or null when the preset ships no folders.json.
+function loadPresetFolders(id) {
+  const dir = path.join(PROFILES_DIR, id);
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(dir, 'folders.json'), 'utf-8'));
+    if (data && typeof data === 'object' && !Array.isArray(data)) return data;
+  } catch {}
+  return null;
+}
+
+function sanitizeFolderSeg(s) {
+  return String(s || '').trim().replace(/[<>:"|?*\\/]/g, '_');
+}
+
+// Materialise a preset's folders.json onto disk under the active write root.
+// Existing folders are left untouched. Returns { ok, created }.
+function createPresetFolders(id) {
+  const tree = loadPresetFolders(id);
+  if (!tree) return { ok: false, created: 0 };
+  const db = require('./db-server');
+  const base = path.resolve(db.getDefaultWriteRoot());
+  let created = 0;
+  const mkdir = (dir) => {
+    if (!dir.startsWith(base)) return;
+    try { if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); created++; } } catch {}
+  };
+  for (const [main, subs] of Object.entries(tree)) {
+    const mainSeg = sanitizeFolderSeg(main);
+    if (!mainSeg) continue;
+    const mainDir = path.join(base, mainSeg);
+    mkdir(mainDir);
+    if (Array.isArray(subs)) {
+      for (const sub of subs) {
+        const subSeg = sanitizeFolderSeg(sub);
+        if (!subSeg) continue;
+        mkdir(path.join(mainDir, subSeg));
+      }
+    }
+  }
+  try { require('./videos-server').invalidateScanCache(); } catch {}
+  return { ok: true, created };
 }
 
 function mergePresets(ids) {
@@ -257,13 +307,14 @@ async function apiSwitchProfile(req, res) {
 // POST /api/profiles/create
 async function apiCreateProfile(req, res) {
   const body = await readBody(req);
-  const { name, preset } = body;
+  const { name, preset, createFolders } = body;
   if (!name) return json(res, { error: 'Profile name required' }, 400);
-  
+
   const db = require('./db-server');
   db.switchProfile(name);
   saveLastProfile(name);
 
+  let foldersCreated = 0;
   if (preset) {
     const data = loadPresetData(preset);
     db.saveFolderMappings(data.categories);
@@ -272,10 +323,23 @@ async function apiCreateProfile(req, res) {
     db.saveActors(data.actors);
     if (Array.isArray(data.series) && data.series.length > 0) db.saveSeries(data.series);
     if (Array.isArray(data.albums) && data.albums.length > 0) db.saveAlbums(data.albums);
+    if (createFolders) foldersCreated = createPresetFolders(preset).created;
   }
   markSetupDone();
 
-  json(res, { ok: true, current: name });
+  json(res, { ok: true, current: name, foldersCreated });
+}
+
+// POST /api/folders/from-preset  { preset }
+async function apiCreateFoldersFromPreset(req, res) {
+  const db = require('./db-server');
+  if (db.getCurrentProfile() === 'Vault') return json(res, { error: 'Not available in Vault mode' }, 409);
+  const body = await readBody(req);
+  const { preset } = body;
+  if (!preset) return json(res, { error: 'Preset required' }, 400);
+  if (!loadPresetFolders(preset)) return json(res, { error: 'Preset has no folder structure' }, 404);
+  const result = createPresetFolders(preset);
+  json(res, { ok: true, created: result.created });
 }
 
 async function apiRenameProfile(req, res) {
@@ -362,4 +426,4 @@ function loadLastProfile() {
   } catch { return null; }
 }
 
-module.exports = { apiGetPresets, apiApplyPreset, isDbInitialized, apiGetProfiles, apiSwitchProfile, apiCreateProfile, apiRenameProfile, apiDeleteProfile, apiCloneProfile, loadLastProfile, saveLastProfile };
+module.exports = { apiGetPresets, apiApplyPreset, isDbInitialized, apiGetProfiles, apiSwitchProfile, apiCreateProfile, apiRenameProfile, apiDeleteProfile, apiCloneProfile, apiCreateFoldersFromPreset, loadLastProfile, saveLastProfile };

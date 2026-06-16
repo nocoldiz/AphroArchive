@@ -1,0 +1,12 @@
+{
+  "Horror": ["Slasher", "Supernatural", "Psychological"],
+  "Sci-Fi": ["Space", "Cyberpunk", "Time Travel"],
+  "Action": ["Adventure", "Martial Arts", "War"],
+  "Comedy": ["Satire", "Slapstick", "Romantic Comedy"],
+  "Drama": ["Family", "Historical", "Crime"],
+  "Fantasy": ["High Fantasy", "Mythology", "Fairy Tale"],
+  "Thriller": ["Mystery", "Crime", "Suspense"],
+  "Western": ["Classic", "Spaghetti", "Neo-Western"],
+  "Documentary": ["Nature", "True Crime", "Biography"],
+  "Anime": ["Shounen", "Shoujo", "Mecha", "Isekai"]
+}

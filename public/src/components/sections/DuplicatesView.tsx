@@ -28,8 +28,7 @@ const fmtDur = (s: number) => {
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 };
 
-function pickBest(group: VideoItem[]): string {
-  // Prefer highest resolution (w×h). Fall back to largest size, then fav, then named category.
+function pickBestQuality(group: VideoItem[]): VideoItem {
   const res = (v: VideoItem) => (v.width && v.height) ? v.width * v.height : 0;
   return group.reduce((best, v) => {
     const br = res(best), vr = res(v);
@@ -39,7 +38,28 @@ function pickBest(group: VideoItem[]): string {
     const namedCat = (x: VideoItem) => x.category && x.category !== 'Uncategorized';
     if (namedCat(v) && !namedCat(best)) return v;
     return best;
-  }).id;
+  });
+}
+
+// Score a filename by how descriptive it is: category/tag words in name > longer name.
+function nameScore(v: VideoItem): number {
+  let s = 0;
+  const nameLower = v.name.toLowerCase();
+  if (v.category) {
+    for (const part of v.category.split('/')) {
+      if (part && nameLower.includes(part.toLowerCase())) { s += 1000; break; }
+    }
+  }
+  s += v.name.length;
+  return s;
+}
+
+function pickBestName(group: VideoItem[]): VideoItem {
+  return group.reduce((best, v) => nameScore(v) > nameScore(best) ? v : best);
+}
+
+function pickBest(group: VideoItem[]): string {
+  return pickBestQuality(group).id;
 }
 
 export const DuplicatesView = () => {
@@ -133,12 +153,24 @@ export const DuplicatesView = () => {
   };
 
   const handleKeepBest = async (group: VideoItem[], groupIdx: number) => {
-    const bestId = pickBest(group);
-    const best = group.find(v => v.id === bestId)!;
-    const toDelete = group.filter(v => v.id !== bestId);
-    const resLabel = (best.width && best.height) ? ` (${best.width}×${best.height})` : '';
-    if (!confirm(`Keep "${best.name}"${resLabel} and permanently delete the other ${toDelete.length} file${toDelete.length !== 1 ? 's' : ''}?`)) return;
+    const bestQuality = pickBestQuality(group);
+    const bestName = pickBestName(group);
+    const toDelete = group.filter(v => v.id !== bestQuality.id);
+    const needsRename = bestName.id !== bestQuality.id;
+    const resLabel = (bestQuality.width && bestQuality.height) ? ` (${bestQuality.width}×${bestQuality.height})` : '';
+    const renameNote = needsRename ? `\n\nWill rename to "${bestName.name}" (better-named file).` : '';
+    if (!confirm(`Keep "${bestQuality.name}"${resLabel} and permanently delete the other ${toDelete.length} file${toDelete.length !== 1 ? 's' : ''}?${renameNote}`)) return;
     setKeepingGroup(groupIdx);
+    if (needsRename) {
+      const stem = bestName.name.replace(/\.[^.]+$/, '');
+      try {
+        await fetch(`/api/rename/${bestQuality.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: stem }),
+        });
+      } catch {}
+    }
     const newDeleted = new Set(deleted);
     for (const v of toDelete) {
       try {
@@ -149,22 +181,41 @@ export const DuplicatesView = () => {
     setDeleted(newDeleted);
     setKeepingGroup(null);
     const w = window as any;
-    if (w.toast) w.toast(`Kept best, deleted ${[...newDeleted].filter(id => toDelete.some(v => v.id === id)).length} duplicate${toDelete.length !== 1 ? 's' : ''}`);
+    const deletedCount = [...newDeleted].filter(id => toDelete.some(v => v.id === id)).length;
+    if (w.toast) w.toast(`Kept best, deleted ${deletedCount} duplicate${deletedCount !== 1 ? 's' : ''}${needsRename ? ', renamed to better name' : ''}`);
   };
 
   const handleKeepBestAll = async () => {
     const targets = visibleGroups
       .map(group => {
-        const bestId = pickBest(group);
-        return { bestId, toDelete: group.filter(v => v.id !== bestId) };
+        const bestQuality = pickBestQuality(group);
+        const bestName = pickBestName(group);
+        return {
+          bestQuality,
+          bestName,
+          needsRename: bestName.id !== bestQuality.id,
+          toDelete: group.filter(v => v.id !== bestQuality.id),
+        };
       })
       .filter(t => t.toDelete.length > 0);
     const totalToDelete = targets.reduce((n, t) => n + t.toDelete.length, 0);
+    const renameCount = targets.filter(t => t.needsRename).length;
     if (totalToDelete === 0) return;
-    if (!confirm(`Keep the best file in each of the ${targets.length} group${targets.length !== 1 ? 's' : ''} and permanently delete the other ${totalToDelete} file${totalToDelete !== 1 ? 's' : ''}?`)) return;
+    const renameNote = renameCount > 0 ? `\n\n${renameCount} file${renameCount !== 1 ? 's' : ''} will be renamed to a better-named version.` : '';
+    if (!confirm(`Keep the best file in each of the ${targets.length} group${targets.length !== 1 ? 's' : ''} and permanently delete the other ${totalToDelete} file${totalToDelete !== 1 ? 's' : ''}?${renameNote}`)) return;
     setKeepingAll(true);
     const newDeleted = new Set(deleted);
     for (const t of targets) {
+      if (t.needsRename) {
+        const stem = t.bestName.name.replace(/\.[^.]+$/, '');
+        try {
+          await fetch(`/api/rename/${t.bestQuality.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: stem }),
+          });
+        } catch {}
+      }
       for (const v of t.toDelete) {
         try {
           const r = await fetch(`/api/videos/${v.id}`, { method: 'DELETE' });
@@ -175,7 +226,7 @@ export const DuplicatesView = () => {
     setDeleted(newDeleted);
     setKeepingAll(false);
     const w = window as any;
-    if (w.toast) w.toast(`Kept best in ${targets.length} group${targets.length !== 1 ? 's' : ''}, deleted ${totalToDelete} duplicate${totalToDelete !== 1 ? 's' : ''}`);
+    if (w.toast) w.toast(`Kept best in ${targets.length} group${targets.length !== 1 ? 's' : ''}, deleted ${totalToDelete} duplicate${totalToDelete !== 1 ? 's' : ''}${renameCount > 0 ? `, renamed ${renameCount}` : ''}`);
   };
 
   const handleDelete = async (video: VideoItem) => {

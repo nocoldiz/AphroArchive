@@ -451,7 +451,8 @@ const server = http.createServer(async (req, res) => {
   // ── Presets ──────────────────────────────────────────────────────────
   if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
   if (p === '/api/presets/apply' && req.method === 'POST') return profiles.apiApplyPreset(req, res);
-  
+  if (p === '/api/folders/from-preset' && req.method === 'POST') return profiles.apiCreateFoldersFromPreset(req, res);
+
   // ── Profiles ─────────────────────────────────────────────────────────
   if (p === '/api/profiles' && req.method === 'GET') return profiles.apiGetProfiles(req, res);
   if (p === '/api/profiles/switch' && req.method === 'POST') return profiles.apiSwitchProfile(req, res);

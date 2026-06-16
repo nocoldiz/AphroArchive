@@ -2,6 +2,28 @@
 
 
 
+## Recently Shipped — was never tracked here
+
+App-wide audit (2026-06-16) surfaced whole subsystems that landed without a
+todo entry. Captured here so the roadmap reflects reality, with follow-ups noted.
+
+- [x] **Channels** — `channels-server.js` + `ChannelsView` + `ChannelModal`; `/channels`, `/channel/:name` routes; channel signal in store. (Follow-up: document the data model and how channels relate to folders/tags.)
+- [x] **TV Mode plugin** — `tv-mode` plugin (`toggleTVMode`): plays folders/tags as live, time-shifted TV channels. Distinct from the still-open 10-foot "couch mode" UI.
+- [x] **Zapping mode** — `zapping` plugin (`toggleZapping`) + `ZapView`/`zap.ts`: channel-surf random clips.
+- [x] **Radio mode** — `radio-mode` plugin + `RadioModeView` (`/radio`): web radio + live video feeds from the links collection.
+- [x] **TV Guide** — `GuideView` (`/guide`): programme-guide style view.
+- [x] **Whisper subtitle generation** — `gen-whisper-server.js` (`/api/gen-whisper`, `/api/whisper`): local Whisper model queue that transcribes audio to `.vtt`/`.srt` sidecars with language detection. (Different from the still-open OpenSubtitles auto-search.)
+- [x] **Corrupted-file scanner** — `corrupted-server.js` + `CorruptedView` (`/corrupted`): ffprobe-based integrity scan with SSE progress.
+- [x] **VeraCrypt / TrueCrypt mounting** — `veracrypt-server.js` (`/api/veracrypt`): drives the VeraCrypt CLI to mount `.hc/.tc/.vc` containers, then browse/import into the vault; degrades gracefully when not installed.
+- [x] **ZIP mounting / reading** — `zip-reader-server.js`, `media-zip-mount-server.js`, `vault-zip-mount-server.js`: read media directly out of ZIPs without extraction.
+- [x] **Music albums** — `albums-server.js` (`/api/albums`): album objects (artist/year/cover/tracks) layered over the audio library.
+- [x] **Onboarding wizard** — `OnboardingWizard.tsx` first-run setup flow.
+- [x] **Auto-sort / categorizer** — `/api/auto-sort` + `CategorizerView` move beyond the original manual categorizer.
+- [x] **Background worker** — `background-worker-server.js` (`/api/background-worker`) for deferred/idle tasks.
+- [x] **Panic button** — `/api/panic` server-side panic/self-destruct trigger.
+- [x] **Remote / sync** — `remote-server.js`, `SyncManager`, `ConnectModal` (`/api/remote`, `/api/connect`).
+- [x] **Bulk downloader** — standalone `bulkdownloader/` Python tool (separate from the in-app download queue).
+
 ## Bookmark Import: Match folders/tags instead of saved websites
 
 - [x] Analyze codebase: understand current bookmark import flow
@@ -85,20 +107,27 @@
 
 ## Files View (`FilesView.tsx` / `server/files-server.js`)
 
-New untracked files — scope to be defined. Suggested features:
+Now live: `/files` is routed, `FilesView` is rendered in `MainContent`, and
+`files-server.js` (`/api/files`) handles listing, upload, streaming, deletion,
+and **virtual folders** (`folders/rename`, `setFileVirtualFolder`). The view has
+a folder sidebar with rename, sort by Date/Name/Size, and a per-file folder
+move dropdown.
 
-- [ ] **Wire up route** — Add `/files` to `router.ts` `directViews` and import `FilesView` in `MainContent.tsx` so it is reachable.
-- [ ] **Directory tree browser** — Left-panel tree showing the VIDEOS_DIR folder hierarchy; click to expand/collapse; selected folder filters the right-panel file list.
-- [ ] **File list with metadata columns** — Right panel table: filename, size, modified date, duration, encrypted flag; sortable by any column.
-- [ ] **Bulk file operations** — Select multiple files → Move to folder, Delete, Encrypt/Decrypt, Add to vault; reuses `VideoSelBar` pattern.
-- [ ] **Inline rename** — Double-click a filename in the list to enter edit mode; commits on Enter/blur via `POST /api/rename/:id`.
-- [ ] **Drag files between folders** — Drag rows onto tree nodes to move files; calls `POST /api/move/:id`.
-- [ ] **File type filter bar** — Tabs or pills to show All / Videos / Audio / Books / Photos; filters the list by MIME category.
+- [x] **Wire up route** — `/files` is in `router.ts` `directViews`; `FilesView` imported + rendered in `MainContent`.
+- [x] **Virtual folder management** — create / rename / delete folders; move files between them via dropdown.
+- [x] **Sort controls** — sort the file grid by Date / Name / Size.
+- [ ] **Directory tree browser** — current sidebar is a flat virtual-folder list; add a real VIDEOS_DIR hierarchy tree with expand/collapse filtering.
+- [ ] **Metadata columns / list mode** — add a sortable table view (filename, size, modified, duration, encrypted) alongside the icon grid.
+- [ ] **Bulk file operations** — multi-select → Move / Delete / Encrypt / Add to vault (reuse `VideoSelBar`); currently one-file-at-a-time.
+- [ ] **Inline rename** — double-click a filename to rename a file (folder rename exists; file rename does not).
+- [ ] **Drag files between folders** — drag file tiles onto sidebar folders instead of using the dropdown.
+- [ ] **File type filter bar** — All / Videos / Audio / Books / Photos pills filtering by MIME category.
 
 ## Orphaned / Unreachable Views
 
-- [ ] **`ScreenshotsView` has no URL route** — `ScreenshotsView` is imported and rendered in `MainContent.tsx` for view `'screenshots'` but `/screenshots` is absent from `router.ts` `directViews`. Add it so the view is deep-linkable.
-- [ ] **`ImageGenView.tsx` is unrouted** — `public/src/components/sections/ImageGenView.tsx` exists (backed by `server/imagegen-server.js`) but is never imported in `MainContent.tsx` and has no entry in `router.ts`. Wire it up or remove it if abandoned.
+- [ ] **`ScreenshotsView` has no URL route** — Still rendered in `MainContent` for view `'screenshots'` but `/screenshots` is absent from `router.ts` `directViews`. Add it so the view is deep-linkable.
+- [ ] **`ImageGenView.tsx` is unrouted** — `imagegenInputState` signal feeds it (ContextMenu / PlayerView frame capture) but `ImageGenView` is still never imported in `MainContent.tsx` and has no `/imagegen` route. Wire it up or remove it.
+- [ ] **`ZapView.tsx` mount path** — `ZapView` is driven by `zap.ts`/`tv-mode.ts` (overlay) rather than `MainContent`; confirm there's a deep-linkable entry or document it as overlay-only.
 
 ## Code Quality & Refactoring
 
@@ -147,7 +176,7 @@ New untracked files — scope to be defined. Suggested features:
 - [ ] **Category merge** — Merge two folders into one, moving all files and updating metadata.
 - [ ] **Trash / soft delete** — Instead of permanent deletion, move files to a `trash/` folder; show a recoverable trash view; auto-purge after 30 days.
 - [ ] **Watched folder auto-import** — Poll configurable "drop folders"; when a new file appears, move it to VIDEOS_DIR, generate thumbnail, and add to DB automatically.
-- [ ] **Library health check** — Scan for: missing thumbnail, zero duration, file no longer on disk, orphaned DB entries for deleted files. Show a report with fix buttons.
+- [x] **Library health check** — `library-health-server.js` + `LibraryHealthView` (`/library-health`) scans for missing files, zero duration, incomplete thumbnail sets, and orphaned `videos`-table meta; reports with fix actions (`deleteVideoMetaEverywhere`).
 - [ ] **Rename rules engine** — User-defined regex → replacement rules applied to filenames at import or on demand (e.g. strip release group tags `[GROUP]`).
 
 ## Video Tools (ffmpeg)
@@ -160,8 +189,8 @@ New untracked files — scope to be defined. Suggested features:
   - On confirm: `POST /api/videos/join` streams the ffmpeg concat job; SSE progress bar in the modal. Merged file inherits the union of all source videos' tags, actors, and studio; category = target folder.
 - [ ] **Clip export** — In the player, set start/end timestamps with bracket markers on the seekbar; "Export Clip" sends `POST /api/clips/export`; ffmpeg trims the file; SSE progress shown inline.
 - [ ] **A/B loop** — Two loop-point buttons (A and B) in the player toolbar; holding the section between them repeats indefinitely until cancelled.
-- [ ] **Auto-chapter detection** — ffmpeg scene-change filter (`select='gt(scene,0.4)'`) generates candidate chapter timestamps; user reviews and confirms in the Chapters editor before saving.
-- [ ] **Batch re-encode to H.265** — Multi-select videos → "Re-encode" action; server queues ffmpeg HEVC jobs one at a time; shows before/after size estimate; preserves all metadata; optionally replaces the original.
+- [x] **Auto-chapter detection** — `auto-chapters-server.js` (`/api/auto-chapters`) runs the ffmpeg scene filter (threshold 0.4, min gap 8s, max 60 chapters, concurrency 1), caches results, and feeds the Chapters editor.
+- [x] **Batch re-encode to H.265** — `reencode-server.js` (`/api/reencode`) queues HEVC jobs one at a time with SSE progress, Stop kills the current ffmpeg child, tracks `savedBytes`, and preserves metadata.
 - [ ] **Video info panel** — Expandable section on the video detail page showing container, video codec, resolution, framerate, audio codec, bitrate, colour space — fetched from ffprobe on first open and cached.
 - [ ] **Resolution / codec badges on cards** — Show `4K`, `1080p`, `HEVC`, `AV1` etc. as small overlaid badges on video cards, sourced from the ffprobe cache.
 - [ ] **Volume normalization** — One-click loudness normalization per video using ffprobe loudness scan + `dynaudnorm` filter; applies at playback time without re-encoding.
@@ -206,10 +235,11 @@ New untracked files — scope to be defined. Suggested features:
 
 ## TV Shows & Series
 
-- [ ] **Series detection** — Auto-group files matching `Show Name S01E02` or `Show Name - 1x02` patterns into a Series object with seasons and episodes.
-- [ ] **Episode progress tracking** — Mark individual episodes as watched; show season completion percentage in the series overview.
+- [x] **Series detection** — `series.ts` `parseEpisode()` groups files matching `S01E02` / `1x02` / `Season 1 Episode 2` into a Series object with `seasons[]` + sorted `episodes[]`; `series-server.js` persists manual/db series.
+- [x] **Series view** — `SeriesView` (`/series`) renders folder/db-backed series with per-season episode counts and a season picker; merges auto-detected and DB series (`mergedSeriesList`).
+- [ ] **Episode progress tracking** — Mark individual episodes as watched; show season completion percentage in the series overview. (Series grouping exists; per-episode watched state still TODO.)
 - [ ] **"Continue watching" for series** — Remember the last episode watched per series and offer "Resume S02E04" from the series card.
-- [ ] **Series view** — Dedicated page with season/episode grid, series metadata (from TMDB TV endpoint), and episode synopsis per row.
+- [ ] **Series metadata from TMDB** — `SeriesView` has no TMDB enrichment yet; add TV-endpoint synopsis/poster per season+episode.
 - [ ] **Next episode auto-play** — At the end of an episode, auto-queue the next episode of the same series in order.
 - [ ] **Missing episodes indicator** — Compare local episodes against TMDB season episode count and highlight gaps.
 
@@ -322,6 +352,24 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 - [ ] **Audit log** — Append-only log of vault unlock/lock, profile switch, download events, and panic activations; viewable in Settings; optionally encrypted.
 - [ ] **CSP headers** — Add `Content-Security-Policy` response headers to prevent XSS from injected content in scraped page titles or filenames.
 
+## New Ideas — from 2026-06-16 app-wide audit
+
+Cross-cutting improvements that build on subsystems that already exist.
+
+- [ ] **Global command palette (Ctrl+K)** — Fuzzy launcher over views, folders, actors, channels, settings, and the now-large plugin/view surface; the app has grown past what the sidebar comfortably exposes.
+- [ ] **Transcript search** — Whisper already produces `.vtt` sidecars; index them (FTS5) so search matches spoken words and jumps to the timestamp. High-value, near-zero new infra.
+- [ ] **Auto-generate subtitles on import** — Pref to queue `gen-whisper` automatically for new videos without an embedded/sidecar subtitle (gate by language + duration).
+- [ ] **Batch-whisper from Library Health** — Surface "missing subtitles" as a health issue with a one-click "Generate all" that feeds the whisper queue.
+- [ ] **Quarantine corrupted files** — After the corrupted scan, offer "Move to `_corrupted/`" and, for files with a `linkUrl`, "Re-download from source" via the download queue.
+- [ ] **Channel EPG / scheduling** — Persist a per-channel running order + "now playing / up next" so TV Mode and the Guide share one schedule model.
+- [ ] **Mount VeraCrypt volume as a source folder** — Register a mounted container as a temporary `sourceFolder`/profile so its contents appear in the normal grid until unmounted.
+- [ ] **Tie auto-chapters → skip intro/credits** — Use the first/last detected scene boundaries to auto-propose intro-end / credits-start markers for the existing Skip feature.
+- [ ] **Re-encode uses hardware accel** — Wire the open NVENC/QSV/VAAPI/VideoToolbox detection into `reencode-server.js` (not just HLS) so batch HEVC jobs aren't CPU-bound.
+- [ ] **Album "now playing" queue** — Play a whole album in track order from `AudioView`, reusing the player queue model.
+- [ ] **Unified media search** — One search box spanning videos, audio, books, photos, and files (the media index already aggregates them via `loadMediaIndex`/`/api/media-counts`).
+- [ ] **Scheduled background maintenance** — Use `background-worker-server.js` to periodically run the health scan, thumbnail backfill, and corrupted scan on idle, surfacing a single "needs attention" badge.
+- [ ] **Plugin/view registry cleanup** — `MainContent.renderView` is now ~35 hardcoded `if (view === …)` branches; replace with a `Record<view, Component>` map (also fixes the unrouted Screenshots/ImageGen drift).
+
 ---
 
-> Highest priority: **video joiner**, **resume playback**, **multi-filter**, **batch operations**, **restore scroll on back**
+> Highest priority: **command palette**, **transcript search**, **video joiner**, **multi-filter**, **episode progress tracking**
