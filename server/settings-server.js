@@ -74,19 +74,6 @@ async function apiSavePrefs(req, res) {
     const val = body.defaultRoot ?? body.defaultPath ?? body.defaultWriteRoot ?? '';
     prefs.defaultRoot = val ? String(val).trim() : '';
   }
-  let feedFoldersChanged = false;
-  if ('feedFolders' in body) {
-    if (Array.isArray(body.feedFolders)) {
-      prefs.feedFolders = body.feedFolders.map(p => String(p).trim()).filter(Boolean);
-      feedFoldersChanged = true;
-    }
-  }
-  if ('privateFeedFolders' in body) {
-    if (Array.isArray(body.privateFeedFolders)) {
-      prefs.privateFeedFolders = body.privateFeedFolders.map(p => String(p).trim()).filter(Boolean);
-      feedFoldersChanged = true;
-    }
-  }
   // New assistant prefs (nsfw switch, jailbreak/system prompt mode, story genre) for AssistantView.tsx
   if ('assistantNsfw' in body) prefs.assistantNsfw = !!body.assistantNsfw;
   if ('assistantSystemMode' in body) prefs.assistantSystemMode = String(body.assistantSystemMode || 'default');
@@ -158,13 +145,6 @@ async function apiSavePrefs(req, res) {
   }
   if ('whisperLanguage' in body) prefs.whisperLanguage = String(body.whisperLanguage || 'auto').trim().slice(0, 10);
   savePrefs(prefs);
-  if (feedFoldersChanged) {
-    try {
-      const fw = require('./feed-watcher-server');
-      fw.stopWatchers();
-      fw.startWatchers(loadPrefs());
-    } catch (e) {}
-  }
   json(res, { ok: true });
 }
 

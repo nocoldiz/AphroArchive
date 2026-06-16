@@ -260,18 +260,29 @@ async function runJob(next) {
         next.videoId = toId(next.outputPath);
       }
     }
-    if (next.pendingFolder && next.videoId) {
-      await autoMoveVideo(next.videoId, next.pendingFolder);
-      // Update videoId after move
-      const cleanCat = next.pendingFolder.trim();
-      const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
-      if (!isVirtual && next.outputPath) {
-        const newPath = path.join(writeRoot, cleanCat, path.basename(next.outputPath));
-        if (fs.existsSync(newPath)) {
-          const npRes = path.resolve(newPath);
-          next.videoId = npRes.startsWith(path.resolve(VIDEOS_DIR))
-            ? toId( path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/') )
-            : toId(newPath);
+    {
+      // Determine target folder: explicit pendingFolder > auto-categorize by filename
+      const rawCat = (next.pendingFolder || '').trim();
+      const isVirtual = !rawCat || rawCat.toLowerCase() === 'links' || rawCat.toLowerCase() === 'uncategorized';
+      let targetCat = isVirtual ? '' : rawCat;
+
+      if (!targetCat && next.outputPath) {
+        try {
+          const { autoCategorize } = require('./videos-server');
+          targetCat = autoCategorize(path.basename(next.outputPath)) || '';
+        } catch {}
+      }
+
+      if (targetCat && next.videoId) {
+        await autoMoveVideo(next.videoId, targetCat);
+        if (next.outputPath) {
+          const newPath = path.join(writeRoot, targetCat, path.basename(next.outputPath));
+          if (fs.existsSync(newPath)) {
+            const npRes = path.resolve(newPath);
+            next.videoId = npRes.startsWith(path.resolve(VIDEOS_DIR))
+              ? toId(path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/'))
+              : toId(newPath);
+          }
         }
       }
     }

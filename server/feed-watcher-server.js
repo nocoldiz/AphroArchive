@@ -1,31 +1,30 @@
 'use strict';
 // ═══════════════════════════════════════════════════════════════════
-//  feed-watcher-server.js — Monitor feed folders and auto-ingest videos
+//  feed-watcher-server.js — Auto-ingest from feed/ and vaultfeed/
+//
+//  feed/      — videos auto-sorted by categorizer algorithm, other
+//               media moved to their respective media dirs
+//  vaultfeed/ — files encrypted into vault on next unlock
 // ═══════════════════════════════════════════════════════════════════
 
 const fs = require('fs');
 const path = require('path');
-const { VIDEO_EXT, VIDEOS_DIR, AUDIO_EXT, AUDIO_DIR, BOOK_EXT, BOOKS_DIR, IMAGE_EXT, PHOTOS_DIR } = require('./config-server');
-const { loadPrefs } = require('./db-server');
+const {
+  VIDEO_EXT, VIDEOS_DIR,
+  AUDIO_EXT, AUDIO_DIR,
+  BOOK_EXT, BOOKS_DIR,
+  IMAGE_EXT, PHOTOS_DIR,
+  FEED_DIR, VAULT_FEED_DIR,
+} = require('./config-server');
 
-const pendingPrivate = new Set();
-const watchers = new Map();
 const debounceTimers = new Map();
+let _feedWatcher = null;
 
 function _isSupported(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   return VIDEO_EXT.has(ext) || AUDIO_EXT.has(ext) || BOOK_EXT.has(ext) || IMAGE_EXT.has(ext);
 }
 
-function _getDestDir(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  if (AUDIO_EXT.has(ext)) return AUDIO_DIR;
-  if (BOOK_EXT.has(ext))  return BOOKS_DIR;
-  if (IMAGE_EXT.has(ext)) return PHOTOS_DIR;
-  return VIDEOS_DIR;
-}
-
-// Wait until the file size stops changing (guards against in-progress copies)
 async function _waitStable(filePath) {
   try {
     const size1 = fs.statSync(filePath).size;
@@ -46,99 +45,100 @@ function _nonCollidingDest(destDir, filename) {
   return dest;
 }
 
-async function _processRegular(filePath) {
+async function _processFeedFile(filePath) {
   if (!fs.existsSync(filePath) || !_isSupported(filePath)) return;
   try {
     if (!await _waitStable(filePath)) return;
-    const destDir = _getDestDir(filePath);
-    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-    const dest = _nonCollidingDest(destDir, path.basename(filePath));
-    fs.renameSync(filePath, dest);
     const ext = path.extname(filePath).toLowerCase();
-    const kind = AUDIO_EXT.has(ext) ? 'audio' : BOOK_EXT.has(ext) ? 'book' : IMAGE_EXT.has(ext) ? 'photo' : 'video';
-    console.log(`[feed] moved ${path.basename(filePath)} → ${kind}`);
+    const filename = path.basename(filePath);
+
+    if (AUDIO_EXT.has(ext)) {
+      fs.mkdirSync(AUDIO_DIR, { recursive: true });
+      fs.renameSync(filePath, _nonCollidingDest(AUDIO_DIR, filename));
+      console.log(`[feed] ${filename} → audio`);
+      return;
+    }
+    if (BOOK_EXT.has(ext)) {
+      fs.mkdirSync(BOOKS_DIR, { recursive: true });
+      fs.renameSync(filePath, _nonCollidingDest(BOOKS_DIR, filename));
+      console.log(`[feed] ${filename} → books`);
+      return;
+    }
+    if (IMAGE_EXT.has(ext)) {
+      fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+      fs.renameSync(filePath, _nonCollidingDest(PHOTOS_DIR, filename));
+      console.log(`[feed] ${filename} → photos`);
+      return;
+    }
+
+    // Video: use categorizer algorithm to pick best folder
+    const { autoCategorize } = require('./videos-server');
+    const category = autoCategorize(filename);
+    const destDir = category ? path.join(VIDEOS_DIR, category) : VIDEOS_DIR;
+    fs.mkdirSync(destDir, { recursive: true });
+    const dest = _nonCollidingDest(destDir, filename);
+    fs.renameSync(filePath, dest);
+    console.log(`[feed] ${filename} → ${category || '(root)'}`);
     try { require('./videos-server').invalidateScanCache(); } catch {}
   } catch (e) {
-    console.error('[feed] error moving file:', e.message);
+    console.error('[feed] error processing file:', e.message);
   }
 }
 
-async function _processPrivate(filePath) {
-  if (!fs.existsSync(filePath) || !_isSupported(filePath)) return;
-  const { isUnlocked, encryptLocalFileToVault } = require('./vault-server');
-  if (!isUnlocked()) {
-    pendingPrivate.add(filePath);
-    console.log(`[feed] vault locked — queued ${path.basename(filePath)}`);
-    return;
-  }
-  try {
-    if (!await _waitStable(filePath)) return;
-    await encryptLocalFileToVault(filePath, path.basename(filePath), null, null);
-    console.log(`[feed] encrypted to vault: ${path.basename(filePath)}`);
-  } catch (e) {
-    console.error('[feed] error encrypting file:', e.message);
-  }
-}
-
-function _onFileEvent(folderPath, isPrivate, filename) {
+function _onFeedEvent(filename) {
   if (!filename) return;
-  const filePath = path.join(folderPath, filename);
+  const filePath = path.join(FEED_DIR, filename);
   if (debounceTimers.has(filePath)) clearTimeout(debounceTimers.get(filePath));
   debounceTimers.set(filePath, setTimeout(async () => {
     debounceTimers.delete(filePath);
     try {
       if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) return;
-      if (isPrivate) await _processPrivate(filePath);
-      else await _processRegular(filePath);
+      await _processFeedFile(filePath);
     } catch {}
   }, 800));
 }
 
-function startWatchers(prefs) {
+// Encrypt everything in vaultfeed/ into the vault. Called on vault unlock.
+async function processVaultFeed() {
+  const { isUnlocked, encryptLocalFileToVault } = require('./vault-server');
+  if (!isUnlocked() || !fs.existsSync(VAULT_FEED_DIR)) return;
+  let entries;
+  try { entries = fs.readdirSync(VAULT_FEED_DIR); } catch { return; }
+  for (const entry of entries) {
+    const fp = path.join(VAULT_FEED_DIR, entry);
+    try {
+      if (!fs.statSync(fp).isFile() || !_isSupported(fp)) continue;
+      if (!await _waitStable(fp)) continue;
+      if (!isUnlocked()) break;
+      await encryptLocalFileToVault(fp, entry, null, null);
+      console.log(`[vaultfeed] encrypted: ${entry}`);
+    } catch (e) {
+      console.error('[vaultfeed] error encrypting:', e.message);
+    }
+  }
+}
+
+function startWatchers() {
   stopWatchers();
-  for (const folder of (prefs.feedFolders || [])) {
-    if (!fs.existsSync(folder)) continue;
-    try {
-      watchers.set(folder, fs.watch(folder, (_, f) => _onFileEvent(folder, false, f)));
-      console.log(`[feed] watching ${folder}`);
-    } catch (e) { console.error('[feed] watch failed:', folder, e.message); }
+  try {
+    _feedWatcher = fs.watch(FEED_DIR, (_, f) => _onFeedEvent(f));
+    console.log(`[feed] watching ${FEED_DIR}`);
+  } catch (e) {
+    console.error('[feed] watch failed:', e.message);
   }
-  for (const folder of (prefs.privateFeedFolders || [])) {
-    if (!fs.existsSync(folder)) continue;
-    try {
-      watchers.set('private:' + folder, fs.watch(folder, (_, f) => _onFileEvent(folder, true, f)));
-      console.log(`[feed] watching private ${folder}`);
-    } catch (e) { console.error('[feed] watch failed (private):', folder, e.message); }
-  }
+  // Pick up anything dropped into feed/ while the app was off
+  try {
+    for (const entry of fs.readdirSync(FEED_DIR)) {
+      const fp = path.join(FEED_DIR, entry);
+      try { if (fs.statSync(fp).isFile()) _onFeedEvent(entry); } catch {}
+    }
+  } catch {}
 }
 
 function stopWatchers() {
-  for (const [, w] of watchers) { try { w.close(); } catch {} }
-  watchers.clear();
+  if (_feedWatcher) { try { _feedWatcher.close(); } catch {} _feedWatcher = null; }
+  for (const t of debounceTimers.values()) clearTimeout(t);
+  debounceTimers.clear();
 }
 
-async function processPendingPrivateFeed() {
-  const { isUnlocked, encryptLocalFileToVault } = require('./vault-server');
-  if (!isUnlocked()) return;
-  // Scan configured private folders for any files that arrived while vault was locked
-  for (const folder of (loadPrefs().privateFeedFolders || [])) {
-    if (!fs.existsSync(folder)) continue;
-    try {
-      for (const entry of fs.readdirSync(folder)) {
-        const fp = path.join(folder, entry);
-        if (fs.statSync(fp).isFile() && _isSupported(fp)) pendingPrivate.add(fp);
-      }
-    } catch {}
-  }
-  for (const filePath of [...pendingPrivate]) {
-    pendingPrivate.delete(filePath);
-    if (!fs.existsSync(filePath)) continue;
-    try {
-      if (!await _waitStable(filePath)) continue;
-      await encryptLocalFileToVault(filePath, path.basename(filePath), null, null);
-      console.log(`[feed] encrypted pending: ${path.basename(filePath)}`);
-    } catch (e) { console.error('[feed] error encrypting pending:', e.message); }
-  }
-}
-
-module.exports = { startWatchers, stopWatchers, processPendingPrivateFeed };
+module.exports = { startWatchers, stopWatchers, processVaultFeed };

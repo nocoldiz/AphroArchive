@@ -3455,6 +3455,27 @@ function collectDestinationCandidates(root, cats) {
   return candidates;
 }
 
+// Pick the best matching category folder for a given filename using the same
+// scoring algorithm as the categorizer modal. Returns the relative folder path
+// (e.g. "Performers/Jane Doe") or null if nothing scores above zero.
+function autoCategorize(filename) {
+  try {
+    const prefs = loadPrefs();
+    const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
+    const cats = loadFolderMappings();
+    const ext = path.extname(filename).toLowerCase();
+    const stem = path.basename(filename, ext);
+    for (const root of roots) {
+      const candidates = collectDestinationCandidates(root, cats);
+      const { cat, score } = bestCatMatch(stem, candidates);
+      if (cat && score > 0) return cat.relPath;
+    }
+  } catch (err) {
+    console.error('[autoCategorize] error:', err.message);
+  }
+  return null;
+}
+
 async function apiCategorizePlan(req, res) {
   const body = await readBody(req);
   const mode = body.mode === 'all' ? 'all' : 'uncategorized';
@@ -3687,6 +3708,7 @@ module.exports = {
   apiRenameFolder, apiDeleteFolder, apiHideFolder,
   apiEncryptVideo, apiEncryptBatch, apiEncryptFolder, apiUnlockFolder, apiDecryptFolder, apiEncryptAllFolders, getUnlockedFolderKey,
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
+  autoCategorize,
   apiCategorizePlan, apiCategorizeExecute,
   apiCategorizerBgExecute, apiCategorizerPoll, apiCategorizerStop,
   apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress, apiVaultImportProgress,

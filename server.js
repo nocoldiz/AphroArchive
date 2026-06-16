@@ -26,7 +26,8 @@ process.on('uncaughtException', (err) => {
 const cfg = require('./server/config-server');
 const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
   WEBSITES_JSON, CATEGORIES_JSON, LINK_DIR, BM_CACHE_FILE,
-  BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE } = cfg;
+  BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE,
+  FEED_DIR, VAULT_FEED_DIR } = cfg;
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
 const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites, getMediaCounts, loadVaultMeta } = require('./server/db-server');
@@ -101,6 +102,8 @@ ensureDirSync(FILES_DIR);
 ensureDirSync(path.join(VIDEOS_DIR, 'downloads'));
 ensureDirSync(cfg.LINK_THUMBS_DIR);
 ensureDirSync(path.dirname(BM_CACHE_FILE));
+ensureDirSync(FEED_DIR);
+ensureDirSync(VAULT_FEED_DIR);
 
 // ── Seed default folders ─────────────────────────────────────────────
 
@@ -653,7 +656,7 @@ server.on('clientError', (err, socket) => {
 
 server.listen(PORT, () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
-  feedWatcher.startWatchers(loadPrefs());
+  feedWatcher.startWatchers();
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);

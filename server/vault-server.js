@@ -947,7 +947,7 @@ async function apiVaultUnlock(req, res) {
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on unlock failed:', e.message); }
     try { require('./vault-zip-mount-server').scanAndMountZips(pw, decryptToBuffer, loadVaultMeta()); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
     processHiddenFolder();
-    try { require('./feed-watcher-server').processPendingPrivateFeed(); } catch {}
+    try { require('./feed-watcher-server').processVaultFeed(); } catch {}
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 

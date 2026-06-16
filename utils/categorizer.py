@@ -311,6 +311,16 @@ def main():
             return
         args.profile = profile_input or 'default'
 
+    try:
+        print('\nScope:')
+        print('  1) All videos')
+        print('  2) Downloads folder + unsorted (root-level only)')
+        scope_input = input('Choose [1/2, default 1]: ').strip()
+    except (EOFError, KeyboardInterrupt):
+        print('\nCancelled.')
+        return
+    scope_limited = scope_input == '2'
+
     # DB for category tags
     if args.db:
         db_path = Path(args.db).resolve()
@@ -324,8 +334,17 @@ def main():
         db_path = None
 
     print(f'Scanning {videos_dir} …')
-    cats     = scan_categories(videos_dir)
-    videos   = scan_videos(videos_dir)
+    cats   = scan_categories(videos_dir)
+    videos = scan_videos(videos_dir)
+
+    if scope_limited:
+        downloads_lower = {'downloads', 'download'}
+        videos = [
+            v for v in videos
+            if not v['cat_path']
+            or v['cat_path'].split('/')[0].lower() in downloads_lower
+        ]
+
     cat_tags = load_cat_tags(db_path) if db_path else {}
 
     print(f'{len(videos)} videos, {len(cats)} category folders, {sum(len(v) for v in cat_tags.values())} tags loaded')

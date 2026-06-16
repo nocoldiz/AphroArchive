@@ -1681,6 +1681,17 @@ function invalidateDbTypeCache(type) {
   if (type === 'channels')    _channels    = null;
 }
 
+// Insert a channel entry without overwriting existing richer data
+function upsertChannelEntry(entry) {
+  if (!entry || !entry.name) return;
+  _channels = null;
+  try {
+    db.prepare(
+      'INSERT OR IGNORE INTO channels (name, website, handle) VALUES (?, ?, ?)'
+    ).run(entry.name, entry.website || null, entry.handle || null);
+  } catch (e) { console.error('Failed to upsert channel entry:', e); }
+}
+
 // ── Generic DB file helpers ──────────────────────────────────────────
 
 function readDbFile(file)       { try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return {}; } }
@@ -2110,7 +2121,7 @@ module.exports = {
   loadLinksCache, loadVaultLinks, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink,
   loadBooksMeta, saveBooksMeta,
   loadAudioMeta, saveAudioMeta,
-  loadActors, saveActors, loadFolderMappings, saveFolderMappings, loadChannels, saveChannels, invalidateDbTypeCache,
+  loadActors, saveActors, loadFolderMappings, saveFolderMappings, loadChannels, saveChannels, invalidateDbTypeCache, upsertChannelEntry,
   loadEnabledFolders, saveEnabledFolders,
   loadComments, saveComments, clearAllComments,
   loadVisualHashes, setVisualHash, saveVisualHashes,

@@ -12,7 +12,7 @@ const os    = require('os');
 const url   = require('url');
 const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
 const { json, readBody, serveStatic }   = require('./helpers-server');
-const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink, loadOgThumbCache, saveOgThumbCache, loadFolderMappings, loadEnabledFolders, loadAllVideoTags } = require('./db-server');
+const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink, loadOgThumbCache, saveOgThumbCache, loadFolderMappings, loadEnabledFolders, loadAllVideoTags, upsertChannelEntry } = require('./db-server');
 const { wordMatchAny, wordMatch } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
@@ -911,6 +911,107 @@ async function apiBrowserFavsFile(req, res) {
   }
 }
 
+// ── Channel URL detection ─────────────────────────────────────────────
+
+const _CHANNEL_SEGMENTS = new Set([
+  'model', 'models', 'channel', 'channels', 'profile', 'profiles',
+  'user', 'users', 'performer', 'performers', 'pornstar', 'pornstars',
+  'creator', 'creators', 'author', 'authors',
+]);
+
+// Platform-specific rules: host suffix → { patterns, blocklist, extractHandle }
+const _CHANNEL_PLATFORMS = [
+  {
+    host: 'youtube.com',
+    patterns: [/^\/@[^/]+\/?$/, /^\/channel\/[^/]+\/?$/, /^\/user\/[^/]+\/?$/, /^\/c\/[^/]+\/?$/],
+    extractHandle(p) {
+      const m = p.match(/^\/@?([^/]+?)\/?$/);
+      return m ? m[1] : null;
+    },
+  },
+  {
+    host: 'x.com',
+    blocklist: new Set(['home','explore','notifications','messages','i','settings','search','login','signup','compose','intent']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'twitter.com',
+    blocklist: new Set(['home','explore','notifications','messages','i','settings','search','login','signup','compose','intent']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'instagram.com',
+    blocklist: new Set(['p','reel','reels','explore','accounts','stories','direct','tv','ar','about','legal','privacy','help','api','static','graphql']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'tiktok.com',
+    patterns: [/^\/@[^/]+\/?$/],
+    extractHandle(p) { const m = p.match(/^\/@([^/]+?)\/?$/); return m ? m[1] : null; },
+  },
+  {
+    host: 'onlyfans.com',
+    blocklist: new Set(['login','signup','feed','categories','bundles','referrals','my','home','terms','privacy','dmca','press','jobs']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'twitch.tv',
+    blocklist: new Set(['directory','downloads','settings','drops','subscriptions','inventory','wallet','prime','turbo','login','signup','bits']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'reddit.com',
+    patterns: [/^\/user\/[^/]+\/?$/],
+    extractHandle(p) { const m = p.match(/^\/user\/([^/]+)/); return m ? m[1] : null; },
+  },
+  {
+    host: 'fansly.com',
+    blocklist: new Set(['login','signup','explore','discover','settings','help','privacy','terms']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'patreon.com',
+    blocklist: new Set(['login','signup','explore','create','home','policy','sitemap','apps','careers']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+];
+
+function detectChannelUrl(rawUrl) {
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch { return null; }
+  const hostname = parsed.hostname.replace(/^www\./, '');
+  const pathname = parsed.pathname;
+  const segments = pathname.split('/').filter(Boolean);
+
+  for (const platform of _CHANNEL_PLATFORMS) {
+    if (hostname === platform.host || hostname.endsWith('.' + platform.host)) {
+      const firstSeg = (segments[0] || '').toLowerCase();
+      if (platform.blocklist && platform.blocklist.has(firstSeg)) return null;
+      for (const pat of platform.patterns) {
+        if (pat.test(pathname) || pat.test(pathname.replace(/\/$/, ''))) {
+          const handle = platform.extractHandle(pathname);
+          if (handle) return { name: handle, handle, website: parsed.origin };
+        }
+      }
+      return null;
+    }
+  }
+
+  // Generic: first path segment is a channel-type keyword, second is the handle
+  if (segments.length >= 2 && _CHANNEL_SEGMENTS.has(segments[0].toLowerCase()) && segments[1]) {
+    return { name: segments[1], handle: segments[1], website: parsed.origin };
+  }
+
+  return null;
+}
+
 // ── URL-paste import ─────────────────────────────────────────────────
 
 function deriveTitleFromUrl(rawUrl) {
@@ -969,7 +1070,11 @@ async function apiImportLinks(req, res) {
 
   if (newItems.length) {
     autoFolderizeLinks(newItems);
-    for (const it of newItems) upsertLink(it);
+    for (const it of newItems) {
+      upsertLink(it);
+      const ch = detectChannelUrl(it.url);
+      if (ch) upsertChannelEntry(ch);
+    }
   }
 
   json(res, { ok: true, added, skipped });
@@ -1029,6 +1134,8 @@ async function apiImportLinksJson(req, res) {
       clean.addedAt = clean.addedAt || Date.now();
       clean.tags    = Array.isArray(clean.tags) ? clean.tags : [];
       upsertLink(clean);
+      const ch = detectChannelUrl(clean.url);
+      if (ch) upsertChannelEntry(ch);
       existingUrls.add(clean.url);
       if (nm) existingNames.add(nm);
       added++;
