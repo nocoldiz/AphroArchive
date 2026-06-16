@@ -15,7 +15,7 @@ const {
 const { pipeline } = require('stream');
 const { promisify } = require('util');
 const pipe = promisify(pipeline);
-const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, channelMatchAny, actorMatchesAny } = require('./helpers-server');
+const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, channelMatchAny, actorMatchesAny, LIMITS } = require('./helpers-server');
 const {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -1189,6 +1189,7 @@ async function apiCreateFolder(req, res) {
   const body = await readBody(req);
   const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
   if (!name) return json(res, { error: 'Name required' }, 400);
+  if (name.length > LIMITS.name) return json(res, { error: `Name is too long (max ${LIMITS.name} characters)` }, 400);
   const writeRoot = getDefaultWriteRoot();
   const dir = path.join(writeRoot, name);
   if (fs.existsSync(dir)) return json(res, { error: 'Already exists' }, 409);
@@ -1205,6 +1206,7 @@ async function apiFolderCreate(req, res) {
   const parentPath = (body.parentPath || '').replace(/[<>:"|?*]/g, '_');
   const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
   if (!name) return json(res, { error: 'Name required' }, 400);
+  if (name.length > LIMITS.name) return json(res, { error: `Name is too long (max ${LIMITS.name} characters)` }, 400);
   const base = getDefaultWriteRoot();
   const dir = parentPath ? path.join(base, parentPath, name) : path.join(base, name);
   if (!dir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid path' }, 400);

@@ -138,6 +138,57 @@ function json(res, data, status = 200) {
   res.end(JSON.stringify(data));
 }
 
+// Standard error response: always `{ error: "message" }` with a status code.
+// Use this instead of plain-text / empty error bodies so the frontend can rely
+// on a single shape.
+function jsonError(res, message, status = 400) {
+  json(res, { error: String(message || 'Error') }, status);
+}
+
+// ── Input length limits ──────────────────────────────────────────────
+// Reasonable upper bounds for user-supplied strings, enforced server-side so a
+// malformed/abusive client can't bloat the DB or JSON files.
+const LIMITS = {
+  name: 200,        // actor / channel / collection / folder names
+  tag: 100,
+  url: 2048,
+  title: 500,
+  note: 10000,
+  text: 200000,     // free-form text blobs (text files, prompts)
+  path: 4096,
+};
+
+// ── Lightweight body validation ──────────────────────────────────────
+// schema: { field: { required?, type?, maxLength?, trim? } }
+//   type: 'string' | 'number' | 'boolean' | 'array' | 'object'
+// Returns { ok: true, value } with trimmed/normalised fields, or
+// { ok: false, error } describing the first problem. Pair with jsonError:
+//   const v = validateBody(body, {...}); if (!v.ok) return jsonError(res, v.error);
+function validateBody(body, schema) {
+  if (!body || typeof body !== 'object') return { ok: false, error: 'Invalid request body' };
+  const value = { ...body };
+  for (const [field, rule] of Object.entries(schema)) {
+    let val = body[field];
+    const present = val !== undefined && val !== null && val !== '';
+    if (!present) {
+      if (rule.required) return { ok: false, error: `${field} is required` };
+      continue;
+    }
+    if (rule.type) {
+      const actual = Array.isArray(val) ? 'array' : typeof val;
+      if (actual !== rule.type) return { ok: false, error: `${field} must be a ${rule.type}` };
+    }
+    if (typeof val === 'string') {
+      if (rule.trim !== false) val = val.trim();
+      if (rule.trim !== false && !val && rule.required) return { ok: false, error: `${field} is required` };
+      const max = rule.maxLength || LIMITS[field];
+      if (max && val.length > max) return { ok: false, error: `${field} is too long (max ${max} characters)` };
+    }
+    value[field] = val;
+  }
+  return { ok: true, value };
+}
+
 const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
 
 function readBody(req) {
@@ -190,6 +241,6 @@ module.exports = {
   formatBytes, formatDuration,
   toId, fromId, safePath,
   wordMatch, wordMatchAny, channelMatchAny, actorMatches, actorMatchesAny,
-  json, readBody,
+  json, jsonError, readBody, validateBody, LIMITS,
   serveStatic,
 };

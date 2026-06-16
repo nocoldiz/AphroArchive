@@ -23,6 +23,7 @@ process.on('uncaughtException', (err) => {
   console.error('\x1b[33m[uncaughtException]\x1b[0m', err && err.stack || err);
 });
 
+const log = require('./server/logger-server');
 const cfg = require('./server/config-server');
 const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
   WEBSITES_JSON, CATEGORIES_JSON, LINK_DIR, BM_CACHE_FILE,
@@ -639,7 +640,7 @@ const server = http.createServer(async (req, res) => {
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
  } catch (err) {
-  console.error('\x1b[31m[request error]\x1b[0m', req.method, req.url, '→', err && err.stack || err);
+  log.error('request error', req.method, req.url, '→', err && err.stack || err);
   try {
     if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Internal server error' }));
@@ -657,6 +658,36 @@ server.on('clientError', (err, socket) => {
 });
 
 // ── Listen ───────────────────────────────────────────────────────────
+
+// ── Graceful shutdown ──────────────────────────────────────────────────
+// On SIGINT/SIGTERM: stop accepting connections, let modules flush
+// in-progress work (persist download jobs + kill children, lock the vault and
+// shred temp files), then exit. A hard-exit timer guards against a hung close.
+
+let _shuttingDown = false;
+function gracefulShutdown(signal) {
+  if (_shuttingDown) return;
+  _shuttingDown = true;
+  log.info(`received ${signal}, shutting down gracefully`);
+
+  const hardExit = setTimeout(() => {
+    log.warn('shutdown timed out, forcing exit');
+    process.exit(0);
+  }, 8000);
+  hardExit.unref();
+
+  try { downloads.shutdown(); } catch (e) { log.warn('downloads shutdown failed', e && e.message || e); }
+  try { vault.shutdown(); } catch (e) { log.warn('vault shutdown failed', e && e.message || e); }
+
+  server.close(() => {
+    clearTimeout(hardExit);
+    log.info('server closed, exiting');
+    process.exit(0);
+  });
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 server.listen(PORT, () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);

@@ -1870,7 +1870,21 @@ async function apiVaultRestoreLinks(req, res) {
   json(res, { ok: true, restored: restored.length });
 }
 
+// Graceful shutdown: lock the vault (clears the in-memory key) and sweep any
+// leftover plaintext thumbnail temp files from a previous interrupted run.
+function shutdown() {
+  try { lockVault(); } catch {}
+  try { __stopTimers(); } catch {}
+  try {
+    const tmp = os.tmpdir();
+    for (const f of fs.readdirSync(tmp)) {
+      if (f.startsWith('aa-vthumb-')) { try { _shredFile(path.join(tmp, f)); } catch {} }
+    }
+  } catch {}
+}
+
 module.exports = {
+  shutdown,
   apiVaultStatus, apiVaultSetup, apiVaultUnlock, apiVaultLock,
   apiVaultFiles, apiVaultAdd, apiVaultStream, apiVaultDelete, apiVaultDownload,
   apiVaultCreateFolder, apiVaultDeleteFolder, apiVaultRenameFolder, apiVaultMoveFolder,

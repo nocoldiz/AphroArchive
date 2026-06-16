@@ -1,5 +1,4 @@
 ﻿import { currentView, currentVideo } from '../../store';
-import { VideoGrid } from './VideoGrid';
 import { SettingsView } from '../sections/SettingsView';
 import { ThumbnailsView } from '../sections/ThumbnailsView';
 import { CategoriesView } from '../sections/CategoriesView';

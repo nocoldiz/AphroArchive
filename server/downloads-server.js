@@ -707,7 +707,21 @@ loadDlConfig();
 loadJobs();
 processDownloadQueue();
 
+// Graceful shutdown: kill any running yt-dlp/python children and persist jobs
+// so interrupted downloads are restored (as queued) on next startup.
+function shutdown() {
+  for (const job of downloadJobs.values()) {
+    if (job.status === 'running') {
+      if (job._kill) { try { job._kill(); } catch {} }
+      job.status = 'queued';
+    }
+  }
+  try { if (bulkProc) bulkProc.kill(); } catch {}
+  saveJobs();
+}
+
 module.exports = {
+  shutdown,
   apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadRemoveAll, apiDownloadCancelAll, apiDownloadCheck,
   apiDownloadUpdateJob, apiDownloadRestartJob, apiDownloadPauseJob, apiDownloadResumeJob,
   apiDownloadGetConfig, apiDownloadSetConfig,

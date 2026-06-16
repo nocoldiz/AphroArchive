@@ -17,6 +17,8 @@ export const Topbar = () => {
   const [tbDraggingId, setTbDraggingId] = useState<string | null>(null);
   const [tbDragInsertId, setTbDragInsertId] = useState<string | null>(null);
   const dropInsertRef = useRef<string | null>(null);
+  const [pluginsMenuOpen, setPluginsMenuOpen] = useState(false);
+  const pluginsMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     loadProfiles();
@@ -28,6 +30,17 @@ export const Topbar = () => {
     window.addEventListener('dragend', clear);
     return () => window.removeEventListener('dragend', clear);
   }, []);
+
+  useEffect(() => {
+    if (!pluginsMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (pluginsMenuRef.current && !pluginsMenuRef.current.contains(e.target as Node)) {
+        setPluginsMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', close);
+    return () => window.removeEventListener('mousedown', close);
+  }, [pluginsMenuOpen]);
 
   if (view === 'instagram' || view === 'reddit') return null;
 
@@ -191,29 +204,65 @@ export const Topbar = () => {
           </Fragment>
         ))}
         {tbDragInsertId === '__end_topbar' && tbInsertLine}
-        {movedPlugins.map(p => {
-          const isActive = p.type === 'toggle' && p.toggleAction === 'toggleZapping'
-            ? zapOn.value
-            : p.type === 'toggle' && p.toggleAction === 'toggleTVMode'
-            ? isTVMode.value
-            : p.type === 'view' && view === p.view;
-          return (
+        {movedPlugins.length > 0 && (
+          <div ref={pluginsMenuRef} style={{ position: 'relative', display: 'inline-block' }}>
             <button
-              key={p.id}
-              id={`plugin-${p.id}`}
-              onClick={() => runPluginAction(p, currentView)}
-              onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar-icon'); }}
-              title={p.name}
-              class={isActive ? 'on' : ''}
+              id="pluginsMenuBtn"
+              onClick={() => setPluginsMenuOpen(o => !o)}
+              title="Plugins"
+              class={pluginsMenuOpen ? 'on' : ''}
             >
-              {p.icon && (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  dangerouslySetInnerHTML={{ __html: p.icon }}
-                />
-              )}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 7h3a2 2 0 0 1 2 2v3m0 0v3a2 2 0 0 1-2 2h-3m0 0H7a2 2 0 0 1-2-2v-3m0 0V9a2 2 0 0 1 2-2h3" />
+                <path d="M9 5a2 2 0 1 1 4 0v2H9V5z" />
+                <path d="M19 9a2 2 0 1 1 0 4h-2V9h2z" />
+              </svg>
             </button>
-          );
-        })}
+            {pluginsMenuOpen && (
+              <div
+                className="plugins-menu"
+                style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 1000,
+                  background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px',
+                  padding: '4px', minWidth: '180px', boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
+                  display: 'flex', flexDirection: 'column', gap: '2px'
+                }}
+              >
+                {movedPlugins.map(p => {
+                  const isActive = p.type === 'toggle' && p.toggleAction === 'toggleZapping'
+                    ? zapOn.value
+                    : p.type === 'toggle' && p.toggleAction === 'toggleTVMode'
+                    ? isTVMode.value
+                    : p.type === 'view' && view === p.view;
+                  return (
+                    <button
+                      key={p.id}
+                      id={`plugin-${p.id}`}
+                      onClick={() => { runPluginAction(p, currentView); setPluginsMenuOpen(false); }}
+                      onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar-icon'); }}
+                      title={p.name}
+                      class={isActive ? 'on' : ''}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                        justifyContent: 'flex-start', padding: '7px 10px', borderRadius: '6px',
+                        background: isActive ? 'var(--ac)' : 'transparent', color: isActive ? '#fff' : 'var(--tx)',
+                        border: 'none', cursor: 'pointer', textAlign: 'left'
+                      }}
+                    >
+                      {p.icon && (
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                          style={{ flexShrink: 0 }}
+                          dangerouslySetInnerHTML={{ __html: p.icon }}
+                        />
+                      )}
+                      <span style={{ fontSize: '0.85rem' }}>{p.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {activeProfile.value === 'Vault' && isVaultUnlocked.value && (

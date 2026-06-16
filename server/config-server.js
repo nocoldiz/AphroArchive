@@ -34,9 +34,12 @@ function _resolveCustomDir(custom, defaultDir) {
 }
 const _pathsCfg = _loadPathsCfg();
 
-const VIDEOS_DIR = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || path.join(DATA_DIR, 'videos'));
+// Precedence: CLI arg > env var > paths.json config file > built-in default.
+// This lets paths.json (DATA_DIR/paths.json) configure videosDir and port the
+// same way it already configures cacheDir/dbDir/vaultDir.
+const VIDEOS_DIR = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || _pathsCfg.videosDir || path.join(DATA_DIR, 'videos'));
 const AUDIO_DIR = path.join(DATA_DIR, 'audio');
-const PORT = parseInt(process.argv[3] || process.env.PORT || '3000', 10);
+const PORT = parseInt(process.argv[3] || process.env.PORT || _pathsCfg.port || '3000', 10);
 const DIST_PUBLIC = path.join(ROOT_DIR, 'dist', 'public');
 const PUBLIC_DIR = fs.existsSync(path.join(DIST_PUBLIC, 'index.html'))
   ? DIST_PUBLIC

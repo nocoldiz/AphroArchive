@@ -11,7 +11,7 @@ const https = require('https');
 const os    = require('os');
 const url   = require('url');
 const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
-const { json, readBody, serveStatic }   = require('./helpers-server');
+const { json, readBody, serveStatic, LIMITS }   = require('./helpers-server');
 const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink, loadOgThumbCache, saveOgThumbCache, loadFolderMappings, loadEnabledFolders, loadAllVideoTags, upsertChannelEntry } = require('./db-server');
 const { wordMatchAny, wordMatch } = require('./helpers-server');
 const { execFile } = require('child_process');
@@ -667,6 +667,8 @@ async function apiWebsitesBulkAdd(req, res) {
 async function apiWebsiteAdd(req, res) {
   const body = await readBody(req);
   if (!body.url) return json(res, { error: 'url required' }, 400);
+  if (typeof body.url !== 'string' || body.url.length > LIMITS.url) return json(res, { error: `url is invalid or too long (max ${LIMITS.url} characters)` }, 400);
+  if (body.name && String(body.name).length > LIMITS.name) return json(res, { error: `name is too long (max ${LIMITS.name} characters)` }, 400);
   const sites = loadWebsites();
   sites.push({
     name: body.name || body.url,

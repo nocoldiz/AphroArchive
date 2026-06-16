@@ -24,7 +24,7 @@ const fs   = require('fs');
 const path = require('path');
 const { VIDEOS_DIR, VIDEO_EXT } = require('./config-server');
 const { invalidateScanCache } = require('./videos-server');
-const { json, readBody } = require('./helpers-server');
+const { json, jsonError, readBody, LIMITS } = require('./helpers-server');
 const {
   loadActors, saveActors,
   loadWebsites, saveWebsites,
@@ -64,7 +64,8 @@ function apiDbGet(req, res, type) {
 async function apiDbUpsert(req, res, type) {
   const body = await readBody(req);
   const { name, data, oldName } = body;
-  if (!name || typeof name !== 'string') return json(res, { error: 'Name required' }, 400);
+  if (!name || typeof name !== 'string') return jsonError(res, 'Name required');
+  if (name.length > LIMITS.name) return jsonError(res, `Name is too long (max ${LIMITS.name} characters)`);
 
   if (type === 'websites') {
     const sites = loadWebsites();

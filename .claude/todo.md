@@ -131,14 +131,14 @@ move dropdown.
 
 ## Code Quality & Refactoring
 
-- [ ] **Standardize error responses** — All API errors should return `{ error: "message" }` JSON with appropriate HTTP status codes, not mixed plain-text/empty responses.
-- [ ] **Validate JSON input** — Add a lightweight validator for all POST/PATCH bodies: required fields, type checks, max string lengths.
-- [ ] **Consistent async** — Avoid mixing `readFileSync` in async functions. Decide on one I/O style per module.
-- [ ] **Structured logging** — Replace `console.log` with a minimal logger that includes timestamp and level, and can be silenced in production.
-- [ ] **Graceful shutdown** — Handle `SIGINT`/`SIGTERM` to flush any in-progress downloads and clean up vault temp files before exit.
-- [ ] **Input length limits** — Actor names, category names, collection names, and URLs should be capped at reasonable lengths on the server.
-- [ ] **Config file support** — Allow paths (VIDEOS_DIR, SETTINGS_DIR, port) to be set via a config file or environment variables rather than being hardcoded.
-- [ ] **Dead import in MainContent** — `VideoGrid` is imported at the top of `MainContent.tsx` but never used there (it's used by individual view components). Remove the import.
+- [~] **Standardize error responses** — Added a shared `jsonError(res, message, status)` helper (`helpers-server.js`) that always emits `{ error: "message" }` with a status code; the top-level request catch already returns the same shape. Applied at the collections / database create handlers. **Remaining:** sweep the other feature modules to replace their inline `json(res, {error}, status)` calls (mechanically equivalent, low risk).
+- [~] **Validate JSON input** — Added `validateBody(body, schema)` (required / type / maxLength, with trimming) + a `LIMITS` table in `helpers-server.js`. Wired into the collection-create handler as the reference usage. **Remaining:** roll out across the other POST/PATCH handlers.
+- [ ] **Consistent async** — Not addressed. Needs a per-module decision (the `readFileSync`-in-async pattern is pervasive in the write-through caches and is intentional there); deferred rather than done piecemeal.
+- [~] **Structured logging** — Added `server/logger-server.js`: timestamped, levelled (`error|warn|info|debug`), silenceable via `LOG_LEVEL` (`silent`/`off` disables all output). Wired into `server.js` (request-error + shutdown). **Remaining:** migrate the ~259 `console.*` calls across the feature modules.
+- [x] **Graceful shutdown** — `server.js` handles `SIGINT`/`SIGTERM`: stops accepting connections (`server.close`), calls `downloads.shutdown()` (kills running yt-dlp/bulk children, persists jobs as queued for restart) and `vault.shutdown()` (locks the vault, shreds leftover `aa-vthumb-*` temp files), with an 8 s hard-exit fallback.
+- [x] **Input length limits** — `LIMITS` table enforced server-side: actor / channel / category names (`apiDbUpsert`), collection names (`apiCollectionCreate`), folder names (`apiCreateFolder` / `apiFolderCreate`), and website URLs/names (`apiWebsiteAdd`).
+- [x] **Config file support** — `paths.json` (in `DATA_DIR`) now also accepts `videosDir` and `port` alongside the existing `cacheDir`/`dbDir`/`vaultDir`/`whisperModelsDir`. Precedence: CLI arg > env var > `paths.json` > built-in default.
+- [x] **Dead import in MainContent** — Removed the unused `VideoGrid` import from `MainContent.tsx`.
 
 ## Vault
 
@@ -152,17 +152,17 @@ move dropdown.
 
 ## Search & Filtering
 
-- [ ] **Multi-filter support** — Combine actor + channel + tag in one search query.
-- [ ] **Date range filter** — Filter videos added/modified between two dates.
-- [ ] **Duration filter** — Filter by short/medium/long (e.g., <5min, 5-30min, 30min+).
-- [ ] **Unwatched filter** — Show only videos not yet in watch history.
+- [x] **Multi-filter support** — `FilterPanel.tsx` adds actor/channel/tag facets (`filterActors`/`filterChannels`/`filterTags` signals); `filteredVideos` ANDs across types, ORs within each.
+- [x] **Date range filter** — `dateFromFilter`/`dateToFilter` signals + date inputs in `FilterPanel`; `filteredVideos` filters on `mtime`.
+- [x] **Duration filter** — `durationFilter` signal (short <5m / medium 5–30m / long >30m) with pill buttons in `FilterPanel`.
+- [x] **Unwatched filter** — `notWatchedFilter` wired into `FilterPanel` as an "Unwatched only" toggle.
 - [ ] **Saved searches** — Link a filter/query combo and recall it with one click.
 - [ ] **Recent searches** — Dropdown of last 10 search terms when clicking the search bar.
 - [ ] **Search within actors/channels pages** — The actor and channel detail pages have no search; hard to find a video when an actor/channel has 100+ entries.
-- [ ] **Search suggestions / autocomplete** — As the user types, suggest matching titles, actor names, tags, and folders in a dropdown.
-- [ ] **Full-text search across metadata** — Index title + notes + actor names + tags into SQLite FTS5 so a single query matches all fields simultaneously.
+- [x] **Search suggestions / autocomplete** — `Search.tsx` shows a grouped dropdown (titles/actors/tags/folders) from `GET /api/search/suggest`, with arrow/Enter keyboard nav; titles refine the query, the rest navigate.
+- [x] **Full-text search across metadata** — `video_fts` FTS5 table (db-server.js) indexes title + name + channel + category + actors + tags + note, rebuilt lazily on writes; `GET /api/search` and `/api/search/suggest` (search-server.js) query it with prefix + multi-token AND.
 - [ ] **Boolean search syntax** — Support `actor:Jane tag:action -tag:short duration:>30m` query syntax in the search bar.
-- [~] **Rating filter** — Backend is done: `ratingFilter` signal (persisted) and `filteredVideos` filters `v.rating >= minRating` (store.ts:786). **Missing the UI** — no component sets `ratingFilter`; add star buttons/slider in `LibraryFilters`/`SectionControls`.
+- [x] **Rating filter** — `ratingFilter` signal + `filteredVideos` filters `v.rating >= minRating`; UI added as "Minimum rating" pill buttons (Any/1★–5★) in `FilterPanel`.
 - [ ] **Fuzzy search** — Tolerate typos using SQLite FTS5 porter stemmer; surface near-matches alongside exact ones.
 - [ ] **Active filter chips** — Show applied filters (tag, actor, duration range, etc.) as removable chip pills above the grid; clicking × on a chip removes that filter.
 - [ ] **Sort persistence per folder** — Remember the last-used sort mode per category path, not just globally; restore it when navigating back to the same folder.
