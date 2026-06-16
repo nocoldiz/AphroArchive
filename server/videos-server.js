@@ -829,9 +829,7 @@ async function apiVideos(req, res, params) {
     }
   }
   // Append virtual ZIP-based video entries (unencrypted ZIPs in all media roots).
-  // Vault profile uses its own ZIP mount mechanism; skip here.
-  const db = require('./db-server');
-  if (!showAll && db.getCurrentProfile() !== 'Vault') {
+  if (!showAll) {
     try {
       const mediaZip = require('./media-zip-mount-server');
       let zipVideos = mediaZip.getVirtualVideos(cat || null);
@@ -1037,18 +1035,16 @@ async function apiFolders(req, res, params) {
   } catch (e) {}
 
   // Inject ZIP-based virtual categories (always visible — bypass enabled-folder filter).
-  if (!isVaultOnly) {
-    try {
-      const existingPaths = new Set(filtered.map(c => c.path));
-      const mediaZip = require('./media-zip-mount-server');
-      for (const vc of mediaZip.getVirtualCategories()) {
-        if (!existingPaths.has(vc.path)) {
-          filtered.push({ name: vc.name, path: vc.path, count: vc.count, encrypted: false, partial: false, unlocked: true, isZipMount: true });
-          existingPaths.add(vc.path);
-        }
+  try {
+    const existingPaths = new Set(filtered.map(c => c.path));
+    const mediaZip = require('./media-zip-mount-server');
+    for (const vc of mediaZip.getVirtualCategories()) {
+      if (!existingPaths.has(vc.path)) {
+        filtered.push({ name: vc.name, path: vc.path, count: vc.count, encrypted: false, partial: false, unlocked: true, isZipMount: true });
+        existingPaths.add(vc.path);
       }
-    } catch (e) { console.error('[apiFolders] zip categories error:', e.message); }
-  }
+    }
+  } catch (e) { console.error('[apiFolders] zip categories error:', e.message); }
 
   filtered.sort((a, b) => {
     if (a.path === 'uncategorized') return -1;

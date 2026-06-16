@@ -6,9 +6,10 @@ import gzip
 import json
 import zlib
 import html
+import base64
 import argparse
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, unquote
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
@@ -35,11 +36,27 @@ except ImportError:
 #
 # Without it, many protected sites will fail or return blocked/lower-quality results.
 def _detect_impersonate_targets():
+    # Direct import check is the most reliable — yt-dlp's internal detection
+    # can return empty even when curl_cffi is properly installed.
+    try:
+        from curl_cffi import requests as _cffi
+        _cffi.get  # confirm it has a requests-compatible API
+        return ['chrome']
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Fall back to yt-dlp's own probe
     try:
         with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
-            return list(ydl._get_available_impersonate_targets())
+            targets = list(ydl._get_available_impersonate_targets())
+            if targets:
+                return targets
     except Exception:
-        return []
+        pass
+
+    return []
 
 
 _IMPERSONATE_TARGETS = None
@@ -50,8 +67,8 @@ def impersonate_available():
     if _IMPERSONATE_TARGETS is None:
         _IMPERSONATE_TARGETS = _detect_impersonate_targets()
         if not _IMPERSONATE_TARGETS:
-            print('   [info] curl_cffi not installed — browser impersonation disabled '
-                  '(pip install curl_cffi for better X.com/Instagram/TikTok support).',
+            print('   [info] curl_cffi not available — browser impersonation disabled '
+                  '(pip install curl_cffi for better Cloudflare/X.com/Instagram support).',
                   flush=True)
     return bool(_IMPERSONATE_TARGETS)
 
@@ -93,17 +110,47 @@ EMBED_HOST_HINTS = (
 # ════════════════════════════════════════════════════════════════════════
 
 def http_get(url, referer=None, timeout=25, max_bytes=8 * 1024 * 1024):
-    """Fetch a page and return (final_url, text). Returns (url, '') on failure."""
-    headers = {
+    """
+    Fetch a page and return (final_url, text).
+    Tries in order: curl_cffi (Cloudflare/bot bypass) → requests → stdlib urllib.
+    Returns (url, '') on total failure.
+    """
+    hdrs = {
         'User-Agent': USER_AGENT,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate',
     }
     if referer:
-        headers['Referer'] = referer
+        hdrs['Referer'] = referer
+
+    # 1) curl_cffi — same TLS fingerprinting that powers yt-dlp --impersonate;
+    #    bypasses Cloudflare JS-challenge, PerimeterX, DataDome, Akamai at fetch time.
     try:
-        req = Request(url, headers=headers)
+        from curl_cffi import requests as _cffi
+        r = _cffi.get(url, impersonate='chrome', headers=hdrs,
+                      timeout=timeout, allow_redirects=True)
+        return r.url, r.text
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f'   [scrape] curl_cffi failed for {url}: {e}', flush=True)
+
+    # 2) requests — cookie-jar aware, better redirect chain than urllib.
+    try:
+        import requests as _req
+        s = _req.Session()
+        s.headers.update(hdrs)
+        r = s.get(url, timeout=timeout, allow_redirects=True)
+        return r.url, r.text
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f'   [scrape] requests failed for {url}: {e}', flush=True)
+
+    # 3) stdlib urllib — zero-dependency fallback.
+    try:
+        req = Request(url, headers=hdrs)
         with urlopen(req, timeout=timeout) as resp:
             final_url = resp.geturl()
             raw = resp.read(max_bytes)
@@ -127,6 +174,133 @@ def http_get(url, referer=None, timeout=25, max_bytes=8 * 1024 * 1024):
     except (URLError, HTTPError, OSError, ValueError) as e:
         print(f'   [scrape] fetch failed for {url}: {e}', flush=True)
         return url, ''
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  JS deobfuscation — exposes hidden URLs before regex scanning
+# ════════════════════════════════════════════════════════════════════════
+
+def _deobfuscate_js(page):
+    """
+    Lightweight pass over common JS obfuscation tricks.
+    Returns the original page + any decoded content appended as extra text,
+    so all downstream regex patterns get a shot at the plaintext.
+    """
+    extras = []
+
+    # eval(atob('...')) / atob('...')  — base64-encoded JS/URLs
+    for m in re.finditer(r'atob\s*\(\s*["\']([A-Za-z0-9+/=]{16,})["\']', page):
+        try:
+            decoded = base64.b64decode(m.group(1) + '==').decode('utf-8', errors='replace')
+            if any(x in decoded for x in ('http', 'm3u8', 'mp4', 'source', 'file', 'stream')):
+                extras.append(decoded)
+        except Exception:
+            pass
+
+    # Bare base64 strings (40+ chars) that decode to something URL-like
+    for m in re.finditer(r'["\']([A-Za-z0-9+/]{40,}={0,2})["\']', page):
+        try:
+            decoded = base64.b64decode(m.group(1) + '==').decode('utf-8', errors='replace')
+            if 'http' in decoded and '.' in decoded:
+                extras.append(decoded)
+        except Exception:
+            pass
+
+    # String.fromCharCode(72, 84, 84, 80, ...)
+    for m in re.finditer(r'String\.fromCharCode\(([0-9,\s]+)\)', page):
+        try:
+            decoded = ''.join(chr(int(c)) for c in m.group(1).split(',') if c.strip())
+            if 'http' in decoded:
+                extras.append(decoded)
+        except Exception:
+            pass
+
+    # eval(unescape('%68%74%74%70...'))
+    for m in re.finditer(r'unescape\s*\(\s*["\']([%0-9A-Fa-f]+)["\']', page):
+        try:
+            decoded = unquote(m.group(1))
+            if 'http' in decoded:
+                extras.append(decoded)
+        except Exception:
+            pass
+
+    # P.A.C.K.E.R. packed JS — attempt naive symbol substitution
+    if 'eval(function(p,a,c,k,e' in page:
+        for m in re.finditer(
+            r"eval\(function\(p,a,c,k,e[^)]*\)\{[^}]+\}\s*\('([^']+)'\s*,\s*(\d+)\s*,\s*\d+\s*,'([^']+)'",
+            page, re.S,
+        ):
+            try:
+                p_str, radix, k_raw = m.group(1), int(m.group(2)), m.group(3).split('|')
+                def _unsym(sym, _r=radix, _k=k_raw):
+                    if not sym:
+                        return sym
+                    try:
+                        idx = int(sym, _r)
+                        return _k[idx] if idx < len(_k) and _k[idx] else sym
+                    except (ValueError, IndexError):
+                        return sym
+                unpacked = re.sub(r'\b([A-Za-z0-9]+)\b', lambda s: _unsym(s.group(0)), p_str)
+                extras.append(unpacked)
+            except Exception:
+                pass
+
+    # window.location.replace / document.write with base64 href
+    for m in re.finditer(r'(?:replace|href|src|location)\s*[=(]\s*["\']([A-Za-z0-9+/=]{30,})["\']', page):
+        try:
+            decoded = base64.b64decode(m.group(1) + '==').decode('utf-8', errors='replace')
+            if decoded.startswith('http'):
+                extras.append(decoded)
+        except Exception:
+            pass
+
+    if not extras:
+        return page
+    return page + '\n' + '\n'.join(extras)
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  Page title extraction
+# ════════════════════════════════════════════════════════════════════════
+
+def _extract_page_title(page):
+    """
+    Return the best human-readable video title from a page's HTML.
+    Priority: og:title → twitter:title → <title> (stripped of site suffix) → first <h1>
+    """
+    for pat in (
+        r'<meta[^>]+(?:property|name)=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:title["\']',
+        r'<meta[^>]+(?:property|name)=["\']twitter:title["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']twitter:title["\']',
+    ):
+        m = re.search(pat, page, re.I)
+        if m:
+            return html.unescape(m.group(1).strip())
+
+    m = re.search(r'<title[^>]*>([^<]{3,})</title>', page, re.I)
+    if m:
+        t = html.unescape(m.group(1).strip())
+        for sep in (' | ', ' - ', ' – ', ' — ', ' :: ', ' » ', ' / '):
+            if sep in t:
+                t = t.split(sep)[0].strip()
+        if len(t) >= 3:
+            return t
+
+    m = re.search(r'<h1[^>]*>\s*([^<]{3,}?)\s*</h1>', page, re.I)
+    if m:
+        return html.unescape(m.group(1).strip())
+
+    return None
+
+
+def _title_to_stem(title, max_len=120):
+    """Sanitize a page title into a safe filename stem."""
+    stem = re.sub(r'[\\/:*?"<>|]', '', title)
+    stem = re.sub(r'\s+', '_', stem.strip())
+    stem = re.sub(r'[^\w\-.]', '', stem)
+    stem = stem.strip('._-')
+    return stem[:max_len] or None
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -274,16 +448,143 @@ def extract_candidates(base_url, page):
     for m in re.finditer(r'<(?:iframe|embed|object)[^>]+(?:src|data)\s*=\s*["\']([^"\']+)["\']', page, re.I):
         add(embeds, m.group(1))
 
+    # 7) Framework state blobs: __NEXT_DATA__, __INITIAL_STATE__, Nuxt, Redux, etc.
+    #    Modern React/Vue/Next.js/Nuxt sites embed all page data as JSON in the HTML;
+    #    the video URL is almost always somewhere inside these blobs.
+    fw_patterns = [
+        r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>\s*(\{.+?\})\s*</script>',
+        r'window\.__(?:INITIAL|REDUX|NUXT|APP|STORE)_?(?:STATE|DATA)?__\s*=\s*(\{.{20,}?\})\s*;',
+        r'window\.(?:initialState|appState|pageState|videoData|playerConfig|__data)\s*=\s*(\{.{20,}?\})\s*;',
+        r'<script[^>]*>\s*(?:var|let|const)\s+(?:videoConfig|playerConfig|videoData|pageData)\s*=\s*(\{.{20,}?\})\s*;',
+        r'self\.__next_f\.push\(\[1,\s*"([^"]{50,})"\]\)',  # Next.js 13+ app router streaming
+    ]
+    for fw_pat in fw_patterns:
+        for m in re.finditer(fw_pat, page, re.S | re.I):
+            blob_raw = m.group(1)
+            # For Next.js 13 streaming: the value is JSON-encoded string, unescape it
+            if fw_pat.startswith('self.__next_f'):
+                try:
+                    blob_raw = json.loads('"' + blob_raw + '"')
+                except Exception:
+                    pass
+            try:
+                blob = json.loads(blob_raw)
+                fw_found = []
+                _walk_jsonld(blob, fw_found)
+                for u in fw_found:
+                    add(direct if _looks_direct(u) else embeds, u)
+            except (json.JSONDecodeError, ValueError):
+                pass
+            # Raw text scan regardless of JSON validity — catches truncated blobs
+            for m2 in re.finditer(
+                r'"(?:url|src|file|source|videoUrl|hlsUrl|dashUrl|streamUrl|mp4Url|playUrl|'
+                r'contentUrl|mediaUrl|videoSrc|hls|dash|stream)"'
+                r'\s*:\s*"([^"]{10,})"',
+                blob_raw, re.I,
+            ):
+                u = m2.group(1).replace('\\/', '/')
+                if u.startswith('http') or _looks_direct(u):
+                    add(direct if _looks_direct(u) else embeds, u)
+
+    # 8) window.* variable assignments with direct media URLs (Dood, Voe, custom players)
+    for m in re.finditer(
+        r'window\s*\.\s*\w+\s*=\s*["\']([^"\']{10,}\.(?:m3u8|mpd|mp4|webm)(?:\?[^"\']*)?)["\']',
+        page, re.I,
+    ):
+        add(direct, m.group(1))
+
     # Prefer manifests first within direct list (better quality/adaptive).
     direct.sort(key=lambda u: (0 if _is_manifest(u) else 1))
     return direct, embeds
 
 
+def _playwright_scrape(url):
+    """
+    Headless-browser fallback: renders the page with Playwright, intercepts live
+    network requests to find media URLs, and returns (html_content, intercepted_urls).
+    Returns (None, []) when Playwright is not installed.
+
+    Install: pip install playwright && playwright install chromium
+    """
+    try:
+        from playwright.sync_api import sync_playwright, TimeoutError as _PWTimeout
+    except ImportError:
+        return None, []
+
+    intercepted = []
+    try:
+        print('   [playwright] launching headless browser…', flush=True)
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            ctx = browser.new_context(
+                user_agent=USER_AGENT,
+                extra_http_headers={'Accept-Language': 'en-US,en;q=0.9'},
+            )
+            page = ctx.new_page()
+
+            def _on_req(req):
+                u = req.url
+                if (_looks_direct(u) or _is_manifest(u)) and u not in intercepted:
+                    intercepted.append(u)
+
+            def _on_resp(resp):
+                u = resp.url
+                if (_looks_direct(u) or _is_manifest(u)) and u not in intercepted:
+                    intercepted.append(u)
+
+            page.on('request', _on_req)
+            page.on('response', _on_resp)
+
+            try:
+                page.goto(url, wait_until='networkidle', timeout=30000)
+            except _PWTimeout:
+                pass  # grab whatever loaded
+
+            # Wait out Cloudflare JS challenge ("Just a moment…")
+            try:
+                page.wait_for_function(
+                    "() => !document.title.includes('Just a moment')", timeout=8000
+                )
+            except Exception:
+                pass
+
+            # Trigger lazy-loaded players: scroll + click the most common play-button selectors
+            try:
+                page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
+                page.wait_for_timeout(1200)
+                for sel in (
+                    'button[class*="play" i]', 'div[class*="play-btn" i]',
+                    '[aria-label*="play" i]', '.vjs-big-play-button',
+                    '.plyr__control--overlaid', 'video',
+                ):
+                    try:
+                        page.click(sel, timeout=800)
+                        page.wait_for_timeout(2000)
+                        break
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            content = page.content()
+            browser.close()
+
+        print(f'   [playwright] intercepted {len(intercepted)} media URL(s)', flush=True)
+        return content, intercepted
+    except Exception as e:
+        print(f'   [playwright] error: {e}', flush=True)
+        return None, []
+
+
 def scrape_for_media(url, referer=None, depth=0, max_depth=4, seen_pages=None):
-    """Walk a page (and its iframes) returning a list of downloadable media URLs.
-    max_depth=4 gives deeper recursion for heavily embedded / obfuscated adult sites.
-    Combined with aggressive regex + browser impersonation, this covers virtually any
-    existent porn tube or video embed site.
+    """
+    Walk a page (and its iframes) returning a list of downloadable media URLs.
+    Pipeline per page:
+      1. Fetch with curl_cffi / requests / urllib
+      2. Deobfuscate JS (atob, fromCharCode, P.A.C.K.E.R., unescape)
+      3. Extract media candidates (OG, JSON-LD, <video>, player configs, framework blobs)
+      4. Recurse into iframes / embeds
+      5. At depth 0: Playwright headless-browser fallback if everything else fails
     """
     if seen_pages is None:
         seen_pages = set()
@@ -293,21 +594,49 @@ def scrape_for_media(url, referer=None, depth=0, max_depth=4, seen_pages=None):
 
     final_url, page = http_get(url, referer=referer)
     if not page:
+        # If plain HTTP failed entirely at the top level, try Playwright immediately
+        if depth == 0:
+            pw_html, pw_media = _playwright_scrape(url)
+            if pw_media:
+                return [(u, url) for u in pw_media]
+            if pw_html:
+                direct2, _ = extract_candidates(url, _deobfuscate_js(pw_html))
+                if direct2:
+                    return [(u, url) for u in direct2]
         return []
 
+    page = _deobfuscate_js(page)
     direct, embeds = extract_candidates(final_url, page)
     if direct:
-        return [(u, final_url) for u in direct]   # carry referer for download
+        return [(u, final_url) for u in direct]
 
-    # Nothing direct here — descend into the most promising embeds.
-    # Increased depth + more candidates for heavily nested / obfuscated adult sites.
+    # Nothing direct — descend into the most promising embeds
     results = []
     ranked = sorted(embeds, key=lambda u: (0 if any(h in u.lower() for h in EMBED_HOST_HINTS) else 1))
-    for emb in ranked[:12]:   # try more embeds for stubborn sites
+    for emb in ranked[:12]:
         results.extend(scrape_for_media(emb, referer=final_url, depth=depth + 1,
                                         max_depth=max_depth, seen_pages=seen_pages))
         if results:
             break
+
+    # Playwright fallback — only at the top level to avoid spawning browsers per iframe
+    if depth == 0 and not results:
+        pw_html, pw_media = _playwright_scrape(url)
+        if pw_media:
+            return [(u, url) for u in pw_media]
+        if pw_html:
+            deobfed = _deobfuscate_js(pw_html)
+            direct2, embeds2 = extract_candidates(url, deobfed)
+            if direct2:
+                return [(u, url) for u in direct2]
+            # Try embeds surfaced from the JS-rendered DOM
+            ranked2 = sorted(embeds2, key=lambda u: (0 if any(h in u.lower() for h in EMBED_HOST_HINTS) else 1))
+            for emb in ranked2[:6]:
+                results.extend(scrape_for_media(emb, referer=url, depth=1,
+                                                max_depth=max_depth, seen_pages=seen_pages))
+                if results:
+                    break
+
     return results
 
 
@@ -465,6 +794,31 @@ class UniversalVideoDownloader:
             return str(folder / f'{self._unique_stem(folder, stem)}.%(ext)s')
         return str(folder / (out_tmpl or '%(title)s.%(ext)s'))
 
+    def _try_ytdlp_with_cookies(self, url, outtmpl):
+        """
+        Last-resort attempt: run yt-dlp with real browser cookies so login-gated,
+        age-restricted, or paywall-protected content can be accessed.
+        Tries Chrome → Firefox → Edge in order; skips silently if none installed.
+        """
+        for browser in ('chrome', 'firefox', 'edge'):
+            opts = self.get_site_specific_opts(url)
+            opts['outtmpl'] = outtmpl
+            opts['cookiesfrombrowser'] = (browser,)
+            self.last_file = None
+            try:
+                print(f'   [cookies:{browser}] trying with browser cookies…', flush=True)
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    ydl.download([url])
+                f = self._resolve_final_file()
+                if f:
+                    return f
+            except Exception as e:
+                msg = str(e)
+                if 'not found' in msg.lower() or 'no such' in msg.lower() or 'could not find' in msg.lower():
+                    continue  # browser not installed, try next
+                print(f'   [cookies:{browser}] {e}', flush=True)
+        return None
+
     def _try_ytdlp(self, url, outtmpl, referer=None, force_generic=False, label='yt-dlp'):
         """Single yt-dlp attempt. Returns the downloaded path on success, else None."""
         opts = self.get_site_specific_opts(url)
@@ -505,6 +859,18 @@ class UniversalVideoDownloader:
         """
         folder.mkdir(parents=True, exist_ok=True)
         stem = self._probe_stem(url)
+
+        # When yt-dlp can't probe a filename, fetch the page ourselves for the title.
+        # This makes scraper-found CDN URLs save as "My Video Title.mp4" instead of
+        # "abc123_720p_hls_chunk_001.mp4" or whatever the CDN path happens to be.
+        if not stem:
+            _, raw_page = http_get(url)
+            if raw_page:
+                title = _extract_page_title(raw_page)
+                if title:
+                    stem = _title_to_stem(title)
+                    print(f'   [title] "{title}"', flush=True)
+
         existing = self._find_existing(folder, stem)
         if existing:
             print(f'   [skip] already downloaded: {existing}', flush=True)
@@ -532,20 +898,26 @@ class UniversalVideoDownloader:
                 return f
             # last resort: stream a plain http(s) file directly
             if _looks_direct(cand_url) and not _is_manifest(cand_url):
-                f = self._direct_download(cand_url, folder, referer)
+                f = self._direct_download(cand_url, folder, referer, title_stem=stem)
                 if f:
                     return f
+
+        # 4) Native extractor with real browser cookies (login-gated / age-restricted content).
+        f = self._try_ytdlp_with_cookies(url, outtmpl)
+        if f:
+            return f
 
         print('   [error] no downloadable video found by any method.', flush=True)
         return None
 
-    def _direct_download(self, url, folder, referer=None):
+    def _direct_download(self, url, folder, referer=None, title_stem=None):
         """Raw streamed download of a direct media URL (final fallback)."""
         try:
             name = os.path.basename(urlparse(url).path) or 'video.mp4'
-            name = re.sub(r'[^a-zA-Z0-9._-]', '_', name)[:120]
-            stem, ext = os.path.splitext(name)
+            _, ext = os.path.splitext(name)
             ext = ext.lstrip('.') or 'mp4'
+            # Prefer the page title over the URL's raw filename
+            stem = title_stem or re.sub(r'[^a-zA-Z0-9._-]', '_', os.path.splitext(name)[0])[:120]
             existing = self._find_existing(folder, stem)
             if existing:
                 print(f'   [skip] already downloaded: {existing}', flush=True)
