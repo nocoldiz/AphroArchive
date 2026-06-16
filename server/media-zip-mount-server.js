@@ -105,7 +105,7 @@ function _indexZip(zipPath, zipName, catPath) {
   let mtime = Date.now();
   try { mtime = fs.statSync(zipPath).mtimeMs; } catch {}
 
-  _mounts[mountId] = { zipPath, displayName, catPath, basePath, rootFolderId: rootId, entries, subFolders, encrypted: isEnc, mtime };
+  _mounts[mountId] = { zipPath, displayName, catPath, basePath, rootFolderId: rootId, entries, subFolders, encrypted: isEnc, password: null, mtime };
   return mountId;
 }
 
@@ -121,6 +121,13 @@ function scanMediaZips() {
     const prefs = loadPrefs();
     for (const sf of (prefs.sourceFolders || [])) {
       if (fs.existsSync(sf)) roots.push(sf);
+    }
+  } catch {}
+  // Temporarily "opened" folders (Open folder button) — surface their ZIPs too.
+  try {
+    const { getOpenedRoots } = require('./opened-folders-server');
+    for (const r of getOpenedRoots()) {
+      if (!roots.includes(r) && fs.existsSync(r)) roots.push(r);
     }
   } catch {}
 
@@ -152,7 +159,11 @@ function getVirtualCategories() {
   ensureScanned();
   const out = [];
   for (const mount of Object.values(_mounts)) {
-    if (mount.encrypted) continue;
+    if (mount.encrypted && !mount.password) {
+      // Locked archive — a single clickable node that triggers a password prompt.
+      out.push({ name: mount.displayName, path: mount.basePath, count: mount.entries.length, isZipMount: true, locked: true });
+      continue;
+    }
     // Root-level folder for the archive
     out.push({ name: mount.displayName, path: mount.basePath, count: mount.entries.length, isZipMount: true });
     // One entry per unique in-zip subdirectory
@@ -175,7 +186,7 @@ function getVirtualVideos(catPathFilter) {
   const filter = catPathFilter ? catPathFilter.toLowerCase() : null;
 
   for (const mount of Object.values(_mounts)) {
-    if (mount.encrypted) continue;
+    if (mount.encrypted && !mount.password) continue; // locked — needs unlock first
 
     for (const entry of mount.entries) {
       const entryPath = entry.inZipDir ? mount.basePath + '/' + entry.inZipDir : mount.basePath;
@@ -247,8 +258,24 @@ function streamMediaZipEntry(req, res, entryId) {
   const entry = rec.entry;
   const ct    = MIME[entry.ext] || 'application/octet-stream';
 
+  // Encrypted entry: only streamable once the archive has been unlocked with
+  // the right password (held in-memory on the mount). Decrypt + decompress the
+  // whole entry via the pure-Node zip reader, then serve the requested range.
   if (entry.encryption) {
-    res.writeHead(403); res.end('Encrypted entry — open in vault'); return;
+    if (!mount.password) { res.writeHead(403); res.end('Encrypted archive — unlock first'); return; }
+    let zbuf;
+    try { zbuf = fs.readFileSync(mount.zipPath); }
+    catch (e) { res.writeHead(500); res.end('Cannot read zip: ' + e.message); return; }
+    let plainEnc;
+    try {
+      plainEnc = require('./zip-reader-server').extractEntry(zbuf, {
+        name: entry.filename, method: entry.method, encryption: entry.encryption,
+        encrypted: true, _aes: entry._aes, compressedSize: entry.compressedSize,
+        size: entry.size, _localOff: entry._localOff, crc: entry.crc, _flags: entry._flags,
+      }, mount.password);
+    } catch (e) { res.writeHead(500); res.end('Decrypt failed: ' + e.message); return; }
+    _serveRange(req, res, plainEnc, ct);
+    return;
   }
 
   let buf;
@@ -268,4 +295,44 @@ function streamMediaZipEntry(req, res, entryId) {
   _serveRange(req, res, plain, ct);
 }
 
-module.exports = { scanMediaZips, invalidate, getVirtualCategories, getVirtualVideos, getEncryptedZipPaths, streamMediaZipEntry };
+// ── Unlock an encrypted archive with a user-supplied password ──────
+// Verifies the password against the smallest encrypted entry (cheap), then
+// stores it on the mount so getVirtualCategories/Videos surface its contents
+// and streamMediaZipEntry can decrypt on demand.
+function unlockZip(basePath, password) {
+  ensureScanned();
+  const target = (basePath || '').toLowerCase();
+  const mount = Object.values(_mounts).find(m => m.encrypted && m.basePath.toLowerCase() === target);
+  if (!mount) return { error: 'Archive not found' };
+
+  let buf;
+  try { buf = fs.readFileSync(mount.zipPath); }
+  catch { return { error: 'Cannot read archive' }; }
+
+  const zipReader = require('./zip-reader-server');
+  let entries;
+  try { entries = zipReader.listEntries(buf); }
+  catch { return { error: 'Invalid ZIP' }; }
+
+  const enc = entries.filter(e => !e.isDir && e.encrypted).sort((a, b) => a.compressedSize - b.compressedSize);
+  if (enc.length) {
+    try { zipReader.extractEntry(buf, enc[0], password); }
+    catch { return { error: 'Wrong password' }; }
+  }
+  mount.password = password;
+  return { ok: true, path: mount.basePath };
+}
+
+async function apiMediaZipUnlock(req, res) {
+  const { readBody, json } = require('./helpers-server');
+  const body = await readBody(req);
+  const target = (body.path || '').trim();
+  if (!target) return json(res, { error: 'path required' }, 400);
+  const r = unlockZip(target, body.password || '');
+  if (r.error) return json(res, r, r.error === 'Wrong password' ? 401 : 400);
+  // Notify clients so they reload and the now-unlocked archive appears.
+  try { require('./videos-server').broadcastScanChange(); } catch {}
+  json(res, r);
+}
+
+module.exports = { scanMediaZips, invalidate, getVirtualCategories, getVirtualVideos, getEncryptedZipPaths, streamMediaZipEntry, unlockZip, apiMediaZipUnlock };

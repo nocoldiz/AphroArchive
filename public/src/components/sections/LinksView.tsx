@@ -26,9 +26,10 @@ interface LinkCardProps {
   onToggleSelect?: (url: string) => void;
   activeCats?: ActiveCat[];
   onTagClick?: (tag: string) => void;
+  onChannelClick?: (channel: string) => void;
 }
 
-const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selected, onToggleSelect, activeCats, onTagClick }: LinkCardProps & { onVault?: (url: string) => void }) => {
+const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selected, onToggleSelect, activeCats, onTagClick, onChannelClick }: LinkCardProps & { onVault?: (url: string) => void }) => {
   const hostname = new URL(item.url).hostname;
   const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
   const [editing, setEditing] = useState(false);
@@ -187,6 +188,11 @@ const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selecte
                 ))}
               </div>
             )}
+            {(() => { const ch = detectChannel(item.url); return ch ? (
+              <div onClick={onChannelClick ? (e: any) => { e.stopPropagation(); onChannelClick(ch); } : undefined} title={onChannelClick ? `View channel: ${ch}` : ch} style={{ marginTop: '5px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', background: 'rgba(120,80,255,0.12)', color: '#9f7aea', borderRadius: '4px', padding: '2px 7px', border: '1px solid rgba(120,80,255,0.3)', cursor: onChannelClick ? 'pointer' : 'default' }}>
+                📺 {ch}
+              </div>
+            ) : null; })()}
           </>
         )}
       </div>
@@ -243,6 +249,21 @@ const matchedName = (
 ): string | null =>
   matchedTagName(b.title, tagGroups) || matchedTagName(b.url, tagGroups) ||
   matchTitleToCategory(b.title, cats) || matchTitleToCategory(b.url, cats);
+
+function detectChannel(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.replace(/^www\./, '');
+    const p = u.pathname;
+    if (h === 'youtube.com') {
+      const m = p.match(/^\/@([^/?#]+)/) || p.match(/^\/channel\/([^/?#]+)/) || p.match(/^\/c\/([^/?#]+)/) || p.match(/^\/user\/([^/?#]+)/);
+      if (m) return m[1];
+    }
+    if (h === 'vimeo.com') { const m = p.match(/^\/channels\/([^/?#]+)/); if (m) return m[1]; }
+    if (h === 'twitch.tv') { const m = p.match(/^\/([^/?#]+)/); if (m && !['directory', 'p', 'downloads', 'store', 'jobs', 'videos', 'clips'].includes(m[1])) return m[1]; }
+    return null;
+  } catch { return null; }
+}
 
 const ROW_HEIGHT = 34;
 
@@ -589,7 +610,8 @@ export const LinksView = () => {
   const [visibleItems, setVisibleItems] = useState<LinkItem[]>([]);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title' | 'domain'>('newest');
-  const [viewMode, setViewMode] = useState<'table' | 'grouped' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'grouped' | 'grid' | 'channels'>('table');
+  const [channelViewFilter, setChannelViewFilter] = useState('');
   const [expandedSites, setExpandedSites] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem(`links-expanded-sites-${activeProfile.value}`);
@@ -1373,8 +1395,8 @@ export const LinksView = () => {
           </div>
           <span className="sg-sep"></span>
           <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
-            {(['table', 'grouped', 'grid'] as const).map(m => (
-              <button key={m} className={`ss-tab ${viewMode === m ? 'on' : ''}`} onClick={() => setViewMode(m)} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === m ? 'var(--ac)' : 'transparent', color: viewMode === m ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem', textTransform: 'capitalize' }}>{m === 'grouped' ? 'By Site' : m.charAt(0).toUpperCase() + m.slice(1)}</button>
+            {(['table', 'grouped', 'grid', 'channels'] as const).map(m => (
+              <button key={m} className={`ss-tab ${viewMode === m ? 'on' : ''}`} onClick={() => setViewMode(m)} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === m ? 'var(--ac)' : 'transparent', color: viewMode === m ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem', textTransform: 'capitalize' }}>{m === 'grouped' ? 'By Site' : m === 'channels' ? '📺 Channels' : m.charAt(0).toUpperCase() + m.slice(1)}</button>
             ))}
           </div>
           <span className="sg-sep"></span>
@@ -1521,7 +1543,7 @@ export const LinksView = () => {
             <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
               {topPad > 0 && <div style={{ gridColumn: '1 / -1', height: topPad }} />}
               {visibleCards.map(item => (
-                <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} activeCats={activeCats} onTagClick={setTagFilter} />
+                <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} activeCats={activeCats} onTagClick={setTagFilter} onChannelClick={(ch) => { setChannelViewFilter(ch); setViewMode('channels'); }} />
               ))}
               {bottomPad > 0 && <div style={{ gridColumn: '1 / -1', height: bottomPad }} />}
             </div>
@@ -1597,6 +1619,46 @@ export const LinksView = () => {
                 {bottomPad > 0 && <tr style={{ height: bottomPad }}><td colSpan={6} style={{ padding: 0 }} /></tr>}
               </tbody>
             </table>
+          </div>
+        );
+      })() : viewMode === 'channels' ? (() => {
+        const channelItems = visibleItems.map(it => { const ch = detectChannel(it.url); return ch ? { ...it, _ch: ch } : null; }).filter(Boolean) as (LinkItem & { _ch: string })[];
+        const filtered = channelViewFilter ? channelItems.filter(it => it._ch === channelViewFilter) : channelItems;
+        if (filtered.length === 0) return (
+          <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--tx3)' }}>
+            {channelViewFilter ? (
+              <><div style={{ fontSize: '14px', marginBottom: '8px' }}>No links for channel "{channelViewFilter}"</div><button class="sort-btn" onClick={() => setChannelViewFilter('')}>Show all channels</button></>
+            ) : (
+              <><div style={{ fontSize: '32px', marginBottom: '8px' }}>📺</div><div style={{ fontSize: '14px' }}>No channels found</div><div style={{ fontSize: '12px', marginTop: '6px' }}>Save links to channel pages (e.g. youtube.com/@channelname) to see them here.</div></>
+            )}
+          </div>
+        );
+        const hostname = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {channelViewFilter && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span style={{ fontWeight: 600, fontSize: '13px' }}>Channel: {channelViewFilter}</span>
+                <button class="sort-btn" onClick={() => setChannelViewFilter('')} style={{ fontSize: '11px', padding: '2px 8px' }}>✕ Clear</button>
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+              {filtered.map(it => (
+                <div key={it.url} onClick={() => window.open(it.url, '_blank')} style={{ border: '1px solid var(--brd)', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', background: 'var(--bg3)', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ height: '80px', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {it.img ? <img src={it.img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <img src={`https://www.google.com/s2/favicons?sz=48&domain_url=${encodeURIComponent(it.url)}`} width="36" height="36" alt="" style={{ opacity: 0.4 }} />}
+                  </div>
+                  <div style={{ padding: '10px 12px', flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it._ch}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(it.url)}`} width="12" height="12" alt="" />
+                      {hostname(it.url)}
+                    </div>
+                    {it.title && <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })() : (() => {

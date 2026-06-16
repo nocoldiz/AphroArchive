@@ -101,8 +101,10 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const [selectedAudio, setSelectedAudio] = useState(0);
   const [showChannelPicker, setShowChannelPicker] = useState(false);
   const [showTVFavs, setShowTVFavs] = useState(false);
+  const [showChaptersDropdown, setShowChaptersDropdown] = useState(false);
   const channelPickerRef = useRef<HTMLDivElement>(null);
   const tvFavsRef = useRef<HTMLDivElement>(null);
+  const chapterDropdownRef = useRef<HTMLDivElement>(null);
 
   const activeHlsSrc = hlsSrc
     ? (selectedAudio > 0 ? `${hlsSrc.split('?')[0]}?audio=${selectedAudio}` : hlsSrc)
@@ -417,6 +419,17 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [showTVFavs]);
+
+  useEffect(() => {
+    if (!showChaptersDropdown) return;
+    const onDown = (e: MouseEvent) => {
+      if (chapterDropdownRef.current && !chapterDropdownRef.current.contains(e.target as Node)) {
+        setShowChaptersDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showChaptersDropdown]);
 
   // ── Live captions via the browser SpeechRecognition API ────────────
   // Listens through the microphone, so video audio must be audible (speakers).
@@ -1034,7 +1047,63 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
                 HLS
               </button>
             )}
-            <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen (f)' : 'Fullscreen (f)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
+
+            {/* Chapters dropdown */}
+            {(chapters.length > 0 || autoChapters.length > 0) && (() => {
+              const allChaps = [
+                ...chapters.map(c => ({ ...c, isAuto: false })),
+                ...autoChapters.map(c => ({ ...c, isAuto: true })),
+              ].sort((a, b) => a.time - b.time);
+              return (
+                <div ref={chapterDropdownRef} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowChaptersDropdown(v => !v)}
+                    title="Chapters"
+                    style={{ background: showChaptersDropdown ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'none', border: showChaptersDropdown ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: showChaptersDropdown ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    {allChaps.length}
+                  </button>
+                  {showChaptersDropdown && (
+                    <div style={{ position: 'absolute', bottom: '34px', right: 0, background: 'rgba(12,12,12,0.97)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', width: '260px', maxHeight: '400px', overflowY: 'auto', zIndex: 30 }}>
+                      <div style={{ padding: '7px 10px 4px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px', position: 'sticky', top: 0, background: 'rgba(12,12,12,0.97)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                        Chapters — {allChaps.length}
+                      </div>
+                      {allChaps.map(c => (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            const vid = videoRef.current;
+                            if (vid) { vid.currentTime = c.time; vid.play().catch(() => {}); }
+                            setShowChaptersDropdown(false);
+                          }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                          onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'}
+                          onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                        >
+                          <img
+                            src={`/api/thumbs/${videoId}/chapter/${c.id}`}
+                            alt=""
+                            style={{ width: '72px', height: '40px', objectFit: 'cover', borderRadius: '3px', flexShrink: 0, background: 'rgba(255,255,255,0.05)' }}
+                            onError={(e: any) => { e.target.style.display = 'none'; }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.8rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {c.isAuto && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'rgba(80,200,255,0.9)', display: 'inline-block', flexShrink: 0 }} />}
+                              {c.title}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px', fontVariantNumeric: 'tabular-nums' }}>{formatDuration(c.time)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <button type="button" onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen (f)' : 'Fullscreen (f)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
               {isFullscreen ? '🡼' : '⛶'}
             </button>
           </div>

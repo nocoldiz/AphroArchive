@@ -232,6 +232,7 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (!video || video.isVault) return;
+    fetch(`/api/history/${video.id}`, { method: 'POST' }).catch(() => {});
     Promise.all([
       fetch(`/api/videos/${video.id}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
       fetch(`/api/subtitles/${video.id}`).then(r => r.json()).catch(() => [])

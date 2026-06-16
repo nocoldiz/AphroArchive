@@ -174,6 +174,7 @@ async function runBatch() {
   const skipped = all.length - pending.length;
 
   _job = { running: true, stop: false, total: pending.length, done: 0, failed: 0, skipped, current: '' };
+  console.log(`[whisper] Batch started — ${pending.length} videos to transcribe (${skipped} already have subtitles), model: ${model}`);
   broadcast({ type: 'start', total: pending.length, skipped });
 
   if (!pending.length) {
@@ -206,10 +207,16 @@ async function runBatch() {
       broadcast({ type: 'error', error: `${msg} (${_job.current})`, fatal: false, done: _job.done, total: _job.total, failed: _job.failed });
     }
     _job.done++;
+    if (_job.done === 1 || _job.done % 5 === 0) console.log(`[whisper] ${_job.done}/${_job.total} — ${_job.current}`);
     broadcast({ type: 'progress', done: _job.done, total: _job.total, current: _job.current });
   }
 
   _job.running = false;
+  if (_job.stop) {
+    console.log(`[whisper] Batch stopped — ${_job.done} done, ${_job.failed} failed`);
+  } else {
+    console.log(`[whisper] Batch done — ${_job.done} transcribed, ${_job.failed} failed`);
+  }
   broadcast({ type: _job.stop ? 'stopped' : 'done', done: _job.done, failed: _job.failed, total: all.length, skipped: _job.skipped });
 }
 
@@ -241,6 +248,27 @@ async function processSingleQueue() {
 // model -> { model, progress: 0-100, status: 'downloading'|'done'|'error', error }
 const _modelDownloads = new Map();
 const VALID_MODELS = new Set(['tiny', 'base', 'small', 'medium', 'large', 'turbo']);
+
+// Check if a model is already present in WHISPER_MODELS_DIR.
+// Handles both openai-whisper (.pt files) and faster-whisper (subdirectories).
+function isModelDownloaded(model) {
+  try {
+    const entries = fs.readdirSync(WHISPER_MODELS_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      const lower = entry.name.toLowerCase();
+      if (entry.isFile() && lower.endsWith('.pt')) {
+        const nameNoExt = lower.slice(0, -3);
+        if (nameNoExt === model) return true;
+        if (model === 'turbo' && lower.includes('turbo')) return true;
+        if (model === 'large' && lower.startsWith('large') && !lower.includes('turbo')) return true;
+      } else if (entry.isDirectory()) {
+        if (lower.includes(model)) return true;
+        if (model === 'large' && lower.includes('large') && !lower.includes('turbo')) return true;
+      }
+    }
+  } catch {}
+  return false;
+}
 
 function _lastLine(s) {
   return (s || '').split('\n').map(l => l.trim()).filter(Boolean).pop() || '';
@@ -300,6 +328,24 @@ function downloadModel(model) {
       });
     }
     tryNext(0);
+  });
+}
+
+// Auto-download the turbo model in the background at server startup.
+function autoDownloadTurbo() {
+  if (isModelDownloaded('turbo')) return;
+  console.log('[whisper] Auto-downloading turbo model…');
+  _modelDownloads.set('turbo', { model: 'turbo', progress: 0, status: 'downloading', error: null });
+  downloadModel('turbo').then(() => {
+    const r = _modelDownloads.get('turbo');
+    if (r) { r.status = 'done'; r.progress = 100; }
+    console.log('[whisper] Turbo model downloaded');
+    setTimeout(() => { const x = _modelDownloads.get('turbo'); if (x && x.status === 'done') _modelDownloads.delete('turbo'); }, 8000);
+  }).catch(e => {
+    const r = _modelDownloads.get('turbo');
+    if (r) { r.status = 'error'; r.error = e.message; }
+    console.warn('[whisper] Auto-download of turbo model failed:', e.message);
+    setTimeout(() => { const x = _modelDownloads.get('turbo'); if (x && x.status === 'error') _modelDownloads.delete('turbo'); }, 20000);
   });
 }
 
@@ -423,14 +469,22 @@ async function apiWhisperDownloadModel(req, res) {
 
 function apiWhisperDownloadingModels(_req, res) {
   const models = [..._modelDownloads.values()];
+  const available = [...VALID_MODELS].filter(m => isModelDownloaded(m));
   json(res, {
     downloading: models.filter(m => m.status === 'downloading').map(m => m.model),
     models,
+    available,
   });
+}
+
+function apiWhisperAvailableModels(_req, res) {
+  const available = [...VALID_MODELS].filter(m => isModelDownloaded(m));
+  json(res, { available });
 }
 
 module.exports = {
   apiGenWhisperStart, apiGenWhisperStop, apiGenWhisperStatus, apiGenWhisperPoll,
   apiWhisperEnqueue, apiWhisperDownloadModel, apiWhisperDownloadingModels,
+  apiWhisperAvailableModels, autoDownloadTurbo,
   forceEnqueue,
 };

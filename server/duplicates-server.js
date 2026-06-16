@@ -45,6 +45,7 @@ function calculateSimilarity(h1, h2) {
 
 async function runScan(allVideos) {
   _job = { running: true, stop: false, total: allVideos.length, done: 0, groups: [] };
+  console.log(`[duplicates] Visual scan started — ${allVideos.length} videos`);
   broadcast({ type: 'start', total: allVideos.length });
 
   const hashes = loadVisualHashes();
@@ -74,7 +75,10 @@ async function runScan(allVideos) {
     }
     if (hash) list.push({ ...v, hash });
     _job.done++;
-    if (_job.done % 20 === 0) broadcast({ type: 'progress', done: _job.done, total: _job.total });
+    if (_job.done % 20 === 0) {
+      broadcast({ type: 'progress', done: _job.done, total: _job.total });
+      console.log(`[duplicates] Hashing ${_job.done}/${_job.total}`);
+    }
   }
 
   // Prune hashes for IDs no longer in the video library
@@ -117,6 +121,7 @@ async function runScan(allVideos) {
 
   _job.groups = groups;
   _job.running = false;
+  console.log(`[duplicates] Visual scan done — ${groups.length} duplicate group${groups.length !== 1 ? 's' : ''} found`);
   broadcast({ type: 'done', groups });
 }
 

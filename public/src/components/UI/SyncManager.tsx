@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { loadVideos, appPrefs, refreshLibraryQuietly, isLoadingVideos } from '../../store';
+import { loadVideos, appPrefs, refreshLibraryQuietly, isLoadingVideos, duplicatesDeleteProgress } from '../../store';
 
 interface ScraperStatus {
   running: boolean;
@@ -182,7 +182,7 @@ export const SyncManager = () => {
   }, [open]);
 
   const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode, scrapers.whisper, scrapers.sceneDetect, scrapers.categorizerJob].filter(s => s.running).length
-    + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0) + (worker.active ? 1 : 0);
+    + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0) + (worker.active ? 1 : 0) + (duplicatesDeleteProgress.value.running ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
     await fetch(url, { method }).catch(() => {});
@@ -439,6 +439,24 @@ export const SyncManager = () => {
                     {encProgress.current}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── Duplicates Delete Progress ── */}
+            {duplicatesDeleteProgress.value.running && (
+              <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                  </span>
+                  <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Deleting duplicates</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
+                    {duplicatesDeleteProgress.value.done}/{duplicatesDeleteProgress.value.total}
+                  </span>
+                </div>
+                <ProgressBar done={duplicatesDeleteProgress.value.done} total={duplicatesDeleteProgress.value.total} />
               </div>
             )}
 

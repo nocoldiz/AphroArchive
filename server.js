@@ -309,6 +309,7 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/whisper\/enqueue\/([^/]+)$/)) && req.method === 'POST') return genWhisper.apiWhisperEnqueue(req, res, m[1]);
   if (p === '/api/whisper/download-model' && req.method === 'POST') return genWhisper.apiWhisperDownloadModel(req, res);
   if (p === '/api/whisper/downloading-models' && req.method === 'GET') return genWhisper.apiWhisperDownloadingModels(req, res);
+  if (p === '/api/whisper/available-models' && req.method === 'GET') return genWhisper.apiWhisperAvailableModels(req, res);
   if ((m = p.match(/^\/api\/subtitle-embedded\/([^/]+)\/(\d+)$/)) && req.method === 'GET') return videos.apiSubtitleEmbedded(req, res, m[1], m[2]);
 
   // ── Subtitles management ─────────────────────────────────────────────
@@ -425,6 +426,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/import-zip' && req.method === 'POST') return vaultZip.apiVaultImportZip(req, res);
   if ((m = p.match(/^\/api\/vault\/zip-stream\/([^/]+)$/)) && req.method === 'GET') return require('./server/vault-zip-mount-server').streamZipEntry(req, res, m[1]);
   if ((m = p.match(/^\/api\/media-zip-stream\/([^/]+)$/)) && req.method === 'GET') return mediaZip.streamMediaZipEntry(req, res, m[1]);
+  if (p === '/api/media-zip/unlock' && req.method === 'POST') return mediaZip.apiMediaZipUnlock(req, res);
   if (p === '/api/veracrypt/status' && req.method === 'GET') return veracrypt.apiVeracryptStatus(req, res);
   if (p === '/api/veracrypt/mount' && req.method === 'POST') return veracrypt.apiVeracryptMount(req, res);
   if (p === '/api/veracrypt/dismount' && req.method === 'POST') return veracrypt.apiVeracryptDismount(req, res);
@@ -692,6 +694,7 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 server.listen(PORT, () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
   feedWatcher.startWatchers();
+  genWhisper.autoDownloadTurbo();
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);

@@ -104,6 +104,7 @@ let _categorizerCancel = false;
 async function runCategorizerBg(moves) {
   _categorizerCancel = false;
   _categorizerJob = { running: true, done: 0, total: moves.length, current: '', failed: 0 };
+  console.log(`[categorizer] Moving ${moves.length} video${moves.length !== 1 ? 's' : ''}`);
   const writeRoot = getDefaultWriteRoot();
   const resolvedWrite = path.resolve(writeRoot);
 
@@ -141,6 +142,7 @@ async function runCategorizerBg(moves) {
   invalidateScanCache();
   _categorizerJob.running = false;
   _categorizerJob.current = '';
+  console.log(`[categorizer] Done — ${_categorizerJob.done} moved, ${_categorizerJob.failed} failed`);
 }
 
 async function apiCategorizerBgExecute(req, res) {
@@ -216,6 +218,7 @@ async function runEncryptFolder(catPath) {
     let encryptedCount = 0;
 
     updateEncryptionProgress({ running: true, type: 'encrypt', category: catPath, total, done: 0, current: '', error: '', ok: false });
+    console.log(`[ENC] Encrypting "${catPath}" — ${total} file${total !== 1 ? 's' : ''}`);
 
     for (const v of videos) {
       if (_encryptionCancel) {
@@ -255,6 +258,7 @@ async function runEncryptFolder(catPath) {
 
     invalidateScanCache();
     updateEncryptionProgress({ ok: true, running: false });
+    console.log(`[ENC] Encryption complete — ${encryptedCount} file${encryptedCount !== 1 ? 's' : ''} encrypted`);
     return true;
   } catch (e) {
     console.error('[runEncryptFolder] error:', e);
@@ -292,6 +296,7 @@ async function runDecryptFolder(catPath, targetProfile) {
     }
 
     updateEncryptionProgress({ running: true, type: 'decrypt', category: catPath, total: itemsToDecrypt.length, done: 0, current: '', error: '', ok: false });
+    console.log(`[DEC] Decrypting "${catPath}" — ${itemsToDecrypt.length} file${itemsToDecrypt.length !== 1 ? 's' : ''}`);
 
     const total = itemsToDecrypt.length;
     let doneCount = 0;
@@ -350,6 +355,7 @@ async function runDecryptFolder(catPath, targetProfile) {
     saveVaultMeta(meta);
     invalidateScanCache();
     updateEncryptionProgress({ ok: true, running: false });
+    console.log(`[DEC] Decryption complete — ${doneCount} file${doneCount !== 1 ? 's' : ''} decrypted`);
     return true;
   } catch (e) {
     console.error('[runDecryptFolder] error:', e);
@@ -395,7 +401,10 @@ function invalidateScanCache() {
 
 function _onVideoDirChange() {
   if (_watchDebounce) clearTimeout(_watchDebounce);
-  _watchDebounce = setTimeout(invalidateScanCache, 300);
+  _watchDebounce = setTimeout(() => {
+    console.log('[scan] Filesystem change detected in videos directory — refreshing index');
+    invalidateScanCache();
+  }, 300);
 }
 
 try {
@@ -447,6 +456,7 @@ async function cachedScan() {
   }
 
   // DB empty: scan filesystem, then persist to DB for next start
+  console.log('[scan] Full filesystem scan starting…');
   const mediaAll = [];
   let all = await scan(VIDEOS_DIR, VIDEOS_DIR, false, mediaAll);
 
@@ -485,6 +495,7 @@ async function cachedScan() {
   saveVideoIndex(all);
   saveMediaIndex(mediaAll);
   _scanCache = all;
+  console.log(`[scan] Full scan complete — ${all.length} video${all.length !== 1 ? 's' : ''} indexed`);
   return _scanCache;
 }
 
@@ -3229,8 +3240,10 @@ function apiVideosUpload(req, res) {
 }
 
 async function apiRescan(req, res) {
+  console.log('[scan] Manual rescan triggered');
   invalidateScanCache();
-  await cachedScan();
+  const videos = await cachedScan();
+  console.log(`[scan] Rescan complete — ${videos.length} video${videos.length !== 1 ? 's' : ''} indexed`);
   json(res, { ok: true });
 }
 

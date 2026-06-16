@@ -116,6 +116,7 @@ async function apiDetectAutoChapters(req, res, id) {
     const cache = loadAutoChaptersCache();
     cache[id] = { chapters, detectedAt: Date.now() };
     saveAutoChaptersCache(cache);
+    await genAutoChapterThumbs(id, fp, chapters);
     json(res, { ok: true, chapters });
   } catch (e) {
     json(res, { error: String(e) }, 500);

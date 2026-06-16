@@ -45,16 +45,15 @@ export const PLUGINS_GROUP_ID = 'plugins-group';
 
 /** Effective location for a plugin.
  *  - 'home': home-dashboard widget (never moved)
- *  - 'topbar': explicitly detached as a standalone icon button in the topbar
- *  - 'sidebar': explicitly detached as a labeled link in the sidebar
- *  - 'plugins-dropdown': default — lives in the Plugins dropdown
+ *  - 'topbar': standalone icon button in the topbar (default for location:'topbar' plugins)
+ *  - 'sidebar': labeled link in the sidebar (default for location:'sidebar' plugins)
  */
-export function pluginLocation(p: PluginMeta): 'home' | 'topbar' | 'sidebar' | 'plugins-dropdown' {
+export function pluginLocation(p: PluginMeta): 'home' | 'topbar' | 'sidebar' {
   if (p.location === 'home') return 'home';
   const override = appPrefs.value.itemPlacements?.[p.id];
   if (override === 'topbar') return 'topbar';
   if (override === 'sidebar') return 'sidebar';
-  return 'plugins-dropdown';
+  return p.location as 'topbar' | 'sidebar';
 }
 
 export async function setItemPlacement(id: string, loc: BarLocation) {
@@ -98,7 +97,7 @@ export function openSectionMoveMenu(e: any, section: NavSection, label: string, 
   (window as any).showContextMenu?.(e, 'navsection', { section, label, location });
 }
 
-export type NavOrderKey = `sidebar_${NavSection}` | 'topbar';
+export type NavOrderKey = `sidebar_${NavSection}` | 'topbar' | 'sidebar_plugins';
 
 export function getNavOrder(key: NavOrderKey): string[] {
   return ((appPrefs.value as any).navOrder)?.[key] ?? [];

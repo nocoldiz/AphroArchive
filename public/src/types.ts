@@ -41,6 +41,10 @@ export interface Folder {
   // Temporarily opened folder (Open button) — not part of the library DB.
   opened?: boolean;
   openedRoot?: string;
+  // Virtual folder backed by a ZIP archive (media-zip mount).
+  isZipMount?: boolean;
+  // Encrypted ZIP archive awaiting a password before its contents are shown.
+  locked?: boolean;
 }
 
 export interface Actor {

@@ -521,12 +521,12 @@ input {
   padding: 7px 10px
 }
 
-/* Items the user moved out of the sidebar into the topbar — rendered as round
-   icon buttons right after the search bar. */
+/* Ordered topbar area: contains search bar, nav icons, and plugin icons. */
 .tb-moved {
   display: flex;
   gap: 6px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
   align-items: center;
 }
 
@@ -538,6 +538,7 @@ input {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .tb-moved button:hover {
@@ -549,6 +550,51 @@ input {
   background: var(--ac);
   border-color: var(--ac);
   color: #fff
+}
+
+/* Drag-to-reorder insert indicator in the topbar */
+.tb-insert-line {
+  display: inline-block;
+  width: 2px;
+  height: 18px;
+  background: var(--ac);
+  border-radius: 1px;
+  vertical-align: middle;
+  margin: 0 1px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+/* Flex wrapper for the search bar + drag handle in tb-moved */
+.search-slot {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Drag handle that appears on hover to let users reorder the search bar */
+.search-drag-handle {
+  background: none;
+  border: none !important;
+  cursor: grab;
+  color: var(--tx3);
+  padding: 4px 3px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+  display: flex;
+  align-items: center;
+}
+
+.search-drag-handle:active {
+  cursor: grabbing;
+}
+
+.search-slot:hover .search-drag-handle {
+  opacity: 0.6;
 }
 
 #dropOverlay {

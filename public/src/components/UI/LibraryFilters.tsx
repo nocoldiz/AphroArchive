@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount } from '../../store';
-import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken, PLUGINS_GROUP_ID, pluginLocation } from './navItems';
-import { pluginsList, isPluginEnabled, runPluginAction } from '../../plugins';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, updatePrefs, sidebarSide, sidebarReveal, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, unlockZipCategory, linkTotalCount } from '../../store';
+import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken } from './navItems';
 
 interface SidebarItemProps {
   id?: string;
@@ -64,6 +63,97 @@ export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDra
 };
 
 const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
+
+const gearIcon = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+
+export const FolderOptionsButton = () => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const prefs = appPrefs.value;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const optLabel: any = { fontSize: '11px', color: 'var(--tx3)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' };
+  const optBtn = (on: boolean): any => ({
+    flex: 1, padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontWeight: 600, fontSize: '12px',
+    background: on ? 'var(--ac)' : 'var(--bg3)', color: on ? '#fff' : 'var(--tx)',
+    border: on ? '1px solid var(--ac)' : '1px solid var(--brd)',
+  });
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        className="sidebar-heading-add"
+        title="Folder options"
+        onClick={(e: any) => { e.stopPropagation(); setOpen(o => !o); }}
+      >
+        {gearIcon}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 300,
+          background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px',
+          padding: '12px', width: '224px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--tx)', marginBottom: '12px' }}>
+            <input
+              type="checkbox"
+              checked={!!prefs.hideEmptyFolders}
+              onChange={(e: any) => updatePrefs({ hideEmptyFolders: e.currentTarget.checked })}
+              style={{ width: '14px', height: '14px' }}
+            />
+            Hide folders with 0 videos
+          </label>
+          <div style={{ borderTop: '1px solid var(--brd)', paddingTop: '10px', marginBottom: '10px' }}>
+            <div style={optLabel}>Sidebar position</div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {(['left', 'right'] as const).map(side => (
+                <button key={side} type="button"
+                  onClick={() => { sidebarSide.value = side; updatePrefs({ sidebarSide: side }); }}
+                  style={optBtn((prefs.sidebarSide || 'left') === side)}>
+                  {side === 'left' ? 'Left' : 'Right'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={optLabel}>Sidebar visibility</div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {([
+                { id: 'fixed' as const, name: 'Always visible' },
+                { id: 'hover' as const, name: 'Reveal on hover' },
+              ]).map(o => (
+                <button key={o.id} type="button"
+                  onClick={() => { sidebarReveal.value = o.id; updatePrefs({ sidebarReveal: o.id }); }}
+                  style={optBtn((prefs.sidebarReveal || 'fixed') === o.id)}>
+                  {o.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 function useScopedVids(linksOnly: boolean) {
   const vids = allVideos.value;
@@ -160,9 +250,11 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
     const openIcon = c.opened
       ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v3" /><path d="M2 13.5 4 19a2 2 0 0 0 1.9 1.4h12.2A2 2 0 0 0 20 19l2-5.5a1 1 0 0 0-.95-1.5H2.95A1 1 0 0 0 2 13.5z" /></svg>
       : null;
-    const zipIcon = (c as any).isZipMount
-      ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-      : null;
+    const zipIcon = (c as any).locked
+      ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      : (c as any).isZipMount
+        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+        : null;
     const lockIcon = inVaultMode
       ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2.5" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       : c.partial
@@ -193,7 +285,7 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           ) : undefined}
-          onClick={() => selectCategory(c.path)}
+          onClick={() => (c as any).locked ? unlockZipCategory(c.path, c.name) : selectCategory(c.path)}
           onContextMenu={(e) => {
             e.preventDefault();
             if ((window as any).showContextMenu) {
@@ -304,10 +396,40 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
   );
 };
 
-let tagGroupsCache: { displayName: string, terms: string[] }[] | null = null;
+type TagGroup = { displayName: string, terms: string[] };
+type DisplayTag = { name: string, terms: string[], count: number };
+
+let tagGroupsCache: TagGroup[] | null = null;
+// Last computed dropdown list (names + counts) per scope, so reopening paints
+// instantly from cache before the deferred revalidation recompute runs.
+const computedTagsCache: Record<string, DisplayTag[]> = {};
+
+function computeDisplayTags(groups: TagGroup[], vids: any[], hiddenTags: string[]): DisplayTag[] {
+  const hidden = new Set(hiddenTags);
+  return groups
+    .filter(g => !hidden.has(g.displayName))
+    .map(g => {
+      const nameLo = g.displayName.toLowerCase();
+      // Compile each term's matcher once per group rather than once per video.
+      const regexes = g.terms.map(t =>
+        new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])')
+      );
+      const count = vids.filter(v => {
+        const vtags = (v.tags || []) as string[];
+        if (vtags.some(t => t.toLowerCase() === nameLo)) return true;
+        const vname = (v.name || '').toLowerCase();
+        return regexes.some(re => re.test(vname));
+      }).length;
+      return { name: g.displayName, terms: g.terms, count };
+    })
+    .filter(t => t.count > 0)
+    .sort((a, b) => b.count - a.count);
+}
 
 export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onNavigate?: () => void, linksOnly?: boolean, filter?: string }) => {
-  const [tagGroups, setTagGroups] = useState<{ displayName: string, terms: string[] }[]>(() => tagGroupsCache || []);
+  const cacheKey = linksOnly ? 'links' : 'vids';
+  const [tagGroups, setTagGroups] = useState<TagGroup[]>(() => tagGroupsCache || []);
+  const [displayTags, setDisplayTags] = useState<DisplayTag[]>(() => computedTagsCache[cacheKey] || []);
   const filteredVids = useScopedVids(linksOnly);
   const fq = filter.trim().toLowerCase();
 
@@ -322,28 +444,20 @@ export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onN
       .catch(() => {});
   };
 
+  // Recompute counts off the render path: the dropdown paints from the cached
+  // list first, then this effect refreshes it (and repopulates the cache).
+  useEffect(() => {
+    const result = computeDisplayTags(tagGroups, filteredVids, appPrefs.value.hiddenTags || []);
+    computedTagsCache[cacheKey] = result;
+    setDisplayTags(result);
+  }, [tagGroups, filteredVids, appPrefs.value.hiddenTags, cacheKey]);
+
+  // After showing cached data, immediately request fresh tag data.
   useEffect(() => {
     reloadTags();
     (window as any)._sidebarReloadTags = reloadTags;
     return () => { delete (window as any)._sidebarReloadTags; };
   }, [activeProfile.value]);
-
-  const displayTags = useMemo(() => tagGroups
-    .filter(g => !(appPrefs.value.hiddenTags || []).includes(g.displayName))
-    .map(g => {
-      const nameLo = g.displayName.toLowerCase();
-      const count = filteredVids.filter(v => {
-        const vtags = ((v as any).tags || []) as string[];
-        if (vtags.some(t => t.toLowerCase() === nameLo)) return true;
-        const vname = ((v as any).name || '').toLowerCase();
-        return g.terms.some(t =>
-          new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(vname)
-        );
-      }).length;
-      return { name: g.displayName, terms: g.terms, count };
-    })
-    .filter(t => t.count > 0)
-    .sort((a, b) => b.count - a.count), [tagGroups, appPrefs.value.hiddenTags, filteredVids]);
 
   const pinnedTagsList = useMemo(() => {
     const pins = appPrefs.value.pinnedTags || [];
@@ -542,22 +656,13 @@ export const SectionDropdowns = () => {
 export const FilterDropdowns = () => {
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
   const view = currentView.value;
-  const [open, setOpen] = useState<null | 'folders' | 'tags' | 'links' | 'plugins'>(null);
+  const [open, setOpen] = useState<null | 'folders' | 'tags' | 'links'>(null);
   const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
   const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'topbar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'topbar' && !inVaultMode;
   const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'topbar' && !inVaultMode;
-  // Plugins dropdown visible in topbar when plugins-group placement is topbar (default)
-  const showPlugins = placementFor(PLUGINS_GROUP_ID, 'topbar') === 'topbar';
-
-  // Plugins that live in the plugins-dropdown (no explicit topbar/sidebar override)
-  const dropdownPlugins = pluginsList.value.filter(p =>
-    pluginLocation(p) === 'plugins-dropdown' &&
-    isPluginEnabled(p.id) &&
-    (!p.contexts || p.contexts.includes(view))
-  );
 
   useEffect(() => {
     if (!open) return;
@@ -574,7 +679,7 @@ export const FilterDropdowns = () => {
   }, [open]);
 
   const close = () => { setOpen(null); setQuery(''); };
-  const toggle = (which: 'folders' | 'tags' | 'links' | 'plugins') =>
+  const toggle = (which: 'folders' | 'tags' | 'links') =>
     setOpen(o => { const next = o === which ? null : which; setQuery(''); return next; });
   const searchBar = (placeholder: string) => (
     <div className="filter-dropdown-search">
@@ -597,9 +702,7 @@ export const FilterDropdowns = () => {
     </button>
   );
 
-  if (!showFolders && !showTags && !showLinks && !showPlugins) return null;
-
-  const pluginIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: isDropdownShrunken('filter-plugins') ? '0' : '6px' }}><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>;
+  if (!showFolders && !showTags && !showLinks) return null;
 
   return (
     <div className="filter-dropdowns" ref={ref}>
@@ -620,8 +723,9 @@ export const FilterDropdowns = () => {
           <div className="filter-dropdown-menu">
             <div className="filter-dropdown-head">
               <span>{inVaultMode ? 'Encrypted Folders' : 'Folders'}</span>
-              <div style={{ display: 'flex', gap: '4px' }}>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                 {!inVaultMode && addBtn(() => (window as any).createFolder?.(), 'New folder')}
+                <FolderOptionsButton />
                 <ShrinkBtn dropdownId="filter-folders" />
               </div>
             </div>
@@ -691,46 +795,6 @@ export const FilterDropdowns = () => {
         </div>
       )}
 
-      {showPlugins && dropdownPlugins.length > 0 && (
-        <div className="filter-dropdown">
-          <button
-            type="button"
-            className={`filter-dropdown-btn${open === 'plugins' ? ' on' : ''}`}
-            onClick={() => toggle('plugins')}
-            onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, PLUGINS_GROUP_ID, 'Plugins', 'topbar'); }}
-          >
-            {pluginIcon}
-            {!isDropdownShrunken('filter-plugins') && 'Plugins'}
-            <Chevron open={open === 'plugins'} />
-          </button>
-          {open === 'plugins' && (
-            <div className="filter-dropdown-menu">
-              <div className="filter-dropdown-head">
-                <span>Plugins</span>
-                <ShrinkBtn dropdownId="filter-plugins" />
-              </div>
-              <div className="filter-dropdown-body">
-                {dropdownPlugins.map(p => {
-                  const isActive = p.type === 'view' && view === p.view;
-                  return (
-                    <SidebarItem
-                      key={p.id}
-                      label={p.name}
-                      icon={p.icon
-                        ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={dropdownItemStyle} dangerouslySetInnerHTML={{ __html: p.icon }} />
-                        : undefined
-                      }
-                      isActive={isActive}
-                      onClick={() => { runPluginAction(p, currentView); close(); }}
-                      onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar-dropdown'); }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };

@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { duplicatesDeleteProgress, refreshLibraryQuietly } from '../../store';
 
 interface VideoItem {
   id: string;
@@ -180,6 +181,7 @@ export const DuplicatesView = () => {
     }
     setDeleted(newDeleted);
     setKeepingGroup(null);
+    refreshLibraryQuietly();
     const w = window as any;
     const deletedCount = [...newDeleted].filter(id => toDelete.some(v => v.id === id)).length;
     if (w.toast) w.toast(`Kept best, deleted ${deletedCount} duplicate${deletedCount !== 1 ? 's' : ''}${needsRename ? ', renamed to better name' : ''}`);
@@ -204,7 +206,9 @@ export const DuplicatesView = () => {
     const renameNote = renameCount > 0 ? `\n\n${renameCount} file${renameCount !== 1 ? 's' : ''} will be renamed to a better-named version.` : '';
     if (!confirm(`Keep the best file in each of the ${targets.length} group${targets.length !== 1 ? 's' : ''} and permanently delete the other ${totalToDelete} file${totalToDelete !== 1 ? 's' : ''}?${renameNote}`)) return;
     setKeepingAll(true);
+    duplicatesDeleteProgress.value = { running: true, done: 0, total: totalToDelete };
     const newDeleted = new Set(deleted);
+    let deletedCount = 0;
     for (const t of targets) {
       if (t.needsRename) {
         const stem = t.bestName.name.replace(/\.[^.]+$/, '');
@@ -219,12 +223,18 @@ export const DuplicatesView = () => {
       for (const v of t.toDelete) {
         try {
           const r = await fetch(`/api/videos/${v.id}`, { method: 'DELETE' });
-          if (r.ok) newDeleted.add(v.id);
+          if (r.ok) {
+            newDeleted.add(v.id);
+            deletedCount++;
+            duplicatesDeleteProgress.value = { running: true, done: deletedCount, total: totalToDelete };
+          }
         } catch {}
       }
     }
     setDeleted(newDeleted);
     setKeepingAll(false);
+    duplicatesDeleteProgress.value = { running: false, done: 0, total: 0 };
+    refreshLibraryQuietly();
     const w = window as any;
     if (w.toast) w.toast(`Kept best in ${targets.length} group${targets.length !== 1 ? 's' : ''}, deleted ${totalToDelete} duplicate${totalToDelete !== 1 ? 's' : ''}${renameCount > 0 ? `, renamed ${renameCount}` : ''}`);
   };
@@ -236,6 +246,7 @@ export const DuplicatesView = () => {
       const r = await fetch(`/api/videos/${video.id}`, { method: 'DELETE' });
       if (r.ok) {
         setDeleted(prev => new Set([...prev, video.id]));
+        refreshLibraryQuietly();
         const w = window as any;
         if (w.toast) w.toast('Deleted');
       } else {
@@ -317,6 +328,19 @@ export const DuplicatesView = () => {
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '6px' }}>
             Visual scan compares thumbnail frames — requires thumbnails to be generated first.
+          </div>
+        </div>
+      )}
+
+      {/* Bulk delete progress bar */}
+      {duplicatesDeleteProgress.value.running && (
+        <div style={{ marginBottom: '16px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px', padding: '12px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: 'var(--tx2)', marginBottom: '6px' }}>
+            <span>Deleting duplicates…</span>
+            <span>{duplicatesDeleteProgress.value.done} / {duplicatesDeleteProgress.value.total}</span>
+          </div>
+          <div style={{ height: '5px', background: 'var(--bg3)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: 'var(--ac)', borderRadius: '3px', transition: 'width 0.3s', width: duplicatesDeleteProgress.value.total ? `${(duplicatesDeleteProgress.value.done / duplicatesDeleteProgress.value.total) * 100}%` : '0%' }} />
           </div>
         </div>
       )}

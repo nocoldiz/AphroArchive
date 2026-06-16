@@ -161,6 +161,8 @@ async function apiOpenedOpen(req, res) {
   const scanned = scanRootSync(resolved);
   _opened.set(resolved, scanned);
   persist();
+  // Re-index ZIP archives so any in this newly opened folder are surfaced.
+  try { require('./media-zip-mount-server').invalidate(); } catch {}
   // New file ids are now streamable/thumbnailable (safePath allows opened roots).
   try { require('./videos-server').broadcastScanChange(); } catch {}
   json(res, { ok: true, folder: { name: scanned.name, path: scanned.name, openedRoot: resolved }, count: scanned.items.length });
@@ -179,6 +181,7 @@ async function apiOpenedClose(req, res) {
   ensureLoaded();
   const existed = _opened.delete(resolved);
   if (existed) persist();
+  try { require('./media-zip-mount-server').invalidate(); } catch {}
   try { require('./videos-server').broadcastScanChange(); } catch {}
   json(res, { ok: true, closed: existed });
 }

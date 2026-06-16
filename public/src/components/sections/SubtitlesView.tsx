@@ -46,6 +46,8 @@ export const SubtitlesView = () => {
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchStatus, setBatchStatus] = useState('');
   const [showModelConfig, setShowModelConfig] = useState(false);
+  const [availableModels, setAvailableModels] = useState<Set<string>>(new Set());
+  const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
 
   const prefs = appPrefs.value;
   const whisperEnabled = prefs.whisperEnabled ?? true;
@@ -65,6 +67,10 @@ export const SubtitlesView = () => {
 
   useEffect(() => {
     loadItems();
+    fetch('/api/whisper/available-models')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.available)) setAvailableModels(new Set(d.available)); })
+      .catch(() => {});
     // Poll whisper job status
     const es = new EventSource('/api/gen-whisper/status');
     es.onmessage = (e) => {
@@ -229,22 +235,42 @@ export const SubtitlesView = () => {
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--tx2)', marginBottom: '8px' }}>Whisper Model</div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {MODELS.map(m => (
-                <label
-                  key={m.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: whisperEnabled ? 'pointer' : 'default', opacity: whisperEnabled ? 1 : 0.5, fontSize: '12px', padding: '4px 8px', background: whisperModel === m.id ? 'var(--ac)' : 'var(--bg3)', color: whisperModel === m.id ? '#fff' : 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px' }}
-                  title={m.desc}
-                >
-                  <input
-                    type="radio"
-                    name="subtitleModel"
-                    value={m.id}
-                    checked={whisperModel === m.id}
-                    disabled={!whisperEnabled}
-                    onChange={() => saveWhisperSettings('whisperModel', m.id)}
-                    style={{ margin: 0 }}
-                  />
-                  {m.label}
-                </label>
+                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: whisperEnabled ? 'pointer' : 'default', opacity: whisperEnabled ? 1 : 0.5, fontSize: '12px', padding: '4px 8px', background: whisperModel === m.id ? 'var(--ac)' : 'var(--bg3)', color: whisperModel === m.id ? '#fff' : 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px' }}
+                    title={m.desc}
+                  >
+                    <input
+                      type="radio"
+                      name="subtitleModel"
+                      value={m.id}
+                      checked={whisperModel === m.id}
+                      disabled={!whisperEnabled}
+                      onChange={() => saveWhisperSettings('whisperModel', m.id)}
+                      style={{ margin: 0 }}
+                    />
+                    {m.label}
+                  </label>
+                  {availableModels.has(m.id) ? (
+                    <span style={{ fontSize: '10px', color: '#4caf50', fontWeight: 600 }}>✓ ready</span>
+                  ) : downloadingModels.has(m.id) ? (
+                    <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>downloading…</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDownloadingModels(prev => new Set([...prev, m.id]));
+                        fetch('/api/whisper/download-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.id }) })
+                          .then(() => {
+                            setDownloadingModels(prev => { const s = new Set(prev); s.delete(m.id); return s; });
+                            setAvailableModels(prev => new Set([...prev, m.id]));
+                          })
+                          .catch(() => setDownloadingModels(prev => { const s = new Set(prev); s.delete(m.id); return s; }));
+                      }}
+                      style={{ fontSize: '10px', padding: '1px 5px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '3px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
+                    >↓ download</button>
+                  )}
+                </div>
               ))}
             </div>
             <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
