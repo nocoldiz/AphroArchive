@@ -1,6 +1,9 @@
 import { signal } from '@preact/signals';
 import { allVideos, currentFolder, linkVidIds, currentView, currentVideo } from './store';
 
+// When non-null, refillZapQueue picks from this pool instead of using currentFolder.
+export const zapFilteredPool = signal<any[] | null>(null);
+
 export interface ZapQueueItem {
   video: any;
   startTime: number;
@@ -29,9 +32,17 @@ const toast = (msg: string) => {
 };
 
 function getRandomVidForZapping(excludeIds?: Set<string>) {
+  const pool = zapFilteredPool.value;
+  const bms = linkVidIds.value;
+
+  if (pool !== null) {
+    const candidates = pool.filter(v => !v.isLink && !bms.has(v.id) && (!excludeIds || !excludeIds.has(v.id)));
+    if (!candidates.length) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
   const cat = currentFolder.value;
   const V = allVideos.value;
-  const bms = linkVidIds.value;
   const isStreamable = (v: any) => !v.isLink && !bms.has(v.id) && (!excludeIds || !excludeIds.has(v.id));
 
   let list = cat ? V.filter(v => {
@@ -211,13 +222,14 @@ export function toggleZapping() {
   setTimeout(startZapping, 300);
 }
 
-export function stopZapping() {
-  zapOn.value = false;
+function cleanupZap() {
   clearZapTimers();
+  zapOn.value = false;
   zapQueue.value = [];
   zapHistory.value = [];
   zapStartTime.value = 0;
   zapRemaining.value = 0;
+  zapFilteredPool.value = null;
 
   const preload = document.getElementById('zap-preload') as HTMLVideoElement;
   if (preload) {
@@ -225,8 +237,16 @@ export function stopZapping() {
     preload.removeAttribute('src');
     preload.load();
   }
+}
 
+export function stopZapping() {
+  cleanupZap();
   currentView.value = 'hub';
+}
+
+export function openAndStopZapping() {
+  cleanupZap();
+  // Keep currentVideo and currentView='player' → PlayerView renders normally
 }
 
 export function setZapMinIv(val: number) {
@@ -262,6 +282,7 @@ export function toggleZapLock() {
 if (typeof window !== 'undefined') {
   (window as any).toggleZapping = toggleZapping;
   (window as any).stopZapping = stopZapping;
+  (window as any).openAndStopZapping = openAndStopZapping;
   (window as any).setZapMinIv = setZapMinIv;
   (window as any).setZapMaxIv = setZapMaxIv;
   (window as any).toggleZapLock = toggleZapLock;

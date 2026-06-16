@@ -1,963 +1,341 @@
 #!/usr/bin/env python3
 """
-AphroArchive Categorizer + Duplicate Finder (Debugged & Refactored)
-Requirements: Python 3.8+
-Optional:     pip install pillow   (enables thumbnail images)
+AphroArchive Recategorizer — standalone CLI (no server needed)
+Scans the videos folder, derives categories from subfolders, loads category
+tags from SQLite (if found), dry-runs the recategorization plan, then
+physically moves files on confirmation.
+
+Usage:
+  python categorizer.py <videos_dir>
+  python categorizer.py <videos_dir> --db <path/to/aphroarchive_default.db>
+  python categorizer.py <videos_dir> --profile MyProfile
 """
 
 import sys
-import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
-import json
-import threading
-import urllib.request
-import urllib.parse
-import urllib.error
-import io
 import os
 import re
-import difflib
-from collections import OrderedDict
-from typing import Optional, List, Dict, Set, Any
+import shutil
+import argparse
+from pathlib import Path
+from typing import Optional
 
 try:
-    from PIL import Image, ImageTk
-    HAS_PIL = True
+    import sqlite3
+    HAS_SQLITE = True
 except ImportError:
-    HAS_PIL = False
+    HAS_SQLITE = False
 
-# ── Colours ───────────────────────────────────────────────────────────────────
-BG   = '#1a1a1a'
-BG2  = '#242424'
-BG3  = '#2e2e2e'
-TX   = '#e8e8e8'
-TX2  = '#a0a0a0'
-TX3  = '#666666'
-AC   = '#e84040'
-BRD  = '#383838'
+VIDEO_EXTS = {
+    '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv',
+    '.webm', '.m4v', '.ts', '.m2ts', '.mpg', '.mpeg',
+}
 
-CARD_W   = 155
-THUMB_H  = 87   # 16:9
-PAD      = 6
+MIN_SCORE = 50  # minimum term_score to accept a folder match
 
-# ── Runtime config ────────────────────────────────────────────────────────────
-SERVER = (sys.argv[1].rstrip('/') if len(sys.argv) > 1 else 'http://localhost:3000')
 
-# ── API ───────────────────────────────────────────────────────────────────────
+# ── Matching logic (mirrors CategorizerView.tsx) ──────────────────────────────
 
-def _req(path: str, method: str = 'GET', data: Any = None):
-    body = json.dumps(data).encode('utf-8') if data is not None else None
-    req  = urllib.request.Request(f'{SERVER}{path}', data=body, method=method)
-    if body:
-        req.add_header('Content-Type', 'application/json')
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return json.loads(r.read())
+def levenshtein(a: str, b: str) -> int:
+    m, n = len(a), len(b)
+    if not m: return n
+    if not n: return m
+    row = list(range(n + 1))
+    for i in range(1, m + 1):
+        diag = row[0]
+        row[0] = i
+        for j in range(1, n + 1):
+            tmp    = row[j]
+            cost   = 0 if a[i - 1] == b[j - 1] else 1
+            row[j] = min(row[j] + 1, row[j - 1] + 1, diag + cost)
+            diag   = tmp
+    return row[n]
 
-def api_get(p):               return _req(p)
-def api_post(p, d=None):      return _req(p, 'POST', d)
-def api_patch(p, d):          return _req(p, 'PATCH', d)
-def api_delete(p, d=None):    return _req(p, 'DELETE', d)
 
-def fetch_thumb_bytes(vid_id: str) -> Optional[bytes]:
+def normalize(s: str) -> str:
+    s = s.lower()
+    s = re.sub(r'[._\-/\\]+', ' ', s)
+    s = re.sub(r'[^a-z0-9\s]', ' ', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def term_score(words: list, joined: str, term: str) -> int:
+    if not term:
+        return 0
+    if ' ' in term:
+        return 100 if term in joined else 0
+    best = 0
+    for w in words:
+        if w == term:
+            return 100
+        if len(term) >= 3 and term in w:
+            best = max(best, 78)
+        elif len(w) >= 4 and w in term:
+            best = max(best, 58)
+        elif len(term) >= 4 and len(w) >= 4:
+            ratio = 1 - levenshtein(w, term) / max(len(w), len(term))
+            if ratio >= 0.8:
+                best = max(best, round(ratio * 68))
+    return best
+
+
+def best_folder(folder_terms: list, name: str) -> Optional[dict]:
+    """Return {'path': ..., 'matched': ..., 'score': ...} or None."""
+    joined = normalize(re.sub(r'\.[^.]+$', '', name))
+    words  = [w for w in joined.split() if w]
+    if not words:
+        return None
+    best_path, best_total, best_term = '', 0, ''
+    for f in folder_terms:
+        f_score, f_term = 0, ''
+        for t in f['terms']:
+            s = term_score(words, joined, t)
+            if s > f_score:
+                f_score, f_term = s, t
+        if f_score < MIN_SCORE:
+            continue
+        total = f_score + f['depth'] * 4
+        if total > best_total:
+            best_total, best_path, best_term = total, f['path'], f_term
+    return {'path': best_path, 'matched': best_term, 'score': best_total} if best_path else None
+
+
+# ── Filesystem scanning ───────────────────────────────────────────────────────
+
+def scan_categories(videos_dir: Path) -> list:
+    """Return list of {path, depth} for every subdirectory (no root)."""
+    cats = []
+    for root, dirs, _ in os.walk(videos_dir):
+        dirs.sort()
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        rel = Path(root).relative_to(videos_dir)
+        if rel == Path('.'):
+            continue
+        cats.append({
+            'path':  rel.as_posix(),
+            'depth': len(rel.parts),
+        })
+    return cats
+
+
+def scan_videos(videos_dir: Path) -> list:
+    """Return list of {name, abs_path, cat_path} for every video file."""
+    videos = []
+    for root, dirs, files in os.walk(videos_dir):
+        dirs.sort()
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        for fname in sorted(files):
+            if Path(fname).suffix.lower() not in VIDEO_EXTS:
+                continue
+            abs_path = Path(root) / fname
+            rel_dir  = Path(root).relative_to(videos_dir)
+            cat_path = rel_dir.as_posix() if rel_dir != Path('.') else ''
+            videos.append({'name': fname, 'abs_path': abs_path, 'cat_path': cat_path})
+    return videos
+
+
+# ── SQLite category tags ──────────────────────────────────────────────────────
+
+def load_cat_tags(db_path: Path) -> dict:
+    """Return {category_name_lower: [tag, ...]} from category_tags table."""
+    if not HAS_SQLITE or not db_path.exists():
+        return {}
     try:
-        safe = urllib.parse.quote(vid_id, safe='')
-        url  = f'{SERVER}/api/thumbs/{safe}/0'
-        with urllib.request.urlopen(url, timeout=5) as r:
-            return r.read()
-    except Exception:
+        con = sqlite3.connect(str(db_path))
+        rows = con.execute('SELECT category_name, tag FROM category_tags').fetchall()
+        con.close()
+        result: dict = {}
+        for cat_name, tag in rows:
+            result.setdefault(cat_name.lower(), []).append(normalize(tag))
+        return result
+    except Exception as e:
+        print(f'  (warning: could not read category tags from DB: {e})')
+        return {}
+
+
+def find_db(videos_dir: Path, profile: str) -> Optional[Path]:
+    """Auto-locate the AphroArchive SQLite database."""
+    import json
+    name = f'aphroarchive_{profile}.db'
+
+    def _check_root(root: Path) -> Optional[Path]:
+        # Check paths.json for a custom dbDir
+        paths_file = root / 'paths.json'
+        if paths_file.exists():
+            try:
+                cfg = json.loads(paths_file.read_text())
+                if cfg.get('dbDir'):
+                    db = Path(cfg['dbDir']) / name
+                    if db.exists():
+                        return db
+            except Exception:
+                pass
+        # Default: {root}/db/
+        db = root / 'db' / name
+        if db.exists():
+            return db
         return None
 
-# ── Fuzzy match ───────────────────────────────────────────────────────────────
+    # Walk up from videos_dir to find the project root (has server.js)
+    candidate = videos_dir
+    for _ in range(6):
+        candidate = candidate.parent
+        if (candidate / 'server.js').exists():
+            hit = _check_root(candidate)
+            if hit:
+                return hit
+            break  # found root but no db — stop walking
+        hit = _check_root(candidate)
+        if hit:
+            return hit
 
-def fuzzy_match(target: str, query: str) -> bool:
-    target = target.lower()
-    query  = query.lower()
-    ti = 0
-    for ch in query:
-        if ch == ' ':
+    # Fallback: script is in utils/, parent is project root
+    script_root = Path(__file__).resolve().parent.parent
+    return _check_root(script_root)
+
+
+# ── Build & print plan ────────────────────────────────────────────────────────
+
+def build_folder_terms(cats: list, cat_tags: dict) -> list:
+    result = []
+    for c in cats:
+        leaf  = c['path'].split('/')[-1]
+        tags  = cat_tags.get(leaf.lower(), []) or cat_tags.get(c['path'].lower(), [])
+        terms = [normalize(leaf)] + list(tags)
+        terms = [t for t in terms if t]
+        result.append({'path': c['path'], 'depth': c['depth'], 'terms': terms})
+    return result
+
+
+def build_plan(videos: list, folder_terms: list) -> list:
+    moves = []
+    for v in videos:
+        hit = best_folder(folder_terms, v['name'])
+        if not hit or hit['path'] == v['cat_path']:
             continue
-        ti = target.find(ch, ti)
-        if ti == -1:
-            return False
-        ti += 1
-    return True
+        moves.append({**v, 'to_path': hit['path'], 'matched': hit['matched']})
+    return moves
 
-# ── Thumb image cache (Bounded LRU to prevent Memory Leaks) ───────────────────
 
-MAX_CACHE_SIZE = 300
-_thumb_cache: OrderedDict = OrderedDict()
-_thumb_lock  = threading.Lock()
+def print_plan(moves: list):
+    if not moves:
+        print('No moves needed — all videos are already in their best-matching folder.')
+        return
 
-def get_or_load_thumb(vid_id: str, on_ready):
-    with _thumb_lock:
-        state = _thumb_cache.get(vid_id)
-        if state is not None:
-            _thumb_cache.move_to_end(vid_id)
+    uncategorized = [m for m in moves if not m['cat_path']]
+    recategorized = [m for m in moves if m['cat_path']]
 
-    if state is None:
-        with _thumb_lock:
-            _thumb_cache[vid_id] = 'loading'
-            if len(_thumb_cache) > MAX_CACHE_SIZE:
-                _thumb_cache.popitem(last=False)
-        threading.Thread(target=_load_thumb_bg, args=(vid_id, on_ready), daemon=True).start()
-    elif state not in ('loading', 'error') and HAS_PIL:
-        on_ready(vid_id, state)
+    def _print_section(section_moves: list, header: str):
+        if not section_moves:
+            return
+        by_dest: dict = {}
+        for m in section_moves:
+            by_dest.setdefault(m['to_path'], []).append(m)
+        print(f'\n  {header} ({len(section_moves)})\n')
+        for _, ms in sorted(by_dest.items(), key=lambda x: x[0]):
+            print(f'  → {ms[0]["to_path"]}')
+            for m in ms:
+                short = re.sub(r'\.[^.]+$', '', m['name'])
+                if len(short) > 58:
+                    short = short[:55] + '…'
+                from_label = m['cat_path'] or 'root'
+                print(f'      {short}')
+                print(f'        from: {from_label}   matched: "{m["matched"]}"  score: {m.get("score", "?")}')
+            print()
 
-def _load_thumb_bg(vid_id: str, on_ready):
-    data = fetch_thumb_bytes(vid_id)
-    if data and HAS_PIL:
+    print(f'\n{"─"*64}')
+    print(f'  {len(moves)} video(s) would be moved')
+    _print_section(uncategorized, 'Uncategorized → folder')
+    _print_section(recategorized, 'Wrong folder → correct folder')
+    print('─'*64)
+
+
+def apply_plan(moves: list, videos_dir: Path):
+    done = failed = 0
+    for m in moves:
+        dest_dir = videos_dir / m['to_path']
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / m['name']
+        # Avoid collision
+        if dest.exists() and dest != m['abs_path']:
+            stem = dest.stem
+            suffix = dest.suffix
+            n = 1
+            while dest.exists():
+                dest = dest_dir / f'{stem}_{n}{suffix}'
+                n += 1
         try:
-            img = Image.open(io.BytesIO(data))
-            img = img.resize((CARD_W - 4, THUMB_H), Image.LANCZOS)
-            photo = ImageTk.PhotoImage(img)
-            with _thumb_lock:
-                if vid_id in _thumb_cache or len(_thumb_cache) < MAX_CACHE_SIZE:
-                    _thumb_cache[vid_id] = photo
-                    _thumb_cache.move_to_end(vid_id)
-            on_ready(vid_id, photo)
-            return
-        except Exception:
-            pass
-    with _thumb_lock:
-        if vid_id in _thumb_cache:
-            _thumb_cache[vid_id] = 'error'
-
-# ── Scrollable video grid ─────────────────────────────────────────────────────
-
-class VideoGrid(tk.Frame):
-    def __init__(self, master, on_select, **kw):
-        super().__init__(master, bg=BG, **kw)
-        self.on_select = on_select
-        self._cards: Dict[str, tk.Frame] = {}
-        self._selected: Set[str] = set()
-        self._order: List[str] = []
-        self._last_clicked_id: Optional[str] = None
-
-        self._canvas = tk.Canvas(self, bg=BG, highlightthickness=0, bd=0)
-        self._sb     = ttk.Scrollbar(self, orient='vertical', command=self._canvas.yview)
-        self._canvas.configure(yscrollcommand=self._sb.set)
-        self._sb.pack(side='right', fill='y')
-        self._canvas.pack(side='left', fill='both', expand=True)
-
-        self._inner = tk.Frame(self._canvas, bg=BG)
-        self._win   = self._canvas.create_window((0, 0), window=self._inner, anchor='nw')
-
-        self._inner.bind('<Configure>', self._on_inner_configure)
-        self._canvas.bind('<Configure>', self._on_canvas_configure)
-        self._canvas.bind('<MouseWheel>', self._on_scroll)
-        self._canvas.bind('<Button-4>',   lambda e: self._canvas.yview_scroll(-1, 'units'))
-        self._canvas.bind('<Button-5>',   lambda e: self._canvas.yview_scroll( 1, 'units'))
-
-    def _on_inner_configure(self, _):
-        self._canvas.configure(scrollregion=self._canvas.bbox('all'))
-
-    def _on_canvas_configure(self, e):
-        self._canvas.itemconfig(self._win, width=e.width)
-        self._reflow(e.width)
-
-    def _on_scroll(self, e):
-        self._canvas.yview_scroll(int(-1 * (e.delta / 120)), 'units')
-
-    def _cols(self, width: int) -> int:
-        return max(1, width // (CARD_W + PAD))
-
-    def populate(self, videos: List[dict], selected: Set[str]):
-        self._selected = set(selected)
-        self._cards.clear()
-        self._order.clear()
-        
-        for w in self._inner.winfo_children():
-            w.destroy()
-
-        for v in videos:
-            self._order.append(v['id'])
-            card = self._make_card(v)
-            self._cards[v['id']] = card
-
-        self._reflow(self._canvas.winfo_width())
-        self._canvas.yview_moveto(0)
-
-    def _reflow(self, width: int):
-        cols = self._cols(width or 400)
-        for i, vid_id in enumerate(self._order):
-            card = self._cards.get(vid_id)
-            if card:
-                card.grid(row=i // cols, column=i % cols, padx=PAD // 2, pady=PAD // 2)
-
-    def _make_card(self, v: dict) -> tk.Frame:
-        vid_id   = v['id']
-        name     = v.get('name', '')
-        is_link  = v.get('isLink', False)
-        selected = vid_id in self._selected
-
-        outer = tk.Frame(self._inner, bg=AC if selected else BRD, padx=2, pady=2, cursor='hand2')
-        inner = tk.Frame(outer, bg=BG3, width=CARD_W - 4)
-        inner.pack(fill='both', expand=True)
-        inner.pack_propagate(False)
-
-        thumb_frame = tk.Frame(inner, bg='#111', width=CARD_W - 4, height=THUMB_H)
-        thumb_frame.pack(fill='x')
-        thumb_frame.pack_propagate(False)
-
-        if HAS_PIL:
-            img_label = tk.Label(thumb_frame, bg='#111', cursor='hand2')
-            img_label.place(relwidth=1, relheight=1)
-            def on_ready(vid, photo, lbl=img_label):
-                try:
-                    if lbl.winfo_exists():
-                        lbl.config(image=photo)
-                        lbl.image = photo
-                except tk.TclError:
-                    pass
-            get_or_load_thumb(vid_id, lambda vid, ph, cb=on_ready: self.after(0, cb, vid, ph))
-            img_label.bind('<Button-1>', lambda e, i=vid_id: self._click(e, i))
-        else:
-            play_lbl = tk.Label(thumb_frame, text='▶', bg='#111', fg=TX3, font=('', 18))
-            play_lbl.place(relx=0.5, rely=0.5, anchor='center')
-
-        if is_link:
-            tk.Label(thumb_frame, text='link', bg='#00000099', fg=TX3, font=('', 7), padx=3).place(x=3, y=3)
-
-        short_name = re.sub(r'\.[^.]+$', '', name)
-        name_lbl = tk.Label(inner, text=short_name, bg=BG3, fg=TX if selected else TX2,
-                            font=('', 9), anchor='w', wraplength=CARD_W - 10,
-                            justify='left', padx=4, pady=3)
-        name_lbl.pack(fill='x')
-
-        for widget in (outer, inner, thumb_frame, name_lbl):
-            widget.bind('<Button-1>', lambda e, i=vid_id: self._click(e, i))
-
-        return outer
-
-    def _click(self, event, vid_id: str):
-        shift = bool(event.state & 0x0001)
-        
-        if shift and self._last_clicked_id and self._last_clicked_id in self._order:
-            try:
-                last_idx = self._order.index(self._last_clicked_id)
-                cur_idx  = self._order.index(vid_id)
-                lo, hi = sorted([last_idx, cur_idx])
-                
-                for oid in self._order[lo:hi+1]:
-                    self._selected.add(oid)
-                    self._refresh_card(oid)
-            except ValueError:
-                self._toggle_selection(vid_id)
-        else:
-            self._toggle_selection(vid_id)
-            self._last_clicked_id = vid_id
-            
-        self.on_select(vid_id, shift)
-
-    def _toggle_selection(self, vid_id: str):
-        if vid_id in self._selected:
-            self._selected.discard(vid_id)
-        else:
-            self._selected.add(vid_id)
-        self._refresh_card(vid_id)
-
-    def _refresh_card(self, vid_id: str):
-        card = self._cards.get(vid_id)
-        if not card or not card.winfo_exists():
-            return
-            
-        selected = vid_id in self._selected
-        card.config(bg=AC if selected else BRD)
-        
-        for w in card.winfo_children():
-            for ww in w.winfo_children():
-                if isinstance(ww, tk.Label) and ww.cget('anchor') == 'w':
-                    ww.config(fg=TX if selected else TX2)
-
-    def get_selected(self) -> Set[str]:
-        return set(self._selected)
-
-    def set_selected(self, ids: Set[str]):
-        old = self._selected
-        self._selected = set(ids)
-        for vid_id in old | ids:
-            self._refresh_card(vid_id)
-
-    def clear_selection(self):
-        old = set(self._selected)
-        self._selected.clear()
-        self._last_clicked_id = None
-        for vid_id in old:
-            self._refresh_card(vid_id)
-
-
-# ── Panel (one side of the categorizer) ──────────────────────────────────────
-
-class Panel(tk.Frame):
-    def __init__(self, master, all_videos: List[dict], categories: List[dict],
-                 on_selection_change, border_left=False, **kw):
-        super().__init__(master, bg=BG2, **kw)
-        self._all_videos   = all_videos
-        self._categories   = categories
-        self._on_sel_chg   = on_selection_change
-        self._cat_var      = tk.StringVar()
-        self._search_var   = tk.StringVar()
-        self._source_var   = tk.StringVar(value='both')
-        self._extra_cats: List[dict] = []
-
-        if border_left:
-            self.config(relief='flat', bd=0, highlightbackground=BRD, highlightthickness=1)
-
-        self._build_header()
-        self._build_toolbar()
-        self._build_sel_bar()
-        self._grid = VideoGrid(self, on_select=self._on_card_click)
-        self._grid.pack(fill='both', expand=True)
-
-        self._search_var.trace_add('write', lambda *_: self._refresh())
-        self._cat_var.trace_add('write', lambda *_: self._refresh())
-        self._refresh()
-
-    def _build_header(self):
-        hdr = tk.Frame(self, bg=BG2)
-        hdr.pack(fill='x')
-
-        self._cat_combo = ttk.Combobox(hdr, textvariable=self._cat_var, state='readonly', font=('', 10))
-        self._cat_combo.pack(side='left', fill='x', expand=True, padx=6, pady=5)
-        self._refresh_cat_list()
-
-        btn_style = dict(bg=BG3, fg=TX3, activebackground=BG3, relief='flat', bd=0, padx=5, pady=2, cursor='hand2', font=('', 10))
-        tk.Button(hdr, text='✎', **btn_style, command=self._rename_folder).pack(side='left', padx=1)
-        tk.Button(hdr, text='🗑', **{**btn_style, 'fg': '#cc4444'}, command=self._delete_folder).pack(side='left', padx=1)
-        tk.Button(hdr, text='+', **btn_style, command=self._create_folder).pack(side='left', padx=(1, 6))   
-        self._count_lbl = tk.Label(hdr, text='0', bg=BG2, fg=TX3, font=('', 9))
-        self._count_lbl.pack(side='right', padx=6)
-
-    def _build_toolbar(self):
-        bar = tk.Frame(self, bg=BG3)
-        bar.pack(fill='x')
-
-        tk.Label(bar, text='⌕', bg=BG3, fg=TX3, font=('', 11)).pack(side='left', padx=(6, 2))
-        self._search_entry = tk.Entry(bar, textvariable=self._search_var, bg=BG3, fg=TX, insertbackground=TX, relief='flat', bd=0, font=('', 10))
-        self._search_entry.pack(side='left', fill='x', expand=True, pady=5)
-
-        clear_btn = tk.Label(bar, text='✕', bg=BG3, fg=TX3, cursor='hand2', font=('', 10))
-        clear_btn.pack(side='left', padx=3)
-        clear_btn.bind('<Button-1>', lambda _: self._search_var.set(''))
-
-        for label, val in (('Both', 'both'), ('Local', 'local'), ('Links', 'remote')):
-            b = tk.Button(bar, text=label, font=('', 8), bg=BG3, fg=TX3, relief='flat', bd=0, padx=5, pady=2, cursor='hand2', activebackground=BG3)
-            b.pack(side='left', padx=1)
-            b.bind('<Button-1>', lambda e, v=val, btn=b: self._set_source(v))
-            setattr(self, f'_src_btn_{val}', b)
-
-        self._update_src_btns()
-        tk.Frame(bar, width=4, bg=BG3).pack(side='right')
-
-    def _build_sel_bar(self):
-        bar = tk.Frame(self, bg=BG3)
-        bar.pack(fill='x')
-        tk.Frame(self, bg=BRD, height=1).pack(fill='x')
-
-        btn_s = dict(bg=BG2, fg=TX2, relief='flat', bd=0, padx=5, pady=2, cursor='hand2', font=('', 8), activebackground=BG3)
-        tk.Button(bar, text='All',  **btn_s, command=self._sel_all).pack(side='left', padx=(4, 1), pady=3)
-        tk.Button(bar, text='None', **btn_s, command=self._sel_none).pack(side='left', padx=1, pady=3)
-
-        self._sel_lbl = tk.Label(bar, text='', bg=BG3, fg=AC, font=('', 9, 'bold'))
-        self._sel_lbl.pack(side='left', padx=6)
-
-    def _all_cats(self) -> List[dict]:
-        merged = list(self._categories)
-        existing_paths = {c['path'] for c in merged}
-        for ec in self._extra_cats:
-            if ec['path'] not in existing_paths:
-                merged.append(ec)
-        return [c for c in merged if c.get('path') != 'uncategorized']
-
-    def _refresh_cat_list(self):
-        cats = self._all_cats()
-        values = ['— Uncategorized —'] + [c['name'] for c in cats]
-        self._cat_combo['values'] = values
-        cur = self._cat_var.get()
-        if cur not in values:
-            self._cat_var.set(values[0] if values else '')
-
-    def update_categories(self, cats: List[dict]):
-        self._categories = cats
-        self._refresh_cat_list()
-
-    def update_all_videos(self, videos: List[dict]):
-        self._all_videos = videos
-        self._refresh()
-
-    def _cat_path(self) -> str:
-        name = self._cat_var.get()
-        if not name or name.startswith('—'):
-            return ''
-        for c in self._all_cats():
-            if c['name'] == name:
-                return c['path']
-        return name
-
-    def _filtered_videos(self, exclude_ids: Set[str] = None) -> List[dict]:
-        q      = self._search_var.get().strip().lower()
-        source = self._source_var.get()
-        cat    = self._cat_path()
-
-        # Fix: Ensure completely hidden/moved videos are excluded immediately
-        active_videos = [v for v in self._all_videos if not v.get('_hidden')]
-
-        if q:
-            vids = [v for v in active_videos
-                    if fuzzy_match(v.get('name', ''), q)
-                    or fuzzy_match(v.get('catPath', ''), q)
-                    or fuzzy_match(v.get('category', ''), q)]
-        elif cat:
-            vids = [v for v in active_videos if (v.get('catPath') or '') == cat]
-        else:
-            vids = [v for v in active_videos if not v.get('catPath')]
-
-        if source == 'local':
-            vids = [v for v in vids if not v.get('isLink')]
-        elif source == 'remote':
-            vids = [v for v in vids if v.get('isLink')]
-
-        if exclude_ids:
-            vids = [v for v in vids if v['id'] not in exclude_ids]
-
-        return vids
-
-    def _refresh(self, exclude_ids: Set[str] = None):
-        vids = self._filtered_videos(exclude_ids)
-        sel  = self._grid.get_selected()
-        sel  = sel & {v['id'] for v in vids}
-        self._grid.populate(vids, sel)
-        self._count_lbl.config(text=str(len(vids)))
-        self._update_sel_label()
-
-    def _update_sel_label(self):
-        n = len(self._grid.get_selected())
-        self._sel_lbl.config(text=f'{n} selected' if n else '')
-
-    def _update_src_btns(self):
-        src = self._source_var.get()
-        for val in ('both', 'local', 'remote'):
-            btn = getattr(self, f'_src_btn_{val}', None)
-            if btn:
-                btn.config(bg=AC if src == val else BG3, fg='white' if src == val else TX3)
-
-    def _set_source(self, val: str):
-        self._source_var.set(val)
-        self._update_src_btns()
-        self._grid.clear_selection()
-        self._refresh()
-
-    def _sel_all(self):
-        vids = self._filtered_videos()
-        self._grid.set_selected({v['id'] for v in vids})
-        self._update_sel_label()
-        self._on_sel_chg()
-
-    def _sel_none(self):
-        self._grid.clear_selection()
-        self._update_sel_label()
-        self._on_sel_chg()
-
-    def _on_card_click(self, vid_id: str, shift: bool):
-        self._update_sel_label()
-        self._on_sel_chg()
-
-    def _create_folder(self):
-        name = simpledialog.askstring('New Folder', 'Folder name:', parent=self)
-        if not name:
-            return
-        name = name.strip().strip('/')
-        if not name:
-            return
-        try:
-            api_post('/api/main-categories', {'name': name})
+            shutil.move(str(m['abs_path']), str(dest))
+            done += 1
+            print(f'  ✓  {m["name"][:60]}')
         except Exception as e:
-            messagebox.showerror('Error', str(e), parent=self)
-            return
-        self._extra_cats.append({'name': name, 'path': name})
-        self._refresh_cat_list()
-        self._cat_var.set(name)
+            failed += 1
+            print(f'  ✗  {m["name"][:60]}  — {e}')
+    print(f'\nDone: {done} moved, {failed} failed.')
 
-    def _rename_folder(self):
-        old_path = self._cat_path()
-        if not old_path:
-            messagebox.showinfo('Rename', 'Select a folder first.', parent=self)
-            return
-        old_leaf = old_path.split('/')[-1]
-        new_name = simpledialog.askstring('Rename Folder', 'New name:', initialvalue=old_leaf, parent=self)
-        if not new_name:
-            return
-        new_name = re.sub(r'[<>:"/\\|?*]', '_', new_name.strip())
-        try:
-            r = api_patch('/api/categories/rename', {'oldPath': old_path, 'newName': new_name})
-            if r.get('error'):
-                messagebox.showerror('Error', r['error'], parent=self)
-                return
-        except Exception as e:
-            messagebox.showerror('Error', str(e), parent=self)
-            return
 
-        parts = old_path.split('/')
-        parts[-1] = new_name
-        new_path = '/'.join(parts)
-        for v in self._all_videos:
-            if (v.get('catPath') or '').startswith(old_path):
-                v['catPath'] = (v.get('catPath') or '').replace(old_path, new_path)
-                v['category'] = (v.get('category') or '').replace(old_leaf, new_name)
-        self._cat_var.set(new_path)
-        self._refresh_cat_list()
-        self._refresh()
-
-    def _delete_folder(self):
-        cat = self._cat_path()
-        if not cat:
-            messagebox.showinfo('Delete', 'Select a folder first.', parent=self)
-            return
-        if not messagebox.askyesno('Delete Folder', f'Delete "{cat}"? All videos will move to the default folder.', parent=self):
-            return
-        try:
-            r = api_delete('/api/categories/delete', {'path': cat})
-            if isinstance(r, dict) and r.get('error'):
-                messagebox.showerror('Error', r['error'], parent=self)
-                return
-        except Exception as e:
-            messagebox.showerror('Error', str(e), parent=self)
-            return
-            
-        self._cat_var.set('— Uncategorized —')
-        self._refresh_cat_list()
-        self._refresh()
-
-    def get_selected_ids(self) -> Set[str]:
-        return self._grid.get_selected()
-
-    def clear_selection(self):
-        self._grid.clear_selection()
-        self._update_sel_label()
-
-    def get_target_cat(self) -> str:
-        return self._cat_path()
-
-    def remove_videos(self, ids: Set[str]):
-        for v in self._all_videos:
-            if v['id'] in ids:
-                v['_hidden'] = True
-        self._refresh()
-
-
-# ── Categorizer tab ───────────────────────────────────────────────────────────
-
-class CategorizerTab(tk.Frame):
-    def __init__(self, master, **kw):
-        super().__init__(master, bg=BG, **kw)
-        self._videos: List[dict]    = []
-        self._categories: List[dict] = []
-
-        self._status = tk.StringVar(value='Loading…')
-        tk.Label(self, textvariable=self._status, bg=BG, fg=TX3, font=('', 9)).pack(side='bottom', fill='x', padx=6, pady=2)
-
-        body = tk.Frame(self, bg=BG)
-        body.pack(fill='both', expand=True)
-
-        self._left  = Panel(body, [], [], self._on_sel_change)
-        self._right = Panel(body, [], [], self._on_sel_change, border_left=True)
-        self._left.pack(side='left', fill='both', expand=True)
-        self._right.pack(side='right', fill='both', expand=True)
-
-        self._build_mid_bar()
-        self._load_data()
-
-    def _build_mid_bar(self):
-        mid = tk.Frame(self, bg=BG2)
-        mid.pack(side='bottom', fill='x')
-
-        btn_s = dict(relief='flat', bd=0, padx=12, pady=5, cursor='hand2', font=('', 10, 'bold'), activebackground=BG3)
-
-        self._move_lr = tk.Button(mid, text='Move →', bg=BG3, fg=TX2, **btn_s, command=lambda: self._move('left', 'right'))
-        self._move_lr.pack(side='left', padx=6, pady=5)
-
-        self._move_rl = tk.Button(mid, text='← Move', bg=BG3, fg=TX2, **btn_s, command=lambda: self._move('right', 'left'))
-        self._move_rl.pack(side='left', padx=2, pady=5)
-
-        tk.Button(mid, text='⟳ Refresh', bg=BG3, fg=TX3, **btn_s, command=self._load_data).pack(side='right', padx=6, pady=5)
-
-    def _on_sel_change(self):
-        ln = len(self._left.get_selected_ids())
-        rn = len(self._right.get_selected_ids())
-        self._move_lr.config(fg=TX if ln else TX3)
-        self._move_rl.config(fg=TX if rn else TX3)
-
-    def _load_data(self):
-        self._status.set('Loading…')
-        threading.Thread(target=self._fetch_bg, daemon=True).start()
-
-    def _fetch_bg(self):
-        try:
-            videos = api_get('/api/videos')
-            cats   = api_get('/api/categories')
-            self.after(0, self._on_data, videos, cats)
-        except Exception as e:
-            self.after(0, self._status.set, f'Error: {e}')
-
-    def _on_data(self, videos, cats):
-        self._videos     = videos if isinstance(videos, list) else []
-        self._categories = cats   if isinstance(cats,   list) else []
-        self._left.update_all_videos(self._videos)
-        self._left.update_categories(self._categories)
-        self._right.update_all_videos(self._videos)
-        self._right.update_categories(self._categories)
-        self._status.set(f'{len(self._videos)} videos · {len(self._categories)} categories')
-
-    def _move(self, from_side: str, to_side: str):
-        src   = self._left  if from_side == 'left' else self._right
-        dst   = self._left  if to_side   == 'left' else self._right
-        ids   = src.get_selected_ids()
-        if not ids:
-            return
-            
-        target_cat = dst.get_target_cat()
-        if not messagebox.askyesno('Move', f'Move {len(ids)} video(s) to "{target_cat or "Uncategorized"}"?', parent=self):
-            return
-
-        self._status.set('Moving…')
-        threading.Thread(target=self._move_bg, args=(list(ids), target_cat, from_side), daemon=True).start()
-
-    def _move_bg(self, ids: List[str], target_cat: str, from_side: str):
-        failures = 0
-        id_map: Dict[str, str] = {}
-        for vid_id in ids:
-            v = next((x for x in self._videos if x['id'] == vid_id), None)
-            if not v:
-                continue
-            try:
-                if v.get('isLink'):
-                    api_patch('/api/links/move', {'urls': [v.get('linkUrl') or v.get('relPath')], 'category': target_cat})
-                else:
-                    r = api_patch(f'/api/videos/{urllib.parse.quote(vid_id, safe="")}/move', {'category': target_cat})
-                    if r.get('ok') and r.get('newId'):
-                        id_map[vid_id] = r['newId']
-                    elif not r.get('ok'):
-                        failures += 1
-            except Exception:
-                failures += 1
-
-        self.after(0, self._on_move_done, ids, id_map, target_cat, from_side, failures)
-
-    def _on_move_done(self, ids: List[str], id_map: Dict[str, str], target_cat: str, from_side: str, failures: int):
-        id_set  = set(ids)
-        cat_obj = next((c for c in self._categories if c['path'] == target_cat), None)
-        cat_name = cat_obj['name'] if cat_obj else target_cat or 'Uncategorized'
-
-        for v in self._videos:
-            if v['id'] in id_map:
-                v['id']      = id_map[v['id']]
-                v['catPath'] = target_cat
-                v['category'] = cat_name
-            elif v['id'] in id_set and v.get('isLink'):
-                v['catPath'] = target_cat
-                v['category'] = cat_name
-
-        self._left.update_all_videos(self._videos)
-        self._right.update_all_videos(self._videos)
-        
-        # Deselect after moving
-        src_panel = self._left if from_side == 'left' else self._right
-        src_panel.clear_selection()
-
-        if failures:
-            messagebox.showerror('Move', f'{failures} move(s) failed.', parent=self)
-
-        moved = len(ids) - failures
-        self._status.set(f'Moved {moved} video(s) to "{cat_name}".')
-
-
-# ── Duplicate finder tab ──────────────────────────────────────────────────────
-
-class DuplicatesTab(tk.Frame):
-    def __init__(self, master, **kw):
-        super().__init__(master, bg=BG, **kw)
-        self._groups: List[List[dict]] = []
-        self._videos: List[dict] = []
-        self._build_ui()
-
-    def _build_ui(self):
-        top = tk.Frame(self, bg=BG2)
-        top.pack(fill='x', pady=(0, 2))
-
-        tk.Label(top, text='Duplicate Finder', bg=BG2, fg=TX, font=('', 12, 'bold')).pack(side='left', padx=10, pady=8)
-
-        btn_s = dict(relief='flat', bd=0, padx=10, pady=4, cursor='hand2', font=('', 9))
-
-        self._scan_btn = tk.Button(top, text='Server Scan (visual hash)', bg=AC, fg='white', **btn_s, command=self._server_scan)
-        self._scan_btn.pack(side='left', padx=6, pady=6)
-
-        tk.Button(top, text='Local Scan (name + size)', bg=BG3, fg=TX2, **btn_s, command=self._local_scan).pack(side='left', padx=2, pady=6)
-
-        self._progress = tk.StringVar(value='')
-        self._prog_bar = ttk.Progressbar(top, mode='indeterminate', length=120)
-        self._prog_lbl = tk.Label(top, textvariable=self._progress, bg=BG2, fg=TX3, font=('', 9))
-        self._prog_bar.pack(side='left', padx=8, pady=8)
-        self._prog_lbl.pack(side='left', padx=2)
-
-        results_frame = tk.Frame(self, bg=BG)
-        results_frame.pack(fill='both', expand=True)
-
-        self._canvas = tk.Canvas(results_frame, bg=BG, highlightthickness=0)
-        sb = ttk.Scrollbar(results_frame, orient='vertical', command=self._canvas.yview)
-        self._canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side='right', fill='y')
-        self._canvas.pack(side='left', fill='both', expand=True)
-
-        self._inner = tk.Frame(self._canvas, bg=BG)
-        self._win   = self._canvas.create_window((0, 0), window=self._inner, anchor='nw')
-
-        self._inner.bind('<Configure>', lambda _: self._canvas.configure(scrollregion=self._canvas.bbox('all')))
-        self._canvas.bind('<Configure>', lambda e: self._canvas.itemconfig(self._win, width=e.width))
-        self._canvas.bind('<MouseWheel>', lambda e: self._canvas.yview_scroll(int(-e.delta / 120), 'units'))
-
-        self._status = tk.Label(self, text='Run a scan to find duplicates.', bg=BG, fg=TX3, font=('', 9))
-        self._status.pack(side='bottom', fill='x', padx=8, pady=4)
-
-    def _server_scan(self):
-        self._prog_bar.start(10)
-        self._progress.set('Starting scan…')
-        self._scan_btn.config(state='disabled')
-        threading.Thread(target=self._server_scan_bg, daemon=True).start()
-
-    def _server_scan_bg(self):
-        try:
-            api_post('/api/duplicates/scan')
-        except Exception as e:
-            self.after(0, self._scan_error, str(e))
-            return
-        self._poll_server_scan()
-
-    def _poll_server_scan(self):
-        try:
-            status = api_get('/api/duplicates/status')
-        except Exception as e:
-            self.after(0, self._scan_error, str(e))
-            return
-        running = status.get('running', False)
-        done    = status.get('done', 0)
-        total   = status.get('total', 0)
-        msg     = f'Scanning… {done}/{total}' if total else 'Scanning…'
-        self.after(0, self._progress.set, msg)
-        if running:
-            threading.Timer(1.0, self._poll_server_scan).start()
-        else:
-            self._fetch_server_results()
-
-    def _fetch_server_results(self):
-        try:
-            groups = api_get('/api/duplicates/results')
-            self.after(0, self._on_results, groups, 'server')
-        except Exception as e:
-            self.after(0, self._scan_error, str(e))
-
-    def _local_scan(self):
-        import tkinter.filedialog as fd
-        folder = fd.askdirectory(title='Select your videos folder', parent=self)
-        if not folder:
-            return
-        self._prog_bar.start(10)
-        self._progress.set('Scanning…')
-        threading.Thread(target=self._local_scan_bg, args=(folder,), daemon=True).start()
-
-    def _local_scan_bg(self, folder: str):
-        VIDEO_EXTS = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.ts', '.m2ts', '.mpg', '.mpeg'}
-        files = []
-        for root, dirs, names in os.walk(folder):
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('hidden', 'Z')]
-            for name in names:
-                if os.path.splitext(name)[1].lower() in VIDEO_EXTS:
-                    full = os.path.join(root, name)
-                    try:
-                        size = os.path.getsize(full)
-                    except OSError:
-                        size = 0
-                    files.append({'path': full, 'name': name, 'size': size})
-
-        self.after(0, self._progress.set, f'Comparing {len(files)} files…')
-        groups = self._find_local_dupes(files)
-        self.after(0, self._on_local_results, groups)
-
-    def _find_local_dupes(self, files: List[dict]) -> List[List[dict]]:
-        used   = set()
-        groups = []
-        for i, a in enumerate(files):
-            if i in used:
-                continue
-            group = [a]
-            for j, b in enumerate(files[i+1:], start=i+1):
-                if j in used:
-                    continue
-                name_sim  = difflib.SequenceMatcher(
-                    None,
-                    os.path.splitext(a['name'])[0].lower(),
-                    os.path.splitext(b['name'])[0].lower()).ratio()
-                size_sim  = abs(a['size'] - b['size']) < 5 * 1024 * 1024  
-                exact_size = a['size'] == b['size'] and a['size'] > 0
-                if exact_size or (name_sim > 0.85 and size_sim):
-                    group.append(b)
-                    used.add(j)
-            if len(group) > 1:
-                used.add(i)
-                groups.append(group)
-        return groups
-
-    def _on_local_results(self, groups: List[List[dict]]):
-        self._prog_bar.stop()
-        self._progress.set('')
-        self._scan_btn.config(state='normal')
-        for w in self._inner.winfo_children():
-            w.destroy()
-
-        if not groups:
-            self._status.config(text='No duplicates found.')
-            return
-
-        self._status.config(text=f'{len(groups)} duplicate group(s) found.')
-        for g in groups:
-            self._render_local_group(g)
-
-    def _render_local_group(self, group: List[dict]):
-        frame = tk.LabelFrame(self._inner, bg=BG2, fg=TX2, text=f'Group ({len(group)} files)',
-                              font=('', 9), padx=6, pady=4, bd=1, relief='flat',
-                              highlightbackground=BRD, highlightthickness=1)
-        frame.pack(fill='x', padx=8, pady=4)
-
-        for item in group:
-            row = tk.Frame(frame, bg=BG2)
-            row.pack(fill='x', pady=1)
-            size_mb = item['size'] / (1024 * 1024)
-            tk.Label(row, text=item['path'], bg=BG2, fg=TX2, font=('', 8), anchor='w', wraplength=600,
-                     justify='left').pack(side='left', fill='x', expand=True)
-            tk.Label(row, text=f'{size_mb:.1f} MB', bg=BG2, fg=TX3, font=('', 8)).pack(side='right', padx=4)
-            
-            tk.Button(row, text='Delete', bg='#3a1010', fg='#ff6666', relief='flat', bd=0, padx=6, pady=1, font=('', 8),
-                      cursor='hand2', command=lambda p=item['path'], r=row: self._delete_local(p, r)
-                      ).pack(side='right', padx=4)
-
-    def _delete_local(self, path: str, row: tk.Frame):
-        if not messagebox.askyesno('Delete', f'Permanently delete:\n{path}?', parent=self):
-            return
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-            row.destroy()
-        except Exception as e:
-            messagebox.showerror('Error', str(e), parent=self)
-
-    def _on_results(self, groups: List[List[dict]], source: str):
-        self._groups = groups
-        self._prog_bar.stop()
-        self._progress.set('')
-        self._scan_btn.config(state='normal')
-        for w in self._inner.winfo_children():
-            w.destroy()
-
-        if not groups:
-            self._status.config(text='No duplicates found.')
-            return
-
-        self._status.config(text=f'{len(groups)} duplicate group(s) — {source} scan.')
-        for g in groups:
-            self._render_server_group(g)
-
-    def _render_server_group(self, group: List[dict]):
-        frame = tk.LabelFrame(self._inner, bg=BG2, fg=TX2, text=f'Group ({len(group)} videos)',
-                              font=('', 9), padx=6, pady=4, bd=1, relief='flat',
-                              highlightbackground=BRD, highlightthickness=1)
-        frame.pack(fill='x', padx=8, pady=4)
-
-        card_row = tk.Frame(frame, bg=BG2)
-        card_row.pack(fill='x')
-
-        for v in group:
-            vid_id   = v.get('id', '')
-            name     = v.get('name', vid_id)
-            category = v.get('category', 'Uncategorized')
-            size_mb  = v.get('size', 0) / (1024 * 1024)
-
-            card = tk.Frame(card_row, bg=BG3, width=CARD_W, bd=1, highlightbackground=BRD, highlightthickness=1)
-            card.pack(side='left', padx=4, pady=4)
-            card.pack_propagate(False)
-
-            thumb_frame = tk.Frame(card, bg='#111', width=CARD_W, height=THUMB_H)
-            thumb_frame.pack(fill='x')
-            thumb_frame.pack_propagate(False)
-
-            if HAS_PIL:
-                img_label = tk.Label(thumb_frame, bg='#111')
-                img_label.place(relwidth=1, relheight=1)
-                def on_ready(vid, photo, lbl=img_label):
-                    try:
-                        if lbl.winfo_exists():
-                            lbl.config(image=photo)
-                            lbl.image = photo
-                    except tk.TclError:
-                        pass
-                get_or_load_thumb(vid_id, lambda vid, ph, cb=on_ready: self.after(0, cb, vid, ph))
-
-            tk.Label(card, text=re.sub(r'\.[^.]+$', '', name), bg=BG3, fg=TX2, font=('', 8), wraplength=CARD_W - 8,
-                     justify='left', anchor='w').pack(fill='x', padx=3, pady=1)
-            tk.Label(card, text=f'{category} · {size_mb:.1f} MB', bg=BG3, fg=TX3, font=('', 7)).pack(fill='x', padx=3)
-
-            del_btn = tk.Button(card, text='Delete from server', bg='#3a1010', fg='#ff6666',
-                                relief='flat', bd=0, padx=4, pady=2, font=('', 7), cursor='hand2',
-                                command=lambda i=vid_id, c=card: self._delete_server(i, c))
-            del_btn.pack(pady=(2, 4))
-
-    def _delete_server(self, vid_id: str, card: tk.Frame):
-        if not messagebox.askyesno('Delete', 'Delete this video from the server?', parent=self):
-            return
-        try:
-            api_delete(f'/api/videos/{urllib.parse.quote(vid_id, safe="")}')
-            card.destroy()
-        except Exception as e:
-            messagebox.showerror('Error', str(e), parent=self)
-
-    def _scan_error(self, msg: str):
-        self._prog_bar.stop()
-        self._progress.set('')
-        self._scan_btn.config(state='normal')
-        messagebox.showerror('Scan Error', msg, parent=self)
-
-
-# ── Main app ──────────────────────────────────────────────────────────────────
-
-class App(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title(f'AphroArchive Categorizer — {SERVER}')
-        self.geometry('1200x750')
-        self.minsize(800, 500)
-        self.configure(bg=BG)
-
-        if not HAS_PIL:
-            tk.Label(self, text='pip install pillow  to enable thumbnails', bg='#2a1a00', fg='#ffaa44', font=('', 9), padx=6, pady=3).pack(fill='x')
-
-        style = ttk.Style(self)
-        style.theme_use('clam')
-        style.configure('TNotebook', background=BG2, borderwidth=0)
-        style.configure('TNotebook.Tab', background=BG3, foreground=TX3, padding=[12, 5], font=('', 10))
-        style.map('TNotebook.Tab', background=[('selected', BG)], foreground=[('selected', TX)])
-        style.configure('TCombobox', fieldbackground=BG3, background=BG3, foreground=TX, selectbackground=BG3)
-        style.configure('Vertical.TScrollbar', background=BG3, troughcolor=BG2, borderwidth=0)
-
-        nb = ttk.Notebook(self)
-        nb.pack(fill='both', expand=True, padx=0, pady=0)
-
-        self._cat_tab  = CategorizerTab(nb)
-        self._dupl_tab = DuplicatesTab(nb)
-
-        nb.add(self._cat_tab,  text='  Categorizer  ')
-        nb.add(self._dupl_tab, text='  Duplicates   ')
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    app = App()
-    app.mainloop()
+    parser = argparse.ArgumentParser(description='Recategorize AphroArchive videos by folder-name matching.')
+    parser.add_argument('videos_dir', nargs='?', help='Path to the videos folder (default: ../videos)')
+    parser.add_argument('--db',      help='Path to the SQLite database (auto-detected if omitted)')
+    parser.add_argument('--profile', default=None, help='Profile name for auto-detecting the DB')
+    args = parser.parse_args()
+
+    default_videos = Path(__file__).resolve().parent.parent / 'videos'
+    videos_dir = Path(args.videos_dir).resolve() if args.videos_dir else default_videos
+    if not videos_dir.is_dir():
+        print(f'Error: {videos_dir} is not a directory')
+        sys.exit(1)
+
+    if args.profile is None:
+        try:
+            profile_input = input('Profile name [default]: ').strip()
+        except (EOFError, KeyboardInterrupt):
+            print('\nCancelled.')
+            return
+        args.profile = profile_input or 'default'
+
+    # DB for category tags
+    if args.db:
+        db_path = Path(args.db).resolve()
+    else:
+        db_path = find_db(videos_dir, args.profile)
+
+    if db_path and db_path.exists():
+        print(f'Using DB: {db_path}')
+    else:
+        print('No SQLite DB found — category tags will not be used.')
+        db_path = None
+
+    print(f'Scanning {videos_dir} …')
+    cats     = scan_categories(videos_dir)
+    videos   = scan_videos(videos_dir)
+    cat_tags = load_cat_tags(db_path) if db_path else {}
+
+    print(f'{len(videos)} videos, {len(cats)} category folders, {sum(len(v) for v in cat_tags.values())} tags loaded')
+
+    folder_terms = build_folder_terms(cats, cat_tags)
+    moves        = build_plan(videos, folder_terms)
+
+    print_plan(moves)
+
+    if not moves:
+        return
+
+    try:
+        answer = input('Apply these moves? [y/N] ').strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print('\nCancelled.')
+        return
+
+    if answer != 'y':
+        print('Cancelled.')
+        return
+
+    print()
+    apply_plan(moves, videos_dir)
+
 
 if __name__ == '__main__':
     main()

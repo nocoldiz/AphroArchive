@@ -96,6 +96,78 @@ let _encryptionProgress = {
   ok: false,
 };
 let _encryptionCancel = false;
+
+// ── Categorizer background job ─────────────────────────────────────────
+let _categorizerJob = null;
+let _categorizerCancel = false;
+
+async function runCategorizerBg(moves) {
+  _categorizerCancel = false;
+  _categorizerJob = { running: true, done: 0, total: moves.length, current: '', failed: 0 };
+  const writeRoot = getDefaultWriteRoot();
+  const resolvedWrite = path.resolve(writeRoot);
+
+  for (const { id, category: targetCategory } of moves) {
+    if (_categorizerCancel) break;
+    _categorizerJob.current = id;
+    try {
+      const fp = safePath(id);
+      if (!fp) { _categorizerJob.failed++; } else {
+        const targetDir = targetCategory ? path.join(writeRoot, targetCategory) : writeRoot;
+        const resolvedTarget = path.resolve(targetDir);
+        if (!resolvedTarget.startsWith(resolvedWrite)) {
+          _categorizerJob.failed++;
+        } else {
+          if (!fs.existsSync(resolvedTarget)) fs.mkdirSync(resolvedTarget, { recursive: true });
+          const filename = path.basename(fp);
+          const newPath = path.join(resolvedTarget, filename);
+          if (path.resolve(newPath) !== path.resolve(fp) && !fs.existsSync(newPath)) {
+            fs.renameSync(fp, newPath);
+            try {
+              const newRel = path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/');
+              const newId = newRel.startsWith('..') ? toId(newPath) : toId(newRel);
+              const favs = loadFavs(); const fi = favs.indexOf(id);
+              if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
+              const meta = loadVideoMeta();
+              if (meta[id]) { meta[newId] = meta[id]; delete meta[id]; saveVideoMeta(meta); }
+            } catch {}
+          }
+        }
+      }
+    } catch { _categorizerJob.failed++; }
+    _categorizerJob.done++;
+  }
+
+  invalidateScanCache();
+  _categorizerJob.running = false;
+  _categorizerJob.current = '';
+}
+
+async function apiCategorizerBgExecute(req, res) {
+  if (_categorizerJob?.running) return json(res, { ok: false, error: 'Already running' }, 409);
+  const body = await readBody(req);
+  const moves = Array.isArray(body.moves) ? body.moves : [];
+  if (!moves.length) return json(res, { ok: true, started: false });
+  json(res, { ok: true, started: true, total: moves.length });
+  runCategorizerBg(moves).catch(e => {
+    console.error('[categorizer-bg]', e.message);
+    if (_categorizerJob) _categorizerJob.running = false;
+  });
+}
+
+function apiCategorizerPoll(req, res) {
+  if (_categorizerJob) {
+    json(res, { running: _categorizerJob.running, done: _categorizerJob.done, total: _categorizerJob.total, failed: _categorizerJob.failed, current: _categorizerJob.current || '' });
+  } else {
+    json(res, { running: false });
+  }
+}
+
+async function apiCategorizerStop(req, res) {
+  if (_categorizerJob?.running) _categorizerCancel = true;
+  json(res, { ok: true });
+}
+
 // Set when a scan_changed broadcast was suppressed during an encrypt/decrypt job.
 // Flushed as a single notification when the job ends (see updateEncryptionProgress).
 let _scanChangePending = false;
@@ -3604,6 +3676,7 @@ module.exports = {
   apiEncryptVideo, apiEncryptBatch, apiEncryptFolder, apiUnlockFolder, apiDecryptFolder, apiEncryptAllFolders, getUnlockedFolderKey,
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
   apiCategorizePlan, apiCategorizeExecute,
+  apiCategorizerBgExecute, apiCategorizerPoll, apiCategorizerStop,
   apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress, apiVaultImportProgress,
   apiScanEvents, broadcastScanChange,
 };

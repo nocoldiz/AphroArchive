@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { loadVideos, appPrefs, refreshLibraryQuietly } from '../../store';
+import { loadVideos, appPrefs, refreshLibraryQuietly, isLoadingVideos } from '../../store';
 
 interface ScraperStatus {
   running: boolean;
@@ -23,6 +23,7 @@ interface WorkerStatus {
   active: boolean;
   task: string;
   detail: string;
+  enabled?: boolean;
 }
 
 function ProgressBar({ done = 0, total = 0, color = 'var(--ac)' }: { done?: number; total?: number; color?: string }) {
@@ -35,7 +36,7 @@ function ProgressBar({ done = 0, total = 0, color = 'var(--ac)' }: { done?: numb
 }
 
 function ScraperRow({
-  label, icon, status, onStart, onStop, extraActions,
+  label, icon, status, onStart, onStop, extraActions, disabled,
 }: {
   label: string;
   icon: preact.JSX.Element;
@@ -43,6 +44,7 @@ function ScraperRow({
   onStart: () => void;
   onStop?: () => void;
   extraActions?: preact.JSX.Element;
+  disabled?: boolean;
 }) {
   const { running, done = 0, total = 0, current } = status;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -72,7 +74,8 @@ function ScraperRow({
             {extraActions}
             <button
               onClick={onStart}
-              style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
+              disabled={disabled}
+              style={{ background: disabled ? 'var(--bg3)' : 'var(--ac)', color: disabled ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: disabled ? 'default' : 'pointer' }}
             >
               Start
             </button>
@@ -99,6 +102,7 @@ export const SyncManager = () => {
     reencode: ScraperStatus;
     whisper: ScraperStatus & { enabled?: boolean };
     sceneDetect: ScraperStatus;
+    categorizerJob: ScraperStatus;
   }>({
     videoThumbs: { running: false },
     bmMeta: { running: false },
@@ -106,6 +110,7 @@ export const SyncManager = () => {
     reencode: { running: false },
     whisper: { running: false, enabled: true },
     sceneDetect: { running: false },
+    categorizerJob: { running: false },
   });
   const [encProgress, setEncProgress] = useState<EncProgress>({
     running: false, type: '', category: '', total: 0, done: 0, current: '',
@@ -113,11 +118,12 @@ export const SyncManager = () => {
   const [worker, setWorker] = useState<WorkerStatus>({ active: false, task: '', detail: '' });
   const wrapRef = useRef<HTMLDivElement>(null);
   const prevEncRunning = useRef(false);
+  const prevCatRunning = useRef(false);
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes, whisperRes, sceneRes, workerRes] = await Promise.all([
+        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes, whisperRes, sceneRes, workerRes, catRes] = await Promise.all([
           fetch('/api/gen-thumbs/poll'),
           fetch('/api/links/scrape-status'),
           fetch('/api/links/thumb-status'),
@@ -126,6 +132,7 @@ export const SyncManager = () => {
           fetch('/api/gen-whisper/poll'),
           fetch('/api/gen-chapters/poll'),
           fetch('/api/background-worker/poll'),
+          fetch('/api/categorizer/poll'),
         ]);
         const vt   = vtRes.ok    ? await vtRes.json()    : { running: false };
         const bm   = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
@@ -133,8 +140,11 @@ export const SyncManager = () => {
         const reenc = reencRes.ok ? await reencRes.json() : { running: false };
         const wh   = whisperRes.ok ? await whisperRes.json() : { running: false, enabled: true };
         const scene = sceneRes.ok ? await sceneRes.json() : { running: false };
-        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh, sceneDetect: scene });
+        const cat  = catRes.ok ? await catRes.json() : { running: false };
+        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh, sceneDetect: scene, categorizerJob: cat });
         setWorker(workerRes.ok ? await workerRes.json() : { active: false, task: '', detail: '' });
+        if (prevCatRunning.current && !cat.running) refreshLibraryQuietly();
+        prevCatRunning.current = cat.running;
         if (encRes.ok) {
           const enc = await encRes.json();
           // Detect transition from running → done
@@ -171,11 +181,28 @@ export const SyncManager = () => {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode, scrapers.whisper, scrapers.sceneDetect].filter(s => s.running).length
-    + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0);
+  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode, scrapers.whisper, scrapers.sceneDetect, scrapers.categorizerJob].filter(s => s.running).length
+    + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0) + (worker.active ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
     await fetch(url, { method }).catch(() => {});
+  };
+
+  const stopAll = async () => {
+    const stops: Promise<void>[] = [];
+    if (scrapers.videoThumbs.running) stops.push(scraperAction('/api/gen-thumbs/stop'));
+    if (scrapers.bmMeta.running) stops.push(scraperAction('/api/links/stop-scraping'));
+    if (scrapers.bmThumbs.running) stops.push(scraperAction('/api/links/stop-generating'));
+    if (scrapers.reencode.running) stops.push(scraperAction('/api/reencode/stop'));
+    if (scrapers.sceneDetect.running) stops.push(scraperAction('/api/gen-chapters/stop'));
+    if (scrapers.whisper.running) stops.push(scraperAction('/api/gen-whisper/stop'));
+    if (worker.enabled) stops.push(scraperAction('/api/background-worker/stop'));
+    if (stops.length) await Promise.all(stops);
+  };
+
+  const startExclusive = async (startUrl: string) => {
+    await stopAll();
+    await scraperAction(startUrl);
   };
 
   const iconThumb = (
@@ -250,41 +277,59 @@ export const SyncManager = () => {
               <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Sync & Background Tasks</span>
             </div>
 
-            {/* Background worker — automatic; shown only while active, never badged */}
-            {worker.active && (
-              <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                  <span style={{ color: 'var(--ac)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="3"/>
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                    </svg>
-                  </span>
-                  <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>{worker.task || 'Working…'}</span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>auto</span>
-                </div>
-                {worker.detail && (
-                  <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={worker.detail}>
-                    {worker.detail}
-                  </div>
+            {/* Background Worker — always shown as first row */}
+            <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                <span style={{ color: worker.enabled ? 'var(--ac)' : 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  </svg>
+                </span>
+                <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>
+                  {worker.active ? (worker.task || 'Working…') : 'Background Worker'}
+                </span>
+                {worker.enabled ? (
+                  <>
+                    {!worker.active && <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>idle</span>}
+                    <button
+                      type="button"
+                      onClick={() => scraperAction('/api/background-worker/stop')}
+                      style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
+                    >Stop</button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startExclusive('/api/background-worker/start')}
+                    disabled={isLoadingVideos.value}
+                    style={{ background: isLoadingVideos.value ? 'var(--bg3)' : 'var(--ac)', color: isLoadingVideos.value ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: isLoadingVideos.value ? 'default' : 'pointer' }}
+                  >Start</button>
                 )}
               </div>
-            )}
+              {worker.active && worker.detail && (
+                <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={worker.detail}>
+                  {worker.detail}
+                </div>
+              )}
+            </div>
 
             <ScraperRow
               label="Video Thumbnails"
               icon={iconThumb}
               status={scrapers.videoThumbs}
-              onStart={() => scraperAction('/api/gen-thumbs/start')}
+              onStart={() => startExclusive('/api/gen-thumbs/start')}
               onStop={() => scraperAction('/api/gen-thumbs/stop')}
+              disabled={isLoadingVideos.value}
             />
 
             <ScraperRow
               label="Link Metadata"
               icon={iconLink}
               status={scrapers.bmMeta}
-              onStart={() => scraperAction('/api/links/start-scraping')}
+              onStart={() => startExclusive('/api/links/start-scraping')}
               onStop={() => scraperAction('/api/links/stop-scraping')}
+              disabled={isLoadingVideos.value}
               extraActions={
                 <button
                   onClick={() => scraperAction('/api/links/rescrape-all')}
@@ -299,8 +344,9 @@ export const SyncManager = () => {
               label="Link Thumbnails"
               icon={iconThumb}
               status={scrapers.bmThumbs}
-              onStart={() => scraperAction('/api/links/generate-all')}
+              onStart={() => startExclusive('/api/links/generate-all')}
               onStop={() => scraperAction('/api/links/stop-generating')}
+              disabled={isLoadingVideos.value}
             />
 
             <ScraperRow
@@ -311,16 +357,18 @@ export const SyncManager = () => {
                 </svg>
               }
               status={scrapers.reencode}
-              onStart={() => scraperAction('/api/reencode/start')}
+              onStart={() => startExclusive('/api/reencode/start')}
               onStop={() => scraperAction('/api/reencode/stop')}
+              disabled={isLoadingVideos.value}
             />
 
             <ScraperRow
               label="Scene Detection"
               icon={iconScene}
               status={scrapers.sceneDetect}
-              onStart={() => scraperAction('/api/gen-chapters/start')}
+              onStart={() => startExclusive('/api/gen-chapters/start')}
               onStop={() => scraperAction('/api/gen-chapters/stop')}
+              disabled={isLoadingVideos.value}
             />
 
             {/* Whisper Subtitles — shown only when running, like Encryption */}
@@ -358,10 +406,11 @@ export const SyncManager = () => {
               <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconActor}</span>
               <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Actor Data</span>
               <button
-                onClick={() => scraperAction('/api/actors/scrape-missing')}
-                style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
+                onClick={() => startExclusive('/api/actors/scrape-missing')}
+                disabled={isLoadingVideos.value}
+                style={{ background: isLoadingVideos.value ? 'var(--bg3)' : 'var(--ac)', color: isLoadingVideos.value ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: isLoadingVideos.value ? 'default' : 'pointer' }}
               >
-                Scrape missing
+                Start
               </button>
             </div>
 
@@ -393,13 +442,43 @@ export const SyncManager = () => {
               </div>
             )}
 
+            {/* ── Categorizer Progress ── */}
+            {scrapers.categorizerJob.running && (
+              <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                      <polyline points="12 9 9 12 12 15"/><line x1="16" y1="12" x2="9" y2="12"/>
+                    </svg>
+                  </span>
+                  <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Moving videos…</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
+                    {(scrapers.categorizerJob.total ?? 0) > 0
+                      ? `${scrapers.categorizerJob.done ?? 0}/${scrapers.categorizerJob.total}`
+                      : '…'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => scraperAction('/api/categorizer/stop')}
+                    title="Stop"
+                    style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
+                  >Stop</button>
+                </div>
+                {(scrapers.categorizerJob.total ?? 0) > 0 && (
+                  <ProgressBar done={scrapers.categorizerJob.done} total={scrapers.categorizerJob.total} />
+                )}
+              </div>
+            )}
+
             {/* Local Videos Rescan */}
             <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
               <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>{iconRescan}</span>
               <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Local Videos</span>
               <button
-                disabled={rescanning}
+                disabled={rescanning || isLoadingVideos.value}
                 onClick={async () => {
+                  await stopAll();
                   setRescanning(true);
                   try {
                     await fetch('/api/videos/rescan', { method: 'POST' });
@@ -409,9 +488,9 @@ export const SyncManager = () => {
                   } catch {}
                   setRescanning(false);
                 }}
-                style={{ background: rescanning ? 'var(--bg3)' : 'var(--ac)', color: rescanning ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: rescanning ? 'default' : 'pointer' }}
+                style={{ background: (rescanning || isLoadingVideos.value) ? 'var(--bg3)' : 'var(--ac)', color: (rescanning || isLoadingVideos.value) ? 'var(--tx3)' : '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: (rescanning || isLoadingVideos.value) ? 'default' : 'pointer' }}
               >
-                {rescanning ? 'Scanning…' : 'Rescan'}
+                {rescanning ? 'Scanning…' : 'Start'}
               </button>
             </div>
           </div>

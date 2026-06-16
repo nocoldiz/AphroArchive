@@ -729,7 +729,10 @@ export const filteredVideos = computed(() => {
     list = exact;
   } else {
     if (isRecentMode.value) {
-      list = [...recentVideos.value];
+      // History is already ordered most-recent-first by the server — don't
+      // apply folder/tag filters (they would hide items from other folders)
+      // and skip the mtime sort below so watch order is preserved.
+      return recentVideos.value.slice();
     }
 
     if (currentFolder.value === 'uncategorized') {

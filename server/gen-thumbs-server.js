@@ -77,12 +77,14 @@ async function runBatch() {
   const all = scanAllVideos();
   const pending = all.filter(v => !isComplete(v.id));
   const skipped = all.length - pending.length;
+  console.log(`[Sync] Video Thumbnails: ${all.length} total, ${pending.length} pending, ${skipped} already done`);
 
   _job = { running: true, stop: false, total: pending.length, done: 0, failed: 0, skipped, current: '' };
   broadcast({ type: 'start', total: pending.length, skipped });
 
   if (!pending.length) {
     _job.running = false;
+    console.log('[Sync] Video Thumbnails: nothing to do');
     broadcast({ type: 'done', done: 0, failed: 0, total: all.length, skipped });
     return;
   }
@@ -133,6 +135,7 @@ async function runBatch() {
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   saveThumbsCache(cache);
   _job.running = false;
+  console.log(`[Sync] Video Thumbnails done: ${_job.done} generated, ${_job.failed} failed`);
   broadcast({ type: 'done', done: _job.done, failed: _job.failed, total: all.length, skipped: _job.skipped });
 }
 
@@ -140,12 +143,16 @@ async function runBatch() {
 
 function apiGenThumbsStart(req, res) {
   if (_job && _job.running) return json(res, { ok: false, error: 'Already running' });
+  console.log('[Sync] Starting Video Thumbnails generation');
   runBatch().catch(console.error);
   json(res, { ok: true });
 }
 
 function apiGenThumbsStop(req, res) {
-  if (_job) _job.stop = true;
+  if (_job) {
+    _job.stop = true;
+    console.log('[Sync] Stopping Video Thumbnails generation');
+  }
   json(res, { ok: true });
 }
 

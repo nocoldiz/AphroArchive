@@ -99,10 +99,12 @@ async function runBatch(ids, category) {
     total: queue.length, done: 0, failed: 0, skipped: alreadyEncoded,
     current: '', savedBytes: 0,
   };
+  console.log(`[Sync] Re-encode H.265: ${queue.length} pending, ${alreadyEncoded} already encoded`);
   broadcast({ type: 'start', total: queue.length, skipped: alreadyEncoded });
 
   if (!queue.length) {
     _job.running = false;
+    console.log('[Sync] Re-encode H.265: nothing to do');
     broadcast({ type: 'done', done: 0, failed: 0, skipped: alreadyEncoded, savedBytes: 0 });
     return;
   }
@@ -187,6 +189,7 @@ async function runBatch(ids, category) {
   }
 
   _job.running = false;
+  console.log(`[Sync] Re-encode H.265 done: ${_job.done} processed, ${_job.failed} failed`);
   broadcast({ type: 'done', done: _job.done, failed: _job.failed, total: _job.total, skipped: _job.skipped, savedBytes: _job.savedBytes });
 }
 
@@ -194,6 +197,7 @@ async function runBatch(ids, category) {
 
 async function apiReencodeStart(req, res) {
   if (_job && _job.running) return json(res, { ok: false, error: 'Already running' });
+  console.log('[Sync] Starting Re-encode to H.265');
   const body = await (async () => {
     try {
       return await new Promise((resolve, reject) => {
@@ -211,9 +215,10 @@ async function apiReencodeStart(req, res) {
 }
 
 function apiReencodeStop(req, res) {
-  if (_job) _job.stop = true;
-  // Kill the in-flight ffmpeg so the batch halts immediately instead of waiting
-  // for the current (potentially multi-hour) transcode to finish.
+  if (_job) {
+    _job.stop = true;
+    console.log('[Sync] Stopping Re-encode to H.265');
+  }
   if (_currentChild) {
     try { _currentChild.kill('SIGKILL'); } catch {}
     _currentChild = null;

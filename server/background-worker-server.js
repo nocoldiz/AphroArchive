@@ -10,9 +10,9 @@ const { ensureAutoChaptersForVideo, hasAutoChapters } = require('./auto-chapters
 const { execFile } = require('child_process');
 
 let _isProcessing = false;
+let _workerEnabled = false;
+let _intervalId = null;
 
-// What the worker is doing right now, surfaced in the "Sync & Background Tasks"
-// panel (without bumping its badge) and logged to the server terminal.
 let _status = { active: false, task: '', detail: '' };
 
 function getBackgroundWorkerStatus() {
@@ -26,7 +26,27 @@ function setStatus(task, detail = '') {
 
 function apiBackgroundWorkerPoll(req, res) {
   const { json } = require('./helpers-server');
-  json(res, _status);
+  json(res, { ..._status, enabled: _workerEnabled });
+}
+
+function apiBackgroundWorkerStart(req, res) {
+  const { json } = require('./helpers-server');
+  if (!_workerEnabled) {
+    console.log('[Sync] Starting Background Worker');
+    _workerEnabled = true;
+    if (_intervalId) clearInterval(_intervalId);
+    _intervalId = setInterval(() => { if (_workerEnabled) scanAndProcess(); }, 10 * 60 * 1000);
+    scanAndProcess();
+  }
+  json(res, { ok: true });
+}
+
+function apiBackgroundWorkerStop(req, res) {
+  const { json } = require('./helpers-server');
+  if (_workerEnabled) console.log('[Sync] Stopping Background Worker');
+  _workerEnabled = false;
+  if (_intervalId) { clearInterval(_intervalId); _intervalId = null; }
+  json(res, { ok: true });
 }
 
 function ffprobeSubtitles(fp) {
@@ -151,11 +171,8 @@ async function scanAndProcess() {
 }
 
 function startBackgroundWorker() {
-  // Run every 10 minutes
-  setInterval(scanAndProcess, 10 * 60 * 1000);
-  // First run after a 30s delay so the page is fully usable first
-  setTimeout(scanAndProcess, 30000);
-  console.log('Background worker started (running every 10 minutes)');
+  // Starts stopped — user enables it from Sync & Background Tasks.
+  console.log('Background worker initialized (disabled by default)');
 }
 
-module.exports = { startBackgroundWorker, getBackgroundWorkerStatus, apiBackgroundWorkerPoll };
+module.exports = { startBackgroundWorker, getBackgroundWorkerStatus, apiBackgroundWorkerPoll, apiBackgroundWorkerStart, apiBackgroundWorkerStop };

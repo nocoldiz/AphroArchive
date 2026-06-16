@@ -69,7 +69,7 @@ const veracrypt = require('./server/veracrypt-server');
 const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
 const corrupted = require('./server/corrupted-server');
-const { startBackgroundWorker, apiBackgroundWorkerPoll } = require('./server/background-worker-server');
+const { startBackgroundWorker, apiBackgroundWorkerPoll, apiBackgroundWorkerStart, apiBackgroundWorkerStop } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
 const assistant   = require('./server/assistant-server');
 const autoChapters = require('./server/auto-chapters-server');
@@ -172,6 +172,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos/categorize-plan' && req.method === 'POST') return videos.apiCategorizePlan(req, res);
   if (p === '/api/videos/categorize-execute' && req.method === 'POST') return videos.apiCategorizeExecute(req, res);
+  if (p === '/api/categorizer/execute-bg' && req.method === 'POST') return videos.apiCategorizerBgExecute(req, res);
+  if (p === '/api/categorizer/poll' && req.method === 'GET') return videos.apiCategorizerPoll(req, res);
+  if (p === '/api/categorizer/stop' && req.method === 'POST') return videos.apiCategorizerStop(req, res);
   if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
   if (p === '/api/folders' && req.method === 'GET') return videos.apiFolders(req, res, params);
@@ -258,6 +261,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-chapters/status' && req.method === 'GET') return autoChapters.apiGenChaptersStatus(req, res);
   if (p === '/api/gen-chapters/poll' && req.method === 'GET') return autoChapters.apiGenChaptersPoll(req, res);
   if (p === '/api/background-worker/poll' && req.method === 'GET') return apiBackgroundWorkerPoll(req, res);
+  if (p === '/api/background-worker/start' && req.method === 'POST') return apiBackgroundWorkerStart(req, res);
+  if (p === '/api/background-worker/stop' && req.method === 'POST') return apiBackgroundWorkerStop(req, res);
 
   // ── Tags / Channels ───────────────────────────────────────────────────
   if (p === '/api/tags' && req.method === 'GET') return videos.apiTags(req, res);

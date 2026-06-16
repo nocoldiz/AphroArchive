@@ -173,14 +173,17 @@ function broadcast(ev) {
 async function runBatch() {
   const cache = loadAutoChaptersCache();
   const all = scanAllVideos();
-  const pending = all.filter(v => !cache[v.id]);
+  // Re-process videos that had 0 chapters detected (allows the button to retry).
+  const pending = all.filter(v => !cache[v.id] || cache[v.id].chapters?.length === 0);
   const skipped = all.length - pending.length;
+  console.log(`[Sync] Scene Detection: ${all.length} total, ${pending.length} pending, ${skipped} already done`);
 
   _job = { running: true, stop: false, total: pending.length, done: 0, failed: 0, skipped, current: '' };
   broadcast({ type: 'start', total: pending.length, skipped });
 
   if (!pending.length) {
     _job.running = false;
+    console.log('[Sync] Scene Detection: nothing to do');
     broadcast({ type: 'done', done: 0, failed: 0, total: all.length, skipped });
     return;
   }
@@ -198,6 +201,7 @@ async function runBatch() {
         // partial result, just exit the loop.
         if (_job.stop) break;
         cache[item.id] = { chapters, detectedAt: Date.now() };
+        await genAutoChapterThumbs(item.id, item.fp, chapters);
       } catch {
         if (_job.stop) break;
         _job.failed++;
@@ -210,7 +214,16 @@ async function runBatch() {
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   saveAutoChaptersCache(cache);
   _job.running = false;
+  console.log(`[Sync] Scene Detection done: ${_job.done} processed, ${_job.failed} failed`);
   broadcast({ type: 'done', done: _job.done, failed: _job.failed, total: all.length, skipped: _job.skipped });
+}
+
+async function genAutoChapterThumbs(id, fp, chapters) {
+  if (!chapters.length) return;
+  const { genChapterThumb } = require('./thumbnails-server');
+  for (const ch of chapters) {
+    try { await genChapterThumb(id, fp, ch.time, ch.id); } catch {}
+  }
 }
 
 // Detect-and-cache a single video if it has no chapters yet. Used by the
@@ -223,6 +236,7 @@ async function ensureAutoChaptersForVideo(id, fp) {
   const fresh = loadAutoChaptersCache();
   fresh[id] = { chapters, detectedAt: Date.now() };
   saveAutoChaptersCache(fresh);
+  await genAutoChapterThumbs(id, fp, chapters);
   return true;
 }
 
@@ -234,14 +248,16 @@ function hasAutoChapters(id) {
 
 function apiGenChaptersStart(req, res) {
   if (_job && _job.running) return json(res, { ok: false, error: 'Already running' });
+  console.log('[Sync] Starting Scene Detection (auto chapters)');
   runBatch().catch(console.error);
   json(res, { ok: true });
 }
 
 function apiGenChaptersStop(req, res) {
-  if (_job) _job.stop = true;
-  // Kill the in-flight ffmpeg so the batch halts immediately instead of waiting
-  // for the current video's scene scan to finish.
+  if (_job) {
+    _job.stop = true;
+    console.log('[Sync] Stopping Scene Detection');
+  }
   if (_currentChild) {
     try { _currentChild.kill('SIGKILL'); } catch {}
     _currentChild = null;

@@ -111,7 +111,6 @@ export const CategorizerView = () => {
   // Auto-categorize / Recategorize preview + apply state.
   const [plan, setPlan] = useState<null | { mode: 'auto' | 'recat'; moves: Move[] }>(null);
   const [planSel, setPlanSel] = useState<Set<string>>(new Set());
-  const [applying, setApplying] = useState<null | { done: number; total: number }>(null);
   const [folderDropId, setFolderDropId] = useState<string | null>(null);
 
   const dragRef      = useRef<{ ids: string[]; from: Side }>({ ids: [], from: 'left' });
@@ -425,39 +424,21 @@ export const CategorizerView = () => {
 
   const applyPlan = async () => {
     if (!plan) return;
-    const moves = plan.moves.filter(m => planSel.has(m.id));
+    const moves = plan.moves.filter(m => planSel.has(m.id)).map(m => ({ id: m.id, category: m.toPath }));
     if (!moves.length) { setPlan(null); return; }
-    setApplying({ done: 0, total: moves.length });
-    const updates = new Map<string, { newId: string; toPath: string; toName: string }>();
-    const queue = [...moves];
-    let done = 0;
-    const worker = async () => {
-      while (queue.length) {
-        const m = queue.shift()!;
-        try {
-          const r = await fetch(`/api/videos/${encodeURIComponent(m.id)}/move`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: m.toPath }),
-          });
-          const d = await r.json();
-          if (r.ok && d.ok) updates.set(m.id, { newId: d.newId, toPath: m.toPath, toName: m.toName });
-        } catch { /* counted as failure below */ }
-        done++; setApplying({ done, total: moves.length });
-      }
-    };
-    await Promise.all(Array.from({ length: 4 }, worker));
-    if (updates.size) {
-      allVideos.value = allVideos.value.map(v => {
-        const u = updates.get(v.id);
-        return u ? { ...v, id: u.newId, catPath: u.toPath, category: u.toName } : v;
-      });
-      if ((window as any).loadVideos) (window as any).loadVideos();
-    }
-    const failed = moves.length - updates.size;
-    setApplying(null);
     setPlan(null);
-    if (failed) alert(`${failed} move${failed > 1 ? 's' : ''} failed`);
+    try {
+      await fetch('/api/categorizer/execute-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moves }),
+      });
+      const w = window as any;
+      if (w.toast) w.toast(`Moving ${moves.length} video${moves.length > 1 ? 's' : ''}… (see Sync ↑)`);
+    } catch {
+      const w = window as any;
+      if (w.toast) w.toast('Failed to start categorizer');
+    }
   };
 
   const toggleMove = (id: string) =>
@@ -1098,7 +1079,7 @@ export const CategorizerView = () => {
       {/* ── Auto-categorize preview modal ── */}
       {plan && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={() => !applying && setPlan(null)}>
+          onClick={() => setPlan(null)}>
           <div onClick={(e: any) => e.stopPropagation()}
             style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px', width: 'min(680px, 92vw)', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
             {/* header */}
@@ -1130,7 +1111,7 @@ export const CategorizerView = () => {
                       const sel = planSel.has(m.id);
                       return (
                         <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 18px', cursor: 'pointer', opacity: sel ? 1 : 0.45 }}>
-                          <input type="checkbox" checked={sel} onChange={() => toggleMove(m.id)} disabled={!!applying} />
+                          <input type="checkbox" checked={sel} onChange={() => toggleMove(m.id)} />
                           <span style={{ flex: 1, fontSize: '12px', color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: '80px' }} title={m.name}>
                             {m.name.replace(/\.[^.]+$/, '')}
                           </span>
@@ -1153,21 +1134,15 @@ export const CategorizerView = () => {
 
             {/* footer */}
             <div style={{ padding: '12px 18px', borderTop: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {applying ? (
-                <span style={{ fontSize: '12px', color: 'var(--tx2)' }}>Moving… {applying.done} / {applying.total}</span>
-              ) : (
-                <>
-                  <button type="button" onClick={() => setPlanSel(new Set(plan.moves.map(m => m.id)))}
-                    style={{ fontSize: '11px', padding: '4px 9px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>All</button>
-                  <button type="button" onClick={() => setPlanSel(new Set())}
-                    style={{ fontSize: '11px', padding: '4px 9px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>None</button>
-                </>
-              )}
+              <button type="button" onClick={() => setPlanSel(new Set(plan.moves.map(m => m.id)))}
+                style={{ fontSize: '11px', padding: '4px 9px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>All</button>
+              <button type="button" onClick={() => setPlanSel(new Set())}
+                style={{ fontSize: '11px', padding: '4px 9px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>None</button>
               <div style={{ flex: 1 }} />
-              <button type="button" disabled={!!applying} onClick={() => setPlan(null)}
-                style={{ fontSize: '12px', padding: '6px 14px', background: 'none', border: '1px solid var(--brd)', borderRadius: '5px', cursor: applying ? 'default' : 'pointer', color: 'var(--tx2)' }}>Cancel</button>
-              <button type="button" disabled={!!applying || planSel.size === 0} onClick={applyPlan}
-                style={{ fontSize: '12px', fontWeight: 600, padding: '6px 16px', background: planSel.size && !applying ? 'var(--ac)' : 'var(--bg3)', border: 'none', borderRadius: '5px', cursor: planSel.size && !applying ? 'pointer' : 'default', color: planSel.size && !applying ? '#fff' : 'var(--tx3)' }}>
+              <button type="button" onClick={() => setPlan(null)}
+                style={{ fontSize: '12px', padding: '6px 14px', background: 'none', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)' }}>Cancel</button>
+              <button type="button" disabled={planSel.size === 0} onClick={applyPlan}
+                style={{ fontSize: '12px', fontWeight: 600, padding: '6px 16px', background: planSel.size ? 'var(--ac)' : 'var(--bg3)', border: 'none', borderRadius: '5px', cursor: planSel.size ? 'pointer' : 'default', color: planSel.size ? '#fff' : 'var(--tx3)' }}>
                 Move {planSel.size || ''}
               </button>
             </div>
