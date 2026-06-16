@@ -159,6 +159,13 @@ export const PresetPicker = () => {
           </div>
         </div>
 
+        {!state.mergeMode && Array.from(selected).some(id => presets.find(p => p.id === id)?.hasFolders) && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 12px', fontSize: '0.82rem', color: 'var(--tx2)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={createFolders} onChange={(e: any) => setCreateFolders(e.target.checked)} />
+            Create each preset's folder structure on disk
+          </label>
+        )}
+
         <div className="preset-dialog-footer" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--tx3)', flex: 1 }}>{status}</span>
           <button onClick={() => handleApply('blank', false)} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Start Blank</button>

@@ -26,6 +26,11 @@ export const DatabaseView = () => {
   const [defaultRoot, setDefaultRoot] = useState<string>('');
   const [newSourceFolder, setNewSourceFolder] = useState('');
 
+  // Create-folders-from-preset (folders tab)
+  const [folderPresets, setFolderPresets] = useState<{id: string, name: string, counts: Record<string, number>}[]>([]);
+  const [folderPresetSel, setFolderPresetSel] = useState('');
+  const [creatingFolders, setCreatingFolders] = useState(false);
+
   const importFileRef = useRef<HTMLInputElement>(null);
   const importAllRef = useRef<HTMLInputElement>(null);
   const importWcRef = useRef<HTMLInputElement>(null);
@@ -125,18 +130,21 @@ export const DatabaseView = () => {
     if (tab === 'folders') {
       setLoading(true);
       try {
-        const [foldersRes, prefsRes] = await Promise.all([
+        const [foldersRes, prefsRes, presetsRes] = await Promise.all([
           fetch('/api/all-folders'),
           fetch('/api/settings/prefs'),
+          fetch('/api/presets'),
         ]);
         const foldersData = await foldersRes.json();
         const prefsData = await prefsRes.json();
+        const presetsData = await presetsRes.json();
         const actualPaths = new Set((foldersData.categories as any[]).map(f => f.path));
         setFolders(foldersData.categories);
         const enabledArr = (foldersData.enabled as string[]).filter(p => actualPaths.has(p));
         setEnabledFolders(enabledArr.length === 0 ? null : new Set(enabledArr));
         setSourceFolders(prefsData.sourceFolders || []);
         setDefaultRoot(prefsData.defaultRoot || prefsData.defaultPath || prefsData.defaultWriteRoot || '');
+        setFolderPresets((presetsData.profiles || []).filter((p: any) => p.hasFolders));
       } catch (e) {
         console.error(e);
       } finally {
@@ -389,6 +397,28 @@ export const DatabaseView = () => {
       loadTab(activeTab);
     } else {
       if (w.toast) w.toast('Import failed');
+    }
+  };
+
+  const handleCreateFoldersFromPreset = async () => {
+    if (!folderPresetSel) return;
+    setCreatingFolders(true);
+    try {
+      const r = await fetch('/api/folders/from-preset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset: folderPresetSel }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed');
+      const w = window as any;
+      if (w.toast) w.toast(`Created ${d.created} folders from preset`);
+      loadTab('folders');
+      loadVideos();
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setCreatingFolders(false);
     }
   };
 
@@ -952,6 +982,36 @@ export const DatabaseView = () => {
             </div>
           </div>
 
+
+          {/* Create folders from a preset */}
+          {folderPresets.length > 0 && (
+            <div style={{ marginBottom: '24px', background: 'var(--bg2)', padding: '16px', borderRadius: '8px', border: '1px solid var(--brd)' }}>
+              <h4 style={{ margin: '0 0 8px', fontSize: '0.9rem', color: 'var(--ac)' }}>Create Folders from Preset</h4>
+              <div style={{ fontSize: '0.8rem', color: 'var(--tx3)', marginBottom: '10px' }}>
+                Creates the preset's genre folders and subgenre subfolders in your active videos folder. Existing folders are left untouched.
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  value={folderPresetSel}
+                  title="Preset folder structure"
+                  onChange={(e: any) => setFolderPresetSel(e.target.value)}
+                  style={{ flex: 1, padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+                >
+                  <option value="">Select a preset…</option>
+                  {folderPresets.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.counts?.folders || 0} folders)</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleCreateFoldersFromPreset}
+                  disabled={!folderPresetSel || creatingFolders}
+                  style={{ background: (!folderPresetSel || creatingFolders) ? 'var(--bg3)' : 'var(--ac)', border: 'none', color: (!folderPresetSel || creatingFolders) ? 'var(--tx3)' : '#fff', padding: '8px 12px', borderRadius: '4px', cursor: (!folderPresetSel || creatingFolders) ? 'default' : 'pointer', fontSize: '0.85rem', flexShrink: 0 }}
+                >
+                  {creatingFolders ? 'Creating…' : 'Create Folders'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Category visibility */}
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

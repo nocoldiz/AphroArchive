@@ -7,7 +7,7 @@
 App-wide audit (2026-06-16) surfaced whole subsystems that landed without a
 todo entry. Captured here so the roadmap reflects reality, with follow-ups noted.
 
-- [x] **Channels** — `channels-server.js` + `ChannelsView` + `ChannelModal`; `/channels`, `/channel/:name` routes; channel signal in store. (Follow-up: document the data model and how channels relate to folders/tags.)
+- [x] **Channels (renamed from Studios)** — The old "Studios" concept was renamed app-wide to **Channels**: `Channel` type, `channels` signal, `currentChannel`, `/api/db/channels`, `ChannelsView` + `ChannelModal`, `/channels` + `/channel/:name` routes. Any remaining "studio" wording in docs/UI should be migrated. (Follow-up: document how channels relate to folders/tags.)
 - [x] **TV Mode plugin** — `tv-mode` plugin (`toggleTVMode`): plays folders/tags as live, time-shifted TV channels. Distinct from the still-open 10-foot "couch mode" UI.
 - [x] **Zapping mode** — `zapping` plugin (`toggleZapping`) + `ZapView`/`zap.ts`: channel-surf random clips.
 - [x] **Radio mode** — `radio-mode` plugin + `RadioModeView` (`/radio`): web radio + live video feeds from the links collection.
@@ -59,7 +59,7 @@ todo entry. Captured here so the roadmap reflects reality, with follow-ups noted
 - [x] **Batch operations** — `VideoSelBar` now has Tag / Actor / Playlist inline panels in addition to Delete, Move, Encrypt, Download.
 - [x] **Watch-time tracking** — Completion progress bar shown on card thumbnails via `home/progress.ts`.
 - [x] **Subtitle support** — `PlayerView` fetches `/api/subtitles/:id`; `AdvancedPlayer` renders `<track>` elements served from `/api/subtitle-file/:id/:filename`.
-- [x] **Export metadata** — `GET /api/db/:type/export` and `POST /api/db/:type/import-json` for actors, studios, folders, websites.
+- [x] **Export metadata** — `GET /api/db/:type/export` and `POST /api/db/:type/import-json` for actors, channels, folders, websites.
 - [x] **Smart duplicate handling** — Each group has a "Keep Best & Delete Rest" button; best = highest resolution (w×h), then largest size, then fav, then named category. `★ keep` badge shown on the chosen file; resolution shown in metadata row.
 - [x] **Search result count** — "X videos" count shown above the grid in `VideoGrid`.
 - [x] **Folder watch / auto-refresh** — `videos-server.js` broadcasts `scan_changed` SSE on cache invalidation; `store.ts` reconnects and calls `loadVideos()` with a 1.5 s debounce.
@@ -91,14 +91,14 @@ todo entry. Captured here so the roadmap reflects reality, with follow-ups noted
 - [x] **Media Session API** — `AdvancedPlayer` sets `navigator.mediaSession` metadata (title, artwork) and play/pause/seek/next/prev handlers + playbackState.
 - [x] **Sidebar collapse to icon rail** — Topbar `.rail-toggle` collapses the sidebar to a 60px icon rail (`sidebarCollapsed` signal + `body.sidebar-rail` CSS); desktop-only.
 - [x] **Pinned folders & tags in sidebar** — Context-menu "Pin folder/tag to top"; pins render at the top of the Folders/Tags lists, persisted in prefs (`pinnedFolders`, `pinnedTags`).
-- [ ] **Loading skeleton cards** — While `loadVideos` is in flight, render animated placeholder cards matching the current card size instead of a blank grid.
+- [x] **Loading skeleton cards** — `VideoGrid` renders `skeletonCount.value` `.skeleton-card` placeholders while `isLoadingVideos`.
+- [x] **Rating stars on card** — `VideoGrid` shows a `rating-badge` (`★`×rating) overlay when `video.rating` is set.
+- [x] **Duration badge on thumbnail** — `VideoGrid` overlays `formatDuration(video.duration)` in a dark pill on each card thumbnail.
+- [x] **Sidebar section collapse** — `Sidebar.tsx` `sectionState`/`persistSection`: every section (library, manage, media, tags, links, cats, plugins) has a chevron toggle, persisted to localStorage. (Note: localStorage, not per-profile `appPrefs` — promote if per-profile is wanted.)
 - [ ] **Scroll-to-top button** — Floating button appears after scrolling down >400px in the grid; smooth-scrolls back to top; hidden otherwise.
 - [ ] **Sticky sort/count header** — The "X videos · Sort" bar in `SectionControls` stays pinned below the topbar when the grid scrolls so the count is always visible.
-- [ ] **"New" badge on cards** — Small pill overlay on video cards added within the last 7 days, derived from the `date` field in the index; disappears on hover to show the thumbnail.
-- [ ] **Rating stars on card** — If a video has a rating set, show filled star icons as a small overlay at the bottom of the thumbnail (matches the detail-page rating display).
+- [ ] **"New" badge on cards** — Small pill overlay on video cards added within the last 7 days, derived from the `date`/`mtime` field; disappears on hover to show the thumbnail.
 - [ ] **Unplayed dot indicator** — Subtle coloured dot on cards not yet in watch history; disappears after first play; toggle in appearance prefs.
-- [ ] **Duration badge on thumbnail** — Small pill (e.g. `1:23:04`) in the bottom-right corner of every card thumbnail, sourced from `thumbs_cache` duration; styled consistently with streaming service conventions.
-- [ ] **Sidebar section collapse** — Folders, Tags, Actors, and Collections groups in the sidebar have a chevron toggle; collapsed state persisted per profile in `appPrefs`.
 
 ## Plugin System
 
@@ -152,26 +152,26 @@ move dropdown.
 
 ## Search & Filtering
 
-- [ ] **Multi-filter support** — Combine actor + studio + tag in one search query.
+- [ ] **Multi-filter support** — Combine actor + channel + tag in one search query.
 - [ ] **Date range filter** — Filter videos added/modified between two dates.
 - [ ] **Duration filter** — Filter by short/medium/long (e.g., <5min, 5-30min, 30min+).
 - [ ] **Unwatched filter** — Show only videos not yet in watch history.
 - [ ] **Saved searches** — Link a filter/query combo and recall it with one click.
 - [ ] **Recent searches** — Dropdown of last 10 search terms when clicking the search bar.
-- [ ] **Search within actors/studios pages** — The actor and studio detail pages have no search; hard to find a video when an actor has 100+ entries.
+- [ ] **Search within actors/channels pages** — The actor and channel detail pages have no search; hard to find a video when an actor/channel has 100+ entries.
 - [ ] **Search suggestions / autocomplete** — As the user types, suggest matching titles, actor names, tags, and folders in a dropdown.
 - [ ] **Full-text search across metadata** — Index title + notes + actor names + tags into SQLite FTS5 so a single query matches all fields simultaneously.
 - [ ] **Boolean search syntax** — Support `actor:Jane tag:action -tag:short duration:>30m` query syntax in the search bar.
-- [ ] **Rating filter** — Slider or star buttons to show only videos with rating ≥ N stars.
+- [~] **Rating filter** — Backend is done: `ratingFilter` signal (persisted) and `filteredVideos` filters `v.rating >= minRating` (store.ts:786). **Missing the UI** — no component sets `ratingFilter`; add star buttons/slider in `LibraryFilters`/`SectionControls`.
 - [ ] **Fuzzy search** — Tolerate typos using SQLite FTS5 porter stemmer; surface near-matches alongside exact ones.
 - [ ] **Active filter chips** — Show applied filters (tag, actor, duration range, etc.) as removable chip pills above the grid; clicking × on a chip removes that filter.
 - [ ] **Sort persistence per folder** — Remember the last-used sort mode per category path, not just globally; restore it when navigating back to the same folder.
 
 ## Library Management
 
-- [x] **Tag management from the UI** — `DatabaseView.tsx` with full CRUD via `POST /api/db/:type/upsert` and `DELETE /api/db/:type/:name` for actors, studios, folders, websites.
+- [x] **Tag management from the UI** — `DatabaseView.tsx` with full CRUD via `POST /api/db/:type/upsert` and `DELETE /api/db/:type/:name` for actors, channels, folders, websites.
 - [x] **Folder/category creation** — `POST /api/folders/create` on server; `window.createCategory()` in `store.ts` calls `POST /api/main-folders`.
-- [ ] **Content-based duplicate detection** — Hash file contents (not just names) to catch renamed duplicates the current dupe scanner misses.
+- [x] **Content-based duplicate detection** — `duplicates-server.js` `getVisualHash()` builds an 8×8 grayscale perceptual hash via ffmpeg per video (cached in `visual_hashes`); catches renamed duplicates by image similarity, not filename.
 - [ ] **Batch rename with pattern** — Rename multiple files at once using a template like `{actor} - {title}` with live preview.
 - [ ] **Category merge** — Merge two folders into one, moving all files and updating metadata.
 - [ ] **Trash / soft delete** — Instead of permanent deletion, move files to a `trash/` folder; show a recoverable trash view; auto-purge after 30 days.
@@ -186,7 +186,7 @@ move dropdown.
   - Target folder picker (browse-folders dropdown)
   - Output filename field (pre-filled from the first video's name)
   - Toggle: delete originals after join / keep originals
-  - On confirm: `POST /api/videos/join` streams the ffmpeg concat job; SSE progress bar in the modal. Merged file inherits the union of all source videos' tags, actors, and studio; category = target folder.
+  - On confirm: `POST /api/videos/join` streams the ffmpeg concat job; SSE progress bar in the modal. Merged file inherits the union of all source videos' tags, actors, and channel; category = target folder.
 - [ ] **Clip export** — In the player, set start/end timestamps with bracket markers on the seekbar; "Export Clip" sends `POST /api/clips/export`; ffmpeg trims the file; SSE progress shown inline.
 - [ ] **A/B loop** — Two loop-point buttons (A and B) in the player toolbar; holding the section between them repeats indefinitely until cancelled.
 - [x] **Auto-chapter detection** — `auto-chapters-server.js` (`/api/auto-chapters`) runs the ffmpeg scene filter (threshold 0.4, min gap 8s, max 60 chapters, concurrency 1), caches results, and feeds the Chapters editor.
@@ -253,7 +253,7 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 
 - [x] **Continue Watching row** — Resumes in-progress videos (localStorage progress tracked in AdvancedPlayer), sorted by most recently paused, with per-card progress bar + remove.
 - [x] **New Additions row** — Horizontally scrollable row of the last 20 videos added.
-- [x] **Recommended For You** — On-device scoring by shared folders, tags, actors, studios vs. watch history (`home/recommend.ts`).
+- [x] **Recommended For You** — On-device scoring by shared folders, tags, actors, channels vs. watch history (`home/recommend.ts`).
 - [x] **"Surprise Me" button** — Opens a random (unwatched-preferred) video immediately.
 - [x] **Pinned shelves** — Pinned Shelf widget: pin any folder, tag, actor, or playlist as a named row; add multiple, reorder in edit mode.
 - [x] **Home page editor** — Edit mode toolbar + widget picker to add/remove/reorder/resize sections.
@@ -351,6 +351,21 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 - [ ] **IP allowlist** — Accept connections only from `127.0.0.1` and user-configured subnets; reject all others with 403 before any route handling.
 - [ ] **Audit log** — Append-only log of vault unlock/lock, profile switch, download events, and panic activations; viewable in Settings; optionally encrypted.
 - [ ] **CSP headers** — Add `Content-Security-Policy` response headers to prevent XSS from injected content in scraped page titles or filenames.
+
+## Usability & Interface — 2026-06-16
+
+Concrete, mostly small interface wins discovered while auditing the app.
+
+- [ ] **Rating filter control** — Backend already filters by `ratingFilter` (store.ts:786) but nothing sets it. Add star buttons / a slider in `LibraryFilters` or `SectionControls` so the existing filter is reachable.
+- [ ] **Keyboard shortcut cheat-sheet (press `?`)** — The player already has many shortcuts; add a global `?` overlay listing them per-context (grid, player, vault). Reduces discoverability friction now that the surface is large.
+- [ ] **A–Z jump index on Actors / Channels** — Sticky alphabet rail that scrolls the list to the first entry of a letter; essential once an actor/channel list runs into the hundreds.
+- [ ] **Empty-state panels** — Friendly empty states (icon + one-line hint + primary action) for empty folders, Collections, Vault, Files, Downloads, and zero-result search — instead of a blank grid.
+- [ ] **Context-menu parity across media views** — Audio, Books, Photos, and Files cards should share the same right-click menu pattern as `VideoCard` (open, fav, move, delete, add-to-collection).
+- [ ] **Breadcrumbs in Channels / Actors / Collections** — `BrowseView` has clickable breadcrumbs; extend the same component to the other detail views for consistent back-navigation.
+- [ ] **Settings search box** — `SettingsView` has grown many panels; add a filter box that jumps to / highlights matching settings.
+- [ ] **Long-job completion toasts** — Re-encode, whisper, gen-thumbs, and corrupted scans run via SSE; surface a completion toast (and a badge in `SyncManager`) even after the user navigates away from the originating view.
+- [ ] **Density / card-size quick toggle in topbar** — `cardSize` exists in prefs; expose a one-click compact/comfortable toggle in the topbar instead of burying it in settings.
+- [ ] **Consistent destructive-action confirms** — Standardize a small confirm popover for Delete / Shred / Self-destruct / "Keep best & delete rest" so dangerous actions look and behave the same everywhere.
 
 ## New Ideas — from 2026-06-16 app-wide audit
 

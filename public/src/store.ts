@@ -303,6 +303,38 @@ export const ratingFilter = signal<number>(parseInt(localStorage.getItem('rating
 export const resolutionFilter = signal<string>(localStorage.getItem('resolutionFilter') || '');
 export const notWatchedFilter = signal<boolean>(localStorage.getItem('notWatchedFilter') === 'true');
 
+// Duration bucket: '' (any) | 'short' (<5min) | 'medium' (5–30min) | 'long' (>30min)
+export const durationFilter = signal<string>(localStorage.getItem('durationFilter') || '');
+// Added/modified date range (YYYY-MM-DD strings; '' = open-ended)
+export const dateFromFilter = signal<string>(localStorage.getItem('dateFromFilter') || '');
+export const dateToFilter = signal<string>(localStorage.getItem('dateToFilter') || '');
+
+// Multi-filter facets — AND across types, OR within a type. Not persisted:
+// these are session-scoped refinements, cleared on navigation.
+export const filterActors = signal<string[]>([]);
+export const filterChannels = signal<string[]>([]);
+export const filterTags = signal<string[]>([]);
+
+/** True when any of the optional refinement filters are active. */
+export const hasActiveFilters = computed(() =>
+  !!durationFilter.value || !!dateFromFilter.value || !!dateToFilter.value ||
+  ratingFilter.value > 0 || !!resolutionFilter.value || notWatchedFilter.value ||
+  filterActors.value.length > 0 || filterChannels.value.length > 0 || filterTags.value.length > 0
+);
+
+/** Reset every optional refinement filter to its neutral state. */
+export function clearAllFilters() {
+  durationFilter.value = '';
+  dateFromFilter.value = '';
+  dateToFilter.value = '';
+  ratingFilter.value = 0;
+  resolutionFilter.value = '';
+  notWatchedFilter.value = false;
+  filterActors.value = [];
+  filterChannels.value = [];
+  filterTags.value = [];
+}
+
 if (typeof window !== 'undefined') {
   favFilter.subscribe(val => localStorage.setItem('favFilter', val ? 'true' : 'false'));
   galleryFilter.subscribe(val => localStorage.setItem('galleryFilter', val));
@@ -310,6 +342,9 @@ if (typeof window !== 'undefined') {
   ratingFilter.subscribe(val => localStorage.setItem('ratingFilter', String(val)));
   resolutionFilter.subscribe(val => localStorage.setItem('resolutionFilter', val));
   notWatchedFilter.subscribe(val => localStorage.setItem('notWatchedFilter', val ? 'true' : 'false'));
+  durationFilter.subscribe(val => localStorage.setItem('durationFilter', val));
+  dateFromFilter.subscribe(val => localStorage.setItem('dateFromFilter', val));
+  dateToFilter.subscribe(val => localStorage.setItem('dateToFilter', val));
 }
 
 if (typeof window !== 'undefined') {
@@ -801,6 +836,48 @@ export const filteredVideos = computed(() => {
   // Not-watched filter: only show videos that have no history entry
   if (notWatchedFilter.value) {
     list = list.filter(v => !v.watched);
+  }
+
+  // Duration bucket filter (<5min / 5–30min / >30min)
+  const durF = durationFilter.value;
+  if (durF) {
+    list = list.filter(v => {
+      const d = v.duration || 0;
+      if (!d) return false; // unknown duration can't be bucketed
+      if (durF === 'short') return d < 300;
+      if (durF === 'medium') return d >= 300 && d <= 1800;
+      if (durF === 'long') return d > 1800;
+      return true;
+    });
+  }
+
+  // Date range filter on added/modified time (mtime is epoch ms)
+  const dFrom = dateFromFilter.value;
+  const dTo = dateToFilter.value;
+  if (dFrom) {
+    const fromMs = new Date(dFrom + 'T00:00:00').getTime();
+    if (!isNaN(fromMs)) list = list.filter(v => (v.mtime || 0) >= fromMs);
+  }
+  if (dTo) {
+    const toMs = new Date(dTo + 'T23:59:59.999').getTime();
+    if (!isNaN(toMs)) list = list.filter(v => (v.mtime || 0) <= toMs);
+  }
+
+  // Multi-filter facets: AND across actor / channel / tag, OR within each.
+  const fActors = filterActors.value;
+  if (fActors.length) {
+    const want = fActors.map(a => a.toLowerCase());
+    list = list.filter(v => (v.actors || []).some(a => want.includes(a.toLowerCase())));
+  }
+  const fChannels = filterChannels.value;
+  if (fChannels.length) {
+    const want = fChannels.map(c => c.toLowerCase());
+    list = list.filter(v => v.channel && want.includes(v.channel.toLowerCase()));
+  }
+  const fTags = filterTags.value;
+  if (fTags.length) {
+    const want = fTags.map(t => t.toLowerCase());
+    list = list.filter(v => (v.tags || []).some(t => want.includes(t.toLowerCase())));
   }
 
   // Apply sorting or shuffle

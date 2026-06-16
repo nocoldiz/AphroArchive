@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, currentFolder, updatePrefs, gridViewMode, groupByYear } from '../../store';
 import { CategoryTagsModal } from './CategoryTagsModal';
+import { FilterPanel } from './FilterPanel';
 
 interface SectionControlsProps {
   showSort?: boolean;
@@ -10,6 +11,7 @@ interface SectionControlsProps {
   showClearHistory?: boolean;
   showCardSize?: boolean;
   showFilter?: boolean;
+  showFilters?: boolean;
   showViewMode?: boolean;
   showGroupBy?: boolean;
   
@@ -42,6 +44,7 @@ export const SectionControls = ({
   showClearHistory = false,
   showCardSize = true,
   showFilter = true,
+  showFilters = true,
   showViewMode = true,
   showGroupBy = true,
   sortOptions = [
@@ -113,6 +116,8 @@ export const SectionControls = ({
       {showStarred && (
         <button className={`sort-btn ${starred ? 'on' : ''}`} onClick={() => setStarred(!starred)}>Starred Only</button>
       )}
+
+      {showFilters && <FilterPanel />}
       
       {showShuffle && (
         <button className={`sort-btn ${shuffle ? 'on' : ''}`} onClick={() => setShuffle(!shuffle)}>

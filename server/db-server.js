@@ -32,6 +32,10 @@ let _thumbs     = null;
 let _actors          = null;
 let _folderMappings  = null;
 let _channels         = null;
+// FTS5 full-text index state (declared here so switchProfile — which runs at
+// module load — can touch it before the helper section below is reached).
+let _ftsDirty = true;
+let _ftsAvailable = null;
 
 let db;
 let currentProfile = 'default';
@@ -310,6 +314,18 @@ function ensureSchema(database) {
       FOREIGN KEY (series_key) REFERENCES series(key) ON DELETE CASCADE
     );
   `);
+
+  // Full-text search index over video metadata + scan-index filenames.
+  // A standalone (non-external-content) FTS5 table rebuilt from the source
+  // tables on demand — see rebuildVideoFtsIfDirty(). Wrapped in try/catch
+  // because a few SQLite builds ship without the FTS5 module.
+  try {
+    database.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS video_fts USING fts5(
+      id UNINDEXED, title, name, channel, category, actors, tags, note,
+      tokenize = 'porter unicode61'
+    )`);
+  } catch (e) { /* FTS5 unavailable in this SQLite build */ }
+
   // Migrations for columns added after initial schema
   try { database.exec('ALTER TABLE links ADD COLUMN tags TEXT'); } catch {}
   try { database.exec('ALTER TABLE links ADD COLUMN downloaded INTEGER DEFAULT 0'); } catch {}
@@ -344,6 +360,7 @@ function switchProfile(profileName) {
   _actors          = null;
   _folderMappings  = null;
   _channels         = null;
+  _ftsDirty         = true;
 
   return db;
 }
@@ -708,6 +725,7 @@ function deleteVideoMetaEverywhere(id) {
   _thumbs = null;
   try {
     txn(() => _wipeVideoEverywhere(db, id));
+    markVideoFtsDirty();
   } catch (e) { console.error('Failed to delete video meta:', e); }
   // Always wipe the id from every OTHER profile's DB too — not just from the
   // Vault profile. Each profile keeps its own `video_index` scan cache, and the
@@ -778,6 +796,7 @@ function saveVideoMeta(m) {
         }
       }
     });
+    markVideoFtsDirty();
   } catch (e) {
     console.error('Failed to save video meta to SQLite:', e);
   }
@@ -824,6 +843,7 @@ function setVideoMetaFields(id, fields) {
         for (const tag of [...new Set(fields.tags)]) insertTag.run(id, tag);
       }
     });
+    markVideoFtsDirty();
   } catch (e) {
     console.error('Failed to set video meta fields in SQLite:', e);
   }
@@ -1796,6 +1816,7 @@ function saveVideoIndex(videos) {
         );
       }
     });
+    markVideoFtsDirty();
   } catch (e) {
     console.error('Failed to save video index to SQLite:', e);
   }
@@ -1804,6 +1825,7 @@ function saveVideoIndex(videos) {
 function clearVideoIndex() {
   try {
     db.prepare('DELETE FROM video_index').run();
+    markVideoFtsDirty();
   } catch (e) {
     console.error('Failed to clear video index from SQLite:', e);
   }
@@ -1924,6 +1946,104 @@ function loadAllVideoTags() {
   try {
     return db.prepare('SELECT DISTINCT tag FROM video_tags ORDER BY tag').all().map(r => r.tag);
   } catch { return []; }
+}
+
+// ── Full-text search (FTS5) ──────────────────────────────────────────
+// The video_fts table is rebuilt lazily: any write that changes a title,
+// note, actor, tag or the scan index flips _ftsDirty, and the next query
+// rebuilds before reading. For a local library a full rebuild is cheap
+// (a single INSERT…SELECT), so this stays far simpler than incrementally
+// syncing every mutation.
+function markVideoFtsDirty() { _ftsDirty = true; }
+
+function _ftsOk() {
+  if (_ftsAvailable === null) {
+    try { db.prepare('SELECT 1 FROM video_fts LIMIT 1').get(); _ftsAvailable = true; }
+    catch { _ftsAvailable = false; }
+  }
+  return _ftsAvailable;
+}
+
+function rebuildVideoFtsIfDirty() {
+  if (!_ftsDirty || !_ftsOk()) return;
+  try {
+    txn(() => {
+      db.prepare('DELETE FROM video_fts').run();
+      db.prepare(`
+        INSERT INTO video_fts (id, title, name, channel, category, actors, tags, note)
+        SELECT vi.id,
+               COALESCE(v.title, ''),
+               vi.name,
+               COALESCE(v.channel, ''),
+               COALESCE(NULLIF(v.category, ''), vi.category, ''),
+               COALESCE((SELECT group_concat(actor, ' ') FROM video_actors WHERE video_id = vi.id), ''),
+               COALESCE((SELECT group_concat(tag, ' ')   FROM video_tags   WHERE video_id = vi.id), ''),
+               COALESCE(v.note, '')
+        FROM video_index vi
+        LEFT JOIN videos v ON v.id = vi.id
+      `).run();
+    });
+    _ftsDirty = false;
+  } catch (e) {
+    console.error('Failed to rebuild video FTS index:', e.message);
+  }
+}
+
+// Turn a free-text query into an FTS5 MATCH expression: each alphanumeric
+// token becomes a quoted prefix term, AND-ed together (implicit in FTS5).
+function _ftsMatchExpr(q) {
+  const tokens = String(q || '').toLowerCase().match(/[a-z0-9]+/gi) || [];
+  if (!tokens.length) return null;
+  return tokens.map(t => `"${t}"*`).join(' ');
+}
+
+// Returns an array of matching video ids ranked by relevance, or null when
+// FTS5 is unavailable so callers can fall back to a plain scan.
+function searchVideosFts(q, limit = 1000) {
+  if (!_ftsOk()) return null;
+  rebuildVideoFtsIfDirty();
+  const m = _ftsMatchExpr(q);
+  if (!m) return [];
+  try {
+    return db.prepare(
+      'SELECT id FROM video_fts WHERE video_fts MATCH ? ORDER BY bm25(video_fts) LIMIT ?'
+    ).all(m, limit).map(r => r.id);
+  } catch {
+    return null;
+  }
+}
+
+// Grouped autocomplete suggestions for the search box. Titles come from the
+// FTS index (so they match across all metadata fields); actors, tags and
+// folders are quick prefix/substring lookups against their source tables.
+function suggestSearch(q, limit = 8) {
+  const out = { titles: [], actors: [], tags: [], folders: [] };
+  const term = String(q || '').trim();
+  if (!term) return out;
+  const like = '%' + term.replace(/[%_\\]/g, m => '\\' + m) + '%';
+  try {
+    const ids = searchVideosFts(term, limit * 4);
+    if (ids && ids.length) {
+      const slice = ids.slice(0, limit * 4);
+      const ph = slice.map(() => '?').join(',');
+      const rows = db.prepare(`SELECT id, name FROM video_index WHERE id IN (${ph})`).all(...slice);
+      const byId = new Map(rows.map(r => [r.id, r.name]));
+      const seen = new Set();
+      for (const id of ids) {
+        const name = byId.get(id);
+        if (name && !seen.has(name)) { seen.add(name); out.titles.push(name); }
+        if (out.titles.length >= limit) break;
+      }
+    } else {
+      out.titles = db.prepare("SELECT name FROM video_index WHERE name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?").all(like, limit).map(r => r.name);
+    }
+    out.actors = db.prepare("SELECT DISTINCT actor FROM video_actors WHERE actor LIKE ? ESCAPE '\\' ORDER BY actor LIMIT ?").all(like, limit).map(r => r.actor);
+    out.tags = db.prepare("SELECT DISTINCT tag FROM video_tags WHERE tag LIKE ? ESCAPE '\\' ORDER BY tag LIMIT ?").all(like, limit).map(r => r.tag);
+    out.folders = db.prepare("SELECT DISTINCT cat_path FROM video_index WHERE cat_path <> '' AND cat_path LIKE ? ESCAPE '\\' ORDER BY cat_path LIMIT ?").all(like, limit).map(r => r.cat_path);
+  } catch (e) {
+    console.error('suggestSearch failed:', e.message);
+  }
+  return out;
 }
 
 function saveLinksToDb(items) {
@@ -2136,6 +2256,7 @@ module.exports = {
   closeDb: () => { if (db) { db.close(); db = null; } },
   getMediaCounts,
   saveLinksToDb, loadAllVideoTags,
+  searchVideosFts, suggestSearch, markVideoFtsDirty,
   loadSeries, upsertSeries, deleteSeries, saveSeries,
   loadAlbums, upsertAlbum, deleteAlbum, saveAlbums,
   deleteTagFromAllVideos, renameTagInAllVideos,

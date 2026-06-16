@@ -60,6 +60,7 @@ const albumsDb = require('./server/albums-server');
 const profiles = require('./server/profiles-server');
 const remote = require('./server/remote-server');
 const settings = require('./server/settings-server');
+const search = require('./server/search-server');
 const plugins = require('./server/plugins-server');
 const prompts = require('./server/prompts-server');
 const comments = require('./server/comments-server');
@@ -180,6 +181,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/categorizer/stop' && req.method === 'POST') return videos.apiCategorizerStop(req, res);
   if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
+  if (p === '/api/search/suggest' && req.method === 'GET') return search.apiSearchSuggest(req, res, params);
+  if (p === '/api/search' && req.method === 'GET') return search.apiSearch(req, res, params);
   if (p === '/api/folders' && req.method === 'GET') return videos.apiFolders(req, res, params);
   if (p === '/api/folders-overview' && req.method === 'GET') return videos.apiFoldersOverview(req, res);
   if (p === '/api/all-folders' && req.method === 'GET') return videos.apiGetAllFolders(req, res);
