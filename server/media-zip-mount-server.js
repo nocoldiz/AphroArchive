@@ -22,6 +22,8 @@ const { formatBytes: _fmtBytes } = require('./helpers-server');
 let _mounts     = {}; // mountId → MountInfo
 let _entryIndex = {}; // entryId → { mountId, entry }
 let _scanned    = false;
+let _lastScanMs = 0;
+const _SCAN_COOLDOWN_MS = 2000; // prevent rapid re-scans from fs.watch bursts
 
 // MountInfo: { zipPath, displayName, basePath, rootFolderId,
 //              entries: EntryInfo[], subFolders: { dirPath: folderId },
@@ -111,6 +113,7 @@ function _indexZip(zipPath, zipName, catPath) {
 function scanMediaZips() {
   _clear();
   _scanned = true;
+  _lastScanMs = Date.now();
 
   const roots = [VIDEOS_DIR];
   try {
@@ -136,7 +139,9 @@ function scanMediaZips() {
   console.log(`[media-zip] scanned ${seen.size} archive(s), ${Object.keys(_mounts).length} mounted`);
 }
 
-function ensureScanned() { if (!_scanned) scanMediaZips(); }
+function ensureScanned() {
+  if (!_scanned && Date.now() - _lastScanMs >= _SCAN_COOLDOWN_MS) scanMediaZips();
+}
 
 function invalidate() { _clear(); _scanned = false; }
 

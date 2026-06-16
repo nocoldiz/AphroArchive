@@ -238,15 +238,16 @@ async function apiSwitchProfile(req, res) {
   if (!profile) return json(res, { error: 'Profile name required' }, 400);
   
   const db = require('./db-server');
-  const { isUnlocked, lockVault } = require('./vault-server');
+  const { isUnlocked, lockVault, scheduleDeferredLock } = require('./vault-server');
 
   if (profile === 'Vault' && !isUnlocked()) {
     return json(res, { error: 'Vault is locked', locked: true }, 401);
   }
 
   // Switching away from Vault: drop the session key so it doesn't outlive
-  // the profile context or keep the auto-lock timer ticking in the background.
-  if (profile !== 'Vault') lockVault();
+  // the profile context. If an encrypt/decrypt batch is in flight we defer
+  // the lock until it finishes rather than pulling the key out mid-stream.
+  if (profile !== 'Vault') scheduleDeferredLock();
 
   db.switchProfile(profile);
   saveLastProfile(profile);

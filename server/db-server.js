@@ -771,10 +771,10 @@ function saveVideoMeta(m) {
       for (const [id, data] of Object.entries(m)) {
         insertVideo.run(id, data.title || '', data.channel || '', data.category || '', data.rating || null, data.note || '', data.date || '', data.language || '');
         if (Array.isArray(data.actors)) {
-          for (const actor of data.actors) insertActor.run(id, actor);
+          for (const actor of [...new Set(data.actors)]) insertActor.run(id, actor);
         }
         if (Array.isArray(data.tags)) {
-          for (const tag of data.tags) insertTag.run(id, tag);
+          for (const tag of [...new Set(data.tags)]) insertTag.run(id, tag);
         }
       }
     });
@@ -816,12 +816,12 @@ function setVideoMetaFields(id, fields) {
       if (fields.actors) {
         db.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
         const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
-        for (const actor of fields.actors) insertActor.run(id, actor);
+        for (const actor of [...new Set(fields.actors)]) insertActor.run(id, actor);
       }
       if (fields.tags) {
         db.prepare('DELETE FROM video_tags WHERE video_id = ?').run(id);
         const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
-        for (const tag of fields.tags) insertTag.run(id, tag);
+        for (const tag of [...new Set(fields.tags)]) insertTag.run(id, tag);
       }
     });
   } catch (e) {

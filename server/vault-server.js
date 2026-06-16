@@ -37,10 +37,24 @@ let vaultTimer = null;
 // orphaning every already-encrypted file. While this counter is > 0 the
 // auto-lock timer is held off; resumeAutoLock() re-arms it once the job ends.
 let _autoLockHold = 0;
+// Set by scheduleDeferredLock() when a profile switch away from Vault happens
+// while an encryption/decryption job is running. Cleared in lockVault() and
+// when the vault is unlocked again. The lock fires when _autoLockHold returns
+// to 0 inside resumeAutoLock().
+let _deferredLock = false;
 function suspendAutoLock() { _autoLockHold++; if (vaultTimer) { clearTimeout(vaultTimer); vaultTimer = null; } }
 function resumeAutoLock() {
   if (_autoLockHold > 0) _autoLockHold--;
-  if (_autoLockHold === 0) resetVaultTimer();
+  if (_autoLockHold === 0) {
+    if (_deferredLock) { _deferredLock = false; lockVault(); return; }
+    resetVaultTimer();
+  }
+}
+// Called by the profile-switch handler instead of lockVault() so that an
+// in-progress batch job can finish before the session key is cleared.
+function scheduleDeferredLock() {
+  if (_autoLockHold > 0) { _deferredLock = true; }
+  else { lockVault(); }
 }
 
 const NO_CACHE_HEADERS = {
@@ -135,6 +149,34 @@ function _shredFile(filePath) {
 }
 
 
+
+// Stream-decrypt an .enc blob to a destination file (no full-RAM buffer).
+// Reads IV + auth tag synchronously (28 bytes), then pipes ciphertext through
+// AES-256-GCM. GCM auth-tag verification happens at dec.final(); if it fails
+// dec emits 'error' before out emits 'finish', so the Promise always rejects
+// cleanly and callers can unlink the partial temp file.
+async function _streamDecryptToFile(encPath, destPath) {
+  const stat = fs.statSync(encPath);
+  const total = stat.size;
+  if (total < IV_PREFIX_LEN + TAG_LEN) throw new Error('Encrypted file is too small or corrupted');
+  const fd = fs.openSync(encPath, 'r');
+  const iv = Buffer.alloc(IV_PREFIX_LEN);
+  fs.readSync(fd, iv, 0, IV_PREFIX_LEN, 0);
+  const tag = Buffer.alloc(TAG_LEN);
+  fs.readSync(fd, tag, 0, TAG_LEN, total - TAG_LEN);
+  fs.closeSync(fd);
+  const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
+  dec.setAuthTag(tag);
+  const src = fs.createReadStream(encPath, { start: IV_PREFIX_LEN, end: total - TAG_LEN - 1 });
+  const out = fs.createWriteStream(destPath);
+  await new Promise((resolve, reject) => {
+    src.on('error', reject);
+    out.on('error', reject);
+    dec.on('error', reject);
+    out.on('finish', resolve);
+    src.pipe(dec).pipe(out);
+  });
+}
 
 // Stream-decrypt an .enc file directly to an HTTP response (no temp files)
 // File format: [12 IV][encrypted data][16 auth tag]
@@ -889,6 +931,7 @@ async function apiVaultSetup(req, res) {
     saveVaultConfig(cfg);
     vaultKey = encKey;
     vaultPassword = pw;
+    _deferredLock = false;
     setVaultKey(encKey);
     failedAttempts = 0; cooldownUntil = 0;
     resetVaultTimer();
@@ -941,6 +984,7 @@ async function apiVaultUnlock(req, res) {
     failedAttempts = 0; cooldownUntil = 0;
     vaultKey = encKey;
     vaultPassword = pw;
+    _deferredLock = false;
     setVaultKey(encKey);
     resetVaultTimer();
     json(res, { ok: true });
@@ -1230,36 +1274,17 @@ async function apiVaultRestoreFile(req, res, id) {
     }
   }
 
+  const tmpDest = finalDest + '.restoring';
   try {
-    // Read the encrypted file
-    const raw = fs.readFileSync(encPath);
-    const ivLen = 12, tagLen = 16;
-    if (raw.length < ivLen + tagLen) return json(res, { error: 'Encrypted file is too small or corrupted' }, 500);
-
-    const iv  = raw.slice(0, ivLen);
-    const tag = raw.slice(raw.length - tagLen);
-    const ct  = raw.slice(ivLen, raw.length - tagLen);
-
-    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
-    dec.setAuthTag(tag);
-    const plaintext = Buffer.concat([dec.update(ct), dec.final()]);
-
-    // Write decrypted data to destination atomically via a temp file
-    const tmpDest = finalDest + '.restoring';
-    fs.writeFileSync(tmpDest, plaintext);
+    await _streamDecryptToFile(encPath, tmpDest);
     fs.renameSync(tmpDest, finalDest);
-
-    // SUCCESS — now it is safe to remove the encrypted copy
     _shredFile(encPath);
-
-    // Remove from vault metadata
     delete meta[id];
     saveVaultMeta(meta);
-
+    try { require('./videos-server').invalidateScanCache(); } catch {}
     json(res, { ok: true, path: finalDest, name: path.basename(finalDest) });
   } catch (e) {
-    // Clean up any partial temp file
-    try { fs.unlinkSync(finalDest + '.restoring'); } catch { }
+    try { fs.unlinkSync(tmpDest); } catch {}
     json(res, { error: 'Restore failed: ' + e.message }, 500);
   }
 }
@@ -1641,6 +1666,7 @@ function lockVault() {
   clearVaultTimer();
   vaultKey = null;
   _autoLockHold = 0;
+  _deferredLock = false;
   try { setVaultKey(null); } catch {}
   failedAttempts = 0;
   cooldownUntil = 0;
@@ -1698,25 +1724,17 @@ async function apiVaultRestoreToOrigin(req, res, id) {
     while (fs.existsSync(finalDest)) finalDest = path.join(destDir, `${base}_${n++}${ext}`);
   }
 
+  const tmpDest = finalDest + '.restoring';
   try {
-    const raw = fs.readFileSync(encPath);
-    const ivLen = 12, tagLen = 16;
-    if (raw.length < ivLen + tagLen) return json(res, { error: 'File corrupted' }, 500);
-    const iv = raw.slice(0, ivLen);
-    const tag = raw.slice(raw.length - tagLen);
-    const ct = raw.slice(ivLen, raw.length - tagLen);
-    const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
-    dec.setAuthTag(tag);
-    const plaintext = Buffer.concat([dec.update(ct), dec.final()]);
-    const tmpDest = finalDest + '.restoring';
-    fs.writeFileSync(tmpDest, plaintext);
+    await _streamDecryptToFile(encPath, tmpDest);
     fs.renameSync(tmpDest, finalDest);
     _shredFile(encPath);
     delete meta[id];
     saveVaultMeta(meta);
+    try { require('./videos-server').invalidateScanCache(); } catch {}
     json(res, { ok: true, path: finalDest, name: path.basename(finalDest) });
   } catch (e) {
-    try { fs.unlinkSync(finalDest + '.restoring'); } catch {}
+    try { fs.unlinkSync(tmpDest); } catch {}
     json(res, { error: 'Restore failed: ' + e.message }, 500);
   }
 }
@@ -1864,7 +1882,7 @@ module.exports = {
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
-  deriveKeys, NO_CACHE_HEADERS, isUnlocked, lockVault, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
+  deriveKeys, NO_CACHE_HEADERS, isUnlocked, lockVault, scheduleDeferredLock, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
   encryptBufferToVault, createVaultFolder, suspendAutoLock, resumeAutoLock, reconcileVaultOrphans,
   apiVaultThumb, apiVaultGenThumbs, apiVaultGenThumbsStatus, generateVaultThumb,
   shredFile: _shredFile,

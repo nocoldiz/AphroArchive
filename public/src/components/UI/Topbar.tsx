@@ -6,6 +6,7 @@ import { SyncManager } from './SyncManager';
 import { FilterDropdowns, SectionDropdowns } from './LibraryFilters';
 import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles, openExternalFolder } from '../../store';
 import { zapOn } from '../../zap';
+import { isTVMode } from '../../tv-mode';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, sectionPlacementFor, setItemPlacement, sortByOrder, setNavOrder, activeDrag } from './navItems';
 
@@ -187,6 +188,8 @@ export const Topbar = () => {
         {movedPlugins.map(p => {
           const isActive = p.type === 'toggle' && p.toggleAction === 'toggleZapping'
             ? zapOn.value
+            : p.type === 'toggle' && p.toggleAction === 'toggleTVMode'
+            ? isTVMode.value
             : p.type === 'view' && view === p.view;
           return (
             <button

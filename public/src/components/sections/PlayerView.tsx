@@ -1,5 +1,6 @@
 ﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, appPrefs } from '../../store';
 import { zapOn, zapStartTime } from '../../zap';
+import { isTVMode, tvStartTime, nextVideoInChannel } from '../../tv-mode';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AiComments } from '../UI/AiComments';
@@ -152,6 +153,10 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (video) {
+      if (isTVMode.value) {
+        playerNextUp.value = [];
+        return;
+      }
       if (skipNextUpUpdate.value) {
         skipNextUpUpdate.value = false;
         return;
@@ -219,7 +224,10 @@ export const PlayerView = () => {
     if (video) setCardThumb(getThumbPref(video.id));
     // Reset any chapter-based start time after the player has consumed it,
     // so a stale value doesn't bleed into the next video opened from VideoGrid.
-    return () => { if (!zapOn.value) zapStartTime.value = 0; };
+    return () => {
+      if (!zapOn.value) zapStartTime.value = 0;
+      tvStartTime.value = 0;
+    };
   }, [video?.id]);
 
   useEffect(() => {
@@ -651,8 +659,8 @@ export const PlayerView = () => {
                 language={language}
                 videoRef={videoRef}
                 isMuted={isMuted.value}
-                startTime={zapStartTime.value}
-                onNext={() => {
+                startTime={isTVMode.value ? tvStartTime.value : zapStartTime.value}
+                onNext={isTVMode.value ? nextVideoInChannel : () => {
                   if (playerNextUp.value.length > 0) {
                     playerHistory.value = [...playerHistory.value, video];
                     currentVideo.value = playerNextUp.value[0];
@@ -682,8 +690,8 @@ export const PlayerView = () => {
                 language={language}
                 videoRef={videoRef}
                 isMuted={isMuted.value}
-                startTime={zapStartTime.value}
-                onNext={() => {
+                startTime={isTVMode.value ? tvStartTime.value : zapStartTime.value}
+                onNext={isTVMode.value ? nextVideoInChannel : () => {
                   if (playerNextUp.value.length > 0) {
                     playerHistory.value = [...playerHistory.value, video];
                     currentVideo.value = playerNextUp.value[0];

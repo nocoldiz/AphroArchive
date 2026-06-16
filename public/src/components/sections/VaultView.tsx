@@ -458,14 +458,13 @@ export const VaultView = () => {
 
   const handleDecryptFile = async (id: string) => {
     const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' });
+    const w = window as any;
     if (res.ok) {
       setFiles(prev => prev.filter(f => f.id !== id));
-      const w = window as any;
       if (w.toast) w.toast('File restored to original folder');
-      if (w.loadVideos) w.loadVideos();
+      // SSE scan_changed fires when the file lands in VIDEOS_DIR — no manual reload needed
     } else {
       const err = await res.json().catch(() => ({}));
-      const w = window as any;
       if (w.toast) w.toast('Restore failed: ' + (err.error || 'Unknown error'));
     }
   };
@@ -652,7 +651,7 @@ export const VaultView = () => {
     setFiles(prev => prev.filter(f => !selectedIds.has(f.id)));
     setSelectedIds(new Set());
     const w = window as any;
-    if (w.loadVideos) w.loadVideos();
+    // SSE scan_changed fires when files land in VIDEOS_DIR — no manual reload needed
     if (w.toast) w.toast(`Decrypted ${ok} file${ok !== 1 ? 's' : ''}`);
   };
 

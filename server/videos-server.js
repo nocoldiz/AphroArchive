@@ -707,9 +707,9 @@ async function initVideoMeta() {
 
     for (const v of videos) {
       if (!meta[v.id]) {
-        const detectedTags   = categories.filter(e => wordMatchAny(v.name, e.terms)).map(e => e.displayName);
+        const detectedTags   = [...new Set(categories.filter(e => wordMatchAny(v.name, e.terms)).map(e => e.displayName))];
         const detectedChannel = channels.find(e => channelMatchAny(v.name, e.terms));
-        const detectedActors = actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name);
+        const detectedActors = [...new Set(actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name))];
         meta[v.id] = {
           title: v.name,
           actors: detectedActors,

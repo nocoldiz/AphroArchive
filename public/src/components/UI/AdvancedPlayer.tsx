@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { isMuted as isMutedSignal } from '../../store';
 import { getProgress, setProgress } from '../../home/progress';
+import { isTVMode, tvChannels, tvCurrentChannelIdx, tvFavChannels, toggleTVFav, nextTVChannel, prevTVChannel, playChannel } from '../../tv-mode';
 
 interface Chapter {
   id: string;
@@ -98,6 +99,10 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const hlsInstanceRef = useRef<any>(null);
   const [audioTracks, setAudioTracks] = useState<{ index: number; language: string; title: string; codec: string; channels: number }[]>([]);
   const [selectedAudio, setSelectedAudio] = useState(0);
+  const [showChannelPicker, setShowChannelPicker] = useState(false);
+  const [showTVFavs, setShowTVFavs] = useState(false);
+  const channelPickerRef = useRef<HTMLDivElement>(null);
+  const tvFavsRef = useRef<HTMLDivElement>(null);
 
   const activeHlsSrc = hlsSrc
     ? (selectedAudio > 0 ? `${hlsSrc.split('?')[0]}?audio=${selectedAudio}` : hlsSrc)
@@ -391,6 +396,28 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     return () => document.removeEventListener('mousedown', onDown);
   }, [showSubPicker]);
 
+  useEffect(() => {
+    if (!showChannelPicker) return;
+    const onDown = (e: MouseEvent) => {
+      if (channelPickerRef.current && !channelPickerRef.current.contains(e.target as Node)) {
+        setShowChannelPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showChannelPicker]);
+
+  useEffect(() => {
+    if (!showTVFavs) return;
+    const onDown = (e: MouseEvent) => {
+      if (tvFavsRef.current && !tvFavsRef.current.contains(e.target as Node)) {
+        setShowTVFavs(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showTVFavs]);
+
   // ── Live captions via the browser SpeechRecognition API ────────────
   // Listens through the microphone, so video audio must be audible (speakers).
   useEffect(() => {
@@ -510,10 +537,10 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
           setSelectedSubIdx(v => v !== null ? null : 0);
           break;
         case 'n': case 'N':
-          if (onNextRef.current) onNextRef.current();
+          if (isTVMode.value) nextTVChannel(); else if (onNextRef.current) onNextRef.current();
           break;
         case 'p': case 'P':
-          if (onPrevRef.current) onPrevRef.current();
+          if (isTVMode.value) prevTVChannel(); else if (onPrevRef.current) onPrevRef.current();
           break;
       }
     };
@@ -784,9 +811,9 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
             <button onClick={togglePlay} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem' }}>
               {playing ? '⏸' : '▶'}
             </button>
-            <button onClick={onPrev} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
+            <button onClick={() => isTVMode.value ? prevTVChannel() : onPrev?.()} title={isTVMode.value ? 'Prev channel (P)' : 'Previous'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
             <button onClick={() => setLocalZap(!localZap)} style={{ background: 'none', border: 'none', color: localZap ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '1.2rem' }} title="Local Zap Mode">⚡</button>
-            <button onClick={onNext} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
+            <button onClick={() => isTVMode.value ? nextTVChannel() : onNext?.()} title={isTVMode.value ? 'Next channel (N)' : 'Next'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
             <span style={{ fontSize: '0.9rem' }}>{formatDuration(currentTime)} / {formatDuration(duration)}</span>
             <button
               onClick={() => { setLoopA(currentTime); if (loopB !== null && currentTime >= loopB) setLoopB(null); }}
@@ -812,6 +839,92 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {/* TV Mode — channel picker + fav dropdown */}
+            {isTVMode.value && (() => {
+              const channels = tvChannels.value;
+              const curIdx = tvCurrentChannelIdx.value;
+              const curCh = channels[curIdx];
+              const favIds = tvFavChannels.value;
+              const favChannels = channels.filter(c => favIds.has(c.id));
+              return (
+                <>
+                  {/* Favourites quick-access */}
+                  {favChannels.length > 0 && (
+                    <div ref={tvFavsRef} style={{ position: 'relative' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setShowTVFavs(v => !v); setShowChannelPicker(false); }}
+                        title="Favourite channels"
+                        style={{ background: showTVFavs ? 'rgba(255,200,0,0.25)' : 'none', border: showTVFavs ? '1px solid #ffd700' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: showTVFavs ? '#ffd700' : '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px' }}
+                      >
+                        ★
+                      </button>
+                      {showTVFavs && (
+                        <div style={{ position: 'absolute', bottom: '28px', right: 0, background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', minWidth: '180px', zIndex: 20, overflow: 'hidden' }}>
+                          <div style={{ padding: '6px 10px 4px', fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Favourites</div>
+                          {favChannels.map((ch, i) => (
+                            <div
+                              key={ch.id}
+                              onClick={() => { const idx = channels.indexOf(ch); if (idx !== -1) playChannel(idx); setShowTVFavs(false); }}
+                              style={{ padding: '7px 10px', fontSize: '0.82rem', cursor: 'pointer', color: ch.id === (channels[curIdx]?.id) ? 'var(--ac, #ff4a4a)' : '#fff', background: ch.id === (channels[curIdx]?.id) ? 'rgba(255,255,255,0.07)' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}
+                            >
+                              <span>{ch.name}</span>
+                              <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>{ch.videos.length}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Channel name + full picker */}
+                  <div ref={channelPickerRef} style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setShowChannelPicker(v => !v); setShowTVFavs(false); }}
+                      title="Channel picker"
+                      style={{ background: showChannelPicker ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '4px', color: '#fff', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '5px', maxWidth: '150px' }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {curCh ? `${curIdx + 1}. ${curCh.name}` : 'TV'}
+                      </span>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0 }}><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    {showChannelPicker && (
+                      <div style={{ position: 'absolute', bottom: '30px', right: 0, background: 'rgba(15,15,15,0.98)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', width: '240px', maxHeight: '360px', overflowY: 'auto', zIndex: 25 }}>
+                        <div style={{ padding: '8px 10px 4px', fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px', position: 'sticky', top: 0, background: 'rgba(15,15,15,0.98)' }}>
+                          All Channels — {channels.length}
+                        </div>
+                        {channels.map((ch, i) => (
+                          <div
+                            key={ch.id}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: i === curIdx ? 'rgba(255,255,255,0.07)' : 'none', borderLeft: i === curIdx ? '2px solid var(--ac, #ff4a4a)' : '2px solid transparent' }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleTVFav(ch.id)}
+                              title={favIds.has(ch.id) ? 'Remove from favourites' : 'Add to favourites'}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: favIds.has(ch.id) ? '#ffd700' : 'rgba(255,255,255,0.25)', fontSize: '0.85rem', padding: '0', flexShrink: 0, lineHeight: 1 }}
+                            >
+                              ★
+                            </button>
+                            <div
+                              onClick={() => { playChannel(i); setShowChannelPicker(false); }}
+                              style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', color: i === curIdx ? 'var(--ac, #ff4a4a)' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', justifyContent: 'space-between', gap: '6px' }}
+                            >
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{i + 1}. {ch.name}</span>
+                              <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{ch.videos.length}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+
             {/* Volume */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <button onClick={() => setMutedAndSync(!muted)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
