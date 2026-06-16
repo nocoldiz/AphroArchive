@@ -4,11 +4,11 @@ import * as api from './api';
 
 // ─── Core State ──────────────────────────────────────────────────────
 export const videos = signal<Video[]>([]);
-// Seed the unfiltered list with cached local videos + cached link videos so the
-// grid and Links dropdown render instantly on load instead of showing skeletons
-// while /api/videos and /api/links/cache are in flight. loadVideos() replaces
-// this with the full fresh list moments later.
-export const allVideos = signal<Video[]>([...readVideosCache(), ...readLinksCache().videos]); // Full unfiltered list
+// Seed the unfiltered list with cached link videos so the topbar/sidebar Links
+// dropdown (its "All Links" badge + tag counts read from here) renders instantly
+// on load, instead of waiting for the heavy /api/links/cache round-trip in
+// loadVideosInner. loadVideos() replaces this with the full list moments later.
+export const allVideos = signal<Video[]>(readLinksCache().videos); // Full unfiltered list
 // Persist the default profile's folder list so the sidebar can show folder
 // names instantly on next load (while the real /api/folders scan runs), instead
 // of flashing an empty list. Scoped to 'default' to avoid persisting encrypted
@@ -26,28 +26,6 @@ function writeFoldersCache(list: Folder[]) {
     localStorage.setItem(FOLDERS_CACHE_KEY, JSON.stringify(
       list.filter(f => !f.opened).map(f => ({ name: f.name, path: f.path, count: 0, encrypted: f.encrypted, partial: f.partial }))
     ));
-  } catch {}
-}
-
-// Persist the default profile's local video list so the grid renders immediately
-// on next load instead of showing skeletons while /api/videos is in flight.
-// Only local videos are stored here; links are cached separately. Heavy fields
-// (note, chapters) are stripped to keep the payload small.
-const VIDEOS_CACHE_KEY = 'videosCache:default';
-function readVideosCache(): Video[] {
-  try {
-    const arr = JSON.parse(localStorage.getItem(VIDEOS_CACHE_KEY) || 'null');
-    return Array.isArray(arr) ? arr : [];
-  } catch { return []; }
-}
-function writeVideosCache(localVideos: Video[]) {
-  try {
-    const slim = localVideos.map((v: any) => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { note, chapters, ...rest } = v;
-      return rest;
-    });
-    localStorage.setItem(VIDEOS_CACHE_KEY, JSON.stringify(slim));
   } catch {}
 }
 
@@ -358,7 +336,6 @@ if (typeof document !== 'undefined') {
   });
 }
 export const isLoadingVideos = signal<boolean>(false);
-let _loadGen = 0;
 export const sortMode = signal<string>(localStorage.getItem('sortMode') || 'date');
 export const isShuffle = signal<boolean>(localStorage.getItem('isShuffle') === 'true');
 // Bumped each time shuffle is (re-)enabled — the only thing that should re-roll order
@@ -940,16 +917,13 @@ export async function closeOpenedFolder(openedRoot: string) {
 }
 
 export async function loadVideos() {
-  const gen = ++_loadGen;
   isLoadingVideos.value = true;
   try {
-    await loadVideosInner(gen);
+    await loadVideosInner();
   } catch (e) {
-    if (gen === _loadGen) {
-      (window as any).toastError?.('Could not load videos — is the server still running? Check the terminal.');
-    }
+    (window as any).toastError?.('Could not load videos — is the server still running? Check the terminal.');
   } finally {
-    if (gen === _loadGen) isLoadingVideos.value = false;
+    isLoadingVideos.value = false;
   }
 }
 
@@ -960,7 +934,7 @@ export async function loadVideos() {
 // This catches encryption started from any entry point and keeps other surfaces
 // from showing the now-removed video until a restart.
 export async function refreshLibraryQuietly() {
-  try { await loadVideosInner(_loadGen); } catch {}
+  try { await loadVideosInner(); } catch {}
   try {
     const hist = await (await fetch('/api/history')).json();
     if (Array.isArray(hist)) {
@@ -971,7 +945,7 @@ export async function refreshLibraryQuietly() {
   } catch {}
 }
 
-async function loadVideosInner(gen: number) {
+async function loadVideosInner() {
   const isVaultGlobal = activeProfile.value === 'Vault' && vaultGlobalView.value;
   const videosUrl = isVaultGlobal ? '/api/videos?all=1' : '/api/videos';
   const foldersUrl = isVaultGlobal ? '/api/folders?all=1' : '/api/folders';
@@ -983,10 +957,6 @@ async function loadVideosInner(gen: number) {
   ]);
   if (!res.ok) throw new Error('Failed to fetch videos');
   const data = await res.json();
-
-  // Discard results if a newer loadVideos() call has already started (e.g. the
-  // user switched profiles while this initial request was in flight).
-  if (gen !== _loadGen) return;
 
   const cats = cRes ? await cRes.json().catch(() => []) : [];
   if (Array.isArray(cats)) folders.value = cats;
@@ -1019,10 +989,9 @@ async function loadVideosInner(gen: number) {
     .filter((b: any) => b.url && !b.downloaded)
     .map(linkItemToVideo);
 
-  // Refresh the localStorage caches that seed the grid and Links dropdown on next load.
+  // Refresh the localStorage cache that seeds the Links dropdown on next load.
   if (activeProfile.value === 'default' && !isVaultGlobal) {
     writeLinksCache(linkVideos, linkTotalCount.value);
-    writeVideosCache(localVideos as Video[]);
   }
 
   // Annotate local videos that came from a downloaded link with the original page URL
