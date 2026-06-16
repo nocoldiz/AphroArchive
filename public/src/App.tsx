@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { videos, loadVideos, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders } from './store';
+import { videos, loadVideos, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders, appReady } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { OnboardingWizard } from './components/modals/OnboardingWizard';
@@ -66,8 +66,7 @@ export function App() {
     // loadVideos() already fetches /api/folders and populates the folders
     // signal (with recomputed counts), so a separate loadFolders() here would
     // re-hit the same heavy endpoint for identical data — skip it.
-    loadVideos();
-    loadPrefs();
+    Promise.all([loadVideos(), loadPrefs()]).then(() => { appReady.value = true; }).catch(() => { appReady.value = true; });
 
     // Restore vault unlock state and auto-navigate if we're in the Vault profile
     fetch('/api/vault/status')
@@ -249,6 +248,20 @@ export function App() {
       <ProfileModal />
       {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}
       <DropOverlay />
+      {!appReady.value && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99998,
+          background: 'var(--bg, #0d0d0d)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: '20px',
+          transition: 'opacity 0.3s',
+        }}>
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+            <circle cx="22" cy="22" r="18" stroke="var(--ac, #e040fb)" strokeWidth="3" strokeDasharray="80 30" strokeLinecap="round" />
+          </svg>
+          <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.8rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Loading</div>
+        </div>
+      )}
 
       {connLost && (
         <div style={{

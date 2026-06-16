@@ -336,6 +336,7 @@ if (typeof document !== 'undefined') {
   });
 }
 export const isLoadingVideos = signal<boolean>(false);
+export const appReady = signal<boolean>(false);
 export const sortMode = signal<string>(localStorage.getItem('sortMode') || 'date');
 export const isShuffle = signal<boolean>(localStorage.getItem('isShuffle') === 'true');
 // Bumped each time shuffle is (re-)enabled — the only thing that should re-roll order

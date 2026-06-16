@@ -1697,6 +1697,10 @@ input {
   border-radius: var(--rl)
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @keyframes shm {
   0% {
     background-position: 200% 0
@@ -8631,6 +8635,47 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   font-weight: 700;
   font-size: 0.95rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.zap-queue-search {
+  padding: 0 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zap-queue-search input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.82rem;
+  padding: 5px 10px;
+  outline: none;
+}
+
+.zap-queue-search input:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.zap-queue-search input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.zap-queue-search-clear {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 4px 6px;
+  flex-shrink: 0;
+}
+
+.zap-queue-search-clear:hover {
+  color: #fff;
 }
 
 .zap-queue-list {

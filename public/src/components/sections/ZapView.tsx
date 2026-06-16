@@ -1,8 +1,9 @@
-import { isMuted } from '../../store';
+import { useState, useCallback } from 'preact/hooks';
+import { isMuted, allVideos, linkVidIds } from '../../store';
 import {
   zapLock, zapMinIv, zapMaxIv, zapRemaining, zapTotalIv, zapQueue, zapHistory,
   zapStartTime, setZapMinIv, setZapMaxIv, toggleZapLock, stopZapping, doZapSwitch,
-  jumpToZapVideo, jumpToPrevZap, ZapQueueItem
+  jumpToZapVideo, jumpToPrevZap, refillZapQueue, setZapQueueFromList, ZapQueueItem
 } from '../../zap';
 import { AdvancedPlayer } from '../UI/AdvancedPlayer';
 
@@ -24,6 +25,27 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
   const total = zapTotalIv.value;
   const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
   const src = video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`;
+
+  const [zapSearch, setZapSearch] = useState('');
+
+  const handleZapSearch = useCallback((q: string) => {
+    setZapSearch(q);
+    const trimmed = q.trim().toLowerCase();
+    if (!trimmed) {
+      refillZapQueue();
+      return;
+    }
+    const bms = linkVidIds.value;
+    const matches = allVideos.value.filter(v => {
+      if (v.isLink || bms.has(v.id)) return false;
+      const name = (v.name || '').toLowerCase();
+      const cat = (v.category || '').toLowerCase();
+      const studio = (v.studio || '').toLowerCase();
+      const actors: string[] = (v.actors || []).map((a: string) => a.toLowerCase());
+      return name.includes(trimmed) || cat.includes(trimmed) || studio.includes(trimmed) || actors.some(a => a.includes(trimmed));
+    });
+    setZapQueueFromList(matches);
+  }, []);
 
   return (
     <div className="zap-immersive">
@@ -99,6 +121,17 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
 
       <div className="zap-queue">
         <div className="zap-queue-header">Up Next</div>
+        <div className="zap-queue-search">
+          <input
+            type="text"
+            placeholder="Search queue…"
+            value={zapSearch}
+            onInput={(e: any) => handleZapSearch(e.target.value)}
+          />
+          {zapSearch && (
+            <button type="button" className="zap-queue-search-clear" onClick={() => handleZapSearch('')}>✕</button>
+          )}
+        </div>
         <div className="zap-queue-list">
           {zapQueue.value.map((item: ZapQueueItem) => (
             <div key={item.video.id} className="zap-queue-item" onClick={() => jumpToZapVideo(item)}>

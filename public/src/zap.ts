@@ -53,7 +53,7 @@ function randomZapInterval() {
   return min + Math.random() * (max - min);
 }
 
-function pickStartTime(vid: any) {
+export function pickStartTime(vid: any) {
   const duration = vid.duration || 60;
   const cap = Math.max(zapMinIv.value, zapMaxIv.value);
   return Math.random() * Math.max(0, duration - cap);
@@ -90,6 +90,18 @@ export function refillZapQueue() {
 
   zapQueue.value = q;
   preloadZapItem(q[0]);
+}
+
+export function setZapQueueFromList(videos: any[]) {
+  const shuffled = [...videos].sort(() => Math.random() - 0.5);
+  const bms = linkVidIds.value;
+  const streamable = shuffled.filter(v => !v.isLink && !bms.has(v.id));
+  const items: ZapQueueItem[] = streamable.slice(0, QUEUE_SIZE).map(v => ({
+    video: v,
+    startTime: pickStartTime(v),
+  }));
+  zapQueue.value = items;
+  preloadZapItem(items[0]);
 }
 
 function clearZapTimers() {
