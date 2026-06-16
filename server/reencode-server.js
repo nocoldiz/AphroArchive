@@ -16,6 +16,9 @@ const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.web
 
 let _job = null; // { running, stop, total, done, failed, skipped, current, savedBytes }
 const _clients = new Set();
+// The ffmpeg child currently transcoding (so Stop can kill it instead of waiting
+// up to 3 hours for the current file to finish).
+let _currentChild = null;
 
 function broadcast(ev) {
   const line = 'data: ' + JSON.stringify(ev) + '\n\n';
@@ -148,8 +151,19 @@ async function runBatch(ids, category) {
       ];
 
       const ok = await new Promise(resolve => {
-        execFile(FFMPEG_BIN, ffArgs, { timeout: 3 * 60 * 60 * 1000 }, err => resolve(!err));
+        const child = execFile(FFMPEG_BIN, ffArgs, { timeout: 3 * 60 * 60 * 1000 }, err => {
+          if (_currentChild === child) _currentChild = null;
+          resolve(!err);
+        });
+        _currentChild = child;
       });
+
+      // User pressed Stop → the child was killed; clean up the partial temp file
+      // and exit the loop without counting it as a failure.
+      if (_job.stop) {
+        try { fs.unlinkSync(tmpFp); } catch {}
+        break;
+      }
 
       if (!ok || !fs.existsSync(tmpFp)) {
         try { fs.unlinkSync(tmpFp); } catch {}
@@ -198,6 +212,12 @@ async function apiReencodeStart(req, res) {
 
 function apiReencodeStop(req, res) {
   if (_job) _job.stop = true;
+  // Kill the in-flight ffmpeg so the batch halts immediately instead of waiting
+  // for the current (potentially multi-hour) transcode to finish.
+  if (_currentChild) {
+    try { _currentChild.kill('SIGKILL'); } catch {}
+    _currentChild = null;
+  }
   json(res, { ok: true });
 }
 

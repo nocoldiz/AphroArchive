@@ -1183,32 +1183,54 @@ export const SettingsView = () => {
         )}
 
         {/* ══ Plugins ═════════════════════════════════════════════════ */}
-        {activeTab === 'plugins' && (
-          <div style={wrap}>
-            <div style={secLast}>
-              <h3 style={secH}>Plugin Manager</h3>
-              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Enable or disable optional modes. Disabled plugins are hidden from the topbar and sidebar.</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {pluginsList.value.map(p => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '8px' }}>
-                    <div>
-                      <div style={{ fontSize: '14px', color: 'var(--tx)', fontWeight: 600 }}>{p.name}</div>
-                      {p.description && <div style={{ fontSize: '12px', color: 'var(--tx3)' }}>{p.description}</div>}
-                      <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px' }}>{p.location === 'sidebar' ? 'Sidebar' : p.location === 'home' || p.type === 'widget' ? 'Home widget' : 'Topbar'}</div>
+        {activeTab === 'plugins' && (() => {
+          const isWidget = (p: typeof pluginsList.value[number]) => p.type === 'widget' || p.location === 'home' || !!p.homeWidget;
+          const plugins = pluginsList.value.filter(p => !isWidget(p));
+          const widgets = pluginsList.value.filter(isWidget);
+
+          const renderItem = (p: typeof pluginsList.value[number]) => (
+            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '8px' }}>
+              <div>
+                <div style={{ fontSize: '14px', color: 'var(--tx)', fontWeight: 600 }}>{p.name}</div>
+                {p.description && <div style={{ fontSize: '12px', color: 'var(--tx3)' }}>{p.description}</div>}
+                <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px' }}>{p.location === 'sidebar' ? 'Sidebar' : p.location === 'home' || p.type === 'widget' ? 'Home widget' : 'Topbar'}</div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                <input type="checkbox" checked={isPluginEnabled(p.id)} onChange={() => togglePlugin(p.id)} style={{ width: '16px', height: '16px' }} />
+                Enabled
+              </label>
+            </div>
+          );
+
+          return (
+            <div style={wrap}>
+              <div style={secLast}>
+                <h3 style={secH}>Plugin Manager</h3>
+                <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Enable or disable optional plugins and home-dashboard widgets. Disabled items are hidden from the topbar, sidebar and home dashboard.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '24px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '13px', color: 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Plugins</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {plugins.map(renderItem)}
+                      {plugins.length === 0 && (
+                        <p style={{ fontSize: '12px', color: 'var(--tx3)' }}>No plugins found.</p>
+                      )}
                     </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                      <input type="checkbox" checked={isPluginEnabled(p.id)} onChange={() => togglePlugin(p.id)} style={{ width: '16px', height: '16px' }} />
-                      Enabled
-                    </label>
                   </div>
-                ))}
-                {pluginsList.value.length === 0 && (
-                  <p style={{ fontSize: '12px', color: 'var(--tx3)' }}>No plugins found.</p>
-                )}
+                  <div>
+                    <h4 style={{ fontSize: '13px', color: 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Widgets</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {widgets.map(renderItem)}
+                      {widgets.length === 0 && (
+                        <p style={{ fontSize: '12px', color: 'var(--tx3)' }}>No widgets found.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
     </div>

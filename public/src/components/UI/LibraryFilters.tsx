@@ -24,7 +24,7 @@ interface SidebarItemProps {
 export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, onContextMenu, isActive, indent, depth, hasChildren, expanded, onToggleExpand, action }: SidebarItemProps) => {
   const isTree = depth !== undefined;
   const style: any = isTree
-    ? { paddingLeft: depth! > 0 ? `${depth! * 16}px` : undefined, fontSize: '0.85rem' }
+    ? { paddingLeft: `${16 + depth! * 16}px`, fontSize: '0.85rem' }
     : indent ? { paddingLeft: '32px', fontSize: '0.85rem' } : {};
   return (
     <div

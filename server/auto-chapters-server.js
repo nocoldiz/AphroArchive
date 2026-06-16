@@ -66,7 +66,11 @@ function buildChapters(rawTimes) {
 
 // ── Detection ─────────────────────────────────────────────────────────
 
-function detectAutoChaptersForVideo(id, fp) {
+// The ffmpeg child currently scanning (so Stop can kill it instead of waiting
+// up to the 3-minute per-video timeout).
+let _currentChild = null;
+
+function detectAutoChaptersForVideo(id, fp, track = false) {
   return new Promise(resolve => {
     const args = [
       '-i', fp,
@@ -74,12 +78,14 @@ function detectAutoChaptersForVideo(id, fp) {
       '-vsync', 'drop',
       '-an', '-f', 'null', '-',
     ];
-    execFile(FFMPEG_BIN, args,
+    const child = execFile(FFMPEG_BIN, args,
       { timeout: 180000, maxBuffer: 20 * 1024 * 1024 },
       (_err, stdout, stderr) => {
+        if (track && _currentChild === child) _currentChild = null;
         const combined = (stderr || '') + (stdout || '');
         resolve(buildChapters(parseShowinfo(combined)));
       });
+    if (track) _currentChild = child;
   });
 }
 
@@ -187,9 +193,13 @@ async function runBatch() {
       _job.current = path.basename(item.fp);
       broadcast({ type: 'progress', done: _job.done, total: _job.total, current: _job.current });
       try {
-        const chapters = await detectAutoChaptersForVideo(item.id, item.fp);
+        const chapters = await detectAutoChaptersForVideo(item.id, item.fp, true);
+        // User pressed Stop → the child was killed mid-scan; don't cache the
+        // partial result, just exit the loop.
+        if (_job.stop) break;
         cache[item.id] = { chapters, detectedAt: Date.now() };
       } catch {
+        if (_job.stop) break;
         _job.failed++;
       }
       _job.done++;
@@ -203,6 +213,23 @@ async function runBatch() {
   broadcast({ type: 'done', done: _job.done, failed: _job.failed, total: all.length, skipped: _job.skipped });
 }
 
+// Detect-and-cache a single video if it has no chapters yet. Used by the
+// background worker. Returns true if detection actually ran. Skips while the
+// manual batch owns the cache to avoid clobbering its results.
+async function ensureAutoChaptersForVideo(id, fp) {
+  if (_job && _job.running) return false;
+  if (loadAutoChaptersCache()[id]) return false;
+  const chapters = await detectAutoChaptersForVideo(id, fp);
+  const fresh = loadAutoChaptersCache();
+  fresh[id] = { chapters, detectedAt: Date.now() };
+  saveAutoChaptersCache(fresh);
+  return true;
+}
+
+function hasAutoChapters(id) {
+  return !!loadAutoChaptersCache()[id];
+}
+
 // ── Batch API ─────────────────────────────────────────────────────────
 
 function apiGenChaptersStart(req, res) {
@@ -213,6 +240,12 @@ function apiGenChaptersStart(req, res) {
 
 function apiGenChaptersStop(req, res) {
   if (_job) _job.stop = true;
+  // Kill the in-flight ffmpeg so the batch halts immediately instead of waiting
+  // for the current video's scene scan to finish.
+  if (_currentChild) {
+    try { _currentChild.kill('SIGKILL'); } catch {}
+    _currentChild = null;
+  }
   json(res, { ok: true });
 }
 
@@ -255,4 +288,6 @@ module.exports = {
   apiGenChaptersStop,
   apiGenChaptersStatus,
   apiGenChaptersPoll,
+  ensureAutoChaptersForVideo,
+  hasAutoChapters,
 };

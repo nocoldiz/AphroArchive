@@ -58,7 +58,7 @@ const veracrypt = require('./server/veracrypt-server');
 const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
 const corrupted = require('./server/corrupted-server');
-const { startBackgroundWorker } = require('./server/background-worker-server');
+const { startBackgroundWorker, apiBackgroundWorkerPoll } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
 const assistant   = require('./server/assistant-server');
 const autoChapters = require('./server/auto-chapters-server');
@@ -245,6 +245,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-chapters/stop' && req.method === 'POST') return autoChapters.apiGenChaptersStop(req, res);
   if (p === '/api/gen-chapters/status' && req.method === 'GET') return autoChapters.apiGenChaptersStatus(req, res);
   if (p === '/api/gen-chapters/poll' && req.method === 'GET') return autoChapters.apiGenChaptersPoll(req, res);
+  if (p === '/api/background-worker/poll' && req.method === 'GET') return apiBackgroundWorkerPoll(req, res);
 
   // ── Tags / Channels ───────────────────────────────────────────────────
   if (p === '/api/tags' && req.method === 'GET') return videos.apiTags(req, res);

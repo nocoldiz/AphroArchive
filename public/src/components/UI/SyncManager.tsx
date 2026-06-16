@@ -19,6 +19,12 @@ interface EncProgress {
   current: string;
 }
 
+interface WorkerStatus {
+  active: boolean;
+  task: string;
+  detail: string;
+}
+
 function ProgressBar({ done = 0, total = 0, color = 'var(--ac)' }: { done?: number; total?: number; color?: string }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
@@ -92,36 +98,43 @@ export const SyncManager = () => {
     bmThumbs: ScraperStatus;
     reencode: ScraperStatus;
     whisper: ScraperStatus & { enabled?: boolean };
+    sceneDetect: ScraperStatus;
   }>({
     videoThumbs: { running: false },
     bmMeta: { running: false },
     bmThumbs: { running: false },
     reencode: { running: false },
     whisper: { running: false, enabled: true },
+    sceneDetect: { running: false },
   });
   const [encProgress, setEncProgress] = useState<EncProgress>({
     running: false, type: '', category: '', total: 0, done: 0, current: '',
   });
+  const [worker, setWorker] = useState<WorkerStatus>({ active: false, task: '', detail: '' });
   const wrapRef = useRef<HTMLDivElement>(null);
   const prevEncRunning = useRef(false);
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes, whisperRes] = await Promise.all([
+        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes, whisperRes, sceneRes, workerRes] = await Promise.all([
           fetch('/api/gen-thumbs/poll'),
           fetch('/api/links/scrape-status'),
           fetch('/api/links/thumb-status'),
           fetch('/api/encryption/status'),
           fetch('/api/reencode/poll'),
           fetch('/api/gen-whisper/poll'),
+          fetch('/api/gen-chapters/poll'),
+          fetch('/api/background-worker/poll'),
         ]);
         const vt   = vtRes.ok    ? await vtRes.json()    : { running: false };
         const bm   = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
         const bt   = bmThRes.ok  ? await bmThRes.json()  : { running: false };
         const reenc = reencRes.ok ? await reencRes.json() : { running: false };
         const wh   = whisperRes.ok ? await whisperRes.json() : { running: false, enabled: true };
-        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh });
+        const scene = sceneRes.ok ? await sceneRes.json() : { running: false };
+        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh, sceneDetect: scene });
+        setWorker(workerRes.ok ? await workerRes.json() : { active: false, task: '', detail: '' });
         if (encRes.ok) {
           const enc = await encRes.json();
           // Detect transition from running → done
@@ -158,7 +171,7 @@ export const SyncManager = () => {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode, scrapers.whisper].filter(s => s.running).length
+  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode, scrapers.whisper, scrapers.sceneDetect].filter(s => s.running).length
     + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
@@ -189,6 +202,14 @@ export const SyncManager = () => {
   const iconLock = (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+  );
+  const iconScene = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+      <line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/>
+      <line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/>
+      <line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>
     </svg>
   );
 
@@ -228,6 +249,27 @@ export const SyncManager = () => {
             <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)' }}>
               <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Sync & Background Tasks</span>
             </div>
+
+            {/* Background worker — automatic; shown only while active, never badged */}
+            {worker.active && (
+              <div style={{ padding: '9px 14px', borderBottom: '1px solid var(--brd)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <span style={{ color: 'var(--ac)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                  </span>
+                  <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>{worker.task || 'Working…'}</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>auto</span>
+                </div>
+                {worker.detail && (
+                  <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={worker.detail}>
+                    {worker.detail}
+                  </div>
+                )}
+              </div>
+            )}
 
             <ScraperRow
               label="Video Thumbnails"
@@ -271,6 +313,14 @@ export const SyncManager = () => {
               status={scrapers.reencode}
               onStart={() => scraperAction('/api/reencode/start')}
               onStop={() => scraperAction('/api/reencode/stop')}
+            />
+
+            <ScraperRow
+              label="Scene Detection"
+              icon={iconScene}
+              status={scrapers.sceneDetect}
+              onStart={() => scraperAction('/api/gen-chapters/start')}
+              onStop={() => scraperAction('/api/gen-chapters/stop')}
             />
 
             {/* Whisper Subtitles — shown only when running, like Encryption */}
