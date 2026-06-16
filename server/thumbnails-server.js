@@ -20,7 +20,6 @@ function ffprobeInfo(fp) {
         { timeout: 15000 },
         (err, out) => {
           if (err) {
-            console.warn('[ffprobe] failed for', fp, '—', err.message);
             return resolve({ duration: null, width: null, height: null });
           }
           try {
@@ -32,8 +31,7 @@ function ffprobeInfo(fp) {
             resolve({ duration, width, height });
           } catch { resolve({ duration: null, width: null, height: null }); }
         });
-    } catch (e) {
-      console.warn('[ffprobe] spawn failed —', e.message);
+    } catch {
       resolve({ duration: null, width: null, height: null });
     }
   });

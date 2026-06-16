@@ -101,7 +101,7 @@ async function runBatch() {
           execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', item.fp],
             { timeout: 15000 },
             (err, out) => {
-              if (err) { console.warn('[gen-thumbs ffprobe] failed for', item.fp, '—', err.message); return resolve(null); }
+              if (err) { return resolve(null); }
               try { resolve(parseFloat(JSON.parse(out).format.duration) || null); } catch { resolve(null); }
             });
         });

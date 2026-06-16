@@ -5,6 +5,8 @@
 import { ComponentChildren } from 'preact';
 import { Video } from '../types';
 import { currentView, currentFolder, allVideos } from '../store';
+import { getThumbPref } from '../thumbPref';
+import { VideoCard } from '../components/UI/VideoGrid';
 
 export type { WidgetInstance } from './dashboardStore';
 
@@ -15,7 +17,9 @@ export const nav = (view: string, path?: string) => {
   if (path) history.pushState(null, '', path);
 };
 
-export const thumbFor = (v: Video) => v.isLink ? (v.img || '') : `/api/thumbs/${v.id}/0`;
+// Use the same per-video preferred thumbnail the gallery shows, so widget
+// cards and the main grid stay visually consistent.
+export const thumbFor = (v: Video) => v.isLink ? (v.img || '') : `/api/thumbs/${v.id}/${getThumbPref(v.id)}`;
 
 export const localVideos = () => allVideos.value.filter(v => !v.isLink);
 
@@ -41,21 +45,18 @@ export const WidgetShell = ({ title, action, children }: {
   </div>
 );
 
-export const MiniCard = ({ video, progress, onRemove }: {
+// Widget rows render the exact same card as the browse grid (hover-to-play,
+// fav star, duration, preferred-thumb, watch-progress bar) so the home view
+// stays visually consistent with the library. `progress` is accepted for
+// backwards compatibility but ignored — VideoCard derives it from saved
+// playback progress itself.
+export const MiniCard = ({ video, onRemove }: {
   video: Video; progress?: number; onRemove?: () => void;
 }) => (
-  <div className="dw-card" onClick={() => video.isLink ? (video.linkUrl && window.open(video.linkUrl, '_blank')) : openVid(video.id)}>
-    <div className="dw-thumb">
-      {thumbFor(video)
-        ? <img loading="lazy" src={thumbFor(video)} alt="" onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }} />
-        : <div className="dw-thumb-empty" />}
-      {video.duration ? <span className="dw-dur">{fmtTime(video.duration)}</span> : null}
-      {progress !== undefined && progress > 0 &&
-        <div className="dw-prog"><div className="dw-prog-fill" style={{ width: Math.min(100, progress) + '%' }} /></div>}
-      {onRemove &&
-        <button className="dw-card-x" title="Remove" onClick={(e) => { e.stopPropagation(); onRemove(); }}>×</button>}
-    </div>
-    <div className="dw-card-name">{video.name}</div>
+  <div className="dw-card-wrap">
+    <VideoCard video={video} isSelected={false} />
+    {onRemove &&
+      <button type="button" className="dw-card-x" title="Remove" onClick={(e) => { e.stopPropagation(); onRemove(); }}>×</button>}
   </div>
 );
 

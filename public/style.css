@@ -108,19 +108,16 @@ input {
 
 .search-w {
   flex: 1;
-  max-width: 340px;
+  max-width: 480px;
   margin: 0 auto;
   position: relative;
-  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)
-}
-
-.search-w:focus-within {
-  max-width: 520px
+  display: flex;
+  align-items: center
 }
 
 .search-w input {
   width: 100%;
-  padding: 9px 14px 9px 38px;
+  padding: 9px 40px 9px 38px;
   background: var(--bg2);
   border: 1px solid var(--brd);
   border-radius: 999px;
@@ -170,6 +167,111 @@ input {
 .search-ghost .ghost-hint {
   color: var(--tx3);
   opacity: 0.7
+}
+
+/* Filter / scope picker — anchored inside the search bar at the right edge so
+   it never adds height to the bar (which would knock the search icon off centre). */
+.search-scope {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%)
+}
+
+.search-scope-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 999px;
+  color: var(--tx3);
+  cursor: pointer;
+  transition: background var(--tr), color var(--tr)
+}
+
+.search-scope-btn:hover {
+  background: var(--bg3);
+  color: var(--tx)
+}
+
+.search-scope-btn.on {
+  color: var(--ac)
+}
+
+.search-scope-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: var(--ac);
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 1;
+  border-radius: 8px;
+  padding: 1px 4px
+}
+
+.search-scope-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 200;
+  background: var(--bg2);
+  border: 1px solid var(--brd);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  min-width: 220px
+}
+
+.search-scope-menu-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--brd);
+  margin-bottom: 4px
+}
+
+.search-scope-menu-head span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--tx3)
+}
+
+.search-scope-menu-head button {
+  background: none;
+  border: none;
+  color: var(--ac);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0
+}
+
+.search-scope-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--tx);
+  transition: background var(--tr)
+}
+
+.search-scope-opt:hover {
+  background: var(--bg3)
+}
+
+.search-scope-opt input {
+  accent-color: var(--ac);
+  cursor: pointer;
+  margin: 0
 }
 
 .tb-acts {
@@ -6463,6 +6565,14 @@ input {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
+/* Browse-style card inside a widget row */
+.dw-card-wrap { position: relative; flex: 0 0 auto; width: 220px; }
+.dw-card-wrap .video-card { width: 100%; margin: 0; }
+.dw-card-wrap .dw-card-x {
+  top: 6px; left: 6px; right: auto; z-index: 5;
+}
+.dw-card-wrap:hover .dw-card-x { opacity: 1; }
+
 /* hero */
 .dw-hero { position: relative; height: 100%; background-size: cover; background-position: center; display: flex; align-items: flex-end; }
 .dw-hero-grad { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.3) 100%); }
@@ -8233,6 +8343,28 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   letter-spacing: 1.5px;
   color: var(--tx3);
   font-family: var(--m);
+}
+
+.filter-dropdown-search {
+  padding: 0 10px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--brd);
+}
+
+.filter-dropdown-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  color: var(--tx);
+  background: var(--bg2, var(--bg));
+  border: 1px solid var(--brd);
+  border-radius: 6px;
+  outline: none;
+}
+
+.filter-dropdown-search input:focus {
+  border-color: var(--ac);
 }
 
 .filter-dropdown-body {

@@ -1,5 +1,11 @@
-﻿import { searchQuery, currentView, currentFolder, currentTag, currentTagTerms } from '../../store';
+﻿import { searchQuery, currentView, currentFolder, currentTag, currentTagTerms, searchScopes, toggleSearchScope, setAllSearchScopes, SEARCH_SCOPE_KEYS } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
+
+const SCOPE_LABELS: Record<string, string> = {
+  videos: 'Videos', links: 'Links', actors: 'Actors', channels: 'Channels',
+  websites: 'Websites', books: 'Books', audio: 'Audio', photos: 'Photos',
+  pages: 'Pages', prompts: 'Prompts', collections: 'Playlists',
+};
 
 const SEARCH_DEBOUNCE_MS = 200;
 
@@ -7,7 +13,9 @@ export const Search = () => {
   const [acTerms, setAcTerms] = useState<string[]>([]);
   const [hint, setHint] = useState('');
   const [localQuery, setLocalQuery] = useState(searchQuery.value);
+  const [scopeOpen, setScopeOpen] = useState(false);
   const debounceRef = useRef<any>(null);
+  const scopeWrapRef = useRef<HTMLDivElement>(null);
   // Snapshot of where the user was before they started searching, so clearing
   // the box returns them to that view/category/tag instead of stranding them
   // on a bare "All Videos" list.
@@ -19,6 +27,16 @@ export const Search = () => {
   }, [searchQuery.value]);
 
   useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  // Close the scope dropdown when clicking outside it.
+  useEffect(() => {
+    if (!scopeOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (scopeWrapRef.current && !scopeWrapRef.current.contains(e.target as Node)) setScopeOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [scopeOpen]);
 
   useEffect(() => {
     fetch('/api/settings/lists')
@@ -67,7 +85,7 @@ export const Search = () => {
           terms: currentTagTerms.value,
         };
       }
-      if (currentView.value !== 'browse') currentView.value = 'browse';
+      if (currentView.value !== 'search-results') currentView.value = 'search-results';
       currentFolder.value = '';
       currentTag.value = null;
       currentTagTerms.value = [];
@@ -115,6 +133,11 @@ export const Search = () => {
     ghost.innerHTML = `<span class="ghost-typed">${localQuery}</span><span class="ghost-hint">${hint}</span>`;
   }, [hint, localQuery]);
 
+  const scopes = searchScopes.value;
+  const scopeOn = (k: string) => scopes.size === 0 || scopes.has(k);
+  const allOn = SEARCH_SCOPE_KEYS.every(scopeOn);
+  const activeCount = scopes.size === 0 ? SEARCH_SCOPE_KEYS.length : scopes.size;
+
   return (
     <>
       <svg className="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -124,7 +147,7 @@ export const Search = () => {
       <input
         type="text"
         id="search-input"
-        placeholder="Search videos..."
+        placeholder="Search everything..."
         value={localQuery}
         onInput={onInput}
         onKeyDown={onKeyDown}
@@ -133,6 +156,42 @@ export const Search = () => {
         spellcheck={false}
       />
       <div className="search-ghost" id="search-ghost"></div>
+
+      <div className="search-scope" ref={scopeWrapRef}>
+        <button
+          type="button"
+          className={`search-scope-btn${allOn ? '' : ' on'}`}
+          title="Choose what to search"
+          aria-label="Search options"
+          aria-expanded={scopeOpen ? 'true' : 'false'}
+          onClick={() => setScopeOpen(o => !o)}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          {!allOn && <span className="search-scope-badge">{activeCount}</span>}
+        </button>
+
+        {scopeOpen && (
+          <div className="search-scope-menu">
+            <div className="search-scope-menu-head">
+              <span>Search in</span>
+              <button type="button" onClick={() => setAllSearchScopes(!allOn)}>
+                {allOn ? 'Clear' : 'All'}
+              </button>
+            </div>
+            {SEARCH_SCOPE_KEYS.map(key => (
+              <label key={key} className="search-scope-opt">
+                <input type="checkbox" checked={scopeOn(key)} onChange={() => toggleSearchScope(key)} />
+                {SCOPE_LABELS[key]}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
     </>
   );
 };

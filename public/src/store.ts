@@ -193,6 +193,48 @@ export const isRecentMode = signal<boolean>(false);
 export const recentVideos = signal<Video[]>([]);
 export const favFilter = signal<boolean>(localStorage.getItem('favFilter') === 'true');
 export const searchQuery = signal<string>('');
+
+// ─── Universal search scopes ─────────────────────────────────────────
+// Which macro categories the main search box looks through. Persisted so the
+// user's choice sticks. Empty set is treated as "everything" to avoid a
+// search that silently returns nothing.
+export const SEARCH_SCOPE_KEYS = [
+  'videos', 'links', 'actors', 'channels', 'websites',
+  'books', 'audio', 'photos', 'pages', 'prompts', 'collections',
+] as const;
+export type SearchScope = typeof SEARCH_SCOPE_KEYS[number];
+
+function readSearchScopes(): Set<string> {
+  try {
+    const raw = localStorage.getItem('searchScopes');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) return new Set(arr.filter((k: string) => (SEARCH_SCOPE_KEYS as readonly string[]).includes(k)));
+    }
+  } catch {}
+  return new Set(SEARCH_SCOPE_KEYS);
+}
+export const searchScopes = signal<Set<string>>(readSearchScopes());
+
+function persistSearchScopes(s: Set<string>) {
+  try { localStorage.setItem('searchScopes', JSON.stringify([...s])); } catch {}
+}
+export function toggleSearchScope(key: string) {
+  const next = new Set(searchScopes.value);
+  if (next.has(key)) next.delete(key); else next.add(key);
+  searchScopes.value = next;
+  persistSearchScopes(next);
+}
+export function setAllSearchScopes(on: boolean) {
+  const next = on ? new Set<string>(SEARCH_SCOPE_KEYS) : new Set<string>();
+  searchScopes.value = next;
+  persistSearchScopes(next);
+}
+export function isScopeOn(key: string): boolean {
+  const s = searchScopes.value;
+  return s.size === 0 || s.has(key);
+}
+
 export const visionModalText = signal<string | null>(null);
 export const showAddToCollectionModal = signal<boolean>(false);
 export const showConnectModal = signal<boolean>(false);
@@ -572,6 +614,25 @@ function _videoMatchesSearch(v: Video, tokens: string[]): boolean {
     actors.some(a => a.includes(token)) ||
     note.includes(token)
   );
+}
+
+// Match videos/links from the full unfiltered list against a free-text query,
+// reusing the same exact-then-fuzzy strategy as the main grid filter. Used by
+// the universal search results view so its "Videos" / "Links" sections stay
+// consistent with how the grid resolves a query.
+export function searchAllVideos(query: string): Video[] {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [];
+  const list = allVideos.value;
+  let res = list.filter(v => _videoMatchesSearch(v, tokens));
+  if (res.length === 0) {
+    res = list.filter(v =>
+      _fuzzyMatch(v.name, query) ||
+      (v.actors || []).some(a => _fuzzyMatch(a, query)) ||
+      (v.tags || []).some(t => _fuzzyMatch(t, query))
+    );
+  }
+  return res;
 }
 
 function _resolveResolutionTier(v: Video): string {

@@ -79,9 +79,10 @@ interface CatTreeNode { cat: any; children: CatTreeNode[] }
  * column layout) and inside the topbar "Folders" dropdown. `onNavigate` lets
  * the dropdown close itself after a folder is chosen (a no-op in the sidebar).
  */
-export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
+export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => void, filter?: string }) => {
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
   const filteredVids = useScopedVids(false);
+  const fq = filter.trim().toLowerCase();
 
   const [vaultFolders, setVaultFolders] = useState<{ id: string, name: string }[]>([]);
   useEffect(() => {
@@ -242,6 +243,29 @@ export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
     );
   };
 
+  // When a search filter is active, flatten the tree and show every matching
+  // folder regardless of expand state / hierarchy.
+  if (fq) {
+    const matches = displayFolders.filter(c => c.name.toLowerCase().includes(fq));
+    return (
+      <>
+        {inVaultMode && vaultFolders.filter(f => f.name.toLowerCase().includes(fq)).map(f => (
+          <SidebarItem
+            key={`vf-${f.id}`}
+            label={f.name}
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth={2} style={iconStyle}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+            onClick={() => { (window as any)._vaultSetFolder?.(f.id); onNavigate?.(); }}
+            indent
+          />
+        ))}
+        {matches.map(c => renderCategoryNode({ cat: c, children: [] }, 0))}
+        {matches.length === 0 && (
+          <div style={{ padding: '6px 16px', fontSize: '0.8rem', color: 'var(--tx3)' }}>No matching folders</div>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       {inVaultMode && vaultFolders.length > 0 && vaultFolders.map(f => (
@@ -296,9 +320,10 @@ let tagGroupsCache: { displayName: string, terms: string[] }[] | null = null;
  * Tags filter body. Rendered both inside the sidebar and the topbar "Tags"
  * dropdown. Owns the tag-group fetch and exposes `_sidebarReloadTags`.
  */
-export const TagsFilter = ({ onNavigate, linksOnly = false }: { onNavigate?: () => void, linksOnly?: boolean }) => {
+export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onNavigate?: () => void, linksOnly?: boolean, filter?: string }) => {
   const [tagGroups, setTagGroups] = useState<{ displayName: string, terms: string[] }[]>(() => tagGroupsCache || []);
   const filteredVids = useScopedVids(linksOnly);
+  const fq = filter.trim().toLowerCase();
 
   const reloadTags = () => {
     fetch('/api/db-tags')
@@ -360,9 +385,11 @@ export const TagsFilter = ({ onNavigate, linksOnly = false }: { onNavigate?: () 
     }
   };
 
+  const matchName = (name: string) => !fq || name.toLowerCase().includes(fq);
+
   return (
     <>
-      {pinnedTagsList.map(t => (
+      {pinnedTagsList.filter(t => matchName(t.name)).map(t => (
         <SidebarItem
           key={`pintag-${t.name}`}
           label={t.name}
@@ -373,7 +400,7 @@ export const TagsFilter = ({ onNavigate, linksOnly = false }: { onNavigate?: () 
           isActive={currentTag.value === t.name}
         />
       ))}
-      {displayTags.filter(t => !(appPrefs.value.pinnedTags || []).includes(t.name)).map(t => (
+      {displayTags.filter(t => !(appPrefs.value.pinnedTags || []).includes(t.name) && matchName(t.name)).map(t => (
         <SidebarItem
           key={t.name}
           id={`tag-${t.name}`}
@@ -394,10 +421,12 @@ export const TagsFilter = ({ onNavigate, linksOnly = false }: { onNavigate?: () 
  * Reuses the Tags list (scoped to links) so links are browsed by tag, plus an
  * "All Links" shortcut to the full Links page.
  */
-export const LinksFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
+export const LinksFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => void, filter?: string }) => {
   const total = linkTotalCount.value;
+  const fq = filter.trim().toLowerCase();
   return (
     <>
+      {(!fq || 'all links'.includes(fq)) && (
       <SidebarItem
         label="All Links"
         badge={total || undefined}
@@ -414,7 +443,8 @@ export const LinksFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
         }}
         isActive={currentView.value === 'links'}
       />
-      <TagsFilter onNavigate={onNavigate} linksOnly />
+      )}
+      <TagsFilter onNavigate={onNavigate} linksOnly filter={filter} />
     </>
   );
 };
@@ -506,6 +536,7 @@ export const SectionDropdowns = () => {
 export const FilterDropdowns = () => {
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
   const [open, setOpen] = useState<null | 'folders' | 'tags' | 'links'>(null);
+  const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
   const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'topbar';
@@ -527,7 +558,21 @@ export const FilterDropdowns = () => {
     };
   }, [open]);
 
-  const close = () => setOpen(null);
+  const close = () => { setOpen(null); setQuery(''); };
+  const toggle = (which: 'folders' | 'tags' | 'links') =>
+    setOpen(o => { const next = o === which ? null : which; setQuery(''); return next; });
+  const searchBar = (placeholder: string) => (
+    <div className="filter-dropdown-search">
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={query}
+        autoFocus
+        onInput={(e: any) => setQuery(e.currentTarget.value)}
+        onClick={(e: any) => e.stopPropagation()}
+      />
+    </div>
+  );
   const addBtn = (onClick: () => void, title: string) => (
     <button type="button" className="sidebar-heading-add" title={title} onClick={(e) => { e.stopPropagation(); onClick(); }}>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -546,7 +591,7 @@ export const FilterDropdowns = () => {
         <button
           type="button"
           className={`filter-dropdown-btn${open === 'folders' ? ' on' : ''}`}
-          onClick={() => setOpen(o => o === 'folders' ? null : 'folders')}
+          onClick={() => toggle('folders')}
           onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.folders, 'Folders', 'topbar'); }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: '6px' }}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
@@ -562,8 +607,9 @@ export const FilterDropdowns = () => {
                 {addBtn(() => (window as any).createFolder?.(), 'New folder')}
               </div>
             )}
+            {searchBar('Search folders…')}
             <div className="filter-dropdown-body">
-              <FoldersFilter onNavigate={close} />
+              <FoldersFilter onNavigate={close} filter={query} />
             </div>
           </div>
         )}
@@ -575,7 +621,7 @@ export const FilterDropdowns = () => {
           <button
             type="button"
             className={`filter-dropdown-btn${open === 'tags' ? ' on' : ''}`}
-            onClick={() => setOpen(o => o === 'tags' ? null : 'tags')}
+            onClick={() => toggle('tags')}
             onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.tags, 'Tags', 'topbar'); }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: '6px' }}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>
@@ -588,8 +634,9 @@ export const FilterDropdowns = () => {
                 <span>Tags</span>
                 {addBtn(() => { currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; close(); }, 'New tag group')}
               </div>
+              {searchBar('Search tags…')}
               <div className="filter-dropdown-body">
-                <TagsFilter onNavigate={close} />
+                <TagsFilter onNavigate={close} filter={query} />
               </div>
             </div>
           )}
@@ -601,7 +648,7 @@ export const FilterDropdowns = () => {
           <button
             type="button"
             className={`filter-dropdown-btn${open === 'links' ? ' on' : ''}`}
-            onClick={() => setOpen(o => o === 'links' ? null : 'links')}
+            onClick={() => toggle('links')}
             onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.links, 'Links', 'topbar'); }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: '6px' }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
@@ -613,8 +660,9 @@ export const FilterDropdowns = () => {
               <div className="filter-dropdown-head">
                 <span>Links</span>
               </div>
+              {searchBar('Search links…')}
               <div className="filter-dropdown-body">
-                <LinksFilter onNavigate={close} />
+                <LinksFilter onNavigate={close} filter={query} />
               </div>
             </div>
           )}

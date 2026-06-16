@@ -25,6 +25,7 @@ import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
 import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
+import { SearchResultsView } from '../sections/SearchResultsView';
 import { PlayerView } from '../sections/PlayerView';
 import { HomeView } from '../sections/HomeView';
 import { ChaptersView } from '../sections/ChaptersView';
@@ -133,6 +134,7 @@ export const MainContent = () => {
     if (view === 'corrupted') return <CorruptedView />;
     if (view === 'library-health') return <LibraryHealthView />;
     if (view === 'subtitles') return <SubtitlesView />;
+    if (view === 'search-results') return <SearchResultsView />;
     return <BrowseView />;
   };
 
