@@ -482,7 +482,7 @@ export const ContextMenu = () => {
               if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
             }} />
             <ContextItem label="Rename" icon="edit" onClick={() => (window as any).openRen && (window as any).openRen(data.id, data.name)} />
-            <ContextItem label="Move to Folder" icon="folder" onClick={() => (window as any).openMov && (window as any).openMov(data.id, data.name, data.catPath || '')} />
+            <ContextItem label="Move to Folder" icon="folder" onClick={() => (window as any).openMov && (window as any).openMov(data.id, data.name, data.catPath || '', !!(data as any).isVault)} />
             <ContextItem label="Add to Playlist" icon="list" onClick={() => {
               currentVideo.value = data;
               showAddToCollectionModal.value = true;

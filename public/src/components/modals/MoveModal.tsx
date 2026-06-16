@@ -45,13 +45,20 @@ export const MoveModal = () => {
         if (state.vidIds.length > 0) {
           if (w.toast) w.toast(`Moving ${state.vidIds.length} file${state.vidIds.length > 1 ? 's' : ''}…`);
           for (const id of state.vidIds) {
-            await fetch(`/api/vault/files/${id}`, {
+            const r = await fetch(`/api/vault/files/${id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ folder: targetCat || null })
             });
+            if (!r.ok) {
+              const d = await r.json().catch(() => ({}));
+              throw new Error(d.error || 'Failed to move');
+            }
           }
+          // Refresh the dedicated Vault view list and, when vault items are
+          // shown in the main grid (Vault profile), the grid + sidebar counts.
           if (w.loadVaultFiles) w.loadVaultFiles();
+          await loadVideos();
           if (w.toast) w.toast('Moved');
         }
       } else {

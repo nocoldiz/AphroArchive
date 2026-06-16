@@ -463,7 +463,8 @@ export const VaultView = () => {
     if (!confirm('Permanently delete this encrypted file?')) return;
     const res = await fetch('/api/vault/files/' + id, { method: 'DELETE' });
     if (!res.ok) {
-      alert('Delete failed');
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || 'Delete failed');
       return;
     }
     setFiles(files.filter(f => f.id !== id));
@@ -511,9 +512,23 @@ export const VaultView = () => {
 
   const handleDeleteFolder = async (id: string, name: string) => {
     const parentId = folders.find(f => f.id === id)?.parent || null;
-    if (!confirm(`Delete folder "${name}"? Contents will move to parent folder.`)) return;
+    // A mounted-ZIP folder is the archive itself — deleting it removes the
+    // whole archive (and every virtual file inside), not just an empty shell.
+    const isZip = !!folders.find(f => f.id === id && (f as any).zipMount);
+    const prompt = isZip
+      ? `Delete archive "${name}"? Its encrypted ZIP and all contents will be permanently removed.`
+      : `Delete folder "${name}"? Contents will move to parent folder.`;
+    if (!confirm(prompt)) return;
     const res = await fetch('/api/vault/folders/' + id, { method: 'DELETE' });
-    if (!res.ok) { (window as any).toast?.('Failed to delete folder'); return; }
+    if (!res.ok) { const d = await res.json().catch(() => ({})); (window as any).toast?.(d.error || 'Failed to delete folder'); return; }
+    if (isZip) {
+      // The server unmounted the whole archive (root + virtual sub-folders +
+      // every entry). Re-fetch rather than trying to prune the tree by hand.
+      if (curFolder === id) setCurFolder(parentId);
+      loadVaultFiles();
+      (window as any).toast?.('Archive deleted');
+      return;
+    }
     setFolders(prev => prev.filter(f => f.id !== id).map(f => f.parent === id ? { ...f, parent: parentId } : f));
     setFiles(prev => prev.map(f => f.folder === id ? { ...f, folder: parentId } : f));
     if (curFolder === id) setCurFolder(parentId);

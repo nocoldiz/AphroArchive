@@ -243,7 +243,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
 
   const handleMove = (e: any) => {
     e.stopPropagation();
-    (window as any).openMov(video.id, video.name, video.catPath || '');
+    (window as any).openMov(video.id, video.name, video.catPath || '', !!(video as any).isVault);
   };
 
   const handlePlaylist = (e: any) => {
@@ -765,7 +765,7 @@ export const VideoSelBar = () => {
       )}
 
       <button
-        onClick={() => moveModalState.value = { visible: true, vidIds: [...selectedVideoIds.value], linkUrl: null, currentFolder: '' }}
+        onClick={() => moveModalState.value = { visible: true, vidIds: [...selectedVideoIds.value], linkUrl: null, currentFolder: '', isVault: selectedVids.some(v => (v as any).isVault) }}
         style={{ background: 'var(--ac)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>

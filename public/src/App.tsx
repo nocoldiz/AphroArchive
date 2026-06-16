@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { videos, loadVideos, loadFolders, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders } from './store';
+import { videos, loadVideos, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { OnboardingWizard } from './components/modals/OnboardingWizard';
@@ -63,8 +63,10 @@ export function App() {
       }
     }).catch(() => {});
 
+    // loadVideos() already fetches /api/folders and populates the folders
+    // signal (with recomputed counts), so a separate loadFolders() here would
+    // re-hit the same heavy endpoint for identical data — skip it.
     loadVideos();
-    loadFolders();
     loadPrefs();
 
     // Restore vault unlock state and auto-navigate if we're in the Vault profile

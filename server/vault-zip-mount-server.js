@@ -39,6 +39,45 @@ function unmountAll() {
   _entryIndex = {};
 }
 
+// Drop a single mount and purge its entry-index records.
+function _removeMount(mountId) {
+  const m = _mounts[mountId];
+  if (!m) return false;
+  for (const e of m.entries) delete _entryIndex[e.entryId];
+  delete _mounts[mountId];
+  return true;
+}
+
+// Resolve any virtual id surfaced by getMountedItems() — a mounted file
+// entryId, the archive's root folder id, or a virtual sub-folder id — back to
+// its owning mount. Returns null for ids that aren't part of any mount.
+// `vaultId` is the backing vault .enc id (null for raw/media-folder zips).
+function resolveMount(id) {
+  const rec = _entryIndex[id];
+  if (rec) {
+    const m = _mounts[rec.mountId];
+    return { mountId: rec.mountId, vaultId: (m && m.vaultId) || null, isFile: true, isRoot: false };
+  }
+  for (const [mountId, m] of Object.entries(_mounts)) {
+    if (m.rootFolderId === id) {
+      return { mountId, vaultId: m.vaultId || null, isFile: false, isRoot: true };
+    }
+    if (Object.values(m.subFolders).includes(id)) {
+      return { mountId, vaultId: m.vaultId || null, isFile: false, isRoot: false };
+    }
+  }
+  return null;
+}
+
+// Unmount the archive backed by a given vault .enc id (called after that file
+// is deleted so its virtual folders/files vanish from the listing immediately).
+function unmountByVaultId(vaultId) {
+  for (const [mountId, m] of Object.entries(_mounts)) {
+    if (m.vaultId === vaultId) return _removeMount(mountId);
+  }
+  return false;
+}
+
 // ── Minimal ZIP index reader (reads only headers, not file data) ─────
 
 function _parseAesExtra(extra) {
@@ -599,4 +638,4 @@ function _streamFallback(req, res, mount, entry, ct) {
   }
 }
 
-module.exports = { scanAndMountZips, unmountAll, getMountedItems, streamZipEntry };
+module.exports = { scanAndMountZips, unmountAll, getMountedItems, streamZipEntry, resolveMount, unmountByVaultId };

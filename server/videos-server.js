@@ -813,8 +813,11 @@ async function apiFolders(req, res, params) {
   // (skipped in Vault Only mode — vault categories come purely from vault meta)
   try {
     if (!isVaultOnly && fs.existsSync(VIDEOS_DIR)) {
-      const walkDir = (dir, rel) => {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
+      // Async (non-blocking) walk: a sync recursive readdir here stalls the
+      // single-threaded event loop, delaying the concurrent /api/videos
+      // response from flushing even when it's already built.
+      const walkDir = async (dir, rel) => {
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
         for (const ent of entries) {
           if (!ent.isDirectory()) continue;
           if (isHiddenFolderName(ent.name)) continue;
@@ -828,10 +831,10 @@ async function apiFolders(req, res, params) {
               hasUnencrypted: false
             });
           }
-          walkDir(path.join(dir, ent.name), subRel);
+          await walkDir(path.join(dir, ent.name), subRel);
         }
       };
-      walkDir(VIDEOS_DIR, '');
+      await walkDir(VIDEOS_DIR, '');
     }
   } catch (e) {
     console.error('[apiCategories] filesystem walk error:', e.message);

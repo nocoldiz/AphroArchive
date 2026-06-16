@@ -336,7 +336,9 @@ export async function reloadAppData() {
   w.vaultFolders = []; w.vaultCurFolder = null;
   w.vaultSel = new Set();
 
-  await Promise.all([loadVideos(), loadFolders(), loadPrefs()]);
+  // loadVideos() already fetches /api/folders and sets the folders signal, so
+  // loadFolders() would duplicate that heavy request — omit it here.
+  await Promise.all([loadVideos(), loadPrefs()]);
 
   try {
     const s = await (await fetch('/api/vault/status')).json();
@@ -401,11 +403,11 @@ Object.defineProperty(window, 'videoSelMode', { get() { return videoSelMode.valu
 (window as any).openRen = (id: string, name: string) => {
   renameModalState.value = { visible: true, vidId: id, linkUrl: null, currentName: name };
 };
-(window as any).openMov = (id: string, name: string, curFolderPath: string) => {
-  moveModalState.value = { visible: true, vidIds: [id], linkUrl: null, currentFolder: curFolderPath };
+(window as any).openMov = (id: string, name: string, curFolderPath: string, isVault = false) => {
+  moveModalState.value = { visible: true, vidIds: [id], linkUrl: null, currentFolder: curFolderPath, isVault };
 };
-(window as any).openBulkMove = (ids: string[]) => {
-  moveModalState.value = { visible: true, vidIds: ids, linkUrl: null, currentFolder: '' };
+(window as any).openBulkMove = (ids: string[], isVault = false) => {
+  moveModalState.value = { visible: true, vidIds: ids, linkUrl: null, currentFolder: '', isVault };
 };
 
 (window as any).openPresetPickerManual = () => {
