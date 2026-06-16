@@ -231,4 +231,70 @@ function isEncrypted(buf) {
   try { return listEntries(buf).some(e => e.encrypted); } catch { return false; }
 }
 
-module.exports = { listEntries, extractEntry, extractAll, isEncrypted, crc32 };
+/**
+ * List the entries of a ZIP file by path, reading only the central directory
+ * (not the entire file). Safe for large archives.
+ */
+function listEntriesFromPath(zipPath) {
+  const fs = require('fs');
+  const stat = fs.statSync(zipPath);
+  const size = stat.size;
+  if (size < 22) throw new Error('Not a ZIP file');
+
+  const fd = fs.openSync(zipPath, 'r');
+  try {
+    // Read only the tail (EOCD + optional comment, max 65557 bytes)
+    const tailSize = Math.min(size, 22 + 0xFFFF);
+    const tail = Buffer.allocUnsafe(tailSize);
+    fs.readSync(fd, tail, 0, tailSize, size - tailSize);
+
+    // Find EOCD in tail
+    let eocdPos = -1;
+    for (let i = tail.length - 22; i >= 0; i--) {
+      if (tail.readUInt32LE(i) === 0x06054b50) { eocdPos = i; break; }
+    }
+    if (eocdPos < 0) throw new Error('Not a valid ZIP (no EOCD record)');
+
+    const count    = tail.readUInt16LE(eocdPos + 10);
+    const cdSize   = tail.readUInt32LE(eocdPos + 12);
+    const cdOffset = tail.readUInt32LE(eocdPos + 16);
+
+    // Read only the central directory
+    const cd = Buffer.allocUnsafe(cdSize);
+    fs.readSync(fd, cd, 0, cdSize, cdOffset);
+
+    const entries = [];
+    let p = 0;
+    for (let i = 0; i < count; i++) {
+      if (p + 46 > cd.length || cd.readUInt32LE(p) !== 0x02014b50) break;
+      const flags      = cd.readUInt16LE(p + 8);
+      const method     = cd.readUInt16LE(p + 10);
+      const crc        = cd.readUInt32LE(p + 16);
+      const compSize   = cd.readUInt32LE(p + 20);
+      const uncompSize = cd.readUInt32LE(p + 24);
+      const nameLen    = cd.readUInt16LE(p + 28);
+      const extraLen   = cd.readUInt16LE(p + 30);
+      const commentLen = cd.readUInt16LE(p + 32);
+      const localOff   = cd.readUInt32LE(p + 42);
+      const name       = cd.slice(p + 46, p + 46 + nameLen).toString('utf-8');
+      const extra      = cd.slice(p + 46 + nameLen, p + 46 + nameLen + extraLen);
+
+      const encrypted = (flags & 0x0001) !== 0;
+      let encryption = encrypted ? 'zipcrypto' : null;
+      let aes = null;
+      if (method === 99) { aes = _parseAesExtra(extra); encryption = 'aes'; }
+
+      entries.push({
+        name, isDir: name.endsWith('/'), encrypted,
+        encryption, method, crc, size: uncompSize, compressedSize: compSize,
+        _localOff: localOff, _flags: flags, _aes: aes,
+      });
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    return entries;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+module.exports = { listEntries, listEntriesFromPath, extractEntry, extractAll, isEncrypted, crc32 };

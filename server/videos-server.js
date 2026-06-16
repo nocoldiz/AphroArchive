@@ -1169,6 +1169,18 @@ async function apiMainFolders(req, res) {
     console.error('[main-categories] enabled filter error:', e.message);
   }
 
+  // Inject ZIP-based virtual categories so they appear in folder lists.
+  try {
+    const mediaZip = require('./media-zip-mount-server');
+    const existingPaths = new Set(result.map(c => c.path));
+    for (const vc of mediaZip.getVirtualCategories()) {
+      if (!existingPaths.has(vc.path)) {
+        result.push({ name: vc.name, path: vc.path, isZipMount: true });
+        existingPaths.add(vc.path);
+      }
+    }
+  } catch (e) { console.error('[main-folders] zip categories error:', e.message); }
+
   result.sort((a, b) => {
     if (a.path === '') return -1;
     if (b.path === '') return 1;

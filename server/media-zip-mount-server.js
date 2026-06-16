@@ -52,9 +52,8 @@ function _walkForZips(dir, base, out) {
 
 // ── Index a single ZIP (reads structure, not content) ─────────────
 function _indexZip(zipPath, zipName, catPath) {
-  const zipReader = require('./zip-reader-server');
-  const buf       = fs.readFileSync(zipPath);
-  const rawEntries = zipReader.listEntries(buf);
+  const zipReader  = require('./zip-reader-server');
+  const rawEntries = zipReader.listEntriesFromPath(zipPath);
 
   const isEnc      = rawEntries.some(e => e.encrypted);
   const mountId    = crypto.randomUUID();

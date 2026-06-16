@@ -55,6 +55,8 @@ export const PlayerView = () => {
   const [showPlayerOptions, setShowPlayerOptions] = useState(false);
   const [batchStatus, setBatchStatus] = useState<{ running: boolean; done: number; total: number } | null>(null);
   const playerOptionsRef = useRef<HTMLDivElement>(null);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [transcriptCues, setTranscriptCues] = useState<{ start: number; end: number; text: string }[]>([]);
 
   useEffect(() => {
     let timer: any;
@@ -439,6 +441,56 @@ export const PlayerView = () => {
     setSubtitles(tracks);
   };
 
+  const parseSubTime = (s: string) => {
+    const norm = s.replace(',', '.');
+    const parts = norm.split(':');
+    if (parts.length === 3) return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+    if (parts.length === 2) return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+    return 0;
+  };
+
+  const parseSubContent = (text: string) => {
+    const cues: { start: number; end: number; text: string }[] = [];
+    const lines = text.split('\n');
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i].trim();
+      if (line.includes('-->')) {
+        const [startStr, endStr] = line.split('-->').map(s => s.trim());
+        const start = parseSubTime(startStr);
+        const end = parseSubTime(endStr);
+        const textLines: string[] = [];
+        i++;
+        while (i < lines.length && lines[i].trim() !== '') {
+          textLines.push(lines[i].trim());
+          i++;
+        }
+        const cueText = textLines.join(' ').replace(/<[^>]+>/g, '').trim();
+        if (cueText) cues.push({ start, end, text: cueText });
+      }
+      i++;
+    }
+    return cues;
+  };
+
+  const openTranscript = async () => {
+    if (!video) return;
+    if (showTranscript) { setShowTranscript(false); return; }
+    if (transcriptCues.length > 0) { setShowTranscript(true); return; }
+    const track = subtitles.find(t => t.filename) || subtitles[0];
+    if (!track) return;
+    try {
+      const url = track.type === 'embedded'
+        ? `/api/subtitle-embedded/${video.id}/${track.streamIndex}`
+        : `/api/subtitle-file/${video.id}/${encodeURIComponent(track.filename!)}`;
+      const text = await fetch(url).then(r => r.text());
+      setTranscriptCues(parseSubContent(text));
+      setShowTranscript(true);
+    } catch {
+      (window as any).toast?.('Could not load transcript');
+    }
+  };
+
   const uploadSubtitle = async (file: File) => {
     if (!video) return;
     setSubtitleUploading(true);
@@ -697,6 +749,18 @@ export const PlayerView = () => {
                 </svg>
                 <span>Fav</span>
               </button>
+
+              {subtitles.length > 0 && (
+                <button onClick={openTranscript} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: showTranscript ? '1px solid var(--ac)' : '1px solid var(--brd)', background: showTranscript ? 'rgba(var(--ac-rgb,255,74,74),0.1)' : 'var(--bg2)', color: showTranscript ? 'var(--ac)' : 'var(--tx)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="7" y1="8" x2="17" y2="8" />
+                    <line x1="7" y1="12" x2="17" y2="12" />
+                    <line x1="7" y1="16" x2="13" y2="16" />
+                  </svg>
+                  <span>Transcript</span>
+                </button>
+              )}
 
               <button onClick={() => {
                 const wantLink = !!(video as any).isLink;
@@ -1030,6 +1094,29 @@ export const PlayerView = () => {
         </div>
 
         <div className="pv-side">
+          {showTranscript && transcriptCues.length > 0 && (
+            <div className="playlist-panel" style={{ marginBottom: '20px' }}>
+              <div className="playlist-header">
+                <span>Transcript</span>
+                <button type="button" onClick={() => setShowTranscript(false)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.8rem', padding: '0 4px' }}>✕</button>
+              </div>
+              <div className="playlist-list" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                {transcriptCues.map((cue, i) => (
+                  <div
+                    key={i}
+                    onClick={() => { if (videoRef.current) { videoRef.current.currentTime = cue.start; videoRef.current.play(); } }}
+                    style={{ display: 'flex', gap: '10px', padding: '7px 12px', cursor: 'pointer', borderBottom: '1px solid var(--brd)' }}
+                    onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--bg2)'}
+                    onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                  >
+                    <span style={{ flexShrink: 0, fontSize: '0.75rem', color: 'var(--ac)', fontVariantNumeric: 'tabular-nums', minWidth: '42px' }}>{formatDuration(cue.start)}</span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--tx2)', lineHeight: 1.45 }}>{cue.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {chapters.length > 0 && (
             <div className="playlist-panel" style={{ marginBottom: '20px' }}>
               <div className="playlist-header">

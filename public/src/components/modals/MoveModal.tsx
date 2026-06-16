@@ -128,6 +128,7 @@ export const MoveModal = () => {
             </div>
           )}
           {folders.map((c: any) => {
+            const isZip = !!c.isZipMount;
             const isCur = state.isVault
               ? false
               : c.path === state.currentFolder;
@@ -143,7 +144,8 @@ export const MoveModal = () => {
               <div
                 key={key}
                 className={`move-item ${isCur ? 'cur' : ''}`}
-                onClick={() => !isCur && handleMove(target)}
+                onClick={() => !isCur && !isZip && handleMove(target)}
+                title={isZip ? 'ZIP archive — virtual folder, cannot move files here' : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -151,16 +153,18 @@ export const MoveModal = () => {
                   padding: '8px',
                   paddingLeft: `${8 + depth * 18}px`,
                   borderRadius: '4px',
-                  cursor: isCur ? 'default' : 'pointer',
+                  cursor: isCur || isZip ? 'default' : 'pointer',
                   background: isCur ? 'rgba(255,255,255,0.05)' : 'transparent',
-                  color: isCur ? 'var(--tx3)' : 'var(--tx)'
+                  color: isCur || isZip ? 'var(--tx3)' : 'var(--tx)',
+                  opacity: isZip ? 0.55 : 1,
                 }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
                 <span>{label}</span>
-                {isCur && <span style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>Current</span>}
+                {isZip && <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--tx3)' }}>ZIP</span>}
+                {isCur && !isZip && <span style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>Current</span>}
               </div>
             );
           })}

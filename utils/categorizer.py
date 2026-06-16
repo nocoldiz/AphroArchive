@@ -78,13 +78,21 @@ def term_score(words: list, joined: str, term: str) -> int:
     return best
 
 
-def best_folder(folder_terms: list, name: str) -> Optional[dict]:
-    """Return {'path': ..., 'matched': ..., 'score': ...} or None."""
+def best_folder(folder_terms: list, name: str, current_path: str = '') -> Optional[dict]:
+    """Return {'path': ..., 'matched': ..., 'score': ...} or None.
+
+    Scores all candidate folders. A different folder wins only if its score
+    strictly exceeds the current folder's score, preventing false moves when
+    the filename matches both the current folder and another equally well.
+    """
     joined = normalize(re.sub(r'\.[^.]+$', '', name))
     words  = [w for w in joined.split() if w]
     if not words:
         return None
+
+    current_total = 0
     best_path, best_total, best_term = '', 0, ''
+
     for f in folder_terms:
         f_score, f_term = 0, ''
         for t in f['terms']:
@@ -94,9 +102,16 @@ def best_folder(folder_terms: list, name: str) -> Optional[dict]:
         if f_score < MIN_SCORE:
             continue
         total = f_score + f['depth'] * 4
+        if f['path'] == current_path:
+            current_total = total
+            continue  # never pick current folder as the winner
         if total > best_total:
             best_total, best_path, best_term = total, f['path'], f_term
-    return {'path': best_path, 'matched': best_term, 'score': best_total} if best_path else None
+
+    # Only suggest a move when the alternative is strictly better
+    if best_path and best_total > current_total:
+        return {'path': best_path, 'matched': best_term, 'score': best_total}
+    return None
 
 
 # ── Filesystem scanning ───────────────────────────────────────────────────────
@@ -209,8 +224,8 @@ def build_folder_terms(cats: list, cat_tags: dict) -> list:
 def build_plan(videos: list, folder_terms: list) -> list:
     moves = []
     for v in videos:
-        hit = best_folder(folder_terms, v['name'])
-        if not hit or hit['path'] == v['cat_path']:
+        hit = best_folder(folder_terms, v['name'], current_path=v['cat_path'])
+        if not hit:
             continue
         moves.append({**v, 'to_path': hit['path'], 'matched': hit['matched']})
     return moves

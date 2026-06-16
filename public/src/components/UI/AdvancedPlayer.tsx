@@ -91,6 +91,9 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const recRef = useRef<any>(null);
   const subPickerRef = useRef<HTMLDivElement>(null);
   const ccOnRef = useRef(false);
+  const chaptersRef = useRef(chapters);
+  const autoChaptersRef = useRef(autoChapters);
+  const selectedSubIdxRef = useRef(selectedSubIdx);
   const [usingHls, setUsingHls] = useState(false);
   const hlsInstanceRef = useRef<any>(null);
   const [audioTracks, setAudioTracks] = useState<{ index: number; language: string; title: string; codec: string; channels: number }[]>([]);
@@ -145,6 +148,9 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   useEffect(() => { onPrevRef.current = onPrev; });
   useEffect(() => { loopARef.current = loopA; }, [loopA]);
   useEffect(() => { loopBRef.current = loopB; }, [loopB]);
+  useEffect(() => { chaptersRef.current = chapters; }, [chapters]);
+  useEffect(() => { autoChaptersRef.current = autoChapters; }, [autoChapters]);
+  useEffect(() => { selectedSubIdxRef.current = selectedSubIdx; }, [selectedSubIdx]);
 
   const toast = (msg: string) => (window as any).toast?.(msg);
 
@@ -464,11 +470,23 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault();
-          vid.currentTime = Math.max(0, vid.currentTime + seekStep('left'));
+          if (e.shiftKey) {
+            const all = [...chaptersRef.current, ...autoChaptersRef.current].sort((a, b) => a.time - b.time);
+            const prev = [...all].reverse().find(c => c.time < vid.currentTime - 1);
+            vid.currentTime = prev ? prev.time : 0;
+          } else {
+            vid.currentTime = Math.max(0, vid.currentTime + seekStep('left'));
+          }
           break;
         case 'ArrowRight':
           e.preventDefault();
-          vid.currentTime = Math.min(vid.duration || Infinity, vid.currentTime + seekStep('right'));
+          if (e.shiftKey) {
+            const all = [...chaptersRef.current, ...autoChaptersRef.current].sort((a, b) => a.time - b.time);
+            const next = all.find(c => c.time > vid.currentTime + 0.5);
+            if (next) vid.currentTime = next.time;
+          } else {
+            vid.currentTime = Math.min(vid.duration || Infinity, vid.currentTime + seekStep('right'));
+          }
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -489,7 +507,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
           toggleFullscreen();
           break;
         case 'c': case 'C':
-          setCcOn(v => !v);
+          setSelectedSubIdx(v => v !== null ? null : 0);
           break;
         case 'n': case 'N':
           if (onNextRef.current) onNextRef.current();
@@ -868,14 +886,16 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
               </select>
             )}
 
-            {/* Live Captions */}
-            <button
-              onClick={() => setCcOn(v => !v)}
-              title={`Live captions${language ? ` (${language})` : ''} — generated with speech recognition through the microphone; play audio through speakers`}
-              style={{ background: 'none', border: ccOn ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: ccOn ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px' }}
-            >
-              CC
-            </button>
+            {/* CC — toggle subtitle track visibility, only shown when subs are available */}
+            {subtitles.length > 0 && (
+              <button
+                onClick={() => setSelectedSubIdx(v => v !== null ? null : 0)}
+                title={selectedSubIdx !== null ? 'Hide subtitles (C)' : 'Show subtitles (C)'}
+                style={{ background: 'none', border: selectedSubIdx !== null ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: selectedSubIdx !== null ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px' }}
+              >
+                CC
+              </button>
+            )}
 
             {/* Speed */}
             <select

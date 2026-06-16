@@ -35,6 +35,7 @@ import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
 import { SubtitlesView } from '../sections/SubtitlesView';
 import { SubtitleEditorModal } from '../modals/SubtitleEditorModal';
+import { GuideView } from '../sections/GuideView';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
 // Heavy/rare views — code-split so the initial bundle stays small
@@ -134,6 +135,7 @@ export const MainContent = () => {
     if (view === 'corrupted') return <CorruptedView />;
     if (view === 'library-health') return <LibraryHealthView />;
     if (view === 'subtitles') return <SubtitlesView />;
+    if (view === 'guide') return <GuideView />;
     if (view === 'search-results') return <SearchResultsView />;
     return <BrowseView />;
   };
