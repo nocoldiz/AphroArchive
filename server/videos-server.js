@@ -81,6 +81,7 @@ function getExistingTopLevelFolders(root) {
 
 let _scanCache = null;
 let _watchDebounce = null;
+let _pruneScheduled = false; // guards the off-hot-path stale-entry prune
 const unlockedFolders = new Map(); // catPath -> key (Buffer)
 let masterPassword = null; // Session master password
 
@@ -315,6 +316,7 @@ function apiScanEvents(req, res) {
 
 function invalidateScanCache() {
   _scanCache = null;
+  _pruneScheduled = false;
   clearVideoIndex();
   clearMediaIndex();
   try { require('./media-zip-mount-server').invalidate(); } catch {}
@@ -344,22 +346,14 @@ async function cachedScan() {
       clearVideoIndex();
       // Fall through to full scan below
     } else {
-      // Prune entries whose file no longer exists on disk
-      let prefs;
-      try { prefs = loadPrefs(); } catch (e) { prefs = {}; }
-      const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
-      const valid = indexed.filter(v => {
-        // For external files rel is the absolute path; for internal it's relative to VIDEOS_DIR
-        const filePath = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
-        if (fs.existsSync(filePath)) return true;
-        // External file may have moved to a different source folder with the same catPath
-        if (v.isExternal && v.catPath && v.filename) {
-          return sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)));
-        }
-        return false;
-      });
-      if (valid.length !== indexed.length) saveVideoIndex(valid);
-      _scanCache = valid;
+      // Serve the indexed list immediately — pruning entries whose file no
+      // longer exists used to run a synchronous fs.existsSync over the whole
+      // library here, blocking the event loop on the first request after the
+      // app starts. Instead trust the index now and prune off the hot path;
+      // _scheduleStalePrune() refreshes the cache and notifies clients if it
+      // finds anything removed (rare — only files deleted while the app was off).
+      _scanCache = indexed;
+      _scheduleStalePrune();
       return _scanCache;
     }
   }
@@ -404,6 +398,53 @@ async function cachedScan() {
   saveMediaIndex(mediaAll);
   _scanCache = all;
   return _scanCache;
+}
+
+// Drop indexed entries whose backing file vanished while the app was off. Runs
+// once per cache lifetime, asynchronously, so it never blocks a request. Uses
+// fs.promises.access (non-blocking) instead of fs.existsSync, and bails if the
+// cache was invalidated/replaced underneath it.
+function _scheduleStalePrune() {
+  if (_pruneScheduled) return;
+  _pruneScheduled = true;
+  const target = _scanCache;
+  setImmediate(async () => {
+    if (_scanCache !== target || !Array.isArray(target)) return;
+
+    let prefs;
+    try { prefs = loadPrefs(); } catch (e) { prefs = {}; }
+    const sourceFolders = [];
+    for (const sf of (prefs.sourceFolders || [])) {
+      if (await _pathExists(sf)) sourceFolders.push(sf);
+    }
+
+    const valid = [];
+    for (const v of target) {
+      // For external files rel is the absolute path; for internal it's relative to VIDEOS_DIR
+      const filePath = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
+      if (await _pathExists(filePath)) { valid.push(v); continue; }
+      // External file may have moved to a different source folder with the same catPath
+      if (v.isExternal && v.catPath && v.filename) {
+        let found = false;
+        for (const sf of sourceFolders) {
+          if (await _pathExists(path.join(sf, v.catPath, v.filename))) { found = true; break; }
+        }
+        if (found) { valid.push(v); continue; }
+      }
+    }
+
+    // Re-check the cache wasn't invalidated while we awaited the disk checks.
+    if (_scanCache !== target) return;
+    if (valid.length !== target.length) {
+      saveVideoIndex(valid);
+      _scanCache = valid;
+      broadcastScanChange();
+    }
+  });
+}
+
+function _pathExists(p) {
+  return fs.promises.access(p).then(() => true, () => false);
 }
 
 // ── Video scanning ───────────────────────────────────────────────────

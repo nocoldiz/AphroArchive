@@ -24,7 +24,7 @@ interface SidebarItemProps {
 export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDragLeave, onDrop, onContextMenu, isActive, indent, depth, hasChildren, expanded, onToggleExpand, action }: SidebarItemProps) => {
   const isTree = depth !== undefined;
   const style: any = isTree
-    ? { paddingLeft: depth! > 0 ? `${depth! * 16}px` : undefined, fontSize: '0.85rem' }
+    ? { paddingLeft: depth! > 0 ? `${16 + depth! * 18}px` : undefined, fontSize: '0.85rem' }
     : indent ? { paddingLeft: '32px', fontSize: '0.85rem' } : {};
   return (
     <div
@@ -348,13 +348,14 @@ export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onN
     .filter(g => !(appPrefs.value.hiddenTags || []).includes(g.displayName))
     .map(g => {
       const nameLo = g.displayName.toLowerCase();
+      const termRegexps = g.terms.map(t =>
+        new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])')
+      );
       const count = filteredVids.filter(v => {
         const vtags = ((v as any).tags || []) as string[];
         if (vtags.some(t => t.toLowerCase() === nameLo)) return true;
         const vname = ((v as any).name || '').toLowerCase();
-        return g.terms.some(t =>
-          new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(vname)
-        );
+        return termRegexps.some(rx => rx.test(vname));
       }).length;
       return { name: g.displayName, terms: g.terms, count };
     })
