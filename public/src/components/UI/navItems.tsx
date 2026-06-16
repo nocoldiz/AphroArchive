@@ -1,7 +1,7 @@
 import type { ComponentChildren, VNode } from 'preact';
 import {
   currentView, isSidebarOpen, currentFolder, currentPhotoFolder,
-  allVideos, linkTotalCount, mediaCounts, showConnectModal,
+  allVideos, mediaCounts, showConnectModal, sourceFilter,
   appPrefs, updatePrefs, currentActor, currentChannel,
 } from '../../store';
 import type { PluginMeta } from '../../plugins';
@@ -24,7 +24,7 @@ export interface NavItem {
 
 // The two filter blocks are movable too, but rendered specially (folder/tag
 // trees in the sidebar; dropdown menus in the topbar), so they're not NavItems.
-export const FILTER_IDS = { folders: 'folders-filter', tags: 'tags-filter' } as const;
+export const FILTER_IDS = { folders: 'folders-filter', tags: 'tags-filter', links: 'links-filter' } as const;
 
 const setView = (view: string, legacyFn?: string) => {
   // Clear detail-scoped selections so a top-level nav click lands on the list
@@ -72,6 +72,27 @@ export function openSectionMoveMenu(e: any, section: NavSection, label: string, 
   (window as any).showContextMenu?.(e, 'navsection', { section, label, location });
 }
 
+export type NavOrderKey = `sidebar_${NavSection}` | 'topbar';
+
+export function getNavOrder(key: NavOrderKey): string[] {
+  return ((appPrefs.value as any).navOrder)?.[key] ?? [];
+}
+
+export async function setNavOrder(key: NavOrderKey, ids: string[]) {
+  const curr = ((appPrefs.value as any).navOrder) ?? {};
+  await updatePrefs({ navOrder: { ...curr, [key]: ids } } as any);
+}
+
+export function sortByOrder(items: NavItem[], key: NavOrderKey): NavItem[] {
+  const order = getNavOrder(key);
+  if (!order.length) return items;
+  const rank = (id: string) => { const i = order.indexOf(id); return i === -1 ? 9999 : i; };
+  return [...items].sort((a, b) => rank(a.id) - rank(b.id));
+}
+
+/** Shared drag state so Sidebar and Topbar can coordinate cross-bar drops. */
+export const activeDrag: { id: string; fromLoc: BarLocation | '' } = { id: '', fromLoc: '' };
+
 /** Wrap stored icon paths in an svg at the given size. */
 export function navIcon(paths: ComponentChildren, size: number, style?: any): VNode {
   return (
@@ -89,7 +110,6 @@ export function getNavItems(): NavItem[] {
   const view = currentView.value;
   const vids = allVideos.value;
   const mc = mediaCounts.value;
-  const linkCount = linkTotalCount.value;
 
   return [
     // ── Library ─────────────────────────────────────────────
@@ -151,15 +171,9 @@ export function getNavItems(): NavItem[] {
       onClick: () => setView('chapters', 'showChaptersView'), isActive: view === 'chapters',
     },
     {
-      id: 'import-favs-sidebar', label: 'Links', section: 'media', defaultLoc: 'sidebar',
-      paths: <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
-      onClick: () => setView('links', 'showImportFavs'), isActive: view === 'links',
-      badge: linkCount > 0 ? linkCount : undefined,
-    },
-    {
       id: 'videos-media-sidebar', label: 'Videos', section: 'media', defaultLoc: 'sidebar',
       paths: <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />,
-      onClick: () => setView('browse'), isActive: view === 'browse',
+      onClick: () => { sourceFilter.value = 'local'; setView('browse'); }, isActive: view === 'browse',
       badge: vids.filter(v => !(v as any).isLink).length || undefined,
     },
     {

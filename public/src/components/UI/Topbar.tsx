@@ -1,3 +1,5 @@
+import { useState, useRef, useEffect } from 'preact/hooks';
+import { Fragment } from 'preact';
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
@@ -5,28 +7,69 @@ import { FilterDropdowns, SectionDropdowns } from './LibraryFilters';
 import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles, openExternalFolder } from '../../store';
 import { zapOn } from '../../zap';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
-import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, sectionPlacementFor } from './navItems';
-import { useEffect } from 'preact/hooks';
+import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, sectionPlacementFor, setItemPlacement, sortByOrder, setNavOrder, activeDrag } from './navItems';
 
 
 export const Topbar = () => {
   const view = currentView.value;
+
+  const [tbDraggingId, setTbDraggingId] = useState<string | null>(null);
+  const [tbDragInsertId, setTbDragInsertId] = useState<string | null>(null);
+  const dropInsertRef = useRef<string | null>(null);
 
   useEffect(() => {
     loadProfiles();
     loadPlugins();
   }, []);
 
+  useEffect(() => {
+    const clear = () => { setTbDraggingId(null); setTbDragInsertId(null); activeDrag.id = ''; activeDrag.fromLoc = ''; };
+    window.addEventListener('dragend', clear);
+    return () => window.removeEventListener('dragend', clear);
+  }, []);
+
   if (view === 'instagram' || view === 'reddit') return null;
 
-  // Nav items the user moved out of the sidebar; rendered as icons after search.
-  // Exclude items whose whole section is already shown as a dropdown.
   const movedNavItems = getNavItems().filter(it =>
     placementFor(it.id, it.defaultLoc) === 'topbar' && sectionPlacementFor(it.section) !== 'topbar'
   );
+  const sortedMovedNavItems = sortByOrder(movedNavItems, 'topbar');
+  const topbarIds = sortedMovedNavItems.map(it => it.id);
+
   const movedPlugins = pluginsList.value
     .filter(p => pluginLocation(p) === 'topbar' && isPluginEnabled(p.id))
     .filter(p => !p.contexts || p.contexts.includes(view));
+
+  const handleTopbarDrop = (targetId: string) => {
+    const { id: draggedId, fromLoc } = activeDrag;
+    if (!draggedId) return;
+
+    if (fromLoc === 'sidebar') {
+      setItemPlacement(draggedId, 'topbar');
+      activeDrag.id = '';
+      activeDrag.fromLoc = '';
+      return;
+    }
+
+    if (fromLoc === 'topbar' && draggedId !== targetId) {
+      const insertId = dropInsertRef.current;
+      if (!insertId || insertId === draggedId) return;
+      const filtered = topbarIds.filter(id => id !== draggedId);
+      if (insertId === '__end_topbar') {
+        filtered.push(draggedId);
+      } else {
+        const toIdx = filtered.indexOf(insertId);
+        filtered.splice(toIdx === -1 ? filtered.length : toIdx, 0, draggedId);
+      }
+      setNavOrder('topbar', filtered);
+      activeDrag.id = '';
+      activeDrag.fromLoc = '';
+    }
+  };
+
+  const tbInsertLine = (
+    <span style={{ display: 'inline-block', width: '2px', height: '18px', background: 'var(--ac)', borderRadius: '1px', verticalAlign: 'middle', margin: '0 1px', pointerEvents: 'none' }} />
+  );
 
   const showHome = () => {
     currentView.value = 'hub';
@@ -75,19 +118,72 @@ export const Topbar = () => {
         <Search />
       </div>
 
-      <div className="tb-moved">
-        {movedNavItems.map(item => (
-          <button
-            key={item.id}
-            id={item.id}
-            onClick={item.onClick}
-            onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, item.id, item.label, 'topbar'); }}
-            title={item.label}
-            class={item.isActive ? 'on' : ''}
-          >
-            {navIcon(item.paths, 15)}
-          </button>
+      <div
+        className="tb-moved"
+        onDragOver={(e) => {
+          if (activeDrag.fromLoc === 'sidebar') {
+            e.preventDefault();
+            e.stopPropagation();
+            setTbDragInsertId('__end_topbar');
+            dropInsertRef.current = '__end_topbar';
+          }
+        }}
+        onDrop={(e) => {
+          if (activeDrag.fromLoc === 'sidebar') {
+            e.preventDefault();
+            e.stopPropagation();
+            handleTopbarDrop('__end_topbar');
+            setTbDragInsertId(null);
+            setTbDraggingId(null);
+          }
+        }}
+      >
+        {sortedMovedNavItems.map((item, idx) => (
+          <Fragment key={item.id}>
+            {tbDragInsertId === item.id && tbInsertLine}
+            <button
+              id={item.id}
+              onClick={item.onClick}
+              onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, item.id, item.label, 'topbar'); }}
+              title={item.label}
+              class={item.isActive ? 'on' : ''}
+              draggable
+              onDragStart={(e) => {
+                activeDrag.id = item.id;
+                activeDrag.fromLoc = 'topbar';
+                e.dataTransfer!.effectAllowed = 'move';
+                e.dataTransfer!.setData('text/plain', item.id);
+                setTbDraggingId(item.id);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const before = e.clientX < r.left + r.width / 2;
+                const insertId = before ? item.id : (topbarIds[idx + 1] ?? '__end_topbar');
+                dropInsertRef.current = insertId;
+                setTbDragInsertId(insertId);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleTopbarDrop(item.id);
+                setTbDragInsertId(null);
+                setTbDraggingId(null);
+              }}
+              onDragEnd={() => {
+                setTbDraggingId(null);
+                setTbDragInsertId(null);
+                activeDrag.id = '';
+                activeDrag.fromLoc = '';
+              }}
+              style={{ opacity: tbDraggingId === item.id ? 0.35 : 1, cursor: 'grab' }}
+            >
+              {navIcon(item.paths, 15)}
+            </button>
+          </Fragment>
         ))}
+        {tbDragInsertId === '__end_topbar' && tbInsertLine}
         {movedPlugins.map(p => {
           const isActive = p.type === 'toggle' && p.toggleAction === 'toggleZapping'
             ? zapOn.value
@@ -141,8 +237,8 @@ export const Topbar = () => {
       )}
 
       <div className="tb-acts">
-        <button 
-          onClick={() => profileModalState.value = { visible: true }} 
+        <button
+          onClick={() => profileModalState.value = { visible: true }}
           title="Switch Profile"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

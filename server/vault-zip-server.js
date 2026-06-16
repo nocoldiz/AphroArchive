@@ -365,12 +365,44 @@ async function apiVaultImportZip(req, res) {
     return json(res, { ok: true, mode, folder: folderName, count: written });
   }
 
-  // mode === 'vault'
-  const folder = body.folder || null;
+  // mode === 'vault' — preserve directory structure:
+  // 1. Create a root folder named after the archive inside the current vault folder.
+  // 2. Recreate each subdirectory as a vault folder under that root.
+  // 3. Encrypt each file into its correct vault folder.
+  const parentFolder = body.folder || null;
+  const archiveName = src.name.replace(/\.(zip|7z|cbz|cbr|rar)$/i, '').trim() || 'imported';
+  const rootFolderId = vault.createVaultFolder(archiveName, parentFolder);
+  if (!rootFolderId) return json(res, { error: 'Failed to create folder (vault locked?)' }, 500);
+
+  // Collect unique directory paths from the entry list (exclude entries with no directory part).
+  const dirPaths = new Set();
+  for (const f of files) {
+    const rel = _safeEntryPath(f.name);
+    if (!rel) continue;
+    const parts = rel.split('/');
+    for (let i = 1; i < parts.length; i++) dirPaths.add(parts.slice(0, i).join('/'));
+  }
+
+  // Build dir-path → vault-folder-id map, parents first.
+  const dirFolderMap = new Map([['', rootFolderId]]);
+  for (const dir of Array.from(dirPaths).sort()) {
+    const parts = dir.split('/');
+    const dirName = parts[parts.length - 1];
+    const parentPath = parts.slice(0, -1).join('/');
+    const pid = dirFolderMap.get(parentPath) ?? rootFolderId;
+    const fid = vault.createVaultFolder(dirName, pid);
+    if (fid) dirFolderMap.set(dir, fid);
+  }
+
   const ids = [];
   for (const f of files) {
-    const baseName = _safeEntryPath(f.name).split('/').pop() || 'file';
-    const id = vault.encryptBufferToVault(f.data, baseName, folder);
+    const rel = _safeEntryPath(f.name);
+    if (!rel) continue;
+    const parts = rel.split('/');
+    const filename = parts[parts.length - 1];
+    const dirPath = parts.slice(0, -1).join('/');
+    const folderId = dirFolderMap.get(dirPath) ?? rootFolderId;
+    const id = vault.encryptBufferToVault(f.data, filename, folderId);
     if (id) ids.push(id);
   }
   json(res, { ok: true, mode, count: ids.length, ids });

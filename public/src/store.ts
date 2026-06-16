@@ -607,10 +607,12 @@ export const filteredVideos = computed(() => {
     }
 
     if (currentFolder.value === 'uncategorized') {
-      list = list.filter((v: any) => !v.catPath || v.catPath === '' || (v.isLink && v.catPath === 'Links'));
+      // Folders only hold local videos now; links are tag-sorted, never foldered.
+      list = list.filter((v: any) => !v.isLink && (!v.catPath || v.catPath === ''));
     } else if (currentFolder.value) {
       const cl = currentFolder.value.toLowerCase().replace(/\\/g, '/');
       list = list.filter(v => {
+        if (v.isLink) return false;
         const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
         return vp === cl || vp.startsWith(cl + '/') || v.category === currentFolder.value;
       });
@@ -697,6 +699,34 @@ export const filteredVideos = computed(() => {
   }
 
   return list;
+});
+
+// Estimated number of loading skeletons to render while loadVideos is in flight,
+// so the placeholder grid roughly matches the incoming result instead of a fixed
+// block. Both the cached folder counts (persisted to localStorage via the folders
+// signal) and the previously loaded list survive until new data lands, so this
+// reads sensibly even on the very first paint.
+export const skeletonCount = computed(() => {
+  const CAP = 60; // matches VideoGrid's CHUNK_SIZE — only the first chunk renders
+  let n = 0;
+
+  if (currentFolder.value && currentFolder.value !== 'uncategorized') {
+    const cl = currentFolder.value.toLowerCase().replace(/\\/g, '/');
+    const f = folders.value.find(f => (f.path || '').toLowerCase().replace(/\\/g, '/') === cl);
+    if (f?.count) n = f.count;
+  }
+
+  // Fall back to the still-present previous list (replaced only once new data arrives).
+  if (!n && allVideos.value.length) {
+    if (currentTag.value) {
+      const tagLo = currentTag.value.toLowerCase();
+      n = allVideos.value.filter(v => (v.tags || []).some(t => t.toLowerCase() === tagLo)).length;
+    }
+    if (!n) n = allVideos.value.length;
+  }
+
+  if (!n) n = 12; // first-ever load with nothing cached yet
+  return Math.min(n, CAP);
 });
 
 // ─── Actions (Data Fetching) ──────────────────────────────────────────
@@ -833,14 +863,16 @@ async function loadVideosInner() {
   const linkVideos = linksData
     .filter((b: any) => b.url && !b.downloaded)
     .map((b: any) => {
-      const { catPath, category } = matchLinkFolder(b.title, cats, b.category);
+      // Links are no longer sorted into folders — they live in the tag system
+      // (matched by their explicit tags or by title against tag terms), the same
+      // way local videos are. So they carry no folder/category.
       return {
         id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
         name: b.title || b.url,
         path: b.scrapedVideoUrl || '',
         relPath: b.url,
-        catPath,
-        category,
+        catPath: '',
+        category: '',
         isLink: true,
         isExternal: true,
         embedUrl: b.embedUrl,

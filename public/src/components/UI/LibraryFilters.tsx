@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder } from '../../store';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount } from '../../store';
 import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection } from './navItems';
 
 interface SidebarItemProps {
@@ -64,15 +64,12 @@ export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDra
 
 const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
-// Shared: the active video list filtered by the source filter (local/remote/all).
-function useFilteredVids() {
-  const sf = sourceFilter.value;
+// Folders and the Tags dropdown operate on local videos; the Links dropdown
+// operates on links. Counts are scoped accordingly (no longer tied to the
+// removed local/remote toggle).
+function useScopedVids(linksOnly: boolean) {
   const vids = allVideos.value;
-  return useMemo(() => sf === 'local'
-    ? vids.filter(v => !(v as any).isLink)
-    : sf === 'remote'
-    ? vids.filter(v => !!(v as any).isLink)
-    : vids, [sf, vids]);
+  return useMemo(() => vids.filter(v => !!(v as any).isLink === linksOnly), [vids, linksOnly]);
 }
 
 interface CatTreeNode { cat: any; children: CatTreeNode[] }
@@ -84,7 +81,7 @@ interface CatTreeNode { cat: any; children: CatTreeNode[] }
  */
 export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
-  const filteredVids = useFilteredVids();
+  const filteredVids = useScopedVids(false);
 
   const [vaultFolders, setVaultFolders] = useState<{ id: string, name: string }[]>([]);
   useEffect(() => {
@@ -161,6 +158,7 @@ export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
     currentFolder.value = catName;
     currentTag.value = null; currentTagTerms.value = [];
     searchQuery.value = '';
+    sourceFilter.value = 'local';
     isSidebarOpen.value = false;
     (window as any).cat = catName;
     if ((window as any).showCategory) (window as any).showCategory(catName);
@@ -262,10 +260,11 @@ export const FoldersFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
           currentView.value = 'browse';
           currentFolder.value = '';
           currentTag.value = null; currentTagTerms.value = [];
+          sourceFilter.value = 'local';
           isSidebarOpen.value = false;
           onNavigate?.();
         }}
-        isActive={!currentFolder.value && !currentTag.value}
+        isActive={!currentFolder.value && !currentTag.value && sourceFilter.value !== 'remote'}
       />
       {pinnedCats.map(c => (
         <SidebarItem
@@ -297,9 +296,9 @@ let tagGroupsCache: { displayName: string, terms: string[] }[] | null = null;
  * Tags filter body. Rendered both inside the sidebar and the topbar "Tags"
  * dropdown. Owns the tag-group fetch and exposes `_sidebarReloadTags`.
  */
-export const TagsFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
+export const TagsFilter = ({ onNavigate, linksOnly = false }: { onNavigate?: () => void, linksOnly?: boolean }) => {
   const [tagGroups, setTagGroups] = useState<{ displayName: string, terms: string[] }[]>(() => tagGroupsCache || []);
-  const filteredVids = useFilteredVids();
+  const filteredVids = useScopedVids(linksOnly);
 
   const reloadTags = () => {
     fetch('/api/db-tags')
@@ -348,6 +347,8 @@ export const TagsFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
     currentTagTerms.value = t.terms;
     searchQuery.value = '';
     currentView.value = 'browse';
+    // Tags dropdown scopes to local videos; Links dropdown scopes to links.
+    sourceFilter.value = linksOnly ? 'remote' : 'local';
     isSidebarOpen.value = false;
     onNavigate?.();
   };
@@ -384,6 +385,36 @@ export const TagsFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
           isActive={currentTag.value === t.name}
         />
       ))}
+    </>
+  );
+};
+
+/**
+ * Links filter body. Rendered in the sidebar and the topbar "Links" dropdown.
+ * Reuses the Tags list (scoped to links) so links are browsed by tag, plus an
+ * "All Links" shortcut to the full Links page.
+ */
+export const LinksFilter = ({ onNavigate }: { onNavigate?: () => void }) => {
+  const total = linkTotalCount.value;
+  return (
+    <>
+      <SidebarItem
+        label="All Links"
+        badge={total || undefined}
+        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={iconStyle}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>}
+        onClick={() => {
+          currentView.value = 'links';
+          currentFolder.value = '';
+          currentTag.value = null; currentTagTerms.value = [];
+          searchQuery.value = '';
+          sourceFilter.value = 'remote';
+          isSidebarOpen.value = false;
+          if ((window as any).showImportFavs) (window as any).showImportFavs();
+          onNavigate?.();
+        }}
+        isActive={currentView.value === 'links'}
+      />
+      <TagsFilter onNavigate={onNavigate} linksOnly />
     </>
   );
 };
@@ -474,11 +505,13 @@ export const SectionDropdowns = () => {
  */
 export const FilterDropdowns = () => {
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
-  const [open, setOpen] = useState<null | 'folders' | 'tags'>(null);
+  const [open, setOpen] = useState<null | 'folders' | 'tags' | 'links'>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'topbar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'topbar' && !inVaultMode;
+  // Links default to the topbar (right of Tags); hidden inside the Vault.
+  const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'topbar' && !inVaultMode;
 
   useEffect(() => {
     if (!open) return;
@@ -504,7 +537,7 @@ export const FilterDropdowns = () => {
     </button>
   );
 
-  if (!showFolders && !showTags) return null;
+  if (!showFolders && !showTags && !showLinks) return null;
 
   return (
     <div className="filter-dropdowns" ref={ref}>
@@ -557,6 +590,31 @@ export const FilterDropdowns = () => {
               </div>
               <div className="filter-dropdown-body">
                 <TagsFilter onNavigate={close} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showLinks && (
+        <div className="filter-dropdown">
+          <button
+            type="button"
+            className={`filter-dropdown-btn${open === 'links' ? ' on' : ''}`}
+            onClick={() => setOpen(o => o === 'links' ? null : 'links')}
+            onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.links, 'Links', 'topbar'); }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: '6px' }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+            Links
+            <Chevron open={open === 'links'} />
+          </button>
+          {open === 'links' && (
+            <div className="filter-dropdown-menu">
+              <div className="filter-dropdown-head">
+                <span>Links</span>
+              </div>
+              <div className="filter-dropdown-body">
+                <LinksFilter onNavigate={close} />
               </div>
             </div>
           )}

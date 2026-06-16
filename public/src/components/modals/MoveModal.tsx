@@ -9,6 +9,7 @@ export const MoveModal = () => {
   const [vaultFolders, setVaultFolders] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState('');
   const [newCat, setNewCat] = useState('');
+  const [filter, setFilter] = useState('');
 
   useEffect(() => {
     if (state.visible) {
@@ -28,6 +29,7 @@ export const MoveModal = () => {
     }
     setError('');
     setNewCat('');
+    setFilter('');
   }, [state.visible, state.isVault]);
 
   if (!state.visible) return null;
@@ -75,7 +77,11 @@ export const MoveModal = () => {
     handleMove(safe);
   };
 
-  const folders = state.isVault ? vaultFolders : mainCats;
+  const allFolders = state.isVault ? vaultFolders : mainCats;
+  const q = filter.trim().toLowerCase();
+  const folders = q
+    ? allFolders.filter((c: any) => (c.name || '').toLowerCase().includes(q) || (c.path || '').toLowerCase().includes(q))
+    : allFolders;
 
   return (
     <div className="modal-overlay on" onClick={(e: any) => e.target === e.currentTarget && handleClose()} style={{ zIndex: 20000 }}>
@@ -83,8 +89,17 @@ export const MoveModal = () => {
         <h3 style={{ marginTop: 0 }}>Move To{state.isVault ? ' (Vault)' : ''}</h3>
         {state.vidIds.length > 1 && <div style={{ color: 'var(--tx2)', marginBottom: '12px' }}>Moving {state.vidIds.length} {state.isVault ? 'files' : 'videos'}</div>}
 
+        <input
+          type="text"
+          value={filter}
+          onInput={(e: any) => setFilter(e.target.value)}
+          placeholder="Filter folders..."
+          autoFocus
+          style={{ width: '100%', boxSizing: 'border-box', padding: '8px', marginBottom: '12px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px' }}
+        />
+
         <div className="move-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
-          {state.isVault && (
+          {state.isVault && !q && (
             <div
               className="move-item"
               onClick={() => handleMove('')}
@@ -109,9 +124,14 @@ export const MoveModal = () => {
             const isCur = state.isVault
               ? false
               : c.path === state.currentFolder;
-            const label = state.isVault ? c.name : c.name;
             const key = state.isVault ? c.id : c.path;
             const target = state.isVault ? c.id : c.path;
+            // Hierarchy: indent by nesting depth and show only the leaf name.
+            // When filtering, show the full path so out-of-context matches stay readable.
+            const depth = state.isVault || !c.path ? 0 : c.path.split('/').length - 1;
+            const label = state.isVault || q
+              ? c.name
+              : (c.path ? c.path.split('/').pop() : c.name);
             return (
               <div
                 key={key}
@@ -122,6 +142,7 @@ export const MoveModal = () => {
                   alignItems: 'center',
                   gap: '8px',
                   padding: '8px',
+                  paddingLeft: `${8 + depth * 18}px`,
                   borderRadius: '4px',
                   cursor: isCur ? 'default' : 'pointer',
                   background: isCur ? 'rgba(255,255,255,0.05)' : 'transparent',
@@ -136,6 +157,9 @@ export const MoveModal = () => {
               </div>
             );
           })}
+          {q && folders.length === 0 && (
+            <div style={{ color: 'var(--tx2)', padding: '8px', fontSize: '0.85rem' }}>No folders match "{filter}"</div>
+          )}
         </div>
 
         {!state.isVault && (

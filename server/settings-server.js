@@ -130,6 +130,20 @@ async function apiSavePrefs(req, res) {
   if ('homeDashboard' in body) {
     prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];
   }
+  // Nav item ordering within each bar section ({ sidebar_library: [...ids], topbar: [...ids], ... }).
+  if ('navOrder' in body) {
+    const src = body.navOrder;
+    if (src && typeof src === 'object' && !Array.isArray(src)) {
+      const validKeys = new Set(['sidebar_library', 'sidebar_media', 'sidebar_tools', 'topbar']);
+      const out = {};
+      for (const k of Object.keys(src)) {
+        if (validKeys.has(k) && Array.isArray(src[k])) {
+          out[k] = src[k].map(String).filter(s => s.length > 0 && s.length < 100).slice(0, 100);
+        }
+      }
+      prefs.navOrder = out;
+    }
+  }
   if ('autoChapterDetection' in body) prefs.autoChapterDetection = !!body.autoChapterDetection;
   if ('pinnedFolders' in body) {
     if (Array.isArray(body.pinnedFolders)) prefs.pinnedFolders = body.pinnedFolders.map(String).filter(Boolean).slice(0, 100);
@@ -217,12 +231,13 @@ function apiBrowseFoldersNative(req, res) {
   const { exec } = require('child_process');
   const scriptLines = [
     'Add-Type -AssemblyName System.Windows.Forms',
-    '$fb = New-Object System.Windows.Forms.FolderBrowserDialog',
-    '$fb.Description = "Select Folder"',
     '$owner = New-Object System.Windows.Forms.Form',
     '$owner.TopMost = $true',
     '$owner.StartPosition = "CenterScreen"',
-    '$owner.Width = 0; $owner.Height = 0; $owner.ShowInTaskbar = $false',
+    '$owner.Width = 1; $owner.Height = 1; $owner.ShowInTaskbar = $false',
+    '$owner.Show()',
+    '$fb = New-Object System.Windows.Forms.FolderBrowserDialog',
+    '$fb.Description = "Select Folder"',
     'if ($fb.ShowDialog($owner) -eq "OK") { $fb.SelectedPath }',
     '$owner.Dispose()',
   ].join('\n');

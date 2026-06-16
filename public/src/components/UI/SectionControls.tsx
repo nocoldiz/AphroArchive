@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter, currentFolder, updatePrefs, gridViewMode, groupByYear } from '../../store';
+import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, currentFolder, updatePrefs, gridViewMode, groupByYear } from '../../store';
 import { CategoryTagsModal } from './CategoryTagsModal';
 
 interface SectionControlsProps {
@@ -39,7 +39,6 @@ export const SectionControls = ({
   showSort = true,
   showStarred = true,
   showShuffle = true,
-  showSource = true,
   showClearHistory = false,
   showCardSize = true,
   showFilter = true,
@@ -125,15 +124,6 @@ export const SectionControls = ({
             <path d="M4 4l5 5" />
           </svg>Shuffle
         </button>
-      )}
-      
-      {showSource && (
-        <>
-          <span className="sg-sep"></span>
-          <button className={`sort-btn src-btn ${sourceFilter.value === 'both' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'both'}>Both</button>
-          <button className={`sort-btn src-btn ${sourceFilter.value === 'local' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'local'}>Local</button>
-          <button className={`sort-btn src-btn ${sourceFilter.value === 'remote' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'remote'}>Remote</button>
-        </>
       )}
       
       {showClearHistory && (

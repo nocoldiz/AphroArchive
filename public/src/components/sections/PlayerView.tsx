@@ -173,7 +173,9 @@ export const PlayerView = () => {
         playerSeason.value = null;
       }
 
-      const allVis = filteredVideos.value;
+      // Local videos queue local videos; links queue links.
+      const wantLink = !!(video as any).isLink;
+      const allVis = filteredVideos.value.filter(v => !!(v as any).isLink === wantLink);
       const idx = allVis.findIndex(v => v.id === video.id);
 
       if (idx !== -1) {
@@ -182,7 +184,7 @@ export const PlayerView = () => {
         playerNextUp.value = [...after, ...before];
       } else {
         const list = allVideos.value
-          .filter(v => v.category === video.category && v.id !== video.id)
+          .filter(v => !!(v as any).isLink === wantLink && v.category === video.category && v.id !== video.id)
           .slice(0, 10);
         playerNextUp.value = list;
       }
@@ -336,11 +338,14 @@ export const PlayerView = () => {
     const nextUpIds = new Set(playerNextUp.value.map(v => v.id));
     
     const titleWords = video.name.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-    
+    const wantLink = !!(video as any).isLink;
+
     return allVideos.value.filter(v => {
       if (v.id === video.id) return false;
       if (nextUpIds.has(v.id)) return false;
-      
+      // Local videos suggest local videos; links suggest links.
+      if (!!(v as any).isLink !== wantLink) return false;
+
       const sameActors = actors.length > 0 && v.actors && v.actors.some(a => actors.includes(a));
       const sameTags = tags.length > 0 && v.tags && v.tags.some(t => tags.includes(t));
       
@@ -615,8 +620,8 @@ export const PlayerView = () => {
             ) : (
               <AdvancedPlayer
                 key={video.id}
-                src={`/api/stream/${video.id}`}
-                hlsSrc={`/api/hls/${video.id}/index.m3u8`}
+                src={video.streamUrl || `/api/stream/${video.id}`}
+                hlsSrc={video.streamUrl ? undefined : `/api/hls/${video.id}/index.m3u8`}
                 videoId={video.id}
                 title={video.name}
                 subtitles={subtitles}
@@ -694,7 +699,8 @@ export const PlayerView = () => {
               </button>
 
               <button onClick={() => {
-                const pool = allVideos.value.filter((v: any) => v.id !== video.id && !v.isLink);
+                const wantLink = !!(video as any).isLink;
+                const pool = allVideos.value.filter((v: any) => v.id !== video.id && !!v.isLink === wantLink);
                 if (!pool.length) { if ((window as any).toast) (window as any).toast('No other videos'); return; }
                 const pick = pool[Math.floor(Math.random() * pool.length)];
                 (window as any).openVid(pick.id);

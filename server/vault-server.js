@@ -887,7 +887,7 @@ async function apiVaultSetup(req, res) {
     json(res, { ok: true });
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on setup failed:', e.message); }
     processHiddenFolder();
-    try { require('./vault-zip-mount-server').scanAndMountZips(pw); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
+    try { require('./vault-zip-mount-server').scanAndMountZips(pw, decryptToBuffer, loadVaultMeta()); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
@@ -936,7 +936,7 @@ async function apiVaultUnlock(req, res) {
     resetVaultTimer();
     json(res, { ok: true });
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on unlock failed:', e.message); }
-    try { require('./vault-zip-mount-server').scanAndMountZips(pw); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
+    try { require('./vault-zip-mount-server').scanAndMountZips(pw, decryptToBuffer, loadVaultMeta()); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
     processHiddenFolder();
     try { require('./feed-watcher-server').processPendingPrivateFeed(); } catch {}
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -1299,6 +1299,20 @@ async function apiVaultCreateFolder(req, res) {
   meta[id] = { type: 'folder', name, parent, mtime: Date.now() };
   saveVaultMeta(meta);
   json(res, { ok: true, id, name, parent });
+}
+
+// Internal version — no req/res. Returns the folder id (new or existing), or null if vault is locked.
+function createVaultFolder(name, parent = null) {
+  if (!vaultKey) return null;
+  const meta = loadVaultMeta();
+  const existing = Object.entries(meta).find(
+    ([, m]) => m.type === 'folder' && m.name.toLowerCase() === name.toLowerCase() && (m.parent || null) === (parent || null)
+  );
+  if (existing) return existing[0];
+  const id = crypto.randomUUID();
+  meta[id] = { type: 'folder', name, parent: parent || null, mtime: Date.now() };
+  saveVaultMeta(meta);
+  return id;
 }
 
 async function apiVaultDeleteFolder(req, res, id) {
@@ -1816,7 +1830,7 @@ module.exports = {
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
   deriveKeys, NO_CACHE_HEADERS, isUnlocked, lockVault, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
-  encryptBufferToVault, suspendAutoLock, resumeAutoLock, reconcileVaultOrphans,
+  encryptBufferToVault, createVaultFolder, suspendAutoLock, resumeAutoLock, reconcileVaultOrphans,
   apiVaultThumb, apiVaultGenThumbs, apiVaultGenThumbsStatus, generateVaultThumb,
   shredFile: _shredFile,
   __resetForTest, __stopTimers,

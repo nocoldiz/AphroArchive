@@ -247,24 +247,128 @@ function _mountZip(zipPath, zipName, password) {
   console.log(`[vault-zip-mount] mounted ${zipName} (${mountedEntries.length} files)`);
 }
 
-// ── Public API ────────────────────────────────────────────────────────
+// ── Buffer-based mount (for vault .enc ZIPs decrypted into memory) ───
+// Called from scanAndMountZips when the vault meta has entries with .zip ext.
+function _mountZipBuffer(buf, displayName, password, vaultId) {
+  const zipReader = require('./zip-reader-server');
+  let rawEntries;
+  try { rawEntries = zipReader.listEntries(buf); }
+  catch (e) { throw new Error('Not a valid ZIP: ' + e.message); }
 
-function scanAndMountZips(password) {
-  unmountAll();
-  if (!fs.existsSync(VAULT_DIR)) return;
-
-  let files;
-  try {
-    files = fs.readdirSync(VAULT_DIR).filter(f => /\.zip$/i.test(f));
-  } catch { return; }
-
-  for (const zipName of files) {
+  // For AES-encrypted inner entries, verify the password matches
+  const firstAes = rawEntries.find(e => !e.isDir && e.encryption === 'aes');
+  if (firstAes) {
     try {
-      _mountZip(path.join(VAULT_DIR, zipName), zipName, password);
+      zipReader.extractEntry(buf, firstAes, password);
     } catch (e) {
-      console.log(`[vault-zip-mount] skipping ${zipName}: ${e.message}`);
+      if (e.message === 'WRONG_PASSWORD') throw new Error('Wrong password');
+      // Any other error (auth fail etc.) also means wrong password — skip silently
+      throw e;
     }
   }
+
+  const mountId      = crypto.randomUUID();
+  const displayName_ = displayName.replace(/\.(zip|cbz)$/i, '');
+  const rootFolderId = crypto.randomUUID();
+  const subFolders   = {};
+
+  const dirSet = new Set();
+  for (const e of rawEntries) {
+    const clean = e.name.replace(/\\/g, '/');
+    if (e.isDir) {
+      const p = clean.replace(/\/$/, '');
+      if (p) dirSet.add(p);
+    } else {
+      const parts = clean.split('/');
+      for (let i = 1; i < parts.length; i++) dirSet.add(parts.slice(0, i).join('/'));
+    }
+  }
+  for (const dir of dirSet) subFolders[dir] = crypto.randomUUID();
+
+  const mountedEntries = [];
+  for (const e of rawEntries) {
+    if (e.isDir) continue;
+    const clean    = e.name.replace(/\\/g, '/');
+    const parts    = clean.split('/');
+    const filename = parts[parts.length - 1];
+    if (!filename) continue;
+
+    const ext          = path.extname(filename).toLowerCase();
+    const parentDir    = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
+    const parentFolder = parentDir ? (subFolders[parentDir] || rootFolderId) : rootFolderId;
+
+    const entryId = crypto.randomUUID();
+    const entry   = {
+      entryId, filename, ext,
+      size: e.size, compressedSize: e.compressedSize,
+      method: e.method, encryption: e.encryption,
+      aes: e._aes, _localOff: e._localOff, dataStart: 0,
+      flags: e._flags, crc: e.crc, parentFolderId: parentFolder,
+    };
+    // Resolve dataStart from local header inside the buffer
+    try {
+      const lo = e._localOff;
+      const lhNameLen  = buf.readUInt16LE(lo + 26);
+      const lhExtraLen = buf.readUInt16LE(lo + 28);
+      entry.dataStart  = lo + 30 + lhNameLen + lhExtraLen;
+    } catch {}
+
+    mountedEntries.push(entry);
+    _entryIndex[entryId] = { mountId, entry };
+  }
+
+  _mounts[mountId] = {
+    zipPath: null, zipBuf: buf,  // null zipPath marks buffer-based mount
+    displayName: displayName_, password,
+    rootFolderId, entries: mountedEntries, subFolders,
+    vaultId: vaultId || null,
+  };
+
+  console.log(`[vault-zip-mount] mounted ${displayName_} from vault buffer (${mountedEntries.length} files)`);
+}
+
+// ── Public API ────────────────────────────────────────────────────────
+
+// decryptFn: vault's decryptToBuffer(id) → { buffer } | null
+// vaultMeta: the full vault meta map (already loaded)
+function scanAndMountZips(password, decryptFn, vaultMeta) {
+  unmountAll();
+
+  // 1. Raw .zip files sitting directly in VAULT_DIR (legacy behaviour)
+  if (fs.existsSync(VAULT_DIR)) {
+    let files;
+    try { files = fs.readdirSync(VAULT_DIR).filter(f => /\.zip$/i.test(f)); } catch { files = []; }
+    for (const zipName of files) {
+      try { _mountZip(path.join(VAULT_DIR, zipName), zipName, password); }
+      catch (e) { console.log(`[vault-zip-mount] skipping raw ${zipName}: ${e.message}`); }
+    }
+  }
+
+  // 2. Vault .enc entries whose ext is .zip or .cbz
+  if (decryptFn && vaultMeta) {
+    for (const [id, m] of Object.entries(vaultMeta)) {
+      if (m.type === 'folder') continue;
+      const ext = (m.ext || '').toLowerCase();
+      if (ext !== '.zip' && ext !== '.cbz') continue;
+      try {
+        const r = decryptFn(id);
+        if (!r || !r.buffer) continue;
+        const displayName = m.name || (m.originalName || 'archive').replace(/\.(zip|cbz)$/i, '');
+        _mountZipBuffer(r.buffer, displayName, password, id);
+      } catch (e) {
+        console.log(`[vault-zip-mount] skipping vault entry ${id}: ${e.message}`);
+      }
+    }
+  }
+
+  // 3. Encrypted ZIPs from media folders — try the vault password
+  try {
+    const mediaZip = require('./media-zip-mount-server');
+    for (const { zipPath, displayName } of mediaZip.getEncryptedZipPaths()) {
+      try { _mountZip(zipPath, displayName + '.zip', password); }
+      catch (e) { /* wrong password or not a zip — skip silently */ }
+    }
+  } catch {}
 }
 
 // Returns virtual items (folders + files) merged into the vault listing.
@@ -273,12 +377,21 @@ function getMountedItems() {
 
   for (const [, mount] of Object.entries(_mounts)) {
     let zipMtime = Date.now();
-    try { zipMtime = fs.statSync(mount.zipPath).mtimeMs; } catch {}
+    if (mount.zipPath) { try { zipMtime = fs.statSync(mount.zipPath).mtimeMs; } catch {} }
 
-    // Top-level folder representing the zip archive
+    // Top-level folder representing the zip archive.
+    // For buffer-based (vault .enc) mounts, honour the vault folder the ZIP was uploaded to.
+    let rootParent = null;
+    if (mount.vaultId) {
+      try {
+        const { loadVaultMeta } = require('./db-server');
+        const meta = loadVaultMeta();
+        rootParent = (meta[mount.vaultId] || {}).folder || null;
+      } catch {}
+    }
     items.push({
       id: mount.rootFolderId, type: 'folder',
-      name: mount.displayName, parent: null,
+      name: mount.displayName, parent: rootParent,
       mtime: zipMtime, zipMount: true,
     });
 
@@ -336,7 +449,13 @@ function streamZipEntry(req, res, entryId) {
   const entry = rec.entry;
   const ct    = MIME[entry.ext] || 'video/mp4';
 
-  // AES-stored entries support efficient range requests
+  // Buffer-based mounts (vault .enc ZIPs decrypted into memory) always use fallback
+  if (mount.zipBuf) {
+    _streamFallback(req, res, mount, entry, ct);
+    return;
+  }
+
+  // AES-stored entries support efficient range requests (file-based only)
   if (entry.encryption === 'aes' && (entry.aes ? entry.aes.actualMethod : entry.method) === 0) {
     try { _streamAesStored(req, res, mount.zipPath, entry, mount.password, ct); }
     catch (e) {
@@ -429,27 +548,25 @@ function _streamAesStored(req, res, zipPath, entry, password, ct) {
   }
 }
 
-// Fallback for compressed (deflate) or ZipCrypto entries:
+// Fallback for compressed (deflate), ZipCrypto, or buffer-based mounts:
 // decrypt + decompress the whole entry into memory, then serve the range.
 function _streamFallback(req, res, mount, entry, ct) {
-  // Lazy-require zip-reader to keep the module self-contained
   const zipReader = require('./zip-reader-server');
   let buf;
   try {
-    buf = fs.readFileSync(mount.zipPath);
+    buf = mount.zipBuf || fs.readFileSync(mount.zipPath);
   } catch (e) {
     res.writeHead(500); res.end('Cannot read zip: ' + e.message); return;
   }
 
   let plain;
   try {
-    // Reconstruct entry descriptor for zip-reader
     const fakeEntry = {
       name: entry.filename, method: entry.method,
       encryption: entry.encryption, encrypted: !!entry.encryption,
       _aes: entry.aes, compressedSize: entry.compressedSize,
-      size: entry.size, _localOff: entry.localOff,
-      crc: entry.crc, _flags: entry.flags,
+      size: entry.size, _localOff: entry._localOff || entry.localOff,
+      crc: entry.crc, _flags: entry._flags || entry.flags,
     };
     plain = zipReader.extractEntry(buf, fakeEntry, mount.password);
   } catch (e) {

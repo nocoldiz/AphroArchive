@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
@@ -973,7 +973,7 @@ export const VideoGrid = () => {
   if (isLoadingVideos.value) {
     return (
       <div className="video-grid" id="video-grid">
-        {Array(12).fill(0).map((_, i) => (
+        {Array(skeletonCount.value).fill(0).map((_, i) => (
           <div key={i} className="skeleton skeleton-card"></div>
         ))}
       </div>

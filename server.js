@@ -53,6 +53,7 @@ const prompts = require('./server/prompts-server');
 const comments = require('./server/comments-server');
 const vision = require('./server/vision-server');
 const vaultZip = require('./server/vault-zip-server');
+const mediaZip = require('./server/media-zip-mount-server');
 const veracrypt = require('./server/veracrypt-server');
 const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
@@ -398,6 +399,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/zip-entries' && req.method === 'POST') return vaultZip.apiVaultZipEntries(req, res);
   if (p === '/api/vault/import-zip' && req.method === 'POST') return vaultZip.apiVaultImportZip(req, res);
   if ((m = p.match(/^\/api\/vault\/zip-stream\/([^/]+)$/)) && req.method === 'GET') return require('./server/vault-zip-mount-server').streamZipEntry(req, res, m[1]);
+  if ((m = p.match(/^\/api\/media-zip-stream\/([^/]+)$/)) && req.method === 'GET') return mediaZip.streamMediaZipEntry(req, res, m[1]);
   if (p === '/api/veracrypt/status' && req.method === 'GET') return veracrypt.apiVeracryptStatus(req, res);
   if (p === '/api/veracrypt/mount' && req.method === 'POST') return veracrypt.apiVeracryptMount(req, res);
   if (p === '/api/veracrypt/dismount' && req.method === 'POST') return veracrypt.apiVeracryptDismount(req, res);

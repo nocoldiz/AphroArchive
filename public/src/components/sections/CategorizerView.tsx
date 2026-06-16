@@ -2,19 +2,32 @@ import { useState, useRef, useEffect } from 'preact/hooks';
 import { allVideos, folders, loadFolders, loadVideos } from '../../store';
 import { Video } from '../../types';
 
-type Side   = 'left' | 'right';
-type Source = 'both' | 'local' | 'remote';
+type Side = 'left' | 'right';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
 function thumbSrc(v: Video): string {
-  if (v.isLink) return v.img || '';
   return `/api/thumbs/${v.id}/0`;
 }
 
-// Decode the base64url link id back to URL for move operations
-function linkUrl(id: string): string {
-  try { return atob(id.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '') + '=='.slice((id.length * 6 % 8) ? (id.length * 6 % 8 === 2 ? 2 : 1) : 0)); } catch { return ''; }
+// ── Relevance scoring: rank candidates by how well they match a query ──
+// Returns 0 when there's no match. All query tokens must be found; exact
+// word / prefix / start-of-name matches score higher than loose substrings.
+function matchScore(target: string, query: string): number {
+  const t = target.toLowerCase();
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return 0;
+  let score = 0;
+  for (const tok of tokens) {
+    const idx = t.indexOf(tok);
+    if (idx === -1) return 0;            // every token must appear
+    score += 10;
+    if (idx === 0) score += 8;           // matches at the very start
+    // word-boundary match (preceded by a non-alphanumeric char)
+    else if (!/[a-z0-9]/.test(t[idx - 1])) score += 4;
+    if (t.length - tok.length < 3) score += 6; // near-exact length
+  }
+  return score;
 }
 
 // ── component ─────────────────────────────────────────────────────────────
@@ -30,8 +43,9 @@ export const CategorizerView = () => {
   const [selR, setSelR] = useState<Set<string>>(new Set());
   const [searchL, setSearchL] = useState('');
   const [searchR, setSearchR] = useState('');
-  const [sourceL, setSourceL] = useState<Source>('both');
-  const [sourceR, setSourceR] = useState<Source>('both');
+  // Global filter — narrows the videos eligible for categorizing across both
+  // panels. Only videos passing it are shown, so only they can be moved.
+  const [globalFilter, setGlobalFilter] = useState('');
   const [dropOver, setDropOver] = useState<Side | null>(null);
   const [moving, setMoving] = useState(false);
   const [newFolderSide, setNewFolderSide] = useState<Side | null>(null);
@@ -58,24 +72,22 @@ export const CategorizerView = () => {
   const setSel    = (s: Side, v: Set<string>) => s === 'left' ? setSelL(v) : setSelR(v);
   const getSearch = (s: Side) => s === 'left' ? searchL : searchR;
   const setSearch = (s: Side, v: string) => s === 'left' ? setSearchL(v) : setSearchR(v);
-  const getSource = (s: Side) => s === 'left' ? sourceL : sourceR;
-  const setSource = (s: Side, v: Source) => s === 'left' ? setSourceL(v) : setSourceR(v);
   const inSearch  = (s: Side) => getSearch(s).trim() !== '';
   const lastClick = (s: Side) => s === 'left' ? lastClickL : lastClickR;
 
-  // ── Fuzzy match: all chars in query appear in order in the target ──
-  const fuzzyMatch = (target: string, query: string): boolean => {
-    target = target.toLowerCase();
-    query = query.toLowerCase();
-    let ti = 0;
-    for (let qi = 0; qi < query.length; qi++) {
-      const ch = query[qi];
-      if (ch === ' ') continue; // skip spaces
-      ti = target.indexOf(ch, ti);
-      if (ti === -1) return false;
-      ti++;
-    }
-    return true;
+  // The categorizer files videos into folders; links are tag-sorted, not
+  // foldered, so they never appear here.
+  const localVids = allVids.filter(v => !v.isLink);
+
+  // Apply the global filter (improved relevance match) and drop non-matches.
+  const applyGlobal = (vids: Video[]): Video[] => {
+    const q = globalFilter.trim();
+    if (!q) return vids;
+    return vids
+      .map(v => ({ v, s: Math.max(matchScore(v.name, q), matchScore(v.category || '', q)) }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .map(x => x.v);
   };
 
   // Return the set of video ids currently visible in the opposite panel
@@ -85,38 +97,26 @@ export const CategorizerView = () => {
     return new Set(otherVids.map(v => v.id));
   };
 
-  const applySource = (vids: Video[], src: Source) => {
-    if (src === 'local')  return vids.filter(v => !v.isLink);
-    if (src === 'remote') return vids.filter(v =>  v.isLink);
-    return vids;
-  };
-
   const panelVideosRaw = (s: Side): Video[] => {
-    const q = getSearch(s).trim().toLowerCase();
+    const q = getSearch(s).trim();
     if (q) {
-      return allVids.filter(v =>
-        fuzzyMatch(v.name, q) ||
-        fuzzyMatch(v.catPath  || '', q) ||
-        fuzzyMatch(v.category || '', q)
-      );
+      // Per-panel search: rank by relevance against name / folder.
+      return localVids
+        .map(v => ({ v, s: Math.max(matchScore(v.name, q), matchScore(v.catPath || '', q), matchScore(v.category || '', q)) }))
+        .filter(x => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .map(x => x.v);
     }
     const cat = getCat(s);
     if (!cat) return [];
-    return allVids.filter(v => (v.catPath || '') === cat);
+    return localVids.filter(v => (v.catPath || '') === cat);
   };
 
   const panelVideos = (s: Side): Video[] => {
-    const result = panelVideosRaw(s);
-    const filtered = applySource(result, getSource(s));
-    // When searching, exclude videos already visible in the other panel
-    const q = getSearch(s).trim();
-    if (q) {
-      const otherIds = otherPanelIds(s);
-      return filtered.filter(v => !otherIds.has(v.id));
-    }
-    // When a category is selected, also exclude videos already in the other panel
-    // to avoid moving a video into its current folder
-    if (getCat(s)) {
+    const filtered = applyGlobal(panelVideosRaw(s));
+    // Exclude videos already visible in the other panel so a move never targets
+    // a video's current folder.
+    if (inSearch(s) || getCat(s)) {
       const otherIds = otherPanelIds(s);
       return filtered.filter(v => !otherIds.has(v.id));
     }
@@ -208,48 +208,34 @@ export const CategorizerView = () => {
     }
     setMoving(true);
 
-    // Split into local videos and links
     const idSet = new Set(ids);
-    const movingVids  = allVids.filter(v => !v.isLink && idSet.has(v.id));
-    const movingLinks = allVids.filter(v =>  v.isLink && idSet.has(v.id));
+    const movingVids = localVids.filter(v => idSet.has(v.id));
 
-    const [vidResults, linkResult] = await Promise.all([
-      Promise.all(
-        movingVids.map(v =>
-          fetch(`/api/videos/${encodeURIComponent(v.id)}/move`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: targetCat }),
-          }).then(r => r.json()).then(d => ({ id: v.id, ...d })).catch(() => ({ id: v.id, error: 'network' }))
-        )
-      ),
-      movingLinks.length
-        ? fetch('/api/links/move', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: movingLinks.map(v => v.linkUrl || v.relPath), category: targetCat }),
-          }).then(r => r.json()).catch(() => ({ ok: false }))
-        : Promise.resolve({ ok: true }),
-    ]);
+    const vidResults = await Promise.all(
+      movingVids.map(v =>
+        fetch(`/api/videos/${encodeURIComponent(v.id)}/move`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category: targetCat }),
+        }).then(r => r.json()).then(d => ({ id: v.id, ...d })).catch(() => ({ id: v.id, error: 'network' }))
+      )
+    );
 
     const movedVidIds = new Map<string, string>(
       vidResults.filter(r => r.ok).map(r => [r.id, r.newId])
     );
     const targetCatName = allCats.find(c => c.path === targetCat)?.name || targetCat || 'Uncategorized';
-    const failCount = vidResults.filter(r => !r.ok).length + (movingLinks.length && !linkResult.ok ? movingLinks.length : 0);
+    const failCount = vidResults.filter(r => !r.ok).length;
 
     if (failCount) alert(`${failCount} move${failCount > 1 ? 's' : ''} failed`);
 
-    if (movedVidIds.size || (movingLinks.length && linkResult.ok)) {
+    if (movedVidIds.size) {
       allVideos.value = allVids.map(v => {
         const newId = movedVidIds.get(v.id);
         if (newId) return { ...v, id: newId, catPath: targetCat, category: targetCatName };
-        if (v.isLink && movingLinks.some(l => l.id === v.id) && linkResult.ok) {
-          return { ...v, catPath: targetCat, category: targetCatName };
-        }
         return v;
       });
-      setSel(from, new Set([...getSel(from)].filter(id => !movedVidIds.has(id) && !movingLinks.some(l => l.id === id))));
+      setSel(from, new Set([...getSel(from)].filter(id => !movedVidIds.has(id))));
       if ((window as any).loadVideos) (window as any).loadVideos();
     }
     setMoving(false);
@@ -318,19 +304,10 @@ export const CategorizerView = () => {
     const cat       = getCat(side);
     const sel       = getSel(side);
     const search    = getSearch(side);
-    const source    = getSource(side);
     const searching = inSearch(side);
     const vids      = panelVideos(side);
     const isOver    = dropOver === side;
     const ctr       = side === 'left' ? dragCtrL : dragCtrR;
-
-    const srcBtn = (label: string, val: Source) => (
-      <button
-        type="button"
-        onClick={() => { setSource(side, val); setSel(side, new Set()); }}
-        style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--brd)', background: source === val ? 'var(--ac)' : 'var(--bg2)', color: source === val ? '#fff' : 'var(--tx3)', fontWeight: source === val ? 700 : 400 }}
-      >{label}</button>
-    );
 
     return (
       <div
@@ -405,7 +382,7 @@ export const CategorizerView = () => {
           </div>
         )}
 
-        {/* ── Toolbar: search + source filter + selection ── */}
+        {/* ── Toolbar: per-panel search ── */}
         <div style={{ padding: '5px 12px', borderBottom: '1px solid var(--brd)', background: 'var(--bg3)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--tx3)', flexShrink: 0 }}>
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -419,11 +396,6 @@ export const CategorizerView = () => {
             <button type="button" onClick={() => { setSearch(side, ''); setSel(side, new Set()); }}
               style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '12px', lineHeight: 1, flexShrink: 0 }}>✕</button>
           )}
-          <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
-            {srcBtn('Both', 'both')}
-            {srcBtn('Local', 'local')}
-            {srcBtn('Links', 'remote')}
-          </div>
         </div>
 
         {/* ── Selection bar ── */}
@@ -496,12 +468,7 @@ export const CategorizerView = () => {
                           </svg>
                         </div>
                       )}
-                      {v.isLink && (
-                        <div style={{ position: 'absolute', top: '3px', left: '3px', background: 'rgba(0,0,0,0.65)', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', color: 'var(--tx3)' }}>
-                          link
-                        </div>
-                      )}
-                      {(searching || source === 'both') && (
+                      {(searching || !!globalFilter.trim()) && (
                         <div style={{ position: 'absolute', bottom: '2px', left: '3px', fontSize: '9px', background: 'rgba(0,0,0,0.65)', color: 'var(--tx3)', borderRadius: '3px', padding: '1px 4px', maxWidth: 'calc(100% - 6px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {v.category || 'Uncategorized'}
                         </div>
@@ -534,9 +501,29 @@ export const CategorizerView = () => {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
-      {renderPanel('left')}
-      {renderPanel('right')}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
+      {/* ── Global filter bar: narrows the videos eligible across both panels ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid var(--brd)', background: 'var(--bg2)', flexShrink: 0 }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--tx3)', flexShrink: 0 }}>
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
+        <input
+          type="text" value={globalFilter} placeholder="Filter videos to categorize…" aria-label="Filter videos"
+          onInput={(e: any) => { setGlobalFilter(e.target.value); setSelL(new Set()); setSelR(new Set()); }}
+          style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', outline: 'none', minWidth: 0 }}
+        />
+        {globalFilter.trim() && (
+          <button type="button" onClick={() => setGlobalFilter('')}
+            style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', cursor: 'pointer', fontSize: '12px', borderRadius: '4px', padding: '3px 8px', flexShrink: 0 }}>Clear</button>
+        )}
+        {globalFilter.trim() && (
+          <span style={{ fontSize: '11px', color: 'var(--tx3)', flexShrink: 0 }}>Only matching videos are categorized</span>
+        )}
+      </div>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {renderPanel('left')}
+        {renderPanel('right')}
+      </div>
     </div>
   );
 };

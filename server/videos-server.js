@@ -302,6 +302,7 @@ function invalidateScanCache() {
   _scanCache = null;
   clearVideoIndex();
   clearMediaIndex();
+  try { require('./media-zip-mount-server').invalidate(); } catch {}
   broadcastScanChange();
 }
 
@@ -730,6 +731,23 @@ async function apiVideos(req, res, params) {
       });
     }
   }
+  // Append virtual ZIP-based video entries (unencrypted ZIPs in all media roots).
+  // Vault profile uses its own ZIP mount mechanism; skip here.
+  const db = require('./db-server');
+  if (!showAll && db.getCurrentProfile() !== 'Vault') {
+    try {
+      const mediaZip = require('./media-zip-mount-server');
+      let zipVideos = mediaZip.getVirtualVideos(cat || null);
+      if (q) {
+        const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+        zipVideos = zipVideos.filter(v => tokens.every(t => v.name.toLowerCase().includes(t) || v.catPath.toLowerCase().includes(t)));
+      }
+      for (const zv of zipVideos) {
+        list.push({ ...zv, fav: false, rating: null, reencoded: false, duration: null, durationF: null, actors: [], note: '', chapters: [], width: null, height: null });
+      }
+    } catch (e) { console.error('[apiVideos] zip videos error:', e.message); }
+  }
+
   if (sort === 'name')     list.sort((a, b) => a.name.localeCompare(b.name));
   else if (sort === 'size')     list.sort((a, b) => b.size - a.size);
   else if (sort === 'duration') list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
@@ -917,6 +935,20 @@ async function apiFolders(req, res, params) {
       filtered.push({ ...entry, encrypted: false, partial: false, unlocked: true });
     }
   } catch (e) {}
+
+  // Inject ZIP-based virtual categories (always visible — bypass enabled-folder filter).
+  if (!isVaultOnly) {
+    try {
+      const existingPaths = new Set(filtered.map(c => c.path));
+      const mediaZip = require('./media-zip-mount-server');
+      for (const vc of mediaZip.getVirtualCategories()) {
+        if (!existingPaths.has(vc.path)) {
+          filtered.push({ name: vc.name, path: vc.path, count: vc.count, encrypted: false, partial: false, unlocked: true, isZipMount: true });
+          existingPaths.add(vc.path);
+        }
+      }
+    } catch (e) { console.error('[apiFolders] zip categories error:', e.message); }
+  }
 
   filtered.sort((a, b) => {
     if (a.path === 'uncategorized') return -1;

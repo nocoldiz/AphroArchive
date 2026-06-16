@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
-import { SidebarItem, FoldersFilter, TagsFilter } from './LibraryFilters';
-import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, type NavItem, type NavSection } from './navItems';
+import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter } from './LibraryFilters';
+import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, setItemPlacement, sortByOrder, setNavOrder, activeDrag, type NavItem, type NavSection, type NavOrderKey } from './navItems';
 
 const SectionHeader = ({ label, id, open, style, onClick, action, onContextMenu }: { label: string, id: string, open?: boolean, style?: any, onClick?: () => void, action?: any, onContextMenu?: (e: any) => void }) => (
   <h3 className={`sidebar-heading${open === false ? ' closed' : ''}`} id={id} style={style} onClick={onClick} onContextMenu={onContextMenu}>
@@ -41,9 +41,18 @@ function makeToggle(key: string, setter: (fn: (v: boolean) => boolean) => void) 
 
 const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
+const insertLine = (
+  <div style={{ height: '2px', background: 'var(--ac)', margin: '1px 10px', borderRadius: '1px', pointerEvents: 'none' }} />
+);
+
 export const Sidebar = () => {
   const view = currentView.value;
   const isOpen = isSidebarOpen.value;
+
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragInsertId, setDragInsertId] = useState<string | null>(null);
+  const dropInsertRef = useRef<string | null>(null);
+  const dropSectionRef = useRef<NavSection | null>(null);
 
   useEffect(() => {
     const el = document.getElementById('side');
@@ -52,12 +61,20 @@ export const Sidebar = () => {
       else el.classList.remove('open');
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    const clear = () => { setDraggingId(null); setDragInsertId(null); activeDrag.id = ''; activeDrag.fromLoc = ''; };
+    window.addEventListener('dragend', clear);
+    return () => window.removeEventListener('dragend', clear);
+  }, []);
+
   if (view === 'reddit') return null;
 
   const [libraryOpen, setLibraryOpen] = useState(() => sectionState('library'));
   const [manageOpen, setManageOpen] = useState(() => sectionState('manage'));
   const [mediaOpen, setMediaOpen] = useState(() => sectionState('media'));
   const [tagsOpen, setTagsOpen] = useState(() => sectionState('tags'));
+  const [linksOpen, setLinksOpen] = useState(() => sectionState('links'));
   const [catsOpen, setCatsOpen] = useState(() => sectionState('cats'));
   const [photoFolders, setPhotoFolders] = useState<{ path: string, name: string }[]>([]);
   const [pluginsOpen, setPluginsOpen] = useState(() => sectionState('plugins'));
@@ -66,6 +83,7 @@ export const Sidebar = () => {
   const toggleManage = makeToggle('manage', setManageOpen);
   const toggleMedia = makeToggle('media', setMediaOpen);
   const toggleTags = makeToggle('tags', setTagsOpen);
+  const toggleLinks = makeToggle('links', setLinksOpen);
   const toggleCats = makeToggle('cats', setCatsOpen);
   const togglePlugins = makeToggle('plugins', setPluginsOpen);
 
@@ -85,8 +103,35 @@ export const Sidebar = () => {
   const navItems = getNavItems();
   const sidebarItems = navItems.filter(it => placementFor(it.id, it.defaultLoc) === 'sidebar');
 
-  const renderItem = (item: NavItem) => (
-    <div key={item.id}>
+  const handleSectionDrop = (secKey: NavSection, sortedIds: string[]) => {
+    const { id: draggedId, fromLoc } = activeDrag;
+    if (!draggedId) return;
+
+    if (fromLoc === 'topbar') {
+      setItemPlacement(draggedId, 'sidebar');
+      activeDrag.id = '';
+      activeDrag.fromLoc = '';
+      return;
+    }
+
+    if (fromLoc === 'sidebar') {
+      const insertId = dropInsertRef.current;
+      if (!insertId || insertId === draggedId) return;
+      const filtered = sortedIds.filter(id => id !== draggedId);
+      if (insertId.startsWith('__end_')) {
+        filtered.push(draggedId);
+      } else {
+        const toIdx = filtered.indexOf(insertId);
+        filtered.splice(toIdx === -1 ? filtered.length : toIdx, 0, draggedId);
+      }
+      setNavOrder(`sidebar_${secKey}` as NavOrderKey, filtered);
+      activeDrag.id = '';
+      activeDrag.fromLoc = '';
+    }
+  };
+
+  const renderItemContent = (item: NavItem) => (
+    <>
       <SidebarItem
         id={item.id}
         label={item.label}
@@ -105,7 +150,7 @@ export const Sidebar = () => {
           indent
         />
       ))}
-    </div>
+    </>
   );
 
   const renderSectionPlugins = (section: NavSection) =>
@@ -128,7 +173,6 @@ export const Sidebar = () => {
     { key: 'tools', label: 'Tools', open: manageOpen, toggle: toggleManage, id: 'sh3-manage' },
   ];
 
-
   const navContent = (
     <>
       {sectionsMeta.map((sec, i) => {
@@ -136,6 +180,12 @@ export const Sidebar = () => {
         const items = sidebarItems.filter(it => it.section === sec.key);
         const hasPlugins = pluginsList.value.some(p => pluginLocation(p) === 'sidebar' && p.sidebarSection === sec.key && isPluginEnabled(p.id));
         if (!items.length && !hasPlugins) return null;
+
+        const orderKey = `sidebar_${sec.key}` as NavOrderKey;
+        const sorted = sortByOrder(items, orderKey);
+        const sortedIds = sorted.map(it => it.id);
+        const endSentinel = `__end_${sec.key}`;
+
         return (
           <div key={sec.key}>
             {i > 0 && <div className="side-sep"></div>}
@@ -146,8 +196,70 @@ export const Sidebar = () => {
               onClick={sec.toggle}
               onContextMenu={(e) => { e.preventDefault(); openSectionMoveMenu(e, sec.key, sec.label, 'sidebar'); }}
             />
-            <div className="side-section" style={{ display: sec.open ? 'block' : 'none' }}>
-              {items.map(renderItem)}
+            <div
+              className="side-section"
+              style={{ display: sec.open ? 'block' : 'none' }}
+              onDragOver={(e) => {
+                if (activeDrag.fromLoc === 'topbar') {
+                  e.preventDefault();
+                }
+              }}
+              onDrop={(e) => {
+                if (activeDrag.fromLoc === 'topbar') {
+                  e.preventDefault();
+                  handleSectionDrop(sec.key, sortedIds);
+                  setDragInsertId(null);
+                  setDraggingId(null);
+                }
+              }}
+            >
+              {sorted.map((item, idx) => (
+                <div key={item.id}>
+                  {dragInsertId === item.id && insertLine}
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      activeDrag.id = item.id;
+                      activeDrag.fromLoc = 'sidebar';
+                      e.dataTransfer!.effectAllowed = 'move';
+                      e.dataTransfer!.setData('text/plain', item.id);
+                      setDraggingId(item.id);
+                    }}
+                    onDragOver={(e) => {
+                      if (activeDrag.fromLoc === 'topbar' || activeDrag.fromLoc === 'sidebar') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const before = e.clientY < r.top + r.height / 2;
+                        const insertId = before ? item.id : (sortedIds[idx + 1] ?? endSentinel);
+                        dropInsertRef.current = insertId;
+                        dropSectionRef.current = sec.key;
+                        setDragInsertId(insertId);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSectionDrop(sec.key, sortedIds);
+                      setDragInsertId(null);
+                      setDraggingId(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingId(null);
+                      setDragInsertId(null);
+                      activeDrag.id = '';
+                      activeDrag.fromLoc = '';
+                    }}
+                    style={{
+                      opacity: draggingId === item.id ? 0.35 : 1,
+                      cursor: 'grab',
+                    }}
+                  >
+                    {renderItemContent(item)}
+                  </div>
+                </div>
+              ))}
+              {dragInsertId === endSentinel && insertLine}
               {renderSectionPlugins(sec.key)}
             </div>
           </div>
@@ -178,6 +290,7 @@ export const Sidebar = () => {
 
   const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'sidebar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'sidebar' && !inVaultMode;
+  const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'sidebar' && !inVaultMode;
 
   const filterContent = (
     <>
@@ -233,13 +346,44 @@ export const Sidebar = () => {
           </div>
         </>
       )}
+
+      {showLinks && (
+        <>
+          <div className="side-sep" id="links-sep"></div>
+          <SectionHeader
+            label="Links"
+            id="sh3-links"
+            open={linksOpen}
+            onClick={toggleLinks}
+            onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.links, 'Links', 'sidebar'); }}
+          />
+          <div className="side-section" id="linkList" style={{ display: linksOpen ? 'block' : 'none' }}>
+            <LinksFilter />
+          </div>
+        </>
+      )}
     </>
   );
 
   return (
     <>
       {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
-      <div className="side-scroll">
+      <div
+        className="side-scroll"
+        onDragOver={(e) => {
+          if (activeDrag.fromLoc === 'topbar') e.preventDefault();
+        }}
+        onDrop={(e) => {
+          if (activeDrag.fromLoc === 'topbar') {
+            e.preventDefault();
+            setItemPlacement(activeDrag.id, 'sidebar');
+            activeDrag.id = '';
+            activeDrag.fromLoc = '';
+            setDragInsertId(null);
+            setDraggingId(null);
+          }
+        }}
+      >
         {navContent}
         {filterContent}
       </div>
