@@ -73,6 +73,11 @@ export const SubtitlesView = () => {
         if (ev.type === 'start') { setBatchRunning(true); setBatchStatus(`Generating… 0 / ${ev.total}`); }
         if (ev.type === 'progress') { setBatchRunning(true); setBatchStatus(`Generating… ${ev.done} / ${ev.total}: ${ev.current}`); }
         if (ev.type === 'done') { setBatchRunning(false); setBatchStatus(`Done — ${ev.done} generated, ${ev.skipped} skipped, ${ev.failed} failed`); loadItems(); }
+        if (ev.type === 'stopped') { setBatchRunning(false); setBatchStatus(`Stopped — ${ev.done} generated, ${ev.failed} failed`); loadItems(); }
+        if (ev.type === 'error') {
+          (window as any).toastError?.(ev.error);
+          if (ev.fatal) { setBatchRunning(false); setBatchStatus(`Error: ${ev.error}`); }
+        }
         if (ev.type === 'idle') { setBatchRunning(false); }
       } catch {}
     };
@@ -158,6 +163,7 @@ export const SubtitlesView = () => {
   };
 
   const stopBatch = () => {
+    setBatchStatus('Stopping…');
     fetch('/api/gen-whisper/stop', { method: 'POST' });
   };
 

@@ -5,14 +5,48 @@ import { zapStartTime } from '../../zap';
 export const ChaptersView = () => {
   const [q, setQ] = useState('');
   const [autoChaptersMap, setAutoChaptersMap] = useState<Record<string, any[]>>({});
+  const [gen, setGen] = useState<{ running: boolean; done: number; total: number; current: string } | null>(null);
   const videos = allVideos.value;
 
-  useEffect(() => {
+  const loadAutoChapters = () =>
     fetch('/api/auto-chapters')
       .then(r => r.json())
       .then(data => setAutoChaptersMap(data))
       .catch(() => {});
+
+  useEffect(() => {
+    loadAutoChapters();
   }, []);
+
+  const generateAll = () => {
+    if (gen?.running) {
+      fetch('/api/gen-chapters/stop', { method: 'POST' }).catch(() => {});
+      return;
+    }
+    setGen({ running: true, done: 0, total: 0, current: '' });
+    fetch('/api/gen-chapters/start', { method: 'POST' })
+      .then(r => r.json())
+      .then(res => {
+        if (!res.ok) { setGen(null); return; }
+        const es = new EventSource('/api/gen-chapters/status');
+        es.onmessage = (e) => {
+          try {
+            const ev = JSON.parse(e.data);
+            if (ev.type === 'start') setGen({ running: true, done: 0, total: ev.total, current: '' });
+            else if (ev.type === 'progress') setGen({ running: true, done: ev.done, total: ev.total, current: ev.current || '' });
+            else if (ev.type === 'done') {
+              setGen(null);
+              es.close();
+              loadAutoChapters();
+            } else if (ev.type === 'idle') {
+              es.close();
+            }
+          } catch {}
+        };
+        es.onerror = () => { es.close(); setGen(null); loadAutoChapters(); };
+      })
+      .catch(() => setGen(null));
+  };
 
   const formatDuration = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -51,9 +85,24 @@ export const ChaptersView = () => {
 
   return (
     <div className="chapters-view" style={{ padding: '20px' }}>
-      <div className="section-header">
+      <div className="section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
         <h2>Video Chapters</h2>
+        <button type="button" className="cta-btn" onClick={generateAll}>
+          {gen?.running
+            ? (gen.total ? `Stop (${gen.done}/${gen.total})` : 'Stop…')
+            : 'Auto-create chapters for all'}
+        </button>
       </div>
+      {gen?.running && (
+        <div style={{ marginBottom: '16px', fontSize: '0.8rem', color: 'var(--tx2)' }}>
+          {gen.total > 0 && (
+            <div style={{ height: '4px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden', marginBottom: '6px' }}>
+              <div style={{ height: '100%', width: `${Math.round((gen.done / gen.total) * 100)}%`, background: 'var(--ac)', transition: 'width 0.3s' }}></div>
+            </div>
+          )}
+          <span>Detecting scene changes{gen.current ? `: ${gen.current}` : '…'}</span>
+        </div>
+      )}
       <div className="actor-search-bar" style={{ marginBottom: '20px' }}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
           style={{ flexShrink: 0, color: 'var(--tx2)' }}>

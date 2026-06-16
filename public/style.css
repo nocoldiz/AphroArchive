@@ -5275,6 +5275,61 @@ input {
   font-family: var(--m)
 }
 
+.mos-controls {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mos-ctrl-grp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--tx2);
+}
+
+.mos-ctrl-grp #mosaic-interval {
+  font-family: var(--m);
+  min-width: 26px;
+  text-align: center;
+  color: var(--tx);
+}
+
+.mos-num-in {
+  width: 50px;
+  background: var(--bg3);
+  border: 1px solid var(--brd);
+  color: var(--tx);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.mos-num-in:disabled {
+  opacity: 0.4;
+}
+
+.mos-step {
+  padding: 2px 8px;
+  line-height: 1;
+}
+
+.mos-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.mos-toggle input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--ac);
+}
+
+.mos-unit {
+  margin-left: -2px;
+}
+
 /* ── Database ── */
 .database-view {
   display: none;

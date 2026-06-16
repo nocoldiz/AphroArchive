@@ -1,20 +1,25 @@
 ﻿import { signal } from '@preact/signals';
-import { allVideos, folders, currentFolder, linkVidIds, currentView, playerNextUp, filteredVideos } from './store';
+import { allVideos, folders, currentFolder, linkVidIds, currentView, playerNextUp, filteredVideos, isMuted } from './store';
 import { zapOn, stopZapping } from './zap';
 
 // ─── Mosaic State ───
 export const mosaicOn = signal(false);
 export const mosTileCount = signal(6);
-export const mosaicIv = signal(5); // seconds
+export const mosaicIv = signal(5); // seconds — content refresh interval
 export const mosaicQuery = signal('');
+// Layout randomization (decoupled from content refresh)
+export const mosRandomizeLayout = signal(localStorage.getItem('mosRandomizeLayout') !== 'false');
+export const mosLayoutIv = signal(parseInt(localStorage.getItem('mosLayoutIv') || '') || 12); // seconds
+// Audio: when true every tile plays sound; when false only the hovered tile does
+export const mosPlayAllAudio = signal(localStorage.getItem('mosPlayAllAudio') === 'true');
 
 let _mosaicPhotos: any[] = [];
 let _mosBasePool: any[] = [];
 let _mosPool: any[] = [];
 let _mosLayoutIdx = 0;
 const _mosLayouts = ['mos-layout-a', 'mos-layout-b', 'mos-layout-c', 'mos-layout-d', 'mos-layout-e'];
-let _mosCycleCounter = 0;
 let mosaicTimer: any = null;
+let mosLayoutTimer: any = null;
 let mosTilesState: any[] = [];
 let mosHoveredIdx = -1;
 let _mosaicPhotoMode = false;
@@ -82,6 +87,7 @@ export function startMosaic() {
 
   buildMosaicTiles();
   scheduleMosaic();
+  scheduleMosaicLayout();
 }
 
 export function startMosaicWithPhotos(photos: any[]) {
@@ -107,9 +113,10 @@ export function startMosaicWithPhotos(photos: any[]) {
   $('mosaic-interval').text(mosaicIv.value + 's');
   $('mosaic-view').add('on');
   $('mosBtn').add('on');
-  
+
   buildMosaicTiles();
   scheduleMosaic();
+  scheduleMosaicLayout();
 }
 
 export function stopMosaic() {
@@ -122,7 +129,8 @@ export function stopMosaic() {
   mosaicQuery.value = '';
   clearTimeout(_mosQueryDebounce);
   clearTimeout(mosaicTimer);
-  
+  clearTimeout(mosLayoutTimer);
+
   mosTilesState.forEach(t => {
     if (!t.isPhoto) { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; }
   });
@@ -173,22 +181,40 @@ function mosSeekRandom(el: HTMLVideoElement) {
   if (dur > 5) el.currentTime = Math.random() * (dur * 0.85);
 }
 
+// Prepare the hidden buffer video for the next swap. Performance-critical:
+// the buffer is seeked to a frame and left PAUSED so only one video per tile
+// is actively decoding. It is played only during the crossfade in refreshMosaicTiles.
 function preloadMosTile(tile: any, v: any) {
   const pre = tile.active === 'a' ? tile.b : tile.a;
   pre.pause();
+  pre.muted = true;
   pre.dataset.vid = v.id;
   pre.dataset.dur = v.duration || 0;
   pre.dataset.ready = '0';
-  
+
   pre.poster = v.isVault ? '' : '/api/thumbs/' + v.id + '/0';
   pre.src = v.isVault ? '/api/vault/stream/' + v.id : '/api/stream/' + v.id;
-  
+
   pre.addEventListener('loadedmetadata', () => {
+    // Seek to a random frame so the buffer shows real content, but do NOT play —
+    // seeking decodes and paints a single frame while keeping the decoder idle.
     mosSeekRandom(pre);
-    pre.play().catch(() => {});
   }, { once: true });
-  
+
   pre.addEventListener('seeked', () => { pre.dataset.ready = '1'; }, { once: true });
+}
+
+// Single source of truth for which tiles play sound.
+function applyMosaicAudio() {
+  const muteAll = isMuted.value;
+  mosTilesState.forEach((t, j) => {
+    if (t.isPhoto) return;
+    const active = t.active === 'a' ? t.a : t.b;
+    const buffer = t.active === 'a' ? t.b : t.a;
+    buffer.muted = true;
+    const on = !muteAll && (mosPlayAllAudio.value || j === mosHoveredIdx);
+    active.muted = !on;
+  });
 }
 
 export function buildMosaicTiles() {
@@ -237,13 +263,17 @@ export function buildMosaicTiles() {
     const wrap = document.createElement('div');
     wrap.className = 'mos-tile';
 
+    // autoplay disabled: playback is driven explicitly so only the visible
+    // video of each tile decodes (the hidden buffer stays paused).
     const a = document.createElement('video');
-    a.muted = true; a.playsInline = true; a.loop = true; a.autoplay = true; a.preload = 'auto';
+    a.muted = true; a.playsInline = true; a.loop = true; a.autoplay = false; a.preload = 'auto';
+    a.disablePictureInPicture = true;
     a.className = 'mos-v mos-v-active';
     a.dataset.vid = v.id; a.dataset.dur = v.duration || 0;
 
     const b = document.createElement('video');
-    b.muted = true; b.playsInline = true; b.loop = true; b.autoplay = true; b.preload = 'auto';
+    b.muted = true; b.playsInline = true; b.loop = true; b.autoplay = false; b.preload = 'auto';
+    b.disablePictureInPicture = true;
     b.className = 'mos-v';
     b.dataset.ready = '0';
 
@@ -256,8 +286,6 @@ export function buildMosaicTiles() {
     a.poster = v.isVault ? '' : '/api/thumbs/' + v.id + '/0';
     a.src = v.isVault ? '/api/vault/stream/' + v.id : '/api/stream/' + v.id;
     a.addEventListener('loadedmetadata', () => { mosSeekRandom(a); a.play().catch(() => {}); }, { once: true });
-    a.addEventListener('canplay', () => { if (a.paused) a.play().catch(() => {}); }, { once: true });
-    a.play().catch(() => {});
 
     const nextV = mosPickExcluding(v.id);
     if (nextV) preloadMosTile(tile, nextV);
@@ -265,17 +293,16 @@ export function buildMosaicTiles() {
     wrap.addEventListener('mouseenter', () => {
       mosHoveredIdx = i;
       wrap.classList.add('mos-hovered');
-      mosTilesState.forEach((t, j) => {
-        const activeEl = t.active === 'a' ? t.a : t.b;
-        activeEl.muted = (j !== i);
-      });
+      applyMosaicAudio();
     });
     wrap.addEventListener('mouseleave', () => {
       if (mosHoveredIdx === i) mosHoveredIdx = -1;
       wrap.classList.remove('mos-hovered');
-      mosTilesState.forEach(t => { if (!t.isPhoto) { t.a.muted = true; t.b.muted = true; } });
+      applyMosaicAudio();
     });
   });
+
+  applyMosaicAudio();
 }
 
 export function scheduleMosaic() {
@@ -283,29 +310,38 @@ export function scheduleMosaic() {
   if (!mosaicOn.value) return;
   mosaicTimer = setTimeout(() => {
     refreshMosaicTiles();
-    _mosCycleCounter++;
-    if (_mosCycleCounter >= 2) {
-      _mosCycleCounter = 0;
-      cycleMosaicLayout();
-    }
     scheduleMosaic();
   }, mosaicIv.value * 1000);
 }
 
+// Independent timer that reshuffles the visual layout on its own interval.
+export function scheduleMosaicLayout() {
+  clearTimeout(mosLayoutTimer);
+  if (!mosaicOn.value || !mosRandomizeLayout.value) return;
+  mosLayoutTimer = setTimeout(() => {
+    cycleMosaicLayout();
+    scheduleMosaicLayout();
+  }, Math.max(2, mosLayoutIv.value) * 1000);
+}
+
 function cycleMosaicLayout() {
-  if (mosTileCount.value !== 6) return;
   const grid = document.getElementById('mosaic-grid');
   if (!grid) return;
-  
-  grid.classList.remove(_mosLayouts[_mosLayoutIdx]);
-  
-  let nextIdx = _mosLayoutIdx;
-  while (nextIdx === _mosLayoutIdx) {
-    nextIdx = Math.floor(Math.random() * _mosLayouts.length);
+
+  if (mosTileCount.value === 6) {
+    // Switch between the hand-tuned 6-tile layouts.
+    grid.classList.remove(_mosLayouts[_mosLayoutIdx]);
+    let nextIdx = _mosLayoutIdx;
+    while (nextIdx === _mosLayoutIdx) {
+      nextIdx = Math.floor(Math.random() * _mosLayouts.length);
+    }
+    _mosLayoutIdx = nextIdx;
+    grid.classList.add(_mosLayouts[_mosLayoutIdx]);
+  } else {
+    // No preset layouts for other counts — shuffle which cell each tile occupies.
+    const tiles = Array.from(grid.children).sort(() => Math.random() - 0.5);
+    tiles.forEach(t => grid.appendChild(t));
   }
-  _mosLayoutIdx = nextIdx;
-  
-  grid.classList.add(_mosLayouts[_mosLayoutIdx]);
 }
 
 export function refreshMosaicTiles() {
@@ -332,13 +368,13 @@ export function refreshMosaicTiles() {
       const curEl  = tile.active === 'a' ? tile.a : tile.b;
 
       if (nextEl.dataset.ready === '1') {
-        nextEl.muted = true;
         nextEl.play().catch(() => {});
         nextEl.classList.add('mos-v-active');
         curEl.classList.remove('mos-v-active');
         tile.active = tile.active === 'a' ? 'b' : 'a';
         tile.vidId = nextEl.dataset.vid;
-        
+        applyMosaicAudio();
+
         setTimeout(() => {
           curEl.pause();
           const nextV = mosPickExcluding(tile.vidId);
@@ -403,7 +439,43 @@ export function setMosaicIv(delta: number) {
 export function setMosaicCount(val: any) {
   mosTileCount.value = Math.max(1, Math.min(16, parseInt(val) || 6));
   $('mosaic-count').val(mosTileCount.value);
-  if (mosaicOn.value) { buildMosaicTiles(); scheduleMosaic(); }
+  if (mosaicOn.value) { buildMosaicTiles(); scheduleMosaic(); scheduleMosaicLayout(); }
+}
+
+export function setMosLayoutIv(val: any) {
+  mosLayoutIv.value = Math.max(2, Math.min(120, parseInt(val) || 12));
+  localStorage.setItem('mosLayoutIv', String(mosLayoutIv.value));
+  scheduleMosaicLayout();
+}
+
+export function setMosRandomizeLayout(v: boolean) {
+  mosRandomizeLayout.value = v;
+  localStorage.setItem('mosRandomizeLayout', String(v));
+  scheduleMosaicLayout();
+}
+
+export function setMosPlayAllAudio(v: boolean) {
+  mosPlayAllAudio.value = v;
+  localStorage.setItem('mosPlayAllAudio', String(v));
+  applyMosaicAudio();
+}
+
+// Pause every tile while the tab is hidden to free decoders; resume the
+// visible video of each tile when it returns.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (!mosaicOn.value) return;
+    if (document.hidden) {
+      mosTilesState.forEach(t => { if (!t.isPhoto) { t.a.pause(); t.b.pause(); } });
+    } else {
+      mosTilesState.forEach(t => {
+        if (t.isPhoto) return;
+        const active = t.active === 'a' ? t.a : t.b;
+        active.play().catch(() => {});
+      });
+      applyMosaicAudio();
+    }
+  });
 }
 
 // Bridge to window
@@ -415,4 +487,7 @@ if (typeof window !== 'undefined') {
   (window as any).setMosaicIv = setMosaicIv;
   (window as any).setMosaicCount = setMosaicCount;
   (window as any).setMosaicQuery = setMosaicQuery;
+  (window as any).setMosLayoutIv = setMosLayoutIv;
+  (window as any).setMosRandomizeLayout = setMosRandomizeLayout;
+  (window as any).setMosPlayAllAudio = setMosPlayAllAudio;
 }

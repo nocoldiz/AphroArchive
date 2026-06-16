@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { createPortal } from 'preact/compat';
 import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter } from './LibraryFilters';
@@ -367,7 +368,10 @@ export const Sidebar = () => {
 
   return (
     <>
-      {isOpen && <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />}
+      {isOpen && createPortal(
+        <div className="sidebar-overlay" onClick={() => isSidebarOpen.value = false} />,
+        document.body
+      )}
       <div
         className="side-scroll"
         onDragOver={(e) => {

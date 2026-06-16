@@ -153,11 +153,12 @@ if not errorlevel 1 (
     )
 )
 
-REM ─── Pre-download Whisper base model (~139 MB) ────────────────────────
-echo  [INFO] Pre-downloading Whisper base model ^(~139 MB^)...
-!PYTHON_CMD! -c "import whisper; whisper.load_model('base')"
+REM ─── Pre-download Whisper base model (~139 MB) into models\ ───────────
+if not exist models mkdir models
+echo  [INFO] Pre-downloading Whisper base model ^(~139 MB^) into models\ ...
+!PYTHON_CMD! -c "import os, whisper; whisper.load_model('base', download_root=os.path.join(os.getcwd(), 'models'))"
 if not errorlevel 1 (
-    echo  [OK]   Whisper base model ready
+    echo  [OK]   Whisper base model ready in models\
 ) else (
     echo  [WARN] Base model pre-download failed — it will download on first subtitle generation.
 )

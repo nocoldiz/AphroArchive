@@ -34,8 +34,16 @@ const DL_STATUS_COLOR: Record<string, string> = {
   done: '#1a7a3a', error: '#a11', running: 'var(--ac)', queued: 'var(--bg3)', paused: '#b45309',
 };
 
+interface ModelDownload {
+  model: string;
+  progress: number;
+  status: 'downloading' | 'done' | 'error';
+  error?: string | null;
+}
+
 export const DownloadManager = () => {
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
+  const [models, setModels] = useState<ModelDownload[]>([]);
   const [open, setOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<Record<string, string>>({});
   const [newUrls, setNewUrls] = useState('');
@@ -60,6 +68,13 @@ export const DownloadManager = () => {
           if (anyNewlyDone) loadVideos();
         }
       } catch {}
+      try {
+        const mRes = await fetch('/api/whisper/downloading-models');
+        if (mRes.ok) {
+          const d = await mRes.json();
+          setModels(Array.isArray(d.models) ? d.models : []);
+        }
+      } catch {}
     };
     poll();
     const id = setInterval(poll, 2000);
@@ -77,7 +92,8 @@ export const DownloadManager = () => {
   }, [open]);
 
   const activeDlCount = jobs.filter(j => j.status === 'queued' || j.status === 'running').length;
-  const badgeCount = activeDlCount;
+  const activeModelCount = models.filter(m => m.status === 'downloading').length;
+  const badgeCount = activeDlCount + activeModelCount;
 
   const cats = (folders.value as any[]).filter(
     c => c.path && c.path !== 'uncategorized' && c.path !== 'Links'
@@ -320,6 +336,37 @@ export const DownloadManager = () => {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* ── Whisper model downloads ───────────────────── */}
+          {models.length > 0 && (
+            <div style={{ borderBottom: '1px solid var(--brd)' }}>
+              <div style={{ padding: '8px 14px 4px', fontWeight: 600, fontSize: '0.8rem', color: 'var(--tx2)' }}>
+                Whisper models
+              </div>
+              {models.map(m => (
+                <div key={m.model} style={{ padding: '6px 14px 8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ flex: 1, fontSize: '0.78rem' }}>{m.model} model</span>
+                    <span style={{
+                      fontSize: '0.68rem', padding: '1px 5px', borderRadius: '3px', flexShrink: 0,
+                      background: m.status === 'error' ? '#a11' : m.status === 'done' ? '#1a7a3a' : 'var(--ac)',
+                      color: '#fff',
+                    }}>
+                      {m.status === 'downloading' ? `${Math.round(m.progress || 0)}%` : m.status}
+                    </span>
+                  </div>
+                  {m.status === 'downloading' && (
+                    <div style={{ height: '3px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ width: `${m.progress || 0}%`, height: '100%', background: 'var(--ac)', transition: 'width 0.3s' }} />
+                    </div>
+                  )}
+                  {m.status === 'error' && m.error && (
+                    <div style={{ fontSize: '0.7rem', color: '#e55', wordBreak: 'break-word' }}>{m.error}</div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 

@@ -1470,6 +1470,7 @@ export async function deleteVideo(id: string, name: string) {
     return;
   }
   videos.value = videos.value.filter(v => v.id !== id);
+  allVideos.value = allVideos.value.filter(v => v.id !== id);
   const w = window as any;
   if (w.toast) w.toast('Deleted');
 }

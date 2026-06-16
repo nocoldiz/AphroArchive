@@ -144,11 +144,12 @@ if [ -n "$PYTHON_CMD" ]; then
             || { echo " [WARN] Whisper install failed. Try: pip install openai-whisper"; ERRORS=1; }
     fi
 
-    # ─── Pre-download base model (~139 MB) ───────────────────────────
+    # ─── Pre-download base model (~139 MB) into models/ ──────────────
     if $PYTHON_CMD -c "import whisper" 2>/dev/null; then
-        echo " [INFO] Pre-downloading Whisper base model (~139 MB)..."
-        $PYTHON_CMD -c "import whisper; whisper.load_model('base')" \
-            && echo " [OK]   Whisper base model ready" \
+        mkdir -p models
+        echo " [INFO] Pre-downloading Whisper base model (~139 MB) into models/ ..."
+        $PYTHON_CMD -c "import os, whisper; whisper.load_model('base', download_root=os.path.join(os.getcwd(), 'models'))" \
+            && echo " [OK]   Whisper base model ready in models/" \
             || echo " [WARN] Base model pre-download failed — it will download on first subtitle generation."
     fi
 fi

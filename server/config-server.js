@@ -68,6 +68,10 @@ const WHISPER_BIN = (() => {
   return process.platform === 'win32' ? 'whisper.exe' : 'whisper';
 })();
 
+// Whisper models are downloaded into a dedicated, user-visible folder (instead of
+// the default ~/.cache/whisper) so they live alongside the app data and travel with PKG builds.
+const WHISPER_MODELS_DIR = _resolveCustomDir(_pathsCfg.whisperModelsDir, path.join(DATA_DIR, 'models'));
+
 const THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-thumbs');
 const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');
 const PROCESS_DIR = path.join(DATA_DIR, 'process');
@@ -160,7 +164,7 @@ function getLocalIP() {
 
 module.exports = {
   ROOT_DIR, IS_PKG, DATA_DIR, LINK_DIR,
-  FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN, WHISPER_BIN,
+  FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN, WHISPER_BIN, WHISPER_MODELS_DIR,
   VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
   THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, PROCESS_DIR, IGNORED_DIR,
   DB_DIR, PRESETS_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, LINK_THUMBS_DIR, EDGE_BIN,

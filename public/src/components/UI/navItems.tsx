@@ -134,6 +134,21 @@ export function getNavItems(): NavItem[] {
       onClick: () => setView('collections', 'showCollections'), isActive: view === 'collections',
     },
     {
+      id: 'actor-sidebar', label: 'Actors', section: 'library', defaultLoc: 'sidebar',
+      paths: <><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></>,
+      onClick: () => setView('actors', 'showActors'), isActive: view === 'actors',
+    },
+    {
+      id: 'series-sidebar', label: 'Series', section: 'library', defaultLoc: 'sidebar',
+      paths: <><rect x="2" y="7" width="20" height="15" rx="2" /><polyline points="17 2 12 7 7 2" /></>,
+      onClick: () => setView('series'), isActive: view === 'series',
+    },
+    {
+      id: 'chapters-sidebar', label: 'Chapters', section: 'library', defaultLoc: 'sidebar',
+      paths: <><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>,
+      onClick: () => setView('chapters', 'showChaptersView'), isActive: view === 'chapters',
+    },
+    {
       id: 'download-queue-sidebar', label: 'Download Queue', section: 'library', defaultLoc: 'sidebar',
       paths: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>,
       onClick: () => setView('download-queue'), isActive: view === 'download-queue',
@@ -156,30 +171,15 @@ export function getNavItems(): NavItem[] {
       onClick: () => setView('folders', 'showCategoriesView'), isActive: view === 'folders',
     },
     {
-      id: 'actor-sidebar', label: 'Actors', section: 'media', defaultLoc: 'sidebar',
-      paths: <><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" /></>,
-      onClick: () => setView('actors', 'showActors'), isActive: view === 'actors',
-    },
-    {
       id: 'channel-sidebar', label: 'Channels', section: 'media', defaultLoc: 'sidebar',
       paths: <><rect x="2" y="7" width="20" height="15" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></>,
       onClick: () => setView('channels', 'showChannels'), isActive: view === 'channels',
-    },
-    {
-      id: 'chapters-sidebar', label: 'Chapters', section: 'media', defaultLoc: 'sidebar',
-      paths: <><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>,
-      onClick: () => setView('chapters', 'showChaptersView'), isActive: view === 'chapters',
     },
     {
       id: 'videos-media-sidebar', label: 'Videos', section: 'media', defaultLoc: 'sidebar',
       paths: <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />,
       onClick: () => { sourceFilter.value = 'local'; setView('browse'); }, isActive: view === 'browse',
       badge: vids.filter(v => !(v as any).isLink).length || undefined,
-    },
-    {
-      id: 'series-sidebar', label: 'Series', section: 'media', defaultLoc: 'sidebar',
-      paths: <><rect x="2" y="7" width="20" height="15" rx="2" /><polyline points="17 2 12 7 7 2" /></>,
-      onClick: () => setView('series'), isActive: view === 'series',
     },
     {
       id: 'photos-sidebar', label: 'Photos', section: 'media', defaultLoc: 'sidebar',

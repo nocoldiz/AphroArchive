@@ -33,7 +33,7 @@ const {
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
   upsertFileMeta,
   loadEnabledFolders,
-  getVideoIndexEntry, getSingleVideoMeta,
+  getSingleVideoMeta,
 } = require('./db-server');
 
 // ── Video scan cache ─────────────────────────────────────────────────
@@ -1486,20 +1486,18 @@ async function apiStream(req, res, id) {
 function apiDelete(req, res, id) {
   const fp = safePath(id);
 
-  // Stale entry: the file is gone from disk (safePath returns null) but the
-  // index/DB still lists it, so it keeps showing in the UI and a normal delete
-  // 404s. Purge the database record so it disappears for good.
+  // Stale entry: the file is gone from disk (safePath returns null) but it is
+  // still referenced — in the index/DB, or only in a client-side cache that has
+  // outlived a prune. Either way a normal delete 404s and the ghost looks
+  // undeletable, so purge whatever records remain so it disappears for good.
   if (!fp) {
-    if (getVideoIndexEntry(id)) {
-      const { deleteVideoMetaEverywhere } = require('./db-server');
-      deleteVideoMetaEverywhere(id);
-      const { THUMBS_DIR } = require('./config-server');
-      const thumbDir = path.join(THUMBS_DIR, id);
-      if (fs.existsSync(thumbDir)) try { fs.rmSync(thumbDir, { recursive: true, force: true }); } catch {}
-      invalidateScanCache();
-      return json(res, { ok: true, stale: true });
-    }
-    return json(res, { error: 'Not found' }, 404);
+    const { deleteVideoMetaEverywhere } = require('./db-server');
+    deleteVideoMetaEverywhere(id);
+    const { THUMBS_DIR } = require('./config-server');
+    const thumbDir = path.join(THUMBS_DIR, id);
+    if (fs.existsSync(thumbDir)) try { fs.rmSync(thumbDir, { recursive: true, force: true }); } catch {}
+    invalidateScanCache();
+    return json(res, { ok: true, stale: true });
   }
 
   try {

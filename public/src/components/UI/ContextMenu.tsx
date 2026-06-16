@@ -526,6 +526,7 @@ export const ContextMenu = () => {
               if (r.ok) {
                 if ((window as any).toast) (window as any).toast('Video deleted');
                 videos.value = videos.value.filter(v => v.id !== data.id);
+                allVideos.value = allVideos.value.filter(v => v.id !== data.id);
                 contextMenuState.value = { ...contextMenuState.value, visible: false };
               } else {
                 const err = await r.json();

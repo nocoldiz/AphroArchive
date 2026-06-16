@@ -5,10 +5,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
-const { VIDEOS_DIR, WHISPER_BIN } = require('./config-server');
+const { execFile, spawn } = require('child_process');
+const { VIDEOS_DIR, WHISPER_BIN, WHISPER_MODELS_DIR } = require('./config-server');
 const { json, safePath } = require('./helpers-server');
 const { loadPrefs, setVideoMetaFields } = require('./db-server');
+
+try { fs.mkdirSync(WHISPER_MODELS_DIR, { recursive: true }); } catch {}
 
 const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
 const SUBTITLE_EXT = new Set(['.vtt', '.srt', '.ass', '.ssa', '.sub', '.smi']);
@@ -96,18 +98,46 @@ function hasSubtitle(fp) {
   return false;
 }
 
+// The whisper child process currently running for the batch job (so it can be killed on stop)
+let _currentChild = null;
+
 // Returns detected language string or null
-function runWhisper(fp, model, language) {
+function runWhisper(fp, model, language, track = false) {
   return new Promise((resolve, reject) => {
     const dir = path.dirname(fp);
-    const args = [fp, '--output_format', 'vtt', '--output_dir', dir, '--model', model || 'base'];
+    const args = [fp, '--output_format', 'vtt', '--output_dir', dir, '--model', model || 'base', '--model_dir', WHISPER_MODELS_DIR];
     if (language && language !== 'auto') args.push('--language', language);
-    execFile(WHISPER_BIN, args, { timeout: 15 * 60 * 1000 }, (err, stdout, stderr) => {
-      if (err) { reject(err); return; }
+    const child = execFile(WHISPER_BIN, args, { timeout: 15 * 60 * 1000 }, (err, stdout, stderr) => {
+      if (track && _currentChild === child) _currentChild = null;
+      if (err) { err.stderr = stderr; reject(err); return; }
       const combined = (stdout || '') + (stderr || '');
       resolve(parseDetectedLanguage(combined));
     });
+    if (track) _currentChild = child;
   });
+}
+
+// Build a human-readable error message from a failed whisper run
+function whisperErrorMessage(e, model) {
+  if (e && e.code === 'ENOENT') return 'Whisper is not installed (the "whisper" command was not found). Run: pip install openai-whisper';
+  const text = ((e && e.stderr) || '') + '\n' + ((e && e.message) || '');
+  if (/No module named ['"]?whisper/i.test(text)) return 'Whisper Python module is not installed. Run: pip install openai-whisper';
+  if (/is not a valid model|model .* not found|invalid choice|No such file or directory.*\.pt|Error downloading.*model/i.test(text)) {
+    return `Whisper model "${model}" not found or could not be downloaded`;
+  }
+  if (/CUDA|out of memory|RuntimeError/i.test(text)) {
+    const line = text.split('\n').map(s => s.trim()).filter(Boolean).pop();
+    return line || 'Whisper failed (runtime error)';
+  }
+  const line = ((e && e.stderr) || '').split('\n').map(s => s.trim()).filter(Boolean).pop();
+  return line || (e && e.message) || 'Whisper failed';
+}
+
+// Errors that will recur for every video — abort the whole batch instead of churning through the queue
+function isFatalWhisperError(e) {
+  if (e && e.code === 'ENOENT') return true;
+  const text = ((e && e.stderr) || '') + '\n' + ((e && e.message) || '');
+  return /No module named ['"]?whisper/i.test(text) || /is not a valid model|invalid choice|Error downloading.*model/i.test(text);
 }
 
 function saveDetectedLanguage(fp, detectedLang) {
@@ -157,19 +187,30 @@ async function runBatch() {
     _job.current = path.basename(item.fp);
     broadcast({ type: 'progress', done: _job.done, total: _job.total, current: _job.current });
     try {
-      const detectedLang = await runWhisper(item.fp, model, language);
+      const detectedLang = await runWhisper(item.fp, model, language, true);
       // Only save language if we ran in auto-detect mode
       if (!language || language === 'auto') saveDetectedLanguage(item.fp, detectedLang);
     } catch (e) {
-      console.error('[whisper] Failed:', item.fp, e.message);
+      // User pressed Stop → the child was killed; exit quietly without counting a failure
+      if (_job.stop) break;
+      const msg = whisperErrorMessage(e, model);
+      console.error('[whisper] Failed:', item.fp, msg);
       _job.failed++;
+      if (isFatalWhisperError(e)) {
+        // Every video would fail the same way — abort and surface the error
+        _job.running = false;
+        _job.error = msg;
+        broadcast({ type: 'error', error: msg, fatal: true, done: _job.done, total: _job.total, failed: _job.failed });
+        return;
+      }
+      broadcast({ type: 'error', error: `${msg} (${_job.current})`, fatal: false, done: _job.done, total: _job.total, failed: _job.failed });
     }
     _job.done++;
     broadcast({ type: 'progress', done: _job.done, total: _job.total, current: _job.current });
   }
 
   _job.running = false;
-  broadcast({ type: 'done', done: _job.done, failed: _job.failed, total: all.length, skipped: _job.skipped });
+  broadcast({ type: _job.stop ? 'stopped' : 'done', done: _job.done, failed: _job.failed, total: all.length, skipped: _job.skipped });
 }
 
 // ── Single-video priority queue ───────────────────────────────────────
@@ -197,24 +238,65 @@ async function processSingleQueue() {
 
 // ── Model download ────────────────────────────────────────────────────
 
-const _downloadingModels = new Set();
+// model -> { model, progress: 0-100, status: 'downloading'|'done'|'error', error }
+const _modelDownloads = new Map();
 const VALID_MODELS = new Set(['tiny', 'base', 'small', 'medium', 'large', 'turbo']);
 
+function _lastLine(s) {
+  return (s || '').split('\n').map(l => l.trim()).filter(Boolean).pop() || '';
+}
+
+// Download a Whisper model into WHISPER_MODELS_DIR via Python, streaming tqdm progress.
+// Resolves when the model is ready; rejects with a descriptive error otherwise.
 function downloadModel(model) {
-  return new Promise((resolve) => {
-    // Use Python to download (works regardless of PATH for whisper command)
-    const pythonCmds = process.platform === 'win32' ? ['python'] : ['python3', 'python'];
-    const code = `import whisper; whisper.load_model('${model}')`;
+  return new Promise((resolve, reject) => {
+    try { fs.mkdirSync(WHISPER_MODELS_DIR, { recursive: true }); } catch {}
+    // Python downloads regardless of whether the `whisper` command is on PATH.
+    const pythonCmds = process.platform === 'win32' ? ['python', 'python3'] : ['python3', 'python'];
+    const script = 'import sys, whisper; whisper.load_model(sys.argv[1], download_root=sys.argv[2])';
+    const rec = _modelDownloads.get(model);
 
     function tryNext(i) {
       if (i >= pythonCmds.length) {
-        // Fall back to running whisper CLI — it will download the model on demand
-        execFile(WHISPER_BIN, ['--help'], { timeout: 60 * 1000 }, () => resolve());
+        reject(new Error('Python was not found. Install Python 3.8+ and "pip install openai-whisper".'));
         return;
       }
-      execFile(pythonCmds[i], ['-c', code], { timeout: 20 * 60 * 1000 }, (err) => {
-        if (err) tryNext(i + 1);
-        else resolve();
+      let stderr = '';
+      let started = false; // true once whisper has loaded and reported any download progress
+      let settled = false;
+      const child = spawn(pythonCmds[i], ['-c', script, model, WHISPER_MODELS_DIR]);
+
+      child.on('error', (e) => {
+        if (settled) return;
+        // This python command does not exist → try the next candidate.
+        if (e.code === 'ENOENT' && i + 1 < pythonCmds.length) { tryNext(i + 1); settled = true; return; }
+        settled = true;
+        reject(e);
+      });
+
+      child.stderr.on('data', (d) => {
+        const s = d.toString();
+        stderr += s;
+        // tqdm renders e.g. " 45%|████ | 62.0M/139M [00:03<00:04, 18.4MiB/s]"
+        const matches = s.match(/(\d{1,3})%/g);
+        if (matches && matches.length) {
+          started = true;
+          const pct = parseInt(matches[matches.length - 1], 10);
+          if (!isNaN(pct) && rec) rec.progress = Math.max(rec.progress, Math.min(99, pct));
+        }
+      });
+
+      child.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        if (code === 0) { if (rec) rec.progress = 100; resolve(); return; }
+        if (/No module named ['"]?whisper/i.test(stderr)) {
+          reject(new Error('Whisper Python module is not installed. Run: pip install openai-whisper'));
+          return;
+        }
+        // If this interpreter actually started downloading, a non-zero exit is a real failure — don't retry.
+        if (!started && i + 1 < pythonCmds.length) { tryNext(i + 1); return; }
+        reject(new Error(_lastLine(stderr) || `Model download failed (exit code ${code})`));
       });
     }
     tryNext(0);
@@ -233,6 +315,12 @@ function apiGenWhisperStart(_req, res) {
 
 function apiGenWhisperStop(_req, res) {
   if (_job) _job.stop = true;
+  // Kill the in-flight whisper process so the batch stops immediately instead of
+  // waiting up to 15 minutes for the current video to finish transcribing.
+  if (_currentChild) {
+    try { _currentChild.kill('SIGKILL'); } catch {}
+    _currentChild = null;
+  }
   json(res, { ok: true });
 }
 
@@ -248,6 +336,8 @@ function apiGenWhisperStatus(req, res) {
   if (_job) {
     if (_job.running) {
       res.write('data: ' + JSON.stringify({ type: 'progress', done: _job.done, total: _job.total, current: _job.current }) + '\n\n');
+    } else if (_job.error) {
+      res.write('data: ' + JSON.stringify({ type: 'error', error: _job.error, fatal: true, done: _job.done, total: _job.total, failed: _job.failed }) + '\n\n');
     } else {
       res.write('data: ' + JSON.stringify({ type: 'done', done: _job.done, failed: _job.failed, total: _job.total + _job.skipped, skipped: _job.skipped }) + '\n\n');
     }
@@ -313,20 +403,30 @@ async function apiWhisperDownloadModel(req, res) {
   const body = await require('./helpers-server').readBody(req);
   const model = body.model;
   if (!VALID_MODELS.has(model)) return json(res, { error: 'Invalid model' }, 400);
-  if (_downloadingModels.has(model)) return json(res, { ok: true, already: true });
-  _downloadingModels.add(model);
+  const existing = _modelDownloads.get(model);
+  if (existing && existing.status === 'downloading') return json(res, { ok: true, already: true });
+  _modelDownloads.set(model, { model, progress: 0, status: 'downloading', error: null });
   try {
     await downloadModel(model);
+    const r = _modelDownloads.get(model);
+    if (r) { r.status = 'done'; r.progress = 100; }
+    // Keep the completed record briefly so the download drawer can show it, then clear.
+    setTimeout(() => { const x = _modelDownloads.get(model); if (x && x.status === 'done') _modelDownloads.delete(model); }, 8000);
     json(res, { ok: true });
   } catch (e) {
+    const r = _modelDownloads.get(model);
+    if (r) { r.status = 'error'; r.error = e.message; }
+    setTimeout(() => { const x = _modelDownloads.get(model); if (x && x.status === 'error') _modelDownloads.delete(model); }, 20000);
     json(res, { ok: false, error: e.message }, 500);
-  } finally {
-    _downloadingModels.delete(model);
   }
 }
 
 function apiWhisperDownloadingModels(_req, res) {
-  json(res, { downloading: [..._downloadingModels] });
+  const models = [..._modelDownloads.values()];
+  json(res, {
+    downloading: models.filter(m => m.status === 'downloading').map(m => m.model),
+    models,
+  });
 }
 
 module.exports = {
