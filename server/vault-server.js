@@ -169,6 +169,7 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
     dec.setAuthTag(tag);
     const src = fs.createReadStream(encPath, { start: ivLen, end: total - tagLen - 1 });
+    src.on('error', () => { try { res.end(); } catch { } });
     src.pipe(dec).pipe(res);
     dec.on('error', () => { try { res.end(); } catch { } });
     return;
@@ -177,8 +178,14 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
   const range = req.headers.range;
   if (range) {
     const [s, e2] = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(s, 10);
-    const end = e2 ? parseInt(e2, 10) : contentSize - 1;
+    let start = parseInt(s, 10);
+    let end = e2 ? parseInt(e2, 10) : contentSize - 1;
+    if (Number.isNaN(start)) start = 0;
+    if (Number.isNaN(end)) end = contentSize - 1;
+    if (start < 0 || end >= contentSize || start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${contentSize}` });
+      return res.end();
+    }
     const chunkSz = end - start + 1;
 
     res.writeHead(206, {
@@ -205,6 +212,7 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     });
     dec.on('end', () => { try { res.end(); } catch { } });
     dec.on('error', () => { try { res.end(); } catch { } });
+    src.on('error', () => { try { res.end(); } catch { } });
     src.pipe(dec);
   } else {
     res.writeHead(200, {
@@ -216,6 +224,7 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     const dec = crypto.createDecipheriv('aes-256-gcm', vaultKey, iv);
     dec.setAuthTag(tag);
     const src = fs.createReadStream(encPath, { start: ivLen, end: total - tagLen - 1 });
+    src.on('error', () => { try { res.end(); } catch { } });
     src.pipe(dec).pipe(res);
     dec.on('error', () => { try { res.end(); } catch { } });
   }

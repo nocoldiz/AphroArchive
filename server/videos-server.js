@@ -1415,8 +1415,14 @@ async function apiStream(req, res, id) {
     const range = req.headers.range;
     if (range) {
       const [s, e2] = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(s, 10);
-      const end = e2 ? parseInt(e2, 10) : contentSize - 1;
+      let start = parseInt(s, 10);
+      let end = e2 ? parseInt(e2, 10) : contentSize - 1;
+      if (Number.isNaN(start)) start = 0;
+      if (Number.isNaN(end)) end = contentSize - 1;
+      if (start < 0 || end >= contentSize || start > end) {
+        res.writeHead(416, { 'Content-Range': `bytes */${contentSize}` });
+        return res.end();
+      }
       const chunkSz = end - start + 1;
 
       res.writeHead(206, {
@@ -1451,6 +1457,9 @@ async function apiStream(req, res, id) {
       dec.on('error', () => {
         if (!ended) { ended = true; res.end(); }
       });
+      src.on('error', () => {
+        if (!ended) { ended = true; try { res.end(); } catch {} }
+      });
       src.pipe(dec);
     } else {
       res.writeHead(200, {
@@ -1470,16 +1479,26 @@ async function apiStream(req, res, id) {
   const range = req.headers.range;
   if (range) {
     const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(startStr, 10);
-    const end   = endStr ? parseInt(endStr, 10) : size - 1;
+    let start = parseInt(startStr, 10);
+    let end   = endStr ? parseInt(endStr, 10) : size - 1;
+    if (Number.isNaN(start)) start = 0;
+    if (Number.isNaN(end)) end = size - 1;
+    if (start < 0 || end >= size || start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+      return res.end();
+    }
     res.writeHead(206, {
       'Content-Range': `bytes ${start}-${end}/${size}`,
       'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct,
     });
-    fs.createReadStream(fp, { start, end }).pipe(res);
+    const rs = fs.createReadStream(fp, { start, end });
+    rs.on('error', () => { try { res.destroy(); } catch {} });
+    rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
-    fs.createReadStream(fp).pipe(res);
+    const rs = fs.createReadStream(fp);
+    rs.on('error', () => { try { res.destroy(); } catch {} });
+    rs.pipe(res);
   }
 }
 

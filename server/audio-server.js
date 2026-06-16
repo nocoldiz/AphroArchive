@@ -127,13 +127,23 @@ function apiAudioStream(req, res, id) {
   const range = req.headers.range;
   if (range) {
     const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(startStr, 10);
-    const end   = endStr ? parseInt(endStr, 10) : size - 1;
+    let start = parseInt(startStr, 10);
+    let end   = endStr ? parseInt(endStr, 10) : size - 1;
+    if (Number.isNaN(start)) start = 0;
+    if (Number.isNaN(end)) end = size - 1;
+    if (start < 0 || end >= size || start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+      return res.end();
+    }
     res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct });
-    fs.createReadStream(fp, { start, end }).pipe(res);
+    const rs = fs.createReadStream(fp, { start, end });
+    rs.on('error', () => { try { res.destroy(); } catch {} });
+    rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
-    fs.createReadStream(fp).pipe(res);
+    const rs = fs.createReadStream(fp);
+    rs.on('error', () => { try { res.destroy(); } catch {} });
+    rs.pipe(res);
   }
 }
 

@@ -12,6 +12,17 @@ const path = require('path');
 const url = require('url');
 const { exec } = require('child_process');
 
+// ── Process-level safety net ─────────────────────────────────────────
+// Node 24 terminates the process on an unhandled rejection by default, so a
+// single throwing request handler would take down the whole server. Keep the
+// process alive and just log — individual requests fail, the server survives.
+process.on('unhandledRejection', (err) => {
+  console.error('\x1b[33m[unhandledRejection]\x1b[0m', err && err.stack || err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('\x1b[33m[uncaughtException]\x1b[0m', err && err.stack || err);
+});
+
 const cfg = require('./server/config-server');
 const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
   WEBSITES_JSON, CATEGORIES_JSON, LINK_DIR, BM_CACHE_FILE,
@@ -131,6 +142,7 @@ function isLocalhost(req) {
 let _serverReady = false;
 
 const server = http.createServer(async (req, res) => {
+ try {
   const urlObj = new URL(req.url, `http://localhost:${PORT}`);
   const p = urlObj.pathname;
   const params = urlObj.searchParams;
@@ -614,6 +626,22 @@ const server = http.createServer(async (req, res) => {
   const spaRoutes = /^\/(thumbnails|links|duplicates|corrupted|vault|recent|collections|scraper|settings|database|actors|channels|books|audio|photos|screenshots|pages|search|favourites|folders|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|reddit|mosaic|video\/|tag\/|folder\/|cat\/|actor\/|channel\/|collection\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
+ } catch (err) {
+  console.error('\x1b[31m[request error]\x1b[0m', req.method, req.url, '→', err && err.stack || err);
+  try {
+    if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  } catch { try { res.destroy(); } catch {} }
+ }
+});
+
+// Malformed HTTP requests emit 'clientError' — destroy the socket instead of
+// letting the default handler bubble it up.
+server.on('clientError', (err, socket) => {
+  try {
+    if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+    else socket.destroy();
+  } catch { try { socket.destroy(); } catch {} }
 });
 
 // ── Listen ───────────────────────────────────────────────────────────

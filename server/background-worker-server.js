@@ -100,12 +100,12 @@ async function scanAndProcess() {
           }
         }
 
-        // 3. Check Auto Chapters
+        // 3. Scene Detection (auto chapters)
         if (!hasAutoChapters(id)) {
-          setStatus('Detecting chapters', file.rel);
+          setStatus('Scene detection', file.rel);
           const detected = await ensureAutoChaptersForVideo(id, fp);
           if (detected) {
-            console.log(`Background worker: Detected chapters for ${file.rel}`);
+            console.log(`Background worker: Scene detection done for ${file.rel}`);
             processedCount++;
           }
         }
