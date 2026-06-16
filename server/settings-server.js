@@ -118,6 +118,9 @@ async function apiSavePrefs(req, res) {
     prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];
   }
   // Nav item ordering within each bar section ({ sidebar_library: [...ids], topbar: [...ids], ... }).
+  if ('collapsedDropdowns' in body) {
+    if (Array.isArray(body.collapsedDropdowns)) prefs.collapsedDropdowns = body.collapsedDropdowns.map(String).filter(Boolean).slice(0, 50);
+  }
   if ('navOrder' in body) {
     const src = body.navOrder;
     if (src && typeof src === 'object' && !Array.isArray(src)) {

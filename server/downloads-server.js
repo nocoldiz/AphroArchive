@@ -247,7 +247,7 @@ async function runJob(next) {
     return;
   }
   try {
-    await runUniversal(next);
+    await runAllVideoMethods(next);
     next.status   = 'done';
     next.progress = 100;
     const writeRoot = getDefaultWriteRoot();
@@ -350,6 +350,98 @@ function runUniversal(job) {
         : err.message
     )));
   });
+}
+
+// Fallback 1: spawn the yt-dlp binary directly (used when Python / bulkdownloader.py fails).
+function runYtdlpFallback(job) {
+  return new Promise((resolve, reject) => {
+    const cleanCat = (job.folder || '').trim();
+    const isVirtual = !cleanCat || cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
+    const writeRoot = getDefaultWriteRoot();
+    const physicalCat = isVirtual ? '' : cleanCat;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : path.join(writeRoot, 'downloads');
+    try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
+
+    const outtmpl = path.join(outDir, '%(title)s.%(ext)s');
+    const proc = spawn(YT_DLP_BIN, [
+      '--no-playlist', '--merge-output-format', 'mp4',
+      '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+      '-o', outtmpl, job.url,
+    ]);
+    job._kill = () => proc.kill('SIGKILL');
+
+    let resultFile = null;
+    const parseLine = line => {
+      const dest = line.match(/\[(?:download|Merger|ffmpeg)\]\s+(?:Destination:|Merging formats into)\s+"?([^"\r\n]+)"?/);
+      if (dest) {
+        const f = dest[1].trim().replace(/^"|"$/g, '');
+        resultFile = f; job.outputPath = f; job.title = path.basename(f).replace(/\.[^.]+$/, '');
+      }
+      const prog = line.match(/\[download\]\s+([\d.]+)%/);
+      if (prog) job.progress = parseFloat(prog[1]);
+    };
+
+    let oBuf = '', eBuf = '';
+    const feed = (buf, data) => {
+      buf += data.toString();
+      const lines = buf.split(/[\r\n]/); buf = lines.pop();
+      lines.forEach(l => { if (l.trim()) parseLine(l); }); return buf;
+    };
+    proc.stdout.on('data', d => { oBuf = feed(oBuf, d); });
+    proc.stderr.on('data', d => { eBuf = feed(eBuf, d); });
+
+    proc.on('close', code => {
+      if (oBuf) parseLine(oBuf);
+      if (eBuf) parseLine(eBuf);
+      if (resultFile) {
+        const candidates = [resultFile, ...['mp4', 'mkv', 'webm', 'm4v'].map(e => resultFile.replace(/\.[^.]+$/, '.' + e))];
+        for (const p of candidates) {
+          if (fs.existsSync(p)) { job.outputPath = p; job.title = path.basename(p).replace(/\.[^.]+$/, ''); return resolve(); }
+        }
+      }
+      reject(new Error('yt-dlp fallback produced no output (exit code ' + code + ')'));
+    });
+    proc.on('error', err => reject(new Error(err.code === 'ENOENT' ? 'yt-dlp not found' : err.message)));
+  });
+}
+
+// Try all video download methods in priority order:
+//   1) bulkdownloader.py  — universal scraper + yt-dlp waterfall (best quality)
+//   2) bare yt-dlp binary — for when Python is unavailable
+//   3) direct HTTP        — last resort for plain media-file URLs
+async function runAllVideoMethods(job) {
+  try {
+    await runUniversal(job);
+    return;
+  } catch (e1) {
+    if (!downloadJobs.has(job.id) || job.status === 'paused') throw e1;
+    console.error('[download] bulkdownloader.py failed, trying yt-dlp:', e1.message);
+  }
+
+  try {
+    await runYtdlpFallback(job);
+    return;
+  } catch (e2) {
+    if (!downloadJobs.has(job.id) || job.status === 'paused') throw e2;
+    console.error('[download] yt-dlp fallback failed, trying direct HTTP:', e2.message);
+  }
+
+  const ext = (() => { try { return path.extname(new URL(job.url).pathname).toLowerCase(); } catch { return ''; } })();
+  if (VIDEO_EXT.has(ext)) {
+    const cleanCat = (job.folder || '').trim();
+    const isVirtual = !cleanCat || cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
+    const writeRoot = getDefaultWriteRoot();
+    const physicalCat = isVirtual ? '' : cleanCat;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : path.join(writeRoot, 'downloads');
+    try {
+      await runDirectFileDownload(job, { dir: outDir, ext, kind: 'video', mediaType: null });
+      return;
+    } catch (e3) {
+      console.error('[download] direct HTTP fallback failed:', e3.message);
+    }
+  }
+
+  throw new Error('All download methods failed for ' + job.url);
 }
 
 // ── Download API handlers ────────────────────────────────────────────

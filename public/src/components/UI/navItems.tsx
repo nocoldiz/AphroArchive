@@ -41,10 +41,20 @@ export function placementFor(id: string, defaultLoc: BarLocation): BarLocation {
   return appPrefs.value.itemPlacements?.[id] ?? defaultLoc;
 }
 
-/** Effective bar for a plugin (meta.location is the default; 'home' is left untouched). */
-export function pluginLocation(p: PluginMeta): PluginMeta['location'] {
+export const PLUGINS_GROUP_ID = 'plugins-group';
+
+/** Effective location for a plugin.
+ *  - 'home': home-dashboard widget (never moved)
+ *  - 'topbar': explicitly detached as a standalone icon button in the topbar
+ *  - 'sidebar': explicitly detached as a labeled link in the sidebar
+ *  - 'plugins-dropdown': default — lives in the Plugins dropdown
+ */
+export function pluginLocation(p: PluginMeta): 'home' | 'topbar' | 'sidebar' | 'plugins-dropdown' {
   if (p.location === 'home') return 'home';
-  return (appPrefs.value.itemPlacements?.[p.id] as BarLocation) ?? p.location;
+  const override = appPrefs.value.itemPlacements?.[p.id];
+  if (override === 'topbar') return 'topbar';
+  if (override === 'sidebar') return 'sidebar';
+  return 'plugins-dropdown';
 }
 
 export async function setItemPlacement(id: string, loc: BarLocation) {
@@ -63,9 +73,25 @@ export async function setSectionPlacement(section: NavSection, loc: BarLocation)
   await updatePrefs({ sectionPlacements: next });
 }
 
-/** Open the move context menu for any movable item (nav item, plugin, or filter block). */
-export function openMoveMenu(e: any, id: string, label: string, location: BarLocation) {
-  (window as any).showContextMenu?.(e, 'navitem', { id, label, location });
+/** Whether a topbar dropdown button is collapsed to icon-only. */
+export function isDropdownShrunken(id: string): boolean {
+  return ((appPrefs.value as any).collapsedDropdowns || []).includes(id);
+}
+
+export async function toggleDropdownShrunken(id: string) {
+  const curr: string[] = (appPrefs.value as any).collapsedDropdowns || [];
+  const next = curr.includes(id) ? curr.filter((x: string) => x !== id) : [...curr, id];
+  await updatePrefs({ collapsedDropdowns: next } as any);
+}
+
+/**
+ * Open the move context menu for any movable item.
+ * location: 'sidebar' | 'topbar' = block-level moves (whole dropdown/filter block)
+ * location: 'topbar-dropdown' = item inside a topbar section/plugins dropdown (can go to icon or sidebar)
+ * location: 'topbar-icon' = standalone icon in topbar (can go to sidebar or reset)
+ */
+export function openMoveMenu(e: any, id: string, label: string, location: BarLocation | 'topbar-dropdown' | 'topbar-icon', extra?: any) {
+  (window as any).showContextMenu?.(e, 'navitem', { id, label, location, ...extra });
 }
 
 export function openSectionMoveMenu(e: any, section: NavSection, label: string, location: BarLocation) {

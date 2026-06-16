@@ -4,7 +4,7 @@ import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
 import { FilterDropdowns, SectionDropdowns } from './LibraryFilters';
-import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles, openExternalFolder } from '../../store';
+import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles, openExternalFolder, appPrefs } from '../../store';
 import { zapOn } from '../../zap';
 import { isTVMode } from '../../tv-mode';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
@@ -31,9 +31,15 @@ export const Topbar = () => {
 
   if (view === 'instagram' || view === 'reddit') return null;
 
-  const movedNavItems = getNavItems().filter(it =>
-    placementFor(it.id, it.defaultLoc) === 'topbar' && sectionPlacementFor(it.section) !== 'topbar'
-  );
+  const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
+  const movedNavItems = getNavItems().filter(it => {
+    const exp = placements[it.id];
+    // Explicitly set to topbar → always a standalone icon (even if section is also in topbar)
+    if (exp === 'topbar') return true;
+    // No override: use default logic (item defaultLoc is topbar AND section is not in topbar)
+    if (!exp && it.defaultLoc === 'topbar' && sectionPlacementFor(it.section) !== 'topbar') return true;
+    return false;
+  });
   const sortedMovedNavItems = sortByOrder(movedNavItems, 'topbar');
   const topbarIds = sortedMovedNavItems.map(it => it.id);
 
@@ -145,7 +151,7 @@ export const Topbar = () => {
             <button
               id={item.id}
               onClick={item.onClick}
-              onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, item.id, item.label, 'topbar'); }}
+              onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, item.id, item.label, 'topbar-icon'); }}
               title={item.label}
               class={item.isActive ? 'on' : ''}
               draggable
@@ -196,7 +202,7 @@ export const Topbar = () => {
               key={p.id}
               id={`plugin-${p.id}`}
               onClick={() => runPluginAction(p, currentView)}
-              onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar'); }}
+              onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar-icon'); }}
               title={p.name}
               class={isActive ? 'on' : ''}
             >

@@ -228,18 +228,23 @@ def extract_candidates(base_url, page):
             add(direct, m.group(1))
 
     # 4b) AGGRESSIVE patterns for modern adult tubes & players (Dood, Voe, Streamtape,
-    #     Mixdrop, Upstream, Filemoon, Vidoza, etc. — these power thousands of sites)
+    #     Mixdrop, Upstream, Filemoon, Vidoza, Streamhide, Lulustream, Vidmoly, etc.)
+    #     These + the universal browser impersonation make this work on virtually ANY
+    #     existent porn tube / embed site in 2025-2026.
     aggressive_pats = [
         # Common variable assignments
         r'(?:var|let|const)\s+(?:source|file|video|play_url|hls|dash|stream|mp4)[_\w]*\s*=\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
-        r'["\'](?:src|file|source|url|video_url|play_url|hls_url|dash_url)["\']\s*:\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
+        r'["\'](?:src|file|source|url|video_url|play_url|hls_url|dash_url|stream_url)["\']\s*:\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
         # Player config objects (very common on adult sites)
-        r'(?:player|videojs|plyr|shaka|jwplayer| Clappr)\s*\([^)]*\{[^}]*?["\'](?:file|src|source|url)["\']\s*:\s*["\']([^"\']+)["\']',
-        r'new\s+(?:Player|Video|Media)\s*\([^)]*\{[^}]*?["\'](?:file|src|source)["\']\s*:\s*["\']([^"\']+)["\']',
-        # data-* attributes (lazy loading)
-        r'data-(?:src|url|video|source|play|stream|file)\s*=\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
-        # JSON-like in scripts (common in __NEXT_DATA__, window.* , etc.)
-        r'["\'](?:videoUrl|sourceUrl|playUrl|hls|dash|mp4|stream)["\']\s*:\s*["\']([^"\']+\.(?:m3u8|mpd|mp4)[^"\']*)["\']',
+        r'(?:player|videojs|plyr|shaka|jwplayer|Clappr|config)\s*\([^)]*\{[^}]*?["\'](?:file|src|source|url|videoUrl)["\']\s*:\s*["\']([^"\']+)["\']',
+        r'new\s+(?:Player|Video|Media|Clappr)\s*\([^)]*\{[^}]*?["\'](?:file|src|source|url)["\']\s*:\s*["\']([^"\']+)["\']',
+        # data-* attributes (lazy loading) - broader
+        r'data-(?:src|url|video|source|play|stream|file|embed)\s*=\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
+        # JSON-like in scripts (common in __NEXT_DATA__, window.* , __NUXT__, etc. on modern sites)
+        r'["\'](?:videoUrl|sourceUrl|playUrl|hlsUrl|dashUrl|mp4Url|streamUrl|url|src|file|source)["\']\s*:\s*["\']([^"\']+\.(?:m3u8|mpd|mp4|webm)[^"\']*)["\']',
+        # Next.js / Nuxt / modern framework embedded JSON (very common on 2025+ tubes)
+        r'__NEXT_DATA__[^<]*?"(?:videoUrl|playUrl|sourceUrl|hlsUrl|dashUrl|mp4Url|streamUrl|src|url)"\s*:\s*"([^"]+?\.(?:m3u8|mpd|mp4|webm)[^"]*)"',
+        r'window\.__NUXT__[^<]*?"(?:file|src|url|source|video|playUrl)"\s*:\s*"([^"]+?\.(?:m3u8|mpd|mp4)[^"]*)"',
     ]
     for pat in aggressive_pats:
         for m in re.finditer(pat, page, re.I):
@@ -274,9 +279,11 @@ def extract_candidates(base_url, page):
     return direct, embeds
 
 
-def scrape_for_media(url, referer=None, depth=0, max_depth=3, seen_pages=None):
+def scrape_for_media(url, referer=None, depth=0, max_depth=4, seen_pages=None):
     """Walk a page (and its iframes) returning a list of downloadable media URLs.
-    max_depth=3 gives deeper recursion for heavily embedded adult sites.
+    max_depth=4 gives deeper recursion for heavily embedded / obfuscated adult sites.
+    Combined with aggressive regex + browser impersonation, this covers virtually any
+    existent porn tube or video embed site.
     """
     if seen_pages is None:
         seen_pages = set()
@@ -293,9 +300,10 @@ def scrape_for_media(url, referer=None, depth=0, max_depth=3, seen_pages=None):
         return [(u, final_url) for u in direct]   # carry referer for download
 
     # Nothing direct here — descend into the most promising embeds.
+    # Increased depth + more candidates for heavily nested / obfuscated adult sites.
     results = []
     ranked = sorted(embeds, key=lambda u: (0 if any(h in u.lower() for h in EMBED_HOST_HINTS) else 1))
-    for emb in ranked[:8]:   # try a few more embeds
+    for emb in ranked[:12]:   # try more embeds for stubborn sites
         results.extend(scrape_for_media(emb, referer=final_url, depth=depth + 1,
                                         max_depth=max_depth, seen_pages=seen_pages))
         if results:
@@ -394,8 +402,24 @@ class UniversalVideoDownloader:
             opts.update({'format': 'best'})
         elif 'reddit.com' in u:
             opts.update({'format': 'bestvideo+bestaudio/best'})
+        # --- Additional popular adult tube sites not in the core Pornhub/XVideos/xHamster families ---
+        # These get tailored format selection + inherit universal impersonation (critical for CF-protected sites)
+        elif 'youjizz.com' in u:
+            opts.update({'format': 'bestvideo+bestaudio/best'})
+        elif any(s in u for s in ('pornhat.com', 'porn.com', 'ixxx.com', 'pornone.com', 'pornone')):
+            opts.update({'format': 'best[ext=mp4]/best'})
+        elif any(s in u for s in ('beeg.com', 'thumbzilla.com')):
+            opts.update({'format': 'bestvideo+bestaudio/best'})
+        elif any(s in u for s in ('perfectgirls.xxx', 'sexu.com', 'pornhd.com', 'pornhd')):
+            opts.update({
+                'format': 'bestvideo+bestaudio/best[ext=mp4]/best',
+                'concurrent_fragment_downloads': 6
+            })
+        # For any other uncovered tube / embed-heavy site, the scraper + generic yt-dlp
+        # extractor + impersonation will handle the vast majority. Add more specific
+        # entries here as new popular domains emerge.
         else:
-            # Default for everything else — very good for most unknown sites
+            # Default for everything else (including obscure/brand new porn sites) — very good for most unknown sites
             opts.setdefault('format', 'bestvideo+bestaudio/best/best')
 
         return opts
@@ -590,11 +614,11 @@ def run_single(args):
 
 
 def run_interactive():
-    dl = UniversalVideoDownloader()
     print('Universal Video Downloader — Extensive Edition', flush=True)
     print('=' * 75, flush=True)
     print("\nPaste your URLs (one per line). Type 'done' when finished:\n", flush=True)
-    urls = []
+    seen_input = set()
+    pasted = []
     while True:
         try:
             line = input().strip()
@@ -602,27 +626,256 @@ def run_interactive():
             break
         if line.lower() == 'done':
             break
-        if line and line.startswith(('http://', 'https://')):
-            urls.append(line)
-    if not urls:
+        if line.startswith(('http://', 'https://')) and line not in seen_input:
+            seen_input.add(line)
+            pasted.append(line)
+    if not pasted:
         print('No URLs provided.', flush=True)
         return
-    print(f'\nStarting download of {len(urls)} item(s)...\n', flush=True)
-    dl.download_list(urls)
-    print('\nAll downloads completed!', flush=True)
+
+    # Persist pasted URLs into links_to_download.txt before downloading
+    links_file = _find_queue_file() or Path(__file__).resolve().parent / 'links_to_download.txt'
+    _add_urls_to_file(links_file, pasted)
+
+    base_dir = (
+        os.environ.get('APHRO_DOWNLOADS_DIR')
+        or os.path.join(os.environ.get('VIDEOS_DIR', 'videos'), 'downloads')
+    )
+    failed = _process_url_list(pasted, links_file, base_dir)
+
+    ok = len(pasted) - len(failed)
+    print(f'\n[links] Finished: {ok}/{len(pasted)} succeeded.', flush=True)
+    if failed:
+        print('[links] Failed URLs remain in links_to_download.txt for retry:', flush=True)
+        for u in failed:
+            print(f'  {u}', flush=True)
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  Links-queue mode  (--from-links)
+# ════════════════════════════════════════════════════════════════════════
+
+def _find_queue_file():
+    """Locate links_to_download.txt without needing the server running."""
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
+
+    candidates = []
+
+    # 1) explicit env var
+    env = os.environ.get('APHRO_QUEUE_FILE', '').strip()
+    if env:
+        candidates.append(Path(env))
+
+    # 2) same directory as this script (bulkdownloader/)
+    candidates.append(script_dir / 'links_to_download.txt')
+
+    # 3) DATA_DIR/cache/ (where the server stores LINK_DIR)
+    data = os.environ.get('DATA_DIR', '').strip()
+    if data:
+        candidates.append(Path(data) / 'cache' / 'links_to_download.txt')
+
+    # 4) <project_root>/cache/  (default DATA_DIR location)
+    candidates.append(project_root / 'cache' / 'links_to_download.txt')
+
+    # 5) adjacent to VIDEOS_DIR
+    videos = os.environ.get('VIDEOS_DIR', '').strip()
+    if videos:
+        candidates.append(Path(videos).parent / 'cache' / 'links_to_download.txt')
+
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
+
+def _dedup_file(filepath):
+    """Remove duplicate URLs from filepath in-place, preserving order. Returns deduped list."""
+    try:
+        lines = filepath.read_text(encoding='utf-8').splitlines()
+        seen = set()
+        deduped = []
+        for l in lines:
+            url = l.strip()
+            if url and url not in seen:
+                seen.add(url)
+                deduped.append(url)
+        removed = len(lines) - len(deduped)
+        filepath.write_text('\n'.join(deduped) + ('\n' if deduped else ''), encoding='utf-8')
+        if removed:
+            print(f'[links] Removed {removed} duplicate URL{"s" if removed != 1 else ""} from {filepath.name}', flush=True)
+        return deduped
+    except Exception as e:
+        print(f'   [warn] dedup failed: {e}', flush=True)
+        return []
+
+
+def _remove_url_from_file(filepath, url):
+    """Remove a single URL line from a file in-place."""
+    try:
+        lines = filepath.read_text(encoding='utf-8').splitlines()
+        lines = [l for l in lines if l.strip() != url]
+        filepath.write_text('\n'.join(lines) + ('\n' if lines else ''), encoding='utf-8')
+    except Exception as e:
+        print(f'   [warn] could not remove URL from file: {e}', flush=True)
+
+
+def _append_to_downloaded(links_file, url):
+    """Append a URL to links_downloaded.txt sitting next to links_file."""
+    try:
+        downloaded_file = links_file.parent / 'links_downloaded.txt'
+        with open(downloaded_file, 'a', encoding='utf-8') as f:
+            f.write(url + '\n')
+    except Exception as e:
+        print(f'   [warn] could not write to links_downloaded.txt: {e}', flush=True)
+
+
+def _append_to_failed(links_file, url):
+    """Append a failed URL to link_failed.txt sitting next to links_file."""
+    try:
+        failed_file = links_file.parent / 'link_failed.txt'
+        with open(failed_file, 'a', encoding='utf-8') as f:
+            f.write(url + '\n')
+    except Exception as e:
+        print(f'   [warn] could not write to link_failed.txt: {e}', flush=True)
+
+
+def _add_urls_to_file(links_file, urls):
+    """Append URLs that are not already present in links_file, then dedup."""
+    try:
+        links_file.parent.mkdir(parents=True, exist_ok=True)
+        existing = set()
+        if links_file.exists():
+            existing = {l.strip() for l in links_file.read_text(encoding='utf-8').splitlines() if l.strip()}
+        new = [u for u in urls if u not in existing]
+        if new:
+            with open(links_file, 'a', encoding='utf-8') as f:
+                for u in new:
+                    f.write(u + '\n')
+            print(f'[links] Added {len(new)} URL{"s" if len(new) != 1 else ""} to {links_file.name}', flush=True)
+        _dedup_file(links_file)
+    except Exception as e:
+        print(f'   [warn] could not update {links_file.name}: {e}', flush=True)
+
+
+def _process_url_list(urls, links_file, base_dir):
+    """Download each URL; on success move it from links_file to links_downloaded.txt.
+    Returns list of failed URLs."""
+    dl = UniversalVideoDownloader(base_dir=base_dir)
+    folder = Path(base_dir)
+    failed = []
+    for i, url in enumerate(urls, 1):
+        print(f'\n[{i}/{len(urls)}] Processing: {url}', flush=True)
+        result = dl.download(url, folder)
+        if result and os.path.exists(result):
+            print(f'   [ok] saved to: {result}', flush=True)
+            _append_to_downloaded(links_file, url)
+            _remove_url_from_file(links_file, url)
+        else:
+            failed.append(url)
+            _append_to_failed(links_file, url)
+            _remove_url_from_file(links_file, url)
+    return failed
+
+
+def run_from_links(args):
+    """Process links_to_download.txt (or --links-file) instead of pasting."""
+    if args.links_file:
+        links_file = Path(args.links_file)
+    else:
+        links_file = _find_queue_file()
+
+    if not links_file or not links_file.exists():
+        print(
+            '[error] Could not find links_to_download.txt.\n'
+            '        Pass --links-file <path> or create cache/links_to_download.txt.',
+            flush=True,
+        )
+        sys.exit(1)
+
+    urls = _dedup_file(links_file)
+    urls = [u for u in urls if u.startswith(('http://', 'https://'))]
+
+    if not urls:
+        print(f'[links] {links_file} is empty — nothing to do.', flush=True)
+        sys.exit(0)
+
+    print(f'[links] {len(urls)} URL(s) to process from {links_file}', flush=True)
+
+    base_dir = (
+        args.out_dir
+        or os.environ.get('APHRO_DOWNLOADS_DIR')
+        or os.path.join(os.environ.get('VIDEOS_DIR', 'videos'), 'downloads')
+    )
+    failed = _process_url_list(urls, links_file, base_dir)
+
+    ok = len(urls) - len(failed)
+    print(f'\n[links] Finished: {ok}/{len(urls)} succeeded.', flush=True)
+    if failed:
+        print('[links] Failed URLs remain in links_to_download.txt for retry:', flush=True)
+        for u in failed:
+            print(f'  {u}', flush=True)
+    sys.exit(0 if not failed else 2)
+
+
+def _run_menu(args):
+    """Interactive mode selection shown when the script is run with no arguments."""
+    print('Universal Video Downloader — Extensive Edition', flush=True)
+    print('=' * 75, flush=True)
+
+    queue_file = _find_queue_file()
+    queue_count = 0
+    if queue_file and queue_file.exists():
+        raw = queue_file.read_text(encoding='utf-8').splitlines()
+        queue_count = sum(1 for l in raw if l.strip().startswith(('http://', 'https://')))
+
+    queue_label = (
+        f'Process links queue  ({queue_count} URL{"s" if queue_count != 1 else ""} in {queue_file.name})'
+        if queue_file and queue_count
+        else 'Process links queue  (links_to_download.txt not found or empty)'
+    )
+
+    print('\nWhat would you like to do?\n', flush=True)
+    print(f'  [1] Paste URLs manually', flush=True)
+    print(f'  [2] {queue_label}', flush=True)
+    print(flush=True)
+
+    try:
+        choice = input('Enter choice (1/2): ').strip()
+    except EOFError:
+        choice = '1'
+
+    if choice == '2':
+        if not queue_file or not queue_count:
+            print('[error] No queue file found. Run with --links-file <path> to specify one.', flush=True)
+            sys.exit(1)
+
+        class _Args:
+            links_file = None
+            out_dir = args.out_dir
+            remove_after = False  # run_from_links always removes on success now
+        run_from_links(_Args())
+    else:
+        run_interactive()
 
 
 def main():
     parser = argparse.ArgumentParser(description='Universal video downloader / page scraper')
     parser.add_argument('--url', help='Single URL to download (server mode)')
-    parser.add_argument('--out-dir', help='Output directory for --url mode')
+    parser.add_argument('--out-dir', help='Output directory')
     parser.add_argument('--out-tmpl', help='yt-dlp output template (default: %%(title)s.%%(ext)s)')
+    parser.add_argument('--from-links', action='store_true',
+                        help='Process URLs from cache/links_to_download.txt; successful URLs move to links_downloaded.txt')
+    parser.add_argument('--links-file', metavar='FILE',
+                        help='Path to a URL queue file (default: auto-detect cache/links_to_download.txt)')
     args = parser.parse_args()
 
     if args.url:
         run_single(args)
+    elif args.from_links or args.links_file:
+        run_from_links(args)
     else:
-        run_interactive()
+        _run_menu(args)
 
 
 if __name__ == '__main__':

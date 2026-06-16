@@ -36,6 +36,7 @@ import { ImportModal } from '../modals/ImportModal';
 import { SubtitlesView } from '../sections/SubtitlesView';
 import { SubtitleEditorModal } from '../modals/SubtitleEditorModal';
 import { GuideView } from '../sections/GuideView';
+import { RadioModeView } from '../sections/RadioModeView';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
 // Heavy/rare views — code-split so the initial bundle stays small
@@ -136,6 +137,7 @@ export const MainContent = () => {
     if (view === 'library-health') return <LibraryHealthView />;
     if (view === 'subtitles') return <SubtitlesView />;
     if (view === 'guide') return <GuideView />;
+    if (view === 'radio') return <RadioModeView />;
     if (view === 'search-results') return <SearchResultsView />;
     return <BrowseView />;
   };

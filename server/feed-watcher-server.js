@@ -1,10 +1,11 @@
 'use strict';
 // ═══════════════════════════════════════════════════════════════════
-//  feed-watcher-server.js — Auto-ingest from feed/ and vaultfeed/
+//  feed-watcher-server.js — Auto-ingest from feed/ and vault_feed/
 //
-//  feed/      — videos auto-sorted by categorizer algorithm, other
-//               media moved to their respective media dirs
-//  vaultfeed/ — files encrypted into vault on next unlock
+//  feed/       — videos auto-sorted by categorizer algorithm, other
+//                media moved to their respective media dirs
+//  vault_feed/ — files encrypted into vault on unlock (or immediately
+//                if the vault is already unlocked when the file lands)
 // ═══════════════════════════════════════════════════════════════════
 
 const fs = require('fs');
@@ -19,6 +20,7 @@ const {
 
 const debounceTimers = new Map();
 let _feedWatcher = null;
+let _vaultFeedWatcher = null;
 
 function _isSupported(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -98,7 +100,35 @@ function _onFeedEvent(filename) {
   }, 800));
 }
 
-// Encrypt everything in vaultfeed/ into the vault. Called on vault unlock.
+// Encrypt a single vault_feed file immediately (vault must be unlocked).
+async function _processVaultFeedFile(filePath) {
+  const { isUnlocked, encryptLocalFileToVault } = require('./vault-server');
+  if (!isUnlocked() || !fs.existsSync(filePath) || !_isSupported(filePath)) return;
+  try {
+    if (!await _waitStable(filePath)) return;
+    if (!isUnlocked()) return;
+    const entry = path.basename(filePath);
+    await encryptLocalFileToVault(filePath, entry, null, null);
+    console.log(`[vaultfeed] encrypted: ${entry}`);
+  } catch (e) {
+    console.error('[vaultfeed] error encrypting:', e.message);
+  }
+}
+
+function _onVaultFeedEvent(filename) {
+  if (!filename) return;
+  const filePath = path.join(VAULT_FEED_DIR, filename);
+  if (debounceTimers.has(filePath)) clearTimeout(debounceTimers.get(filePath));
+  debounceTimers.set(filePath, setTimeout(async () => {
+    debounceTimers.delete(filePath);
+    try {
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) return;
+      await _processVaultFeedFile(filePath);
+    } catch {}
+  }, 800));
+}
+
+// Encrypt everything in vault_feed/ into the vault. Called on vault unlock.
 async function processVaultFeed() {
   const { isUnlocked, encryptLocalFileToVault } = require('./vault-server');
   if (!isUnlocked() || !fs.existsSync(VAULT_FEED_DIR)) return;
@@ -120,12 +150,27 @@ async function processVaultFeed() {
 
 function startWatchers() {
   stopWatchers();
+
+  // Ensure both feed dirs exist
+  try { fs.mkdirSync(FEED_DIR, { recursive: true }); } catch {}
+  try { fs.mkdirSync(VAULT_FEED_DIR, { recursive: true }); } catch {}
+
+  // Watch feed/
   try {
     _feedWatcher = fs.watch(FEED_DIR, (_, f) => _onFeedEvent(f));
     console.log(`[feed] watching ${FEED_DIR}`);
   } catch (e) {
     console.error('[feed] watch failed:', e.message);
   }
+
+  // Watch vault_feed/
+  try {
+    _vaultFeedWatcher = fs.watch(VAULT_FEED_DIR, (_, f) => _onVaultFeedEvent(f));
+    console.log(`[vaultfeed] watching ${VAULT_FEED_DIR}`);
+  } catch (e) {
+    console.error('[vaultfeed] watch failed:', e.message);
+  }
+
   // Pick up anything dropped into feed/ while the app was off
   try {
     for (const entry of fs.readdirSync(FEED_DIR)) {
@@ -133,10 +178,17 @@ function startWatchers() {
       try { if (fs.statSync(fp).isFile()) _onFeedEvent(entry); } catch {}
     }
   } catch {}
+
+  // If vault is already unlocked, drain vault_feed/ immediately
+  try {
+    const { isUnlocked } = require('./vault-server');
+    if (isUnlocked()) processVaultFeed();
+  } catch {}
 }
 
 function stopWatchers() {
   if (_feedWatcher) { try { _feedWatcher.close(); } catch {} _feedWatcher = null; }
+  if (_vaultFeedWatcher) { try { _vaultFeedWatcher.close(); } catch {} _vaultFeedWatcher = null; }
   for (const t of debounceTimers.values()) clearTimeout(t);
   debounceTimers.clear();
 }

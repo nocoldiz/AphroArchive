@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
-import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen } from '../../store';
+import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter } from './LibraryFilters';
-import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, setItemPlacement, sortByOrder, setNavOrder, activeDrag, type NavItem, type NavSection, type NavOrderKey } from './navItems';
+import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, PLUGINS_GROUP_ID, setItemPlacement, sortByOrder, setNavOrder, activeDrag, type NavItem, type NavSection, type NavOrderKey } from './navItems';
 
 const SectionHeader = ({ label, id, open, style, onClick, action, onContextMenu }: { label: string, id: string, open?: boolean, style?: any, onClick?: () => void, action?: any, onContextMenu?: (e: any) => void }) => (
   <h3 className={`sidebar-heading${open === false ? ' closed' : ''}`} id={id} style={style} onClick={onClick} onContextMenu={onContextMenu}>
@@ -102,7 +102,12 @@ export const Sidebar = () => {
   }, [activeProfile.value]);
 
   const navItems = getNavItems();
-  const sidebarItems = navItems.filter(it => placementFor(it.id, it.defaultLoc) === 'sidebar');
+  const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
+
+  // Items with no explicit placement that belong in sidebar (either defaultLoc='sidebar' or section is in sidebar)
+  const sidebarItems = navItems.filter(it => placementFor(it.id, it.defaultLoc) === 'sidebar' && !placements[it.id]);
+  // Items explicitly moved to sidebar from a topbar section
+  const explicitSidebarItems = navItems.filter(it => placements[it.id] === 'sidebar');
 
   const handleSectionDrop = (secKey: NavSection, sortedIds: string[]) => {
     const { id: draggedId, fromLoc } = activeDrag;
@@ -154,36 +159,61 @@ export const Sidebar = () => {
     </>
   );
 
-  const renderSectionPlugins = (section: NavSection) =>
-    pluginsList.value
-      .filter(p => pluginLocation(p) === 'sidebar' && p.sidebarSection === section && isPluginEnabled(p.id))
-      .map(p => (
-        <SidebarItem
-          key={p.id}
-          label={p.name}
-          icon={p.icon ? navIcon(<g dangerouslySetInnerHTML={{ __html: p.icon }} />, 13, iconStyle) : undefined}
-          onClick={() => runPluginAction(p, currentView)}
-          isActive={p.type === 'view' && currentView.value === p.view}
-          onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'sidebar'); }}
-        />
-      ));
-
   const sectionsMeta: { key: NavSection, label: string, open: boolean, toggle: () => void, id: string }[] = [
     { key: 'library', label: 'Library', open: libraryOpen, toggle: toggleLibrary, id: 'sh3-library' },
     { key: 'media', label: 'Media', open: mediaOpen, toggle: toggleMedia, id: 'sh3-media' },
     { key: 'tools', label: 'Tools', open: manageOpen, toggle: toggleManage, id: 'sh3-manage' },
   ];
 
+  // Plugins whose group is moved to sidebar (they live in a sidebar "Plugins" section)
+  const pluginsGroupInSidebar = placementFor(PLUGINS_GROUP_ID, 'topbar') === 'sidebar';
+  const dropdownPluginsInSidebar = pluginsGroupInSidebar
+    ? pluginsList.value.filter(p => pluginLocation(p) === 'plugins-dropdown' && isPluginEnabled(p.id))
+    : [];
+
+  // Plugins explicitly moved to sidebar as standalone items
+  const standalonePluginsInSidebar = pluginsList.value.filter(p =>
+    pluginLocation(p) === 'sidebar' && isPluginEnabled(p.id)
+  );
+
   const navContent = (
     <>
       {sectionsMeta.map((sec, i) => {
-        if (sectionPlacementFor(sec.key) === 'topbar') return null;
+        const sectionInTopbar = sectionPlacementFor(sec.key) === 'topbar';
+
+        if (sectionInTopbar) {
+          // Section is in the topbar dropdown; only render items explicitly moved to sidebar
+          const detached = explicitSidebarItems.filter(it => it.section === sec.key);
+          if (!detached.length) return null;
+          return (
+            <div key={sec.key}>
+              {i > 0 && <div className="side-sep"></div>}
+              <SectionHeader
+                label={sec.label}
+                id={sec.id}
+                open={sec.open}
+                onClick={sec.toggle}
+                onContextMenu={(e) => { e.preventDefault(); openSectionMoveMenu(e, sec.key, sec.label, 'sidebar'); }}
+              />
+              <div className="side-section" style={{ display: sec.open ? 'block' : 'none' }}>
+                {detached.map(item => (
+                  <div key={item.id}>{renderItemContent(item)}</div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // Section is in sidebar — show items with no explicit placement that belong here
         const items = sidebarItems.filter(it => it.section === sec.key);
-        const hasPlugins = pluginsList.value.some(p => pluginLocation(p) === 'sidebar' && p.sidebarSection === sec.key && isPluginEnabled(p.id));
-        if (!items.length && !hasPlugins) return null;
+        // Also show items explicitly set to sidebar for this section (redundant but safe)
+        const extraItems = explicitSidebarItems.filter(it => it.section === sec.key);
+        const allItems = [...items, ...extraItems.filter(it => !items.find(x => x.id === it.id))];
+
+        if (!allItems.length) return null;
 
         const orderKey = `sidebar_${sec.key}` as NavOrderKey;
-        const sorted = sortByOrder(items, orderKey);
+        const sorted = sortByOrder(allItems, orderKey);
         const sortedIds = sorted.map(it => it.id);
         const endSentinel = `__end_${sec.key}`;
 
@@ -261,26 +291,43 @@ export const Sidebar = () => {
                 </div>
               ))}
               {dragInsertId === endSentinel && insertLine}
-              {renderSectionPlugins(sec.key)}
             </div>
           </div>
         );
       })}
 
-      {/* Unplaced sidebar plugins (no sidebarSection) get their own section */}
-      {pluginsList.value.some(p => pluginLocation(p) === 'sidebar' && !p.sidebarSection && isPluginEnabled(p.id)) && (
+      {/* Standalone sidebar plugins (explicitly moved from Plugins dropdown to sidebar) */}
+      {standalonePluginsInSidebar.map(p => (
+        <SidebarItem
+          key={p.id}
+          label={p.name}
+          icon={p.icon ? navIcon(<g dangerouslySetInnerHTML={{ __html: p.icon }} />, 13, iconStyle) : undefined}
+          onClick={() => runPluginAction(p, currentView)}
+          isActive={p.type === 'view' && currentView.value === p.view}
+          onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'sidebar'); }}
+        />
+      ))}
+
+      {/* Plugins group section — only shown when the whole Plugins dropdown is moved to sidebar */}
+      {pluginsGroupInSidebar && dropdownPluginsInSidebar.length > 0 && (
         <>
           <div className="side-sep"></div>
-          <SectionHeader label="Plugins" id="sh3-plugins" open={pluginsOpen} onClick={togglePlugins} />
+          <SectionHeader
+            label="Plugins"
+            id="sh3-plugins"
+            open={pluginsOpen}
+            onClick={togglePlugins}
+            onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, PLUGINS_GROUP_ID, 'Plugins', 'sidebar'); }}
+          />
           <div className="side-section" id="pluginsSection" style={{ display: pluginsOpen ? 'block' : 'none' }}>
-            {pluginsList.value.filter(p => pluginLocation(p) === 'sidebar' && !p.sidebarSection && isPluginEnabled(p.id)).map(p => (
+            {dropdownPluginsInSidebar.map(p => (
               <SidebarItem
                 key={p.id}
                 label={p.name}
                 icon={p.icon ? navIcon(<g dangerouslySetInnerHTML={{ __html: p.icon }} />, 13, iconStyle) : undefined}
                 onClick={() => runPluginAction(p, currentView)}
                 isActive={p.type === 'view' && currentView.value === p.view}
-                onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'sidebar'); }}
+                onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar-dropdown'); }}
               />
             ))}
           </div>

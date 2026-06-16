@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount } from '../../store';
-import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection } from './navItems';
+import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken, PLUGINS_GROUP_ID, pluginLocation } from './navItems';
+import { pluginsList, isPluginEnabled, runPluginAction } from '../../plugins';
 
 interface SidebarItemProps {
   id?: string;
@@ -64,9 +65,6 @@ export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDra
 
 const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
-// Folders and the Tags dropdown operate on local videos; the Links dropdown
-// operates on links. Counts are scoped accordingly (no longer tied to the
-// removed local/remote toggle).
 function useScopedVids(linksOnly: boolean) {
   const vids = allVideos.value;
   return useMemo(() => vids.filter(v => !!(v as any).isLink === linksOnly), [vids, linksOnly]);
@@ -74,11 +72,6 @@ function useScopedVids(linksOnly: boolean) {
 
 interface CatTreeNode { cat: any; children: CatTreeNode[] }
 
-/**
- * Folders / categories filter body. Rendered both inside the sidebar (single
- * column layout) and inside the topbar "Folders" dropdown. `onNavigate` lets
- * the dropdown close itself after a folder is chosen (a no-op in the sidebar).
- */
 export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => void, filter?: string }) => {
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
   const filteredVids = useScopedVids(false);
@@ -102,10 +95,6 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
         const count = filteredVids.filter((v: any) => !v.catPath || v.catPath === '').length;
         return { ...c, count };
       }
-      // Always derive the count from the live video list so the badge tracks
-      // the current library exactly and never shows a stale number after a
-      // move / rename / delete. Fall back to the server count only for
-      // encrypted/locked folders whose contents aren't in the visible list.
       const cl = c.path.toLowerCase();
       const local = filteredVids.filter(v => {
         const vp = ((v as any).catPath || '').toLowerCase();
@@ -121,8 +110,6 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
     }), [folders.value, filteredVids]);
 
   const categoryTree = useMemo(() => {
-    // Keep folders visible while videos are still loading (counts aren't known
-    // yet) so cached folder names show right away instead of an empty list.
     const hideEmpty = !!appPrefs.value.hideEmptyFolders && !isLoadingVideos.value;
     const list = hideEmpty ? displayFolders.filter(c => c.count > 0) : displayFolders;
     const byPath = new Map<string, CatTreeNode>();
@@ -245,8 +232,6 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
     );
   };
 
-  // When a search filter is active, flatten the tree and show every matching
-  // folder regardless of expand state / hierarchy.
   if (fq) {
     const matches = displayFolders.filter(c => c.name.toLowerCase().includes(fq));
     return (
@@ -318,10 +303,6 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
 
 let tagGroupsCache: { displayName: string, terms: string[] }[] | null = null;
 
-/**
- * Tags filter body. Rendered both inside the sidebar and the topbar "Tags"
- * dropdown. Owns the tag-group fetch and exposes `_sidebarReloadTags`.
- */
 export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onNavigate?: () => void, linksOnly?: boolean, filter?: string }) => {
   const [tagGroups, setTagGroups] = useState<{ displayName: string, terms: string[] }[]>(() => tagGroupsCache || []);
   const filteredVids = useScopedVids(linksOnly);
@@ -374,7 +355,6 @@ export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onN
     currentTagTerms.value = t.terms;
     searchQuery.value = '';
     currentView.value = 'browse';
-    // Tags dropdown scopes to local videos; Links dropdown scopes to links.
     sourceFilter.value = linksOnly ? 'remote' : 'local';
     isSidebarOpen.value = false;
     onNavigate?.();
@@ -418,11 +398,6 @@ export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onN
   );
 };
 
-/**
- * Links filter body. Rendered in the sidebar and the topbar "Links" dropdown.
- * Reuses the Tags list (scoped to links) so links are browsed by tag, plus an
- * "All Links" shortcut to the full Links page.
- */
 export const LinksFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => void, filter?: string }) => {
   const total = linkTotalCount.value;
   const fq = filter.trim().toLowerCase();
@@ -458,6 +433,27 @@ const Chevron = ({ open }: { open: boolean }) => (
   </svg>
 );
 
+/** Button shown inside an open dropdown header to collapse its trigger to icon-only or expand it back. */
+const ShrinkBtn = ({ dropdownId }: { dropdownId: string }) => {
+  const shrunken = isDropdownShrunken(dropdownId);
+  return (
+    <button
+      type="button"
+      className="sidebar-heading-add"
+      title={shrunken ? 'Show label' : 'Collapse to icon only'}
+      onClick={(e: any) => { e.stopPropagation(); toggleDropdownShrunken(dropdownId); }}
+      style={{ opacity: 0.7 }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        {shrunken
+          ? <><polyline points="9 18 15 12 9 6"/><line x1="15" y1="18" x2="15" y2="6"/></>
+          : <><polyline points="15 18 9 12 15 6"/><line x1="9" y1="18" x2="9" y2="6"/></>
+        }
+      </svg>
+    </button>
+  );
+};
+
 const sectionIconPaths: Record<NavSection, any> = {
   library: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></>,
   media: <><rect x="2" y="2" width="20" height="20" rx="2" /><line x1="7" y1="2" x2="7" y2="22" /><line x1="17" y1="2" x2="17" y2="22" /><line x1="2" y1="12" x2="22" y2="12" /></>,
@@ -476,6 +472,7 @@ export const SectionDropdowns = () => {
   if (!activeSections.length) return null;
 
   const navItems = getNavItems();
+  const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
 
   useEffect(() => {
     if (!open) return;
@@ -494,8 +491,11 @@ export const SectionDropdowns = () => {
   return (
     <div className="filter-dropdowns" ref={ref}>
       {activeSections.map(sec => {
-        const items = navItems.filter(it => it.section === sec);
+        // Only items with no explicit placement belong in the dropdown
+        const items = navItems.filter(it => it.section === sec && !placements[it.id]);
         const label = sectionLabels[sec];
+        const shrinkId = `section-${sec}`;
+        const shrunken = isDropdownShrunken(shrinkId);
         return (
           <div className="filter-dropdown" key={sec}>
             <button
@@ -504,12 +504,16 @@ export const SectionDropdowns = () => {
               onClick={() => setOpen(o => o === sec ? null : sec)}
               onContextMenu={(e) => { e.preventDefault(); openSectionMoveMenu(e, sec, label, 'topbar'); }}
             >
-              {navIcon(sectionIconPaths[sec], 14, { marginRight: '6px' })}
-              {label}
+              {navIcon(sectionIconPaths[sec], 14, { marginRight: shrunken ? '0' : '6px' })}
+              {!shrunken && label}
               <Chevron open={open === sec} />
             </button>
             {open === sec && (
               <div className="filter-dropdown-menu">
+                <div className="filter-dropdown-head">
+                  <span>{label}</span>
+                  <ShrinkBtn dropdownId={shrinkId} />
+                </div>
                 <div className="filter-dropdown-body">
                   {items.map(item => (
                     <SidebarItem
@@ -519,6 +523,7 @@ export const SectionDropdowns = () => {
                       badge={item.badge}
                       isActive={item.isActive}
                       onClick={() => { item.onClick(); setOpen(null); }}
+                      onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, item.id, item.label, 'topbar-dropdown'); }}
                     />
                   ))}
                 </div>
@@ -531,20 +536,25 @@ export const SectionDropdowns = () => {
   );
 };
 
-/**
- * The two topbar dropdowns (Folders + Tags) shown right of the logo when the
- * sidebar layout is set to "dropdowns". Closes on outside click / Escape.
- */
 export const FilterDropdowns = () => {
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
-  const [open, setOpen] = useState<null | 'folders' | 'tags' | 'links'>(null);
+  const view = currentView.value;
+  const [open, setOpen] = useState<null | 'folders' | 'tags' | 'links' | 'plugins'>(null);
   const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
   const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'topbar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'topbar' && !inVaultMode;
-  // Links default to the topbar (right of Tags); hidden inside the Vault.
   const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'topbar' && !inVaultMode;
+  // Plugins dropdown visible in topbar when plugins-group placement is topbar (default)
+  const showPlugins = placementFor(PLUGINS_GROUP_ID, 'topbar') === 'topbar';
+
+  // Plugins that live in the plugins-dropdown (no explicit topbar/sidebar override)
+  const dropdownPlugins = pluginsList.value.filter(p =>
+    pluginLocation(p) === 'plugins-dropdown' &&
+    isPluginEnabled(p.id) &&
+    (!p.contexts || p.contexts.includes(view))
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -561,7 +571,7 @@ export const FilterDropdowns = () => {
   }, [open]);
 
   const close = () => { setOpen(null); setQuery(''); };
-  const toggle = (which: 'folders' | 'tags' | 'links') =>
+  const toggle = (which: 'folders' | 'tags' | 'links' | 'plugins') =>
     setOpen(o => { const next = o === which ? null : which; setQuery(''); return next; });
   const searchBar = (placeholder: string) => (
     <div className="filter-dropdown-search">
@@ -584,7 +594,9 @@ export const FilterDropdowns = () => {
     </button>
   );
 
-  if (!showFolders && !showTags && !showLinks) return null;
+  if (!showFolders && !showTags && !showLinks && !showPlugins) return null;
+
+  const pluginIcon = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: isDropdownShrunken('filter-plugins') ? '0' : '6px' }}><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>;
 
   return (
     <div className="filter-dropdowns" ref={ref}>
@@ -596,19 +608,20 @@ export const FilterDropdowns = () => {
           onClick={() => toggle('folders')}
           onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.folders, 'Folders', 'topbar'); }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: '6px' }}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
-          {inVaultMode ? 'Encrypted Folders' : 'Folders'}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: isDropdownShrunken('filter-folders') ? '0' : '6px' }}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+          {!isDropdownShrunken('filter-folders') && (inVaultMode ? 'Encrypted Folders' : 'Folders')}
           {isLoadingVideos.value && <span className="sidebar-loading-spin" style={{ marginLeft: '6px' }} />}
           <Chevron open={open === 'folders'} />
         </button>
         {open === 'folders' && (
           <div className="filter-dropdown-menu">
-            {!inVaultMode && (
-              <div className="filter-dropdown-head">
-                <span>Folders</span>
-                {addBtn(() => (window as any).createFolder?.(), 'New folder')}
+            <div className="filter-dropdown-head">
+              <span>{inVaultMode ? 'Encrypted Folders' : 'Folders'}</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {!inVaultMode && addBtn(() => (window as any).createFolder?.(), 'New folder')}
+                <ShrinkBtn dropdownId="filter-folders" />
               </div>
-            )}
+            </div>
             {searchBar('Search folders…')}
             <div className="filter-dropdown-body">
               <FoldersFilter onNavigate={close} filter={query} />
@@ -626,15 +639,18 @@ export const FilterDropdowns = () => {
             onClick={() => toggle('tags')}
             onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.tags, 'Tags', 'topbar'); }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: '6px' }}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>
-            Tags
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: isDropdownShrunken('filter-tags') ? '0' : '6px' }}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /></svg>
+            {!isDropdownShrunken('filter-tags') && 'Tags'}
             <Chevron open={open === 'tags'} />
           </button>
           {open === 'tags' && (
             <div className="filter-dropdown-menu">
               <div className="filter-dropdown-head">
                 <span>Tags</span>
-                {addBtn(() => { currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; close(); }, 'New tag group')}
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {addBtn(() => { currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; close(); }, 'New tag group')}
+                  <ShrinkBtn dropdownId="filter-tags" />
+                </div>
               </div>
               {searchBar('Search tags…')}
               <div className="filter-dropdown-body">
@@ -653,18 +669,60 @@ export const FilterDropdowns = () => {
             onClick={() => toggle('links')}
             onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.links, 'Links', 'topbar'); }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: '6px' }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
-            Links
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: isDropdownShrunken('filter-links') ? '0' : '6px' }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+            {!isDropdownShrunken('filter-links') && 'Links'}
             <Chevron open={open === 'links'} />
           </button>
           {open === 'links' && (
             <div className="filter-dropdown-menu">
               <div className="filter-dropdown-head">
                 <span>Links</span>
+                <ShrinkBtn dropdownId="filter-links" />
               </div>
               {searchBar('Search links…')}
               <div className="filter-dropdown-body">
                 <LinksFilter onNavigate={close} filter={query} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showPlugins && dropdownPlugins.length > 0 && (
+        <div className="filter-dropdown">
+          <button
+            type="button"
+            className={`filter-dropdown-btn${open === 'plugins' ? ' on' : ''}`}
+            onClick={() => toggle('plugins')}
+            onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, PLUGINS_GROUP_ID, 'Plugins', 'topbar'); }}
+          >
+            {pluginIcon}
+            {!isDropdownShrunken('filter-plugins') && 'Plugins'}
+            <Chevron open={open === 'plugins'} />
+          </button>
+          {open === 'plugins' && (
+            <div className="filter-dropdown-menu">
+              <div className="filter-dropdown-head">
+                <span>Plugins</span>
+                <ShrinkBtn dropdownId="filter-plugins" />
+              </div>
+              <div className="filter-dropdown-body">
+                {dropdownPlugins.map(p => {
+                  const isActive = p.type === 'view' && view === p.view;
+                  return (
+                    <SidebarItem
+                      key={p.id}
+                      label={p.name}
+                      icon={p.icon
+                        ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={dropdownItemStyle} dangerouslySetInnerHTML={{ __html: p.icon }} />
+                        : undefined
+                      }
+                      isActive={isActive}
+                      onClick={() => { runPluginAction(p, currentView); close(); }}
+                      onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar-dropdown'); }}
+                    />
+                  );
+                })}
               </div>
             </div>
           )}

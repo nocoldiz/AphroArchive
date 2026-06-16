@@ -1,7 +1,7 @@
 import { contextMenuState, profiles, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
-import { setItemPlacement, setSectionPlacement } from './navItems';
+import { setItemPlacement, setSectionPlacement, PLUGINS_GROUP_ID } from './navItems';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -559,16 +559,56 @@ export const ContextMenu = () => {
             }} />
           </>
         )}
-        {type === 'navitem' && (
-          <ContextItem
-            label={data.location === 'sidebar' ? 'Move to Topbar' : 'Move to Sidebar'}
-            icon={data.location === 'sidebar' ? 'list' : 'list'}
-            onClick={() => {
-              setItemPlacement(data.id, data.location === 'sidebar' ? 'topbar' : 'sidebar');
-              closeMenu();
-            }}
-          />
-        )}
+        {type === 'navitem' && (() => {
+          const { id, location } = data;
+          // Block-level moves (whole dropdown/filter): simple toggle between topbar and sidebar
+          if (location === 'topbar' || location === 'sidebar') {
+            const toSidebar = location === 'topbar';
+            // The Plugins group block: label differs
+            const isPluginsGroup = id === PLUGINS_GROUP_ID;
+            return (
+              <ContextItem
+                label={toSidebar
+                  ? (isPluginsGroup ? 'Move Plugins to Sidebar' : 'Move to Sidebar')
+                  : (isPluginsGroup ? 'Move Plugins to Topbar' : 'Move to Topbar')}
+                icon="list"
+                onClick={() => { setItemPlacement(id, toSidebar ? 'sidebar' : 'topbar'); closeMenu(); }}
+              />
+            );
+          }
+          // Item-level moves: topbar-icon, topbar-dropdown (in section/plugins dropdown), or sidebar
+          const resetPlacement = async () => {
+            const next = { ...(appPrefs.value.itemPlacements || {}) };
+            delete next[id];
+            await updatePrefs({ itemPlacements: next });
+            closeMenu();
+          };
+          return (
+            <>
+              {location !== 'topbar-icon' && (
+                <ContextItem
+                  label="Move to Topbar (icon)"
+                  icon="list"
+                  onClick={() => { setItemPlacement(id, 'topbar'); closeMenu(); }}
+                />
+              )}
+              {location !== 'sidebar' && (
+                <ContextItem
+                  label="Move to Sidebar"
+                  icon="list"
+                  onClick={() => { setItemPlacement(id, 'sidebar'); closeMenu(); }}
+                />
+              )}
+              {(location === 'topbar-icon' || location === 'sidebar') && (
+                <ContextItem
+                  label="Reset to Default"
+                  icon="list"
+                  onClick={resetPlacement}
+                />
+              )}
+            </>
+          );
+        })()}
         {type === 'navsection' && (
           <ContextItem
             label={data.location === 'sidebar' ? 'Pin to Topbar' : 'Move to Sidebar'}
