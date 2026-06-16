@@ -134,9 +134,8 @@ export const Search = () => {
   }, [hint, localQuery]);
 
   const scopes = searchScopes.value;
-  const scopeOn = (k: string) => scopes.size === 0 || scopes.has(k);
+  const scopeOn = (k: string) => scopes.has(k);
   const allOn = SEARCH_SCOPE_KEYS.every(scopeOn);
-  const activeCount = scopes.size === 0 ? SEARCH_SCOPE_KEYS.length : scopes.size;
 
   return (
     <>
@@ -172,7 +171,6 @@ export const Search = () => {
             <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
             <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
           </svg>
-          {!allOn && <span className="search-scope-badge">{activeCount}</span>}
         </button>
 
         {scopeOpen && (
@@ -183,12 +181,14 @@ export const Search = () => {
                 {allOn ? 'Clear' : 'All'}
               </button>
             </div>
-            {SEARCH_SCOPE_KEYS.map(key => (
-              <label key={key} className="search-scope-opt">
-                <input type="checkbox" checked={scopeOn(key)} onChange={() => toggleSearchScope(key)} />
-                {SCOPE_LABELS[key]}
-              </label>
-            ))}
+            <div className="search-scope-list">
+              {SEARCH_SCOPE_KEYS.map(key => (
+                <label key={key} className="search-scope-opt">
+                  <span>{SCOPE_LABELS[key]}</span>
+                  <input type="checkbox" checked={scopeOn(key)} onChange={() => toggleSearchScope(key)} />
+                </label>
+              ))}
+            </div>
           </div>
         )}
       </div>

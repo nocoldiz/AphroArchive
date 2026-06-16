@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { memo } from 'preact/compat';
-import { rebuildLinkVidIds, currentVideo, currentView, activeProfile, isVaultUnlocked, vaultGlobalView } from '../../store';
+import { rebuildLinkVidIds, currentVideo, currentView, activeProfile, isVaultUnlocked, vaultGlobalView, syncLinkCache } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
 interface LinkItem {
@@ -827,6 +827,14 @@ export const LinksView = () => {
       setPendingSelectAll(false);
     }
   }, [pendingSelectAll, allLoaded, items]);
+
+  // Once the full link list is in memory, push it into the topbar/sidebar Links
+  // dropdown's data source + localStorage cache so any save (add / edit / star /
+  // tag / delete) reflects immediately and renders instantly on the next load.
+  // Gated on allLoaded so a partial (paginating) list never overwrites the cache.
+  useEffect(() => {
+    if (allLoaded) syncLinkCache(items, items.length);
+  }, [items, allLoaded]);
 
   useEffect(() => {
     const el = tableScrollRef.current;

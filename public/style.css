@@ -202,18 +202,6 @@ input {
   color: var(--ac)
 }
 
-.search-scope-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  background: var(--ac);
-  color: #fff;
-  font-size: 0.6rem;
-  line-height: 1;
-  border-radius: 8px;
-  padding: 1px 4px
-}
-
 .search-scope-menu {
   position: absolute;
   top: calc(100% + 8px);
@@ -231,8 +219,7 @@ input {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 8px 8px;
-  border-bottom: 1px solid var(--brd);
+  padding: 8px 10px;
   margin-bottom: 4px
 }
 
@@ -249,15 +236,22 @@ input {
   color: var(--ac);
   cursor: pointer;
   font-size: 0.75rem;
+  font-weight: 600;
   padding: 0
+}
+
+.search-scope-list {
+  display: flex;
+  flex-direction: column
 }
 
 .search-scope-opt {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 8px;
-  border-radius: 7px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.85rem;
   color: var(--tx);
@@ -271,7 +265,10 @@ input {
 .search-scope-opt input {
   accent-color: var(--ac);
   cursor: pointer;
-  margin: 0
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0
 }
 
 .tb-acts {

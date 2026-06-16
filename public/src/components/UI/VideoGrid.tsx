@@ -304,9 +304,8 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
         border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)',
         backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : 'var(--bg2)',
         boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined,
-        opacity: isEncrypting ? 0.4 : undefined,
-        pointerEvents: isEncrypting ? 'none' : undefined,
-        transition: 'opacity 0.35s ease'
+        display: isEncrypting ? 'none' : undefined,
+        pointerEvents: isEncrypting ? 'none' : undefined
       }}
       draggable={true}
       onDragStart={(e) => {

@@ -100,7 +100,7 @@ export const SearchResultsView = () => {
   const scopes = searchScopes.value;
   const tokens = useMemo(() => q.toLowerCase().split(/\s+/).filter(Boolean), [q]);
 
-  const on = (k: string) => scopes.size === 0 || scopes.has(k);
+  const on = (k: string) => scopes.has(k);
 
   // Media (videos + links) come straight from the in-memory library list.
   const mediaMatches = useMemo(() => (q ? searchAllVideos(q) : []), [q]);

@@ -96,8 +96,18 @@ let _encryptionProgress = {
   ok: false,
 };
 let _encryptionCancel = false;
+// Set when a scan_changed broadcast was suppressed during an encrypt/decrypt job.
+// Flushed as a single notification when the job ends (see updateEncryptionProgress).
+let _scanChangePending = false;
 function updateEncryptionProgress(partial) {
+  const wasRunning = _encryptionProgress.running;
   _encryptionProgress = { ..._encryptionProgress, ...partial };
+  // Job just finished: emit the one coalesced scan refresh we held back while
+  // the per-file deletions kept fs.watch firing.
+  if (wasRunning && !_encryptionProgress.running && _scanChangePending) {
+    _scanChangePending = false;
+    broadcastScanChange();
+  }
 }
 function getEncryptionProgress() {
   return { ..._encryptionProgress };
@@ -281,6 +291,11 @@ async function runDecryptFolder(catPath, targetProfile) {
 const _scanSseClients = new Set();
 
 function broadcastScanChange() {
+  // While an encrypt/decrypt batch runs, each file is shredded/created in turn,
+  // so fs.watch fires repeatedly. Broadcasting every burst makes clients reload
+  // the whole gallery (and re-fetch every thumbnail) over and over. Hold the
+  // notification and let updateEncryptionProgress emit a single refresh at the end.
+  if (_encryptionProgress.running) { _scanChangePending = true; return; }
   const msg = `data: ${JSON.stringify({ type: 'scan_changed' })}\n\n`;
   for (const res of _scanSseClients) {
     try { res.write(msg); } catch { _scanSseClients.delete(res); }
@@ -1470,7 +1485,23 @@ async function apiStream(req, res, id) {
 
 function apiDelete(req, res, id) {
   const fp = safePath(id);
-  if (!fp) return json(res, { error: 'Not found' }, 404);
+
+  // Stale entry: the file is gone from disk (safePath returns null) but the
+  // index/DB still lists it, so it keeps showing in the UI and a normal delete
+  // 404s. Purge the database record so it disappears for good.
+  if (!fp) {
+    if (getVideoIndexEntry(id)) {
+      const { deleteVideoMetaEverywhere } = require('./db-server');
+      deleteVideoMetaEverywhere(id);
+      const { THUMBS_DIR } = require('./config-server');
+      const thumbDir = path.join(THUMBS_DIR, id);
+      if (fs.existsSync(thumbDir)) try { fs.rmSync(thumbDir, { recursive: true, force: true }); } catch {}
+      invalidateScanCache();
+      return json(res, { ok: true, stale: true });
+    }
+    return json(res, { error: 'Not found' }, 404);
+  }
+
   try {
     fs.unlinkSync(fp);
     invalidateScanCache();
@@ -1485,7 +1516,17 @@ function apiDelete(req, res, id) {
     const meta = loadVideoMeta();
     if (meta[id]) { delete meta[id]; saveVideoMeta(meta); }
     json(res, { ok: true });
-  } catch (e) { json(res, { error: e.message }, 500); }
+  } catch (e) {
+    // The file vanished between the existence check and unlink — treat it as a
+    // stale entry and clean the DB rather than leaving an undeletable ghost.
+    if (e.code === 'ENOENT') {
+      const { deleteVideoMetaEverywhere } = require('./db-server');
+      deleteVideoMetaEverywhere(id);
+      invalidateScanCache();
+      return json(res, { ok: true, stale: true });
+    }
+    json(res, { error: e.message }, 500);
+  }
 }
 
 async function apiRename(req, res, id) {

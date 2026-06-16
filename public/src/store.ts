@@ -4,7 +4,11 @@ import * as api from './api';
 
 // ─── Core State ──────────────────────────────────────────────────────
 export const videos = signal<Video[]>([]);
-export const allVideos = signal<Video[]>([]); // Full unfiltered list
+// Seed the unfiltered list with cached link videos so the topbar/sidebar Links
+// dropdown (its "All Links" badge + tag counts read from here) renders instantly
+// on load, instead of waiting for the heavy /api/links/cache round-trip in
+// loadVideosInner. loadVideos() replaces this with the full list moments later.
+export const allVideos = signal<Video[]>(readLinksCache().videos); // Full unfiltered list
 // Persist the default profile's folder list so the sidebar can show folder
 // names instantly on next load (while the real /api/folders scan runs), instead
 // of flashing an empty list. Scoped to 'default' to avoid persisting encrypted
@@ -25,8 +29,64 @@ function writeFoldersCache(list: Folder[]) {
   } catch {}
 }
 
+// Persist the default profile's link videos so the Links dropdown shows links
+// (and their tag counts) immediately on next load. Scoped to 'default' so vault
+// link titles never touch disk. Mirrors the folders cache above.
+const LINKS_CACHE_KEY = 'linksCache:default';
+function readLinksCache(): { videos: Video[]; total: number } {
+  try {
+    const obj = JSON.parse(localStorage.getItem(LINKS_CACHE_KEY) || 'null');
+    if (obj && Array.isArray(obj.videos)) return { videos: obj.videos, total: obj.total ?? obj.videos.length };
+  } catch {}
+  return { videos: [], total: 0 };
+}
+function writeLinksCache(linkVideos: Video[], total: number) {
+  try {
+    localStorage.setItem(LINKS_CACHE_KEY, JSON.stringify({ total, videos: linkVideos }));
+  } catch {}
+}
+
+// Map a raw link cache item (from /api/links/cache) to a lightweight Video.
+// Shared by loadVideosInner and the LinksView cache sync so the two never drift.
+export function linkItemToVideo(b: any): Video {
+  // Links are no longer sorted into folders — they live in the tag system
+  // (matched by explicit tags or by title against tag terms), the same way
+  // local videos are. So they carry no folder/category.
+  return {
+    id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+    name: b.title || b.url,
+    path: b.scrapedVideoUrl || '',
+    relPath: b.url,
+    catPath: '',
+    category: '',
+    isLink: true,
+    isExternal: true,
+    embedUrl: b.embedUrl,
+    linkUrl: b.url,
+    img: b.img,
+    tags: b.tags || [],
+    hasVideo: !!b.scrapedVideoUrl,
+    hasEmbed: !!b.embedUrl,
+    size: 0,
+    duration: 0,
+    mtime: b.addedAt || Date.now()
+  } as any;
+}
+
+// Push the LinksView's in-memory items into the dropdown's data source and the
+// localStorage cache so changes made while saving links show up immediately and
+// survive a reload — without waiting for a full loadVideos(). `total` is the
+// server-reported link count (used for the "All Links" badge).
+export function syncLinkCache(rawItems: any[], total: number) {
+  const linkVideos = rawItems.filter((b: any) => b.url && !b.downloaded).map(linkItemToVideo);
+  linkTotalCount.value = total;
+  const locals = allVideos.value.filter(v => !(v as any).isLink);
+  allVideos.value = [...locals, ...linkVideos];
+  if (activeProfile.value === 'default' && !vaultGlobalView.value) writeLinksCache(linkVideos, total);
+}
+
 export const folders = signal<Folder[]>(readFoldersCache());
-export const linkTotalCount = signal<number>(0);
+export const linkTotalCount = signal<number>(readLinksCache().total);
 export const mediaCounts = signal<{ links: number; audio: number; books: number; photos: number; files: number; pages: number; screenshots: number }>({ links: 0, audio: 0, books: 0, photos: 0, files: 0, pages: 0, screenshots: 0 });
 export const actors = signal<Actor[]>([]);
 export const channels = signal<Channel[]>([]);
@@ -231,8 +291,7 @@ export function setAllSearchScopes(on: boolean) {
   persistSearchScopes(next);
 }
 export function isScopeOn(key: string): boolean {
-  const s = searchScopes.value;
-  return s.size === 0 || s.has(key);
+  return searchScopes.value.has(key);
 }
 
 export const visionModalText = signal<string | null>(null);
@@ -569,8 +628,11 @@ if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
   const _connectScanSse = () => {
     const es = new EventSource('/api/scan/events');
     es.onmessage = () => {
+      // Short debounce: rapid bursts (bulk copy) still coalesce since the timer
+      // resets per message, but a single operation refreshes the index and the
+      // sidebar counts almost immediately so they never linger on stale data.
       if (_scanRefreshTimer) clearTimeout(_scanRefreshTimer);
-      _scanRefreshTimer = setTimeout(() => { loadVideos().catch(() => {}); }, 1500);
+      _scanRefreshTimer = setTimeout(() => { loadVideos().catch(() => {}); }, 500);
     };
     es.onerror = () => {
       es.close();
@@ -925,30 +987,12 @@ async function loadVideosInner() {
 
   const linkVideos = linksData
     .filter((b: any) => b.url && !b.downloaded)
-    .map((b: any) => {
-      // Links are no longer sorted into folders — they live in the tag system
-      // (matched by their explicit tags or by title against tag terms), the same
-      // way local videos are. So they carry no folder/category.
-      return {
-        id: btoa(b.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-        name: b.title || b.url,
-        path: b.scrapedVideoUrl || '',
-        relPath: b.url,
-        catPath: '',
-        category: '',
-        isLink: true,
-        isExternal: true,
-        embedUrl: b.embedUrl,
-        linkUrl: b.url,
-        img: b.img,
-        tags: b.tags || [],
-        hasVideo: !!b.scrapedVideoUrl,
-        hasEmbed: !!b.embedUrl,
-        size: 0,
-        duration: 0,
-        mtime: b.addedAt || Date.now()
-      };
-    });
+    .map(linkItemToVideo);
+
+  // Refresh the localStorage cache that seeds the Links dropdown on next load.
+  if (activeProfile.value === 'default' && !isVaultGlobal) {
+    writeLinksCache(linkVideos, linkTotalCount.value);
+  }
 
   // Annotate local videos that came from a downloaded link with the original page URL
   const localVideos = downloadedLinkMap.size > 0
@@ -980,7 +1024,14 @@ async function loadVideosInner() {
         countMap.set(cur, (countMap.get(cur) || 0) + 1);
       }
     }
-    folders.value = cats.map((c: any) => ({ ...c, count: c.path === 'uncategorized' ? uncategorizedCount : (countMap.get(c.path) || 0) }));
+    folders.value = cats.map((c: any) => {
+      if (c.path === 'uncategorized') return { ...c, count: uncategorizedCount };
+      const local = countMap.get(c.path) || 0;
+      // Encrypted/locked folders hold videos that aren't in the visible list,
+      // so keep the server's authoritative count rather than clobbering it to 0.
+      const count = ((c.encrypted || c.partial) && local === 0) ? (c.count || 0) : local;
+      return { ...c, count };
+    });
   }
 
   // Don't call syncUrlToState here — it races with routeToPath's async

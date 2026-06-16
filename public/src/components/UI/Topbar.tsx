@@ -111,8 +111,8 @@ export const Topbar = () => {
         <span className="logo-text">AphroArchive</span>
       </div>
 
-      <FilterDropdowns />
       <SectionDropdowns />
+      <FilterDropdowns />
 
       <div className="search-w">
         <Search />

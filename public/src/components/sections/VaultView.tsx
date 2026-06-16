@@ -115,6 +115,17 @@ export const VaultView = () => {
     }
   }, [status.unlocked]);
 
+  // The vault can be (re)unlocked elsewhere — the global VaultUnlockModal after
+  // an auto-lock, or a profile switch — which only flips the isVaultUnlocked
+  // signal. Re-sync local status and reload so freshly mounted zip folders show
+  // without the open view going stale.
+  useEffect(() => {
+    if (isVaultUnlocked.value) {
+      fetchStatus();
+      loadVaultFiles();
+    }
+  }, [isVaultUnlocked.value]);
+
   // Seamless Global ⇄ Vault-Only switching — no page reload, just a data refresh
   useEffect(() => {
     if (status.unlocked && isGlobal) loadPublicFiles();

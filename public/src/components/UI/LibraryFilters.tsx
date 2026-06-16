@@ -102,14 +102,16 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
         const count = filteredVids.filter((v: any) => !v.catPath || v.catPath === '').length;
         return { ...c, count };
       }
-      let count = c.count || 0;
-      if (count === 0) {
-        count = filteredVids.filter(v => {
-          const vp = ((v as any).catPath || '').toLowerCase();
-          const cl = c.path.toLowerCase();
-          return vp === cl || vp.startsWith(cl + '/');
-        }).length;
-      }
+      // Always derive the count from the live video list so the badge tracks
+      // the current library exactly and never shows a stale number after a
+      // move / rename / delete. Fall back to the server count only for
+      // encrypted/locked folders whose contents aren't in the visible list.
+      const cl = c.path.toLowerCase();
+      const local = filteredVids.filter(v => {
+        const vp = ((v as any).catPath || '').toLowerCase();
+        return vp === cl || vp.startsWith(cl + '/');
+      }).length;
+      const count = ((c.encrypted || c.partial) && local === 0) ? (c.count || 0) : local;
       return { ...c, count };
     })
     .sort((a, b) => {
