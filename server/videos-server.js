@@ -344,22 +344,32 @@ async function cachedScan() {
       clearVideoIndex();
       // Fall through to full scan below
     } else {
-      // Prune entries whose file no longer exists on disk
-      let prefs;
-      try { prefs = loadPrefs(); } catch (e) { prefs = {}; }
-      const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
-      const valid = indexed.filter(v => {
-        // For external files rel is the absolute path; for internal it's relative to VIDEOS_DIR
-        const filePath = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
-        if (fs.existsSync(filePath)) return true;
-        // External file may have moved to a different source folder with the same catPath
-        if (v.isExternal && v.catPath && v.filename) {
-          return sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)));
+      // Serve the indexed list immediately — no blocking existsSync per file.
+      // Validate file existence in the background; if anything was deleted the
+      // cache is pruned and clients are notified via SSE to refresh.
+      _scanCache = indexed;
+      setImmediate(() => {
+        try {
+          let prefs;
+          try { prefs = loadPrefs(); } catch { prefs = {}; }
+          const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
+          const valid = indexed.filter(v => {
+            const filePath = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
+            if (fs.existsSync(filePath)) return true;
+            if (v.isExternal && v.catPath && v.filename) {
+              return sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)));
+            }
+            return false;
+          });
+          if (valid.length !== indexed.length) {
+            _scanCache = valid;
+            saveVideoIndex(valid);
+            if (_scanSseClients.size > 0) broadcastScanChange();
+          }
+        } catch (e) {
+          console.error('[cachedScan] background validation error:', e.message);
         }
-        return false;
       });
-      if (valid.length !== indexed.length) saveVideoIndex(valid);
-      _scanCache = valid;
       return _scanCache;
     }
   }

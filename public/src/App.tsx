@@ -63,10 +63,11 @@ export function App() {
       }
     }).catch(() => {});
 
-    // loadVideos() already fetches /api/folders and populates the folders
-    // signal (with recomputed counts), so a separate loadFolders() here would
-    // re-hit the same heavy endpoint for identical data — skip it.
-    Promise.all([loadVideos(), loadPrefs()]).then(() => { appReady.value = true; }).catch(() => { appReady.value = true; });
+    // Show the UI as soon as prefs (theme, cardSize, etc.) are applied — don't
+    // hold the spinner until the full video list arrives. Skeletons handle the
+    // in-flight state; loadVideos populates the grid when it finishes.
+    loadPrefs().then(() => { appReady.value = true; }).catch(() => { appReady.value = true; });
+    loadVideos().catch(() => {});
 
     // Restore vault unlock state and auto-navigate if we're in the Vault profile
     fetch('/api/vault/status')
