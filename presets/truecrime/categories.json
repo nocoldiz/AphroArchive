@@ -1,0 +1,22 @@
+{
+  "Podcasts": {
+    "displayName": "True Crime Podcasts",
+    "tags": ["podcast", "audio", "narrative", "weekly", "host"]
+  },
+  "Documentaries": {
+    "displayName": "Documentaries",
+    "tags": ["documentary", "series", "investigation", "feature"]
+  },
+  "Cold Cases": {
+    "displayName": "Cold Cases & Unsolved",
+    "tags": ["unsolved", "cold case", "missing", "mystery"]
+  },
+  "Forensics": {
+    "displayName": "Forensics & Psychology",
+    "tags": ["forensic", "criminal psychology", "analysis", "behaviour"]
+  },
+  "Court Cases": {
+    "displayName": "Court Cases & Trials",
+    "tags": ["trial", "court", "verdict", "testimony", "law"]
+  }
+}

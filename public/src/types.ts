@@ -74,6 +74,8 @@ export interface AppPrefs {
   sourceFolders?: string[];
   feedFolders?: string[];
   privateFeedFolders?: string[];
+  vaultFeedFolder?: string;
+  rssFeeds?: { url: string; name?: string; category?: string }[];
   videosDir?: string;
   videosDirExists?: boolean;
   openrouterApiKey?: string;

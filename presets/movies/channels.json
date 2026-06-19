@@ -1,26 +1,219 @@
-﻿{
-  "Warner Bros": {
-    "website": "https://www.wbd.com/",
-    "short_description": ""
+{
+  "Movieclips": {
+    "website": "https://www.youtube.com/@MOVIECLIPS",
+    "handle": "@MOVIECLIPS",
+    "country": "US",
+    "language": "English",
+    "short_description": "Largest library of licensed movie clips and trailers."
   },
-  "Walt Disney Studios": {
-    "website": "https://www.disneystudios.com/",
-    "short_description": ""
+  "Rotten Tomatoes Trailers": {
+    "website": "https://www.youtube.com/@RottenTomatoesTRAILERS",
+    "handle": "@RottenTomatoesTRAILERS",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official trailers, teasers, and clips across studios."
+  },
+  "Screen Junkies": {
+    "website": "https://www.youtube.com/@screenjunkies",
+    "handle": "@screenjunkies",
+    "country": "US",
+    "language": "English",
+    "short_description": "Home of 'Honest Trailers' and movie commentary."
+  },
+  "CinemaSins": {
+    "website": "https://www.youtube.com/@CinemaSins",
+    "handle": "@CinemaSins",
+    "country": "US",
+    "language": "English",
+    "short_description": "'Everything Wrong With' — comedic movie nitpick breakdowns."
+  },
+  "Nerdwriter1": {
+    "website": "https://www.youtube.com/@Nerdwriter1",
+    "handle": "@Nerdwriter1",
+    "country": "US",
+    "language": "English",
+    "short_description": "Evan Puschak's essays on film, art, and culture."
+  },
+  "Every Frame a Painting": {
+    "website": "https://www.youtube.com/@everyframeapainting",
+    "handle": "@everyframeapainting",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Seminal (archived) video essay channel on film form and craft."
+  },
+  "Lessons from the Screenplay": {
+    "website": "https://www.youtube.com/@LessonsfromtheScreenplay",
+    "handle": "@LessonsfromtheScreenplay",
+    "country": "US",
+    "language": "English",
+    "short_description": "Analysis of screenwriting and story structure in film."
+  },
+  "RedLetterMedia": {
+    "website": "https://www.youtube.com/@RedLetterMedia",
+    "handle": "@RedLetterMedia",
+    "country": "US",
+    "language": "English",
+    "short_description": "'Half in the Bag' and 're:View' — irreverent film criticism."
+  },
+  "Chris Stuckmann": {
+    "website": "https://www.youtube.com/@ChrisStuckmann",
+    "handle": "@ChrisStuckmann",
+    "country": "US",
+    "language": "English",
+    "short_description": "Prolific movie reviewer and retrospective creator."
+  },
+  "Jeremy Jahns": {
+    "website": "https://www.youtube.com/@JeremyJahns",
+    "handle": "@JeremyJahns",
+    "country": "US",
+    "language": "English",
+    "short_description": "Energetic, spoiler-free movie reviews."
+  },
+  "YourMovieSucksDOTorg": {
+    "website": "https://www.youtube.com/@YourMovieSucksDOTorg",
+    "handle": "@YourMovieSucksDOTorg",
+    "country": "CA",
+    "language": "English",
+    "short_description": "YMS — in-depth, opinionated film critique and analysis."
+  },
+  "Patrick (H) Willems": {
+    "website": "https://www.youtube.com/@patrickhwillems",
+    "handle": "@patrickhwillems",
+    "country": "US",
+    "language": "English",
+    "short_description": "Cinematic, comedic video essays on film history and directors."
+  },
+  "Now You See It": {
+    "website": "https://www.youtube.com/@NowYouSeeIt",
+    "handle": "@NowYouSeeIt",
+    "country": "US",
+    "language": "English",
+    "short_description": "Video essays exploring patterns and techniques in cinema."
+  },
+  "The Closer Look": {
+    "website": "https://www.youtube.com/@TheCloserLook",
+    "handle": "@TheCloserLook",
+    "country": "US",
+    "language": "English",
+    "short_description": "Thematic and storytelling deep dives into films."
+  },
+  "StudioBinder": {
+    "website": "https://www.youtube.com/@StudioBinder",
+    "handle": "@StudioBinder",
+    "country": "US",
+    "language": "English",
+    "short_description": "Filmmaking craft breakdowns — directing, cinematography, editing."
+  },
+  "Wisecrack": {
+    "website": "https://www.youtube.com/@Wisecrack",
+    "handle": "@Wisecrack",
+    "country": "US",
+    "language": "English",
+    "short_description": "Philosophy and cultural analysis of films and media."
+  },
+  "CineFix": {
+    "website": "https://www.youtube.com/@CineFix",
+    "handle": "@CineFix",
+    "country": "US",
+    "language": "English",
+    "short_description": "Movie lists, 'What's the Difference', and craft breakdowns."
+  },
+  "Thomas Flight": {
+    "website": "https://www.youtube.com/@ThomasFlight",
+    "handle": "@ThomasFlight",
+    "country": "US",
+    "language": "English",
+    "short_description": "Thoughtful video essays on film, TV, and visual storytelling."
+  },
+  "Like Stories of Old": {
+    "website": "https://www.youtube.com/@LikeStoriesofOld",
+    "handle": "@LikeStoriesofOld",
+    "country": "NL",
+    "language": "English",
+    "short_description": "Mythological and philosophical readings of cinema."
+  },
+  "Karsten Runquist": {
+    "website": "https://www.youtube.com/@KarstenRunquist",
+    "handle": "@KarstenRunquist",
+    "country": "US",
+    "language": "English",
+    "short_description": "Casual, personal film reviews and essays."
+  },
+  "Kaptain Kristian": {
+    "website": "https://www.youtube.com/@kaptainkristian",
+    "handle": "@kaptainkristian",
+    "country": "US",
+    "language": "English",
+    "short_description": "Visual essays on animation, film, and pop culture."
+  },
+  "Warner Bros. Pictures": {
+    "website": "https://www.youtube.com/@wbpictures",
+    "handle": "@wbpictures",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official Warner Bros. trailers and featurettes."
   },
   "Universal Pictures": {
-    "website": "https://www.universalpictures.com/",
-    "short_description": ""
-  },
-  "Paramount Pictures": {
-    "website": "https://www.paramount.com/brands/paramount-pictures",
-    "short_description": ""
-  },
-  "Sony Pictures": {
-    "website": "https://www.sonypictures.com/",
-    "short_description": ""
+    "website": "https://www.youtube.com/@UniversalPictures",
+    "handle": "@UniversalPictures",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official Universal Pictures trailers and clips."
   },
   "A24": {
-    "website": "https://a24films.com/",
-    "short_description": ""
+    "website": "https://www.youtube.com/@A24",
+    "handle": "@A24",
+    "country": "US",
+    "language": "English",
+    "short_description": "Indie studio behind acclaimed arthouse and genre films."
+  },
+  "Marvel Entertainment": {
+    "website": "https://www.youtube.com/@MARVEL",
+    "handle": "@MARVEL",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official Marvel trailers, featurettes, and series."
+  },
+  "Sony Pictures Entertainment": {
+    "website": "https://www.youtube.com/@sonypictures",
+    "handle": "@sonypictures",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official Sony Pictures trailers and clips."
+  },
+  "Paramount Pictures": {
+    "website": "https://www.youtube.com/@paramountpictures",
+    "handle": "@paramountpictures",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official Paramount Pictures trailers and featurettes."
+  },
+  "20th Century Studios": {
+    "website": "https://www.youtube.com/@20thCenturyStudios",
+    "handle": "@20thCenturyStudios",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official trailers from 20th Century Studios."
+  },
+  "Lionsgate Movies": {
+    "website": "https://www.youtube.com/@Lionsgate",
+    "handle": "@Lionsgate",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official Lionsgate trailers and clips."
+  },
+  "Netflix": {
+    "website": "https://www.youtube.com/@Netflix",
+    "handle": "@Netflix",
+    "country": "US",
+    "language": "English",
+    "short_description": "Trailers and featurettes for Netflix films and series."
+  },
+  "FilmIsNow Movie Trailers": {
+    "website": "https://www.youtube.com/@FilmIsNowMovieTrailers",
+    "handle": "@FilmIsNowMovieTrailers",
+    "country": "US",
+    "language": "English",
+    "short_description": "Aggregated movie trailers, clips, and bonus features."
   }
 }

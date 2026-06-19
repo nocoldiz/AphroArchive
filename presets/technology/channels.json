@@ -1,0 +1,93 @@
+{
+  "Marques Brownlee": {
+    "website": "https://www.youtube.com/@mkbhd",
+    "handle": "@mkbhd",
+    "country": "US",
+    "language": "English",
+    "short_description": "MKBHD — high-production reviews of phones, EVs, and consumer tech."
+  },
+  "Linus Tech Tips": {
+    "website": "https://www.youtube.com/@LinusTechTips",
+    "handle": "@LinusTechTips",
+    "country": "CA",
+    "language": "English",
+    "short_description": "PC hardware reviews, builds, and tech entertainment."
+  },
+  "Dave2D": {
+    "website": "https://www.youtube.com/@Dave2D",
+    "handle": "@Dave2D",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Clean, concise laptop and gadget reviews."
+  },
+  "Mrwhosetheboss": {
+    "website": "https://www.youtube.com/@Mrwhosetheboss",
+    "handle": "@Mrwhosetheboss",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Smartphone reviews, comparisons, and tech explainers."
+  },
+  "Fireship": {
+    "website": "https://www.youtube.com/@Fireship",
+    "handle": "@Fireship",
+    "country": "US",
+    "language": "English",
+    "short_description": "Fast-paced web dev tutorials and '100 seconds' explainers."
+  },
+  "ThePrimeagen": {
+    "website": "https://www.youtube.com/@ThePrimeagen",
+    "handle": "@ThePrimeagen",
+    "country": "US",
+    "language": "English",
+    "short_description": "Programming, editors, and developer culture commentary."
+  },
+  "Computerphile": {
+    "website": "https://www.youtube.com/@Computerphile",
+    "handle": "@Computerphile",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Computer science concepts explained by academics."
+  },
+  "Veritasium": {
+    "website": "https://www.youtube.com/@veritasium",
+    "handle": "@veritasium",
+    "country": "US",
+    "language": "English",
+    "short_description": "Science and engineering explainers with real-world experiments."
+  },
+  "Two Minute Papers": {
+    "website": "https://www.youtube.com/@TwoMinutePapers",
+    "handle": "@TwoMinutePapers",
+    "country": "HU",
+    "language": "English",
+    "short_description": "Digestible summaries of cutting-edge AI and graphics research."
+  },
+  "Lex Fridman": {
+    "website": "https://www.youtube.com/@lexfridman",
+    "handle": "@lexfridman",
+    "country": "US",
+    "language": "English",
+    "short_description": "Long-form interviews on AI, science, and technology."
+  },
+  "ColdFusion": {
+    "website": "https://www.youtube.com/@ColdFusion",
+    "handle": "@ColdFusion",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Documentary-style stories on tech companies and innovation."
+  },
+  "NetworkChuck": {
+    "website": "https://www.youtube.com/@NetworkChuck",
+    "handle": "@NetworkChuck",
+    "country": "US",
+    "language": "English",
+    "short_description": "Networking, Linux, and IT certification tutorials."
+  },
+  "The 8-Bit Guy": {
+    "website": "https://www.youtube.com/@The8BitGuy",
+    "handle": "@The8BitGuy",
+    "country": "US",
+    "language": "English",
+    "short_description": "Retro computing restoration and history."
+  }
+}

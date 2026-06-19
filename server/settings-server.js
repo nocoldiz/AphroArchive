@@ -70,6 +70,19 @@ async function apiSavePrefs(req, res) {
       } catch (e) {}
     }
   }
+  if ('feedFolders' in body && Array.isArray(body.feedFolders)) {
+    prefs.feedFolders = body.feedFolders.map(p => String(p).trim()).filter(Boolean);
+  }
+  if ('privateFeedFolders' in body && Array.isArray(body.privateFeedFolders)) {
+    prefs.privateFeedFolders = body.privateFeedFolders.map(p => String(p).trim()).filter(Boolean);
+  }
+  if ('vaultFeedFolder' in body) prefs.vaultFeedFolder = String(body.vaultFeedFolder || '').trim();
+  if ('rssFeeds' in body && Array.isArray(body.rssFeeds)) {
+    prefs.rssFeeds = body.rssFeeds
+      .filter(f => f && f.url)
+      .map(f => ({ url: String(f.url).trim(), name: String(f.name || '').trim(), category: String(f.category || '').trim() }))
+      .slice(0, 200);
+  }
   if ('defaultRoot' in body || 'defaultPath' in body || 'defaultWriteRoot' in body) {
     const val = body.defaultRoot ?? body.defaultPath ?? body.defaultWriteRoot ?? '';
     prefs.defaultRoot = val ? String(val).trim() : '';

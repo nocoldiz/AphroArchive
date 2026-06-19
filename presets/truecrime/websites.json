@@ -1,0 +1,6 @@
+[
+  { "name": "The Charley Project", "url": "https://charleyproject.org", "searchURL": "https://charleyproject.org/?s={q}", "scrapeMethod": "generic", "description": "Database of cold-case missing persons in the US", "tags": ["missing", "cold case"], "embed": "" },
+  { "name": "NamUs", "url": "https://www.namus.gov", "searchURL": "https://www.namus.gov/MissingPersons/Search?q={q}", "scrapeMethod": "generic", "description": "National Missing and Unidentified Persons System", "tags": ["missing", "database"], "embed": "" },
+  { "name": "The Doe Network", "url": "https://www.doenetwork.org", "searchURL": "https://www.doenetwork.org", "scrapeMethod": "generic", "description": "International center for unidentified and missing persons", "tags": ["unidentified", "database"], "embed": "" },
+  { "name": "r/UnresolvedMysteries", "url": "https://www.reddit.com/r/UnresolvedMysteries/", "searchURL": "https://www.reddit.com/r/UnresolvedMysteries/search/?q={q}", "scrapeMethod": "reddit", "description": "Community discussion of unsolved cases", "tags": ["community", "unsolved"], "embed": "" }
+]

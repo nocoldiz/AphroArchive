@@ -1,0 +1,93 @@
+{
+  "Bob Ross": {
+    "website": "https://www.youtube.com/@bobross_thejoyofpainting",
+    "handle": "@bobross_thejoyofpainting",
+    "country": "US",
+    "language": "English",
+    "short_description": "The Joy of Painting — full official episodes of the legendary calm landscape painter."
+  },
+  "Proko": {
+    "website": "https://www.youtube.com/@ProkoTV",
+    "handle": "@ProkoTV",
+    "country": "US",
+    "language": "English",
+    "short_description": "Stan Prokopenko's figure drawing and anatomy fundamentals."
+  },
+  "Sinix Design": {
+    "website": "https://www.youtube.com/@sinixdesign",
+    "handle": "@sinixdesign",
+    "country": "US",
+    "language": "English",
+    "short_description": "Digital painting tutorials, portraits, and art critiques."
+  },
+  "Marco Bucci": {
+    "website": "https://www.youtube.com/@marcobucci",
+    "handle": "@marcobucci",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Colour, light, and rendering lessons for illustrators."
+  },
+  "Drawfee Show": {
+    "website": "https://www.youtube.com/@Drawfee",
+    "handle": "@Drawfee",
+    "country": "US",
+    "language": "English",
+    "short_description": "Comedic collaborative drawing challenges by professional artists."
+  },
+  "RossDraws": {
+    "website": "https://www.youtube.com/@RossDraws",
+    "handle": "@RossDraws",
+    "country": "US",
+    "language": "English",
+    "short_description": "Vibrant character illustration and concept art tutorials."
+  },
+  "Ahmed Aldoori": {
+    "website": "https://www.youtube.com/@AhmedAldoori",
+    "handle": "@AhmedAldoori",
+    "country": "US",
+    "language": "English",
+    "short_description": "Concept art and fundamentals taught with energy and clarity."
+  },
+  "Ctrl+Paint": {
+    "website": "https://www.youtube.com/@Ctrlpaint",
+    "handle": "@Ctrlpaint",
+    "country": "US",
+    "language": "English",
+    "short_description": "Free, structured digital painting fundamentals library."
+  },
+  "The Art Assignment": {
+    "website": "https://www.youtube.com/@theartassignment",
+    "handle": "@theartassignment",
+    "country": "US",
+    "language": "English",
+    "short_description": "PBS art-history and contemporary-art education series."
+  },
+  "Great Art Explained": {
+    "website": "https://www.youtube.com/@GreatArtExplained",
+    "handle": "@GreatArtExplained",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Deep, accessible breakdowns of single masterpieces."
+  },
+  "Baumgartner Restoration": {
+    "website": "https://www.youtube.com/@BaumgartnerRestoration",
+    "handle": "@BaumgartnerRestoration",
+    "country": "US",
+    "language": "English",
+    "short_description": "Mesmerising professional fine-art painting restoration."
+  },
+  "James Gurney": {
+    "website": "https://www.youtube.com/@JamesGurney",
+    "handle": "@JamesGurney",
+    "country": "US",
+    "language": "English",
+    "short_description": "Plein-air painting and colour theory from the Dinotopia artist."
+  },
+  "Draw with Jazza": {
+    "website": "https://www.youtube.com/@Jazza",
+    "handle": "@Jazza",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Art challenges, tutorials, and experiments across media."
+  }
+}

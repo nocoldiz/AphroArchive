@@ -1,0 +1,72 @@
+{
+  "Whang!": {
+    "website": "https://www.youtube.com/@Whang",
+    "handle": "@Whang",
+    "country": "US",
+    "language": "English",
+    "short_description": "Internet mysteries, lost media, and weird web history."
+  },
+  "Nick Crowley": {
+    "website": "https://www.youtube.com/@NickCrowley",
+    "handle": "@NickCrowley",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Cinematic deep-dives into internet mysteries and dark stories."
+  },
+  "Wendigoon": {
+    "website": "https://www.youtube.com/@Wendigoon",
+    "handle": "@Wendigoon",
+    "country": "US",
+    "language": "English",
+    "short_description": "Iceberg explainers, conspiracies, and disturbing media analysis."
+  },
+  "Barely Sociable": {
+    "website": "https://www.youtube.com/@BarelySociable",
+    "handle": "@BarelySociable",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Investigations into internet enigmas and unsolved mysteries."
+  },
+  "blameitonjorge": {
+    "website": "https://www.youtube.com/@blameitonjorge",
+    "handle": "@blameitonjorge",
+    "country": "US",
+    "language": "English",
+    "short_description": "Lost media, creepy cartoons, and unsolved animation mysteries."
+  },
+  "Quinton Reviews": {
+    "website": "https://www.youtube.com/@QuintonReviews",
+    "handle": "@QuintonReviews",
+    "country": "US",
+    "language": "English",
+    "short_description": "Exhaustive long-form retrospectives on TV and media."
+  },
+  "Down the Rabbit Hole": {
+    "website": "https://www.youtube.com/@FredrikKnudsen",
+    "handle": "@FredrikKnudsen",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Fredrik Knudsen's documentaries on obscure internet history."
+  },
+  "Atrocity Guide": {
+    "website": "https://www.youtube.com/@AtrocityGuide",
+    "handle": "@AtrocityGuide",
+    "country": "US",
+    "language": "English",
+    "short_description": "Stylish documentaries on internet subcultures and mysteries."
+  },
+  "Kane Pixels": {
+    "website": "https://www.youtube.com/@KanePixels",
+    "handle": "@KanePixels",
+    "country": "US",
+    "language": "English",
+    "short_description": "The Backrooms — acclaimed analog-horror found-footage series."
+  },
+  "Ordinary Things": {
+    "website": "https://www.youtube.com/@OrdinaryThings",
+    "handle": "@OrdinaryThings",
+    "country": "US",
+    "language": "English",
+    "short_description": "Essays on internet culture, lost media, and the strange web."
+  }
+}

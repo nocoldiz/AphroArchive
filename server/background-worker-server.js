@@ -85,6 +85,14 @@ async function scanAndProcess() {
   _isProcessing = true;
 
   try {
+    // 0. Refresh remote RSS feeds → links (first step every run)
+    try {
+      setStatus('Refreshing RSS feeds');
+      await require('./rss-server').refreshFeeds();
+    } catch (e) {
+      console.error('Background worker: RSS refresh failed:', e.message);
+    }
+
     setStatus('Loading file index');
     const allFiles = await cachedScan();
     const files = allFiles.filter(f => !f.isExternal && !f.encrypted);

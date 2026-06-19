@@ -12,6 +12,7 @@ interface Preset {
     channels?: number;
     websites?: number;
     folders?: number;
+    links?: number;
   };
 }
 
@@ -22,6 +23,8 @@ export const PresetPicker = () => {
   const [fetchError, setFetchError] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [createFolders, setCreateFolders] = useState(false);
+  const [importLinks, setImportLinks] = useState(true);
+  const [linkCount, setLinkCount] = useState(0); // 0 = import all
   const [status, setStatus] = useState('');
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'orange');
 
@@ -32,6 +35,8 @@ export const PresetPicker = () => {
     setStatus('');
     setSelected(new Set());
     setCreateFolders(false);
+    setImportLinks(true);
+    setLinkCount(0);
     fetch('/api/presets')
       .then(r => {
         if (!r.ok) throw new Error(`Server error ${r.status}`);
@@ -57,7 +62,13 @@ export const PresetPicker = () => {
           await fetch('/api/profiles/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: p, preset: p, createFolders: createFolders && !!meta?.hasFolders }),
+            body: JSON.stringify({
+              name: p,
+              preset: p,
+              createFolders: createFolders && !!meta?.hasFolders,
+              importLinks: importLinks && !!meta?.counts.links,
+              linkCount: linkCount > 0 ? linkCount : -1,
+            }),
           });
         }
         // Switch to the first selected profile
@@ -72,7 +83,7 @@ export const PresetPicker = () => {
         const res = await fetch('/api/presets/apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selection, merge }),
+          body: JSON.stringify({ selection, merge, importLinks, linkCount: linkCount > 0 ? linkCount : -1 }),
         });
         if (!res.ok) throw new Error('Server error');
       }
@@ -122,6 +133,7 @@ export const PresetPicker = () => {
                   {p.counts.actors && <span>{p.counts.actors} actors</span>}
                   {p.counts.channels && <span>{p.counts.channels} channels</span>}
                   {p.counts.websites && <span>{p.counts.websites} websites</span>}
+                  {p.counts.links && <span>{p.counts.links} links</span>}
                 </div>
               </div>
             </label>
@@ -165,6 +177,31 @@ export const PresetPicker = () => {
             Create each preset's folder structure on disk
           </label>
         )}
+
+        {(() => {
+          const totalLinks = Array.from(selected).reduce((n, id) => n + (presets.find(p => p.id === id)?.counts.links || 0), 0);
+          if (totalLinks === 0) return null;
+          return (
+            <div style={{ margin: '0 0 12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--tx2)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={importLinks} onChange={(e: any) => setImportLinks(e.target.checked)} />
+                Import curated bookmark links from selected presets
+              </label>
+              {importLinks && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', paddingLeft: '24px', fontSize: '0.8rem', color: 'var(--tx3)' }}>
+                  <span>How many?</span>
+                  <input
+                    type="number" min={0} max={totalLinks} value={linkCount}
+                    title="Number of links to import (0 = all)" placeholder="0"
+                    onInput={(e: any) => setLinkCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    style={{ width: '70px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', padding: '4px 6px' }}
+                  />
+                  <span>{linkCount > 0 ? `of ${totalLinks}` : `all ${totalLinks}`}</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="preset-dialog-footer" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--tx3)', flex: 1 }}>{status}</span>

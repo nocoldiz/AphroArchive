@@ -1,0 +1,72 @@
+{
+  "MrBallen": {
+    "website": "https://www.youtube.com/@MrBallen",
+    "handle": "@MrBallen",
+    "country": "US",
+    "language": "English",
+    "short_description": "Strange, dark, and mysterious stories told with cinematic narration."
+  },
+  "Bailey Sarian": {
+    "website": "https://www.youtube.com/@BaileySarian",
+    "handle": "@BaileySarian",
+    "country": "US",
+    "language": "English",
+    "short_description": "Murder, Mystery & Makeup — true crime told during a makeup routine."
+  },
+  "JCS - Criminal Psychology": {
+    "website": "https://www.youtube.com/@jcs",
+    "handle": "@jcs",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Acclaimed analysis of interrogations and criminal behaviour."
+  },
+  "That Chapter": {
+    "website": "https://www.youtube.com/@ThatChapter",
+    "handle": "@ThatChapter",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Detailed true-crime case retellings with dry humour."
+  },
+  "Kendall Rae": {
+    "website": "https://www.youtube.com/@KendallRaeOnYT",
+    "handle": "@KendallRaeOnYT",
+    "country": "US",
+    "language": "English",
+    "short_description": "Missing persons, unsolved cases, and advocacy."
+  },
+  "Coffeehouse Crime": {
+    "website": "https://www.youtube.com/@CoffeehouseCrime",
+    "handle": "@CoffeehouseCrime",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Cold cases and unsolved mysteries, calmly narrated."
+  },
+  "Rotten Mango": {
+    "website": "https://www.youtube.com/@RottenMango",
+    "handle": "@RottenMango",
+    "country": "US",
+    "language": "English",
+    "short_description": "Stephanie Soo's deeply researched true-crime podcast."
+  },
+  "Last Podcast On The Left": {
+    "website": "https://www.youtube.com/@lastpodcastontheleft",
+    "handle": "@lastpodcastontheleft",
+    "country": "US",
+    "language": "English",
+    "short_description": "Comedy-tinged deep dives into serial killers and the paranormal."
+  },
+  "Explore With Us": {
+    "website": "https://www.youtube.com/@ExploreWithUs",
+    "handle": "@ExploreWithUs",
+    "country": "US",
+    "language": "English",
+    "short_description": "Courtroom footage breakdowns and interrogation analysis."
+  },
+  "Matt Orchard - Crime & Society": {
+    "website": "https://www.youtube.com/@MattOrchard",
+    "handle": "@MattOrchard",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Long-form investigative crime and internet documentaries."
+  }
+}

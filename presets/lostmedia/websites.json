@@ -1,0 +1,5 @@
+[
+  { "name": "The Lost Media Wiki", "url": "https://lostmediawiki.com", "searchURL": "https://lostmediawiki.com/index.php?search={q}", "scrapeMethod": "generic", "description": "Community-run encyclopedia of lost and found media", "tags": ["wiki", "reference"], "embed": "" },
+  { "name": "Internet Archive", "url": "https://archive.org", "searchURL": "https://archive.org/search?query={q}", "scrapeMethod": "archive", "description": "Vast digital archive of recovered media", "tags": ["archive", "backup"], "embed": "" },
+  { "name": "r/lostmedia", "url": "https://www.reddit.com/r/lostmedia/", "searchURL": "https://www.reddit.com/r/lostmedia/search/?q={q}", "scrapeMethod": "reddit", "description": "Reddit community dedicated to finding lost media", "tags": ["community"], "embed": "" }
+]

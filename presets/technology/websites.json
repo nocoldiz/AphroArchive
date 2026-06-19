@@ -1,0 +1,7 @@
+[
+  { "name": "Hacker News", "url": "https://news.ycombinator.com", "searchURL": "https://hn.algolia.com/?q={q}", "scrapeMethod": "generic", "description": "Tech and startup news aggregator by Y Combinator", "tags": ["news", "startup"], "embed": "" },
+  { "name": "GitHub", "url": "https://github.com", "searchURL": "https://github.com/search?q={q}", "scrapeMethod": "generic", "description": "Code hosting and open-source collaboration", "tags": ["code", "open source"], "embed": "" },
+  { "name": "Stack Overflow", "url": "https://stackoverflow.com", "searchURL": "https://stackoverflow.com/search?q={q}", "scrapeMethod": "generic", "description": "Q&A for programmers", "tags": ["code", "q&a"], "embed": "" },
+  { "name": "Ars Technica", "url": "https://arstechnica.com", "searchURL": "https://arstechnica.com/search/?q={q}", "scrapeMethod": "generic", "description": "In-depth technology news and analysis", "tags": ["news"], "embed": "" },
+  { "name": "The Verge", "url": "https://www.theverge.com", "searchURL": "https://www.theverge.com/search?q={q}", "scrapeMethod": "generic", "description": "Consumer technology and culture news", "tags": ["news"], "embed": "" }
+]

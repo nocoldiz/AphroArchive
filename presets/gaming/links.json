@@ -1,0 +1,18 @@
+[
+  { "url": "https://www.youtube.com/@markiplier", "title": "Markiplier", "category": "Let's Play", "hasVideo": true, "tags": ["letsplay", "horror"] },
+  { "url": "https://www.youtube.com/@jacksepticeye", "title": "jacksepticeye", "category": "Let's Play", "hasVideo": true, "tags": ["letsplay"] },
+  { "url": "https://www.youtube.com/@PewDiePie", "title": "PewDiePie", "category": "Let's Play", "hasVideo": true, "tags": ["letsplay"] },
+  { "url": "https://www.youtube.com/@Northernlion", "title": "Northernlion", "category": "Let's Play", "hasVideo": true, "tags": ["letsplay", "roguelike"] },
+  { "url": "https://www.youtube.com/@VanossGaming", "title": "VanossGaming", "category": "Let's Play", "hasVideo": true, "tags": ["letsplay", "comedy"] },
+  { "url": "https://www.youtube.com/@SummoningSalt", "title": "Summoning Salt — Speedrun History", "category": "Speedruns", "hasVideo": true, "tags": ["speedrun", "history"] },
+  { "url": "https://www.youtube.com/@theRadBrad", "title": "theRadBrad — Walkthroughs", "category": "Walkthroughs", "hasVideo": true, "tags": ["walkthrough"] },
+  { "url": "https://www.youtube.com/@gameranx", "title": "gameranx — Before You Buy", "category": "Reviews", "hasVideo": true, "tags": ["review"] },
+  { "url": "https://www.youtube.com/@IGN", "title": "IGN", "category": "Reviews", "hasVideo": true, "tags": ["review", "news"] },
+  { "url": "https://www.youtube.com/@gamespot", "title": "GameSpot", "category": "Reviews", "hasVideo": true, "tags": ["review", "news"] },
+  { "url": "https://www.youtube.com/@videogamedunkey", "title": "videogamedunkey", "category": "Reviews", "hasVideo": true, "tags": ["review", "comedy"] },
+  { "url": "https://www.youtube.com/@DigitalFoundry", "title": "Digital Foundry — Tech Analysis", "category": "Reviews", "hasVideo": true, "tags": ["tech", "analysis"] },
+  { "url": "https://www.youtube.com/@GMTK", "title": "Game Maker's Toolkit", "category": "Reviews", "hasVideo": true, "tags": ["design", "essay"] },
+  { "url": "https://www.youtube.com/@Nintendo", "title": "Nintendo — Direct & Trailers", "category": "Reviews", "hasVideo": true, "tags": ["official", "trailers"] },
+  { "url": "https://www.youtube.com/@PlayStation", "title": "PlayStation — State of Play", "category": "Reviews", "hasVideo": true, "tags": ["official", "trailers"] },
+  { "url": "https://www.youtube.com/@Xbox", "title": "Xbox — Showcases", "category": "Reviews", "hasVideo": true, "tags": ["official", "trailers"] }
+]

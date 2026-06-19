@@ -69,6 +69,7 @@ export async function routeToPath(path: string) {
     '/settings':       'settings',
     '/photos':         'photos',
     '/links':          'links',
+    '/rss':            'rss',
     '/pages':          'pages',
     '/search':         'search',
     '/database':       'database',

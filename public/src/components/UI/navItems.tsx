@@ -256,6 +256,11 @@ export function getNavItems(): NavItem[] {
 
     // ── Tools ───────────────────────────────────────────────
     {
+      id: 'rss-sidebar', label: 'RSS', section: 'tools', defaultLoc: 'sidebar',
+      paths: <><path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" /></>,
+      onClick: () => setView('rss'), isActive: view === 'rss',
+    },
+    {
       id: 'search-sites-sidebar', label: 'Search', section: 'tools', defaultLoc: 'sidebar',
       paths: <><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /><path d="M11 8v6M8 11h6" /></>,
       onClick: () => setView('search', 'showSearchSites'), isActive: view === 'search',

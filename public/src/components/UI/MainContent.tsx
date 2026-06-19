@@ -7,6 +7,7 @@ import { ChannelsView } from '../sections/ChannelsView';
 import { PhotosView } from '../sections/PhotosView';
 import { ScreenshotsView } from '../sections/ScreenshotsView';
 import { LinksView } from '../sections/LinksView';
+import { RssView } from '../sections/RssView';
 import { VisionModal } from '../modals/VisionModal';
 import { PagesView } from '../sections/PagesView';
 import { SearchSitesView } from '../sections/SearchSitesView';
@@ -114,6 +115,7 @@ export const MainContent = () => {
     if (view === 'photos') return <PhotosView />;
     if (view === 'screenshots') return <ScreenshotsView />;
     if (view === 'links') return <LinksView />;
+    if (view === 'rss') return <RssView />;
     if (view === 'download-queue') return <DownloadQueueView />;
     if (view === 'collections') return <CollectionsView />;
     if (view === 'database') return <DatabaseView />;

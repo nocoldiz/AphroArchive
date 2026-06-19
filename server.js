@@ -74,6 +74,7 @@ const duplicates = require('./server/duplicates-server');
 const corrupted = require('./server/corrupted-server');
 const { startBackgroundWorker, apiBackgroundWorkerPoll, apiBackgroundWorkerStart, apiBackgroundWorkerStop } = require('./server/background-worker-server');
 const feedWatcher = require('./server/feed-watcher-server');
+const rss = require('./server/rss-server');
 const assistant   = require('./server/assistant-server');
 const autoChapters = require('./server/auto-chapters-server');
 const hls = require('./server/hls-server');
@@ -458,6 +459,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
   if (p === '/api/presets/apply' && req.method === 'POST') return profiles.apiApplyPreset(req, res);
   if (p === '/api/folders/from-preset' && req.method === 'POST') return profiles.apiCreateFoldersFromPreset(req, res);
+
+  // ── RSS feeds ────────────────────────────────────────────────────────
+  if (p === '/api/rss/feeds' && req.method === 'GET') return rss.apiGetRssFeeds(req, res);
+  if (p === '/api/rss/feeds' && req.method === 'POST') return rss.apiSaveRssFeeds(req, res);
+  if (p === '/api/rss/refresh' && req.method === 'POST') return rss.apiRefreshRss(req, res);
 
   // ── Profiles ─────────────────────────────────────────────────────────
   if (p === '/api/profiles' && req.method === 'GET') return profiles.apiGetProfiles(req, res);

@@ -9,6 +9,7 @@ interface Preset {
     actors?: number;
     channels?: number;
     websites?: number;
+    links?: number;
   };
 }
 
@@ -44,6 +45,7 @@ export const OnboardingWizard = () => {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [selectedPreset, setSelectedPreset] = useState('');
   const [presetMode, setPresetMode] = useState<'blank' | 'preset' | ''>('');
+  const [importLinks, setImportLinks] = useState(true);
 
   const [mediaPaths, setMediaPaths] = useState<string[]>([]);
   const [pathInput, setPathInput] = useState('./videos');
@@ -128,7 +130,11 @@ export const OnboardingWizard = () => {
       const r = await fetch('/api/profiles/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: profileName.trim(), preset: selectedPreset || undefined }),
+        body: JSON.stringify({
+          name: profileName.trim(),
+          preset: selectedPreset || undefined,
+          importLinks: !!selectedPreset && importLinks,
+        }),
       });
       if (!r.ok) throw new Error('Failed to create profile');
       const prefsUpdate: Record<string, any> = { theme: selectedTheme };
@@ -316,6 +322,7 @@ export const OnboardingWizard = () => {
                     p.counts.categories ? `${p.counts.categories} folders` : '',
                     p.counts.actors ? `${p.counts.actors} actors` : '',
                     p.counts.channels ? `${p.counts.channels} channels` : '',
+                    p.counts.links ? `${p.counts.links} links` : '',
                   ].filter(Boolean);
                   return (
                     <button key={p.id} type="button" onClick={() => selectPreset(p.id)}
@@ -355,6 +362,13 @@ export const OnboardingWizard = () => {
                   );
                 })}
               </div>
+            )}
+
+            {presetMode === 'preset' && !!(presets.find(p => p.id === selectedPreset)?.counts.links) && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '14px 0 0', fontSize: '0.82rem', color: 'var(--tx2)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={importLinks} onChange={(e: any) => setImportLinks(e.target.checked)} />
+                Import {presets.find(p => p.id === selectedPreset)?.counts.links} curated bookmark links from this preset
+              </label>
             )}
 
             <div style={stepFooter}>

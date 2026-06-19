@@ -1,0 +1,22 @@
+{
+  "Reviews": {
+    "displayName": "Tech Reviews",
+    "tags": ["review", "unboxing", "phone", "laptop", "gadget"]
+  },
+  "Programming": {
+    "displayName": "Programming",
+    "tags": ["code", "web dev", "tutorial", "software", "developer"]
+  },
+  "Science": {
+    "displayName": "Science & Engineering",
+    "tags": ["physics", "engineering", "explainer", "education"]
+  },
+  "AI": {
+    "displayName": "AI & Machine Learning",
+    "tags": ["ai", "machine learning", "llm", "research", "neural"]
+  },
+  "Hardware": {
+    "displayName": "Hardware",
+    "tags": ["pc building", "retro", "networking", "components"]
+  }
+}

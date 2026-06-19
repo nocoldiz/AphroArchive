@@ -11,6 +11,12 @@ const { json, readBody } = require('./helpers-server');
 const PROFILES_DIR = PRESETS_DIR;
 const SETUP_DONE_FILE = path.join(DB_DIR, 'setup.done');
 
+// Read a UTF-8 file, stripping a leading BOM (several preset files were saved
+// with one, which makes JSON.parse throw).
+function readText(fp) {
+  return fs.readFileSync(fp, 'utf-8').replace(/^﻿/, '');
+}
+
 function markSetupDone() {
   try { fs.mkdirSync(DB_DIR, { recursive: true }); } catch {}
   try { fs.writeFileSync(SETUP_DONE_FILE, '', 'utf-8'); } catch {}
@@ -41,7 +47,7 @@ function listProfileTemplates() {
       let name = d.name, description = '';
       try {
         // meta.json may have unquoted keys — use a lenient parse
-        const raw = fs.readFileSync(path.join(dir, 'meta.json'), 'utf-8')
+        const raw = readText(path.join(dir, 'meta.json'))
           .replace(/^\s*([a-zA-Z_]\w*)\s*:/gm, '"$1":'); // quote bare keys
         const parsed = JSON.parse(raw);
         name        = parsed.title       || d.name;
@@ -50,7 +56,7 @@ function listProfileTemplates() {
       // Count entries in each file for the preview
       const count = (file) => {
         try {
-          const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8'));
+          const data = JSON.parse(readText(path.join(dir, file)));
           return Array.isArray(data) ? data.length : Object.keys(data).length;
         } catch { return 0; }
       };
@@ -70,6 +76,7 @@ function listProfileTemplates() {
           websites:   count('websites.json'),
           series:     count('series.json'),
           albums:     count('albums.json'),
+          links:      count('links.json'),
           folders:    folderCount,
         },
       };
@@ -78,15 +85,41 @@ function listProfileTemplates() {
 
 function loadPresetData(id) {
   const dir = path.join(PROFILES_DIR, id);
-  const result = { actors: {}, categories: {}, channels: {}, websites: [], series: [], albums: [] };
-  const tryLoad = (file) => { try { return JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')); } catch { return null; } };
+  const result = { actors: {}, categories: {}, channels: {}, websites: [], series: [], albums: [], links: [] };
+  const tryLoad = (file) => { try { return JSON.parse(readText(path.join(dir, file))); } catch { return null; } };
   const a = tryLoad('actors.json');     if (a && !Array.isArray(a)) Object.assign(result.actors, a);
   const c = tryLoad('categories.json'); if (c && !Array.isArray(c)) Object.assign(result.categories, c);
   const s = tryLoad('channels.json');    if (s && !Array.isArray(s)) Object.assign(result.channels, s);
   const w = tryLoad('websites.json');   if (Array.isArray(w)) result.websites = w;
   const se = tryLoad('series.json');    if (Array.isArray(se)) result.series = se;
   const al = tryLoad('albums.json');    if (Array.isArray(al)) result.albums = al;
+  const lk = tryLoad('links.json');     if (Array.isArray(lk)) result.links = lk;
   return result;
+}
+
+// Import up to `limit` curated links from a preset into the active profile DB.
+// limit < 0 (or undefined) imports them all. Returns the number imported.
+function importPresetLinks(id, limit) {
+  const data = loadPresetData(id);
+  const links = Array.isArray(data.links) ? data.links : [];
+  if (!links.length) return 0;
+  const n = (typeof limit === 'number' && limit >= 0) ? Math.min(limit, links.length) : links.length;
+  const db = require('./db-server');
+  let imported = 0;
+  for (const lk of links.slice(0, n)) {
+    if (!lk || !lk.url) continue;
+    db.upsertLink({
+      url: lk.url,
+      title: lk.title || '',
+      category: lk.category || '',
+      img: lk.img || null,
+      hasVideo: lk.hasVideo ?? true,
+      tags: Array.isArray(lk.tags) ? lk.tags : [],
+      addedAt: lk.addedAt || Date.now(),
+    });
+    imported++;
+  }
+  return imported;
 }
 
 // Load a preset's folders.json — a 2-level tree { "Main Genre": ["Subgenre", ...] }.
@@ -94,7 +127,7 @@ function loadPresetData(id) {
 function loadPresetFolders(id) {
   const dir = path.join(PROFILES_DIR, id);
   try {
-    const data = JSON.parse(fs.readFileSync(path.join(dir, 'folders.json'), 'utf-8'));
+    const data = JSON.parse(readText(path.join(dir, 'folders.json')));
     if (data && typeof data === 'object' && !Array.isArray(data)) return data;
   } catch {}
   return null;
@@ -237,14 +270,17 @@ function apiGetPresets(req, res) {
 // POST /api/presets/apply  { selection: 'blank' | 'all' | ['id',...], merge?: boolean }
 async function apiApplyPreset(req, res) {
   const body = await readBody(req);
-  const { selection, merge } = body;
+  const { selection, merge, importLinks, linkCount } = body;
 
   let merged;
+  let presetIds = [];
   if (selection === 'blank') {
     merged = { actors: {}, categories: {}, channels: {}, websites: [] };
   } else if (selection === 'all') {
-    merged = mergePresets(listProfileTemplates().map(p => p.id));
+    presetIds = listProfileTemplates().map(p => p.id);
+    merged = mergePresets(presetIds);
   } else if (Array.isArray(selection) && selection.length > 0) {
+    presetIds = selection;
     merged = mergePresets(selection);
   } else {
     return json(res, { error: 'Invalid selection' }, 400);
@@ -255,13 +291,24 @@ async function apiApplyPreset(req, res) {
   if (!db.isDbOnDisk()) db.switchProfile('default');
 
   writeDb(merged, !!merge);
+
+  let linksImported = 0;
+  if (importLinks && presetIds.length) {
+    const perPreset = (typeof linkCount === 'number' && linkCount >= 0)
+      ? Math.ceil(linkCount / presetIds.length) : -1;
+    for (const id of presetIds) {
+      if (perPreset === 0) break;
+      linksImported += importPresetLinks(id, perPreset);
+    }
+  }
+
   markSetupDone();
 
   db.invalidateDbTypeCache('actors');
   db.invalidateDbTypeCache('categories');
   db.invalidateDbTypeCache('channels');
 
-  json(res, { ok: true });
+  json(res, { ok: true, linksImported });
 }
 
 // GET /api/profiles
@@ -307,7 +354,7 @@ async function apiSwitchProfile(req, res) {
 // POST /api/profiles/create
 async function apiCreateProfile(req, res) {
   const body = await readBody(req);
-  const { name, preset, createFolders } = body;
+  const { name, preset, createFolders, importLinks, linkCount } = body;
   if (!name) return json(res, { error: 'Profile name required' }, 400);
 
   const db = require('./db-server');
@@ -315,6 +362,7 @@ async function apiCreateProfile(req, res) {
   saveLastProfile(name);
 
   let foldersCreated = 0;
+  let linksImported = 0;
   if (preset) {
     const data = loadPresetData(preset);
     db.saveFolderMappings(data.categories);
@@ -324,10 +372,11 @@ async function apiCreateProfile(req, res) {
     if (Array.isArray(data.series) && data.series.length > 0) db.saveSeries(data.series);
     if (Array.isArray(data.albums) && data.albums.length > 0) db.saveAlbums(data.albums);
     if (createFolders) foldersCreated = createPresetFolders(preset).created;
+    if (importLinks) linksImported = importPresetLinks(preset, typeof linkCount === 'number' ? linkCount : -1);
   }
   markSetupDone();
 
-  json(res, { ok: true, current: name, foldersCreated });
+  json(res, { ok: true, current: name, foldersCreated, linksImported });
 }
 
 // POST /api/folders/from-preset  { preset }

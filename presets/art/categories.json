@@ -1,0 +1,26 @@
+{
+  "Painting": {
+    "displayName": "Painting",
+    "tags": ["oil", "watercolour", "acrylic", "canvas", "brush"]
+  },
+  "Drawing": {
+    "displayName": "Drawing & Sketching",
+    "tags": ["pencil", "figure", "gesture", "ink", "charcoal"]
+  },
+  "Digital Art": {
+    "displayName": "Digital Art",
+    "tags": ["concept art", "illustration", "photoshop", "procreate", "pixel"]
+  },
+  "Art History": {
+    "displayName": "Art History",
+    "tags": ["movement", "masterpiece", "museum", "analysis", "restoration"]
+  },
+  "Sculpture": {
+    "displayName": "Sculpture & 3D",
+    "tags": ["clay", "zbrush", "modelling", "form"]
+  },
+  "Crafts": {
+    "displayName": "Crafts & DIY",
+    "tags": ["printmaking", "diy", "handmade", "mixed media"]
+  }
+}
