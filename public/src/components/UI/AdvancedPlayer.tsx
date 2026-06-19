@@ -95,8 +95,9 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const chaptersRef = useRef(chapters);
   const autoChaptersRef = useRef(autoChapters);
   const selectedSubIdxRef = useRef(selectedSubIdx);
-  const [usingHls, setUsingHls] = useState(false);
+  const [usingHls, setUsingHls] = useState(!!hlsSrc);
   const hlsInstanceRef = useRef<any>(null);
+  const prevUsingHlsRef = useRef(!!hlsSrc);
   const [audioTracks, setAudioTracks] = useState<{ index: number; language: string; title: string; codec: string; channels: number }[]>([]);
   const [selectedAudio, setSelectedAudio] = useState(0);
   const [showChannelPicker, setShowChannelPicker] = useState(false);
@@ -149,6 +150,21 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       if (hlsInstanceRef.current) { hlsInstanceRef.current.destroy(); hlsInstanceRef.current = null; }
     };
   }, [usingHls, activeHlsSrc]);
+
+  // When HLS falls back to direct stream (e.g. hls.js unavailable), the src
+  // just got set but the initial vid.play() already ran and failed (no src at
+  // the time). Explicitly restart playback so the video isn't stuck black.
+  useEffect(() => {
+    const was = prevUsingHlsRef.current;
+    prevUsingHlsRef.current = usingHls;
+    if (was && !usingHls) {
+      const vid = videoRef.current;
+      if (!vid || !src) return;
+      vid.play().catch(() => {
+        if (!vid.muted) { vid.muted = true; vid.play().catch(() => {}); }
+      });
+    }
+  }, [usingHls]);
   const onNextRef = useRef(onNext);
   const onPrevRef = useRef(onPrev);
   useEffect(() => { onNextRef.current = onNext; });

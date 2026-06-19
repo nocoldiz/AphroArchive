@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
 import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
-import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, FolderOptionsButton } from './LibraryFilters';
+import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, FolderOptionsButton, type FoldersFilterControl } from './LibraryFilters';
 import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, setItemPlacement, sortByOrder, setNavOrder, getNavOrder, activeDrag, type NavItem, type NavSection, type NavOrderKey } from './navItems';
 
 const SectionHeader = ({ label, id, open, style, onClick, action, onContextMenu }: { label: string, id: string, open?: boolean, style?: any, onClick?: () => void, action?: any, onContextMenu?: (e: any) => void }) => (
@@ -77,7 +77,10 @@ export const Sidebar = () => {
   const [tagsOpen, setTagsOpen] = useState(() => sectionState('tags'));
   const [linksOpen, setLinksOpen] = useState(() => sectionState('links'));
   const [catsOpen, setCatsOpen] = useState(() => sectionState('cats'));
+  const [folderQuery, setFolderQuery] = useState('');
   const [photoFolders, setPhotoFolders] = useState<{ path: string, name: string }[]>([]);
+  const folderCtrlRef = useRef<FoldersFilterControl | null>(null);
+  const [, folderForceUpdate] = useState(0);
 
   const toggleLibrary = makeToggle('library', setLibraryOpen);
   const toggleManage = makeToggle('manage', setManageOpen);
@@ -392,12 +395,37 @@ export const Sidebar = () => {
                     </svg>
                   </button>
                 )}
+                <button type="button" className="sidebar-heading-add"
+                  title={folderCtrlRef.current?.isAllExpanded() ? 'Collapse all' : 'Expand all'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const ctrl = folderCtrlRef.current;
+                    if (!ctrl) return;
+                    if (ctrl.isAllExpanded()) ctrl.collapseAll(); else ctrl.expandAll();
+                    folderForceUpdate(n => n + 1);
+                  }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    {folderCtrlRef.current?.isAllExpanded()
+                      ? <><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></>
+                      : <><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></>
+                    }
+                  </svg>
+                </button>
                 <FolderOptionsButton />
               </span>
             }
           />
           <div className="side-section" id="catsSection" style={{ display: catsOpen ? 'block' : 'none' }}>
-            <FoldersFilter />
+            <div className="filter-dropdown-search sidebar-search">
+              <input
+                type="text"
+                placeholder="Search folders…"
+                value={folderQuery}
+                onInput={(e: any) => setFolderQuery(e.currentTarget.value)}
+                onClick={(e: any) => e.stopPropagation()}
+              />
+            </div>
+            <FoldersFilter controlRef={folderCtrlRef} filter={folderQuery} />
           </div>
         </>
       )}

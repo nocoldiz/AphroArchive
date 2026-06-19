@@ -5,7 +5,7 @@ import sys
 import gzip
 import json
 import zlib
-iupmport html
+import html
 import base64
 import argparse
 from pathlib import Path

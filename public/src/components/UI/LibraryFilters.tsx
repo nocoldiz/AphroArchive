@@ -162,7 +162,13 @@ function useScopedVids(linksOnly: boolean) {
 
 interface CatTreeNode { cat: any; children: CatTreeNode[] }
 
-export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => void, filter?: string }) => {
+export interface FoldersFilterControl {
+  expandAll: () => void;
+  collapseAll: () => void;
+  isAllExpanded: () => boolean;
+}
+
+export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavigate?: () => void, filter?: string, controlRef?: { current: FoldersFilterControl | null } }) => {
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
   const filteredVids = useScopedVids(false);
   const fq = filter.trim().toLowerCase();
@@ -213,6 +219,30 @@ export const FoldersFilter = ({ onNavigate, filter = '' }: { onNavigate?: () => 
     }
     return roots;
   }, [displayFolders, appPrefs.value.hideEmptyFolders, isLoadingVideos.value]);
+
+  const expandablePaths = useMemo(() => {
+    const paths: string[] = [];
+    const collect = (nodes: CatTreeNode[]) => {
+      for (const n of nodes) { if (n.children.length > 0) { paths.push(n.cat.path); collect(n.children); } }
+    };
+    collect(categoryTree);
+    return paths;
+  }, [categoryTree]);
+
+  if (controlRef) {
+    controlRef.current = {
+      expandAll: () => {
+        const next = new Set(expandablePaths);
+        setExpandedFolders(next);
+        localStorage.setItem('sidebarFolderExpanded', JSON.stringify([...next]));
+      },
+      collapseAll: () => {
+        setExpandedFolders(new Set());
+        localStorage.setItem('sidebarFolderExpanded', '[]');
+      },
+      isAllExpanded: () => expandablePaths.length > 0 && expandablePaths.every(p => expandedFolders.has(p)),
+    };
+  }
 
   const pinnedCats = useMemo(() => {
     const pins = appPrefs.value.pinnedFolders || [];
@@ -659,6 +689,8 @@ export const FilterDropdowns = () => {
   const [open, setOpen] = useState<null | 'folders' | 'tags' | 'links'>(null);
   const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const folderCtrlRef = useRef<FoldersFilterControl | null>(null);
+  const [, folderForceUpdate] = useState(0);
 
   const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'topbar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'topbar' && !inVaultMode;
@@ -725,13 +757,29 @@ export const FilterDropdowns = () => {
               <span>{inVaultMode ? 'Encrypted Folders' : 'Folders'}</span>
               <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                 {!inVaultMode && addBtn(() => (window as any).createFolder?.(), 'New folder')}
+                <button type="button" className="sidebar-heading-add"
+                  title={folderCtrlRef.current?.isAllExpanded() ? 'Collapse all' : 'Expand all'}
+                  onClick={(e: any) => {
+                    e.stopPropagation();
+                    const ctrl = folderCtrlRef.current;
+                    if (!ctrl) return;
+                    if (ctrl.isAllExpanded()) ctrl.collapseAll(); else ctrl.expandAll();
+                    folderForceUpdate(n => n + 1);
+                  }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    {folderCtrlRef.current?.isAllExpanded()
+                      ? <><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></>
+                      : <><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></>
+                    }
+                  </svg>
+                </button>
                 <FolderOptionsButton />
                 <ShrinkBtn dropdownId="filter-folders" />
               </div>
             </div>
             {searchBar('Search folders…')}
             <div className="filter-dropdown-body">
-              <FoldersFilter onNavigate={close} filter={query} />
+              <FoldersFilter onNavigate={close} filter={query} controlRef={folderCtrlRef} />
             </div>
           </div>
         )}

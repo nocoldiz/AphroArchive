@@ -1,1 +1,114 @@
-﻿{}
+{
+  "cs188": {
+    "website": "https://www.youtube.com/@cs188",
+    "handle": "@cs188",
+    "country": "US",
+    "language": "English",
+    "short_description": "One of the most prolific and influential YouTube Poop creators, known for polished editing and signature sources."
+  },
+  "WalrusGuy": {
+    "website": "https://www.youtube.com/@WalrusGuy",
+    "handle": "@WalrusGuy",
+    "country": "US",
+    "language": "English",
+    "short_description": "Classic-era YTP legend famous for the 'Robotnik / Spaghetti' and CD-i Zelda poops."
+  },
+  "Hurricoaster": {
+    "website": "https://www.youtube.com/@Hurricoaster",
+    "handle": "@Hurricoaster",
+    "country": "US",
+    "language": "English",
+    "short_description": "Veteran pooper known for SpongeBob and crossover collab tennis matches."
+  },
+  "Stegblob": {
+    "website": "https://www.youtube.com/@Stegblob",
+    "handle": "@Stegblob",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Australian YTP creator known for surreal sentence-mixing and high production value."
+  },
+  "EmpLemon": {
+    "website": "https://www.youtube.com/@EmpLemon",
+    "handle": "@EmpLemon",
+    "country": "US",
+    "language": "English",
+    "short_description": "Emperor Lemon — acclaimed pooper turned video essayist, known for the 'Frank' and Robotnik series."
+  },
+  "Deepercutt": {
+    "website": "https://www.youtube.com/@deepercutt",
+    "handle": "@deepercutt",
+    "country": "US",
+    "language": "English",
+    "short_description": "Old-school YTP creator known for educational/PSA source poops."
+  },
+  "MoBrosStudios": {
+    "website": "https://www.youtube.com/@MoBrosStudios",
+    "handle": "@MoBrosStudios",
+    "country": "US",
+    "language": "English",
+    "short_description": "Long-running poop channel known for SpongeBob and Mario sources."
+  },
+  "AmbassadorHawk": {
+    "website": "https://www.youtube.com/@AmbassadorHawk",
+    "handle": "@AmbassadorHawk",
+    "country": "US",
+    "language": "English",
+    "short_description": "Prolific pooper and collab host, known for political and pop-culture sources."
+  },
+  "KroboProductions": {
+    "website": "https://www.youtube.com/@KroboProductions",
+    "handle": "@KroboProductions",
+    "country": "US",
+    "language": "English",
+    "short_description": "Classic YTP creator known for SpongeBob and Mario CD-i poops."
+  },
+  "Spadinner": {
+    "website": "https://www.youtube.com/@Spadinner",
+    "handle": "@Spadinner",
+    "country": "US",
+    "language": "English",
+    "short_description": "Modern YTP creator known for clean, music-driven sentence mixing."
+  },
+  "TerminalMontage": {
+    "website": "https://www.youtube.com/@TerminalMontage",
+    "handle": "@TerminalMontage",
+    "country": "US",
+    "language": "English",
+    "short_description": "'Something About' animator with strong YTP roots and absurdist game parodies."
+  },
+  "SiIvaGunner": {
+    "website": "https://www.youtube.com/@SiIvaGunner",
+    "handle": "@SiIvaGunner",
+    "country": "US",
+    "language": "English",
+    "short_description": "High Quality Video Game Rips collective — the spiritual successor to GiIvaSunner and a YTPMV staple."
+  },
+  "Triple-Q": {
+    "website": "https://www.youtube.com/@TripleQ",
+    "handle": "@TripleQ",
+    "country": "US",
+    "language": "English",
+    "short_description": "YTPMV and remix creator known for high-energy musical edits."
+  },
+  "HotDiggedyDemon": {
+    "website": "https://www.youtube.com/@HotDiggedyDemon",
+    "handle": "@HotDiggedyDemon",
+    "country": "US",
+    "language": "English",
+    "short_description": "Max Gilardi — animator with early YTP roots and absurdist editing influence."
+  },
+  "Steviemaxwell": {
+    "website": "https://www.youtube.com/@Steviemaxwell",
+    "handle": "@Steviemaxwell",
+    "country": "GB",
+    "language": "English",
+    "short_description": "UK pooper known for British TV and movie sources."
+  },
+  "DELTARENDER": {
+    "website": "https://www.youtube.com/@DELTARENDER",
+    "handle": "@DELTARENDER",
+    "country": "US",
+    "language": "English",
+    "short_description": "Modern YTPMV/remix creator known for technically intricate musical edits."
+  }
+}

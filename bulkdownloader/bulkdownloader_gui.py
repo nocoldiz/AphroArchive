@@ -71,11 +71,20 @@ BORDER = '#d1d5db'
 LOG_BG = '#1e1e1e'
 LOG_FG = '#d4d4d4'
 
-FONT = ('Segoe UI', 10)
-FONT_BOLD = ('Segoe UI', 10, 'bold')
-FONT_HEADER = ('Segoe UI', 15, 'bold')
-FONT_SUB = ('Segoe UI', 9)
-FONT_MONO = ('Consolas', 9)
+# Pick fonts that actually exist on the host OS — Segoe UI/Consolas are
+# Windows-only and fall back to ugly defaults on macOS/Linux.
+if sys.platform == 'darwin':
+    _UI_FONT, _MONO_FONT = 'Helvetica Neue', 'Menlo'
+elif sys.platform == 'win32':
+    _UI_FONT, _MONO_FONT = 'Segoe UI', 'Consolas'
+else:
+    _UI_FONT, _MONO_FONT = 'DejaVu Sans', 'DejaVu Sans Mono'
+
+FONT = (_UI_FONT, 10)
+FONT_BOLD = (_UI_FONT, 10, 'bold')
+FONT_HEADER = (_UI_FONT, 15, 'bold')
+FONT_SUB = (_UI_FONT, 9)
+FONT_MONO = (_MONO_FONT, 9)
 
 
 def _python_bin():

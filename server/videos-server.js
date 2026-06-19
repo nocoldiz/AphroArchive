@@ -32,7 +32,7 @@ const {
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
   upsertFileMeta,
-  loadEnabledFolders,
+  loadEnabledFolders, saveEnabledFolders,
   getSingleVideoMeta,
 } = require('./db-server');
 
@@ -65,6 +65,54 @@ function isFolderEnabled(catPath, enabledPaths) {
     const epLo = String(ep).toLowerCase().replace(/\\/g, '/');
     return pathLo === epLo || pathLo.startsWith(epLo + '/');
   });
+}
+
+// Enumerate every folder path (forward-slash, relative) across VIDEOS_DIR and
+// configured source folders, skipping the vault, ignored and `hidden` dirs.
+// Used to seed the per-profile enabled-folders allowlist when hiding a folder.
+async function collectAllFolderPaths() {
+  const seen = new Set();
+  const out = [];
+  const add = (rel) => {
+    const key = getCatKey(rel);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(rel.replace(/\\/g, '/'));
+  };
+
+  async function walk(dir, rel, external) {
+    if (!fs.existsSync(dir)) return;
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue;
+        if (isHiddenFolderName(ent.name)) continue;
+        const subRel = rel ? rel + '/' + ent.name : ent.name;
+        const full = path.join(dir, ent.name);
+        if (!external) {
+          if (path.resolve(full) === path.resolve(VAULT_DIR)) continue;
+          if (path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
+        }
+        add(subRel);
+        await walk(full, subRel, external);
+      }
+    } catch (e) {
+      console.error('[collectAllFolderPaths]', dir, e.message);
+    }
+  }
+
+  await walk(VIDEOS_DIR, '', false);
+  try {
+    const prefs = loadPrefs();
+    if (Array.isArray(prefs.sourceFolders)) {
+      for (const folder of prefs.sourceFolders) {
+        if (fs.existsSync(folder)) await walk(folder, '', true);
+      }
+    }
+  } catch (e) {
+    console.error('[collectAllFolderPaths source]', e.message);
+  }
+  return out;
 }
 
 function getExistingTopLevelFolders(root) {
@@ -2717,13 +2765,27 @@ async function apiHideFolder(req, res) {
   const body = await readBody(req);
   const name = body.name;
   if (!name) return json(res, { error: 'name required' }, 400);
-  
-  const hidden = loadHidden();
-  if (!hidden.includes(name)) {
-    hidden.push(name);
-    saveHidden(hidden);
-    invalidateScanCache();
-  }
+
+  // Hiding disables the folder (and all of its subfolders) for the current
+  // profile by removing it from the per-profile enabled-folders allowlist.
+  // Every visibility gate in the app reads this allowlist (videos via
+  // isFolderEnabled, links/thumbnails via their own enabledSet), so the folder
+  // disappears everywhere — except the Vault, which lives in VAULT_DIR and is
+  // not gated by enabled_categories.
+  const target = String(name).replace(/\\/g, '/').toLowerCase();
+
+  // An empty allowlist means "show everything", so seed it with every folder
+  // first; otherwise hiding one folder would have no effect.
+  let enabled = loadEnabledFolders();
+  if (enabled.length === 0) enabled = await collectAllFolderPaths();
+
+  const next = enabled.filter(p => {
+    const pl = String(p).replace(/\\/g, '/').toLowerCase();
+    return pl !== target && !pl.startsWith(target + '/');
+  });
+
+  saveEnabledFolders(next);
+  invalidateScanCache();
   json(res, { ok: true });
 }
 

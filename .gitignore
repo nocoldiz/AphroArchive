@@ -44,6 +44,7 @@ android-app/www/index.html
 
 # ── Bulk downloader ──────────────────────────
 bulkdownloader/links_downloaded.txt
+bulkdownloader/links_failed.txt
 bulkdownloader/links_to_download.txt
 
 # ── Binaries ─────────────────────────────────

@@ -8689,6 +8689,12 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   border-color: var(--ac);
 }
 
+.filter-dropdown-search.sidebar-search {
+  padding: 4px 8px 6px;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
 .filter-dropdown-body {
   display: flex;
   flex-direction: column;

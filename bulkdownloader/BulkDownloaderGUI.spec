@@ -1,5 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
+import shutil
+
+# UPX corrupts/breaks binaries on macOS (dylib loading + codesigning) and is
+# usually absent on macOS/Linux, which would abort the build. Only enable it on
+# non-Darwin platforms when the upx executable is actually available.
+USE_UPX = sys.platform != 'darwin' and shutil.which('upx') is not None
 
 a = Analysis(
     ['bulkdownloader_gui.py'],
@@ -26,7 +32,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=USE_UPX,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,

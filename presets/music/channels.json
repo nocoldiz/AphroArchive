@@ -1,18 +1,212 @@
-﻿{
-  "Universal Music Group": {
-    "website": "https://www.universalmusic.com/",
-    "short_description": ""
+{
+  "NoCopyrightSounds": {
+    "website": "https://www.youtube.com/@NoCopyrightSounds",
+    "handle": "@NoCopyrightSounds",
+    "country": "GB",
+    "language": "English",
+    "short_description": "NCS — royalty-free electronic music for creators."
   },
-  "Sony Music Entertainment": {
-    "website": "https://www.sonymusic.com/",
-    "short_description": ""
+  "Monstercat": {
+    "website": "https://www.youtube.com/@Monstercat",
+    "handle": "@Monstercat",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Independent electronic music label — uncaged and instinct releases."
   },
-  "Warner Records": {
-    "website": "https://www.warnerrecords.com/",
-    "short_description": ""
+  "Trap Nation": {
+    "website": "https://www.youtube.com/@TrapNation",
+    "handle": "@TrapNation",
+    "country": "US",
+    "language": "English",
+    "short_description": "Influential electronic/trap music curation channel."
   },
-  "Def Jam Recordings": {
-    "website": "https://www.defjam.com/",
-    "short_description": ""
+  "MrSuicideSheep": {
+    "website": "https://www.youtube.com/@MrSuicideSheep",
+    "handle": "@MrSuicideSheep",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Long-running channel curating chill and electronic tracks."
+  },
+  "Majestic Casual": {
+    "website": "https://www.youtube.com/@majesticcasual",
+    "handle": "@majesticcasual",
+    "country": "DE",
+    "language": "English",
+    "short_description": "Tastemaker channel for indie, electronic, and chill music."
+  },
+  "COLORS": {
+    "website": "https://www.youtube.com/@COLORSxSTUDIOS",
+    "handle": "@COLORSxSTUDIOS",
+    "country": "DE",
+    "language": "English",
+    "short_description": "Minimalist live performance platform spotlighting global artists."
+  },
+  "NPR Music": {
+    "website": "https://www.youtube.com/@nprmusic",
+    "handle": "@nprmusic",
+    "country": "US",
+    "language": "English",
+    "short_description": "Home of the Tiny Desk Concerts and live sessions."
+  },
+  "Genius": {
+    "website": "https://www.youtube.com/@Genius",
+    "handle": "@Genius",
+    "country": "US",
+    "language": "English",
+    "short_description": "Lyric breakdowns, 'Verified', and 'Open Mic' artist features."
+  },
+  "Boiler Room": {
+    "website": "https://www.youtube.com/@boilerroom",
+    "handle": "@boilerroom",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Underground DJ sets and live electronic performances worldwide."
+  },
+  "Cercle": {
+    "website": "https://www.youtube.com/@Cercle",
+    "handle": "@Cercle",
+    "country": "FR",
+    "language": "English",
+    "short_description": "Electronic DJ sets filmed at iconic and scenic locations."
+  },
+  "Proximity": {
+    "website": "https://www.youtube.com/@Proximity",
+    "handle": "@Proximity",
+    "country": "US",
+    "language": "English",
+    "short_description": "Electronic music curation channel with a large following."
+  },
+  "Spinnin' Records": {
+    "website": "https://www.youtube.com/@SpinninRecords",
+    "handle": "@SpinninRecords",
+    "country": "NL",
+    "language": "English",
+    "short_description": "Major dance music label — house, EDM, and big-room releases."
+  },
+  "Ultra Music": {
+    "website": "https://www.youtube.com/@UltraMusic",
+    "handle": "@UltraMusic",
+    "country": "US",
+    "language": "English",
+    "short_description": "Electronic dance music label and festival brand."
+  },
+  "Anjunabeats": {
+    "website": "https://www.youtube.com/@Anjunabeats",
+    "handle": "@Anjunabeats",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Trance and progressive label founded by Above & Beyond."
+  },
+  "Anjunadeep": {
+    "website": "https://www.youtube.com/@anjunadeep",
+    "handle": "@anjunadeep",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Deep house and melodic electronic sister label to Anjunabeats."
+  },
+  "Ninja Tune": {
+    "website": "https://www.youtube.com/@ninjatune",
+    "handle": "@ninjatune",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Independent label spanning electronic, hip-hop, and experimental."
+  },
+  "Mad Decent": {
+    "website": "https://www.youtube.com/@maddecent",
+    "handle": "@maddecent",
+    "country": "US",
+    "language": "English",
+    "short_description": "Diplo's genre-blending dance and global music label."
+  },
+  "Defected Records": {
+    "website": "https://www.youtube.com/@defectedrecords",
+    "handle": "@defectedrecords",
+    "country": "GB",
+    "language": "English",
+    "short_description": "House music institution — releases and live events."
+  },
+  "Stones Throw Records": {
+    "website": "https://www.youtube.com/@stonesthrow",
+    "handle": "@stonesthrow",
+    "country": "US",
+    "language": "English",
+    "short_description": "Eclectic LA label rooted in hip-hop, soul, and beats."
+  },
+  "88rising": {
+    "website": "https://www.youtube.com/@88rising",
+    "handle": "@88rising",
+    "country": "US",
+    "language": "English",
+    "short_description": "Media company spotlighting Asian and Asian-American artists."
+  },
+  "T-Series": {
+    "website": "https://www.youtube.com/@tseries",
+    "handle": "@tseries",
+    "country": "IN",
+    "language": "Hindi",
+    "short_description": "India's largest music label — Bollywood songs and videos."
+  },
+  "Vevo": {
+    "website": "https://www.youtube.com/@Vevo",
+    "handle": "@Vevo",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official music video network across major artists and labels."
+  },
+  "KEXP": {
+    "website": "https://www.youtube.com/@kexp",
+    "handle": "@kexp",
+    "country": "US",
+    "language": "English",
+    "short_description": "Seattle public radio station's acclaimed live in-studio sessions."
+  },
+  "Mahogany": {
+    "website": "https://www.youtube.com/@MahoganySessions",
+    "handle": "@MahoganySessions",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Intimate live sessions spotlighting emerging singer-songwriters."
+  },
+  "La Blogotheque": {
+    "website": "https://www.youtube.com/@LaBlogotheque",
+    "handle": "@LaBlogotheque",
+    "country": "FR",
+    "language": "French",
+    "short_description": "'Take Away Shows' — spontaneous outdoor live performances."
+  },
+  "Audiotree": {
+    "website": "https://www.youtube.com/@audiotree",
+    "handle": "@audiotree",
+    "country": "US",
+    "language": "English",
+    "short_description": "Chicago-based live music sessions across indie and rock."
+  },
+  "Pitchfork": {
+    "website": "https://www.youtube.com/@pitchfork",
+    "handle": "@pitchfork",
+    "country": "US",
+    "language": "English",
+    "short_description": "Music journalism — reviews, documentaries, and interviews."
+  },
+  "Lofi Girl": {
+    "website": "https://www.youtube.com/@LofiGirl",
+    "handle": "@LofiGirl",
+    "country": "FR",
+    "language": "English",
+    "short_description": "The iconic lofi hip-hop radio livestreams and releases."
+  },
+  "Chillhop Music": {
+    "website": "https://www.youtube.com/@ChillhopMusic",
+    "handle": "@ChillhopMusic",
+    "country": "NL",
+    "language": "English",
+    "short_description": "Lofi, jazzhop, and chill instrumental beats label."
+  },
+  "The FADER": {
+    "website": "https://www.youtube.com/@thefader",
+    "handle": "@thefader",
+    "country": "US",
+    "language": "English",
+    "short_description": "Music culture outlet — interviews, documentaries, and sessions."
   }
 }
