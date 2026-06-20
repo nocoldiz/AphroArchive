@@ -3,7 +3,7 @@
 //  collections.js — Collections CRUD API handlers
 // ═══════════════════════════════════════════════════════════════════
 
-const { json, readBody }               = require('./helpers-server');
+const { json, jsonError, readBody, validateBody } = require('./helpers-server');
 const { loadCollections, saveCollections } = require('./db-server');
 const { allVideos }                    = require('./videos-server');
 
@@ -21,8 +21,9 @@ async function apiCollections(req, res) {
 
 async function apiCollectionCreate(req, res) {
   const data = await readBody(req);
-  const name = (data.name || '').trim();
-  if (!name) return json(res, { error: 'Name required' }, 400);
+  const v = validateBody(data, { name: { required: true, type: 'string' } });
+  if (!v.ok) return jsonError(res, v.error);
+  const name = v.value.name;
   const cols = loadCollections();
   if (cols.find(c => c.name === name)) return json(res, { error: 'Collection already exists' }, 400);
   cols.push({ name, ids: [] });

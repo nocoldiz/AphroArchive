@@ -6,9 +6,48 @@ const { VIDEOS_DIR, THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config-se
 const { cachedScan, invalidateScanCache } = require('./videos-server');
 const { toId } = require('./helpers-server');
 const { genThumbs } = require('./thumbnails-server');
+const { ensureAutoChaptersForVideo, hasAutoChapters } = require('./auto-chapters-server');
 const { execFile } = require('child_process');
 
 let _isProcessing = false;
+let _workerEnabled = false;
+let _intervalId = null;
+
+let _status = { active: false, task: '', detail: '' };
+
+function getBackgroundWorkerStatus() {
+  return _status;
+}
+
+function setStatus(task, detail = '') {
+  _status = { active: !!task, task: task || '', detail };
+  if (task) console.log(`Background worker: ${task}${detail ? ' — ' + detail : ''}`);
+}
+
+function apiBackgroundWorkerPoll(req, res) {
+  const { json } = require('./helpers-server');
+  json(res, { ..._status, enabled: _workerEnabled });
+}
+
+function apiBackgroundWorkerStart(req, res) {
+  const { json } = require('./helpers-server');
+  if (!_workerEnabled) {
+    console.log('[Sync] Starting Background Worker');
+    _workerEnabled = true;
+    if (_intervalId) clearInterval(_intervalId);
+    _intervalId = setInterval(() => { if (_workerEnabled) scanAndProcess(); }, 10 * 60 * 1000);
+    scanAndProcess();
+  }
+  json(res, { ok: true });
+}
+
+function apiBackgroundWorkerStop(req, res) {
+  const { json } = require('./helpers-server');
+  if (_workerEnabled) console.log('[Sync] Stopping Background Worker');
+  _workerEnabled = false;
+  if (_intervalId) { clearInterval(_intervalId); _intervalId = null; }
+  json(res, { ok: true });
+}
 
 function ffprobeSubtitles(fp) {
   return new Promise(resolve => {
@@ -46,7 +85,15 @@ async function scanAndProcess() {
   _isProcessing = true;
 
   try {
-    console.log('Background worker: Loading file index...');
+    // 0. Refresh remote RSS feeds → links (first step every run)
+    try {
+      setStatus('Refreshing RSS feeds');
+      await require('./rss-server').refreshFeeds();
+    } catch (e) {
+      console.error('Background worker: RSS refresh failed:', e.message);
+    }
+
+    setStatus('Loading file index');
     const allFiles = await cachedScan();
     const files = allFiles.filter(f => !f.isExternal && !f.encrypted);
     console.log(`Background worker: Found ${files.length} files.`);
@@ -62,7 +109,7 @@ async function scanAndProcess() {
         const thumbDir = path.join(THUMBS_DIR, id);
         const hasThumbs = fs.existsSync(thumbDir) && fs.readdirSync(thumbDir).some(f => f.endsWith('.jpg'));
         if (!hasThumbs) {
-          console.log(`Background worker: Generating thumbnails for ${file.rel}`);
+          setStatus('Generating thumbnails', file.rel);
           await genThumbs(id, fp);
           processedCount++;
         }
@@ -75,8 +122,18 @@ async function scanAndProcess() {
         if (!fs.existsSync(targetSub)) {
           const hasEmbeddedSubs = await ffprobeSubtitles(fp);
           if (hasEmbeddedSubs) {
-            console.log(`Background worker: Extracting subtitles for ${file.rel}`);
+            setStatus('Extracting subtitles', file.rel);
             await extractSubtitles(fp, targetSub);
+            processedCount++;
+          }
+        }
+
+        // 3. Scene Detection (auto chapters)
+        if (!hasAutoChapters(id)) {
+          setStatus('Scene detection', file.rel);
+          const detected = await ensureAutoChaptersForVideo(id, fp);
+          if (detected) {
+            console.log(`Background worker: Scene detection done for ${file.rel}`);
             processedCount++;
           }
         }
@@ -85,16 +142,16 @@ async function scanAndProcess() {
       }
     }
 
-    // 3. Scrape Actor Info
-    console.log('Background worker: Checking actors for missing info...');
+    // 4. Scrape Actor Info
+    setStatus('Checking actors for missing info');
     const { loadActors } = require('./db-server');
     const { scrapeAndSaveActorInfo } = require('./actors-server');
     const actorsList = loadActors();
-    
+
     let scrapedAny = false;
     for (const actor of actorsList) {
       if (actor.age === null && !actor.nationality && !actor.imdb_page) {
-        console.log(`Background worker: Scraping info for actor ${actor.name}`);
+        setStatus('Scraping actor info', actor.name);
         const success = await scrapeAndSaveActorInfo(actor.name);
         if (success) {
           scrapedAny = true;
@@ -102,7 +159,7 @@ async function scanAndProcess() {
         }
       }
     }
-    
+
     if (!scrapedAny) {
       console.log('Background worker: No actors needed scraping or scraping failed.');
     }
@@ -116,16 +173,14 @@ async function scanAndProcess() {
   } catch (e) {
     console.error('Background worker error:', e);
   } finally {
+    setStatus(null);
     _isProcessing = false;
   }
 }
 
 function startBackgroundWorker() {
-  // Run every 10 minutes
-  setInterval(scanAndProcess, 10 * 60 * 1000);
-  // First run after a 30s delay so the page is fully usable first
-  setTimeout(scanAndProcess, 30000);
-  console.log('Background worker started (running every 10 minutes)');
+  // Starts stopped — user enables it from Sync & Background Tasks.
+  console.log('Background worker initialized (disabled by default)');
 }
 
-module.exports = { startBackgroundWorker };
+module.exports = { startBackgroundWorker, getBackgroundWorkerStatus, apiBackgroundWorkerPoll, apiBackgroundWorkerStart, apiBackgroundWorkerStop };

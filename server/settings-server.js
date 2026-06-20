@@ -1,19 +1,21 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  settings.js — Settings lists, hidden terms, prefs API handlers
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
-const { VIDEOS_DIR } = require('./config-server');
+const path = require('path');
+const { VIDEOS_DIR, PATHS_FILE, CACHE_DIR, DB_DIR, VAULT_DIR,
+        DEFAULT_CACHE_DIR, DEFAULT_DB_DIR, DEFAULT_VAULT_DIR } = require('./config-server');
 const { json, readBody }  = require('./helpers-server');
-const { loadPrefs, savePrefs, loadHidden, saveHidden, loadCategories, loadActors, loadStudios, loadVaultConfig } = require('./db-server');
+const { loadPrefs, savePrefs, loadHidden, saveHidden, loadFolderMappings, loadActors, loadChannels, loadVaultConfig } = require('./db-server');
 
 function apiSettingsLists(req, res) {
   json(res, {
     hidden:     loadHidden().join('\n'),
-    categories: loadCategories().map(c => c.name).join('\n'),
+    categories: loadFolderMappings().map(c => c.name).join('\n'),
     actors:     loadActors().map(a => a.name).join('\n'),
-    studios:    loadStudios().map(s => s.name).join('\n'),
+    channels:    loadChannels().map(s => s.name).join('\n'),
   });
 }
 
@@ -45,22 +47,17 @@ async function apiSavePrefs(req, res) {
     if (!CHRON_MODES.has(body.chronologyMode)) return json(res, { error: 'Invalid value' }, 400);
     prefs.chronologyMode = body.chronologyMode;
   }
-  if ('aiCommentsEnabled' in body) {
-    const wasEnabled = !!prefs.aiCommentsEnabled;
-    prefs.aiCommentsEnabled = !!body.aiCommentsEnabled;
-    if (!wasEnabled && prefs.aiCommentsEnabled) {
-      const comments = require('./comments-server');
-      comments.reinitIfNeeded();
-    }
-  }
+  if ('aiCommentsEnabled' in body) prefs.aiCommentsEnabled = !!body.aiCommentsEnabled;
   if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   if ('vaultSelfDestruct' in body) prefs.vaultSelfDestruct = !!body.vaultSelfDestruct;
+  if ('vaultTimeoutMinutes' in body) {
+    // Auto-lock period in minutes. 0 disables auto-lock. Clamp to a sane range.
+    const n = Number(body.vaultTimeoutMinutes);
+    if (Number.isFinite(n) && n >= 0) prefs.vaultTimeoutMinutes = Math.min(n, 24 * 60);
+  }
   if ('anthropicApiKey' in body) prefs.anthropicApiKey = String(body.anthropicApiKey || '').trim();
   if ('openrouterApiKey' in body) prefs.openrouterApiKey = String(body.openrouterApiKey || '').trim();
   if ('openrouterModel' in body) prefs.openrouterModel = String(body.openrouterModel || '').trim();
-  if ('visionProvider' in body) prefs.visionProvider = body.visionProvider === 'claude' ? 'claude' : 'ollama';
-  if ('ollamaUrl' in body) prefs.ollamaUrl = String(body.ollamaUrl || '').trim();
-  if ('ollamaVisionModel' in body) prefs.ollamaVisionModel = String(body.ollamaVisionModel || '').trim();
   if ('networkEnabled' in body)   prefs.networkEnabled   = !!body.networkEnabled;
   if ('aiCommentMasterPrompt' in body) prefs.aiCommentMasterPrompt = String(body.aiCommentMasterPrompt || '').trim();
   if ('aiReplyMasterPrompt' in body)   prefs.aiReplyMasterPrompt   = String(body.aiReplyMasterPrompt || '').trim();
@@ -73,47 +70,97 @@ async function apiSavePrefs(req, res) {
       } catch (e) {}
     }
   }
+  if ('feedFolders' in body && Array.isArray(body.feedFolders)) {
+    prefs.feedFolders = body.feedFolders.map(p => String(p).trim()).filter(Boolean);
+  }
+  if ('privateFeedFolders' in body && Array.isArray(body.privateFeedFolders)) {
+    prefs.privateFeedFolders = body.privateFeedFolders.map(p => String(p).trim()).filter(Boolean);
+  }
+  if ('vaultFeedFolder' in body) prefs.vaultFeedFolder = String(body.vaultFeedFolder || '').trim();
+  if ('rssFeeds' in body && Array.isArray(body.rssFeeds)) {
+    prefs.rssFeeds = body.rssFeeds
+      .filter(f => f && f.url)
+      .map(f => ({ url: String(f.url).trim(), name: String(f.name || '').trim(), category: String(f.category || '').trim() }))
+      .slice(0, 200);
+  }
   if ('defaultRoot' in body || 'defaultPath' in body || 'defaultWriteRoot' in body) {
     const val = body.defaultRoot ?? body.defaultPath ?? body.defaultWriteRoot ?? '';
     prefs.defaultRoot = val ? String(val).trim() : '';
-  }
-  let feedFoldersChanged = false;
-  if ('feedFolders' in body) {
-    if (Array.isArray(body.feedFolders)) {
-      prefs.feedFolders = body.feedFolders.map(p => String(p).trim()).filter(Boolean);
-      feedFoldersChanged = true;
-    }
-  }
-  if ('privateFeedFolders' in body) {
-    if (Array.isArray(body.privateFeedFolders)) {
-      prefs.privateFeedFolders = body.privateFeedFolders.map(p => String(p).trim()).filter(Boolean);
-      feedFoldersChanged = true;
-    }
   }
   // New assistant prefs (nsfw switch, jailbreak/system prompt mode, story genre) for AssistantView.tsx
   if ('assistantNsfw' in body) prefs.assistantNsfw = !!body.assistantNsfw;
   if ('assistantSystemMode' in body) prefs.assistantSystemMode = String(body.assistantSystemMode || 'default');
   if ('assistantStoryGenre' in body) prefs.assistantStoryGenre = String(body.assistantStoryGenre || 'Any');
-  if ('llamaModelUri' in body) prefs.llamaModelUri = String(body.llamaModelUri || '').trim();
   if ('theme' in body) prefs.theme = String(body.theme || '').trim();
   if ('cardSize' in body && !isNaN(parseInt(body.cardSize, 10))) prefs.cardSize = parseInt(body.cardSize, 10);
   if ('isMuted' in body) prefs.isMuted = !!body.isMuted;
   if ('thumbBlurMode' in body) prefs.thumbBlurMode = String(body.thumbBlurMode || 'show').trim();
-  if ('comfyuiPath' in body) {
-    prefs.comfyuiPath = String(body.comfyuiPath || '').trim();
-    try {
-      const imagegen = require('./imagegen-server');
-      imagegen.applyComfyuiPath(prefs.comfyuiPath);
-    } catch {}
+  if ('sidebarSide' in body) prefs.sidebarSide = body.sidebarSide === 'right' ? 'right' : 'left';
+  if ('sidebarReveal' in body) prefs.sidebarReveal = body.sidebarReveal === 'hover' ? 'hover' : 'fixed';
+  if ('comfyuiUrl' in body) prefs.comfyuiUrl = String(body.comfyuiUrl || '').trim();
+  if ('comfyuiWorkflowJson' in body) prefs.comfyuiWorkflowJson = String(body.comfyuiWorkflowJson || '').trim();
+  if ('comfyuiPositiveNodeId' in body) prefs.comfyuiPositiveNodeId = String(body.comfyuiPositiveNodeId || '').trim();
+  if ('disabledPlugins' in body) {
+    if (Array.isArray(body.disabledPlugins)) prefs.disabledPlugins = body.disabledPlugins.map(String);
   }
+  // Per-item topbar/sidebar placement overrides ({ [id]: 'topbar' | 'sidebar' }).
+  if ('itemPlacements' in body) {
+    const out = {};
+    const src = body.itemPlacements;
+    if (src && typeof src === 'object' && !Array.isArray(src)) {
+      for (const k of Object.keys(src)) {
+        const v = src[k];
+        if (v === 'topbar' || v === 'sidebar') out[String(k)] = v;
+      }
+    }
+    prefs.itemPlacements = out;
+  }
+  if ('sectionPlacements' in body) {
+    const out = {};
+    const src = body.sectionPlacements;
+    if (src && typeof src === 'object' && !Array.isArray(src)) {
+      for (const k of Object.keys(src)) {
+        const v = src[k];
+        if ((k === 'library' || k === 'media' || k === 'tools') && (v === 'topbar' || v === 'sidebar')) out[String(k)] = v;
+      }
+    }
+    prefs.sectionPlacements = out;
+  }
+  // Home dashboard widget layout (opaque array of widget instances).
+  if ('homeDashboard' in body) {
+    prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];
+  }
+  // Nav item ordering within each bar section ({ sidebar_library: [...ids], topbar: [...ids], ... }).
+  if ('collapsedDropdowns' in body) {
+    if (Array.isArray(body.collapsedDropdowns)) prefs.collapsedDropdowns = body.collapsedDropdowns.map(String).filter(Boolean).slice(0, 50);
+  }
+  if ('navOrder' in body) {
+    const src = body.navOrder;
+    if (src && typeof src === 'object' && !Array.isArray(src)) {
+      const validKeys = new Set(['sidebar_library', 'sidebar_media', 'sidebar_tools', 'topbar']);
+      const out = {};
+      for (const k of Object.keys(src)) {
+        if (validKeys.has(k) && Array.isArray(src[k])) {
+          out[k] = src[k].map(String).filter(s => s.length > 0 && s.length < 100).slice(0, 100);
+        }
+      }
+      prefs.navOrder = out;
+    }
+  }
+  if ('autoChapterDetection' in body) prefs.autoChapterDetection = !!body.autoChapterDetection;
+  if ('pinnedFolders' in body) {
+    if (Array.isArray(body.pinnedFolders)) prefs.pinnedFolders = body.pinnedFolders.map(String).filter(Boolean).slice(0, 100);
+  }
+  if ('pinnedTags' in body) {
+    if (Array.isArray(body.pinnedTags)) prefs.pinnedTags = body.pinnedTags.map(String).filter(Boolean).slice(0, 100);
+  }
+  if ('whisperEnabled' in body) prefs.whisperEnabled = !!body.whisperEnabled;
+  if ('whisperModel' in body) {
+    const valid = new Set(['tiny', 'base', 'small', 'medium', 'large', 'turbo']);
+    if (valid.has(body.whisperModel)) prefs.whisperModel = body.whisperModel;
+  }
+  if ('whisperLanguage' in body) prefs.whisperLanguage = String(body.whisperLanguage || 'auto').trim().slice(0, 10);
   savePrefs(prefs);
-  if (feedFoldersChanged) {
-    try {
-      const fw = require('./feed-watcher-server');
-      fw.stopWatchers();
-      fw.startWatchers(loadPrefs());
-    } catch (e) {}
-  }
   json(res, { ok: true });
 }
 
@@ -180,12 +227,13 @@ function apiBrowseFoldersNative(req, res) {
   const { exec } = require('child_process');
   const scriptLines = [
     'Add-Type -AssemblyName System.Windows.Forms',
-    '$fb = New-Object System.Windows.Forms.FolderBrowserDialog',
-    '$fb.Description = "Select Folder"',
     '$owner = New-Object System.Windows.Forms.Form',
     '$owner.TopMost = $true',
     '$owner.StartPosition = "CenterScreen"',
-    '$owner.Width = 0; $owner.Height = 0; $owner.ShowInTaskbar = $false',
+    '$owner.Width = 1; $owner.Height = 1; $owner.ShowInTaskbar = $false',
+    '$owner.Show()',
+    '$fb = New-Object System.Windows.Forms.FolderBrowserDialog',
+    '$fb.Description = "Select Folder"',
     'if ($fb.ShowDialog($owner) -eq "OK") { $fb.SelectedPath }',
     '$owner.Dispose()',
   ].join('\n');
@@ -200,4 +248,34 @@ function apiBrowseFoldersNative(req, res) {
   });
 }
 
-module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative, apiVerifyVaultPassword };
+function apiGetPaths(req, res) {
+  let cfg = {};
+  try { cfg = fs.existsSync(PATHS_FILE) ? JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8')) : {}; } catch {}
+  json(res, {
+    cacheDir: CACHE_DIR,
+    dbDir:    DB_DIR,
+    vaultDir: VAULT_DIR,
+    defaults: { cacheDir: DEFAULT_CACHE_DIR, dbDir: DEFAULT_DB_DIR, vaultDir: DEFAULT_VAULT_DIR },
+    custom:   { cacheDir: cfg.cacheDir || '', dbDir: cfg.dbDir || '', vaultDir: cfg.vaultDir || '' },
+    exists:   { cacheDir: fs.existsSync(CACHE_DIR), dbDir: fs.existsSync(DB_DIR), vaultDir: fs.existsSync(VAULT_DIR) },
+  });
+}
+
+async function apiSavePaths(req, res) {
+  const body = await readBody(req);
+  let cfg = {};
+  try { cfg = fs.existsSync(PATHS_FILE) ? JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8')) : {}; } catch {}
+  if ('cacheDir' in body) cfg.cacheDir = String(body.cacheDir || '').trim();
+  if ('dbDir'    in body) cfg.dbDir    = String(body.dbDir    || '').trim();
+  if ('vaultDir' in body) cfg.vaultDir = String(body.vaultDir || '').trim();
+  // Remove empty keys so defaults take effect
+  for (const k of ['cacheDir', 'dbDir', 'vaultDir']) { if (!cfg[k]) delete cfg[k]; }
+  try {
+    fs.writeFileSync(PATHS_FILE, JSON.stringify(cfg, null, 2), 'utf8');
+    json(res, { ok: true, restartRequired: true });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+module.exports = { apiSettingsLists, apiSettingsSave, apiGetPrefs, apiSavePrefs, apiBrowseFolders, apiBrowseFoldersNative, apiVerifyVaultPassword, apiGetPaths, apiSavePaths };

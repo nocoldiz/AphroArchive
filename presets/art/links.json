@@ -1,0 +1,15 @@
+[
+  { "url": "https://www.youtube.com/@bobross_thejoyofpainting", "title": "Bob Ross — The Joy of Painting", "category": "Painting", "hasVideo": true, "tags": ["painting", "oil"] },
+  { "url": "https://www.youtube.com/@JamesGurney", "title": "James Gurney — Plein Air", "category": "Painting", "hasVideo": true, "tags": ["painting", "color"] },
+  { "url": "https://www.youtube.com/@ProkoTV", "title": "Proko — Figure Drawing", "category": "Drawing", "hasVideo": true, "tags": ["drawing", "anatomy"] },
+  { "url": "https://www.youtube.com/@Ctrlpaint", "title": "Ctrl+Paint — Fundamentals", "category": "Drawing", "hasVideo": true, "tags": ["drawing", "digital"] },
+  { "url": "https://www.youtube.com/@sinixdesign", "title": "Sinix Design", "category": "Digital Art", "hasVideo": true, "tags": ["digital", "portrait"] },
+  { "url": "https://www.youtube.com/@RossDraws", "title": "RossDraws", "category": "Digital Art", "hasVideo": true, "tags": ["digital", "concept"] },
+  { "url": "https://www.youtube.com/@marcobucci", "title": "Marco Bucci — Colour & Light", "category": "Digital Art", "hasVideo": true, "tags": ["digital", "color"] },
+  { "url": "https://www.youtube.com/@AhmedAldoori", "title": "Ahmed Aldoori — Concept Art", "category": "Digital Art", "hasVideo": true, "tags": ["concept"] },
+  { "url": "https://www.youtube.com/@GreatArtExplained", "title": "Great Art Explained", "category": "Art History", "hasVideo": true, "tags": ["history", "essay"] },
+  { "url": "https://www.youtube.com/@theartassignment", "title": "The Art Assignment (PBS)", "category": "Art History", "hasVideo": true, "tags": ["history", "education"] },
+  { "url": "https://www.youtube.com/@BaumgartnerRestoration", "title": "Baumgartner Restoration", "category": "Art History", "hasVideo": true, "tags": ["restoration"] },
+  { "url": "https://www.youtube.com/@Drawfee", "title": "Drawfee Show", "category": "Crafts", "hasVideo": true, "tags": ["challenge", "comedy"] },
+  { "url": "https://www.youtube.com/@Jazza", "title": "Draw with Jazza", "category": "Crafts", "hasVideo": true, "tags": ["challenge", "diy"] }
+]

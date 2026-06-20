@@ -1,19 +1,35 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
-//  database.js — CRUD API for actors/categories/studios JSON files
+//  database.js — CRUD API for actors/categories/channels JSON files
 //                and direct video file import from local paths
 // ═══════════════════════════════════════════════════════════════════
+
+function channelToJson(s) {
+  return {
+    website: s.website || null,
+    short_description: s.description || null,
+    handle: s.handle || null,
+    channel_id: s.channel_id || null,
+    country: s.country || null,
+    language: s.language || null,
+    subscribers: s.subscribers || null,
+    upload_schedule: s.upload_schedule || null,
+    joined: s.joined || null,
+    total_views: s.total_views || null,
+    social_links: s.social_links || null,
+  };
+}
 
 const fs   = require('fs');
 const path = require('path');
 const { VIDEOS_DIR, VIDEO_EXT } = require('./config-server');
 const { invalidateScanCache } = require('./videos-server');
-const { json, readBody } = require('./helpers-server');
+const { json, jsonError, readBody, LIMITS } = require('./helpers-server');
 const {
   loadActors, saveActors,
   loadWebsites, saveWebsites,
-  loadCategories, saveCategories,
-  loadStudios, saveStudios,
+  loadFolderMappings, saveFolderMappings,
+  loadChannels, saveChannels,
   invalidateDbTypeCache,
 } = require('./db-server');
 
@@ -25,15 +41,15 @@ function apiDbGet(req, res, type) {
     return json(res, obj);
   }
   if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     const obj = {};
     cats.forEach(c => { obj[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     return json(res, obj);
   }
-  if (type === 'studios') {
-    const studios = loadStudios();
+  if (type === 'channels') {
+    const channels = loadChannels();
     const obj = {};
-    studios.forEach(s => { obj[s.name] = { website: s.website, short_description: s.description }; });
+    channels.forEach(s => { obj[s.name] = channelToJson(s); });
     return json(res, obj);
   }
   if (type === 'actors') {
@@ -48,7 +64,8 @@ function apiDbGet(req, res, type) {
 async function apiDbUpsert(req, res, type) {
   const body = await readBody(req);
   const { name, data, oldName } = body;
-  if (!name || typeof name !== 'string') return json(res, { error: 'Name required' }, 400);
+  if (!name || typeof name !== 'string') return jsonError(res, 'Name required');
+  if (name.length > LIMITS.name) return jsonError(res, `Name is too long (max ${LIMITS.name} characters)`);
 
   if (type === 'websites') {
     const sites = loadWebsites();
@@ -60,20 +77,20 @@ async function apiDbUpsert(req, res, type) {
     return json(res, { ok: true });
   }
   if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     const raw = {};
     cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     raw[name] = data || {};
-    saveCategories(raw);
+    saveFolderMappings(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
-  if (type === 'studios') {
-    const studios = loadStudios();
+  if (type === 'channels') {
+    const channels = loadChannels();
     const raw = {};
-    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    channels.forEach(s => { raw[s.name] = channelToJson(s); });
     raw[name] = data || {};
-    saveStudios(raw);
+    saveChannels(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
@@ -96,20 +113,20 @@ async function apiDbDelete(req, res, type, name) {
     return json(res, { ok: true });
   }
   if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     const raw = {};
     cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     delete raw[name];
-    saveCategories(raw);
+    saveFolderMappings(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
-  if (type === 'studios') {
-    const studios = loadStudios();
+  if (type === 'channels') {
+    const channels = loadChannels();
     const raw = {};
-    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    channels.forEach(s => { raw[s.name] = channelToJson(s); });
     delete raw[name];
-    saveStudios(raw);
+    saveChannels(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
   }
@@ -147,25 +164,25 @@ async function apiDbImport(req, res) {
   json(res, { results });
 }
 
-function apiGetCategoryTags(req, res) {
+function apiGetFolderTags(req, res) {
   const url = new URL('http://x' + req.url);
-  const catPath = (url.searchParams.get('path') || '').trim();
-  const cats = loadCategories();
-  const pathLo = catPath.toLowerCase();
+  const folderPath = (url.searchParams.get('path') || '').trim();
+  const cats = loadFolderMappings();
+  const pathLo = folderPath.toLowerCase();
   const matched = cats.find(c =>
     (c.displayName || '').toLowerCase() === pathLo ||
     c.name.toLowerCase() === pathLo
   );
-  if (!matched) return json(res, { found: false, name: catPath, displayName: catPath, tags: [] });
+  if (!matched) return json(res, { found: false, name: folderPath, displayName: folderPath, tags: [] });
   json(res, { found: true, name: matched.name, displayName: matched.displayName, tags: matched.terms.slice(1) });
 }
 
-async function apiUpdateCategoryTags(req, res) {
+async function apiUpdateFolderTags(req, res) {
   const body = await readBody(req);
-  const { catPath, tags } = body;
-  if (!catPath || typeof catPath !== 'string') return json(res, { error: 'catPath required' }, 400);
-  const cats = loadCategories();
-  const pathLo = catPath.toLowerCase();
+  const { folderPath, tags } = body;
+  if (!folderPath || typeof folderPath !== 'string') return json(res, { error: 'folderPath required' }, 400);
+  const cats = loadFolderMappings();
+  const pathLo = folderPath.toLowerCase();
   const matched = cats.find(c =>
     (c.displayName || '').toLowerCase() === pathLo ||
     c.name.toLowerCase() === pathLo
@@ -176,9 +193,9 @@ async function apiUpdateCategoryTags(req, res) {
   if (matched) {
     raw[matched.name] = { displayName: matched.displayName, tags: cleanTags };
   } else {
-    raw[catPath] = { displayName: catPath, tags: cleanTags };
+    raw[folderPath] = { displayName: folderPath, tags: cleanTags };
   }
-  saveCategories(raw);
+  saveFolderMappings(raw);
   invalidateDbTypeCache('categories');
   json(res, { ok: true });
 }
@@ -190,13 +207,13 @@ function apiDbExportJson(req, res, type) {
     data = {};
     actors.forEach(a => { data[a.name] = { date_of_birth: a.date_of_birth || null, nationality: a.nationality || null, imdb_page: a.imdb_page || null }; });
   } else if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     data = {};
     cats.forEach(c => { data[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
-  } else if (type === 'studios') {
-    const studios = loadStudios();
+  } else if (type === 'channels') {
+    const channels = loadChannels();
     data = {};
-    studios.forEach(s => { data[s.name] = { website: s.website || null, short_description: s.description || null }; });
+    channels.forEach(s => { data[s.name] = channelToJson(s); });
   } else if (type === 'websites') {
     data = loadWebsites();
   } else {
@@ -225,17 +242,17 @@ async function apiDbImportJson(req, res, type) {
     Object.assign(raw, body);
     saveActors(raw);
   } else if (type === 'categories') {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     const raw = {};
     cats.forEach(c => { raw[c.name] = { displayName: c.displayName, tags: c.terms.slice(1) }; });
     Object.assign(raw, body);
-    saveCategories(raw);
-  } else if (type === 'studios') {
-    const studios = loadStudios();
+    saveFolderMappings(raw);
+  } else if (type === 'channels') {
+    const channels = loadChannels();
     const raw = {};
-    studios.forEach(s => { raw[s.name] = { website: s.website, short_description: s.description }; });
+    channels.forEach(s => { raw[s.name] = channelToJson(s); });
     Object.assign(raw, body);
-    saveStudios(raw);
+    saveChannels(raw);
   } else {
     return json(res, { error: 'Unknown type' }, 400);
   }
@@ -243,4 +260,4 @@ async function apiDbImportJson(req, res, type) {
   return json(res, { ok: true, count: Object.keys(body).length });
 }
 
-module.exports = { apiDbGet, apiDbUpsert, apiDbDelete, apiDbImport, apiGetCategoryTags, apiUpdateCategoryTags, apiDbExportJson, apiDbImportJson };
+module.exports = { apiDbGet, apiDbUpsert, apiDbDelete, apiDbImport, apiGetFolderTags, apiUpdateFolderTags, apiDbExportJson, apiDbImportJson };

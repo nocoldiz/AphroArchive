@@ -1,27 +1,25 @@
-﻿import { useState, useEffect, useRef } from 'preact/hooks';
-import { categories, loadVideos } from '../../store';
+import { useState, useEffect, useRef } from 'preact/hooks';
+import { folders, loadVideos } from '../../store';
 
 interface DownloadJob {
   id: string;
   url: string;
   title: string;
   category: string;
-  status: 'queued' | 'running' | 'done' | 'error';
+  status: 'queued' | 'running' | 'paused' | 'done' | 'error';
   progress: number;
   speed?: string;
   eta?: string;
   error?: string;
   videoId?: string;
   movedTo?: string;
+  kind?: 'video' | 'file';
+  mediaType?: 'audio' | 'book' | 'photo' | 'file';
 }
 
-interface BulkStatus {
-  running: boolean;
-  done: number;
-  total: number;
-  current: string;
-  log: string[];
-}
+const MEDIA_TYPE_LABEL: Record<string, string> = {
+  audio: 'Audio', book: 'Book', photo: 'Photo', file: 'File',
+};
 
 function suggestCategory(title: string, cats: any[]): string {
   const norm = title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -32,36 +30,31 @@ function suggestCategory(title: string, cats: any[]): string {
   return '';
 }
 
-function ProgressBar({ done = 0, total = 0, color = 'var(--ac)' }: { done?: number; total?: number; color?: string }) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  return (
-    <div style={{ height: '3px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden', marginTop: '2px' }}>
-      <div style={{ width: `${pct}%`, height: '100%', background: color, transition: 'width 0.4s' }} />
-    </div>
-  );
-}
-
 const DL_STATUS_COLOR: Record<string, string> = {
-  done: '#1a7a3a', error: '#a11', running: 'var(--ac)', queued: 'var(--bg3)',
+  done: '#1a7a3a', error: '#a11', running: 'var(--ac)', queued: 'var(--bg3)', paused: '#b45309',
 };
+
+interface ModelDownload {
+  model: string;
+  progress: number;
+  status: 'downloading' | 'done' | 'error';
+  error?: string | null;
+}
 
 export const DownloadManager = () => {
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
+  const [models, setModels] = useState<ModelDownload[]>([]);
   const [open, setOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<Record<string, string>>({});
-  const [bulk, setBulk] = useState<BulkStatus>({ running: false, done: 0, total: 0, current: '', log: [] });
-  const [bulkUrls, setBulkUrls] = useState('');
-  const [showBulkInput, setShowBulkInput] = useState(false);
+  const [newUrls, setNewUrls] = useState('');
+  const [newCategory, setNewCategory] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
   const prevJobStatuses = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const [dlRes, blkRes] = await Promise.all([
-          fetch('/api/download/jobs'),
-          fetch('/api/bulk-download/status'),
-        ]);
+        const dlRes = await fetch('/api/download/jobs');
         if (dlRes.ok) {
           const newJobs: DownloadJob[] = await dlRes.json();
           // Detect transitions to 'done' and reload the video list
@@ -74,7 +67,13 @@ export const DownloadManager = () => {
           setJobs(newJobs);
           if (anyNewlyDone) loadVideos();
         }
-        if (blkRes.ok) setBulk(await blkRes.json());
+      } catch {}
+      try {
+        const mRes = await fetch('/api/whisper/downloading-models');
+        if (mRes.ok) {
+          const d = await mRes.json();
+          setModels(Array.isArray(d.models) ? d.models : []);
+        }
       } catch {}
     };
     poll();
@@ -93,9 +92,10 @@ export const DownloadManager = () => {
   }, [open]);
 
   const activeDlCount = jobs.filter(j => j.status === 'queued' || j.status === 'running').length;
-  const badgeCount = activeDlCount + (bulk.running ? 1 : 0);
+  const activeModelCount = models.filter(m => m.status === 'downloading').length;
+  const badgeCount = activeDlCount + activeModelCount;
 
-  const cats = (categories.value as any[]).filter(
+  const cats = (folders.value as any[]).filter(
     c => c.path && c.path !== 'uncategorized' && c.path !== 'Links'
   );
 
@@ -104,9 +104,25 @@ export const DownloadManager = () => {
     setJobs(prev => prev.filter(j => j.id !== id));
   };
 
+  const pauseJob = async (id: string) => {
+    const r = await fetch(`/api/download/jobs/${id}/pause`, { method: 'POST' });
+    if (r.ok) setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'paused', speed: '', eta: '' } : j));
+  };
+
+  const resumeJob = async (id: string) => {
+    const r = await fetch(`/api/download/jobs/${id}/resume`, { method: 'POST' });
+    if (r.ok) setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'queued', error: undefined } : j));
+  };
+
   const cancelAll = async () => {
     await fetch('/api/download/cancel-all', { method: 'POST' });
     setJobs(prev => prev.filter(j => j.status === 'done' || j.status === 'error'));
+  };
+
+  const removeAll = async () => {
+    if (!confirm('Clear the entire download queue? This cancels any active downloads.')) return;
+    await fetch('/api/download/jobs', { method: 'DELETE' });
+    setJobs([]);
   };
 
   const moveToCategory = async (job: DownloadJob) => {
@@ -128,18 +144,53 @@ export const DownloadManager = () => {
     }
   };
 
-  const startBulkDownload = async () => {
-    const urls = bulkUrls.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+  const parseUrls = () => newUrls.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+
+  const pasteClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) setNewUrls(prev => (prev.trim() ? prev.trim() + '\n' : '') + text.trim() + '\n');
+    } catch {}
+  };
+
+  const cleanDedupeUrls = () => {
+    const seen = new Set<string>();
+    const cleaned: string[] = [];
+    for (const line of newUrls.split('\n')) {
+      const u = line.trim();
+      if (u && !seen.has(u)) { seen.add(u); cleaned.push(u); }
+    }
+    setNewUrls(cleaned.length ? cleaned.join('\n') + '\n' : '');
+  };
+
+  const handleDownload = async () => {
+    const urls = parseUrls();
     if (!urls.length) return;
-    const r = await fetch('/api/bulk-download/start', {
+    const items = urls.map(url => ({ url, category: newCategory, pendingCategory: newCategory }));
+    const r = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    if (r.ok) setNewUrls('');
+  };
+
+  const handleAddToQueue = async () => {
+    const urls = parseUrls();
+    if (!urls.length) return;
+    const r = await fetch('/api/links/import-urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls }),
     });
-    if (r.ok) { setBulkUrls(''); setShowBulkInput(false); }
+    const w = window as any;
+    if (r.ok) {
+      if (w.toast) w.toast(`Added ${urls.length} link(s) to Download Queue`);
+      setNewUrls('');
+    } else if (w.toast) {
+      w.toast('Failed to add to Download Queue');
+    }
   };
-
-  const stopBulkDownload = () => fetch('/api/bulk-download/stop', { method: 'POST' }).catch(() => {});
 
   return (
     <div style={{ position: 'relative' }} ref={wrapRef}>
@@ -176,7 +227,7 @@ export const DownloadManager = () => {
         }}>
 
           {/* ── Downloads section ─────────────────────────── */}
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--brd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, fontSize: '0.85rem', flex: 1 }}>Downloads {jobs.length > 0 && `(${jobs.length})`}</span>
             {activeDlCount > 0 && (
               <button
@@ -192,6 +243,15 @@ export const DownloadManager = () => {
                 style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.72rem' }}
               >
                 Clear finished
+              </button>
+            )}
+            {jobs.length > 0 && (
+              <button
+                onClick={removeAll}
+                title="Remove all downloads from the queue"
+                style={{ background: 'none', border: 'none', color: '#e55', cursor: 'pointer', fontSize: '0.72rem' }}
+              >
+                Clear all
               </button>
             )}
           </div>
@@ -212,27 +272,46 @@ export const DownloadManager = () => {
                       <span style={{ flex: 1, fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.title || job.url}>
                         {job.title || job.url}
                       </span>
+                      {job.kind === 'file' && job.mediaType && (
+                        <span style={{ fontSize: '0.62rem', padding: '1px 5px', borderRadius: '3px', flexShrink: 0, background: 'var(--bg3)', color: 'var(--tx2)' }}>
+                          {MEDIA_TYPE_LABEL[job.mediaType] || job.mediaType}
+                        </span>
+                      )}
                       <span style={{
                         fontSize: '0.68rem', padding: '1px 5px', borderRadius: '3px', flexShrink: 0,
                         background: DL_STATUS_COLOR[job.status] || 'var(--bg3)',
                         color: job.status === 'queued' ? 'var(--tx2)' : '#fff',
                       }}>
-                        {job.status === 'running' ? `${Math.round(job.progress || 0)}%` : job.status}
+                        {job.status === 'running' || job.status === 'paused' ? `${Math.round(job.progress || 0)}%` : job.status}
                       </span>
+                      {job.status === 'running' && (
+                        <button onClick={() => pauseJob(job.id)} title="Pause" style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                            <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+                          </svg>
+                        </button>
+                      )}
+                      {job.status === 'paused' && (
+                        <button onClick={() => resumeJob(job.id)} title="Resume" style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                          </svg>
+                        </button>
+                      )}
                       <button onClick={() => removeJob(job.id)} title="Remove" style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                         </svg>
                       </button>
                     </div>
-                    {(job.status === 'running' || job.status === 'queued') && (
+                    {(job.status === 'running' || job.status === 'queued' || job.status === 'paused') && (
                       <div style={{ height: '3px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ width: `${job.progress || 0}%`, height: '100%', background: 'var(--ac)', transition: 'width 0.3s' }} />
+                        <div style={{ width: `${job.progress || 0}%`, height: '100%', background: job.status === 'paused' ? '#b45309' : 'var(--ac)', transition: 'width 0.3s' }} />
                       </div>
                     )}
                     {job.status === 'running' && job.speed && (
                       <div style={{ fontSize: '0.68rem', color: 'var(--tx3)', display: 'flex', gap: '8px' }}>
-                        <span>{job.speed}</span>{job.eta && <span>ETA {job.eta}</span>}
+                        <span>↓ {job.speed}</span>{job.eta && <span>ETA {job.eta}</span>}
                       </div>
                     )}
                     {job.status === 'error' && job.error && (
@@ -260,89 +339,98 @@ export const DownloadManager = () => {
             </div>
           )}
 
-          {/* ── Bulk Download section ─────────────────────── */}
-          <div style={{ borderBottom: '1px solid var(--brd)' }}>
-            <div style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: '7px' }}>
-              <span style={{ color: 'var(--tx3)', display: 'flex', alignItems: 'center' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/>
-                  <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>
-                </svg>
-              </span>
-              <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 500 }}>Bulk Download</span>
-              {bulk.running ? (
-                <>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>
-                    {bulk.total > 0 ? `${bulk.done}/${bulk.total}` : 'running…'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={stopBulkDownload}
-                    style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 7px', fontSize: '0.72rem', cursor: 'pointer' }}
-                  >
-                    Stop
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowBulkInput(v => !v)}
-                  style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
-                >
-                  {showBulkInput ? 'Cancel' : 'Add URLs'}
-                </button>
-              )}
-            </div>
-
-            {bulk.running && bulk.total > 0 && <ProgressBar done={bulk.done} total={bulk.total} />}
-            {bulk.running && bulk.current && (
-              <div style={{ padding: '0 14px 6px', fontSize: '0.68rem', color: 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={bulk.current}>
-                {bulk.current}
+          {/* ── Whisper model downloads ───────────────────── */}
+          {models.length > 0 && (
+            <div style={{ borderBottom: '1px solid var(--brd)' }}>
+              <div style={{ padding: '8px 14px 4px', fontWeight: 600, fontSize: '0.8rem', color: 'var(--tx2)' }}>
+                Whisper models
               </div>
-            )}
-            {bulk.running && bulk.log.length > 0 && (
-              <div style={{ margin: '0 14px 8px', background: 'var(--bg3)', borderRadius: '4px', padding: '6px 8px', maxHeight: '100px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.65rem', color: 'var(--tx2)', lineHeight: '1.4' }}>
-                {bulk.log.slice(-20).map((l, i) => <div key={i}>{l}</div>)}
-              </div>
-            )}
-            {!bulk.running && bulk.total > 0 && bulk.log.length > 0 && (
-              <div style={{ padding: '0 14px 8px', fontSize: '0.7rem', color: 'var(--tx3)' }}>
-                Done — {bulk.total} item(s) processed
-              </div>
-            )}
-
-            {showBulkInput && !bulk.running && (
-              <div style={{ padding: '0 14px 10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <textarea
-                  value={bulkUrls}
-                  onInput={(e: any) => setBulkUrls(e.target.value)}
-                  placeholder={'Paste URLs, one per line\nhttps://example.com/video1\nhttps://example.com/video2'}
-                  rows={5}
-                  style={{
-                    width: '100%', boxSizing: 'border-box', resize: 'vertical',
-                    background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)',
-                    borderRadius: '5px', padding: '6px 8px', fontSize: '0.72rem',
-                    fontFamily: 'monospace', lineHeight: '1.5',
-                  }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--tx3)' }}>
-                    {bulkUrls.split('\n').filter(l => l.trim().startsWith('http')).length} URL(s)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={startBulkDownload}
-                    disabled={!bulkUrls.split('\n').some(l => l.trim().startsWith('http'))}
-                    style={{
-                      background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px',
-                      padding: '4px 14px', fontSize: '0.75rem', cursor: 'pointer',
-                    }}
-                  >
-                    Start
-                  </button>
+              {models.map(m => (
+                <div key={m.model} style={{ padding: '6px 14px 8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ flex: 1, fontSize: '0.78rem' }}>{m.model} model</span>
+                    <span style={{
+                      fontSize: '0.68rem', padding: '1px 5px', borderRadius: '3px', flexShrink: 0,
+                      background: m.status === 'error' ? '#a11' : m.status === 'done' ? '#1a7a3a' : 'var(--ac)',
+                      color: '#fff',
+                    }}>
+                      {m.status === 'downloading' ? `${Math.round(m.progress || 0)}%` : m.status}
+                    </span>
+                  </div>
+                  {m.status === 'downloading' && (
+                    <div style={{ height: '3px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ width: `${m.progress || 0}%`, height: '100%', background: 'var(--ac)', transition: 'width 0.3s' }} />
+                    </div>
+                  )}
+                  {m.status === 'error' && m.error && (
+                    <div style={{ fontSize: '0.7rem', color: '#e55', wordBreak: 'break-word' }}>{m.error}</div>
+                  )}
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
+          )}
+
+          {/* ── Add download section ──────────────────────── */}
+          <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={pasteClipboard}
+                title="Paste URLs from clipboard"
+                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '3px 9px', fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                📋 Paste
+              </button>
+              <button
+                type="button"
+                onClick={cleanDedupeUrls}
+                disabled={!newUrls.trim()}
+                title="Strip blanks and remove duplicate URLs"
+                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '3px 9px', fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                🧹 Clean &amp; dedupe
+              </button>
+            </div>
+            <textarea
+              value={newUrls}
+              onInput={(e: any) => setNewUrls(e.target.value)}
+              placeholder={'Paste one or more URLs, one per line'}
+              rows={2}
+              style={{
+                width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)',
+                borderRadius: '5px', padding: '6px 8px', fontSize: '0.72rem',
+                fontFamily: 'monospace', lineHeight: '1.5',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <select
+                value={newCategory}
+                onChange={(e: any) => setNewCategory(e.target.value)}
+                title="Category"
+                style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 5px', fontSize: '0.72rem' }}
+              >
+                <option value="">— root —</option>
+                {cats.map((c: any) => <option key={c.path} value={c.path}>{c.path.replace(/\//g, ' / ')}</option>)}
+              </select>
+              <button
+                type="button"
+                onClick={handleAddToQueue}
+                disabled={!parseUrls().length}
+                title="Save link(s) to the Download Queue without downloading now"
+                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '4px 10px', fontSize: '0.72rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Add to Queue
+              </button>
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={!parseUrls().length}
+                style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 14px', fontSize: '0.72rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Download
+              </button>
+            </div>
           </div>
 
         </div>

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'preact/hooks';
-import { currentCategory, currentTag, currentView, cardSize } from '../../store';
+import { useState, useEffect, useRef } from 'preact/hooks';
+import { currentFolder, currentTag, currentView, cardSize } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
 interface CategoryOverviewItem {
@@ -17,9 +17,10 @@ export const CategoriesView = () => {
   const [sort, setSort] = useState<'name' | 'count-desc' | 'count-asc' | 'duration-desc'>('name');
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const prevEncRunning = useRef(false);
 
-  useEffect(() => {
-    fetch('/api/categories-overview')
+  const loadOverview = () => {
+    fetch('/api/folders-overview')
       .then(r => r.json())
       .then(d => {
         setData(d);
@@ -29,6 +30,23 @@ export const CategoriesView = () => {
         setData([]);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadOverview();
+
+    // Re-fetch once a background encrypt/decrypt job (started from this view)
+    // finishes, so partial/encrypted badges and counts reflect the new state.
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch('/api/encryption/status');
+        if (!r.ok) return;
+        const enc = await r.json();
+        if (prevEncRunning.current && !enc.running) loadOverview();
+        prevEncRunning.current = enc.running;
+      } catch {}
+    }, 1500);
+    return () => clearInterval(poll);
   }, []);
 
   const filteredData = filter.trim()
@@ -87,17 +105,17 @@ export const CategoriesView = () => {
             }
             const onclick = () => {
               if (item.type === 'cat') {
-                currentCategory.value = item.path;
+                currentFolder.value = item.path;
                 currentView.value = 'browse';
               } else {
-                currentCategory.value = '';
+                currentFolder.value = '';
                 currentTag.value = item.name;
                 currentView.value = 'browse';
               }
             };
             const onContextMenu = (e: MouseEvent) => {
               if (item.type === 'cat' && w.showContextMenu) {
-                w.showContextMenu(e, 'category', {
+                w.showContextMenu(e, 'folder', {
                   path: item.path,
                   name: item.name,
                   encrypted: !!item.encrypted,

@@ -1,18 +1,59 @@
-import { currentView, currentActor, currentStudio, currentCategory, currentTag, currentVideo, allVideos, enableUrlSync } from './store';
+﻿import { currentView, currentActor, currentChannel, currentFolder, currentTag, currentVideo, allVideos, enableUrlSync, setRouteResolving } from './store';
 
 export async function routeToPath(path: string) {
   let m: RegExpMatchArray | null;
   const w = window as any;
 
-  // Reset transient state on every navigation
+  // Parameterised routes — handle BEFORE resetting transient state
+  // so /video/:id can restore correctly without a null flash
+  if ((m = path.match(/^\/video\/([^/]+)$/))) {
+    const videoId = decodeURIComponent(m[1]);
+    const tryOpen = () => {
+      const vid = allVideos.value.find((v: any) => v.id === videoId);
+      if (vid) {
+        currentView.value = 'player';
+        currentVideo.value = vid;
+        return true;
+      }
+      return false;
+    };
+    if (!tryOpen()) {
+      // Videos not loaded yet — retry once they arrive. Unsubscribe on the
+      // first non-empty list either way so the subscription can't leak.
+      setRouteResolving(true);
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        setRouteResolving(false);
+      };
+      const unsub = allVideos.subscribe(vids => {
+        if (done || vids.length === 0) return;
+        finish();
+        if (!tryOpen()) currentView.value = 'hub';
+        Promise.resolve().then(() => unsub());
+      });
+      // Safety net: if videos never load (empty library, fetch failure),
+      // don't leave URL sync disabled forever.
+      setTimeout(() => {
+        if (done) return;
+        finish();
+        if (!tryOpen()) currentView.value = 'hub';
+        unsub();
+      }, 8000);
+    }
+    return;
+  }
+
+  // Reset transient state on every other navigation
   currentVideo.value = null;
 
   if (path === '/' || path === '' || path === '/home' || path === '/hub') {
     currentView.value = 'hub';
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null;
     currentActor.value = null;
-    currentStudio.value = null;
+    currentChannel.value = null;
     return;
   }
 
@@ -23,76 +64,67 @@ export async function routeToPath(path: string) {
     '/scraper':        'scraper',
     '/books':          'books',
     '/audio':          'audio',
+    '/files':          'files',
     '/thumbnails':     'thumbnails',
     '/settings':       'settings',
     '/photos':         'photos',
     '/links':          'links',
+    '/rss':            'rss',
     '/pages':          'pages',
     '/search':         'search',
     '/database':       'database',
-    '/categories':     'categories',
+    '/folders':        'folders',
     '/chapters':       'chapters',
+    '/series':         'series',
     '/actors':         'actors',
-    '/studios':        'studios',
+    '/channels':        'channels',
     '/download-queue': 'download-queue',
     '/prompts':        'prompts',
-    '/imagegen':       'imagegen',
     '/assistant':      'assistant',
     '/categorizer':    'categorizer',
     '/duplicates':     'duplicates',
+    '/corrupted':      'corrupted',
+    '/library-health': 'library-health',
+    '/subtitles':      'subtitles',
+    '/guide':          'guide',
     '/browse':         'browse',
     '/instagram':      'instagram',
     '/reddit':         'reddit',
+    '/mosaic':         'mosaic',
+    '/favourites':     'favourites',
+    '/recent':         'recent',
   };
 
   if (directViews[path]) {
     currentView.value = directViews[path];
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentTag.value = null;
     currentActor.value = null;
-    currentStudio.value = null;
+    currentChannel.value = null;
     return;
   }
 
   // Legacy-only views (no Preact component yet)
-  if (path === '/favourites') {
-    if (w.favM !== undefined) { w.favM = true; document.getElementById('fBtn')?.classList.add('on'); }
-    if (w.refresh) w.refresh();
-    return;
-  }
-if (path === '/recent')     { if (w.showRecent) w.showRecent(); return; }
   if (path === '/vault/prompts') { if (w.showVaultPrompts) w.showVaultPrompts(); return; }
 
-  // Parameterised routes
-  if ((m = path.match(/^\/video\/([^/]+)$/))) {
-    const videoId = decodeURIComponent(m[1]);
-    const tryOpen = () => {
-      const vid = allVideos.value.find((v: any) => v.id === videoId);
-      if (vid) {
-        currentVideo.value = vid;
-        currentView.value = 'player';
-        return true;
-      }
-      return false;
-    };
-    if (!tryOpen()) {
-      // Videos not loaded yet — retry once they arrive
-      const unsub = allVideos.subscribe(vids => {
-        if (vids.length > 0 && tryOpen()) unsub();
-      });
-    }
-    return;
-  }
-
+  // Parameterised routes (non-video)
   if ((m = path.match(/^\/tag\/(.+)$/))) {
     currentTag.value = decodeURIComponent(m[1]);
-    currentCategory.value = '';
+    currentFolder.value = '';
     currentView.value = 'browse';
     return;
   }
 
+  if ((m = path.match(/^\/folder\/(.+)$/))) {
+    currentFolder.value = decodeURIComponent(m[1]);
+    currentTag.value = null;
+    currentView.value = 'browse';
+    return;
+  }
+
+  // Legacy /cat/ URLs — redirect to /folder/
   if ((m = path.match(/^\/cat\/(.+)$/))) {
-    currentCategory.value = decodeURIComponent(m[1]);
+    currentFolder.value = decodeURIComponent(m[1]);
     currentTag.value = null;
     currentView.value = 'browse';
     return;
@@ -104,9 +136,9 @@ if (path === '/recent')     { if (w.showRecent) w.showRecent(); return; }
     return;
   }
 
-  if ((m = path.match(/^\/studio\/(.+)$/))) {
-    currentStudio.value = decodeURIComponent(m[1]);
-    currentView.value = 'studios';
+  if ((m = path.match(/^\/channel\/(.+)$/))) {
+    currentChannel.value = decodeURIComponent(m[1]);
+    currentView.value = 'channels';
     return;
   }
 
@@ -132,7 +164,7 @@ export function setupRouter() {
       if (w._renderLimit < total) {
         w._renderLimit += 60;
         if (w.curTag) w.openTag(w.curTag);
-        else if (w.studioMode && w.curStudio) w.openStudio(w.curStudio);
+        else if (w.channelMode && w.curChannel) w.openChannel(w.curChannel);
         else if (w.actorMode && w.curActor) w.openActor(w.curActor);
         else if (w.render) w.render();
       }

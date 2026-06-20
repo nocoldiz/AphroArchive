@@ -6,13 +6,19 @@ import { resolve } from 'node:path';
 export default defineConfig(({ mode }) => ({
   plugins: [preact()],
   root: 'public',
-  base: './',
+  // Android/Capacitor loads via file:// and needs relative asset paths.
+  // The Node server (server.js) serves nested SPA routes like /video/<id>,
+  // where relative paths resolve incorrectly — those need an absolute base.
+  base: mode === 'android' ? './' : '/',
   build: {
     outDir: mode === 'android' ? '../android-app/www' : '../dist/public',
     emptyOutDir: true,
   },
   server: {
     port: 5173,
+    // Home-dashboard widgets live in <repo>/plugins/*/widget.tsx, one level
+    // above the Vite root (public/); allow the dev server to read them.
+    fs: { allow: ['..'] },
     proxy: {
       '/api': 'http://localhost:3000',
       '/stream': 'http://localhost:3000',

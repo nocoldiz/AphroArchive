@@ -1,0 +1,292 @@
+[
+  {
+    "name": "WWE",
+    "url": "https://www.wwe.com/",
+    "searchURL": "https://www.wwe.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["official", "WWE", "Raw", "SmackDown", "NXT"],
+    "description": "World Wrestling Entertainment — the world's largest professional wrestling promotion, home of Raw, SmackDown, NXT, and year-round Premium Live Events. Part of TKO Group Holdings.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "AEW",
+    "url": "https://www.allelitewrestling.com/",
+    "searchURL": "https://www.allelitewrestling.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["official", "AEW", "Dynamite", "Collision", "Rampage"],
+    "description": "All Elite Wrestling — founded in 2019 by Tony Khan, featuring Dynamite, Collision, and Rampage. The primary mainstream alternative to WWE.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "New Japan Pro-Wrestling",
+    "url": "https://www.njpw1972.com/",
+    "searchURL": "https://www.njpw1972.com/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["NJPW", "Japan", "Strong Style", "G1 Climax", "Wrestle Kingdom"],
+    "description": "Japan's premier wrestling promotion, founded in 1972. Known for strong-style wrestling, the G1 Climax tournament, and annual Wrestle Kingdom at the Tokyo Dome.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "Impact Wrestling",
+    "url": "https://www.impactwrestling.com/",
+    "searchURL": "https://www.impactwrestling.com/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["Impact", "TNA", "X Division", "Knockouts"],
+    "description": "Formerly TNA, Impact Wrestling is a major American promotion known for its X Division, Knockouts division, and long-running TV history.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "Ring of Honor",
+    "url": "https://www.rohwrestling.com/",
+    "searchURL": "https://www.rohwrestling.com/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["ROH", "Pure Wrestling", "Code of Honor", "HonorClub"],
+    "description": "Ring of Honor — now owned by Tony Khan/AEW, a pioneering pure wrestling promotion that launched the careers of CM Punk, Daniel Bryan, and many others.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "NWA",
+    "url": "https://www.nwa.com/",
+    "searchURL": "https://www.nwa.com/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["NWA", "National Wrestling Alliance", "Billy Corgan", "NWA Powerrr"],
+    "description": "The National Wrestling Alliance — one of the oldest wrestling organizations in history, revived as a modern promotion under Billy Corgan.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "MLW",
+    "url": "https://www.mlw.com/",
+    "searchURL": "https://www.mlw.com/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["MLW", "Major League Wrestling", "Fusion", "Battle Riot"],
+    "description": "Major League Wrestling — an American promotion with a hybrid combat sports and sports entertainment approach, known for Fusion TV and Battle Riot.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "GCW",
+    "url": "https://gcwrestling.net/",
+    "searchURL": "https://gcwrestling.net/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["GCW", "Game Changer Wrestling", "The Collective", "Deathmatch", "Indie"],
+    "description": "Game Changer Wrestling — known for The Collective events, hardcore/deathmatch style, and a cult indie following with frequent international co-promotions.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Pro Wrestling Guerrilla",
+    "url": "https://www.prowrestlingguerrilla.com/",
+    "searchURL": "https://www.prowrestlingguerrilla.com/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["PWG", "California", "Indie", "Battle of Los Angeles"],
+    "description": "Southern California independent promotion famous for BOLA (Battle of Los Angeles), intimate venues, and launching future WWE, AEW, and NJPW stars.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "CMLL",
+    "url": "https://www.cmll.com/",
+    "searchURL": "https://www.cmll.com/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["CMLL", "Lucha Libre", "Mexico", "Arena Mexico", "oldest"],
+    "description": "Consejo Mundial de Lucha Libre — the world's oldest active wrestling promotion (founded 1933), home of authentic Mexican lucha libre at Arena México.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Lucha Libre AAA",
+    "url": "https://luchalibreaaa.com/",
+    "searchURL": "https://luchalibreaaa.com/?s=",
+    "scrapeMethod": "standard-web",
+    "tags": ["AAA", "TripleMania", "Vikingo", "Lucha Libre", "Mexico"],
+    "description": "Mexico's second-largest lucha libre promotion known for spectacular high-flying, TripleMania events, and launching El Hijo del Vikingo to global stardom.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "The Crash",
+    "url": "https://thecrash.mx/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["The Crash", "Tijuana", "Mexico", "Independent", "Lucha"],
+    "description": "Major Mexican independent promotion based in Tijuana, known for international partnerships and blending lucha libre with North American-style wrestling.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Pro Wrestling NOAH",
+    "url": "https://www.noah.co.jp/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["NOAH", "Japan", "GHC", "Strong Style", "Misawa"],
+    "description": "Japanese promotion founded in 2000 by Mitsuharu Misawa, known for hard-hitting strong-style and the prestigious GHC Championship.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "All Japan Pro Wrestling",
+    "url": "https://www.ajpw.net/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["AJPW", "Japan", "Triple Crown", "King's Road", "Giant Baba"],
+    "description": "AJPW, founded in 1972 by Giant Baba — a legendary Japanese promotion known for King's Road style, Triple Crown Championship, and world-class tournament wrestling.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "STARDOM World",
+    "url": "https://www.stardom-world.com/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["STARDOM", "Japan", "Women", "5STAR Grand Prix", "Cinderella"],
+    "description": "Japan's premier women's wrestling promotion streaming service, home of Mayu Iwatani, Giulia, and the 5STAR Grand Prix tournament.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "DDT Pro-Wrestling",
+    "url": "https://www.ddtpro.com/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["DDT", "Japan", "Comedy", "Konosuke Takeshita", "TJPW"],
+    "description": "Japanese promotion mixing comedy with serious in-ring action, known for unconventional matches and launching Konosuke Takeshita to international fame.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Dragon Gate",
+    "url": "https://dragongate.co.jp/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["Dragon Gate", "Japan", "High-Flying", "Factions", "Toryumon"],
+    "description": "Japanese promotion evolved from Toryumon, known for its fast-paced high-flying style and unique faction warfare booking.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Progress Wrestling",
+    "url": "https://www.progresswrestling.com/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["Progress", "UK", "London", "British", "Chapter"],
+    "description": "One of the UK's most influential independent promotions. Launched careers of Pete Dunne, Gunther, and Toni Storm. Operates Chapter events in London.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Revolution Pro Wrestling",
+    "url": "https://www.revolutionprowrestling.com/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["RevPro", "UK", "British J Cup", "NJPW", "Uprising"],
+    "description": "UK's leading promotion with NJPW ties, hosting the British J Cup and Uprising events. A major launch platform for British wrestling talent.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Insane Championship Wrestling",
+    "url": "https://icwwrestling.com/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["ICW", "Scotland", "Glasgow", "Fear and Loathing", "Hardcore"],
+    "description": "Scotland's top wrestling promotion known for its rowdy atmosphere, ultra-violence, and the annual Fear & Loathing pay-per-view in Glasgow.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "wXw",
+    "url": "https://wxw-wrestling.de/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["wXw", "Germany", "Westside Xtreme", "Europe", "Shotgun"],
+    "description": "Westside Xtreme Wrestling — Germany's premier wrestling promotion known for high-quality in-ring action and pan-European talent.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Over The Top Wrestling",
+    "url": "https://www.ottwrestling.com/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["OTT", "Ireland", "Dublin", "Celtic Warrior", "Jordan Devlin"],
+    "description": "Ireland's top wrestling promotion based in Dublin, known for its intense fanbase and producing stars like Jordan Devlin and Scotty Davis.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Big Japan Wrestling",
+    "url": "https://www.bjw.co.jp/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["BJW", "Japan", "Deathmatch", "Hardcore", "Barbed Wire"],
+    "description": "Japanese hardcore and deathmatch wrestling promotion known for brutal barbed wire matches and a strong-style hybrid event format.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "NJPW World",
+    "url": "https://njpwworld.com/",
+    "searchURL": "https://njpwworld.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["NJPW", "Streaming", "Japan", "Archive", "Full Matches"],
+    "description": "NJPW's official streaming platform with live events, archives of classic matches, and on-demand content from New Japan Pro-Wrestling.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "HonorClub",
+    "url": "https://www.honorclub.com/",
+    "searchURL": "",
+    "scrapeMethod": "standard-web",
+    "tags": ["ROH", "AEW", "Streaming", "HonorClub", "Full Matches"],
+    "description": "Ring of Honor and AEW's streaming platform featuring ROH TV, pay-per-view replays, and classic archive ROH footage.",
+    "hasSearch": false,
+    "embed": ""
+  },
+  {
+    "name": "Cagematch",
+    "url": "https://www.cagematch.net/",
+    "searchURL": "https://www.cagematch.net/?id=2&search=",
+    "scrapeMethod": "standard-web",
+    "tags": ["Database", "Ratings", "History", "Wrestlers", "Events"],
+    "description": "The world's most comprehensive professional wrestling database with wrestler profiles, match ratings, event history, and results going back decades.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "Fightful",
+    "url": "https://www.fightful.com/",
+    "searchURL": "https://www.fightful.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["News", "Backstage", "Reports", "WWE", "AEW"],
+    "description": "Sean Ross Sapp's wrestling news site known for breaking backstage reports and exclusive news across WWE, AEW, NJPW, and the independent scene.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "Wrestling Observer",
+    "url": "https://www.f4wonline.com/",
+    "searchURL": "https://www.f4wonline.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["Dave Meltzer", "Observer", "Newsletter", "Ratings", "News"],
+    "description": "Dave Meltzer's Wrestling Observer — the industry's most authoritative news source since 1983, known for the star ratings system and deep insider reporting.",
+    "hasSearch": true,
+    "embed": ""
+  },
+  {
+    "name": "PWInsider",
+    "url": "https://www.pwinsider.com/",
+    "searchURL": "https://www.pwinsider.com/search?q=",
+    "scrapeMethod": "standard-web",
+    "tags": ["News", "Backstage", "Reports", "WWE", "Insider"],
+    "description": "One of wrestling's premier news sites with Mike Johnson's backstage reports, TV results, and breaking news from WWE and across the industry.",
+    "hasSearch": true,
+    "embed": ""
+  }
+]

@@ -1,4 +1,4 @@
-import { Video, Category } from './types';
+import { Video, Folder } from './types';
 
 export async function fetchVideos(params?: URLSearchParams): Promise<Video[]> {
   const url = params ? `/api/videos?${params.toString()}` : '/api/videos';
@@ -6,19 +6,19 @@ export async function fetchVideos(params?: URLSearchParams): Promise<Video[]> {
   return res.json();
 }
 
-export async function fetchCategories(): Promise<Category[]> {
-  const res = await fetch('/api/categories');
+export async function fetchFolders(): Promise<Folder[]> {
+  const res = await fetch('/api/folders');
   return res.json();
 }
 
-export async function createCategory(name: string): Promise<{ name: string }> {
-  const res = await fetch('/api/main-categories', {
+export async function createFolder(name: string): Promise<{ name: string }> {
+  const res = await fetch('/api/main-folders', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to create category');
+  if (!res.ok) throw new Error(data.error || 'Failed to create folder');
   return data;
 }
 
@@ -33,11 +33,11 @@ export async function renameVideo(id: string, newName: string): Promise<{ newId:
   return data;
 }
 
-export async function moveVideo(id: string, category: string): Promise<any> {
+export async function moveVideo(id: string, folder: string): Promise<any> {
   const res = await fetch(`/api/videos/${id}/move`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ category })
+    body: JSON.stringify({ category: folder })
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Failed to move');

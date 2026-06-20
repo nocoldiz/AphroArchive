@@ -1,0 +1,10 @@
+{
+  "WWE": ["Raw", "SmackDown", "NXT", "Premium Live Events"],
+  "AEW": ["Dynamite", "Collision", "Rampage", "Pay-Per-View"],
+  "Japan": ["NJPW", "STARDOM", "NOAH", "DDT"],
+  "Lucha Libre": ["CMLL", "AAA", "Independent"],
+  "Independent": ["GCW", "PWG", "MLW"],
+  "Classic": ["WWF", "WCW", "ECW"],
+  "Women's Wrestling": ["Joshi", "Knockouts", "WWE Women's"],
+  "Documentaries": ["Interviews", "Behind the Scenes"]
+}

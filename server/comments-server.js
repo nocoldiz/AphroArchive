@@ -7,140 +7,6 @@ const https = require('https');
 const { json, readBody } = require('./helpers-server');
 const { loadPrefs, loadComments, saveComments, clearAllComments: dbClearAllComments } = require('./db-server');
 
-const fs   = require('fs');
-const path = require('path');
-
-const MODELS_DIR        = path.join(process.cwd(), 'models');
-
-// Indirect reference prevents pkg from bundling node-llama-cpp (ESM/import.meta incompatible)
-const _llamaMod = 'node' + '-llama-cpp';
-const MODEL_FILENAME    = 'llama-3.2-1b-instruct.gguf';
-const DEFAULT_MODEL_URI = 'hf:bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M';
-
-let getLlama = null;
-let LlamaChatSession = null;
-let llama = null;
-let model = null;
-let ctx = null;
-let modelReady = false;
-
-// ── Download state ─────────────────────────────────────────────────────────
-
-let dlActive = false;
-let dlPct    = 0;
-let dlDone   = 0;
-let dlTotal  = 0;
-let dlError  = null;
-let dlAbort  = null;
-
-// ── Model path resolution ──────────────────────────────────────────────────
-
-async function _resolveModelPath() {
-  const { resolveModelFile } = await import(_llamaMod);
-  const opts = { download: false };
-  // Priority 1: local ./models subfolder if it exists
-  if (fs.existsSync(MODELS_DIR)) {
-    try {
-      return await resolveModelFile(MODEL_FILENAME, { ...opts, directory: MODELS_DIR });
-    } catch {}
-  }
-  // Priority 2: node-llama-cpp's global models directory (~/.node-llama-cpp/models)
-  try {
-    return await resolveModelFile(MODEL_FILENAME, opts);
-  } catch {}
-  return null;
-}
-
-// ── Model lifecycle ────────────────────────────────────────────────────────
-
-async function initCommentsModel() {
-  const prefs = loadPrefs();
-  if (!prefs.aiCommentsEnabled) return;
-  try {
-    const nodeLlama = await import(_llamaMod);
-    getLlama = nodeLlama.getLlama;
-    LlamaChatSession = nodeLlama.LlamaChatSession;
-  } catch (e) {
-    console.warn('[comments] node-llama-cpp not installed:', e.message); return;
-  }
-  const modelPath = await _resolveModelPath();
-  if (!modelPath) { console.warn('[comments] Model not found in', MODELS_DIR, 'or node-llama-cpp global dir'); return; }
-  try {
-    fs.mkdirSync(MODELS_DIR, { recursive: true });
-    llama = await getLlama();
-    model = await llama.loadModel({ modelPath });
-    ctx   = await model.createContext();
-    modelReady = true;
-    console.log('[comments] Model loaded OK:', path.basename(modelPath));
-  } catch (e) {
-    modelReady = false;
-    console.error('[comments] Failed to load model:', e.message);
-  }
-}
-
-const isModelReady = () => modelReady;
-async function reinitIfNeeded() { if (!modelReady) await initCommentsModel(); }
-
-// ── Model download ─────────────────────────────────────────────────────────
-
-async function _runDownload() {
-  const prefs = loadPrefs();
-  const modelUri = (prefs.llamaModelUri || '').trim() || DEFAULT_MODEL_URI;
-  try {
-    const { createModelDownloader } = await import(_llamaMod);
-    fs.mkdirSync(MODELS_DIR, { recursive: true });
-    const downloader = await createModelDownloader({
-      modelUri,
-      dirPath: MODELS_DIR,
-      fileName: MODEL_FILENAME,
-      showCliProgress: false,
-      onProgress: ({ totalSize, downloadedSize }) => {
-        dlDone  = downloadedSize;
-        dlTotal = totalSize;
-        dlPct   = totalSize > 0 ? Math.round(downloadedSize / totalSize * 100) : 0;
-      },
-    });
-    dlAbort = new AbortController();
-    await downloader.download({ signal: dlAbort.signal });
-    dlPct = 100; dlError = null;
-    console.log('[comments] Model downloaded to', path.join(MODELS_DIR, MODEL_FILENAME));
-    modelReady = false;
-    await initCommentsModel();
-  } catch (e) {
-    if (e.name !== 'AbortError') {
-      dlError = e.message;
-      console.error('[comments] Download failed:', e.message);
-    }
-  } finally {
-    dlActive = false; dlAbort = null;
-  }
-}
-
-function apiDownloadModel(req, res) {
-  if (dlActive) return json(res, { error: 'Download already in progress' }, 409);
-  dlActive = true; dlPct = 0; dlDone = 0; dlTotal = 0; dlError = null;
-  _runDownload().catch(() => {});
-  json(res, { ok: true });
-}
-
-function apiCancelDownload(req, res) {
-  if (dlAbort) { try { dlAbort.abort(); } catch {} }
-  dlActive = false;
-  json(res, { ok: true });
-}
-
-function apiModelStatus(req, res) {
-  const localFile = path.join(MODELS_DIR, MODEL_FILENAME);
-  json(res, {
-    ready:      modelReady,
-    fileExists: fs.existsSync(localFile),
-    filePath:   localFile,
-    modelName:  MODEL_FILENAME,
-    downloading: dlActive,
-    dlPct, dlDone, dlTotal, dlError,
-  });
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const _ADJS = ['Curious', 'Sneaky', 'Bold', 'Gentle', 'Witty', 'Calm', 'Fuzzy', 'Quick', 'Silent', 'Clever', 'Crispy', 'Spicy', 'Lucky', 'Sassy', 'Zesty'];
@@ -258,24 +124,10 @@ async function _generateCommentTexts(videoName, count) {
     'Return ONLY a valid JSON array of exactly ' + count + ' strings: ["comment 1", "comment 2", ...]\n' +
     'No explanation, no markdown — just the raw JSON array.';
 
-  if ((prefs.commentsProvider || 'local') === 'openrouter') {
-    const raw    = await _openRouterComplete(prompt, prefs);
-    const parsed = JSON.parse(raw.trim());
-    if (!Array.isArray(parsed)) throw new Error('not array');
-    return parsed.filter(c => typeof c === 'string' && c.trim()).slice(0, count);
-  }
-
-  const sequence = ctx.getSequence();
-  try {
-    const session = new LlamaChatSession({ contextSequence: sequence });
-    const raw = await session.prompt(prompt);
-    const parsed = JSON.parse(raw.trim());
-    if (!Array.isArray(parsed)) throw new Error('not array');
-    const texts = parsed.filter(c => typeof c === 'string' && c.trim());
-    return texts.slice(0, count);
-  } finally {
-    sequence.dispose();
-  }
+  const raw    = await _openRouterComplete(prompt, prefs);
+  const parsed = JSON.parse(raw.trim());
+  if (!Array.isArray(parsed)) throw new Error('not array');
+  return parsed.filter(c => typeof c === 'string' && c.trim()).slice(0, count);
 }
 
 async function _generateReplyText(videoName, userComment) {
@@ -286,19 +138,8 @@ async function _generateReplyText(videoName, userComment) {
     videoName.replace(/"/g, '\\"').replace(/\n/g, ' ') + '". ' +
     'Write a short, casual 1-2 sentence reply. Return ONLY the reply text.';
 
-  if ((prefs.commentsProvider || 'local') === 'openrouter') {
-    const raw = await _openRouterComplete(prompt, prefs);
-    return raw.trim().replace(/^["']|["']$/g, '');
-  }
-
-  const sequence = ctx.getSequence();
-  try {
-    const session = new LlamaChatSession({ contextSequence: sequence });
-    const raw = await session.prompt(prompt);
-    return raw.trim().replace(/^["']|["']$/g, '');
-  } finally {
-    sequence.dispose();
-  }
+  const raw = await _openRouterComplete(prompt, prefs);
+  return raw.trim().replace(/^["']|["']$/g, '');
 }
 
 // ── API: GET /api/comments/:id?name=... ───────────────────────────────────────
@@ -312,13 +153,8 @@ async function apiGetComments(req, res, videoId) {
 
     if (comments === null) {
       const prefs = loadPrefs();
-      const provider = prefs.commentsProvider || 'local';
-      const canGenerate = prefs.aiCommentsEnabled && (
-        (provider === 'local' && isModelReady()) ||
-        (provider === 'openrouter' && prefs.openrouterApiKey)
-      );
+      const canGenerate = prefs.aiCommentsEnabled && prefs.openrouterApiKey;
       if (canGenerate) {
-        if (provider === 'local') await reinitIfNeeded();
         const count = _seededCount(videoId);
         try {
           const texts = await _generateCommentTexts(videoName, count);
@@ -363,13 +199,8 @@ async function apiAddComment(req, res, videoId) {
 
     let aiReply = null;
     const prefs = loadPrefs();
-    const provider = prefs.commentsProvider || 'local';
-    const canReply = prefs.aiCommentsEnabled && videoName && (
-      (provider === 'local' && isModelReady()) ||
-      (provider === 'openrouter' && prefs.openrouterApiKey)
-    );
+    const canReply = prefs.aiCommentsEnabled && videoName && prefs.openrouterApiKey;
     if (canReply) {
-      if (provider === 'local') await reinitIfNeeded();
       try {
         const replyText = await _generateReplyText(videoName, text);
         if (replyText) {
@@ -419,13 +250,7 @@ async function apiReplyToComment(req, res) {
   if (!videoId || !videoName || !userComment) return json(res, { error: 'Missing params' }, 400);
   const prefs = loadPrefs();
   if (!prefs.aiCommentsEnabled) return json(res, { error: 'AI comments disabled' }, 400);
-  const provider = prefs.commentsProvider || 'local';
-  if (provider === 'local') {
-    if (!isModelReady()) return json(res, { error: 'Model not ready' }, 503);
-    await reinitIfNeeded();
-  } else if (!prefs.openrouterApiKey) {
-    return json(res, { error: 'OpenRouter API key not configured' }, 503);
-  }
+  if (!prefs.openrouterApiKey) return json(res, { error: 'OpenRouter API key not configured' }, 503);
   try {
     const reply = await _generateReplyText(videoName, userComment);
     return json(res, { reply });
@@ -444,8 +269,6 @@ function apiClearAllComments(req, res) {
 }
 
 module.exports = {
-  initCommentsModel, isModelReady, reinitIfNeeded,
   apiGetComments, apiAddComment,
   apiGenerateComments, apiReplyToComment, apiClearAllComments,
-  apiModelStatus, apiDownloadModel, apiCancelDownload,
 };

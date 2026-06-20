@@ -1,21 +1,21 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  videos.js — Video scanning, listing, and all video API handlers
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { exec, execFile, execFileSync, spawn } = require('child_process');
 const crypto = require('crypto');
 const {
   VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
-  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN
+  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN, FFPROBE_BIN, FILES_DIR
 } = require('./config-server');
 const { pipeline } = require('stream');
 const { promisify } = require('util');
 const pipe = promisify(pipeline);
-const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, studioMatchAny, actorMatchesAny } = require('./helpers-server');
+const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, channelMatchAny, actorMatchesAny, LIMITS } = require('./helpers-server');
 const {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -24,14 +24,16 @@ const {
   resolveCategoryPhysicalPath,
   loadVideoMeta, saveVideoMeta, setVideoMetaFields,
   loadThumbsCache, saveThumbsCache,
-  loadActors, loadCategories, loadStudios,
+  loadActors, loadFolderMappings, loadChannels,
   loadAudioMeta, saveAudioMeta,
   loadBooksMeta, saveBooksMeta,
   loadRatings,
   loadLinksCache,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
-  loadEnabledCategories,
-  getVideoIndexEntry, getSingleVideoMeta,
+  loadMediaIndex, saveMediaIndex, clearMediaIndex,
+  upsertFileMeta,
+  loadEnabledFolders, saveEnabledFolders,
+  getSingleVideoMeta,
 } = require('./db-server');
 
 // ── Video scan cache ─────────────────────────────────────────────────
@@ -55,7 +57,7 @@ function isHiddenFolderName(name) {
   return String(name || '').toLowerCase() === 'hidden';
 }
 
-function isCategoryEnabled(catPath, enabledPaths) {
+function isFolderEnabled(catPath, enabledPaths) {
   if (!catPath || catPath === 'uncategorized' || catPath === 'Links') return true;
   if (!enabledPaths || enabledPaths.length === 0) return true;
   const pathLo = String(catPath).toLowerCase().replace(/\\/g, '/');
@@ -63,6 +65,54 @@ function isCategoryEnabled(catPath, enabledPaths) {
     const epLo = String(ep).toLowerCase().replace(/\\/g, '/');
     return pathLo === epLo || pathLo.startsWith(epLo + '/');
   });
+}
+
+// Enumerate every folder path (forward-slash, relative) across VIDEOS_DIR and
+// configured source folders, skipping the vault, ignored and `hidden` dirs.
+// Used to seed the per-profile enabled-folders allowlist when hiding a folder.
+async function collectAllFolderPaths() {
+  const seen = new Set();
+  const out = [];
+  const add = (rel) => {
+    const key = getCatKey(rel);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(rel.replace(/\\/g, '/'));
+  };
+
+  async function walk(dir, rel, external) {
+    if (!fs.existsSync(dir)) return;
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (!ent.isDirectory()) continue;
+        if (isHiddenFolderName(ent.name)) continue;
+        const subRel = rel ? rel + '/' + ent.name : ent.name;
+        const full = path.join(dir, ent.name);
+        if (!external) {
+          if (path.resolve(full) === path.resolve(VAULT_DIR)) continue;
+          if (path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
+        }
+        add(subRel);
+        await walk(full, subRel, external);
+      }
+    } catch (e) {
+      console.error('[collectAllFolderPaths]', dir, e.message);
+    }
+  }
+
+  await walk(VIDEOS_DIR, '', false);
+  try {
+    const prefs = loadPrefs();
+    if (Array.isArray(prefs.sourceFolders)) {
+      for (const folder of prefs.sourceFolders) {
+        if (fs.existsSync(folder)) await walk(folder, '', true);
+      }
+    }
+  } catch (e) {
+    console.error('[collectAllFolderPaths source]', e.message);
+  }
+  return out;
 }
 
 function getExistingTopLevelFolders(root) {
@@ -79,7 +129,7 @@ function getExistingTopLevelFolders(root) {
 
 let _scanCache = null;
 let _watchDebounce = null;
-const unlockedCategories = new Map(); // catPath -> key (Buffer)
+const unlockedFolders = new Map(); // catPath -> key (Buffer)
 let masterPassword = null; // Session master password
 
 // ── Encryption progress tracker (shared for polling) ──────────────────
@@ -94,18 +144,102 @@ let _encryptionProgress = {
   ok: false,
 };
 let _encryptionCancel = false;
+
+// ── Categorizer background job ─────────────────────────────────────────
+let _categorizerJob = null;
+let _categorizerCancel = false;
+
+async function runCategorizerBg(moves) {
+  _categorizerCancel = false;
+  _categorizerJob = { running: true, done: 0, total: moves.length, current: '', failed: 0 };
+  console.log(`[categorizer] Moving ${moves.length} video${moves.length !== 1 ? 's' : ''}`);
+  const writeRoot = getDefaultWriteRoot();
+  const resolvedWrite = path.resolve(writeRoot);
+
+  for (const { id, category: targetCategory } of moves) {
+    if (_categorizerCancel) break;
+    _categorizerJob.current = id;
+    try {
+      const fp = safePath(id);
+      if (!fp) { _categorizerJob.failed++; } else {
+        const targetDir = targetCategory ? path.join(writeRoot, targetCategory) : writeRoot;
+        const resolvedTarget = path.resolve(targetDir);
+        if (!resolvedTarget.startsWith(resolvedWrite)) {
+          _categorizerJob.failed++;
+        } else {
+          if (!fs.existsSync(resolvedTarget)) fs.mkdirSync(resolvedTarget, { recursive: true });
+          const filename = path.basename(fp);
+          const newPath = path.join(resolvedTarget, filename);
+          if (path.resolve(newPath) !== path.resolve(fp) && !fs.existsSync(newPath)) {
+            fs.renameSync(fp, newPath);
+            try {
+              const newRel = path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/');
+              const newId = newRel.startsWith('..') ? toId(newPath) : toId(newRel);
+              const favs = loadFavs(); const fi = favs.indexOf(id);
+              if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
+              const meta = loadVideoMeta();
+              if (meta[id]) { meta[newId] = meta[id]; delete meta[id]; saveVideoMeta(meta); }
+            } catch {}
+          }
+        }
+      }
+    } catch { _categorizerJob.failed++; }
+    _categorizerJob.done++;
+  }
+
+  invalidateScanCache();
+  _categorizerJob.running = false;
+  _categorizerJob.current = '';
+  console.log(`[categorizer] Done — ${_categorizerJob.done} moved, ${_categorizerJob.failed} failed`);
+}
+
+async function apiCategorizerBgExecute(req, res) {
+  if (_categorizerJob?.running) return json(res, { ok: false, error: 'Already running' }, 409);
+  const body = await readBody(req);
+  const moves = Array.isArray(body.moves) ? body.moves : [];
+  if (!moves.length) return json(res, { ok: true, started: false });
+  json(res, { ok: true, started: true, total: moves.length });
+  runCategorizerBg(moves).catch(e => {
+    console.error('[categorizer-bg]', e.message);
+    if (_categorizerJob) _categorizerJob.running = false;
+  });
+}
+
+function apiCategorizerPoll(req, res) {
+  if (_categorizerJob) {
+    json(res, { running: _categorizerJob.running, done: _categorizerJob.done, total: _categorizerJob.total, failed: _categorizerJob.failed, current: _categorizerJob.current || '' });
+  } else {
+    json(res, { running: false });
+  }
+}
+
+async function apiCategorizerStop(req, res) {
+  if (_categorizerJob?.running) _categorizerCancel = true;
+  json(res, { ok: true });
+}
+
+// Set when a scan_changed broadcast was suppressed during an encrypt/decrypt job.
+// Flushed as a single notification when the job ends (see updateEncryptionProgress).
+let _scanChangePending = false;
 function updateEncryptionProgress(partial) {
+  const wasRunning = _encryptionProgress.running;
   _encryptionProgress = { ..._encryptionProgress, ...partial };
+  // Job just finished: emit the one coalesced scan refresh we held back while
+  // the per-file deletions kept fs.watch firing.
+  if (wasRunning && !_encryptionProgress.running && _scanChangePending) {
+    _scanChangePending = false;
+    broadcastScanChange();
+  }
 }
 function getEncryptionProgress() {
   return { ..._encryptionProgress };
 }
 
 // Run encryption in background to avoid tying work to an HTTP response
-async function runEncryptCategory(catPath) {
+async function runEncryptFolder(catPath) {
   if (_encryptionProgress.running) return false;
   _encryptionCancel = false;
-  const { isUnlocked, encryptLocalFileToVault, getVaultKey } = require('./vault-server');
+  const { isUnlocked, suspendAutoLock, resumeAutoLock } = require('./vault-server');
   const { loadVaultConfig } = require('./db-server');
 
   if (!loadVaultConfig()) {
@@ -117,6 +251,10 @@ async function runEncryptCategory(catPath) {
     return false;
   }
 
+  // Hold the auto-lock open for the whole batch: encrypting a large folder can
+  // take far longer than the auto-lock window, and locking mid-job corrupts the
+  // vault metadata.
+  suspendAutoLock();
   try {
     const ck = getCatKey(catPath);
     const videos = (await cachedScan()).filter(v => {
@@ -128,9 +266,7 @@ async function runEncryptCategory(catPath) {
     let encryptedCount = 0;
 
     updateEncryptionProgress({ running: true, type: 'encrypt', category: catPath, total, done: 0, current: '', error: '', ok: false });
-
-    const meta = loadVideoMeta();
-    const vaultKey = getVaultKey();
+    console.log(`[ENC] Encrypting "${catPath}" — ${total} file${total !== 1 ? 's' : ''}`);
 
     for (const v of videos) {
       if (_encryptionCancel) {
@@ -141,30 +277,16 @@ async function runEncryptCategory(catPath) {
       const full = path.join(VIDEOS_DIR, v.rel);
       if (!fs.existsSync(full)) continue;
 
-      const videoMeta = meta[v.id] || null;
-      // Pass the real filename (with extension) — v.name has the extension stripped
-      const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
-      if (!vaultId) {
-        console.error(`[ENC] Failed to encrypt ${v.name}`);
+      let vaultId;
+      try {
+        vaultId = await _encryptVideoEntry(v);
+      } catch (e) {
+        console.error(`[ENC] Failed to encrypt ${v.name}: ${e.message}`);
         continue;
       }
 
       encryptedCount++;
       console.log(`[ENC] ${v.name} (${encryptedCount}/${total}, ${total - encryptedCount} left)`);
-      const oldThumb = path.join(THUMBS_DIR, v.id);
-      const newThumb = path.join(THUMBS_DIR, vaultId);
-
-      if (fs.existsSync(oldThumb)) {
-        if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
-        fs.renameSync(oldThumb, newThumb);
-        const tFiles = fs.readdirSync(newThumb);
-        for (const tf of tFiles) {
-          if (tf.endsWith('.jpg')) {
-             await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
-          }
-        }
-      }
-
       updateEncryptionProgress({ done: encryptedCount, current: v.name });
     }
 
@@ -180,23 +302,26 @@ async function runEncryptCategory(catPath) {
           ul({ ...lnk, vault: 1 });
         }
       }
-    } catch (linkErr) { console.error('[runEncryptCategory] link vault error:', linkErr.message); }
+    } catch (linkErr) { console.error('[runEncryptFolder] link vault error:', linkErr.message); }
 
     invalidateScanCache();
     updateEncryptionProgress({ ok: true, running: false });
+    console.log(`[ENC] Encryption complete — ${encryptedCount} file${encryptedCount !== 1 ? 's' : ''} encrypted`);
     return true;
   } catch (e) {
-    console.error('[runEncryptCategory] error:', e);
+    console.error('[runEncryptFolder] error:', e);
     updateEncryptionProgress({ error: e.message || String(e), running: false });
     return false;
+  } finally {
+    resumeAutoLock();
   }
 }
 
 // Run decryption in background
-async function runDecryptCategory(catPath, targetProfile) {
+async function runDecryptFolder(catPath, targetProfile) {
   if (_encryptionProgress.running) return false;
   _encryptionCancel = false;
-  const { isUnlocked, getVaultKey } = require('./vault-server');
+  const { isUnlocked, getVaultKey, suspendAutoLock, resumeAutoLock } = require('./vault-server');
   const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
 
   if (!isUnlocked()) {
@@ -204,6 +329,8 @@ async function runDecryptCategory(catPath, targetProfile) {
     return false;
   }
 
+  // Keep the vault unlocked for the duration — see runEncryptFolder.
+  suspendAutoLock();
   try {
     const meta = loadVaultMeta();
     const itemsToDecrypt = [];
@@ -217,6 +344,7 @@ async function runDecryptCategory(catPath, targetProfile) {
     }
 
     updateEncryptionProgress({ running: true, type: 'decrypt', category: catPath, total: itemsToDecrypt.length, done: 0, current: '', error: '', ok: false });
+    console.log(`[DEC] Decrypting "${catPath}" — ${itemsToDecrypt.length} file${itemsToDecrypt.length !== 1 ? 's' : ''}`);
 
     const total = itemsToDecrypt.length;
     let doneCount = 0;
@@ -260,6 +388,12 @@ async function runDecryptCategory(catPath, targetProfile) {
              await decryptThumbnailInPlace(path.join(newThumb, tf), vaultKey);
           }
         }
+        const chaptersDir = path.join(newThumb, 'chapters');
+        if (fs.existsSync(chaptersDir)) {
+          for (const cf of fs.readdirSync(chaptersDir)) {
+            if (cf.endsWith('.jpg')) await decryptThumbnailInPlace(path.join(chaptersDir, cf), vaultKey);
+          }
+        }
       }
 
       delete meta[item.id];
@@ -269,22 +403,56 @@ async function runDecryptCategory(catPath, targetProfile) {
     saveVaultMeta(meta);
     invalidateScanCache();
     updateEncryptionProgress({ ok: true, running: false });
+    console.log(`[DEC] Decryption complete — ${doneCount} file${doneCount !== 1 ? 's' : ''} decrypted`);
     return true;
   } catch (e) {
-    console.error('[runDecryptCategory] error:', e);
+    console.error('[runDecryptFolder] error:', e);
     updateEncryptionProgress({ error: e.message || String(e), running: false });
     return false;
+  } finally {
+    resumeAutoLock();
   }
+}
+
+const _scanSseClients = new Set();
+
+function broadcastScanChange() {
+  // While an encrypt/decrypt batch runs, each file is shredded/created in turn,
+  // so fs.watch fires repeatedly. Broadcasting every burst makes clients reload
+  // the whole gallery (and re-fetch every thumbnail) over and over. Hold the
+  // notification and let updateEncryptionProgress emit a single refresh at the end.
+  if (_encryptionProgress.running) { _scanChangePending = true; return; }
+  const msg = `data: ${JSON.stringify({ type: 'scan_changed' })}\n\n`;
+  for (const res of _scanSseClients) {
+    try { res.write(msg); } catch { _scanSseClients.delete(res); }
+  }
+}
+
+function apiScanEvents(req, res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+  res.write(': connected\n\n');
+  _scanSseClients.add(res);
+  req.on('close', () => _scanSseClients.delete(res));
 }
 
 function invalidateScanCache() {
   _scanCache = null;
   clearVideoIndex();
+  clearMediaIndex();
+  try { require('./media-zip-mount-server').invalidate(); } catch {}
+  broadcastScanChange();
 }
 
 function _onVideoDirChange() {
   if (_watchDebounce) clearTimeout(_watchDebounce);
-  _watchDebounce = setTimeout(invalidateScanCache, 300);
+  _watchDebounce = setTimeout(() => {
+    console.log('[scan] Filesystem change detected in videos directory — refreshing index');
+    invalidateScanCache();
+  }, 300);
 }
 
 try {
@@ -299,40 +467,53 @@ async function cachedScan() {
   // Fast path: load previously indexed list from DB
   const indexed = loadVideoIndex();
   if (indexed && indexed.length > 0) {
-    // Prune entries whose directory no longer exists on disk
-    let prefs;
-    try { prefs = loadPrefs(); } catch (e) { prefs = {}; }
-    const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
-    const dirExistsCache = new Map();
-    const dirExists = dir => {
-      if (!dirExistsCache.has(dir)) dirExistsCache.set(dir, fs.existsSync(dir));
-      return dirExistsCache.get(dir);
-    };
-    const valid = indexed.filter(v => {
-      const dir = v.isExternal
-        ? path.dirname(v.rel)
-        : (v.catPath ? path.join(VIDEOS_DIR, v.catPath) : VIDEOS_DIR);
-      if (dirExists(dir)) return true;
-      // For external files, also check against source folders by catPath
-      if (v.isExternal && v.catPath) {
-        return sourceFolders.some(sf => dirExists(path.join(sf, v.catPath)));
-      }
-      return false;
-    });
-    if (valid.length !== indexed.length) saveVideoIndex(valid);
-    _scanCache = valid;
-    return _scanCache;
+    // If media_index is empty but video_index has data, a full rescan is needed to
+    // populate media_index (happens on first run after this feature was added).
+    if (loadMediaIndex().length === 0) {
+      clearVideoIndex();
+      // Fall through to full scan below
+    } else {
+      // Serve the indexed list immediately — no blocking existsSync per file.
+      // Validate file existence in the background; if anything was deleted the
+      // cache is pruned and clients are notified via SSE to refresh.
+      _scanCache = indexed;
+      setImmediate(() => {
+        try {
+          let prefs;
+          try { prefs = loadPrefs(); } catch { prefs = {}; }
+          const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
+          const valid = indexed.filter(v => {
+            const filePath = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
+            if (fs.existsSync(filePath)) return true;
+            if (v.isExternal && v.catPath && v.filename) {
+              return sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)));
+            }
+            return false;
+          });
+          if (valid.length !== indexed.length) {
+            _scanCache = valid;
+            saveVideoIndex(valid);
+            if (_scanSseClients.size > 0) broadcastScanChange();
+          }
+        } catch (e) {
+          console.error('[cachedScan] background validation error:', e.message);
+        }
+      });
+      return _scanCache;
+    }
   }
 
   // DB empty: scan filesystem, then persist to DB for next start
-  let all = await scan(VIDEOS_DIR);
+  console.log('[scan] Full filesystem scan starting…');
+  const mediaAll = [];
+  let all = await scan(VIDEOS_DIR, VIDEOS_DIR, false, mediaAll);
 
   try {
     const prefs = loadPrefs();
     if (prefs.sourceFolders) {
       for (const folder of prefs.sourceFolders) {
         if (fs.existsSync(folder)) {
-          const extFiles = await scan(folder, folder, true);
+          const extFiles = await scan(folder, folder, true, mediaAll);
           all.push(...extFiles);
         }
       }
@@ -342,7 +523,7 @@ async function cachedScan() {
   }
 
   try {
-    const cats = loadCategories();
+    const cats = loadFolderMappings();
     all = all.map(v => {
       if (path.isAbsolute(v.rel) && v.category === 'Uncategorized') {
         for (const cat of cats) {
@@ -360,20 +541,22 @@ async function cachedScan() {
   }
 
   saveVideoIndex(all);
+  saveMediaIndex(mediaAll);
   _scanCache = all;
+  console.log(`[scan] Full scan complete — ${all.length} video${all.length !== 1 ? 's' : ''} indexed`);
   return _scanCache;
 }
 
 // ── Video scanning ───────────────────────────────────────────────────
 
-async function scan(dir, base = dir, isExternal = false) {
+async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
   const out = [];
   if (!fs.existsSync(dir)) return out;
   const isDirEncrypted = fs.existsSync(path.join(dir, '.cat-enc-config.json'));
-  
+
   try {
     const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-    
+
     // Process in sequential chunks to avoid overwhelming the file system
     const chunkSize = 32;
     for (let i = 0; i < entries.length; i += chunkSize) {
@@ -382,7 +565,7 @@ async function scan(dir, base = dir, isExternal = false) {
         const fp = path.join(dir, ent.name);
         if (ent.isDirectory()) {
           if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR) || isHiddenFolderName(ent.name)) return;
-          const sub = await scan(fp, base, isExternal);
+          const sub = await scan(fp, base, isExternal, mediaOut);
           out.push(...sub);
           return;
         }
@@ -403,7 +586,35 @@ async function scan(dir, base = dir, isExternal = false) {
             realExt = '.mp4';
             encrypted = true;
           }
-        } else if (!VIDEO_EXT.has(ext)) return;
+        } else if (!VIDEO_EXT.has(ext)) {
+          // Collect non-video media files into the unified media index
+          if (mediaOut) {
+            let mediaType = null;
+            if (AUDIO_EXT.has(ext)) mediaType = 'audio';
+            else if (BOOK_EXT.has(ext)) mediaType = 'book';
+            // Photos from sourceFolders only — VIDEOS_DIR photos are already handled by the photos dynamic scan
+            else if (IMAGE_EXT.has(ext) && isExternal) mediaType = 'photo';
+            else if (ext !== '.enc' && ext !== '.db' && ext !== '.log' && ext !== '.tmp') mediaType = 'file';
+            if (mediaType) {
+              try {
+                const st = await fs.promises.stat(fp);
+                mediaOut.push({
+                  id: toId(fp),
+                  name: path.basename(ent.name, ext),
+                  filename: ent.name,
+                  absPath: fp,
+                  sourcePath: base,
+                  ext,
+                  mediaType,
+                  size: st.size,
+                  sizeF: formatBytes(st.size),
+                  mtime: st.mtimeMs,
+                });
+              } catch {}
+            }
+          }
+          return;
+        }
 
         const rel = path.relative(base, fp);
         const cat = path.dirname(rel);
@@ -428,9 +639,9 @@ async function scan(dir, base = dir, isExternal = false) {
   return out;
 }
 
-async function allVideos() {
+async function allVideos(forceAll = false) {
   const db = require('./db-server');
-  if (db.getCurrentProfile() === 'Vault') {
+  if (db.getCurrentProfile() === 'Vault' && !forceAll) {
     const { loadVaultMeta } = require('./db-server');
     const meta = loadVaultMeta();
     const list = [];
@@ -440,8 +651,12 @@ async function allVideos() {
           id,
           name: item.originalName || item.name,
           rel: id + '.enc',
+          ext: item.ext || '',
           catPath: item.category || '',
           encrypted: true,
+          // Mark as a vault item so the player streams via /api/vault/stream/:id
+          // (decrypting on the fly) instead of /api/stream/:id, which 404s.
+          isVault: true,
           mtime: item.mtime || Date.now(),
           size: item.size || 0
         });
@@ -493,16 +708,24 @@ async function allVideos() {
 
   list.push(...bmVideos);
 
-  return list.filter(v => {
+  list = list.filter(v => {
     if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
   });
+
+  // Append files from temporarily opened folders (not persisted to the DB).
+  try {
+    const { getOpenedItems } = require('./opened-folders-server');
+    list.push(...getOpenedItems());
+  } catch (e) {}
+
+  return list;
 }
 
 function isUnlocked(catPath) {
   let p = getCatKey(catPath);
   while (true) {
-    if (unlockedCategories.has(p)) return true;
+    if (unlockedFolders.has(p)) return true;
     const idx = p.lastIndexOf('/');
     if (idx === -1) break;
     p = p.substring(0, idx);
@@ -520,7 +743,7 @@ function getUnlockKey(catPath) {
 
   let p = getCatKey(catPath);
   while (true) {
-    if (unlockedCategories.has(p)) return unlockedCategories.get(p);
+    if (unlockedFolders.has(p)) return unlockedFolders.get(p);
     const idx = p.lastIndexOf('/');
     if (idx === -1) break;
     p = p.substring(0, idx);
@@ -535,22 +758,22 @@ async function initVideoMeta() {
     const meta       = loadVideoMeta();
     const videos     = await cachedScan();
     let changed      = false;
-    const categories = loadCategories();
-    const studios    = loadStudios();
+    const categories = loadFolderMappings();
+    const channels    = loadChannels();
     const actors     = loadActors();
     let oldRatings   = {};
     try { oldRatings = loadRatings(); } catch {}
 
     for (const v of videos) {
       if (!meta[v.id]) {
-        const detectedTags   = categories.filter(e => wordMatchAny(v.name, e.terms)).map(e => e.displayName);
-        const detectedStudio = studios.find(e => studioMatchAny(v.name, e.terms));
-        const detectedActors = actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name);
+        const detectedTags   = [...new Set(categories.filter(e => wordMatchAny(v.name, e.terms)).map(e => e.displayName))];
+        const detectedChannel = channels.find(e => channelMatchAny(v.name, e.terms));
+        const detectedActors = [...new Set(actors.filter(e => actorMatchesAny(v.name, e.terms)).map(e => e.name))];
         meta[v.id] = {
           title: v.name,
           actors: detectedActors,
           tags: detectedTags,
-          studio: detectedStudio ? detectedStudio.name : '',
+          channel: detectedChannel ? detectedChannel.name : '',
           rating: oldRatings[v.id] || null,
           category: v.catPath,
           note: '', date: v.modified,
@@ -571,41 +794,62 @@ async function initVideoMeta() {
 // ── Video API handlers ───────────────────────────────────────────────
 
 async function apiVideos(req, res, params) {
-  const videos      = await allVideos();
   const favs        = loadFavs();
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
+  const prefs       = loadPrefs();
+  const historyEnabled = prefs.chronologyMode !== 'dont-save';
+  const historySet  = historyEnabled ? new Set(loadHistory()) : null;
   // all=1 (vault unlocked only): bypass the per-profile enabled-categories
   // filter so the Vault's Global view can import files from any profile
   const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
+  const videos      = await allVideos(showAll);
   let list = videos
-    .filter(v => showAll || isCategoryEnabled(v.catPath, enabledPaths))
+    .filter(v => showAll || v.isOpened || isFolderEnabled(v.catPath, enabledPaths))
     .map(v => {
       const cached   = thumbsCache[v.id];
       const duration = cached?.duration || null;
       const vMeta    = meta[v.id] || {};
-      return { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, duration, durationF: formatDuration(duration), tags: vMeta.tags || v.tags || [], chapters: vMeta.chapters || [] };
+      return {
+        ...v,
+        fav: favs.includes(v.id),
+        rating: vMeta.rating ?? null,
+        reencoded: !!vMeta.reencoded,
+        duration,
+        durationF: formatDuration(duration),
+        tags: vMeta.tags || v.tags || [],
+        actors: vMeta.actors || [],
+        note: vMeta.note || '',
+        chapters: vMeta.chapters || [],
+        width: cached?.width || null,
+        height: cached?.height || null,
+        ...(historySet ? { watched: historySet.has(v.id) } : {}),
+      };
     });
   const q    = params.get('q');
   const cat  = params.get('category');
   const sort = params.get('sort') || 'date';
   const fav  = params.get('fav') === '1' || params.get('fav') === 'true';
-  
+
   const relevance = new Map();
   if (q) {
     const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
     list = list.filter(v => {
-      const vName = v.name.toLowerCase();
-      const vCat  = v.category.toLowerCase();
-      const vTags = (meta[v.id]?.tags || v.tags || []).map(t => t.toLowerCase());
-      
+      const vName    = v.name.toLowerCase();
+      const vCat     = v.category.toLowerCase();
+      const vTags    = (v.tags || []).map(t => t.toLowerCase());
+      const vActors  = (v.actors || []).map(a => a.toLowerCase());
+      const vNote    = (v.note || '').toLowerCase();
+
       const match = tokens.every(token =>
         vName.includes(token) ||
         vCat.includes(token) ||
-        vTags.some(t => t.includes(token))
+        vTags.some(t => t.includes(token)) ||
+        vActors.some(a => a.includes(token)) ||
+        vNote.includes(token)
       );
-      
+
       if (match) {
         let score = 0;
         tokens.forEach(token => {
@@ -613,6 +857,8 @@ async function apiVideos(req, res, params) {
           if (vName.startsWith(token)) score += 5;
           if (vCat.includes(token)) score += 3;
           if (vTags.some(t => t.includes(token))) score += 5;
+          if (vActors.some(a => a.includes(token))) score += 8;
+          if (vNote.includes(token)) score += 2;
         });
         if (vName.includes(q.toLowerCase())) score += 20;
         relevance.set(v.id, score);
@@ -630,7 +876,7 @@ async function apiVideos(req, res, params) {
     if (cat === 'uncategorized' || cat === '__uncategorized__' || cat === '') {
       list = list.filter(v => v.catPath === '');
     } else {
-      const defined = loadCategories();
+      const defined = loadFolderMappings();
       const catLo = cat.toLowerCase();
       const matchingEntry = defined.find(e => e.name.toLowerCase() === catLo);
       const cl = cat.toLowerCase().replace(/\\/g, '/');
@@ -641,6 +887,21 @@ async function apiVideos(req, res, params) {
       });
     }
   }
+  // Append virtual ZIP-based video entries (unencrypted ZIPs in all media roots).
+  if (!showAll) {
+    try {
+      const mediaZip = require('./media-zip-mount-server');
+      let zipVideos = mediaZip.getVirtualVideos(cat || null);
+      if (q) {
+        const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+        zipVideos = zipVideos.filter(v => tokens.every(t => v.name.toLowerCase().includes(t) || v.catPath.toLowerCase().includes(t)));
+      }
+      for (const zv of zipVideos) {
+        list.push({ ...zv, fav: false, rating: null, reencoded: false, duration: null, durationF: null, actors: [], note: '', chapters: [], width: null, height: null });
+      }
+    } catch (e) { console.error('[apiVideos] zip videos error:', e.message); }
+  }
+
   if (sort === 'name')     list.sort((a, b) => a.name.localeCompare(b.name));
   else if (sort === 'size')     list.sort((a, b) => b.size - a.size);
   else if (sort === 'duration') list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
@@ -656,8 +917,14 @@ async function apiVideos(req, res, params) {
   json(res, list);
 }
 
-async function apiCategories(req, res) {
-  const videos = await cachedScan();
+async function apiFolders(req, res, params) {
+  const db = require('./db-server');
+  // all=1 (vault unlocked only): mirrors apiVideos' Global view — use the
+  // disk-scan set bypassing the per-profile enabled-categories filter.
+  const showAll = !!params && params.get('all') === '1' && require('./vault-server').isUnlocked();
+  // Vault Only: build categories from the Vault's own item list (catPath = item.category)
+  const isVaultOnly = db.getCurrentProfile() === 'Vault' && !showAll;
+  const videos = isVaultOnly ? await allVideos(false) : await cachedScan();
   const meta = loadVideoMeta();
   const catMap = new Map();
 
@@ -697,10 +964,14 @@ async function apiCategories(req, res) {
   }
 
   // Include empty directories from the filesystem so newly created folders appear
+  // (skipped in Vault Only mode — vault categories come purely from vault meta)
   try {
-    if (fs.existsSync(VIDEOS_DIR)) {
-      const walkDir = (dir, rel) => {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
+    if (!isVaultOnly && fs.existsSync(VIDEOS_DIR)) {
+      // Async (non-blocking) walk: a sync recursive readdir here stalls the
+      // single-threaded event loop, delaying the concurrent /api/videos
+      // response from flushing even when it's already built.
+      const walkDir = async (dir, rel) => {
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
         for (const ent of entries) {
           if (!ent.isDirectory()) continue;
           if (isHiddenFolderName(ent.name)) continue;
@@ -714,10 +985,10 @@ async function apiCategories(req, res) {
               hasUnencrypted: false
             });
           }
-          walkDir(path.join(dir, ent.name), subRel);
+          await walkDir(path.join(dir, ent.name), subRel);
         }
       };
-      walkDir(VIDEOS_DIR, '');
+      await walkDir(VIDEOS_DIR, '');
     }
   } catch (e) {
     console.error('[apiCategories] filesystem walk error:', e.message);
@@ -768,22 +1039,24 @@ async function apiCategories(req, res) {
     });
   }
 
-  // Remove categories whose physical directory no longer exists
-  {
+  const vaultCats = getVaultCategoryPaths();
+
+  // Remove categories whose physical directory no longer exists — vault-only
+  // categories live purely in the Vault's item list, so skip this for them.
+  if (!isVaultOnly) {
     let sfPrefs;
     try { sfPrefs = loadPrefs(); } catch (e) { sfPrefs = {}; }
     const existingSF = (sfPrefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
     const toRemove = [];
     for (const [key, entry] of catMap.entries()) {
       if (key === 'Links') continue;
+      if (vaultCats.has(entry.path)) continue;
       if (fs.existsSync(path.join(VIDEOS_DIR, entry.path))) continue;
       if (existingSF.some(sf => fs.existsSync(path.join(sf, entry.path)))) continue;
       toRemove.push(key);
     }
     toRemove.forEach(k => catMap.delete(k));
   }
-
-  const vaultCats = getVaultCategoryPaths();
 
   const cats = [];
   for (const [key, entry] of catMap.entries()) {
@@ -809,9 +1082,28 @@ async function apiCategories(req, res) {
   }).length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
 
-  const db = require('./db-server');
-  const enabledPaths = db.loadEnabledCategories();
-  const filtered = cats.filter(c => isCategoryEnabled(c.path, enabledPaths));
+  const enabledPaths = db.loadEnabledFolders();
+  const filtered = showAll ? cats : cats.filter(c => isFolderEnabled(c.path, enabledPaths));
+
+  // Append temporarily opened folders (always visible, regardless of enabled set).
+  try {
+    const { getOpenedFolderEntries } = require('./opened-folders-server');
+    for (const entry of getOpenedFolderEntries()) {
+      filtered.push({ ...entry, encrypted: false, partial: false, unlocked: true });
+    }
+  } catch (e) {}
+
+  // Inject ZIP-based virtual categories (always visible — bypass enabled-folder filter).
+  try {
+    const existingPaths = new Set(filtered.map(c => c.path));
+    const mediaZip = require('./media-zip-mount-server');
+    for (const vc of mediaZip.getVirtualCategories()) {
+      if (!existingPaths.has(vc.path)) {
+        filtered.push({ name: vc.name, path: vc.path, count: vc.count, encrypted: false, partial: false, unlocked: true, isZipMount: true });
+        existingPaths.add(vc.path);
+      }
+    }
+  } catch (e) { console.error('[apiFolders] zip categories error:', e.message); }
 
   filtered.sort((a, b) => {
     if (a.path === 'uncategorized') return -1;
@@ -822,7 +1114,7 @@ async function apiCategories(req, res) {
   json(res, filtered);
 }
 
-async function apiGetAllCategories(req, res) {
+async function apiGetAllFolders(req, res) {
   // path -> { name, path, isExternal }
   const catMap = new Map();
 
@@ -880,22 +1172,22 @@ async function apiGetAllCategories(req, res) {
   console.log('[folders] found', list.length, 'folders total');
 
   const db = require('./db-server');
-  const enabled = db.loadEnabledCategories();
+  const enabled = db.loadEnabledFolders();
 
   json(res, { categories: list, enabled });
 }
 
-async function apiSetEnabledCategories(req, res) {
+async function apiSetEnabledFolders(req, res) {
   const body = await readBody(req);
   const { paths } = body;
   if (!Array.isArray(paths)) return json(res, { error: 'Paths array required' }, 400);
   
   const db = require('./db-server');
-  db.saveEnabledCategories(paths);
+  db.saveEnabledFolders(paths);
   json(res, { ok: true });
 }
 
-async function apiMainCategories(req, res) {
+async function apiMainFolders(req, res) {
   const result = [{ name: 'Uncategorized', path: '' }];
 
   async function walk(dir, rel = '') {
@@ -919,18 +1211,30 @@ async function apiMainCategories(req, res) {
   // Filter to only enabled folders for current user (consistent with browser folder lists)
   try {
     const dbmod = require('./db-server');
-    const enabledPaths = dbmod.loadEnabledCategories();
+    const enabledPaths = dbmod.loadEnabledFolders();
     // keep uncat + enabled ones; note main-cats only covers VIDEOS_DIR not sources
     const before = result.length;
     // re-filter in place
     for (let i = result.length - 1; i >= 0; i--) {
-      if (!isCategoryEnabled(result[i].path, enabledPaths)) {
+      if (!isFolderEnabled(result[i].path, enabledPaths)) {
         result.splice(i, 1);
       }
     }
   } catch (e) {
     console.error('[main-categories] enabled filter error:', e.message);
   }
+
+  // Inject ZIP-based virtual categories so they appear in folder lists.
+  try {
+    const mediaZip = require('./media-zip-mount-server');
+    const existingPaths = new Set(result.map(c => c.path));
+    for (const vc of mediaZip.getVirtualCategories()) {
+      if (!existingPaths.has(vc.path)) {
+        result.push({ name: vc.name, path: vc.path, isZipMount: true });
+        existingPaths.add(vc.path);
+      }
+    }
+  } catch (e) { console.error('[main-folders] zip categories error:', e.message); }
 
   result.sort((a, b) => {
     if (a.path === '') return -1;
@@ -940,15 +1244,106 @@ async function apiMainCategories(req, res) {
   json(res, result);
 }
 
-async function apiCreateCategory(req, res) {
+async function apiCreateFolder(req, res) {
   const body = await readBody(req);
   const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
   if (!name) return json(res, { error: 'Name required' }, 400);
+  if (name.length > LIMITS.name) return json(res, { error: `Name is too long (max ${LIMITS.name} characters)` }, 400);
   const writeRoot = getDefaultWriteRoot();
   const dir = path.join(writeRoot, name);
   if (fs.existsSync(dir)) return json(res, { error: 'Already exists' }, 409);
   try { fs.mkdirSync(dir, { recursive: true }); json(res, { ok: true, name }); }
   catch (e) { json(res, { error: e.message }, 500); }
+}
+
+// ── Physical folder management (non-Vault profiles only) ──────────────
+
+async function apiFolderCreate(req, res) {
+  const { getCurrentProfile } = require('./db-server');
+  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
+  const body = await readBody(req);
+  const parentPath = (body.parentPath || '').replace(/[<>:"|?*]/g, '_');
+  const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
+  if (!name) return json(res, { error: 'Name required' }, 400);
+  if (name.length > LIMITS.name) return json(res, { error: `Name is too long (max ${LIMITS.name} characters)` }, 400);
+  const base = getDefaultWriteRoot();
+  const dir = parentPath ? path.join(base, parentPath, name) : path.join(base, name);
+  if (!dir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid path' }, 400);
+  if (fs.existsSync(dir)) return json(res, { error: 'Already exists' }, 409);
+  try { fs.mkdirSync(dir, { recursive: true }); invalidateScanCache(); json(res, { ok: true }); }
+  catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiFolderRename(req, res) {
+  const { getCurrentProfile } = require('./db-server');
+  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
+  const body = await readBody(req);
+  const oldPath = body.path;
+  const newName = (body.newName || '').trim().replace(/[<>:"|?*]/g, '_');
+  if (!oldPath || !newName) return json(res, { error: 'path and newName required' }, 400);
+  const oldDir = resolveCategoryPhysicalPath(oldPath);
+  if (!fs.existsSync(oldDir)) return json(res, { error: 'Folder not found' }, 404);
+  const newDir = path.join(path.dirname(oldDir), newName);
+  if (fs.existsSync(newDir)) return json(res, { error: 'Target name already exists' }, 409);
+  try {
+    fs.renameSync(oldDir, newDir);
+    invalidateScanCache();
+    json(res, { ok: true });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiFolderDelete(req, res) {
+  const { getCurrentProfile } = require('./db-server');
+  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
+  const body = await readBody(req);
+  const folderPath = body.path;
+  if (!folderPath) return json(res, { error: 'path required' }, 400);
+  const dir = resolveCategoryPhysicalPath(folderPath);
+  if (!fs.existsSync(dir)) return json(res, { error: 'Folder not found' }, 404);
+  const parentDir = path.dirname(dir);
+  const base = getDefaultWriteRoot();
+  if (!dir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid path' }, 400);
+  try {
+    const moveContents = (src, dst) => {
+      for (const ent of fs.readdirSync(src, { withFileTypes: true })) {
+        const srcFull = path.join(src, ent.name);
+        let dstFull = path.join(dst, ent.name);
+        if (fs.existsSync(dstFull)) {
+          const ext = path.extname(ent.name), base = path.basename(ent.name, ext);
+          let n = 1;
+          while (fs.existsSync(dstFull)) dstFull = path.join(dst, `${base}(${n++})${ext}`);
+        }
+        fs.renameSync(srcFull, dstFull);
+      }
+    };
+    moveContents(dir, parentDir);
+    fs.rmdirSync(dir);
+    invalidateScanCache();
+    json(res, { ok: true });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiFolderMove(req, res) {
+  const { getCurrentProfile } = require('./db-server');
+  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
+  const body = await readBody(req);
+  const fromPath = body.fromPath;
+  const toParentPath = body.toParentPath || '';
+  if (!fromPath) return json(res, { error: 'fromPath required' }, 400);
+  const base = getDefaultWriteRoot();
+  const fromDir = resolveCategoryPhysicalPath(fromPath);
+  if (!fs.existsSync(fromDir)) return json(res, { error: 'Source folder not found' }, 404);
+  const folderName = path.basename(fromDir);
+  const toDir = toParentPath ? path.join(base, toParentPath, folderName) : path.join(base, folderName);
+  if (!toDir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid target path' }, 400);
+  if (toDir === fromDir) return json(res, { error: 'Source and destination are the same' }, 400);
+  if (toDir.startsWith(fromDir + path.sep)) return json(res, { error: 'Cannot move folder into itself' }, 400);
+  if (fs.existsSync(toDir)) return json(res, { error: 'Target already exists' }, 409);
+  try {
+    fs.renameSync(fromDir, toDir);
+    invalidateScanCache();
+    json(res, { ok: true });
+  } catch (e) { json(res, { error: e.message }, 500); }
 }
 
 async function apiVideoDetail(req, res, id) {
@@ -971,26 +1366,49 @@ async function apiVideoDetail(req, res, id) {
   for (const entry of Object.values(meta)) {
     if (Array.isArray(entry.tags)) entry.tags.forEach(t => allTagSet.add(t));
   }
-  loadCategories().forEach(e => allTagSet.add(e.displayName));
+  loadFolderMappings().forEach(e => allTagSet.add(e.displayName));
 
-  const enabledPaths = loadEnabledCategories();
-  const visibleVideos = enabledPaths.length ? videos.filter(x => isCategoryEnabled(x.catPath, enabledPaths)) : videos;
+  const enabledPaths = loadEnabledFolders();
+  const visibleVideos = enabledPaths.length ? videos.filter(x => isFolderEnabled(x.catPath, enabledPaths)) : videos;
 
-  const suggested = visibleVideos
-    .filter(x => x.id !== v.id)
-    .map(x => {
-      let score      = 0;
-      const xActors  = meta[x.id]?.actors || [];
-      const shared   = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
-      score += shared.length * 100;
-      if (x.category === v.category) score += 50;
-      return { video: x, score };
-    })
+  // Build actor → [videoId] inverted index from the already-loaded meta map.
+  const actorIndex = new Map(); // actorLower → Set<videoId>
+  for (const [vid, m] of Object.entries(meta)) {
+    for (const a of (m.actors || [])) {
+      const k = a.toLowerCase();
+      let s = actorIndex.get(k);
+      if (!s) { s = new Set(); actorIndex.set(k, s); }
+      s.add(vid);
+    }
+  }
+
+  // Collect candidate video IDs that share at least one actor with this video.
+  const candidateIds = new Set();
+  for (const a of combinedActors) {
+    const s = actorIndex.get(a.toLowerCase());
+    if (s) s.forEach(id => candidateIds.add(id));
+  }
+  candidateIds.delete(v.id);
+
+  // Score only candidates (shared actors) plus same-category videos.
+  const sameCat = visibleVideos.filter(x => x.id !== v.id && x.category === v.category && !candidateIds.has(x.id));
+  const candidates = visibleVideos.filter(x => candidateIds.has(x.id));
+
+  const scored = [
+    ...candidates.map(x => {
+      const xActors = meta[x.id]?.actors || [];
+      const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
+      return { video: x, score: shared.length * 100 + (x.category === v.category ? 50 : 0) };
+    }),
+    ...sameCat.map(x => ({ video: x, score: 50 })),
+  ];
+
+  const suggested = scored
     .sort((a, b) => b.score - a.score || Math.random() - 0.5)
     .slice(0, 12)
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
-  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
+  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), channel: vMeta.channel || '' });
 }
 
 // ── Lightweight video detail (fast single-lookup) ──────────────────
@@ -1008,7 +1426,7 @@ async function apiVideoDetailFast(req, res, id) {
   const favs = db.loadFavs();
   const thumbsCache = db.loadThumbsCache();
   const actors = db.loadActors();
-  const cats = db.loadCategories();
+  const cats = db.loadFolderMappings();
 
   const fav = favs.includes(id);
   const cached = thumbsCache[id];
@@ -1024,29 +1442,50 @@ async function apiVideoDetailFast(req, res, id) {
   allTagSet.add(...metaTags);
   cats.forEach(e => allTagSet.add(e.displayName));
 
-  // Suggested: find up to 8 related from the full allVideos list (without loading everything if possible)
-  const enabledPaths = db.loadEnabledCategories();
+  // Build suggested using inverted actor index over bulk-loaded meta (avoids N SQLite reads).
+  const enabledPaths = db.loadEnabledFolders();
   const allVisible = await allVideos();
-  const visibleVideos = enabledPaths.length ? allVisible.filter(x => isCategoryEnabled(x.catPath, enabledPaths)) : allVisible;
+  const visibleVideos = enabledPaths.length ? allVisible.filter(x => isFolderEnabled(x.catPath, enabledPaths)) : allVisible;
+  const allMeta = db.loadVideoMeta();
 
-  const suggested = visibleVideos
-    .filter(x => x.id !== v.id)
-    .map(x => {
-      let score = 0;
-      const xMeta = db.getSingleVideoMeta(x.id);
-      const xActors = xMeta?.actors || [];
+  const actorIndex = new Map();
+  for (const [vid, m] of Object.entries(allMeta)) {
+    for (const a of (m.actors || [])) {
+      const k = a.toLowerCase();
+      let s = actorIndex.get(k);
+      if (!s) { s = new Set(); actorIndex.set(k, s); }
+      s.add(vid);
+    }
+  }
+
+  const candidateIds = new Set();
+  for (const a of combinedActors) {
+    const s = actorIndex.get(a.toLowerCase());
+    if (s) s.forEach(xid => candidateIds.add(xid));
+  }
+  candidateIds.delete(v.id);
+
+  const sameCat = visibleVideos.filter(x => x.id !== v.id && x.category === v.category && !candidateIds.has(x.id));
+  const candidateVids = visibleVideos.filter(x => candidateIds.has(x.id));
+
+  const scored = [
+    ...candidateVids.map(x => {
+      const xActors = allMeta[x.id]?.actors || [];
       const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
-      score += shared.length * 100;
-      if (x.category === v.category) score += 50;
-      return { video: { ...x, fav: favs.includes(x.id), rating: xMeta?.rating ?? null }, score };
-    })
+      const score = shared.length * 100 + (x.category === v.category ? 50 : 0);
+      return { video: { ...x, fav: favs.includes(x.id), rating: allMeta[x.id]?.rating ?? null }, score };
+    }),
+    ...sameCat.map(x => ({ video: { ...x, fav: favs.includes(x.id), rating: allMeta[x.id]?.rating ?? null }, score: 50 })),
+  ];
+
+  const suggested = scored
     .sort((a, b) => b.score - a.score || Math.random() - 0.5)
     .slice(0, 12)
     .map(item => item.video);
 
-  const video = { ...v, fav, rating: vMeta.rating ?? null, language: vMeta.language || '', duration, durationF: formatDuration(duration), tags: metaTags, chapters: vMeta.chapters || [] };
+  const video = { ...v, fav, rating: vMeta.rating ?? null, language: vMeta.language || '', reencoded: !!vMeta.reencoded, duration, durationF: formatDuration(duration), tags: metaTags, chapters: vMeta.chapters || [] };
 
-  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), studio: vMeta.studio || '' });
+  json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), channel: vMeta.channel || '' });
 }
 
 // ── Preload endpoint (fast startup data) ──────────────────────────
@@ -1072,7 +1511,7 @@ async function apiPreload(req, res) {
     console.error('[preload] index load error:', e.message);
   }
 
-  const enabledPaths = db.loadEnabledCategories();
+  const enabledPaths = db.loadEnabledFolders();
 
   json(res, {
     totalVideos,
@@ -1127,8 +1566,14 @@ async function apiStream(req, res, id) {
     const range = req.headers.range;
     if (range) {
       const [s, e2] = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(s, 10);
-      const end = e2 ? parseInt(e2, 10) : contentSize - 1;
+      let start = parseInt(s, 10);
+      let end = e2 ? parseInt(e2, 10) : contentSize - 1;
+      if (Number.isNaN(start)) start = 0;
+      if (Number.isNaN(end)) end = contentSize - 1;
+      if (start < 0 || end >= contentSize || start > end) {
+        res.writeHead(416, { 'Content-Range': `bytes */${contentSize}` });
+        return res.end();
+      }
       const chunkSz = end - start + 1;
 
       res.writeHead(206, {
@@ -1163,6 +1608,9 @@ async function apiStream(req, res, id) {
       dec.on('error', () => {
         if (!ended) { ended = true; res.end(); }
       });
+      src.on('error', () => {
+        if (!ended) { ended = true; try { res.end(); } catch {} }
+      });
       src.pipe(dec);
     } else {
       res.writeHead(200, {
@@ -1182,22 +1630,46 @@ async function apiStream(req, res, id) {
   const range = req.headers.range;
   if (range) {
     const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(startStr, 10);
-    const end   = endStr ? parseInt(endStr, 10) : size - 1;
+    let start = parseInt(startStr, 10);
+    let end   = endStr ? parseInt(endStr, 10) : size - 1;
+    if (Number.isNaN(start)) start = 0;
+    if (Number.isNaN(end)) end = size - 1;
+    if (start < 0 || end >= size || start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+      return res.end();
+    }
     res.writeHead(206, {
       'Content-Range': `bytes ${start}-${end}/${size}`,
       'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct,
     });
-    fs.createReadStream(fp, { start, end }).pipe(res);
+    const rs = fs.createReadStream(fp, { start, end });
+    rs.on('error', () => { try { res.destroy(); } catch {} });
+    rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
-    fs.createReadStream(fp).pipe(res);
+    const rs = fs.createReadStream(fp);
+    rs.on('error', () => { try { res.destroy(); } catch {} });
+    rs.pipe(res);
   }
 }
 
 function apiDelete(req, res, id) {
   const fp = safePath(id);
-  if (!fp) return json(res, { error: 'Not found' }, 404);
+
+  // Stale entry: the file is gone from disk (safePath returns null) but it is
+  // still referenced — in the index/DB, or only in a client-side cache that has
+  // outlived a prune. Either way a normal delete 404s and the ghost looks
+  // undeletable, so purge whatever records remain so it disappears for good.
+  if (!fp) {
+    const { deleteVideoMetaEverywhere } = require('./db-server');
+    deleteVideoMetaEverywhere(id);
+    const { THUMBS_DIR } = require('./config-server');
+    const thumbDir = path.join(THUMBS_DIR, id);
+    if (fs.existsSync(thumbDir)) try { fs.rmSync(thumbDir, { recursive: true, force: true }); } catch {}
+    invalidateScanCache();
+    return json(res, { ok: true, stale: true });
+  }
+
   try {
     fs.unlinkSync(fp);
     invalidateScanCache();
@@ -1212,7 +1684,17 @@ function apiDelete(req, res, id) {
     const meta = loadVideoMeta();
     if (meta[id]) { delete meta[id]; saveVideoMeta(meta); }
     json(res, { ok: true });
-  } catch (e) { json(res, { error: e.message }, 500); }
+  } catch (e) {
+    // The file vanished between the existence check and unlink — treat it as a
+    // stale entry and clean the DB rather than leaving an undeletable ghost.
+    if (e.code === 'ENOENT') {
+      const { deleteVideoMetaEverywhere } = require('./db-server');
+      deleteVideoMetaEverywhere(id);
+      invalidateScanCache();
+      return json(res, { ok: true, stale: true });
+    }
+    json(res, { error: e.message }, 500);
+  }
 }
 
 async function apiRename(req, res, id) {
@@ -1228,6 +1710,22 @@ async function apiRename(req, res, id) {
   if (fs.existsSync(np) && np !== fp) return json(res, { error: 'Name already exists' }, 409);
   try {
     fs.renameSync(fp, np);
+
+    // Rename subtitle sidecars to match the new video filename
+    const oldBase = path.basename(fp, ext);
+    const newBase = safe;
+    try {
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!ent.isFile()) continue;
+        const subExt = path.extname(ent.name).toLowerCase();
+        if (!SUBTITLE_EXT.has(subExt)) continue;
+        const nameNoExt = ent.name.slice(0, -subExt.length);
+        if (nameNoExt !== oldBase && !nameNoExt.startsWith(oldBase + '.')) continue;
+        const suffix = nameNoExt.slice(oldBase.length);
+        try { fs.renameSync(path.join(dir, ent.name), path.join(dir, newBase + suffix + subExt)); } catch {}
+      }
+    } catch {}
+
     invalidateScanCache();
     const newRel = path.relative(VIDEOS_DIR, np);
     const newId  = toId(newRel);
@@ -1259,6 +1757,22 @@ async function apiMove(req, res, id) {
   if (path.resolve(newPath) === path.resolve(fp)) return json(res, { error: 'Already in this category' }, 400);
   if (fs.existsSync(newPath)) return json(res, { error: 'A file with that name already exists in the target category' }, 409);
 
+  // Files from a temporarily opened folder are *copied* into the library
+  // (the original is left in place), not moved.
+  let isOpened = false;
+  try { isOpened = require('./opened-folders-server').isOpenedPath(fp); } catch {}
+  if (isOpened) {
+    try {
+      fs.copyFileSync(fp, newPath);
+      invalidateScanCache();
+      const newResolved = path.resolve(newPath);
+      const newId = newResolved.startsWith(path.resolve(VIDEOS_DIR))
+        ? toId(path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/'))
+        : toId(newPath);
+      return json(res, { ok: true, newId, copied: true });
+    } catch (e) { return json(res, { error: e.message }, 500); }
+  }
+
   try {
     try {
       fs.renameSync(fp, newPath);
@@ -1271,6 +1785,29 @@ async function apiMove(req, res, id) {
         throw renameErr;
       }
     }
+
+    // Move subtitle sidecars alongside the video
+    const oldDir  = path.dirname(fp);
+    const oldBase = path.basename(fp, path.extname(fp));
+    try {
+      for (const ent of fs.readdirSync(oldDir, { withFileTypes: true })) {
+        if (!ent.isFile()) continue;
+        const subExt = path.extname(ent.name).toLowerCase();
+        if (!SUBTITLE_EXT.has(subExt)) continue;
+        const nameNoExt = ent.name.slice(0, -subExt.length);
+        if (nameNoExt !== oldBase && !nameNoExt.startsWith(oldBase + '.')) continue;
+        const oldSub = path.join(oldDir, ent.name);
+        const newSub = path.join(resolvedTarget, ent.name);
+        if (!fs.existsSync(newSub)) {
+          try {
+            fs.renameSync(oldSub, newSub);
+          } catch (e) {
+            if (e.code === 'EXDEV') { fs.copyFileSync(oldSub, newSub); fs.unlinkSync(oldSub); }
+          }
+        }
+      }
+    } catch {}
+
     invalidateScanCache();
 
     // Compute rel/id based on the scan root the *new* file lives under (main uses relative; sources use abs)
@@ -1398,11 +1935,13 @@ async function apiSetRating(req, res, id) {
   const stars = parseInt(body.stars, 10);
   if (!Number.isFinite(stars) || stars < 1 || stars > 5) return json(res, { error: 'stars must be 1–5' }, 400);
   setVideoMetaFields(id, { rating: stars });
+  broadcastScanChange();
   json(res, { ok: true, rating: stars });
 }
 
 function apiDeleteRating(req, res, id) {
   setVideoMetaFields(id, { rating: null });
+  broadcastScanChange();
   json(res, { ok: true });
 }
 
@@ -1410,10 +1949,14 @@ async function apiUpdateVideoMeta(req, res, id) {
   const videos = await allVideos();
   if (!videos.find(v => v.id === id)) return json(res, { error: 'Not found' }, 404);
   const body    = await readBody(req);
-  const allowed = ['title', 'actors', 'tags', 'studio', 'rating', 'category', 'note', 'date', 'language'];
+  const allowed = ['title', 'actors', 'tags', 'channel', 'rating', 'category', 'note', 'date', 'language', 'reencoded'];
   const fields  = {};
   for (const key of allowed) { if (key in body) fields[key] = body[key]; }
   setVideoMetaFields(id, fields);
+  // Notify connected clients so the new tags/actors/channel/etc. appear on the
+  // card right away instead of only after a manual reload. The frontend SSE
+  // handler debounces, so rapid edits (e.g. adding several tags) coalesce.
+  broadcastScanChange();
   json(res, { ok: true });
 }
 
@@ -1435,7 +1978,7 @@ async function apiOpenFolder(req, res) {
   json(res, { ok: true });
 }
 
-async function apiOpenCategoryFolder(req, res) {
+async function apiOpenFolderInExplorer(req, res) {
   const body = await readBody(req);
   const { path: catPath } = body;
   const full = path.join(VIDEOS_DIR, catPath || '');
@@ -1449,12 +1992,23 @@ async function apiOpenCategoryFolder(req, res) {
 }
 
 async function apiDuplicates(req, res) {
-  const videos = await allVideos();
+  const db = require('./db-server');
+  // Real files only — exclude bookmark links (size 0, not on disk).
+  const videos = (await allVideos()).filter(v => !v.isLink && v.size > 0);
+  // Include all other media categories (audio, books, photos, files), not just videos.
+  const media = loadMediaIndex().map(m => ({
+    ...m,
+    category: m.category || m.mediaType || 'Uncategorized',
+  }));
+  const all = [...videos, ...media];
   const favs   = loadFavs();
+  const thumbs = db.loadThumbsCache();
   const bySize = new Map();
-  for (const v of videos) {
+  for (const v of all) {
+    if (!v.size || v.size <= 0) continue;
     if (!bySize.has(v.size)) bySize.set(v.size, []);
-    bySize.get(v.size).push({ ...v, fav: favs.includes(v.id) });
+    const th = thumbs[v.id] || {};
+    bySize.get(v.size).push({ ...v, fav: favs.includes(v.id), width: th.width || null, height: th.height || null });
   }
   const groups = [...bySize.values()]
     .filter(g => g.length > 1)
@@ -1464,7 +2018,7 @@ async function apiDuplicates(req, res) {
 
 // ── Tags ─────────────────────────────────────────────────────────────
 
-async function apiCategoriesOverview(req, res) {
+async function apiFoldersOverview(req, res) {
   const videos = await cachedScan();
   const meta   = loadVideoMeta();
 
@@ -1526,15 +2080,15 @@ async function apiCategoriesOverview(req, res) {
   let _enabledPathsOv = [];
   try {
     const dbmod = require('./db-server');
-    _enabledPathsOv = dbmod.loadEnabledCategories();
-    catsForOverview = filteredCats.filter(c => isCategoryEnabled(c.path, _enabledPathsOv));
+    _enabledPathsOv = dbmod.loadEnabledFolders();
+    catsForOverview = filteredCats.filter(c => isFolderEnabled(c.path, _enabledPathsOv));
   } catch (e) {
     console.error('[categories-overview] enabled filter error:', e.message);
   }
 
   // ── Tags ──
   const videosForTags = videos.filter(v => {
-    return isCategoryEnabled(v.catPath, _enabledPathsOv);
+    return isFolderEnabled(v.catPath, _enabledPathsOv);
   });
   const folderNames = new Set(
     videosForTags.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
@@ -1579,7 +2133,7 @@ async function apiCategoriesOverview(req, res) {
   const allCatsForOverview = [...catsForOverview];
   for (const [key, e] of catMap.entries()) {
     if (e._vaultEncrypted && !catsForOverview.some(c => c.path === key)) {
-      if (isCategoryEnabled(key, _enabledPathsOv)) allCatsForOverview.push(e);
+      if (isFolderEnabled(key, _enabledPathsOv)) allCatsForOverview.push(e);
     }
   }
 
@@ -1604,9 +2158,9 @@ async function apiCategoriesOverview(req, res) {
 
 async function apiTags(req, res) {
   const meta    = loadVideoMeta();
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
   const allVids = await allVideos();
-  const videos  = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
+  const videos  = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const folderNames = new Set(
     videos.filter(v => v.catPath !== '').map(v => v.catPath.split(/[/\\]/)[0].toLowerCase())
   );
@@ -1625,9 +2179,9 @@ async function apiTags(req, res) {
 
 async function apiTagVideos(req, res, tagName) {
   const meta   = loadVideoMeta();
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
   const allVids = await allVideos();
-  const videos = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
+  const videos = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const favs   = loadFavs();
   const tagLo  = tagName.toLowerCase();
 
@@ -1649,18 +2203,18 @@ async function apiTagVideos(req, res, tagName) {
 // ── DB-backed tag listing (grouped by displayName, matched on meta + filename) ──
 
 function _catForName(name) {
-  const cats  = loadCategories();
+  const cats  = loadFolderMappings();
   const nameLo = name.toLowerCase();
   return cats.find(c => c.displayName.toLowerCase() === nameLo)
       || cats.find(c => c.terms.some(t => t.toLowerCase() === nameLo));
 }
 
 async function apiDbTags(req, res) {
-  const cats   = loadCategories();
+  const cats   = loadFolderMappings();
   const meta   = loadVideoMeta();
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
   const allVids = await allVideos();
-  const videos = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
+  const videos = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const result = cats
     .map(cat => {
       const termsLo = cat.terms.map(t => t.toLowerCase());
@@ -1679,9 +2233,9 @@ async function apiDbTagVideos(req, res, name) {
   const cat = _catForName(name);
   if (!cat) return json(res, { error: 'Not found' }, 404);
   const meta    = loadVideoMeta();
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
   const allVids = await allVideos();
-  const videos  = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
+  const videos  = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const favs    = loadFavs();
   const termsLo = cat.terms.map(t => t.toLowerCase());
 
@@ -1709,7 +2263,7 @@ function apiVideoTags(req, res, id) {
 }
 
 function apiTagSuggestions(req, res) {
-  const cats = loadCategories();
+  const cats = loadFolderMappings();
   const seen = new Set();
   const result = [];
   for (const c of cats) {
@@ -1729,19 +2283,34 @@ function apiTagSuggestions(req, res) {
   json(res, result.sort((a, b) => a.localeCompare(b)));
 }
 
-// ── Studios ──────────────────────────────────────────────────────────
+function apiDeleteTag(req, res, tagName) {
+  const { deleteTagFromAllVideos } = require('./db-server');
+  deleteTagFromAllVideos(tagName);
+  json(res, { ok: true });
+}
 
-async function apiStudios(req, res) {
-  const studios = loadStudios();
+async function apiRenameTag(req, res, tagName) {
+  const body = await readBody(req);
+  const newName = (body.newName || '').trim();
+  if (!newName) return json(res, { error: 'newName required' }, 400);
+  const { renameTagInAllVideos } = require('./db-server');
+  renameTagInAllVideos(tagName, newName);
+  json(res, { ok: true });
+}
+
+// ── Channels ──────────────────────────────────────────────────────────
+
+async function apiChannels(req, res) {
+  const channels = loadChannels();
   const allVids = await allVideos();
-  const enabledPaths = loadEnabledCategories();
-  const videos = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
+  const enabledPaths = loadEnabledFolders();
+  const videos = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const meta    = loadVideoMeta();
-  const result  = studios
+  const result  = channels
     .map(e => ({
       name: e.name,
       count: videos.filter(v => {
-        const ms = (meta[v.id]?.studio || '').toLowerCase();
+        const ms = (meta[v.id]?.channel || '').toLowerCase();
         return ms === e.name.toLowerCase() || wordMatchAny(v.name, e.terms);
       }).length,
       website: e.website,
@@ -1751,24 +2320,24 @@ async function apiStudios(req, res) {
   json(res, result);
 }
 
-async function apiStudioVideos(req, res, studioName) {
-  const studios = loadStudios();
-  const entry   = studios.find(e => e.name.toLowerCase() === studioName.toLowerCase());
+async function apiChannelVideos(req, res, channelName) {
+  const channels = loadChannels();
+  const entry   = channels.find(e => e.name.toLowerCase() === channelName.toLowerCase());
   if (!entry) return json(res, { error: 'Not found' }, 404);
   const allVids   = await allVideos();
-  const enabledPaths = loadEnabledCategories();
-  const videos = enabledPaths.length ? allVids.filter(v => isCategoryEnabled(v.catPath, enabledPaths)) : allVids;
+  const enabledPaths = loadEnabledFolders();
+  const videos = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const meta     = loadVideoMeta();
   const favs     = loadFavs();
-  const studioLo = entry.name.toLowerCase();
+  const channelLo = entry.name.toLowerCase();
 
   const parsed = require('url').parse(req.url, true);
   const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
 
   let list = videos
     .filter(v => {
-      const ms = (meta[v.id]?.studio || '').toLowerCase();
-      return ms === studioLo || wordMatchAny(v.name, entry.terms);
+      const ms = (meta[v.id]?.channel || '').toLowerCase();
+      return ms === channelLo || wordMatchAny(v.name, entry.terms);
     })
     .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
 
@@ -1776,12 +2345,35 @@ async function apiStudioVideos(req, res, studioName) {
 
   list.sort((a, b) => b.mtime - a.mtime);
 
-  json(res, { studio: entry.name, videos: list });
+  json(res, { channel: entry.name, videos: list });
 }
 
 // ── Subtitles ────────────────────────────────────────────────────────
 
-const SUBTITLE_EXT = new Set(['.srt', '.vtt']);
+const SUBTITLE_EXT = new Set(['.vtt', '.srt', '.ass', '.ssa', '.sub', '.smi']);
+
+function apiAudioTracks(req, res, id) {
+  const fp = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+  execFile(FFPROBE_BIN,
+    ['-v', 'quiet', '-print_format', 'json', '-show_streams', '-select_streams', 'a', fp],
+    { timeout: 8000 },
+    (err, out) => {
+      if (err) return json(res, { tracks: [] });
+      try {
+        const streams = JSON.parse(out).streams || [];
+        const tracks = streams.map((s, i) => ({
+          index: i,
+          language: (s.tags && s.tags.language) || '',
+          title: (s.tags && s.tags.title) || '',
+          codec: s.codec_name || '',
+          channels: s.channels || 0,
+        }));
+        json(res, { tracks });
+      } catch { json(res, { tracks: [] }); }
+    }
+  );
+}
 
 function apiSubtitles(req, res, id) {
   const fp = safePath(id);
@@ -1789,6 +2381,8 @@ function apiSubtitles(req, res, id) {
   const dir  = path.dirname(fp);
   const base = path.basename(fp, path.extname(fp));
   const found = [];
+
+  // File-based subtitles
   try {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
       if (!ent.isFile()) continue;
@@ -1802,6 +2396,25 @@ function apiSubtitles(req, res, id) {
       }
     }
   } catch {}
+
+  // Embedded subtitle streams (detected via ffprobe)
+  try {
+    const out = execFileSync(FFPROBE_BIN,
+      ['-v', 'quiet', '-print_format', 'json', '-show_streams', '-select_streams', 's', fp],
+      { timeout: 5000 }
+    ).toString();
+    const streams = JSON.parse(out).streams || [];
+    for (let i = 0; i < streams.length; i++) {
+      const s = streams[i];
+      const lang = (s.tags && s.tags.language) || '';
+      const title = (s.tags && s.tags.title) || '';
+      const label = title
+        ? `${title}${lang ? ` (${lang})` : ''}`
+        : (lang || `Embedded ${i + 1}`);
+      found.unshift({ filename: null, label, type: 'embedded', streamIndex: i });
+    }
+  } catch {}
+
   json(res, found);
 }
 
@@ -1825,6 +2438,54 @@ async function apiSaveSubtitles(req, res, id) {
   }
 }
 
+async function apiUploadSubtitle(req, res, id) {
+  const fp = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+
+  const xFilename = (req.headers['x-filename'] || '').replace(/[/\\]/g, '');
+  const ext = path.extname(xFilename).toLowerCase();
+  if (!SUBTITLE_EXT.has(ext)) return json(res, { error: 'Unsupported subtitle format' }, 400);
+
+  const dir = path.dirname(fp);
+  const base = path.basename(fp, path.extname(fp));
+  // Derive label from uploaded filename (strip video base prefix if present)
+  const uploaded = path.basename(xFilename, ext);
+  const label = (uploaded.startsWith(base + '.') ? uploaded.slice(base.length + 1) : uploaded)
+    .replace(/[^a-zA-Z0-9._-]/g, '') || 'sub';
+  const saveName = `${base}.${label}${ext}`;
+  const savePath = path.join(dir, saveName);
+
+  const chunks = [];
+  req.on('data', c => chunks.push(c));
+  await new Promise(resolve => req.on('end', resolve));
+  try {
+    fs.writeFileSync(savePath, Buffer.concat(chunks));
+    json(res, { ok: true, filename: saveName });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
+function apiDeleteSubtitleFile(req, res, id, filename) {
+  const fp = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+  const dir = path.dirname(fp);
+  const base = path.basename(fp, path.extname(fp));
+  const safeName = path.basename(filename);
+  const ext = path.extname(safeName).toLowerCase();
+  if (!SUBTITLE_EXT.has(ext)) return json(res, { error: 'Not a subtitle file' }, 400);
+  const nameNoExt = safeName.slice(0, -ext.length);
+  if (nameNoExt !== base && !nameNoExt.startsWith(base + '.')) {
+    return json(res, { error: 'Filename mismatch' }, 400);
+  }
+  try {
+    fs.unlinkSync(path.join(dir, safeName));
+    json(res, { ok: true });
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
 function apiSubtitleFile(req, res, id, filename) {
   const fp = safePath(id);
   if (!fp) { res.writeHead(404); res.end('Not found'); return; }
@@ -1836,12 +2497,44 @@ function apiSubtitleFile(req, res, id, filename) {
   if (nameNoExt !== base && !nameNoExt.startsWith(base + '.')) {
     res.writeHead(400); res.end('Filename mismatch'); return;
   }
+  // Subtitle must reside in the same directory as the video (dir already validated by safePath)
   const full = path.resolve(dir, path.basename(filename));
-  if (!full.startsWith(path.resolve(VIDEOS_DIR))) { res.writeHead(403); res.end('Forbidden'); return; }
+  if (path.dirname(full) !== path.resolve(dir)) { res.writeHead(403); res.end('Forbidden'); return; }
   if (!fs.existsSync(full)) { res.writeHead(404); res.end('Not found'); return; }
-  const ct = ext === '.vtt' ? 'text/vtt' : 'text/plain';
-  res.writeHead(200, { 'Content-Type': ct });
-  fs.createReadStream(full).pipe(res);
+
+  res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8' });
+
+  if (ext === '.vtt') {
+    fs.createReadStream(full).pipe(res);
+  } else if (ext === '.srt') {
+    // Fast in-memory SRT → VTT conversion
+    try {
+      const srt = fs.readFileSync(full, 'utf8');
+      const vtt = 'WEBVTT\n\n' + srt
+        .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+        .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+      res.end(vtt);
+    } catch { res.end('WEBVTT\n'); }
+  } else {
+    // ASS / SSA / SUB / SMI — convert via ffmpeg
+    const child = spawn(FFMPEG_BIN, ['-i', full, '-f', 'webvtt', '-'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    child.stdout.pipe(res);
+    child.on('error', () => { try { res.end('WEBVTT\n'); } catch {} });
+  }
+}
+
+function apiSubtitleEmbedded(req, res, id, streamIndexStr) {
+  const fp = safePath(id);
+  if (!fp) { res.writeHead(404); res.end('Not found'); return; }
+  const si = parseInt(streamIndexStr, 10);
+  if (!Number.isFinite(si) || si < 0) { res.writeHead(400); res.end('Bad stream index'); return; }
+  res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8' });
+  const child = spawn(FFMPEG_BIN,
+    ['-i', fp, '-map', `0:s:${si}`, '-f', 'webvtt', '-'],
+    { stdio: ['ignore', 'pipe', 'ignore'] }
+  );
+  child.stdout.pipe(res);
+  child.on('error', () => { try { res.end('WEBVTT\n'); } catch {} });
 }
 
 // ── Global import (video / audio / book by extension) ─────────────────
@@ -1855,14 +2548,18 @@ async function apiImport(req, res) {
   let destDir, kind;
   const writeRoot = getDefaultWriteRoot();
   if (VIDEO_EXT.has(ext)) {
-    const safeCat = categoryHdr ? categoryHdr.replace(/[^a-zA-Z0-9 \-_]/g, '').trim() : '';
+    // Preserve nested folder paths ("Parent/Child") by sanitising each segment
+    // independently and re-joining with "/" so subfolders can be created.
+    const safeCat = categoryHdr
+      ? categoryHdr.split('/').map(s => s.replace(/[^a-zA-Z0-9 \-_]/g, '').trim()).filter(Boolean).join('/')
+      : '';
     destDir = safeCat ? path.join(writeRoot, safeCat) : writeRoot;
     kind = 'video';
   }
   else if (AUDIO_EXT.has(ext)) { destDir = AUDIO_DIR;  kind = 'audio'; }
   else if (BOOK_EXT.has(ext))  { destDir = BOOKS_DIR;  kind = 'book';  }
   else if (IMAGE_EXT.has(ext)) { destDir = PHOTOS_DIR; kind = 'photo'; }
-  else return json(res, { error: 'Unsupported file type: ' + ext }, 400);
+  else { destDir = FILES_DIR; kind = 'file'; }
 
   if (kind === 'video' && !path.resolve(destDir).startsWith(path.resolve(writeRoot)))
     return json(res, { error: 'Invalid category' }, 400);
@@ -1901,6 +2598,9 @@ async function apiImport(req, res) {
     const meta = loadBooksMeta();
     meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), type: 'upload' };
     saveBooksMeta(meta);
+  } else if (kind === 'file') {
+    const absPath = path.join(FILES_DIR, outName);
+    upsertFileMeta({ id: toId(absPath), filename: outName, title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), absPath });
   }
   json(res, { ok: true, kind, name: outName, id: videoId });
 }
@@ -1913,7 +2613,7 @@ async function apiAddChapter(req, res, id) {
   if (time === undefined) return json(res, { error: 'Time required' }, 400);
 
   const meta = loadVideoMeta();
-  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], studio: '', rating: null, category: '', note: '', date: '' };
+  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], channel: '', rating: null, category: '', note: '', date: '' };
   if (!meta[id].chapters) meta[id].chapters = [];
   
   const chapterId = Date.now().toString();
@@ -1945,7 +2645,7 @@ async function apiDeleteChapter(req, res, id, chapterId) {
   json(res, { ok: true });
 }
 
-async function apiRenameCategory(req, res) {
+async function apiRenameFolder(req, res) {
   const body = await readBody(req);
   const oldPath = body.oldPath; // relative category path
   const newName = body.newName; // just the name
@@ -1990,7 +2690,7 @@ async function apiRenameCategory(req, res) {
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
-async function apiDeleteCategory(req, res) {
+async function apiDeleteFolder(req, res) {
   const body = await readBody(req);
   const catPath = body.path;
   if (!catPath) return json(res, { error: 'path required' }, 400);
@@ -2061,21 +2761,35 @@ async function apiDeleteCategory(req, res) {
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
-async function apiHideCategory(req, res) {
+async function apiHideFolder(req, res) {
   const body = await readBody(req);
   const name = body.name;
   if (!name) return json(res, { error: 'name required' }, 400);
-  
-  const hidden = loadHidden();
-  if (!hidden.includes(name)) {
-    hidden.push(name);
-    saveHidden(hidden);
-    invalidateScanCache();
-  }
+
+  // Hiding disables the folder (and all of its subfolders) for the current
+  // profile by removing it from the per-profile enabled-folders allowlist.
+  // Every visibility gate in the app reads this allowlist (videos via
+  // isFolderEnabled, links/thumbnails via their own enabledSet), so the folder
+  // disappears everywhere — except the Vault, which lives in VAULT_DIR and is
+  // not gated by enabled_categories.
+  const target = String(name).replace(/\\/g, '/').toLowerCase();
+
+  // An empty allowlist means "show everything", so seed it with every folder
+  // first; otherwise hiding one folder would have no effect.
+  let enabled = loadEnabledFolders();
+  if (enabled.length === 0) enabled = await collectAllFolderPaths();
+
+  const next = enabled.filter(p => {
+    const pl = String(p).replace(/\\/g, '/').toLowerCase();
+    return pl !== target && !pl.startsWith(target + '/');
+  });
+
+  saveEnabledFolders(next);
+  invalidateScanCache();
   json(res, { ok: true });
 }
 
-async function apiEncryptAllCategories(req, res) {
+async function apiEncryptAllFolders(req, res) {
   const { deriveKeys } = require('./vault-server');
   const body = await readBody(req);
   const { password } = body;
@@ -2128,7 +2842,7 @@ async function apiEncryptAllCategories(req, res) {
           }
         }
       }
-      unlockedCategories.set(getCatKey(relCat), encKey);
+      unlockedFolders.set(getCatKey(relCat), encKey);
       encryptedCount++;
     }
 
@@ -2137,7 +2851,7 @@ async function apiEncryptAllCategories(req, res) {
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
-async function apiEncryptCategory(req, res) {
+async function apiEncryptFolder(req, res) {
   const { isUnlocked, encryptLocalFileToVault, getVaultKey } = require('./vault-server');
   const { loadVaultConfig } = require('./db-server');
   
@@ -2170,84 +2884,223 @@ async function apiEncryptCategory(req, res) {
   try {
     if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
     // Kick off background job
-    runEncryptCategory(catPath).catch(err => console.error('[apiEncryptCategory] background error:', err));
+    runEncryptFolder(catPath).catch(err => console.error('[apiEncryptCategory] background error:', err));
     json(res, { ok: true });
   } catch (e) {
     json(res, { error: e.message }, 500);
   }
 }
 
-async function apiEncryptVideo(req, res, id) {
-  const { isUnlocked, encryptLocalFileToVault, getVaultKey } = require('./vault-server');
-  const { loadVaultConfig } = require('./db-server');
-  
-  if (!loadVaultConfig()) {
-    return json(res, { error: 'Master vault password is not set' }, 400);
+// Walk a category path (e.g. "Movies/Action/2020s") and ensure a matching chain
+// of vault folder entries exists, creating missing ones with proper parent links.
+// Returns the leaf folder id. Mutates vaultMeta in place; caller must saveVaultMeta.
+function _ensureVaultFolderPath(catPath, vaultMeta) {
+  const parts = catPath.replace(/\\/g, '/').split('/').filter(Boolean);
+  let parentId = null;
+  for (const name of parts) {
+    const entry = Object.entries(vaultMeta).find(
+      ([, m]) => m.type === 'folder' && m.name === name && (m.parent || null) === parentId
+    );
+    if (entry) {
+      parentId = entry[0];
+    } else {
+      const fid = require('crypto').randomUUID();
+      vaultMeta[fid] = { type: 'folder', name, parent: parentId, mtime: Date.now() };
+      parentId = fid;
+    }
   }
-  
-  if (!isUnlocked()) {
-    return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
-  }
-  
-  const vids = await allVideos();
-  const v = vids.find(x => x.id === id);
-  if (!v) return json(res, { error: 'Not found' }, 404);
-  
-  if (v.encrypted) return json(res, { error: 'Already encrypted' }, 400);
-  
-  const full = path.join(VIDEOS_DIR, v.rel);
-  if (!fs.existsSync(full)) return json(res, { error: 'File not found on disk' }, 404);
+  return parentId;
+}
+
+// Encrypt a single scanned video entry into the Vault: shred the original,
+// move + encrypt its thumbnail, drop the public DB entry. Returns the new
+// vault id. Throws on failure. Shared by the single-file endpoint and the
+// generic batch encryptor so both behave identically.
+async function _encryptVideoEntry(v) {
+  const { encryptLocalFileToVault, getVaultKey } = require('./vault-server');
+
+  // External files store their absolute path in `rel`; local ones are relative to VIDEOS_DIR.
+  const full = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
+  if (!fs.existsSync(full)) throw new Error('File not found on disk');
 
   const meta = loadVideoMeta();
   const videoMeta = meta[v.id] || null;
   const vaultKey = getVaultKey();
 
+  // Pass the real filename (with extension) — v.name has the extension stripped
+  const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
+  if (!vaultId) throw new Error('Encryption failed');
+
+  // Replicate the full category path as nested vault folders and assign the file to the leaf
+  if (v.catPath) {
+    const { loadVaultMeta: lvm, saveVaultMeta: svm } = require('./db-server');
+    const vaultMeta = lvm();
+    const folderId = _ensureVaultFolderPath(v.catPath, vaultMeta);
+    if (vaultMeta[vaultId]) vaultMeta[vaultId].folder = folderId;
+    svm(vaultMeta);
+  }
+
+  // Wipe the public thumbnail: move it under the vault id and encrypt it in
+  // place so no plaintext preview of the encrypted file is left on disk.
+  const oldThumb = path.join(THUMBS_DIR, v.id);
+  const newThumb = path.join(THUMBS_DIR, vaultId);
+  if (fs.existsSync(oldThumb)) {
+    if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
+    fs.renameSync(oldThumb, newThumb);
+    const tFiles = fs.readdirSync(newThumb);
+    for (const tf of tFiles) {
+      if (tf.endsWith('.jpg')) await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
+    }
+    const chaptersDir = path.join(newThumb, 'chapters');
+    if (fs.existsSync(chaptersDir)) {
+      for (const cf of fs.readdirSync(chaptersDir)) {
+        if (cf.endsWith('.jpg')) await encryptFileInPlace(path.join(chaptersDir, cf), vaultKey);
+      }
+    }
+  }
+
+  // Delete subtitle sidecars — they cannot follow the video into the encrypted vault
+  const subDir  = path.dirname(full);
+  const subBase = path.basename(full, path.extname(full));
   try {
-    // Pass the real filename (with extension) — v.name has the extension stripped
-    const vaultId = await encryptLocalFileToVault(full, path.basename(v.rel), v.catPath, videoMeta);
-
-    if (!vaultId) {
-      return json(res, { error: 'Encryption failed' }, 500);
+    for (const ent of fs.readdirSync(subDir, { withFileTypes: true })) {
+      if (!ent.isFile()) continue;
+      const subExt = path.extname(ent.name).toLowerCase();
+      if (!SUBTITLE_EXT.has(subExt)) continue;
+      const nameNoExt = ent.name.slice(0, -subExt.length);
+      if (nameNoExt !== subBase && !nameNoExt.startsWith(subBase + '.')) continue;
+      try { fs.unlinkSync(path.join(subDir, ent.name)); } catch {}
     }
+  } catch {}
 
-    // Assign vault file to a vault folder matching the video's top-level category
-    if (v.catPath) {
-      const { loadVaultMeta: lvm, saveVaultMeta: svm } = require('./db-server');
-      const vaultMeta = lvm();
-      const folderName = v.catPath.split(/[/\\]/)[0];
-      const existingFolder = Object.entries(vaultMeta).find(([, m]) => m.type === 'folder' && m.name.toLowerCase() === folderName.toLowerCase());
-      let folderId = existingFolder ? existingFolder[0] : null;
-      if (!folderId) {
-        folderId = require('crypto').randomBytes(16).toString('hex');
-        vaultMeta[folderId] = { type: 'folder', name: folderName, id: folderId };
-      }
-      if (vaultMeta[vaultId]) vaultMeta[vaultId].folder = folderId;
-      svm(vaultMeta);
-    }
+  // Remove the original entry from the public database(s)
+  const { deleteVideoMetaEverywhere } = require('./db-server');
+  deleteVideoMetaEverywhere(v.id);
+  return vaultId;
+}
 
-    const oldThumb = path.join(THUMBS_DIR, v.id);
-    const newThumb = path.join(THUMBS_DIR, vaultId);
+// Encrypt a photo/book that lives as a plain file on disk. Resolves the
+// file path per media kind, encrypts it into the Vault and wipes any
+// generated thumbnail. Returns the new vault id or null when unresolved.
+async function _encryptDiskMediaItem(item) {
+  const { encryptLocalFileToVault } = require('./vault-server');
+  let fp = null;
 
-    if (fs.existsSync(oldThumb)) {
-      if (fs.existsSync(newThumb)) fs.rmSync(newThumb, { recursive: true, force: true });
-      fs.renameSync(oldThumb, newThumb);
-      const tFiles = fs.readdirSync(newThumb);
-      for (const tf of tFiles) {
-        if (tf.endsWith('.jpg')) {
-           await encryptFileInPlace(path.join(newThumb, tf), vaultKey);
+  if (item.kind === 'photo') {
+    try { fp = require('./photos-server').getPhotoPath(item.id); } catch { fp = null; }
+  } else if (item.kind === 'book') {
+    const { BOOKS_DIR } = require('./config-server');
+    let filename = '';
+    try { filename = Buffer.from(item.id, 'base64url').toString('utf-8'); } catch { filename = ''; }
+    const cand = path.join(BOOKS_DIR, path.basename(filename));
+    if ((cand.startsWith(BOOKS_DIR + path.sep) || cand === BOOKS_DIR) && fs.existsSync(cand)) fp = cand;
+  }
+
+  if (!fp || !fs.existsSync(fp)) throw new Error('File not found on disk');
+
+  const vaultId = await encryptLocalFileToVault(fp, path.basename(fp), null, null);
+  if (!vaultId) throw new Error('Encryption failed');
+
+  // Wipe any generated thumbnail keyed by the original id
+  try {
+    const oldThumb = path.join(THUMBS_DIR, item.id);
+    if (fs.existsSync(oldThumb)) fs.rmSync(oldThumb, { recursive: true, force: true });
+  } catch { }
+  return vaultId;
+}
+
+// Background batch encryptor used by the Vault's Global view. Encrypts a
+// mixed list of [{ id, kind, name }] into the Vault, reporting progress
+// through the shared tracker so it shows in Sync & Background Tasks.
+async function runEncryptBatch(items) {
+  if (_encryptionProgress.running) return false;
+  _encryptionCancel = false;
+  const { isUnlocked, suspendAutoLock, resumeAutoLock } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
+
+  if (!loadVaultConfig()) { updateEncryptionProgress({ error: 'Master vault password is not set', running: false }); return false; }
+  if (!isUnlocked()) { updateEncryptionProgress({ error: 'Vault is locked. Unlock it first', running: false }); return false; }
+
+  updateEncryptionProgress({ running: true, type: 'encrypt', category: 'Vault import', total: items.length, done: 0, current: '', error: '', ok: false });
+  let done = 0;
+  // Keep the vault unlocked for the duration — see runEncryptFolder.
+  suspendAutoLock();
+  try {
+    const vids = await allVideos(true);
+    const vidMap = new Map(vids.map(v => [v.id, v]));
+    for (const it of items) {
+      if (_encryptionCancel) { updateEncryptionProgress({ error: 'Cancelled', running: false }); return false; }
+      try {
+        if (it.kind === 'photo' || it.kind === 'book') {
+          await _encryptDiskMediaItem(it);
+        } else {
+          const v = vidMap.get(it.id);
+          if (v && !v.encrypted) await _encryptVideoEntry(v);
         }
+      } catch (e) {
+        console.error('[encrypt-batch] failed for', it.id, e.message);
       }
+      done++;
+      updateEncryptionProgress({ done, current: it.name || it.id });
     }
-
-    // Remove the original entry from the public database(s)
-    const { deleteVideoMetaEverywhere } = require('./db-server');
-    deleteVideoMetaEverywhere(v.id);
-
     invalidateScanCache();
+    updateEncryptionProgress({ ok: true, running: false });
+    return true;
+  } catch (e) {
+    console.error('[runEncryptBatch] error:', e);
+    updateEncryptionProgress({ error: e.message || String(e), running: false });
+    return false;
+  } finally {
+    resumeAutoLock();
+  }
+}
+
+async function apiEncryptVideo(req, res, id) {
+  const { isUnlocked, suspendAutoLock, resumeAutoLock } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
+
+  if (!loadVaultConfig()) return json(res, { error: 'Master vault password is not set' }, 400);
+  if (!isUnlocked()) return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
+  if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
+
+  // forceAll=true so the file is found regardless of the active profile —
+  // when the Vault profile is active, allVideos() would otherwise return only
+  // already-encrypted files and this would 404 every public file.
+  const vids = await allVideos(true);
+  const v = vids.find(x => x.id === id);
+  if (!v) return json(res, { error: 'Not found' }, 404);
+  if (v.encrypted) return json(res, { error: 'Already encrypted' }, 400);
+
+  updateEncryptionProgress({ running: true, type: 'encrypt', category: v.name, total: 1, done: 0, current: v.name, error: '', ok: false });
+  suspendAutoLock();
+  try {
+    const vaultId = await _encryptVideoEntry(v);
+    invalidateScanCache();
+    updateEncryptionProgress({ done: 1, ok: true, running: false });
     json(res, { ok: true, vaultId });
   } catch (e) {
+    updateEncryptionProgress({ error: e.message, running: false });
     json(res, { error: e.message }, 500);
+  } finally {
+    resumeAutoLock();
   }
+}
+
+// Start a background batch encryption of mixed media into the Vault.
+async function apiEncryptBatch(req, res) {
+  const { isUnlocked } = require('./vault-server');
+  const { loadVaultConfig } = require('./db-server');
+
+  if (!loadVaultConfig()) return json(res, { error: 'Master vault password is not set' }, 400);
+  if (!isUnlocked()) return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
+
+  const body = await readBody(req);
+  const items = Array.isArray(body.items) ? body.items.filter(it => it && it.id) : [];
+  if (!items.length) return json(res, { error: 'No items provided' }, 400);
+  if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
+
+  runEncryptBatch(items).catch(err => console.error('[apiEncryptBatch] background error:', err));
+  json(res, { ok: true, total: items.length });
 }
 
 async function encryptFileInPlace(filePath, key) {
@@ -2266,7 +3119,7 @@ async function encryptFileInPlace(filePath, key) {
   fs.unlinkSync(filePath);
 }
 
-async function apiUnlockCategory(req, res) {
+async function apiUnlockFolder(req, res) {
   const { deriveKeys } = require('./vault-server');
   const body = await readBody(req);
   const { path: catPath, password: rawPw } = body;
@@ -2292,7 +3145,7 @@ async function apiUnlockCategory(req, res) {
       masterPassword = password;
     }
     
-    unlockedCategories.set(getCatKey(catPath), encKey);
+    unlockedFolders.set(getCatKey(catPath), encKey);
 
     // Try to unlock subfolders recursively if they use the same password
     const ck = getCatKey(catPath);
@@ -2311,12 +3164,12 @@ async function apiUnlockCategory(req, res) {
         try {
           const sConf = JSON.parse(fs.readFileSync(sConfPath, 'utf-8'));
           if (keyCache.has(sConf.salt)) {
-             unlockedCategories.set(getCatKey(sc), keyCache.get(sConf.salt));
+             unlockedFolders.set(getCatKey(sc), keyCache.get(sConf.salt));
           } else {
              const { encKey: sKey, verifyHash: sHash } = await deriveKeys(password, sConf.salt);
              if (sHash === sConf.verifyHash) {
                 keyCache.set(sConf.salt, sKey);
-                unlockedCategories.set(getCatKey(sc), sKey);
+                unlockedFolders.set(getCatKey(sc), sKey);
              }
           }
         } catch {}
@@ -2327,7 +3180,7 @@ async function apiUnlockCategory(req, res) {
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
-async function apiDecryptCategory(req, res) {
+async function apiDecryptFolder(req, res) {
   const { isUnlocked, getVaultKey } = require('./vault-server');
   const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
   
@@ -2343,7 +3196,7 @@ async function apiDecryptCategory(req, res) {
   // Start background decryption task and return immediately
   try {
     if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
-    runDecryptCategory(catPath, targetProfile).catch(err => console.error('[apiDecryptCategory] background error:', err));
+    runDecryptFolder(catPath, targetProfile).catch(err => console.error('[apiDecryptCategory] background error:', err));
     json(res, { ok: true });
   } catch (e) {
     json(res, { error: e.message }, 500);
@@ -2426,7 +3279,7 @@ function toastServer(msg) {
   console.log('[cat-enc]', msg);
 }
 
-function getUnlockedCategoryKey(catPath) {
+function getUnlockedFolderKey(catPath) {
   return getUnlockKey(catPath);
 }
 
@@ -2449,15 +3302,17 @@ function apiVideosUpload(req, res) {
 }
 
 async function apiRescan(req, res) {
+  console.log('[scan] Manual rescan triggered');
   invalidateScanCache();
-  await cachedScan();
+  const videos = await cachedScan();
+  console.log(`[scan] Rescan complete — ${videos.length} video${videos.length !== 1 ? 's' : ''} indexed`);
   json(res, { ok: true });
 }
 
 // Auto-categorize uncategorized videos (and links) by matching filename against category terms.
 // Videos are moved within their own root (VIDEOS_DIR or external source folder).
 async function apiAutoCategorizeUncategorized(req, res) {
-  const cats = loadCategories();
+  const cats = loadFolderMappings();
   const prefs = loadPrefs();
   const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
   const roots = [VIDEOS_DIR, ...sourceFolders];
@@ -2531,7 +3386,7 @@ async function apiAutoCategorizeUncategorized(req, res) {
 }
 
 async function apiRecategorizeAll(req, res) {
-  const cats = loadCategories();
+  const cats = loadFolderMappings();
   const prefs = loadPrefs();
   const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
   let movedVideos = 0;
@@ -2618,10 +3473,15 @@ function computeScore(text, cat) {
     // Normalized separator match: "My_Category" matches "My Category"
     const normTerm = normSeps(term);
     if (normTerm.length >= 3 && normText.includes(normTerm)) { best = Math.max(best, 60); continue; }
-    const words = xl.split(/\W+/).filter(w => w.length >= 3);
-    for (const w of words) {
-      if (tl.startsWith(w.slice(0, 3)) || w.startsWith(tl.slice(0, 3))) {
-        best = Math.max(best, 30); break;
+    // Loose prefix-overlap fuzzy match: only for top-level categories (depth 0),
+    // where terms come from user-configured tags. Nested folder names (e.g. actor
+    // or series subfolders) require an exact/substring match to avoid noisy moves.
+    if ((cat.depth || 0) === 0) {
+      const words = xl.split(/\W+/).filter(w => w.length >= 3);
+      for (const w of words) {
+        if (tl.startsWith(w.slice(0, 3)) || w.startsWith(tl.slice(0, 3))) {
+          best = Math.max(best, 30); break;
+        }
       }
     }
   }
@@ -2630,75 +3490,83 @@ function computeScore(text, cat) {
 
 function bestCatMatch(text, cats) {
   let best = null, bs = 0;
-  for (const c of cats) { const s = computeScore(text, c); if (s > bs) { bs = s; best = c; } }
+  for (const c of cats) {
+    const s = computeScore(text, c);
+    if (s <= 0) continue;
+    // Prefer deeper (more specific) folders on a tie, e.g. an existing
+    // "Performers/Jane Doe" subfolder beats the top-level "Performers" category.
+    if (s > bs || (s === bs && (!best || (c.depth || 0) > (best.depth || 0)))) { bs = s; best = c; }
+  }
   return { cat: best, score: bs };
 }
 
-function buildCategorizePlan(roots, cats, mode) {
-  const changes = [];
-  for (const root of roots) {
-    const files = [];
-    if (mode === 'all') {
-      const collect = (dir) => {
-        let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const e of ents) {
-          if (e.isDirectory() && !isHiddenFolderName(e.name)) collect(path.join(dir, e.name));
-          else if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-            files.push(path.join(dir, e.name));
-        }
-      };
-      collect(root);
-    } else {
-      let ents; try { ents = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
-      for (const e of ents) {
-        if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-          files.push(path.join(root, e.name));
-      }
-    }
-    const existing = getExistingTopLevelFolders(root);
-
-    for (const src of files) {
-      const ext = path.extname(src).toLowerCase();
-      const stem = path.basename(src, ext);
-      let matched = null;
-      for (const cat of cats) { if (wordMatchAny(stem, cat.terms)) { matched = cat; break; } }
-      if (!matched) continue;
-      const destFolder = matched.displayName || matched.name;
-      if (!existing.has(destFolder)) continue;
-      if (path.resolve(path.dirname(src)) === path.resolve(path.join(root, destFolder))) continue;
-      const currentFolder = path.relative(root, path.dirname(src)).replace(/\\/g, '/') || '';
-      changes.push({ srcPath: src, name: path.basename(src), currentFolder, destFolder, root });
-    }
+// Recursively collect all existing subfolders under `root` as destination candidates
+// for categorization, including nested subfolders (e.g. "Performers/Jane Doe").
+// Top-level folders that correspond to a configured category inherit its tag terms;
+// nested folders are matched on their own name only.
+function collectDestinationCandidates(root, cats) {
+  const catByName = new Map();
+  for (const c of cats) {
+    catByName.set((c.displayName || c.name).toLowerCase(), c);
+    catByName.set(c.name.toLowerCase(), c);
   }
-  return changes;
+  const candidates = [];
+  const walk = (dir, rel) => {
+    let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      if (!e.isDirectory() || isHiddenFolderName(e.name)) continue;
+      const full = path.join(dir, e.name);
+      if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
+      const relPath = rel ? rel + '/' + e.name : e.name;
+      const depth = rel ? rel.split('/').length : 0;
+      const dbCat = depth === 0 ? catByName.get(e.name.toLowerCase()) : null;
+      candidates.push({ relPath, name: e.name, displayName: e.name, terms: dbCat ? dbCat.terms : [e.name], depth });
+      walk(full, relPath);
+    }
+  };
+  walk(root, '');
+  return candidates;
+}
+
+// Pick the best matching category folder for a given filename using the same
+// scoring algorithm as the categorizer modal. Returns the relative folder path
+// (e.g. "Performers/Jane Doe") or null if nothing scores above zero.
+function autoCategorize(filename) {
+  try {
+    const prefs = loadPrefs();
+    const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
+    const cats = loadFolderMappings();
+    const ext = path.extname(filename).toLowerCase();
+    const stem = path.basename(filename, ext);
+    for (const root of roots) {
+      const candidates = collectDestinationCandidates(root, cats);
+      const { cat, score } = bestCatMatch(stem, candidates);
+      if (cat && score > 0) return cat.relPath;
+    }
+  } catch (err) {
+    console.error('[autoCategorize] error:', err.message);
+  }
+  return null;
 }
 
 async function apiCategorizePlan(req, res) {
   const body = await readBody(req);
   const mode = body.mode === 'all' ? 'all' : 'uncategorized';
-  const cats = loadCategories();
+  const cats = loadFolderMappings();
   const prefs = loadPrefs();
   const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
 
-  // Map folder name → category for quick lookup
+  // Map folder name → category for quick lookup (used for link matching below)
   const catByFolder = new Map();
   for (const c of cats) {
     catByFolder.set((c.displayName || c.name).toLowerCase(), c);
     catByFolder.set(c.name.toLowerCase(), c);
   }
 
-  // Per-root sets of category folder names (displayName||name) that physically exist there.
-  // Auto-suggestions only for cats whose folder exists under the item's own root (no cross-root).
-  const validByRoot = new Map();
-  for (const root of roots) {
-    const existing = getExistingTopLevelFolders(root);
-    const valids = new Set();
-    for (const c of cats) {
-      const dn = c.displayName || c.name;
-      if (existing.has(dn)) valids.add(dn);
-    }
-    validByRoot.set(path.resolve(root), valids);
-  }
+  // Per-root list of every existing folder (any depth) as a possible move target,
+  // so videos can be suggested into existing subfolders, not just top-level categories.
+  const candidatesByRoot = new Map();
+  for (const root of roots) candidatesByRoot.set(path.resolve(root), collectDestinationCandidates(root, cats));
 
   const uncategorized = [];
   const categorized = [];
@@ -2723,32 +3591,36 @@ async function apiCategorizePlan(req, res) {
           files.push(path.join(root, e.name));
     }
 
+    const candidates = candidatesByRoot.get(path.resolve(root)) || [];
+
     for (const src of files) {
       const ext = path.extname(src).toLowerCase();
       const stem = path.basename(src, ext);
       const currentFolder = path.relative(root, path.dirname(src)).replace(/\\/g, '/') || '';
-      const topFolder = currentFolder.split('/')[0] || '';
-      const folderCat = topFolder ? catByFolder.get(topFolder.toLowerCase()) : null;
       const id = Buffer.from(src).toString('base64url');
 
-      if (folderCat && computeScore(stem, folderCat) > 0) {
-        categorized.push({
-          type: 'video', id, name: path.basename(src),
-          currentFolder, matchedCategory: folderCat.displayName || folderCat.name,
-          score: computeScore(stem, folderCat),
-        });
-      } else {
-        const { cat: suggested, score } = bestCatMatch(stem, cats);
-        let suggestedCategory = '';
-        if (suggested) {
-          const dn = suggested.displayName || suggested.name;
-          const valids = validByRoot.get(path.resolve(root)) || new Set();
-          if (valids.has(dn)) suggestedCategory = dn;
-        }
+      const { cat: suggested, score } = bestCatMatch(stem, candidates);
+
+      if (suggested && suggested.relPath !== currentFolder) {
+        // Either uncategorized (no current folder) or a better-matching existing
+        // folder/subfolder exists than where this file currently lives — propose a move.
         uncategorized.push({
           type: 'video', id, name: path.basename(src),
-          currentFolder, suggestedCategory,
-          score: suggestedCategory ? score : 0, srcPath: src, root,
+          currentFolder, suggestedCategory: suggested.relPath,
+          score, srcPath: src, root,
+        });
+      } else if (suggested) {
+        // Already filed in its best-matching existing folder.
+        categorized.push({
+          type: 'video', id, name: path.basename(src),
+          currentFolder, matchedCategory: currentFolder.replace(/\//g, ' / '),
+          score,
+        });
+      } else {
+        uncategorized.push({
+          type: 'video', id, name: path.basename(src),
+          currentFolder, suggestedCategory: '',
+          score: 0, srcPath: src, root,
         });
       }
     }
@@ -2784,9 +3656,9 @@ async function apiCategorizePlan(req, res) {
     }
   } catch (e) { console.error('[apiCategorizePlan] links error:', e.message); }
 
-  const allValidDestNames = new Set();
-  for (const v of validByRoot.values()) for (const n of v) allValidDestNames.add(n);
-  const categories = Array.from(allValidDestNames).sort();
+  const allDestPaths = new Set();
+  for (const list of candidatesByRoot.values()) for (const c of list) allDestPaths.add(c.relPath);
+  const categories = Array.from(allDestPaths).sort();
   uncategorized.sort((a, b) => b.score - a.score);
   categorized.sort((a, b) => b.score - a.score);
   json(res, { uncategorized, categorized, categories });
@@ -2811,7 +3683,8 @@ async function apiCategorizeExecute(req, res) {
     if (!allowedRoots.has(path.resolve(root))) { errors.push(`${path.basename(srcPath)}: root not allowed`); continue; }
     const ext = path.extname(srcPath).toLowerCase();
     const stem = path.basename(srcPath, ext);
-    const destDir = path.join(root, destFolder);
+    // destFolder may be a nested path like "Performers/Jane Doe"
+    const destDir = path.join(root, ...destFolder.split('/'));
     try {
       // never create new folders for auto-categorize; only move into existing ones
       if (!fs.existsSync(destDir)) {
@@ -2847,6 +3720,37 @@ function apiEncryptionStatus(req, res) {
   json(res, getEncryptionProgress());
 }
 
+// Client-driven progress for streamed Vault imports (ImportModal uploads files
+// one at a time via /api/vault/add, so the server can't know the batch size on
+// its own). Lets the upload loop surface in Sync & Background Tasks alongside
+// the server-run encryption jobs. Phases: start | update | done.
+async function apiVaultImportProgress(req, res) {
+  const body = await readBody(req);
+  const phase = body.phase;
+  if (phase === 'start') {
+    // Don't stomp a server-run encryption/decryption that's already in flight.
+    if (_encryptionProgress.running && _encryptionProgress.category !== 'Vault import') {
+      return json(res, { ok: false, busy: true });
+    }
+    updateEncryptionProgress({
+      running: true, type: 'encrypt', category: 'Vault import',
+      total: Number(body.total) || 0, done: 0, current: '', error: '', ok: false,
+    });
+  } else if (phase === 'update') {
+    if (_encryptionProgress.category === 'Vault import') {
+      updateEncryptionProgress({ done: Number(body.done) || 0, current: body.current || '' });
+    }
+  } else if (phase === 'done') {
+    if (_encryptionProgress.category === 'Vault import') {
+      updateEncryptionProgress({
+        running: false, ok: !body.error, error: body.error || '',
+        done: body.done != null ? Number(body.done) : _encryptionProgress.done,
+      });
+    }
+  }
+  json(res, { ok: true });
+}
+
 async function apiEncryptionStop(req, res) {
   if (!_encryptionProgress.running) return json(res, { ok: true, message: 'No job running' });
   _encryptionCancel = true;
@@ -2858,22 +3762,28 @@ async function apiEncryptionStop(req, res) {
 module.exports = {
   scan, cachedScan, allVideos, invalidateScanCache, initVideoMeta,
   apiVideosUpload, apiRescan,
-  apiVideos, apiCategories, apiCategoriesOverview, apiMainCategories, apiCreateCategory,
-  apiGetAllCategories, apiSetEnabledCategories,
+  apiVideos, apiFolders, apiFoldersOverview, apiMainFolders, apiCreateFolder,
+  apiFolderCreate, apiFolderRename, apiFolderDelete, apiFolderMove,
+  apiGetAllFolders, apiSetEnabledFolders,
   apiVideoDetail, apiVideoDetailFast, apiPreload, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
   apiAddHistory, apiGetHistory, apiClearHistory, apiClearFavourites, apiClearThumbs,
   apiSetRating, apiDeleteRating,
-  apiUpdateVideoMeta, apiOpenFolder, apiOpenCategoryFolder, apiDuplicates,
+  apiUpdateVideoMeta, apiOpenFolder, apiOpenFolderInExplorer, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
+  apiDeleteTag, apiRenameTag,
   apiDbTags, apiDbTagVideos,
-  apiStudios, apiStudioVideos,
-  apiSubtitles, apiSaveSubtitles, apiSubtitleFile,
+  apiChannels, apiChannelVideos,
+  apiAudioTracks,
+  apiSubtitles, apiSaveSubtitles, apiSubtitleFile, apiSubtitleEmbedded, apiUploadSubtitle, apiDeleteSubtitleFile,
   apiImport,
   apiAddChapter, apiDeleteChapter,
-  apiRenameCategory, apiDeleteCategory, apiHideCategory,
-  apiEncryptVideo, apiEncryptCategory, apiUnlockCategory, apiDecryptCategory, apiEncryptAllCategories, getUnlockedCategoryKey,
+  apiRenameFolder, apiDeleteFolder, apiHideFolder,
+  apiEncryptVideo, apiEncryptBatch, apiEncryptFolder, apiUnlockFolder, apiDecryptFolder, apiEncryptAllFolders, getUnlockedFolderKey,
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
+  autoCategorize,
   apiCategorizePlan, apiCategorizeExecute,
-  apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress,
+  apiCategorizerBgExecute, apiCategorizerPoll, apiCategorizerStop,
+  apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress, apiVaultImportProgress,
+  apiScanEvents, broadcastScanChange,
 };

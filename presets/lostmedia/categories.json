@@ -1,0 +1,22 @@
+{
+  "Lost Cartoons": {
+    "displayName": "Lost Cartoons & TV",
+    "tags": ["animation", "tv", "lost episode", "missing"]
+  },
+  "Lost Films": {
+    "displayName": "Lost Films",
+    "tags": ["cinema", "unreleased", "missing", "archive"]
+  },
+  "Internet Mysteries": {
+    "displayName": "Internet Mysteries",
+    "tags": ["arg", "iceberg", "webcore", "unsolved", "creepy"]
+  },
+  "Found Footage": {
+    "displayName": "Found Footage & Analog Horror",
+    "tags": ["recovered", "analog horror", "vhs", "tape"]
+  },
+  "Video Games": {
+    "displayName": "Lost Video Games",
+    "tags": ["beta", "cancelled", "prototype", "unreleased"]
+  }
+}

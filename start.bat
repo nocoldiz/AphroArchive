@@ -20,7 +20,7 @@ echo  Choose install mode:
 echo.
 echo    [1] Minimal install (default)
 echo         Installs only runtime dependencies (preact, signals).
-echo         Skips LLM, image-gen, and all dev/build tools.
+echo         Skips image-gen and all dev/build tools.
 echo         Fastest option — no native compilation required.
 echo.
 echo    [2] Full install
@@ -85,9 +85,9 @@ echo.
 :: ── 3. npm install ───────────────────────────────────────────────────────────
 if "!INSTALL_MODE!"=="1" (
     echo [3/5] Running npm install ^(minimal — runtime deps only^)...
-    echo  Skips: node-llama-cpp, Capacitor, Vite, TypeScript, pkg
+    echo  Skips: Capacitor, Vite, TypeScript, pkg
     echo  --------------------------------------------
-    call npm install --omit=optional --omit=dev --loglevel verbose && echo  npm install  OK || (
+    call npm install --omit=dev --loglevel verbose && echo  npm install  OK || (
         echo.
         echo  [ERROR] npm install failed.
         pause
@@ -95,9 +95,8 @@ if "!INSTALL_MODE!"=="1" (
     )
 ) else (
     echo [3/5] Running npm install ^(full — all dependencies^)...
-    echo  Note: node-llama-cpp ^(LLM^) will be skipped — install separately if needed.
     echo  --------------------------------------------
-    call npm install --omit=optional --loglevel verbose && echo  npm install  OK || (
+    call npm install --loglevel verbose && echo  npm install  OK || (
         echo.
         echo  [ERROR] npm install failed.
         pause

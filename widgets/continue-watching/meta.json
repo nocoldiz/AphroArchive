@@ -1,0 +1,8 @@
+{
+  "name": "Continue Watching",
+  "description": "Resume in-progress videos, most recently paused first.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 4, "h": 2, "minW": 2, "minH": 2, "maxH": 3, "singleton": true }
+}

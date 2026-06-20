@@ -1,28 +1,93 @@
 import { useState, useRef, useEffect } from 'preact/hooks';
-import { allVideos, categories, loadCategories, loadVideos } from '../../store';
+import { allVideos, folders, loadFolders, loadVideos } from '../../store';
 import { Video } from '../../types';
 
-type Side   = 'left' | 'right';
-type Source = 'both' | 'local' | 'remote';
+type Side = 'left' | 'right';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
 function thumbSrc(v: Video): string {
-  if (v.isLink) return v.img || '';
   return `/api/thumbs/${v.id}/0`;
 }
 
-// Decode the base64url link id back to URL for move operations
-function linkUrl(id: string): string {
-  try { return atob(id.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '') + '=='.slice((id.length * 6 % 8) ? (id.length * 6 % 8 === 2 ? 2 : 1) : 0)); } catch { return ''; }
+// ── Relevance scoring: rank candidates by how well they match a query ──
+// Returns 0 when there's no match. All query tokens must be found; exact
+// word / prefix / start-of-name matches score higher than loose substrings.
+function matchScore(target: string, query: string): number {
+  const t = target.toLowerCase();
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return 0;
+  let score = 0;
+  for (const tok of tokens) {
+    const idx = t.indexOf(tok);
+    if (idx === -1) return 0;            // every token must appear
+    score += 10;
+    if (idx === 0) score += 8;           // matches at the very start
+    // word-boundary match (preceded by a non-alphanumeric char)
+    else if (!/[a-z0-9]/.test(t[idx - 1])) score += 4;
+    if (t.length - tok.length < 3) score += 6; // near-exact length
+  }
+  return score;
 }
+
+// ── Fuzzy folder matching ─────────────────────────────────────────────────
+// Levenshtein edit distance (single-row) — powers fuzzy term matching so a
+// folder named "Comedy" still catches "comdey" / "comedi" in a filename.
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const row = new Array(n + 1);
+  for (let j = 0; j <= n; j++) row[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let diag = row[0];
+    row[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = row[j];
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, diag + cost);
+      diag = tmp;
+    }
+  }
+  return row[n];
+}
+
+// Lowercase, drop separators/punctuation, collapse whitespace into words.
+function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[._\-/\\]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Score a single folder term against a filename's words. 0 = no match.
+// Exact word > substring > fuzzy. Multi-word terms match as a phrase.
+function termMatchScore(words: string[], joined: string, term: string): number {
+  if (!term) return 0;
+  if (term.includes(' ')) return joined.includes(term) ? 100 : 0;
+  let best = 0;
+  for (const w of words) {
+    if (w === term) return 100;
+    if (term.length >= 3 && w.includes(term)) best = Math.max(best, 78);
+    else if (w.length >= 4 && term.includes(w)) best = Math.max(best, 58);
+    else if (term.length >= 4 && w.length >= 4) {
+      const ratio = 1 - levenshtein(w, term) / Math.max(w.length, term.length);
+      if (ratio >= 0.8) best = Math.max(best, Math.round(ratio * 68)); // fuzzy
+    }
+  }
+  return best;
+}
+
+type Move = { id: string; name: string; fromPath: string; toPath: string; toName: string; matched: string };
 
 // ── component ─────────────────────────────────────────────────────────────
 
 export const CategorizerView = () => {
   // Signal reads in the component body keep Preact reactive
   const allVids = allVideos.value;
-  const cats    = categories.value.filter(c => c.path !== 'uncategorized');
+  const cats    = folders.value.filter(c => c.path !== 'uncategorized');
 
   const [catL, setCatL] = useState('');
   const [catR, setCatR] = useState('');
@@ -30,25 +95,44 @@ export const CategorizerView = () => {
   const [selR, setSelR] = useState<Set<string>>(new Set());
   const [searchL, setSearchL] = useState('');
   const [searchR, setSearchR] = useState('');
-  const [sourceL, setSourceL] = useState<Source>('both');
-  const [sourceR, setSourceR] = useState<Source>('both');
+  // Global filter — narrows the videos eligible for categorizing across both
+  // panels. Only videos passing it are shown, so only they can be moved.
+  const [globalFilter, setGlobalFilter] = useState('');
   const [dropOver, setDropOver] = useState<Side | null>(null);
   const [moving, setMoving] = useState(false);
   const [newFolderSide, setNewFolderSide] = useState<Side | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [renameSide, setRenameSide] = useState<Side | null>(null);
   const [renameName, setRenameName] = useState('');
-  const [extraCats, setExtraCats] = useState<{ name: string; path: string }[]>([]);
+  const [extraCats, setExtraCats] = useState<{ name: string; path: string; count?: number }[]>([]);
+  // Folder → registered tags map (from /api/db/categories), used so a video
+  // whose name contains a folder's tag still lands in that folder.
+  const [catTags, setCatTags] = useState<Map<string, string[]>>(new Map());
+  // Auto-categorize / Recategorize preview + apply state.
+  const [plan, setPlan] = useState<null | { mode: 'auto' | 'recat'; moves: Move[] }>(null);
+  const [planSel, setPlanSel] = useState<Set<string>>(new Set());
+  const [folderDropId, setFolderDropId] = useState<string | null>(null);
 
   const dragRef      = useRef<{ ids: string[]; from: Side }>({ ids: [], from: 'left' });
   const dragCtrL     = useRef(0);
   const dragCtrR     = useRef(0);
   const lastClickL   = useRef(-1);
   const lastClickR   = useRef(-1);
+  const folderDragCtr = useRef(new Map<string, number>());
 
   useEffect(() => {
-    if (categories.value.length === 0) loadCategories();
+    if (folders.value.length === 0) loadFolders();
     if (allVideos.value.length === 0) loadVideos();
+    fetch('/api/db/categories')
+      .then(r => r.json())
+      .then((d: any) => {
+        const m = new Map<string, string[]>();
+        for (const [name, info] of Object.entries<any>(d || {})) {
+          m.set(name.toLowerCase(), Array.isArray(info?.tags) ? info.tags : []);
+        }
+        setCatTags(m);
+      })
+      .catch(() => {});
   }, []);
 
   const allCats = [...cats, ...extraCats.filter(ec => !cats.some(c => c.path === ec.path))];
@@ -58,24 +142,22 @@ export const CategorizerView = () => {
   const setSel    = (s: Side, v: Set<string>) => s === 'left' ? setSelL(v) : setSelR(v);
   const getSearch = (s: Side) => s === 'left' ? searchL : searchR;
   const setSearch = (s: Side, v: string) => s === 'left' ? setSearchL(v) : setSearchR(v);
-  const getSource = (s: Side) => s === 'left' ? sourceL : sourceR;
-  const setSource = (s: Side, v: Source) => s === 'left' ? setSourceL(v) : setSourceR(v);
   const inSearch  = (s: Side) => getSearch(s).trim() !== '';
   const lastClick = (s: Side) => s === 'left' ? lastClickL : lastClickR;
 
-  // ── Fuzzy match: all chars in query appear in order in the target ──
-  const fuzzyMatch = (target: string, query: string): boolean => {
-    target = target.toLowerCase();
-    query = query.toLowerCase();
-    let ti = 0;
-    for (let qi = 0; qi < query.length; qi++) {
-      const ch = query[qi];
-      if (ch === ' ') continue; // skip spaces
-      ti = target.indexOf(ch, ti);
-      if (ti === -1) return false;
-      ti++;
-    }
-    return true;
+  // The categorizer files videos into folders; links are tag-sorted, not
+  // foldered, so they never appear here.
+  const localVids = allVids.filter(v => !v.isLink);
+
+  // Apply the global filter (improved relevance match) and drop non-matches.
+  const applyGlobal = (vids: Video[]): Video[] => {
+    const q = globalFilter.trim();
+    if (!q) return vids;
+    return vids
+      .map(v => ({ v, s: Math.max(matchScore(v.name, q), matchScore(v.category || '', q)) }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .map(x => x.v);
   };
 
   // Return the set of video ids currently visible in the opposite panel
@@ -85,38 +167,26 @@ export const CategorizerView = () => {
     return new Set(otherVids.map(v => v.id));
   };
 
-  const applySource = (vids: Video[], src: Source) => {
-    if (src === 'local')  return vids.filter(v => !v.isLink);
-    if (src === 'remote') return vids.filter(v =>  v.isLink);
-    return vids;
-  };
-
   const panelVideosRaw = (s: Side): Video[] => {
-    const q = getSearch(s).trim().toLowerCase();
+    const q = getSearch(s).trim();
     if (q) {
-      return allVids.filter(v =>
-        fuzzyMatch(v.name, q) ||
-        fuzzyMatch(v.catPath  || '', q) ||
-        fuzzyMatch(v.category || '', q)
-      );
+      // Per-panel search: rank by relevance against name / folder.
+      return localVids
+        .map(v => ({ v, s: Math.max(matchScore(v.name, q), matchScore(v.catPath || '', q), matchScore(v.category || '', q)) }))
+        .filter(x => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .map(x => x.v);
     }
     const cat = getCat(s);
     if (!cat) return [];
-    return allVids.filter(v => (v.catPath || '') === cat);
+    return localVids.filter(v => (v.catPath || '') === cat);
   };
 
   const panelVideos = (s: Side): Video[] => {
-    const result = panelVideosRaw(s);
-    const filtered = applySource(result, getSource(s));
-    // When searching, exclude videos already visible in the other panel
-    const q = getSearch(s).trim();
-    if (q) {
-      const otherIds = otherPanelIds(s);
-      return filtered.filter(v => !otherIds.has(v.id));
-    }
-    // When a category is selected, also exclude videos already in the other panel
-    // to avoid moving a video into its current folder
-    if (getCat(s)) {
+    const filtered = applyGlobal(panelVideosRaw(s));
+    // Exclude videos already visible in the other panel so a move never targets
+    // a video's current folder.
+    if (inSearch(s) || getCat(s)) {
       const otherIds = otherPanelIds(s);
       return filtered.filter(v => !otherIds.has(v.id));
     }
@@ -186,6 +256,43 @@ export const CategorizerView = () => {
     return true;
   };
 
+  // ── Core move logic (used by panel drop and folder tile drop) ────────
+
+  const doMove = async (ids: string[], targetPath: string) => {
+    const targetCatName = allCats.find(c => c.path === targetPath)?.name || targetPath || 'Uncategorized';
+    setMoving(true);
+    const idSet = new Set(ids);
+    const movingVids = localVids.filter(v => idSet.has(v.id));
+
+    const vidResults = await Promise.all(
+      movingVids.map(v =>
+        fetch(`/api/videos/${encodeURIComponent(v.id)}/move`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category: targetPath }),
+        }).then(r => r.json()).then(d => ({ id: v.id, ...d })).catch(() => ({ id: v.id, error: 'network' }))
+      )
+    );
+
+    const movedVidIds = new Map<string, string>(
+      vidResults.filter(r => r.ok).map(r => [r.id, r.newId])
+    );
+    const failCount = vidResults.filter(r => !r.ok).length;
+    if (failCount) alert(`${failCount} move${failCount > 1 ? 's' : ''} failed`);
+
+    if (movedVidIds.size) {
+      allVideos.value = allVideos.value.map(v => {
+        const newId = movedVidIds.get(v.id);
+        if (newId) return { ...v, id: newId, catPath: targetPath, category: targetCatName };
+        return v;
+      });
+      setSelL(new Set([...selL].filter(id => !movedVidIds.has(id))));
+      setSelR(new Set([...selR].filter(id => !movedVidIds.has(id))));
+      if ((window as any).loadVideos) (window as any).loadVideos();
+    }
+    setMoving(false);
+  };
+
   const onDrop = async (targetSide: Side) => {
     dragCtrL.current = 0;
     dragCtrR.current = 0;
@@ -194,65 +301,14 @@ export const CategorizerView = () => {
     if (!ids.length || from === targetSide || !canDrop(targetSide)) return;
 
     const targetCat = getCat(targetSide);
-
-    // Guard: skip if all items are already in the target category
     if (targetCat) {
       const allAlreadyThere = ids.every(id => {
         const v = allVids.find(v => v.id === id);
         return v && (v.catPath || '') === targetCat;
       });
-      if (allAlreadyThere) {
-        setMoving(false);
-        return;
-      }
+      if (allAlreadyThere) return;
     }
-    setMoving(true);
-
-    // Split into local videos and links
-    const idSet = new Set(ids);
-    const movingVids  = allVids.filter(v => !v.isLink && idSet.has(v.id));
-    const movingLinks = allVids.filter(v =>  v.isLink && idSet.has(v.id));
-
-    const [vidResults, linkResult] = await Promise.all([
-      Promise.all(
-        movingVids.map(v =>
-          fetch(`/api/videos/${encodeURIComponent(v.id)}/move`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: targetCat }),
-          }).then(r => r.json()).then(d => ({ id: v.id, ...d })).catch(() => ({ id: v.id, error: 'network' }))
-        )
-      ),
-      movingLinks.length
-        ? fetch('/api/links/move', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: movingLinks.map(v => v.linkUrl || v.relPath), category: targetCat }),
-          }).then(r => r.json()).catch(() => ({ ok: false }))
-        : Promise.resolve({ ok: true }),
-    ]);
-
-    const movedVidIds = new Map<string, string>(
-      vidResults.filter(r => r.ok).map(r => [r.id, r.newId])
-    );
-    const targetCatName = allCats.find(c => c.path === targetCat)?.name || targetCat || 'Uncategorized';
-    const failCount = vidResults.filter(r => !r.ok).length + (movingLinks.length && !linkResult.ok ? movingLinks.length : 0);
-
-    if (failCount) alert(`${failCount} move${failCount > 1 ? 's' : ''} failed`);
-
-    if (movedVidIds.size || (movingLinks.length && linkResult.ok)) {
-      allVideos.value = allVids.map(v => {
-        const newId = movedVidIds.get(v.id);
-        if (newId) return { ...v, id: newId, catPath: targetCat, category: targetCatName };
-        if (v.isLink && movingLinks.some(l => l.id === v.id) && linkResult.ok) {
-          return { ...v, catPath: targetCat, category: targetCatName };
-        }
-        return v;
-      });
-      setSel(from, new Set([...getSel(from)].filter(id => !movedVidIds.has(id) && !movingLinks.some(l => l.id === id))));
-      if ((window as any).loadVideos) (window as any).loadVideos();
-    }
-    setMoving(false);
+    await doMove(ids, targetCat);
   };
 
   // ── Folder operations ─────────────────────────────────────────────────
@@ -271,7 +327,7 @@ export const CategorizerView = () => {
     const newName = renameName.trim().replace(/[<>:"/\\|?*]/g, '_');
     if (!newName || !oldPath) { setRenameSide(null); return; }
     try {
-      const r = await fetch('/api/categories/rename', {
+      const r = await fetch('/api/folders/rename', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ oldPath, newName }),
@@ -300,7 +356,7 @@ export const CategorizerView = () => {
     const catDisplay = allCats.find(c => c.path === cat)?.name || cat;
     if (!confirm(`Delete folder "${catDisplay}"? All its videos will be moved to the default folder.`)) return;
     try {
-      const r = await fetch('/api/categories/delete', {
+      const r = await fetch('/api/folders/delete', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: cat }),
@@ -312,25 +368,133 @@ export const CategorizerView = () => {
     } catch (e: any) { alert(e.message); }
   };
 
+  // ── Auto-categorize ───────────────────────────────────────────────────
+
+  // Precompute the matching terms (folder leaf name + registered tags) for
+  // every known folder.
+  const folderTerms = (): { path: string; depth: number; terms: string[] }[] =>
+    cats.map(c => {
+      const leaf  = c.path.split('/').pop() || c.path;
+      const tags  = catTags.get(leaf.toLowerCase()) || catTags.get(c.path.toLowerCase()) || [];
+      const terms = [normalizeText(leaf), ...tags.map(normalizeText)].filter(Boolean);
+      return { path: c.path, depth: c.path.split('/').length, terms };
+    });
+
+  // Find the best-fitting folder for a filename. Deeper (more specific)
+  // subfolders win on near-ties; only when no subfolder matches does a
+  // shallower parent folder get picked.
+  const bestFolder = (fts: ReturnType<typeof folderTerms>, name: string): { path: string; matched: string } | null => {
+    const joined = normalizeText(name.replace(/\.[^.]+$/, ''));
+    const words  = joined.split(' ').filter(Boolean);
+    if (!words.length) return null;
+    let bestPath = '', bestTotal = 0, bestTerm = '';
+    for (const f of fts) {
+      let fScore = 0, fTerm = '';
+      for (const term of f.terms) {
+        const s = termMatchScore(words, joined, term);
+        if (s > fScore) { fScore = s; fTerm = term; }
+      }
+      if (!fScore) continue;
+      const total = fScore + f.depth * 4; // depth bias → prefer subfolders
+      if (total > bestTotal) { bestTotal = total; bestPath = f.path; bestTerm = fTerm; }
+    }
+    return bestPath ? { path: bestPath, matched: bestTerm } : null;
+  };
+
+  // mode 'auto' → only uncategorized videos; 'recat' → re-sort everything.
+  const openPlan = (mode: 'auto' | 'recat') => {
+    const fts        = folderTerms();
+    const candidates = localVids.filter(v => mode === 'auto' ? !(v.catPath || '') : true);
+    const moves: Move[] = [];
+    for (const v of candidates) {
+      const hit = bestFolder(fts, v.name);
+      if (hit && hit.path !== (v.catPath || '')) {
+        moves.push({
+          id: v.id, name: v.name,
+          fromPath: v.catPath || '',
+          toPath: hit.path,
+          toName: cats.find(c => c.path === hit.path)?.name || hit.path,
+          matched: hit.matched,
+        });
+      }
+    }
+    setPlan({ mode, moves });
+    setPlanSel(new Set(moves.map(m => m.id)));
+  };
+
+  const applyPlan = async () => {
+    if (!plan) return;
+    const moves = plan.moves.filter(m => planSel.has(m.id)).map(m => ({ id: m.id, category: m.toPath }));
+    if (!moves.length) { setPlan(null); return; }
+    setPlan(null);
+    try {
+      await fetch('/api/categorizer/execute-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moves }),
+      });
+      const w = window as any;
+      if (w.toast) w.toast(`Moving ${moves.length} video${moves.length > 1 ? 's' : ''}… (see Sync ↑)`);
+    } catch {
+      const w = window as any;
+      if (w.toast) w.toast('Failed to start categorizer');
+    }
+  };
+
+  const toggleMove = (id: string) =>
+    setPlanSel(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  // ── Folder dropdown options (hierarchical, optionally non-empty only) ──
+  const folderOptions = (side: Side) => {
+    const onlyNonEmpty = side === 'left'; // source panel hides empty folders
+    const selected = getCat(side);
+    return allCats
+      .filter(c => !onlyNonEmpty || (c.count || 0) > 0 || c.path === selected)
+      .slice()
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .map(c => {
+        const depth  = c.path.split('/').length - 1;
+        const leaf   = c.path.split('/').pop() || c.path;
+        const indent = '   '.repeat(depth);
+        const cnt    = c.count ? ` (${c.count})` : '';
+        return <option key={c.path} value={c.path}>{indent}{depth ? '└ ' : ''}{leaf}{cnt}</option>;
+      });
+  };
+
+  // Immediate subfolders of a path — powers the target panel's file-system
+  // navigation. Each child reports its own count and whether it nests further.
+  const childFolders = (parentPath: string) => {
+    const prefix = parentPath ? parentPath + '/' : '';
+    const seen = new Set<string>();
+    const out: { name: string; path: string; count: number; hasChildren: boolean }[] = [];
+    for (const c of allCats) {
+      if (parentPath && !c.path.startsWith(prefix)) continue;
+      const rest = parentPath ? c.path.slice(prefix.length) : c.path;
+      if (!rest) continue;
+      const seg = rest.split('/')[0];
+      const childPath = prefix + seg;
+      if (seen.has(childPath)) continue;
+      seen.add(childPath);
+      out.push({
+        name: seg,
+        path: childPath,
+        count: (allCats.find(o => o.path === childPath) as any)?.count || 0,
+        hasChildren: allCats.some(o => o.path.startsWith(childPath + '/')),
+      });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  };
+
   // ── Panel renderer ────────────────────────────────────────────────────
 
   const renderPanel = (side: Side) => {
     const cat       = getCat(side);
     const sel       = getSel(side);
     const search    = getSearch(side);
-    const source    = getSource(side);
     const searching = inSearch(side);
     const vids      = panelVideos(side);
     const isOver    = dropOver === side;
     const ctr       = side === 'left' ? dragCtrL : dragCtrR;
-
-    const srcBtn = (label: string, val: Source) => (
-      <button
-        type="button"
-        onClick={() => { setSource(side, val); setSel(side, new Set()); }}
-        style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--brd)', background: source === val ? 'var(--ac)' : 'var(--bg2)', color: source === val ? '#fff' : 'var(--tx3)', fontWeight: source === val ? 700 : 400 }}
-      >{label}</button>
-    );
 
     return (
       <div
@@ -340,6 +504,11 @@ export const CategorizerView = () => {
         onDragLeave={() => { ctr.current--; if (ctr.current <= 0) { ctr.current = 0; setDropOver(null); } }}
         onDrop={(e: any) => { e.preventDefault(); onDrop(side); }}
       >
+
+        {/* ── Panel label ── */}
+        <div style={{ padding: '4px 12px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: side === 'left' ? 'var(--tx2)' : 'var(--ac)', background: 'var(--bg)', borderBottom: '1px solid var(--brd)', flexShrink: 0 }}>
+          {side === 'left' ? 'Source folder' : 'Target folder'}
+        </div>
 
         {/* ── Folder header ── */}
         <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--brd)', background: 'var(--bg2)', flexShrink: 0, display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -361,15 +530,38 @@ export const CategorizerView = () => {
             </>
           ) : (
             <>
-              <select
-                value={cat}
-                title="Select folder"
-                onChange={(e: any) => pickCat(side, e.target.value)}
-                style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '4px 7px', fontSize: '13px' }}
-              >
-                <option value="">— Uncategorized —</option>
-                {allCats.map(c => <option key={c.path} value={c.path}>{c.name}</option>)}
-              </select>
+              {side === 'right' ? (
+                /* Target panel: file-system breadcrumb navigation */
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '2px', flexWrap: 'wrap', minWidth: 0, fontSize: '12px' }}>
+                  <button type="button" onClick={() => pickCat('right', '')} title="Library root"
+                    style={{ background: cat ? 'none' : 'var(--bg3)', border: 'none', color: cat ? 'var(--ac)' : 'var(--tx)', cursor: 'pointer', padding: '2px 5px', borderRadius: '4px', fontSize: '12px', fontWeight: cat ? 400 : 600 }}>
+                    🏠 Root
+                  </button>
+                  {cat && cat.split('/').map((seg, i, arr) => {
+                    const p = arr.slice(0, i + 1).join('/');
+                    const last = i === arr.length - 1;
+                    return (
+                      <span key={p} style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+                        <span style={{ color: 'var(--tx3)', flexShrink: 0 }}>/</span>
+                        <button type="button" onClick={() => pickCat('right', p)} title={p}
+                          style={{ background: last ? 'var(--bg3)' : 'none', border: 'none', color: last ? 'var(--tx)' : 'var(--ac)', cursor: 'pointer', padding: '2px 5px', borderRadius: '4px', fontSize: '12px', fontWeight: last ? 600 : 400, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {seg}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <select
+                  value={cat}
+                  title="Select folder"
+                  onChange={(e: any) => pickCat(side, e.target.value)}
+                  style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '4px 7px', fontSize: '13px' }}
+                >
+                  <option value="">— Uncategorized —</option>
+                  {folderOptions(side)}
+                </select>
+              )}
               {cat && (
                 <>
                   <button type="button" title="Rename folder" onClick={() => { setRenameSide(side); setRenameName(cat.split('/').pop()!); }}
@@ -391,6 +583,31 @@ export const CategorizerView = () => {
           <span style={{ fontSize: '11px', color: 'var(--tx3)', flexShrink: 0 }}>{vids.length}</span>
         </div>
 
+        {/* ── Subfolder navigation (target panel only) ── */}
+        {side === 'right' && !searching && renameSide !== side && (() => {
+          const kids = childFolders(cat);
+          if (kids.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '7px 12px', borderBottom: '1px solid var(--brd)', background: 'var(--bg3)', flexShrink: 0, maxHeight: '92px', overflowY: 'auto' }}>
+              {cat && (
+                <button type="button" onClick={() => pickCat('right', cat.split('/').slice(0, -1).join('/'))} title="Up one level"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'var(--bg2)', border: '1px solid var(--brd)', color: 'var(--tx3)', cursor: 'pointer', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', flexShrink: 0 }}>
+                  ↑ ..
+                </button>
+              )}
+              {kids.map(k => (
+                <button key={k.path} type="button" onClick={() => pickCat('right', k.path)} title={k.path}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--bg2)', border: '1px solid var(--brd)', color: 'var(--tx)', cursor: 'pointer', padding: '3px 8px', borderRadius: '5px', fontSize: '11px', maxWidth: '100%' }}>
+                  <span style={{ flexShrink: 0 }}>📁</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.name}</span>
+                  {k.count > 0 && <span style={{ color: 'var(--tx3)', flexShrink: 0 }}>{k.count}</span>}
+                  {k.hasChildren && <span style={{ color: 'var(--tx3)', flexShrink: 0 }}>›</span>}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* ── New folder input ── */}
         {newFolderSide === side && (
           <div style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)', display: 'flex', gap: '6px', background: 'var(--bg3)', flexShrink: 0 }}>
@@ -405,7 +622,7 @@ export const CategorizerView = () => {
           </div>
         )}
 
-        {/* ── Toolbar: search + source filter + selection ── */}
+        {/* ── Toolbar: per-panel search ── */}
         <div style={{ padding: '5px 12px', borderBottom: '1px solid var(--brd)', background: 'var(--bg3)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--tx3)', flexShrink: 0 }}>
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -419,11 +636,6 @@ export const CategorizerView = () => {
             <button type="button" onClick={() => { setSearch(side, ''); setSel(side, new Set()); }}
               style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '12px', lineHeight: 1, flexShrink: 0 }}>✕</button>
           )}
-          <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
-            {srcBtn('Both', 'both')}
-            {srcBtn('Local', 'local')}
-            {srcBtn('Links', 'remote')}
-          </div>
         </div>
 
         {/* ── Selection bar ── */}
@@ -496,12 +708,7 @@ export const CategorizerView = () => {
                           </svg>
                         </div>
                       )}
-                      {v.isLink && (
-                        <div style={{ position: 'absolute', top: '3px', left: '3px', background: 'rgba(0,0,0,0.65)', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', color: 'var(--tx3)' }}>
-                          link
-                        </div>
-                      )}
-                      {(searching || source === 'both') && (
+                      {(searching || !!globalFilter.trim()) && (
                         <div style={{ position: 'absolute', bottom: '2px', left: '3px', fontSize: '9px', background: 'rgba(0,0,0,0.65)', color: 'var(--tx3)', borderRadius: '3px', padding: '1px 4px', maxWidth: 'calc(100% - 6px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {v.category || 'Uncategorized'}
                         </div>
@@ -533,10 +740,415 @@ export const CategorizerView = () => {
     );
   };
 
+  // ── Windows-style folder tile (right panel only) ─────────────────────
+
+  const renderFolderTile = (k: { name: string; path: string; count: number; hasChildren: boolean }) => {
+    const isOverFolder = folderDropId === k.path;
+    return (
+      <div
+        key={k.path}
+        title={k.path}
+        onDragEnter={(e: any) => {
+          e.preventDefault();
+          folderDragCtr.current.set(k.path, (folderDragCtr.current.get(k.path) || 0) + 1);
+          setFolderDropId(k.path);
+        }}
+        onDragOver={(e: any) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+        onDragLeave={() => {
+          const n = (folderDragCtr.current.get(k.path) || 1) - 1;
+          folderDragCtr.current.set(k.path, n);
+          if (n <= 0) setFolderDropId(p => p === k.path ? null : p);
+        }}
+        onDrop={(e: any) => {
+          e.preventDefault();
+          e.stopPropagation();
+          folderDragCtr.current.clear();
+          setFolderDropId(null);
+          dragCtrR.current = 0;
+          setDropOver(null);
+          const { ids } = dragRef.current;
+          if (ids.length) doMove(ids, k.path);
+        }}
+        onClick={() => pickCat('right', k.path)}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px',
+          padding: '14px 8px 10px',
+          cursor: 'pointer', borderRadius: '8px',
+          border: `2px solid ${isOverFolder ? 'var(--ac)' : 'transparent'}`,
+          background: isOverFolder ? 'rgba(232,130,20,0.12)' : 'var(--bg3)',
+          transition: 'background 0.12s, border-color 0.12s',
+          userSelect: 'none',
+        }}
+      >
+        <svg width="46" height="38" viewBox="0 0 23 19" fill="none">
+          <path d="M1 4a1 1 0 0 1 1-1h5.4a1 1 0 0 1 .7.3L9.7 5H21a1 1 0 0 1 1 1v1H1V4z"
+            fill={isOverFolder ? 'var(--ac)' : '#b86e0a'}/>
+          <path d="M1 7h21v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7z"
+            fill={isOverFolder ? 'var(--ac)' : '#e09820'}/>
+        </svg>
+        <span style={{ fontSize: '11px', color: isOverFolder ? 'var(--ac)' : 'var(--tx)', textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+          {k.name}
+        </span>
+        {(k.count > 0 || k.hasChildren) && (
+          <span style={{ fontSize: '9px', color: 'var(--tx3)', lineHeight: 1 }}>
+            {k.count > 0 ? k.count : ''}{k.hasChildren ? ' ›' : ''}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  // ── Right panel: Windows folder browser ──────────────────────────────
+
+  const renderRightPanel = () => {
+    const cat      = catR;
+    const sel      = selR;
+    const search   = searchR;
+    const searching = searchR.trim() !== '';
+    const vids     = panelVideos('right');
+    const isOver   = dropOver === 'right';
+    const kids     = childFolders(cat);
+
+    return (
+      <div
+        style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--brd)', position: 'relative' }}
+        onDragEnter={(e: any) => { e.preventDefault(); if (!canDrop('right')) return; dragCtrR.current++; setDropOver('right'); }}
+        onDragOver={(e: any) => { e.preventDefault(); e.dataTransfer.dropEffect = canDrop('right') ? 'move' : 'none'; }}
+        onDragLeave={() => { dragCtrR.current--; if (dragCtrR.current <= 0) { dragCtrR.current = 0; setDropOver(null); } }}
+        onDrop={(e: any) => { e.preventDefault(); onDrop('right'); }}
+      >
+        {/* Panel label */}
+        <div style={{ padding: '4px 12px', fontSize: '10px', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--ac)', background: 'var(--bg)', borderBottom: '1px solid var(--brd)', flexShrink: 0 }}>
+          Target folder
+        </div>
+
+        {/* Folder header / breadcrumb */}
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--brd)', background: 'var(--bg2)', flexShrink: 0, display: 'flex', gap: '6px', alignItems: 'center', minHeight: '40px' }}>
+          {renameSide === 'right' ? (
+            <>
+              <input autoFocus type="text" value={renameName} aria-label="New folder name"
+                onInput={(e: any) => setRenameName(e.target.value)}
+                onKeyDown={(e: any) => { if (e.key === 'Enter') renameFolder('right'); if (e.key === 'Escape') setRenameSide(null); }}
+                style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--ac)', borderRadius: '5px', padding: '4px 8px', fontSize: '13px' }}
+              />
+              <button type="button" onClick={() => renameFolder('right')} style={{ padding: '3px 10px', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>OK</button>
+              <button type="button" onClick={() => setRenameSide(null)} style={{ padding: '3px 7px', background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+            </>
+          ) : (
+            <>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '2px', flexWrap: 'wrap', minWidth: 0, fontSize: '12px' }}>
+                <button type="button" onClick={() => pickCat('right', '')} title="Library root"
+                  style={{ background: cat ? 'none' : 'var(--bg3)', border: 'none', color: cat ? 'var(--ac)' : 'var(--tx)', cursor: 'pointer', padding: '2px 5px', borderRadius: '4px', fontSize: '12px', fontWeight: cat ? 400 : 600 }}>
+                  🏠 Root
+                </button>
+                {cat && cat.split('/').map((seg, i, arr) => {
+                  const p = arr.slice(0, i + 1).join('/');
+                  const last = i === arr.length - 1;
+                  return (
+                    <span key={p} style={{ display: 'inline-flex', alignItems: 'center', minWidth: 0 }}>
+                      <span style={{ color: 'var(--tx3)', flexShrink: 0 }}>/</span>
+                      <button type="button" onClick={() => pickCat('right', p)} title={p}
+                        style={{ background: last ? 'var(--bg3)' : 'none', border: 'none', color: last ? 'var(--tx)' : 'var(--ac)', cursor: 'pointer', padding: '2px 5px', borderRadius: '4px', fontSize: '12px', fontWeight: last ? 600 : 400, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {seg}
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+              {cat && (
+                <>
+                  <button type="button" title="Rename folder" onClick={() => { setRenameSide('right'); setRenameName(cat.split('/').pop()!); }}
+                    style={{ padding: '3px 6px', background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>✎</button>
+                  <button type="button" title="Delete folder" onClick={() => deleteFolder('right')}
+                    style={{ padding: '3px 6px', background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>🗑</button>
+                </>
+              )}
+              <button type="button" onClick={() => { setNewFolderSide('right'); setNewFolderName(''); }}
+                style={{ fontSize: '11px', padding: '3px 8px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                + Folder
+              </button>
+              {cat && <span style={{ fontSize: '11px', color: 'var(--tx3)', flexShrink: 0 }}>{vids.length}</span>}
+            </>
+          )}
+        </div>
+
+        {/* New folder input */}
+        {newFolderSide === 'right' && (
+          <div style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)', display: 'flex', gap: '6px', background: 'var(--bg3)', flexShrink: 0 }}>
+            <input autoFocus type="text" value={newFolderName} placeholder="Folder name…" aria-label="New folder name"
+              onInput={(e: any) => setNewFolderName(e.target.value)}
+              onKeyDown={(e: any) => { if (e.key === 'Enter') createFolder(); if (e.key === 'Escape') setNewFolderSide(null); }}
+              style={{ flex: 1, background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '5px', padding: '4px 8px', fontSize: '13px' }}
+            />
+            <button type="button" onClick={createFolder} style={{ padding: '3px 10px', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Create</button>
+            <button type="button" onClick={() => setNewFolderSide(null)} style={{ padding: '3px 6px', background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+          </div>
+        )}
+
+        {!cat ? (
+          // ── ROOT VIEW: full-panel folder browser ──
+          <div style={{
+            flex: 1, overflow: 'auto', padding: '14px',
+            background: isOver ? 'rgba(232,64,64,0.06)' : 'var(--bg)',
+            outline: isOver ? '3px dashed var(--ac)' : '3px solid transparent',
+            outlineOffset: '-3px', transition: 'background 0.1s, outline 0.1s',
+          }}>
+            {kids.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '160px', gap: '10px', color: 'var(--tx3)', fontSize: '13px', opacity: 0.55 }}>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  {isOver ? <path d="M12 3v13m-5-5 5 5 5-5M5 21h14" /> : <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />}
+                </svg>
+                <span>{isOver ? 'Drop to move to Uncategorized' : 'No folders yet — create one above'}</span>
+              </div>
+            ) : (
+              <>
+                {isOver && (
+                  <div style={{ padding: '6px 12px', marginBottom: '10px', background: 'rgba(232,64,64,0.1)', borderRadius: '6px', fontSize: '12px', color: 'var(--ac)', fontWeight: 600, textAlign: 'center' }}>
+                    Drop here → move to Uncategorized
+                  </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '10px' }}>
+                  {kids.map(k => renderFolderTile(k))}
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          // ── FOLDER VIEW: subfolder tiles + video grid ──
+          <>
+            {kids.length > 0 && (
+              <div style={{ flexShrink: 0, padding: '10px', borderBottom: '1px solid var(--brd)', background: 'var(--bg2)', maxHeight: '220px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <button type="button" onClick={() => pickCat('right', cat.split('/').slice(0, -1).join('/'))} title="Up one level"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx3)', cursor: 'pointer', padding: '3px 8px', borderRadius: '5px', fontSize: '11px' }}>
+                    ↑ Up
+                  </button>
+                  <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>Drag onto a folder to move there</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '8px' }}>
+                  {kids.map(k => renderFolderTile(k))}
+                </div>
+              </div>
+            )}
+
+            {/* Search bar */}
+            <div style={{ padding: '5px 12px', borderBottom: '1px solid var(--brd)', background: 'var(--bg3)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--tx3)', flexShrink: 0 }}>
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input type="text" value={search} placeholder="Search…" aria-label="Search videos"
+                onInput={(e: any) => { setSearchR(e.target.value); setSelR(new Set()); lastClickR.current = -1; }}
+                style={{ flex: 1, background: 'transparent', color: 'var(--tx)', border: 'none', outline: 'none', fontSize: '12px', minWidth: 0 }}
+              />
+              {searching && (
+                <button type="button" onClick={() => { setSearchR(''); setSelR(new Set()); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '12px', lineHeight: 1, flexShrink: 0 }}>✕</button>
+              )}
+              <span style={{ fontSize: '11px', color: 'var(--tx3)', flexShrink: 0 }}>{vids.length}</span>
+            </div>
+
+            {/* Selection bar */}
+            <div style={{ padding: '4px 12px', borderBottom: '1px solid var(--brd)', display: 'flex', gap: '5px', alignItems: 'center', background: 'var(--bg3)', flexShrink: 0, minHeight: '28px' }}>
+              <button type="button" onClick={() => setSelR(new Set(vids.map(v => v.id)))}
+                style={{ fontSize: '10px', padding: '2px 7px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>All</button>
+              <button type="button" onClick={() => setSelR(new Set())}
+                style={{ fontSize: '10px', padding: '2px 7px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>None</button>
+              {sel.size > 0 && (
+                <span style={{ fontSize: '11px', color: 'var(--ac)', fontWeight: 600, marginLeft: '2px' }}>
+                  {sel.size} selected · shift+click to range
+                </span>
+              )}
+            </div>
+
+            {/* Video grid — drop here to move into the current folder */}
+            <div style={{
+              flex: 1, overflow: 'auto', padding: '10px',
+              background: isOver && !folderDropId ? 'rgba(232,64,64,0.07)' : undefined,
+              outline: isOver && !folderDropId ? '3px dashed var(--ac)' : '3px solid transparent',
+              outlineOffset: '-3px', transition: 'background 0.1s, outline 0.1s',
+            }}>
+              {vids.length === 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '120px', color: 'var(--tx3)', fontSize: '13px', flexDirection: 'column', gap: '8px', opacity: 0.55 }}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ opacity: 0.5 }}>
+                    {isOver && !folderDropId
+                      ? <path d="M12 3v13m-5-5 5 5 5-5M5 21h14" />
+                      : <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />}
+                  </svg>
+                  <span>{isOver && !folderDropId ? 'Drop here' : searching ? 'No matches' : 'Empty folder'}</span>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
+                  {vids.map((v, idx) => {
+                    const isSelected = sel.has(v.id);
+                    const thumb = thumbSrc(v);
+                    return (
+                      <div key={v.id} draggable
+                        onDragStart={(e: any) => onDragStart(e, 'right', v.id)}
+                        onClick={(e: any) => handleCardClick(e, 'right', idx, v.id, vids)}
+                        title={v.name}
+                        style={{
+                          position: 'relative', borderRadius: '6px', overflow: 'hidden',
+                          cursor: 'grab', userSelect: 'none',
+                          border: `2px solid ${isSelected ? 'var(--ac)' : 'var(--brd)'}`,
+                          background: 'var(--bg3)',
+                          opacity: moving && isSelected ? 0.35 : 1,
+                          transition: 'border-color 0.1s, opacity 0.15s',
+                          boxShadow: isSelected ? '0 0 0 1px var(--acg)' : 'none',
+                        }}
+                      >
+                        <div style={{ aspectRatio: '16/9', background: 'var(--bg4)', overflow: 'hidden', position: 'relative' }}>
+                          {thumb ? (
+                            <img src={thumb} alt="" loading="lazy"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
+                              onError={(e: any) => { e.target.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <rect x="2" y="3" width="20" height="14" rx="2"/><path d="m10 8 5 3-5 3V8z"/>
+                              </svg>
+                            </div>
+                          )}
+                          {(searching || !!globalFilter.trim()) && (
+                            <div style={{ position: 'absolute', bottom: '2px', left: '3px', fontSize: '9px', background: 'rgba(0,0,0,0.65)', color: 'var(--tx3)', borderRadius: '3px', padding: '1px 4px', maxWidth: 'calc(100% - 6px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {v.category || 'Uncategorized'}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ padding: '4px 5px 5px', fontSize: '11px', color: isSelected ? 'var(--tx)' : 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                          {v.name.replace(/\.[^.]+$/, '')}
+                        </div>
+                        {isSelected && (
+                          <div style={{ position: 'absolute', top: '3px', right: '3px', width: '16px', height: '16px', background: 'var(--ac)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {moving && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 5 }}>
+            <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', padding: '10px 22px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}>Moving…</div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
-      {renderPanel('left')}
-      {renderPanel('right')}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
+      {/* ── Global filter bar: narrows the videos eligible across both panels ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid var(--brd)', background: 'var(--bg2)', flexShrink: 0 }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--tx3)', flexShrink: 0 }}>
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
+        <input
+          type="text" value={globalFilter} placeholder="Filter videos to categorize…" aria-label="Filter videos"
+          onInput={(e: any) => { setGlobalFilter(e.target.value); setSelL(new Set()); setSelR(new Set()); }}
+          style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', outline: 'none', minWidth: 0 }}
+        />
+        {globalFilter.trim() && (
+          <button type="button" onClick={() => setGlobalFilter('')}
+            style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', cursor: 'pointer', fontSize: '12px', borderRadius: '4px', padding: '3px 8px', flexShrink: 0 }}>Clear</button>
+        )}
+        {globalFilter.trim() && (
+          <span style={{ fontSize: '11px', color: 'var(--tx3)', flexShrink: 0 }}>Only matching videos are categorized</span>
+        )}
+        <button type="button" onClick={() => openPlan('auto')} title="Move uncategorized videos into matching folders automatically"
+          style={{ background: 'var(--ac)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 600, borderRadius: '5px', padding: '5px 11px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          ✨ Auto-categorize
+        </button>
+        <button type="button" onClick={() => openPlan('recat')} title="Re-sort every video into the best-matching folder"
+          style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', cursor: 'pointer', fontSize: '12px', fontWeight: 600, borderRadius: '5px', padding: '5px 11px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          ⟳ Recategorize all
+        </button>
+      </div>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {renderPanel('left')}
+        {renderRightPanel()}
+      </div>
+
+      {/* ── Auto-categorize preview modal ── */}
+      {plan && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setPlan(null)}>
+          <div onClick={(e: any) => e.stopPropagation()}
+            style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px', width: 'min(680px, 92vw)', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
+            {/* header */}
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--tx)' }}>
+                {plan.mode === 'auto' ? 'Auto-categorize uncategorized videos' : 'Recategorize all videos'}
+              </span>
+              <span style={{ fontSize: '12px', color: 'var(--tx3)', marginLeft: 'auto' }}>
+                {planSel.size} of {plan.moves.length} selected
+              </span>
+            </div>
+
+            {/* body */}
+            <div style={{ flex: 1, overflow: 'auto', padding: plan.moves.length ? '8px 0' : '40px 18px' }}>
+              {plan.moves.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
+                  No videos matched a folder name or tag.
+                </div>
+              ) : (
+                Object.entries(plan.moves.reduce((acc, m) => {
+                  (acc[m.toPath] ||= []).push(m); return acc;
+                }, {} as Record<string, Move[]>)).map(([toPath, ms]) => (
+                  <div key={toPath} style={{ marginBottom: '6px' }}>
+                    <div style={{ padding: '6px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--ac)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span>→ {cats.find(c => c.path === toPath)?.name || toPath}</span>
+                      <span style={{ color: 'var(--tx3)', fontWeight: 400 }}>{ms.length}</span>
+                    </div>
+                    {ms.map(m => {
+                      const sel = planSel.has(m.id);
+                      return (
+                        <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 18px', cursor: 'pointer', opacity: sel ? 1 : 0.45 }}>
+                          <input type="checkbox" checked={sel} onChange={() => toggleMove(m.id)} />
+                          <span style={{ flex: 1, fontSize: '12px', color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: '80px' }} title={m.name}>
+                            {m.name.replace(/\.[^.]+$/, '')}
+                          </span>
+                          <span style={{ fontSize: '10px', color: 'var(--tx3)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }} title={`matched “${m.matched}”`}>
+                            <span style={{ padding: '1px 5px', background: 'var(--bg3)', borderRadius: '3px' }}>
+                              {m.fromPath ? (cats.find(c => c.path === m.fromPath)?.name || m.fromPath) : 'Uncategorized'}
+                            </span>
+                            <span style={{ color: 'var(--ac)', fontWeight: 700 }}>→</span>
+                            <span style={{ padding: '1px 5px', background: 'var(--bg3)', borderRadius: '3px', color: 'var(--tx2)' }}>
+                              {m.toName}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* footer */}
+            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button type="button" onClick={() => setPlanSel(new Set(plan.moves.map(m => m.id)))}
+                style={{ fontSize: '11px', padding: '4px 9px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>All</button>
+              <button type="button" onClick={() => setPlanSel(new Set())}
+                style={{ fontSize: '11px', padding: '4px 9px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>None</button>
+              <div style={{ flex: 1 }} />
+              <button type="button" onClick={() => setPlan(null)}
+                style={{ fontSize: '12px', padding: '6px 14px', background: 'none', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)' }}>Cancel</button>
+              <button type="button" disabled={planSel.size === 0} onClick={applyPlan}
+                style={{ fontSize: '12px', fontWeight: 600, padding: '6px 16px', background: planSel.size ? 'var(--ac)' : 'var(--bg3)', border: 'none', borderRadius: '5px', cursor: planSel.size ? 'pointer' : 'default', color: planSel.size ? '#fff' : 'var(--tx3)' }}>
+                Move {planSel.size || ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

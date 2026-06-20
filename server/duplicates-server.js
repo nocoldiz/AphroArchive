@@ -2,9 +2,9 @@
 
 const fs = require('fs');
 const { execFile } = require('child_process');
-const { THUMBS_DIR, FFMPEG_BIN } = require('./config-server');
-const { json } = require('./helpers-server');
-const { loadVisualHashes, setVisualHash, saveVisualHashes } = require('./db-server');
+const { THUMBS_DIR, FFMPEG_BIN, VIDEOS_DIR } = require('./config-server');
+const { json, fromId } = require('./helpers-server');
+const { loadVisualHashes, setVisualHash, saveVisualHashes, loadThumbsCache } = require('./db-server');
 const path = require('path');
 
 let _job = null;
@@ -45,13 +45,26 @@ function calculateSimilarity(h1, h2) {
 
 async function runScan(allVideos) {
   _job = { running: true, stop: false, total: allVideos.length, done: 0, groups: [] };
+  console.log(`[duplicates] Visual scan started — ${allVideos.length} videos`);
   broadcast({ type: 'start', total: allVideos.length });
 
   const hashes = loadVisualHashes();
+  const activeIds = new Set(allVideos.map(v => v.id));
 
   const list = [];
   for (const v of allVideos) {
     if (_job.stop) break;
+
+    // Skip files that no longer exist on disk (stale scan cache)
+    const rel = fromId(v.id);
+    const fp = path.isAbsolute(rel) ? path.resolve(rel) : path.resolve(VIDEOS_DIR, rel);
+    if (!fs.existsSync(fp)) {
+      delete hashes[v.id];
+      _job.done++;
+      if (_job.done % 20 === 0) broadcast({ type: 'progress', done: _job.done, total: _job.total });
+      continue;
+    }
+
     let hash = hashes[v.id];
     if (!hash) {
       hash = await getVisualHash(v.id);
@@ -62,9 +75,16 @@ async function runScan(allVideos) {
     }
     if (hash) list.push({ ...v, hash });
     _job.done++;
-    if (_job.done % 20 === 0) broadcast({ type: 'progress', done: _job.done, total: _job.total });
+    if (_job.done % 20 === 0) {
+      broadcast({ type: 'progress', done: _job.done, total: _job.total });
+      console.log(`[duplicates] Hashing ${_job.done}/${_job.total}`);
+    }
   }
 
+  // Prune hashes for IDs no longer in the video library
+  for (const id of Object.keys(hashes)) {
+    if (!activeIds.has(id)) delete hashes[id];
+  }
   saveVisualHashes(hashes);
 
   if (_job.stop) {
@@ -101,6 +121,7 @@ async function runScan(allVideos) {
 
   _job.groups = groups;
   _job.running = false;
+  console.log(`[duplicates] Visual scan done — ${groups.length} duplicate group${groups.length !== 1 ? 's' : ''} found`);
   broadcast({ type: 'done', groups });
 }
 
@@ -118,7 +139,15 @@ function apiDuplicatesStatus(req, res) {
 }
 
 function apiDuplicatesResults(req, res) {
-  json(res, _job ? _job.groups : []);
+  if (!_job) return json(res, []);
+  const thumbs = loadThumbsCache();
+  const enriched = _job.groups.map(g =>
+    g.map(v => {
+      const th = thumbs[v.id] || {};
+      return { ...v, width: th.width || null, height: th.height || null };
+    })
+  );
+  json(res, enriched);
 }
 
 function apiDuplicatesStop(req, res) {

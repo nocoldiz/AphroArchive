@@ -1,0 +1,9 @@
+{
+  "name": "Zapping Mode",
+  "description": "Quickly flip through random clips like channel-surfing.",
+  "location": "topbar",
+  "type": "toggle",
+  "toggleAction": "toggleZapping",
+  "enabledByDefault": true,
+  "icon": "<path d=\"M13 2L3 14h9l-1 8 10-12h-9l1-8z\"/>"
+}

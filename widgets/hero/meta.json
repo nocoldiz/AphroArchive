@@ -1,0 +1,8 @@
+{
+  "name": "Hero Banner",
+  "description": "Cycling featured-video spotlight with backdrop and play button.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 4, "h": 2, "minW": 2, "minH": 2, "maxH": 3, "singleton": true }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Instagram Mode",
+  "description": "Browse videos and photos in an Instagram-style feed.",
+  "location": "topbar",
+  "type": "view",
+  "view": "instagram",
+  "enabledByDefault": true,
+  "homeWidget": { "name": "Instagram Feed", "w": 1, "h": 1 },
+  "icon": "<rect x=\"2\" y=\"2\" width=\"20\" height=\"20\" rx=\"5\" ry=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"4\"/><circle cx=\"17.5\" cy=\"6.5\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/>"
+}

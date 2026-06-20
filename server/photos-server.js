@@ -6,7 +6,8 @@
 const fs   = require('fs');
 const path = require('path');
 const { PHOTOS_DIR, VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, MIME } = require('./config-server');
-const { json, formatBytes } = require('./helpers-server');
+const { json, formatBytes }  = require('./helpers-server');
+const { loadMediaIndex, loadPrefs } = require('./db-server');
 
 const IMAGE_EXT = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.tiff','.tif']);
 
@@ -103,21 +104,37 @@ function scanPhotos(dir, base, rootType, folderPath) {
   return out;
 }
 
+function _mediaIndexPhotos() {
+  try {
+    const prefs = loadPrefs();
+    const available = new Set();
+    for (const sf of (prefs.sourceFolders || [])) {
+      if (fs.existsSync(sf)) available.add(sf);
+    }
+    return loadMediaIndex('photo')
+      .filter(m => available.has(m.sourcePath))
+      .map(m => ({
+        id:       photoToId('s', m.absPath),
+        filename: m.filename,
+        folder:   path.relative(m.sourcePath, path.dirname(m.absPath)).replace(/\\/g, '/'),
+        rel:      m.absPath,
+        ext:      m.ext,
+        size:     m.size,
+        sizeF:    m.sizeF,
+        date:     m.mtime,
+        isAi:     false,
+        aiPrompt: '',
+      }));
+  } catch { return []; }
+}
+
 function apiPhotoFolders(req, res) {
   fs.mkdirSync(PHOTOS_DIR, { recursive: true });
   const photos = [
     ...scanPhotos(PHOTOS_DIR, PHOTOS_DIR, 'p'),
     ...scanPhotos(VIDEOS_DIR, VIDEOS_DIR, 'v'),
+    ..._mediaIndexPhotos(),
   ];
-  try {
-    const { loadPrefs } = require('./db-server');
-    const prefs = loadPrefs();
-    if (prefs.sourceFolders) {
-      for (const folder of prefs.sourceFolders) {
-        if (fs.existsSync(folder)) photos.push(...scanPhotos(folder, folder, 's'));
-      }
-    }
-  } catch (e) {}
 
   const folderSet = new Map();
   for (const p of photos) {
@@ -137,25 +154,11 @@ function apiPhotoFolders(req, res) {
 
 function apiPhotosList(req, res) {
   fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-  const photosP = scanPhotos(PHOTOS_DIR, PHOTOS_DIR, 'p');
-  const photosV = scanPhotos(VIDEOS_DIR, VIDEOS_DIR, 'v');
-  
-  let photosS = [];
-  try {
-    const { loadPrefs } = require('./db-server');
-    const prefs = loadPrefs();
-    if (prefs.sourceFolders) {
-      for (const folder of prefs.sourceFolders) {
-        if (fs.existsSync(folder)) {
-          photosS.push(...scanPhotos(folder, folder, 's'));
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Failed to scan external photo folders:', e);
-  }
-  
-  const photos  = [...photosP, ...photosV, ...photosS].sort((a, b) => b.date - a.date);
+  const photos = [
+    ...scanPhotos(PHOTOS_DIR, PHOTOS_DIR, 'p'),
+    ...scanPhotos(VIDEOS_DIR, VIDEOS_DIR, 'v'),
+    ..._mediaIndexPhotos(),
+  ].sort((a, b) => b.date - a.date);
   json(res, photos);
 }
 
@@ -235,4 +238,4 @@ function apiPhotosUpload(req, res) {
   });
 }
 
-module.exports = { apiPhotosList, apiPhotoFolders, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload };
+module.exports = { apiPhotosList, apiPhotoFolders, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload, getPhotoPath: _getFp };

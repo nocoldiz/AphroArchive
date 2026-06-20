@@ -1,0 +1,10 @@
+{
+  "id": "tv-mode",
+  "name": "TV Mode",
+  "description": "Watch your library as live TV channels — folders and tags auto-play one after another, with time-shifted playback when you switch back.",
+  "location": "topbar",
+  "type": "toggle",
+  "toggleAction": "toggleTVMode",
+  "enabledByDefault": true,
+  "icon": "<rect x=\"2\" y=\"7\" width=\"20\" height=\"15\" rx=\"2\"/><path d=\"M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2\"/><circle cx=\"12\" cy=\"14\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>"
+}

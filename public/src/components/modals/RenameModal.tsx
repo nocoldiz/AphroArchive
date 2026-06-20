@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { renameModalState, videos, allVideos } from '../../store';
+import { renameModalState, videos, allVideos, currentVideo } from '../../store';
 import { renameVideo } from '../../api';
 
 export const RenameModal = () => {
@@ -39,6 +39,10 @@ export const RenameModal = () => {
         if (idx2 >= 0) {
           allList[idx2] = { ...allList[idx2], id: res.newId, name: trimmedName };
           allVideos.value = allList;
+        }
+
+        if (currentVideo.value && currentVideo.value.id === state.vidId) {
+          currentVideo.value = { ...currentVideo.value, id: res.newId, name: trimmedName };
         }
 
         const w = window as any;

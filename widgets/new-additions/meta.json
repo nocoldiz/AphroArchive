@@ -1,0 +1,8 @@
+{
+  "name": "New Additions",
+  "description": "A scrollable row of your 20 most recently added videos.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 2, "h": 2, "minW": 2, "minH": 2, "maxH": 3, "singleton": true }
+}

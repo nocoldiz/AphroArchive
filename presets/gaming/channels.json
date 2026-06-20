@@ -1,0 +1,226 @@
+{
+  "Nintendo": {
+    "website": "https://www.youtube.com/@Nintendo",
+    "handle": "@Nintendo",
+    "country": "JP",
+    "language": "English",
+    "short_description": "Official Nintendo channel — Direct presentations, trailers, and first-party game reveals."
+  },
+  "PlayStation": {
+    "website": "https://www.youtube.com/@PlayStation",
+    "handle": "@PlayStation",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official PlayStation channel — State of Play streams, trailers, and exclusives."
+  },
+  "Xbox": {
+    "website": "https://www.youtube.com/@Xbox",
+    "handle": "@Xbox",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official Xbox channel — showcases, Game Pass news, and trailers."
+  },
+  "Rockstar Games": {
+    "website": "https://www.youtube.com/@RockstarGames",
+    "handle": "@RockstarGames",
+    "country": "US",
+    "language": "English",
+    "short_description": "Studio behind GTA and Red Dead Redemption — official trailers."
+  },
+  "Ubisoft": {
+    "website": "https://www.youtube.com/@Ubisoft",
+    "handle": "@Ubisoft",
+    "country": "FR",
+    "language": "English",
+    "short_description": "Publisher of Assassin's Creed, Far Cry, and Rainbow Six."
+  },
+  "IGN": {
+    "website": "https://www.youtube.com/@IGN",
+    "handle": "@IGN",
+    "country": "US",
+    "language": "English",
+    "short_description": "Gaming news, reviews, walkthroughs, and trailers."
+  },
+  "GameSpot": {
+    "website": "https://www.youtube.com/@gamespot",
+    "handle": "@gamespot",
+    "country": "US",
+    "language": "English",
+    "short_description": "Reviews, previews, and gameplay coverage."
+  },
+  "gameranx": {
+    "website": "https://www.youtube.com/@gameranx",
+    "handle": "@gameranx",
+    "country": "CA",
+    "language": "English",
+    "short_description": "'Before You Buy' reviews and gaming top-10 lists."
+  },
+  "Digital Foundry": {
+    "website": "https://www.youtube.com/@DigitalFoundry",
+    "handle": "@DigitalFoundry",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Technical analysis of game performance, frame rates, and hardware."
+  },
+  "Game Maker's Toolkit": {
+    "website": "https://www.youtube.com/@GMTK",
+    "handle": "@GMTK",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Mark Brown's deep dives into game design and level design."
+  },
+  "videogamedunkey": {
+    "website": "https://www.youtube.com/@videogamedunkey",
+    "handle": "@videogamedunkey",
+    "country": "US",
+    "language": "English",
+    "short_description": "Comedy reviews and gameplay with a cult following."
+  },
+  "penguinz0": {
+    "website": "https://www.youtube.com/@penguinz0",
+    "handle": "@penguinz0",
+    "country": "US",
+    "language": "English",
+    "short_description": "MoistCr1TiKaL — gaming commentary, reactions, and challenge runs."
+  },
+  "Markiplier": {
+    "website": "https://www.youtube.com/@markiplier",
+    "handle": "@markiplier",
+    "country": "US",
+    "language": "English",
+    "short_description": "Let's Plays and horror games — one of the largest gaming creators."
+  },
+  "jacksepticeye": {
+    "website": "https://www.youtube.com/@jacksepticeye",
+    "handle": "@jacksepticeye",
+    "country": "IE",
+    "language": "English",
+    "short_description": "Energetic Irish Let's Player and commentator."
+  },
+  "PewDiePie": {
+    "website": "https://www.youtube.com/@PewDiePie",
+    "handle": "@PewDiePie",
+    "country": "SE",
+    "language": "English",
+    "short_description": "Pioneering Let's Play creator and longtime top YouTuber."
+  },
+  "VanossGaming": {
+    "website": "https://www.youtube.com/@VanossGaming",
+    "handle": "@VanossGaming",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Multiplayer comedy gameplay and montages."
+  },
+  "DanTDM": {
+    "website": "https://www.youtube.com/@DanTDM",
+    "handle": "@DanTDM",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Minecraft and family-friendly gaming content."
+  },
+  "Ludwig": {
+    "website": "https://www.youtube.com/@Ludwig",
+    "handle": "@Ludwig",
+    "country": "US",
+    "language": "English",
+    "short_description": "Variety streamer, gaming events, and commentary."
+  },
+  "RTGame": {
+    "website": "https://www.youtube.com/@RTGame",
+    "handle": "@RTGame",
+    "country": "IE",
+    "language": "English",
+    "short_description": "Chaotic comedy gameplay and community streams."
+  },
+  "The Game Theorists": {
+    "website": "https://www.youtube.com/@GameTheory",
+    "handle": "@GameTheory",
+    "country": "US",
+    "language": "English",
+    "short_description": "MatPat's analytical lore and theory videos on games."
+  },
+  "ProZD": {
+    "website": "https://www.youtube.com/@ProZD",
+    "handle": "@ProZD",
+    "country": "US",
+    "language": "English",
+    "short_description": "SungWon Cho — gaming sketches and reviews."
+  },
+  "NakeyJakey": {
+    "website": "https://www.youtube.com/@NakeyJakey",
+    "handle": "@NakeyJakey",
+    "country": "US",
+    "language": "English",
+    "short_description": "Long-form video essays on games and culture."
+  },
+  "LGR": {
+    "website": "https://www.youtube.com/@Lazygamereviews",
+    "handle": "@Lazygamereviews",
+    "country": "US",
+    "language": "English",
+    "short_description": "Retro PC hardware, vintage games, and tech nostalgia."
+  },
+  "Summoning Salt": {
+    "website": "https://www.youtube.com/@SummoningSalt",
+    "handle": "@SummoningSalt",
+    "country": "US",
+    "language": "English",
+    "short_description": "World-record speedrun history documentaries."
+  },
+  "Vinesauce": {
+    "website": "https://www.youtube.com/@Vinesauce",
+    "handle": "@Vinesauce",
+    "country": "US",
+    "language": "English",
+    "short_description": "Streamer collective known for ROM corruptions and variety streams."
+  },
+  "Northernlion": {
+    "website": "https://www.youtube.com/@Northernlion",
+    "handle": "@Northernlion",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Daily roguelike Let's Plays and commentary."
+  },
+  "theRadBrad": {
+    "website": "https://www.youtube.com/@theRadBrad",
+    "handle": "@theRadBrad",
+    "country": "US",
+    "language": "English",
+    "short_description": "Cinematic single-player walkthroughs."
+  },
+  "The Act Man": {
+    "website": "https://www.youtube.com/@TheActMan",
+    "handle": "@TheActMan",
+    "country": "US",
+    "language": "English",
+    "short_description": "Critiques and retrospectives on shooters and franchises."
+  },
+  "Raycevick": {
+    "website": "https://www.youtube.com/@Raycevick",
+    "handle": "@Raycevick",
+    "country": "US",
+    "language": "English",
+    "short_description": "Retrospective reviews of older games years after release."
+  },
+  "Asmongold TV": {
+    "website": "https://www.youtube.com/@ZackRawrr",
+    "handle": "@ZackRawrr",
+    "country": "US",
+    "language": "English",
+    "short_description": "MMO and RPG reactions and commentary."
+  },
+  "CaptainSparklez": {
+    "website": "https://www.youtube.com/@CaptainSparklez",
+    "handle": "@CaptainSparklez",
+    "country": "US",
+    "language": "English",
+    "short_description": "Minecraft animations, music videos, and Let's Plays."
+  },
+  "SSundee": {
+    "website": "https://www.youtube.com/@SSundee",
+    "handle": "@SSundee",
+    "country": "US",
+    "language": "English",
+    "short_description": "Family-friendly Minecraft mods and mini-games."
+  }
+}

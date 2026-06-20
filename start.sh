@@ -29,7 +29,7 @@ if [ ! -d "node_modules" ] || [ "$FORCE_INSTALL" = "1" ]; then
     echo ""
     echo "    [1] Minimal install (default)"
     echo "         Installs only runtime dependencies (preact, signals)."
-    echo "         Skips LLM, image-gen, and all dev/build tools."
+    echo "         Skips image-gen and all dev/build tools."
     echo "         Fastest option — no native compilation required."
     echo ""
     echo "    [2] Full install"
@@ -86,11 +86,10 @@ if [ ! -d "node_modules" ] || [ "$FORCE_INSTALL" = "1" ]; then
     # ── 2. npm install ────────────────────────────────────────────────────────
     sep 2 "Running npm install"
     if [[ "$INSTALL_MODE" == "1" ]]; then
-        echo "  Skips: node-llama-cpp, Capacitor, Vite, TypeScript, pkg"
-        npm install --omit=optional --omit=dev
+        echo "  Skips: Capacitor, Vite, TypeScript, pkg"
+        npm install --omit=dev
     else
-        echo "  Note: node-llama-cpp (LLM) skipped — install separately if needed."
-        npm install --omit=optional
+        npm install
     fi
     ok "npm install done"
 

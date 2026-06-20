@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  helpers.js — Pure utility functions shared across modules
 // ═══════════════════════════════════════════════════════════════════
@@ -58,6 +58,18 @@ function safePath(id) {
     // Handle potential errors
   }
 
+  // Temporarily opened folders (Open button) — not in the DB, but streamable.
+  try {
+    const { getOpenedRoots } = require('./opened-folders-server');
+    for (const root of getOpenedRoots()) {
+      if (full === root || full.startsWith(root + path.sep)) {
+        if (fs.existsSync(full)) return full;
+      }
+    }
+  } catch (e) {
+    // opened-folders module not ready / unavailable
+  }
+
   return null;
 }
 
@@ -78,9 +90,9 @@ function wordMatchAny(name, terms) {
   return terms.some(t => wordMatch(name, t));
 }
 
-// Normalize a string for fuzzy studio matching: lowercase, strip spaces/dashes/underscores
+// Normalize a string for fuzzy channel matching: lowercase, strip spaces/dashes/underscores
 const _normCache = new Map();
-function normStudio(s) {
+function normChannel(s) {
   let res = _normCache.get(s);
   if (!res) {
     res = s.toLowerCase().replace(/[\s\-_]+/g, '');
@@ -89,11 +101,11 @@ function normStudio(s) {
   }
   return res;
 }
-function studioMatchAny(name, terms) {
-  const normName = normStudio(name);
+function channelMatchAny(name, terms) {
+  const normName = normChannel(name);
   return terms.some(t => {
     if (wordMatch(name, t)) return true;
-    const normT = normStudio(t);
+    const normT = normChannel(t);
     return normT.length > 2 && normName.includes(normT);
   });
 }
@@ -126,11 +138,75 @@ function json(res, data, status = 200) {
   res.end(JSON.stringify(data));
 }
 
+// Standard error response: always `{ error: "message" }` with a status code.
+// Use this instead of plain-text / empty error bodies so the frontend can rely
+// on a single shape.
+function jsonError(res, message, status = 400) {
+  json(res, { error: String(message || 'Error') }, status);
+}
+
+// ── Input length limits ──────────────────────────────────────────────
+// Reasonable upper bounds for user-supplied strings, enforced server-side so a
+// malformed/abusive client can't bloat the DB or JSON files.
+const LIMITS = {
+  name: 200,        // actor / channel / collection / folder names
+  tag: 100,
+  url: 2048,
+  title: 500,
+  note: 10000,
+  text: 200000,     // free-form text blobs (text files, prompts)
+  path: 4096,
+};
+
+// ── Lightweight body validation ──────────────────────────────────────
+// schema: { field: { required?, type?, maxLength?, trim? } }
+//   type: 'string' | 'number' | 'boolean' | 'array' | 'object'
+// Returns { ok: true, value } with trimmed/normalised fields, or
+// { ok: false, error } describing the first problem. Pair with jsonError:
+//   const v = validateBody(body, {...}); if (!v.ok) return jsonError(res, v.error);
+function validateBody(body, schema) {
+  if (!body || typeof body !== 'object') return { ok: false, error: 'Invalid request body' };
+  const value = { ...body };
+  for (const [field, rule] of Object.entries(schema)) {
+    let val = body[field];
+    const present = val !== undefined && val !== null && val !== '';
+    if (!present) {
+      if (rule.required) return { ok: false, error: `${field} is required` };
+      continue;
+    }
+    if (rule.type) {
+      const actual = Array.isArray(val) ? 'array' : typeof val;
+      if (actual !== rule.type) return { ok: false, error: `${field} must be a ${rule.type}` };
+    }
+    if (typeof val === 'string') {
+      if (rule.trim !== false) val = val.trim();
+      if (rule.trim !== false && !val && rule.required) return { ok: false, error: `${field} is required` };
+      const max = rule.maxLength || LIMITS[field];
+      if (max && val.length > max) return { ok: false, error: `${field} is too long (max ${max} characters)` };
+    }
+    value[field] = val;
+  }
+  return { ok: true, value };
+}
+
+const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
+
 function readBody(req) {
   return new Promise((resolve) => {
-    let d = '';
-    req.on('data', c => d += c);
-    req.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({}); } });
+    const chunks = [];
+    let total = 0;
+    req.on('data', c => {
+      total += c.length;
+      if (total > MAX_BODY_BYTES) {
+        req.socket?.destroy();
+        resolve({});
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8'))); } catch { resolve({}); }
+    });
   });
 }
 
@@ -164,7 +240,7 @@ function serveStatic(req, res, filePath) {
 module.exports = {
   formatBytes, formatDuration,
   toId, fromId, safePath,
-  wordMatch, wordMatchAny, studioMatchAny, actorMatches, actorMatchesAny,
-  json, readBody,
+  wordMatch, wordMatchAny, channelMatchAny, actorMatches, actorMatchesAny,
+  json, jsonError, readBody, validateBody, LIMITS,
   serveStatic,
 };

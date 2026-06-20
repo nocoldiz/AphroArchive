@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { vaultMode, isVaultUnlocked, currentVideo, currentView, contextMenuState, vaultGlobalView } from '../../store';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
+import { FolderTree, type FolderEntry } from '../UI/FolderTree';
 
 interface VaultFile {
   id: string;
@@ -14,7 +15,8 @@ interface VaultFile {
   folder?: string | null;
   aiTagged?: boolean;
   isVault?: boolean; // false = unencrypted public file shown in Global view
-  raw?: any;         // original /api/videos entry for public files
+  kind?: 'video' | 'photo' | 'book'; // media kind for unencrypted public files
+  raw?: any;         // original /api/videos|photos|books entry for public files
 }
 
 const VAULT_VIDEO_EXTS = new Set(['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.mpg', '.mpeg', '.wmv', '.ts']);
@@ -68,10 +70,40 @@ export const VaultView = () => {
   const isGlobal = vaultGlobalView.value;
   const [publicFiles, setPublicFiles] = useState<VaultFile[]>([]);
   const [encrypting, setEncrypting] = useState(false);
+  // Ids currently being encrypted — rendered at half opacity until they vanish.
+  const [encryptingIds, setEncryptingIds] = useState<Set<string>>(new Set());
+  const encPollRef = useRef<any>(null);
+
+  // Link import modal
+  const [showLinkImport, setShowLinkImport] = useState(false);
+  const [linkImportText, setLinkImportText] = useState('');
 
   // Infinite Scroll State
   const [renderLimit, setRenderLimit] = useState(100);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Vault thumbnail batch generation
+  const [thumbGen, setThumbGen] = useState<{ running: boolean; done: number; total: number }>({ running: false, done: 0, total: 0 });
+  const [thumbBust, setThumbBust] = useState(0); // cache-buster to refresh posters after a run
+  const thumbPollRef = useRef<any>(null);
+
+  const startThumbGen = async () => {
+    try { await fetch('/api/vault/gen-thumbs', { method: 'POST' }); } catch { return; }
+    if (thumbPollRef.current) clearInterval(thumbPollRef.current);
+    thumbPollRef.current = setInterval(async () => {
+      try {
+        const s = await fetch('/api/vault/gen-thumbs/status').then(r => r.json());
+        setThumbGen(s);
+        if (!s.running) {
+          clearInterval(thumbPollRef.current); thumbPollRef.current = null;
+          setThumbBust(Date.now());
+          const w = window as any; if (w.toast) w.toast(`Generated ${s.done} thumbnail(s)`);
+        }
+      } catch { clearInterval(thumbPollRef.current); thumbPollRef.current = null; }
+    }, 1500);
+  };
+
+  useEffect(() => () => { if (thumbPollRef.current) clearInterval(thumbPollRef.current); }, []);
 
   useEffect(() => {
     fetchStatus();
@@ -83,12 +115,31 @@ export const VaultView = () => {
     }
   }, [status.unlocked]);
 
+  // The vault can be (re)unlocked elsewhere — the global VaultUnlockModal after
+  // an auto-lock, or a profile switch — which only flips the isVaultUnlocked
+  // signal. Re-sync local status and reload so freshly mounted zip folders show
+  // without the open view going stale.
+  useEffect(() => {
+    if (isVaultUnlocked.value) {
+      fetchStatus();
+      loadVaultFiles();
+    }
+  }, [isVaultUnlocked.value]);
+
   // Seamless Global ⇄ Vault-Only switching — no page reload, just a data refresh
   useEffect(() => {
     if (status.unlocked && isGlobal) loadPublicFiles();
     else setPublicFiles([]);
     setRenderLimit(100);
   }, [status.unlocked, isGlobal]);
+
+  // Expose the active vault folder + refresh fn so the Import modal / drop
+  // overlay can target the open folder and refresh the grid after uploads.
+  useEffect(() => {
+    (window as any).vaultCurFolder = curFolder;
+    (window as any).vaultFolders = folders;
+    (window as any).loadVaultFiles = loadVaultFiles;
+  });
 
   const photoFiles = useMemo(() => files.filter(f => VAULT_PHOTO_EXTS.has((f.ext || '').toLowerCase())), [files]);
 
@@ -174,62 +225,177 @@ export const VaultView = () => {
   // the vault is unlocked) so files from any profile can be imported here.
   const loadPublicFiles = async () => {
     try {
-      const vids = await fetch('/api/videos?all=1').then(r => r.json());
-      if (!Array.isArray(vids)) return;
-      setPublicFiles(vids.map((v: any) => ({
-        id: v.id,
-        name: (v.name || '').replace(/\.[^.]+$/, ''),
-        originalName: v.name || '',
-        ext: ((v.name || '').match(/\.[^.]+$/)?.[0] || '').toLowerCase(),
-        type: 'public',
-        size: v.size,
-        mtime: v.mtime,
-        folder: null,
-        isVault: false,
-        raw: v,
-      })));
+      const [vids, pics, bks] = await Promise.all([
+        fetch('/api/videos?all=1').then(r => r.json()).catch(() => []),
+        fetch('/api/photos').then(r => r.json()).catch(() => []),
+        fetch('/api/books').then(r => r.json()).catch(() => []),
+      ]);
+      const out: VaultFile[] = [];
+      // Videos (skip links — they're URLs, not files, and import via the Links panel)
+      if (Array.isArray(vids)) {
+        for (const v of vids) {
+          if (v.isLink) continue;
+          out.push({
+            id: v.id, name: (v.name || '').replace(/\.[^.]+$/, ''), originalName: v.name || '',
+            ext: ((v.name || '').match(/\.[^.]+$/)?.[0] || '').toLowerCase(),
+            type: 'public', kind: 'video', size: v.size, mtime: v.mtime, folder: null, isVault: false, raw: v,
+          });
+        }
+      }
+      // Photos
+      if (Array.isArray(pics)) {
+        for (const p of pics) {
+          out.push({
+            id: p.id, name: (p.filename || '').replace(/\.[^.]+$/, ''), originalName: p.filename || '',
+            ext: (p.ext || ((p.filename || '').match(/\.[^.]+$/)?.[0] || '')).toLowerCase(),
+            type: 'public', kind: 'photo', size: p.size, mtime: p.date, folder: null, isVault: false, raw: p,
+          });
+        }
+      }
+      // Books
+      if (Array.isArray(bks)) {
+        for (const b of bks) {
+          out.push({
+            id: b.id, name: (b.title || b.filename || '').replace(/\.[^.]+$/, ''), originalName: b.filename || b.title || '',
+            ext: ((b.filename || '').match(/\.[^.]+$/)?.[0] || '').toLowerCase(),
+            type: 'public', kind: 'book', size: b.size, mtime: b.mtime || b.date, folder: null, isVault: false, raw: b,
+          });
+        }
+      }
+      setPublicFiles(out);
     } catch (e) {
       console.error('Failed to load public files', e);
     }
   };
 
-  // Encrypt a public file into the Vault. The server shreds the original,
-  // moves+encrypts its thumbnails and removes its public DB entry; the UI
-  // reflects the new state instantly.
-  const encryptPublicFile = async (id: string, name: string, silent = false) => {
-    const w = window as any;
-    const r = await fetch(`/api/videos/${id}/encrypt`, { method: 'POST' });
-    if (r.ok) {
-      setPublicFiles(prev => prev.filter(f => f.id !== id));
-      if (!silent) {
-        if (w.toast) w.toast(`Encrypted "${name}" into the Vault`);
-        loadVaultFiles();
-      }
-      return true;
-    }
-    const err = await r.json().catch(() => ({}));
-    if (!silent && w.toast) w.toast('Encryption failed: ' + (err.error || 'Unknown error'));
-    return false;
+  const kindOf = (f: VaultFile): 'video' | 'photo' | 'book' => {
+    if (f.kind) return f.kind;
+    const ext = (f.ext || '').toLowerCase();
+    if (VAULT_PHOTO_EXTS.has(ext)) return 'photo';
+    if (VAULT_BOOK_EXTS.has(ext)) return 'book';
+    return 'video';
   };
 
-  const encryptSelectedPublic = async () => {
+  // Encrypt one or more unencrypted public files into the Vault. The server
+  // shreds each original, encrypts it (along with its thumbnail) and drops its
+  // public DB entry. Each thumbnail fades to half opacity while it encrypts and
+  // disappears once done; progress is mirrored in Sync & Background Tasks.
+  const encryptItems = async (targets: VaultFile[]) => {
+    const w = window as any;
+    if (!targets.length || encrypting) return;
+    const items = targets.map(t => ({ id: t.id, kind: kindOf(t), name: t.name || t.originalName }));
+
+    setEncrypting(true);
+    setEncryptingIds(new Set(items.map(i => i.id)));
+
+    const r = await fetch('/api/vault/encrypt-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      if (w.toast) w.toast('Encryption failed: ' + (err.error || 'Unknown error'));
+      setEncrypting(false);
+      setEncryptingIds(new Set());
+      return;
+    }
+
+    // Poll progress. The server processes items in the order we sent them, so
+    // we can hide each thumbnail as its index is reached.
+    const orderedIds = items.map(i => i.id);
+    const removeFinished = (ids: Set<string>) => {
+      if (!ids.size) return;
+      setPublicFiles(prev => prev.filter(f => !ids.has(f.id)));
+      setSelectedIds(prev => { const n = new Set(prev); for (const id of ids) n.delete(id); return n; });
+    };
+
+    const poll = async () => {
+      try {
+        const s = await fetch('/api/encryption/status').then(res => res.json());
+        const done = s.done || 0;
+        if (done > 0) removeFinished(new Set(orderedIds.slice(0, done)));
+        if (!s.running) {
+          if (encPollRef.current) { clearInterval(encPollRef.current); encPollRef.current = null; }
+          removeFinished(new Set(orderedIds));
+          setEncryptingIds(new Set());
+          setEncrypting(false);
+          loadVaultFiles();
+          if (w.toast) w.toast(s.error ? ('Encryption error: ' + s.error) : `Encrypted ${orderedIds.length} item${orderedIds.length !== 1 ? 's' : ''} into the Vault`);
+        }
+      } catch { }
+    };
+    if (encPollRef.current) clearInterval(encPollRef.current);
+    encPollRef.current = setInterval(poll, 700);
+    poll();
+  };
+
+  const encryptSelectedPublic = () => {
     const targets = publicFiles.filter(f => selectedIds.has(f.id));
     if (!targets.length || encrypting) return;
-    if (!confirm(`Encrypt ${targets.length} file${targets.length !== 1 ? 's' : ''} into the Vault?\nOriginals and their public database entries will be removed.`)) return;
-    setEncrypting(true);
-    const w = window as any;
-    let ok = 0;
-    for (const f of targets) {
-      if (await encryptPublicFile(f.id, f.name || f.originalName, true)) ok++;
+    encryptItems(targets);
+  };
+
+  // Stop the progress poll if the view unmounts mid-encryption.
+  useEffect(() => () => { if (encPollRef.current) clearInterval(encPollRef.current); }, []);
+
+  // ── Link import (paste JSON / browser bookmarks / plain URLs) ──────────
+  const extractUrls = (text: string): string[] => {
+    const urls = new Set<string>();
+    const add = (u: any) => { if (typeof u === 'string' && /^https?:\/\//i.test(u.trim())) urls.add(u.trim()); };
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const walk = (node: any) => {
+          if (!node) return;
+          if (typeof node === 'string') { add(node); return; }
+          if (Array.isArray(node)) { node.forEach(walk); return; }
+          if (typeof node === 'object') { add(node.url); add(node.href); Object.values(node).forEach(walk); }
+        };
+        walk(JSON.parse(trimmed));
+        if (urls.size) return [...urls];
+      } catch { }
     }
-    setEncrypting(false);
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      for (const f of targets) next.delete(f.id);
-      return next;
+    // Browser bookmark HTML exports: pull every href="…"
+    const hrefRe = /href\s*=\s*["']([^"']+)["']/gi;
+    let mm: RegExpExecArray | null;
+    while ((mm = hrefRe.exec(text))) add(mm[1]);
+    if (urls.size) return [...urls];
+    // Fallback: any bare http(s) URL in the text
+    const urlRe = /https?:\/\/[^\s"'<>]+/gi;
+    let m2: RegExpExecArray | null;
+    while ((m2 = urlRe.exec(text))) add(m2[0]);
+    return [...urls];
+  };
+
+  const submitLinkImport = async () => {
+    const w = window as any;
+    const urls = extractUrls(linkImportText);
+    if (!urls.length) { if (w.toast) w.toast('No URLs found in the input'); return; }
+    const r = await fetch('/api/vault/import-links', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls }),
     });
-    if (w.toast) w.toast(`Encrypted ${ok}/${targets.length} files into the Vault`);
-    loadVaultFiles();
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { if (w.toast) w.toast(d.error || 'Import failed'); return; }
+    if (w.toast) w.toast(`Imported ${d.added} link${d.added !== 1 ? 's' : ''} into the Vault` + (d.skipped ? `, ${d.skipped} duplicate(s) skipped` : ''));
+    setShowLinkImport(false);
+    setLinkImportText('');
+    // Update the list optimistically so it reflects the import even if a
+    // follow-up fetch fails (e.g. the vault auto-locks between requests).
+    setVaultLinks(prev => {
+      const seen = new Set(prev.map(l => l.url));
+      const added = urls.filter(u => !seen.has(u)).map(u => ({ url: u, title: u, addedAt: Date.now() }));
+      return added.length ? [...prev, ...added] : prev;
+    });
+    fetch('/api/vault/links').then(res => res.json()).then(v => { if (Array.isArray(v)) setVaultLinks(v); }).catch(() => { });
+  };
+
+  const handleLinkImportFile = async (file: File) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setLinkImportText(prev => (prev ? prev + '\n' : '') + text);
+    } catch { }
   };
 
   const handleUnlock = async () => {
@@ -246,6 +412,7 @@ export const VaultView = () => {
         setError(data.error || 'Wrong password');
       } else {
         setPassword('');
+        isVaultUnlocked.value = true;
         fetchStatus();
       }
     } catch (e: any) {
@@ -279,6 +446,7 @@ export const VaultView = () => {
         setPassword('');
         setConfirmPassword('');
         setSaltMode('static');
+        isVaultUnlocked.value = true;
         fetchStatus();
       }
     } catch (e: any) {
@@ -288,17 +456,15 @@ export const VaultView = () => {
     }
   };
 
-  const handleDecryptFile = async (id: string, name: string) => {
-    if (!confirm(`Decrypt "${name}" and restore to its original category?`)) return;
+  const handleDecryptFile = async (id: string) => {
     const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' });
+    const w = window as any;
     if (res.ok) {
       setFiles(prev => prev.filter(f => f.id !== id));
-      const w = window as any;
       if (w.toast) w.toast('File restored to original folder');
-      if (w.loadVideos) w.loadVideos();
+      // SSE scan_changed fires when the file lands in VIDEOS_DIR — no manual reload needed
     } else {
       const err = await res.json().catch(() => ({}));
-      const w = window as any;
       if (w.toast) w.toast('Restore failed: ' + (err.error || 'Unknown error'));
     }
   };
@@ -307,7 +473,8 @@ export const VaultView = () => {
     if (!confirm('Permanently delete this encrypted file?')) return;
     const res = await fetch('/api/vault/files/' + id, { method: 'DELETE' });
     if (!res.ok) {
-      alert('Delete failed');
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || 'Delete failed');
       return;
     }
     setFiles(files.filter(f => f.id !== id));
@@ -330,36 +497,63 @@ export const VaultView = () => {
     if (w.toast) w.toast('Moved');
   };
 
-  const handleNewFolder = async () => {
-    const name = prompt('Folder name:');
-    if (!name || !name.trim()) return;
+  const handleCreateFolder = async (name: string, parentId: string | null) => {
     const res = await fetch('/api/vault/folders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() })
+      body: JSON.stringify({ name, parent: parentId })
     });
     const d = await res.json();
-    if (!res.ok) {
-      alert(d.error || 'Failed to create folder');
-      return;
-    }
-    setFolders([...folders, { id: d.id, name: d.name, type: 'folder', mtime: Date.now() }]);
-    const w = window as any;
-    if (w.toast) w.toast('Folder created');
+    if (!res.ok) { (window as any).toast?.(d.error || 'Failed to create folder'); return; }
+    setFolders(prev => [...prev, { id: d.id, name: d.name, parent: parentId, type: 'folder', mtime: Date.now() }]);
+    (window as any).toast?.('Folder created');
+  };
+
+  const handleRenameFolder = async (id: string, newName: string) => {
+    const res = await fetch(`/api/vault/folders/${id}/rename`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    });
+    if (!res.ok) { const d = await res.json(); (window as any).toast?.(d.error || 'Rename failed'); return; }
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f));
+    (window as any).toast?.('Folder renamed');
   };
 
   const handleDeleteFolder = async (id: string, name: string) => {
-    if (!confirm(`Delete folder "${name}"? Files inside will be moved to root.`)) return;
+    const parentId = folders.find(f => f.id === id)?.parent || null;
+    // A mounted-ZIP folder is the archive itself — deleting it removes the
+    // whole archive (and every virtual file inside), not just an empty shell.
+    const isZip = !!folders.find(f => f.id === id && (f as any).zipMount);
+    const prompt = isZip
+      ? `Delete archive "${name}"? Its encrypted ZIP and all contents will be permanently removed.`
+      : `Delete folder "${name}"? Contents will move to parent folder.`;
+    if (!confirm(prompt)) return;
     const res = await fetch('/api/vault/folders/' + id, { method: 'DELETE' });
-    if (!res.ok) {
-      alert('Failed to delete folder');
+    if (!res.ok) { const d = await res.json().catch(() => ({})); (window as any).toast?.(d.error || 'Failed to delete folder'); return; }
+    if (isZip) {
+      // The server unmounted the whole archive (root + virtual sub-folders +
+      // every entry). Re-fetch rather than trying to prune the tree by hand.
+      if (curFolder === id) setCurFolder(parentId);
+      loadVaultFiles();
+      (window as any).toast?.('Archive deleted');
       return;
     }
-    setFolders(folders.filter(f => f.id !== id));
-    setFiles(files.map(f => f.folder === id ? { ...f, folder: null } : f));
-    if (curFolder === id) setCurFolder(null);
-    const w = window as any;
-    if (w.toast) w.toast('Folder deleted');
+    setFolders(prev => prev.filter(f => f.id !== id).map(f => f.parent === id ? { ...f, parent: parentId } : f));
+    setFiles(prev => prev.map(f => f.folder === id ? { ...f, folder: parentId } : f));
+    if (curFolder === id) setCurFolder(parentId);
+    (window as any).toast?.('Folder deleted');
+  };
+
+  const handleMoveFolder = async (id: string, newParentId: string | null) => {
+    const res = await fetch(`/api/vault/folders/${id}/move`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent: newParentId })
+    });
+    if (!res.ok) { const d = await res.json(); (window as any).toast?.(d.error || 'Move failed'); return; }
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, parent: newParentId } : f));
+    (window as any).toast?.('Folder moved');
   };
 
   const handleFileClick = (f: VaultFile) => {
@@ -371,6 +565,7 @@ export const VaultView = () => {
     }
     const extLower = (f.ext || '').toLowerCase();
     if (VAULT_VIDEO_EXTS.has(extLower)) {
+      const isZipMounted = !!(f as any).zipMount;
       currentVideo.value = {
         id: f.id,
         name: f.name || f.originalName,
@@ -382,7 +577,8 @@ export const VaultView = () => {
         path: '',
         relPath: '',
         mtime: f.mtime || Date.now(),
-        starred: false
+        starred: false,
+        ...(isZipMounted && { streamUrl: `/api/vault/zip-stream/${(f as any).entryId}` }),
       };
       currentView.value = 'player';
     } else if (VAULT_PHOTO_EXTS.has(extLower)) {
@@ -411,7 +607,7 @@ export const VaultView = () => {
         name: file.name || file.originalName,
         onDelete: file.isVault === false ? undefined : () => handleDeleteFile(file.id),
         onOpen: () => handleFileClick(file),
-        onEncrypt: file.isVault === false ? () => encryptPublicFile(file.id, file.name || file.originalName) : undefined
+        onEncrypt: file.isVault === false ? () => encryptItems([file]) : undefined
       }
     };
   };
@@ -439,6 +635,26 @@ export const VaultView = () => {
     if (w.toast) w.toast(`Deleted ${ids.length} items`);
   };
 
+  // Bulk-decrypt the selected vault files back to their original folders.
+  // Only vault (encrypted) files are eligible — public files are skipped.
+  const handleDecryptSelected = async () => {
+    const ids = Array.from(selectedIds).filter(id => files.some(f => f.id === id));
+    if (!ids.length) return;
+    if (!confirm(`Decrypt & restore ${ids.length} selected file${ids.length !== 1 ? 's' : ''}?`)) return;
+
+    let ok = 0;
+    for (const id of ids) {
+      const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' });
+      if (res.ok) ok++;
+    }
+
+    setFiles(prev => prev.filter(f => !selectedIds.has(f.id)));
+    setSelectedIds(new Set());
+    const w = window as any;
+    // SSE scan_changed fires when files land in VIDEOS_DIR — no manual reload needed
+    if (w.toast) w.toast(`Decrypted ${ok} file${ok !== 1 ? 's' : ''}`);
+  };
+
   const createNewVaultTextFile = async () => {
     let name = prompt('Enter text file name:', 'notes.txt');
     if (!name) return;
@@ -461,6 +677,60 @@ export const VaultView = () => {
     
     loadVaultFiles();
     if (w.toast) w.toast('Empty text file created securely');
+  };
+
+  // Import a ZIP (optionally password-protected): upload it into the vault,
+  // then extract its entries either into the vault or to a folder on disk.
+  const handleImportZip = async (file: File) => {
+    const w = window as any;
+    if (!file) return;
+    try {
+      // 1. Stream the archive into the vault to get an id to read from.
+      const up = await fetch('/api/vault/add', {
+        method: 'POST',
+        headers: { 'x-filename': encodeURIComponent(file.name), ...(curFolder ? { 'x-folder': curFolder } : {}) },
+        body: file,
+      });
+      const upData = await up.json();
+      if (!up.ok || !upData.id) { if (w.toast) w.toast('Upload failed'); return; }
+
+      // 2. Probe entries; ask for a password if the archive is encrypted.
+      let password = '';
+      const probe = await fetch('/api/vault/zip-entries', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: upData.id }),
+      });
+      const probeData = await probe.json();
+      if (probeData.encrypted) {
+        password = prompt('This archive is password-protected. Enter its password:') || '';
+        if (!password) { if (w.toast) w.toast('Password required'); return; }
+      }
+
+      // 3. Choose destination. OK = encrypt into vault, Cancel = extract to a folder.
+      const toVault = confirm('Import extracted files INTO the vault?\n\nOK = encrypt into vault\nCancel = extract to a folder on disk');
+      const mode = toVault ? 'vault' : 'extract';
+      const body: any = { id: upData.id, password, mode };
+      if (mode === 'extract') {
+        const folder = prompt('Folder name to extract into (under your media directory):', file.name.replace(/\.zip$/i, ''));
+        if (folder === null) return;
+        body.destFolder = folder;
+      } else {
+        body.folder = curFolder || null;
+      }
+
+      const imp = await fetch('/api/vault/import-zip', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const impData = await imp.json();
+      if (!imp.ok) { if (w.toast) w.toast(impData.error || 'Import failed'); return; }
+
+      // 4. The uploaded .zip itself is redundant once extracted — remove it.
+      try { await fetch('/api/vault/files/' + upData.id, { method: 'DELETE' }); } catch {}
+
+      if (w.toast) w.toast(`Imported ${impData.count} file(s)` + (mode === 'extract' ? ` → ${impData.folder}` : ' into vault'));
+      loadVaultFiles();
+    } catch (e: any) {
+      if (w.toast) w.toast('ZIP import error: ' + (e?.message || e));
+    }
   };
 
   const importFromVaultDropDir = async () => {
@@ -669,19 +939,35 @@ export const VaultView = () => {
               onChange={(e: any) => (window as any).handleGlobalFiles && (window as any).handleGlobalFiles(e.target.files)}
             />
 
+            <label
+              htmlFor="vaultZipIn"
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              title="Import a .zip (supports password-protected archives)"
+            >
+              Import ZIP
+            </label>
+            <input
+              type="file"
+              id="vaultZipIn"
+              accept=".zip,application/zip"
+              style={{ display: 'none' }}
+              onChange={(e: any) => { const f = e.target.files && e.target.files[0]; if (f) handleImportZip(f); e.target.value = ''; }}
+            />
+
+            <button
+              onClick={() => setShowLinkImport(true)}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              title="Import links from browser bookmarks or JSON — saved encrypted in the Vault"
+            >
+              Import Links
+            </button>
+
             <button
               onClick={createNewVaultTextFile}
               style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
               title="New Text File"
             >
               New File
-            </button>
-
-            <button
-              onClick={handleNewFolder}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
-            >
-              + New Folder
             </button>
 
             <button
@@ -739,6 +1025,18 @@ export const VaultView = () => {
                 {encrypting ? 'Encrypting…' : `🔒 Encrypt Selected (${publicFiles.filter(f => selectedIds.has(f.id)).length})`}
               </button>
             )}
+            {/* Decrypt: never offered while browsing all public videos (Global
+                view); always available in the vault-only view when vault files
+                are selected. */}
+            {!isGlobal && files.some(f => selectedIds.has(f.id)) && (
+              <button
+                onClick={handleDecryptSelected}
+                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+                title="Decrypt the selected files back to their original folders"
+              >
+                🔓 Decrypt Selected ({files.filter(f => selectedIds.has(f.id)).length})
+              </button>
+            )}
             {selectedIds.size > 0 && (
               <button
                 onClick={() => (window as any).openVaultZipModal(Array.from(selectedIds))}
@@ -755,6 +1053,15 @@ export const VaultView = () => {
                 Delete Selected
               </button>
             )}
+
+            <button
+              onClick={startThumbGen}
+              disabled={thumbGen.running}
+              title="Generate encrypted poster thumbnails for vault videos"
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: thumbGen.running ? 'default' : 'pointer', opacity: thumbGen.running ? 0.6 : 1 }}
+            >
+              {thumbGen.running ? `Thumbnails… ${thumbGen.done}/${thumbGen.total}` : 'Generate Thumbnails'}
+            </button>
 
             <button
               onClick={async () => { await fetch('/api/vault/lock', { method: 'POST' }); fetchStatus(); }}
@@ -816,33 +1123,18 @@ export const VaultView = () => {
           </div>
         )}
 
-        {/* Folders Row */}
-        {!curFolder && !searchQuery && !typeFilter && (
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
-            {folders.map(f => (
-              <div
-                key={f.id}
-                style={{
-                  padding: '12px 16px',
-                  background: 'var(--bg2)',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  border: '1px solid var(--brd)'
-                }}
-              >
-                <span onClick={() => { setCurFolder(f.id); setRenderLimit(100); }} style={{ cursor: 'pointer' }}>📁</span>
-                <span onClick={() => { setCurFolder(f.id); setRenderLimit(100); }} style={{ fontWeight: '500', cursor: 'pointer' }}>{f.name}</span>
-                <button
-                  onClick={() => handleDeleteFolder(f.id, f.name)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.8rem', marginLeft: 'auto' }}
-                  title="Delete Folder"
-                >
-                  ❌
-                </button>
-              </div>
-            ))}
+        {/* Nested Folder Tree */}
+        {!searchQuery && !typeFilter && (
+          <div style={{ marginBottom: '16px' }}>
+            <FolderTree
+              folders={folders as FolderEntry[]}
+              currentFolderId={curFolder}
+              onNavigate={(id) => { setCurFolder(id); setRenderLimit(100); }}
+              onCreateFolder={handleCreateFolder}
+              onRenameFolder={handleRenameFolder}
+              onDeleteFolder={handleDeleteFolder}
+              onMoveFolder={handleMoveFolder}
+            />
           </div>
         )}
 
@@ -850,19 +1142,45 @@ export const VaultView = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px' }}>
           {visibleFiles.map(f => {
             const isPublic = f.isVault === false;
+            const isZipMount = !!(f as any).zipMount;
             const isImg = VAULT_PHOTO_EXTS.has(f.ext.toLowerCase());
+            const isVid = VAULT_VIDEO_EXTS.has(f.ext.toLowerCase());
             const isFav = favIds.has(f.id);
             const isSelected = selectedIds.has(f.id);
+            const isEncrypting = encryptingIds.has(f.id);
+            // Public photos serve their image directly; videos use the thumb endpoint; books have no preview.
+            // Vault photos stream the (small) image; vault videos use the encrypted poster.
+            // Zip-mounted entries have no poster — fall through to the ext badge.
+            const hasThumb = isPublic ? f.kind !== 'book' : (!isZipMount && (isImg || isVid));
             const thumbSrc = isPublic
-              ? (f.raw?.isLink ? (f.raw.img || '') : `/api/thumbs/${f.id}/0`)
-              : `/api/vault/stream/${f.id}`;
+              ? (f.kind === 'photo' ? `/api/photos/${f.id}/img` : f.raw?.isLink ? (f.raw.img || '') : `/api/thumbs/${f.id}/0`)
+              : (isImg ? `/api/vault/stream/${f.id}` : `/api/vault/thumb/${f.id}${thumbBust ? `?_=${thumbBust}` : ''}`);
+            // While encrypting: fade the thumbnail to half opacity, then it vanishes on completion.
+            const cardOpacity = isEncrypting ? 0.45 : (isPublic ? 0.92 : undefined);
             return (
-              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined, opacity: isPublic ? 0.92 : undefined }}>
+              <div key={f.id} className={`video-card ${isSelected ? 'selected' : ''}`} onContextMenu={(e) => openCtx(e, f)} style={{ border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)', backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : undefined, boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined, opacity: cardOpacity, transition: 'opacity 0.35s ease', pointerEvents: isEncrypting ? 'none' : undefined }}>
                 <div className="card-thumb" style={{ cursor: 'pointer' }} onClick={() => handleFileClick(f)}>
-                  {(isImg || isPublic) ? (
-                    <img src={thumbSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+                  {hasThumb ? (
+                    <>
+                      <img
+                        src={thumbSrc}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        loading="lazy"
+                        onError={(e: any) => { e.currentTarget.style.display = 'none'; const ph = e.currentTarget.nextElementSibling; if (ph) ph.style.display = 'flex'; }}
+                      />
+                      {/* Shown only if the poster fails to load (e.g. not generated yet) */}
+                      <span style={{ display: 'none', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', color: 'var(--tx2)' }}>
+                        {f.ext.replace('.', '').toUpperCase()}
+                      </span>
+                    </>
                   ) : (
                     <span style={{ fontSize: '1.2rem', color: 'var(--tx2)' }}>{f.ext.replace('.', '').toUpperCase()}</span>
+                  )}
+                  {isEncrypting && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)', color: '#fff', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.5px' }}>
+                      🔒 Encrypting…
+                    </div>
                   )}
 
                   {/* Selection Checkbox */}
@@ -873,7 +1191,7 @@ export const VaultView = () => {
                     <input type="checkbox" checked={isSelected} onChange={() => { }} style={{ cursor: 'pointer' }} />
                   </div>
 
-                  {!isPublic && (
+                  {!isPublic && !isZipMount && (
                     <div
                       style={{ position: 'absolute', top: '4px', right: '4px', cursor: 'pointer' }}
                       onClick={(e) => { e.stopPropagation(); handleToggleFav(f.id); }}
@@ -886,6 +1204,11 @@ export const VaultView = () => {
                       UNENCRYPTED
                     </span>
                   )}
+                  {isZipMount && (
+                    <span style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(80,130,255,0.85)', color: '#fff', fontSize: '0.6rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', letterSpacing: '0.5px' }}>
+                      ZIP
+                    </span>
+                  )}
                   {f.sizeF && <span className="size-badge">{f.sizeF}</span>}
                 </div>
                 <div className="card-body">
@@ -893,17 +1216,20 @@ export const VaultView = () => {
                     {f.name || f.originalName}
                   </div>
                   <div className="card-meta">
-                    <span className="card-category">{isPublic ? (f.raw?.category || 'Public') : 'Vault'}</span>
+                    <span className="card-category">{isPublic ? (f.raw?.category || (f.kind === 'photo' ? 'Photo' : f.kind === 'book' ? 'Book' : 'Public')) : 'Vault'}</span>
                     {isPublic ? (
                       <div className="card-actions">
                         <button
-                          onClick={(e) => { e.stopPropagation(); encryptPublicFile(f.id, f.name || f.originalName); }}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--ac)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                          onClick={(e) => { e.stopPropagation(); encryptItems([f]); }}
+                          disabled={encryptingIds.has(f.id)}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--ac)', cursor: encryptingIds.has(f.id) ? 'wait' : 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
                           title="Encrypt into Vault"
                         >
-                          🔒 Encrypt
+                          {encryptingIds.has(f.id) ? '🔒 Encrypting…' : '🔒 Encrypt'}
                         </button>
                       </div>
+                    ) : isZipMount ? (
+                      <div className="card-actions" />
                     ) : (
                     <div className="card-actions">
                       <select
@@ -932,7 +1258,7 @@ export const VaultView = () => {
                         👁️
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDecryptFile(f.id, f.name || f.originalName || f.id); }}
+                        onClick={(e) => { e.stopPropagation(); handleDecryptFile(f.id); }}
                         style={{ background: 'transparent', border: 'none', color: 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}
                         title="Decrypt & restore"
                       >
@@ -1002,6 +1328,59 @@ export const VaultView = () => {
                   >🔓 Restore</button>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {showLinkImport && (
+          <div
+            onClick={() => setShowLinkImport(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: '460px', maxWidth: '92vw', padding: '24px' }}
+            >
+              <h3 style={{ marginTop: 0 }}>Import Links into the Vault</h3>
+              <p style={{ color: 'var(--tx2)', fontSize: '0.85rem', marginTop: 0 }}>
+                Paste URLs (one per line), a JSON array/export, or browser bookmarks HTML. Imported links are stored encrypted at rest.
+              </p>
+              <textarea
+                value={linkImportText}
+                onInput={(e: any) => setLinkImportText(e.target.value)}
+                placeholder={'https://example.com/page\nhttps://...'}
+                style={{ width: '100%', minHeight: '160px', resize: 'vertical', padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.8rem', boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                <label
+                  htmlFor="vaultLinkImportFile"
+                  style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                  title="Load a bookmarks .html / .json / .txt file"
+                >
+                  Load file…
+                </label>
+                <input
+                  type="file"
+                  id="vaultLinkImportFile"
+                  accept=".json,.html,.htm,.txt,text/html,application/json,text/plain"
+                  style={{ display: 'none' }}
+                  onChange={(e: any) => { const f = e.target.files && e.target.files[0]; if (f) handleLinkImportFile(f); e.target.value = ''; }}
+                />
+                <div style={{ flex: 1 }} />
+                <button
+                  onClick={() => { setShowLinkImport(false); setLinkImportText(''); }}
+                  style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitLinkImport}
+                  disabled={!linkImportText.trim()}
+                  style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '6px', cursor: linkImportText.trim() ? 'pointer' : 'default', fontWeight: 600, opacity: linkImportText.trim() ? 1 : 0.5 }}
+                >
+                  Import & Encrypt
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -1,36 +1,54 @@
-﻿videos
-books
-audio
-photos
-cache/
-pages
+﻿# ── Dependencies ─────────────────────────────
 node_modules/
-db/wildcards
-db/actors.json
-db/categories.json
+
+# ── Python ───────────────────────────────────
+__pycache__/
+*.pyc
+
+# ── Media / user data ────────────────────────
+videos
+audio
+books
+photos
+pages
+models
+settings
+process
 video_downloads/
-db/websites.json
-db/studios.json
-dist/public
-android-app/www/*
-android-app/www/index.html
-!dist/public
 .AphroArchive-thumbs
 .AphroArchive-actor-photos
-settings
+
+# ── Caches ───────────────────────────────────
+cache/
 links_cache.json
-process
+paths.json
 .aider.tags.cache.v4/cache.db
 .aider.tags.cache.v4/cache.db-shm
 .aider.tags.cache.v4/cache.db-wal
-models/llama-3.2-1b-instruct.gguf.gguf
-yt-dlp.exe
-models
+
+# ── Databases (whole db/ folder; presets/ lives in root and is tracked) ──
+db/
 *.db
 *.db-shm
 *.db-wal
-db/*.db
-db/*.db-shm
-db/*.db-wal
-db/last-profile.txt
+
+# ── Build output ─────────────────────────────
+build/
+dist/public/*
+
+# ── Android app ──────────────────────────────
+android-app
+android-app/www/assets/*
+android-app/www/*
 android-app/www/index.html
+
+# ── Bulk downloader ──────────────────────────
+bulkdownloader/links_downloaded.txt
+bulkdownloader/links_failed.txt
+bulkdownloader/links_to_download.txt
+
+# ── Binaries ─────────────────────────────────
+yt-dlp.exe
+
+# ── Local fast build script ──────────────────
+build_fast.bat

@@ -175,15 +175,49 @@ if !DO_ANDROID!==1 (
 )
 
 :: ============================================================
+:: Bulk Downloader (PyInstaller)
+:: ============================================================
+echo [bulkdownloader] Building BulkDownloaderGUI...
+set PYEXE=
+where python >nul 2>&1
+if not errorlevel 1 set PYEXE=python
+if "!PYEXE!"=="" (
+  echo  WARN: Python not found, skipping BulkDownloaderGUI build.
+) else (
+  !PYEXE! -c "import PyInstaller" >nul 2>&1
+  if errorlevel 1 (
+    !PYEXE! -m pip install -U pyinstaller --quiet
+  )
+  !PYEXE! -m PyInstaller --noconfirm --onefile --windowed --name BulkDownloaderGUI --add-data "bulkdownloader\bulkdownloader.py;." --distpath dist --workpath build\bulkdownloader --specpath build bulkdownloader\bulkdownloader_gui.py
+  if errorlevel 1 (
+    echo  WARN: BulkDownloaderGUI build failed
+  ) else (
+    echo  done: dist\BulkDownloaderGUI.exe
+  )
+)
+echo.
+
+:: ============================================================
+:: Firefox Extension
+:: ============================================================
+echo [firefox] Packaging Firefox extension...
+if exist dist\AphroArchive-firefox.xpi del dist\AphroArchive-firefox.xpi
+powershell -NoProfile -Command "Compress-Archive -Path 'browser-extension\*' -DestinationPath 'dist\AphroArchive-firefox.zip' -Force; Move-Item dist\AphroArchive-firefox.zip dist\AphroArchive-firefox.xpi -Force"
+if errorlevel 1 ( echo  WARN: Firefox extension packaging failed ) else ( echo  done: dist\AphroArchive-firefox.xpi )
+echo.
+
+:: ============================================================
 :: Summary
 :: ============================================================
 echo ============================================================
 echo  Build complete. Outputs in dist\:
 echo.
-if exist dist\AphroArchive.exe          echo    AphroArchive.exe            Windows x64 ^(pkg^)
-if exist dist\electron\                 echo    electron\                   Windows Electron installer
-if exist dist\AphroArchive-linux        echo    AphroArchive-linux          Linux x64
-if exist dist\AphroArchive-mac.zip      echo    AphroArchive-mac.zip        macOS (arm64 + x64)
-if exist dist\AphroArchive.apk          echo    AphroArchive.apk            Android
+if exist dist\AphroArchive.exe              echo    AphroArchive.exe            Windows x64 ^(pkg^)
+if exist dist\electron\                     echo    electron\                   Windows Electron installer
+if exist dist\AphroArchive-linux            echo    AphroArchive-linux          Linux x64
+if exist dist\AphroArchive-mac.zip          echo    AphroArchive-mac.zip        macOS ^(arm64 + x64^)
+if exist dist\AphroArchive.apk              echo    AphroArchive.apk            Android
+if exist dist\BulkDownloaderGUI.exe         echo    BulkDownloaderGUI.exe       Bulk Downloader GUI ^(Windows^)
+if exist dist\AphroArchive-firefox.xpi      echo    AphroArchive-firefox.xpi    Firefox extension
 echo ============================================================
 echo.

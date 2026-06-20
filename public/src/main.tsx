@@ -5,6 +5,7 @@ import { Topbar } from './components/UI/Topbar';
 import { MainContent } from './components/UI/MainContent';
 import { setupRouter } from './router';
 import { AndroidSetup } from './components/AndroidSetup';
+import './toast';
 
 const ANDROID_SERVER_KEY = 'aphroarchive_server_url';
 const isNative = !!(window as any).Capacitor?.isNativePlatform?.();

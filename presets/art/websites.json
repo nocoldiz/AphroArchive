@@ -1,0 +1,7 @@
+[
+  { "name": "ArtStation", "url": "https://www.artstation.com", "searchURL": "https://www.artstation.com/search?query={q}", "scrapeMethod": "generic", "description": "Portfolio platform for professional concept artists and illustrators", "tags": ["portfolio", "concept art"], "embed": "" },
+  { "name": "DeviantArt", "url": "https://www.deviantart.com", "searchURL": "https://www.deviantart.com/search?q={q}", "scrapeMethod": "generic", "description": "Long-running online art community", "tags": ["community", "illustration"], "embed": "" },
+  { "name": "Behance", "url": "https://www.behance.net", "searchURL": "https://www.behance.net/search/projects?search={q}", "scrapeMethod": "generic", "description": "Adobe's creative portfolio showcase", "tags": ["portfolio", "design"], "embed": "" },
+  { "name": "WikiArt", "url": "https://www.wikiart.org", "searchURL": "https://www.wikiart.org/en/search/{q}", "scrapeMethod": "generic", "description": "Visual art encyclopedia of paintings and artists", "tags": ["history", "reference"], "embed": "" },
+  { "name": "Google Arts & Culture", "url": "https://artsandculture.google.com", "searchURL": "https://artsandculture.google.com/search?q={q}", "scrapeMethod": "generic", "description": "High-resolution museum collections worldwide", "tags": ["museum", "history"], "embed": "" }
+]

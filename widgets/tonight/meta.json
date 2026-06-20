@@ -1,0 +1,8 @@
+{
+  "name": "What to Watch Tonight",
+  "description": "A daily rule-based pick factoring history and time of day.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 2, "h": 1, "minW": 2, "minH": 1, "maxH": 2, "singleton": true }
+}

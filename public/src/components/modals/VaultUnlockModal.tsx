@@ -8,6 +8,7 @@ export const VaultUnlockModal = () => {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [selfDestructPassword, setSelfDestructPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<any>({});
@@ -67,20 +68,31 @@ export const VaultUnlockModal = () => {
       setError('Passwords do not match');
       return;
     }
+    if (selfDestructPassword && (selfDestructPassword.length < 6 || selfDestructPassword === password)) {
+      setError('Self-destruct password must be 6+ chars and differ from the real one');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/vault/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, useRandomSalt: saltMode === 'random' })
+        body: JSON.stringify({ password, useRandomSalt: saltMode === 'random', ...(selfDestructPassword ? { selfDestructPassword } : {}) })
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Failed to setup');
       } else {
+        // Setup leaves the vault unlocked server-side — proceed straight in
+        // instead of re-prompting for the password we just created.
         setPassword('');
         setConfirmPassword('');
-        fetchStatus();
+        setSelfDestructPassword('');
+        isVaultUnlocked.value = true;
+        vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null };
+        if (targetProfileAfterUnlock) {
+          switchProfile(targetProfileAfterUnlock);
+        }
       }
     } catch (e: any) {
       setError(e.message || 'Failed to setup');
@@ -126,6 +138,18 @@ export const VaultUnlockModal = () => {
                   placeholder="Confirm Password"
                   style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
                 />
+
+                <input
+                  type="password"
+                  value={selfDestructPassword}
+                  onInput={(e: any) => setSelfDestructPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
+                  placeholder="Self-destruct password (optional)"
+                  style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
+                />
+                <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', marginTop: '-4px' }}>
+                  Optional. Typing this password at unlock <strong style={{ color: '#f59e0b' }}>permanently wipes the vault</strong> while showing a normal "wrong password" error — a self-destruct for coercion.
+                </div>
 
                 {/* ── Salt mode selector ── */}
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--brd)', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>

@@ -1,10 +1,9 @@
 'use strict';
 // ═══════════════════════════════════════════════════════════════════
-//  vision.js — Image description via Claude or Ollama vision
+//  vision.js — Image description via Claude vision
 // ═══════════════════════════════════════════════════════════════════
 
 const https  = require('https');
-const http   = require('http');
 const fs     = require('fs');
 const path   = require('path');
 const { spawn } = require('child_process');
@@ -45,8 +44,7 @@ async function apiVisionDescribe(req, res) {
   const body = await readBody(req);
   const { source, id, thumbIdx = 0, prompt } = body;
 
-  const prefs    = loadPrefs();
-  const provider = prefs.visionProvider || 'ollama';
+  const prefs = loadPrefs();
 
   let imageBuffer, mimeType;
 
@@ -88,55 +86,13 @@ async function apiVisionDescribe(req, res) {
   const visionPrompt = (typeof prompt === 'string' && prompt.trim()) ? prompt.trim() : DEFAULT_DESCRIBE_PROMPT;
 
   try {
-    let description;
-    if (provider === 'ollama') {
-      const ollamaUrl = prefs.ollamaUrl || 'http://127.0.0.1:11434';
-      const model     = prefs.ollamaVisionModel || 'minicpm-v';
-      description = await _callOllamaVision(ollamaUrl, model, base64, visionPrompt);
-    } else {
-      const apiKey = prefs.anthropicApiKey || process.env.ANTHROPIC_API_KEY || '';
-      if (!apiKey) return json(res, { error: 'No Anthropic API key configured. Add it in Settings → AI Vision.' }, 400);
-      description = await _callClaudeVision(apiKey, base64, mimeType, visionPrompt);
-    }
+    const apiKey = prefs.anthropicApiKey || process.env.ANTHROPIC_API_KEY || '';
+    if (!apiKey) return json(res, { error: 'No Anthropic API key configured. Add it in Settings → AI Vision.' }, 400);
+    const description = await _callClaudeVision(apiKey, base64, mimeType, visionPrompt);
     json(res, { description });
   } catch (e) {
     json(res, { error: e.message }, 500);
   }
-}
-
-function _callOllamaVision(ollamaBaseUrl, model, base64Image, prompt) {
-  return new Promise((resolve, reject) => {
-    let url;
-    try { url = new URL('/api/generate', ollamaBaseUrl); } catch { url = new URL('http://127.0.0.1:11434/api/generate'); }
-    const payload = JSON.stringify({
-      model,
-      prompt: prompt || DEFAULT_DESCRIBE_PROMPT,
-      images: [base64Image],
-      stream: false,
-    });
-    const transport = url.protocol === 'https:' ? https : http;
-    const req = transport.request({
-      hostname: url.hostname,
-      port:     url.port || (url.protocol === 'https:' ? 443 : 11434),
-      path:     url.pathname,
-      method:   'POST',
-      headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
-    }, r => {
-      let data = '';
-      r.on('data', c => data += c);
-      r.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.error) return reject(new Error(parsed.error));
-          resolve(parsed.response || '');
-        } catch { reject(new Error('Failed to parse Ollama response')); }
-      });
-    });
-    req.setTimeout(120000, () => { req.destroy(); reject(new Error('Ollama request timed out')); });
-    req.on('error', e => reject(new Error('Ollama not reachable: ' + e.message)));
-    req.write(payload);
-    req.end();
-  });
 }
 
 function _callClaudeVision(apiKey, base64Image, mimeType, prompt) {

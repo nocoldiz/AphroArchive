@@ -1,5 +1,6 @@
-﻿import { useState, useEffect, useRef } from 'preact/hooks';
-import { rebuildLinkVidIds, currentVideo, currentView } from '../../store';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
+import { memo } from 'preact/compat';
+import { rebuildLinkVidIds, currentVideo, currentView, activeProfile, isVaultUnlocked, vaultGlobalView, syncLinkCache } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
 interface LinkItem {
@@ -12,6 +13,8 @@ interface LinkItem {
   embedUrl?: string;
   hasEmbed?: boolean;
   category?: string;
+  tags?: string[];
+  addedAt?: number;
 }
 
 interface LinkCardProps {
@@ -21,11 +24,39 @@ interface LinkCardProps {
   onUpdate: (url: string, updates: Partial<LinkItem>) => void;
   selected?: boolean;
   onToggleSelect?: (url: string) => void;
+  activeCats?: ActiveCat[];
+  onTagClick?: (tag: string) => void;
+  onChannelClick?: (channel: string) => void;
 }
 
-const LinkCard = ({ item, onRemove, onToggleStar, onVault, selected, onToggleSelect }: LinkCardProps & { onVault?: (url: string) => void }) => {
+const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selected, onToggleSelect, activeCats, onTagClick, onChannelClick }: LinkCardProps & { onVault?: (url: string) => void }) => {
   const hostname = new URL(item.url).hostname;
   const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(item.title);
+  const [editCategory, setEditCategory] = useState(item.category || '');
+  const [editTags, setEditTags] = useState((item.tags || []).join(', '));
+
+  const startEdit = (e: any) => {
+    e.stopPropagation();
+    setEditTitle(item.title);
+    setEditCategory(item.category || '');
+    setEditTags((item.tags || []).join(', '));
+    setEditing(true);
+  };
+
+  const saveEdit = (e: any) => {
+    e.stopPropagation();
+    const title = editTitle.trim() || item.title;
+    const tags = editTags.split(',').map(t => t.trim()).filter(Boolean);
+    onUpdate(item.url, { title, category: editCategory, tags });
+    setEditing(false);
+  };
+
+  const cancelEdit = (e: any) => {
+    e.stopPropagation();
+    setEditing(false);
+  };
 
   const openPlayer = () => {
     currentVideo.value = {
@@ -43,10 +74,10 @@ const LinkCard = ({ item, onRemove, onToggleStar, onVault, selected, onToggleSel
   };
 
   return (
-    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', position: 'relative' }} onClick={openPlayer}>
+    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: editing ? 'default' : 'pointer', position: 'relative' }} onClick={editing ? undefined : openPlayer}>
       <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
         {item.img ? (
-          <img src={item.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={item.img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>No Thumb</div>
         )}
@@ -89,16 +120,87 @@ const LinkCard = ({ item, onRemove, onToggleStar, onVault, selected, onToggleSel
           ×
         </button>
       </div>
-      <div style={{ padding: '10px' }}>
-        <div class="bf-card-title" style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</div>
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(item.url)}`} width="12" height="12" />
-          {hostname}
-        </div>
+      <div style={{ padding: '10px' }} onClick={(e) => editing && e.stopPropagation()}>
+        {editing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <input
+              type="text"
+              value={editTitle}
+              onInput={(e: any) => setEditTitle(e.target.value)}
+              aria-label="Link title"
+              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }}
+            />
+            <select
+              value={editCategory}
+              onChange={(e: any) => setEditCategory(e.target.value)}
+              aria-label="Link category"
+              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.8rem' }}
+            >
+              <option value="">Uncategorized</option>
+              {(activeCats || []).map(c => (
+                <option key={c.name} value={c.name}>{c.path}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={editTags}
+              onInput={(e: any) => setEditTags(e.target.value)}
+              placeholder="tags, comma separated"
+              aria-label="Link tags"
+              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.8rem', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+              <button type="button" class="sort-btn" onClick={cancelEdit} style={{ fontSize: '0.75rem', padding: '3px 8px' }}>Cancel</button>
+              <button type="button" class="sort-btn on" onClick={saveEdit} style={{ fontSize: '0.75rem', padding: '3px 8px' }}>Save</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div class="bf-card-title" style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</div>
+              <button
+                type="button"
+                onClick={startEdit}
+                title="Edit title / category"
+                style={{ flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
+              <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(item.url)}`} width="12" height="12" loading="lazy" alt="" />
+              {hostname}
+            </div>
+            {item.tags && item.tags.length > 0 && (
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                {item.tags.slice(0, 4).map(t => (
+                  <span
+                    key={t}
+                    onClick={onTagClick ? (e: any) => { e.stopPropagation(); onTagClick(t); } : undefined}
+                    title={onTagClick ? `Filter by "${t}"` : t}
+                    style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85, cursor: onTagClick ? 'pointer' : 'default' }}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+            {(() => { const ch = detectChannel(item.url); return ch ? (
+              <div onClick={onChannelClick ? (e: any) => { e.stopPropagation(); onChannelClick(ch); } : undefined} title={onChannelClick ? `View channel: ${ch}` : ch} style={{ marginTop: '5px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', background: 'rgba(120,80,255,0.12)', color: '#9f7aea', borderRadius: '4px', padding: '2px 7px', border: '1px solid rgba(120,80,255,0.3)', cursor: onChannelClick ? 'pointer' : 'default' }}>
+                📺 {ch}
+              </div>
+            ) : null; })()}
+          </>
+        )}
       </div>
     </div>
   );
 };
+
+const LinkCard = memo(LinkCardImpl);
 
 interface DownloadJob {
   id: string;
@@ -125,29 +227,59 @@ function matchTitleToCategory(title: string, cats: ActiveCat[]): string | null {
 interface BmPickerProps {
   browser: 'chrome' | 'firefox';
   existingUrls: Set<string>;
+  activeCats: ActiveCat[];
   onImport: (items: { title: string; url: string }[]) => void;
   onClose: () => void;
 }
 
-const tagWordMatch = (title: string, term: string) =>
-  new RegExp('(?:^|[^a-z0-9])' + term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(title.toLowerCase());
+const tagWordMatch = (text: string, term: string) =>
+  new RegExp('(?:^|[^a-z0-9])' + term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(text.toLowerCase());
 
-const matchedTagName = (title: string, tagGroups: { displayName: string; terms: string[] }[]): string | null => {
+const matchedTagName = (text: string, tagGroups: { displayName: string; terms: string[] }[]): string | null => {
   for (const g of tagGroups) {
-    if (g.terms.some(t => tagWordMatch(title, t))) return g.displayName;
+    if (g.terms.some(t => tagWordMatch(text, t))) return g.displayName;
   }
   return null;
 };
 
-const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPickerProps) => {
+const matchedName = (
+  b: { title: string; url: string },
+  tagGroups: { displayName: string; terms: string[] }[],
+  cats: ActiveCat[]
+): string | null =>
+  matchedTagName(b.title, tagGroups) || matchedTagName(b.url, tagGroups) ||
+  matchTitleToCategory(b.title, cats) || matchTitleToCategory(b.url, cats);
+
+function detectChannel(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.replace(/^www\./, '');
+    const p = u.pathname;
+    if (h === 'youtube.com') {
+      const m = p.match(/^\/@([^/?#]+)/) || p.match(/^\/channel\/([^/?#]+)/) || p.match(/^\/c\/([^/?#]+)/) || p.match(/^\/user\/([^/?#]+)/);
+      if (m) return m[1];
+    }
+    if (h === 'vimeo.com') { const m = p.match(/^\/channels\/([^/?#]+)/); if (m) return m[1]; }
+    if (h === 'twitch.tv') { const m = p.match(/^\/([^/?#]+)/); if (m && !['directory', 'p', 'downloads', 'store', 'jobs', 'videos', 'clips'].includes(m[1])) return m[1]; }
+    return null;
+  } catch { return null; }
+}
+
+const ROW_HEIGHT = 34;
+
+const BookmarkPickerModal = ({ browser, existingUrls, activeCats, onImport, onClose }: BmPickerProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [bookmarks, setBookmarks] = useState<{ title: string; url: string }[]>([]);
   const [tagGroups, setTagGroups] = useState<{ displayName: string; terms: string[] }[]>([]);
-  const [tagMatched, setTagMatched] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState('');
   const [sort, setSort] = useState<{ col: 'title' | 'domain'; dir: 'asc' | 'desc' }>({ col: 'title', dir: 'asc' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'sites' | 'all'>('sites');
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(400);
 
   useEffect(() => {
     (async () => {
@@ -161,9 +293,7 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
         if (bmRes.error) { setError(bmRes.error); setLoading(false); return; }
         const groups: { displayName: string; terms: string[] }[] = Array.isArray(tagsRes) ? tagsRes : [];
         const fresh: { title: string; url: string }[] = (bmRes.items || []).filter((b: any) => b.url && !existingUrls.has(b.url));
-        const matched = new Set(fresh.filter(b => matchedTagName(b.title, groups) !== null).map(b => b.url));
         setTagGroups(groups);
-        setTagMatched(matched);
         setBookmarks(fresh);
         setSelected(new Set());
       } catch (e: any) { setError(e.message); }
@@ -171,22 +301,55 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
     })();
   }, [browser]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setContainerHeight(el.clientHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewMode, loading]);
+
   const domainOf = (url: string) => { try { return new URL(url).hostname; } catch { return url; } };
 
-  const term = filter.trim().toLowerCase();
-  const filtered = term
-    ? bookmarks.filter(b => b.title.toLowerCase().includes(term) || b.url.toLowerCase().includes(term))
-    : bookmarks;
+  const filtered = useMemo(() => {
+    const term = filter.trim().toLowerCase();
+    if (!term) return bookmarks;
+    return bookmarks.filter(b =>
+      b.title.toLowerCase().includes(term) ||
+      b.url.toLowerCase().includes(term) ||
+      domainOf(b.url).toLowerCase().includes(term));
+  }, [bookmarks, filter]);
 
-  // Tag-matched rows always come first, then secondary sort by column
-  const sorted = [...filtered].sort((a, b) => {
-    const aTag = tagMatched.has(a.url);
-    const bTag = tagMatched.has(b.url);
+  const recognized = useMemo(() =>
+    filtered.filter(b => matchedName(b, tagGroups, activeCats) !== null),
+    [filtered, tagGroups, activeCats]
+  );
+
+  const recognizedUrls = useMemo(() => new Set(recognized.map(b => b.url)), [recognized]);
+
+  const siteGroups = useMemo(() => {
+    const map = new Map<string, { domain: string; urls: { title: string; url: string }[]; tags: Set<string> }>();
+    for (const b of recognized) {
+      const d = domainOf(b.url);
+      let g = map.get(d);
+      if (!g) { g = { domain: d, urls: [], tags: new Set() }; map.set(d, g); }
+      g.urls.push(b);
+      const mn = matchedName(b, tagGroups, activeCats);
+      if (mn) g.tags.add(mn);
+    }
+    return [...map.values()].sort((a, b) => b.urls.length - a.urls.length || a.domain.localeCompare(b.domain));
+  }, [recognized, tagGroups, activeCats]);
+
+  const sorted = useMemo(() => [...filtered].sort((a, b) => {
+    const aTag = recognizedUrls.has(a.url);
+    const bTag = recognizedUrls.has(b.url);
     if (aTag !== bTag) return aTag ? -1 : 1;
     const av = (sort.col === 'title' ? a.title : domainOf(a.url)).toLowerCase();
     const bv = (sort.col === 'title' ? b.title : domainOf(b.url)).toLowerCase();
     return sort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-  });
+  }), [filtered, sort, recognizedUrls]);
 
   const toggleSort = (col: 'title' | 'domain') =>
     setSort(prev => ({ col, dir: prev.col === col && prev.dir === 'asc' ? 'desc' : 'asc' }));
@@ -194,15 +357,20 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
   const toggleRow = (url: string) =>
     setSelected(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n; });
 
-  const allVisibleSelected = sorted.length > 0 && sorted.every(b => selected.has(b.url));
+  const setUrlsSelected = (urls: string[], select: boolean) =>
+    setSelected(prev => {
+      const n = new Set(prev);
+      urls.forEach(u => select ? n.add(u) : n.delete(u));
+      return n;
+    });
 
-  const toggleAllVisible = () => {
-    if (allVisibleSelected) {
-      setSelected(prev => { const n = new Set(prev); sorted.forEach(b => n.delete(b.url)); return n; });
-    } else {
-      setSelected(prev => new Set([...prev, ...sorted.map(b => b.url)]));
-    }
-  };
+  const toggleSite = (urls: string[]) => setUrlsSelected(urls, !urls.every(u => selected.has(u)));
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every(b => selected.has(b.url));
+  const toggleAllVisible = () => setUrlsSelected(sorted.map(b => b.url), !allVisibleSelected);
+
+  const allSitesSelected = recognized.length > 0 && recognized.every(b => selected.has(b.url));
+  const toggleAllSites = () => setUrlsSelected(recognized.map(b => b.url), !allSitesSelected);
 
   const arrow = (col: 'title' | 'domain') =>
     sort.col !== col ? ' ↕' : sort.dir === 'asc' ? ' ↑' : ' ↓';
@@ -213,12 +381,19 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
     color: sort.col === col ? 'var(--ac)' : 'var(--tx2)', whiteSpace: 'nowrap',
   });
 
-  const tagMatchCount = filtered.filter(b => tagMatched.has(b.url)).length;
+  // Virtualization for the 'all bookmarks' table
+  const overscan = 6;
+  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - overscan);
+  const visibleCount = Math.ceil(containerHeight / ROW_HEIGHT) + overscan * 2;
+  const endIndex = Math.min(sorted.length, startIndex + visibleCount);
+  const visibleRows = sorted.slice(startIndex, endIndex);
+  const topPad = startIndex * ROW_HEIGHT;
+  const bottomPad = (sorted.length - endIndex) * ROW_HEIGHT;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
       onClick={(e: any) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(900px,100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: 'min(1000px,100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
 
         {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
@@ -228,49 +403,128 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
           {!loading && !error && (
             <span style={{ fontSize: '12px', color: 'var(--tx3)' }}>
               {bookmarks.length} available
-              {tagMatchCount > 0 && <span style={{ color: 'var(--ac)', marginLeft: '6px' }}>· {tagMatchCount} tag match{tagMatchCount !== 1 ? 'es' : ''}</span>}
+              {recognized.length > 0 && <span style={{ color: 'var(--ac)', marginLeft: '6px' }}>· {recognized.length} recognized</span>}
               <span style={{ marginLeft: '6px' }}>· {selected.size} selected</span>
             </span>
           )}
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px 6px' }}>✕</button>
         </div>
 
-        {/* Filter + bulk select */}
-        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--brd)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+        {/* Filter + view toggle + bulk select */}
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--brd)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
           <input
             type="text"
-            placeholder="Filter by title or URL…"
+            placeholder="Filter by title, URL or website…"
             aria-label="Filter bookmarks"
             value={filter}
             onInput={(e: any) => setFilter(e.target.value)}
             autoFocus
-            style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px 10px', fontSize: '13px' }}
+            style={{ flex: 1, minWidth: '160px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px 10px', fontSize: '13px' }}
           />
-          <button
-            onClick={() => setSelected(new Set(sorted.map(b => b.url)))}
-            style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
-          >
-            Select all ({sorted.length})
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
-          >
-            Deselect all
-          </button>
+          <div style={{ display: 'flex', borderRadius: '5px', overflow: 'hidden', border: '1px solid var(--brd)' }}>
+            <button
+              onClick={() => setViewMode('sites')}
+              style={{ fontSize: '12px', padding: '5px 12px', background: viewMode === 'sites' ? 'var(--ac)' : 'var(--bg3)', border: 'none', cursor: 'pointer', color: viewMode === 'sites' ? '#fff' : 'var(--tx2)', whiteSpace: 'nowrap' }}
+            >
+              By Website
+            </button>
+            <button
+              onClick={() => setViewMode('all')}
+              style={{ fontSize: '12px', padding: '5px 12px', background: viewMode === 'all' ? 'var(--ac)' : 'var(--bg3)', border: 'none', cursor: 'pointer', color: viewMode === 'all' ? '#fff' : 'var(--tx2)', whiteSpace: 'nowrap' }}
+            >
+              All Bookmarks
+            </button>
+          </div>
+          {viewMode === 'sites' ? (
+            <>
+              <button
+                onClick={toggleAllSites}
+                disabled={recognized.length === 0}
+                style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: recognized.length ? 'pointer' : 'not-allowed', color: 'var(--tx2)', whiteSpace: 'nowrap', opacity: recognized.length ? 1 : 0.5 }}
+              >
+                {allSitesSelected ? 'Deselect all sites' : `Select all sites (${recognized.length})`}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setUrlsSelected(sorted.map(b => b.url), true)}
+                style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
+              >
+                Select all ({sorted.length})
+              </button>
+              <button
+                onClick={() => setUrlsSelected(sorted.map(b => b.url), false)}
+                style={{ fontSize: '12px', padding: '5px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
+              >
+                Deselect all
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Table */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* Body */}
+        <div ref={scrollRef} style={{ flex: 1, overflow: 'auto' }} onScroll={(e: any) => setScrollTop(e.target.scrollTop)}>
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)' }}>Loading bookmarks…</div>
           ) : error ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#e53935', fontSize: '13px' }}>{error}</div>
+          ) : bookmarks.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
+              No new bookmarks found — all are already imported
+            </div>
+          ) : viewMode === 'sites' ? (
+            siteGroups.length === 0 ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
+                No recognized websites — none of the bookmarked titles/URLs match a folder or tag name.{' '}
+                <button
+                  onClick={() => setViewMode('all')}
+                  style={{ background: 'none', border: 'none', color: 'var(--ac)', cursor: 'pointer', textDecoration: 'underline', fontSize: '13px', padding: 0 }}
+                >
+                  Browse all bookmarks instead
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px', padding: '14px 20px' }}>
+                {siteGroups.map(g => {
+                  const urls = g.urls.map(b => b.url);
+                  const selCount = urls.filter(u => selected.has(u)).length;
+                  const allSel = selCount === urls.length;
+                  return (
+                    <div
+                      key={g.domain}
+                      onClick={() => toggleSite(urls)}
+                      style={{ border: '1px solid var(--brd)', borderRadius: '8px', padding: '10px 12px', cursor: 'pointer', background: allSel ? 'var(--acg)' : selCount > 0 ? 'rgba(255,255,255,0.03)' : 'var(--bg3)', display: 'flex', flexDirection: 'column', gap: '6px' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select all from ${g.domain}`}
+                          checked={allSel}
+                          onChange={() => toggleSite(urls)}
+                          onClick={(e: any) => e.stopPropagation()}
+                        />
+                        <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent('https://' + g.domain)}`} width="16" height="16" alt="" style={{ flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={g.domain}>
+                          {g.domain}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--tx3)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span>{urls.length} link{urls.length !== 1 ? 's' : ''}{selCount > 0 ? ` · ${selCount} selected` : ''}</span>
+                        {[...g.tags].map(t => (
+                          <span key={t} style={{ fontSize: '11px', background: 'var(--acg)', color: 'var(--ac)', borderRadius: '4px', padding: '1px 5px', whiteSpace: 'nowrap', border: '1px solid var(--ac)', opacity: 0.85 }}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           ) : sorted.length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
-              {bookmarks.length === 0
-                ? 'No new bookmarks found — all are already imported'
-                : 'No bookmarks match the filter'}
+              No bookmarks match the filter
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -281,18 +535,24 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
                   </th>
                   <th style={thStyle('title')} onClick={() => toggleSort('title')}>Title{arrow('title')}</th>
                   <th style={{ ...thStyle('domain'), width: '200px' }} onClick={() => toggleSort('domain')}>Domain{arrow('domain')}</th>
-                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--brd)', width: '90px', color: 'var(--tx2)', fontSize: '11px', fontWeight: 500 }}>Tag match</th>
+                  <th style={{ padding: '8px 12px', borderBottom: '1px solid var(--brd)', width: '90px', color: 'var(--tx2)', fontSize: '11px', fontWeight: 500 }}>Match</th>
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((b, i) => {
+                {topPad > 0 && (
+                  <tr aria-hidden="true" style={{ height: `${topPad}px` }}>
+                    <td colSpan={4} style={{ padding: 0, border: 'none', height: `${topPad}px` }} />
+                  </tr>
+                )}
+                {visibleRows.map((b) => {
                   const isSelected = selected.has(b.url);
-                  const tag = matchedTagName(b.title, tagGroups);
+                  const i = bookmarks.indexOf(b);
+                  const tag = matchedName(b, tagGroups, activeCats);
                   return (
                     <tr
                       key={b.url}
                       onClick={() => toggleRow(b.url)}
-                      style={{ cursor: 'pointer', background: isSelected ? 'var(--acg)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}
+                      style={{ height: `${ROW_HEIGHT}px`, cursor: 'pointer', background: isSelected ? 'var(--acg)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                     >
                       <td style={{ padding: '7px 12px', borderBottom: '1px solid var(--brd)' }} onClick={(e: any) => e.stopPropagation()}>
                         <input type="checkbox" aria-label={`Select ${b.title || b.url}`} checked={isSelected} onChange={() => toggleRow(b.url)} />
@@ -316,6 +576,11 @@ const BookmarkPickerModal = ({ browser, existingUrls, onImport, onClose }: BmPic
                     </tr>
                   );
                 })}
+                {bottomPad > 0 && (
+                  <tr aria-hidden="true" style={{ height: `${bottomPad}px` }}>
+                    <td colSpan={4} style={{ padding: 0, border: 'none', height: `${bottomPad}px` }} />
+                  </tr>
+                )}
               </tbody>
             </table>
           )}
@@ -344,8 +609,15 @@ export const LinksView = () => {
   const [items, setItems] = useState<LinkItem[]>([]);
   const [visibleItems, setVisibleItems] = useState<LinkItem[]>([]);
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [groupByCategory, setGroupByCategory] = useState(true);
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title' | 'domain'>('newest');
+  const [viewMode, setViewMode] = useState<'table' | 'grouped' | 'grid' | 'channels'>('table');
+  const [channelViewFilter, setChannelViewFilter] = useState('');
+  const [expandedSites, setExpandedSites] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(`links-expanded-sites-${activeProfile.value}`);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch { return new Set(); }
+  });
   const [activeCats, setActiveCats] = useState<ActiveCat[]>([]);
   const [matchedCount, setMatchedCount] = useState(0);
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
@@ -354,9 +626,19 @@ export const LinksView = () => {
   const [selectedWebsite, setSelectedWebsite] = useState<string>('');
 
   const [bmPickerBrowser, setBmPickerBrowser] = useState<'chrome' | 'firefox' | null>(null);
-  const [importMenuOpen, setImportMenuOpen] = useState<'chrome' | 'firefox' | null>(null);
+  const [showWebsitesOnly, setShowWebsitesOnly] = useState(false);
+  const [showNoTagsOnly, setShowNoTagsOnly] = useState(false);
+  const [showFavsOnly, setShowFavsOnly] = useState(false);
+  const [tagFilter, setTagFilter] = useState('');
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [addText, setAddText] = useState('');
+  const [addCategory, setAddCategory] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  const [bulkTagInput, setBulkTagInput] = useState('');
+  const [bulkCategory, setBulkCategory] = useState('');
 
   const toggleSelect = (url: string) =>
     setSelectedUrls(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); return n; });
@@ -368,6 +650,23 @@ export const LinksView = () => {
   const dlPollerRef = useRef<any>(null);
   const [scrapeJob, setScrapeJob] = useState<{ running: boolean, total: number, done: number, failed: number, current: string } | null>(null);
   const scrapePollerRef = useRef<any>(null);
+
+  const BATCH_SIZE = 500;
+  const [totalCount, setTotalCount] = useState(0);
+  const [allLoaded, setAllLoaded] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pendingSelectAll, setPendingSelectAll] = useState(false);
+  const loadRemainingLinksRef = useRef<AbortController | null>(null);
+
+  const TABLE_ROW_H = 33;
+  const GRID_CARD_H = 225;
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [tableScrollTop, setTableScrollTop] = useState(0);
+  const [tableContainerH, setTableContainerH] = useState(600);
+  const gridScrollRef = useRef<HTMLDivElement>(null);
+  const [gridScrollTop, setGridScrollTop] = useState(0);
+  const [gridContainerH, setGridContainerH] = useState(600);
+  const [gridContainerW, setGridContainerW] = useState(800);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -383,6 +682,7 @@ export const LinksView = () => {
             if (!d2.running && scrapePollerRef.current) {
               clearInterval(scrapePollerRef.current);
               scrapePollerRef.current = null;
+              loadLinks();
             }
           }, 1500);
         }
@@ -394,18 +694,54 @@ export const LinksView = () => {
 
   const loadLinks = async () => {
     setLoading(true);
+    setAllLoaded(false);
+    loadRemainingLinksRef.current?.abort();
     try {
-      const r = await fetch('/api/links/cache?limit=0');
+      const r = await fetch(`/api/links/cache?limit=${BATCH_SIZE}&page=1`);
       const d = await r.json();
       if (d.items) {
         setItems(d.items);
+        setTotalCount(d.total);
         updateMatches(d.items);
+        if (!d.hasMore) {
+          setAllLoaded(true);
+        } else {
+          setLoading(false);
+          loadRemainingLinks(d.items, d.total);
+          return;
+        }
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadRemainingLinks = async (initialItems: LinkItem[], total: number) => {
+    const controller = new AbortController();
+    loadRemainingLinksRef.current = controller;
+    setLoadingMore(true);
+    let allItems = [...initialItems];
+    let page = 2;
+    while (allItems.length < total) {
+      if (controller.signal.aborted) return;
+      try {
+        const r = await fetch(`/api/links/cache?limit=${BATCH_SIZE}&page=${page}`, { signal: controller.signal });
+        const d = await r.json();
+        if (!d.items || d.items.length === 0) break;
+        allItems = [...allItems, ...d.items];
+        setItems([...allItems]);
+        if (!d.hasMore) break;
+        page++;
+      } catch (e: any) {
+        if (e.name === 'AbortError') return;
+        break;
+      }
+    }
+    updateMatches(allItems);
+    setAllLoaded(true);
+    setLoadingMore(false);
   };
 
   useEffect(() => { loadLinks(); }, []);
@@ -415,7 +751,7 @@ export const LinksView = () => {
       .then(r => r.json())
       .then(setWebsites)
       .catch(() => {});
-    fetch('/api/categories')
+    fetch('/api/folders')
       .then(r => r.json())
       .then(data => setActiveCats(Array.isArray(data) ? data : []))
       .catch(() => {});
@@ -438,6 +774,26 @@ export const LinksView = () => {
     setMatchedCount(count);
   };
 
+  const websiteHostnames = useMemo(() =>
+    new Set(websites.map((w: any) => { try { return new URL(w.url).hostname; } catch { return ''; } }).filter(Boolean)),
+    [websites]
+  );
+
+  const allTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const it of items) for (const t of it.tags || []) counts.set(t, (counts.get(t) || 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [items]);
+
+  const favCount = useMemo(() => items.filter(it => it.fav).length, [items]);
+
+  const isRecognizedUrl = (url: string) => {
+    try {
+      const h = new URL(url).hostname;
+      return websiteHostnames.has(h) || [...websiteHostnames].some(wh => h === wh || h.endsWith('.' + wh));
+    } catch { return false; }
+  };
+
   useEffect(() => {
     const term = search.trim().toLowerCase();
     let filtered = items;
@@ -454,12 +810,73 @@ export const LinksView = () => {
       });
     }
 
+    if (showWebsitesOnly && websiteHostnames.size > 0) {
+      filtered = filtered.filter(item => isRecognizedUrl(item.url));
+    }
+
+    if (showNoTagsOnly) {
+      filtered = filtered.filter(item => !item.tags || item.tags.length === 0);
+    }
+
+    if (showFavsOnly) {
+      filtered = filtered.filter(item => item.fav);
+    }
+
+    if (tagFilter) {
+      filtered = filtered.filter(item => (item.tags || []).includes(tagFilter));
+    }
+
     if (term) {
       filtered = filtered.filter(item => item.title.toLowerCase().includes(term) || item.url.toLowerCase().includes(term));
     }
 
-    setVisibleItems(filtered);
-  }, [search, items, selectedWebsite]);
+    const domainOf = (item: LinkItem) => { try { return new URL(item.url).hostname; } catch { return item.url; } };
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'oldest': return (a.addedAt || 0) - (b.addedAt || 0);
+        case 'title': return a.title.localeCompare(b.title);
+        case 'domain': return domainOf(a).localeCompare(domainOf(b));
+        default: return (b.addedAt || 0) - (a.addedAt || 0);
+      }
+    });
+
+    setVisibleItems(sorted);
+  }, [search, items, selectedWebsite, showWebsitesOnly, showNoTagsOnly, showFavsOnly, tagFilter, websiteHostnames, sortBy]);
+
+  useEffect(() => {
+    if (pendingSelectAll && allLoaded) {
+      setSelectedUrls(new Set(items.map(i => i.url)));
+      setPendingSelectAll(false);
+    }
+  }, [pendingSelectAll, allLoaded, items]);
+
+  // Once the full link list is in memory, push it into the topbar/sidebar Links
+  // dropdown's data source + localStorage cache so any save (add / edit / star /
+  // tag / delete) reflects immediately and renders instantly on the next load.
+  // Gated on allLoaded so a partial (paginating) list never overwrites the cache.
+  useEffect(() => {
+    if (allLoaded) syncLinkCache(items, items.length);
+  }, [items, allLoaded]);
+
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el || viewMode !== 'table') return;
+    const update = () => setTableContainerH(el.clientHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewMode]);
+
+  useEffect(() => {
+    const el = gridScrollRef.current;
+    if (!el || viewMode !== 'grid') return;
+    const update = () => { setGridContainerH(el.clientHeight); setGridContainerW(el.clientWidth); };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewMode]);
 
   // Download poller
   useEffect(() => {
@@ -486,53 +903,41 @@ export const LinksView = () => {
     };
   }, [jobs]);
 
-  const importFavs = async (browser: 'chrome' | 'firefox') => {
-    setLoading(true);
+
+  const addBookmarks = async () => {
+    const urls = addText
+      .split(/[\s,]+/)
+      .map(u => u.trim())
+      .filter(u => /^https?:\/\//i.test(u));
+    if (!urls.length) { alert('Paste at least one valid http(s) URL'); return; }
+    setAdding(true);
     try {
-      const r = await fetch(`/api/browser-favs?browser=${browser}`);
+      const r = await fetch('/api/links/import-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls }),
+      });
       const d = await r.json();
-      if (d.items) {
-        // Filter links to only include those matching profile websites!
-        const filtered = d.items.filter((item: any) => {
-          return websites.some(w => {
-            try {
-              const itemUrl = new URL(item.url);
-              const webUrl = new URL(w.url);
-              return itemUrl.hostname === webUrl.hostname || itemUrl.hostname.endsWith('.' + webUrl.hostname);
-            } catch {
-              return item.url.includes(w.url);
-            }
-          });
-        });
-        
-        // Merge with existing items (avoid duplicates by url or name)
-        const existingUrls = new Set(items.map(it => it.url));
-        const existingNames = new Set(items.map(it => (it.title || '').trim().toLowerCase()).filter(Boolean));
-        const newItems = [...items];
-        for (const item of filtered) {
-          const nm = (item.title || '').trim().toLowerCase();
-          if (!existingUrls.has(item.url) && !(nm && existingNames.has(nm))) {
-            newItems.push(item);
-            existingUrls.add(item.url);
-            if (nm) existingNames.add(nm);
-          }
-        }
-        
-        setItems(newItems);
-        updateMatches(newItems);
-        
-        // Save to cache
-        await fetch('/api/links/cache', {
-          method: 'POST',
+      if (d.error) { alert('Add failed: ' + d.error); return; }
+      // Apply the chosen category to the freshly-added links
+      if (addCategory && d.added > 0) {
+        await fetch('/api/links/move', {
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: newItems })
+          body: JSON.stringify({ urls, category: addCategory }),
         });
-        
-        const w = window as any;
-        if (w.toast) w.toast(`Imported ${filtered.length} links`);
       }
-    } catch { }
-    setLoading(false);
+      await loadLinks();
+      setAddText('');
+      setAddCategory('');
+      setShowAdd(false);
+      const w = window as any;
+      if (w.toast) w.toast(`Added ${d.added} bookmark${d.added !== 1 ? 's' : ''}${d.skipped ? ` · ${d.skipped} skipped` : ''}`);
+    } catch (e: any) {
+      alert('Add failed: ' + e.message);
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handlePickerImport = async (picked: { title: string; url: string }[]) => {
@@ -577,33 +982,33 @@ export const LinksView = () => {
     const seenUrls = new Set<string>();
     const seenNames = new Set<string>();
     const cleaned: any[] = [];
+    const removedUrls: string[] = [];
     for (const item of items) {
       const u = item.url;
       const nm = (item.title || '').trim().toLowerCase();
-      if (!u || seenUrls.has(u) || (nm && seenNames.has(nm))) continue;
+      if (!u || seenUrls.has(u) || (nm && seenNames.has(nm))) { if (u) removedUrls.push(u); continue; }
       seenUrls.add(u);
       if (nm) seenNames.add(nm);
       cleaned.push(item);
     }
-    const removed = items.length - cleaned.length;
-    if (removed <= 0) {
+    if (!removedUrls.length) {
       const w = window as any;
       if (w.toast) w.toast('No duplicates found (by link or name)');
       return;
     }
-    if (!confirm(`Remove ${removed} duplicate links (same URL or same name)? Keep ${cleaned.length}?`)) return;
+    if (!confirm(`Remove ${removedUrls.length} duplicate links (same URL or same name)? Keep ${cleaned.length}?`)) return;
     setItems(cleaned);
     updateMatches(cleaned);
     try {
-      await fetch('/api/links/cache', {
-        method: 'POST',
+      await fetch('/api/links/items', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: cleaned })
+        body: JSON.stringify({ urls: removedUrls })
       });
       const w = window as any;
-      if (w.toast) w.toast(`Removed ${removed} duplicates`);
+      if (w.toast) w.toast(`Removed ${removedUrls.length} duplicates`);
     } catch (e: any) {
-      alert('Error saving after dedup: ' + e.message);
+      alert('Error removing duplicates: ' + e.message);
     }
   };
 
@@ -611,31 +1016,103 @@ export const LinksView = () => {
     const newItems = items.filter(it => it.url !== url);
     setItems(newItems);
     updateMatches(newItems);
-    await fetch('/api/links/cache', {
-      method: 'POST',
+    await fetch('/api/links/item', {
+      method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: newItems })
+      body: JSON.stringify({ url })
     });
   };
 
   const toggleStar = async (url: string) => {
-    const newItems = items.map(it => it.url === url ? { ...it, fav: !it.fav } : it);
-    setItems(newItems);
-    await fetch('/api/links/cache', {
-      method: 'POST',
+    const item = items.find(it => it.url === url);
+    if (!item) return;
+    const fav = !item.fav;
+    setItems(prev => prev.map(it => it.url === url ? { ...it, fav } : it));
+    await fetch('/api/links/item', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: newItems })
+      body: JSON.stringify({ url, fav })
     });
   };
 
   const updateItem = async (url: string, updates: Partial<LinkItem>) => {
-    const newItems = items.map(it => it.url === url ? { ...it, ...updates } : it);
-    setItems(newItems);
-    await fetch('/api/links/cache', {
-      method: 'POST',
+    setItems(prev => prev.map(it => it.url === url ? { ...it, ...updates } : it));
+    await fetch('/api/links/item', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: newItems })
+      body: JSON.stringify({ url, ...updates })
     });
+  };
+
+  const toast = (msg: string) => { const w = window as any; if (w.toast) w.toast(msg); };
+
+  // Apply a bulk change to all selected links, updating local state optimistically.
+  const bulkUpdate = async (
+    payload: { addTags?: string[]; removeTags?: string[]; setTags?: string[]; category?: string; fav?: boolean },
+    apply: (it: LinkItem) => LinkItem,
+  ) => {
+    const urls = [...selectedUrls];
+    if (!urls.length) { toast('Select at least one link'); return; }
+    const urlSet = new Set(urls);
+    const next = items.map(it => urlSet.has(it.url) ? apply(it) : it);
+    setItems(next);
+    updateMatches(next);
+    const r = await fetch('/api/links/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls, ...payload }),
+    });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); alert('Bulk update failed: ' + (d.error || r.statusText)); await loadLinks(); }
+    return urls.length;
+  };
+
+  const parseTags = (s: string) => s.split(',').map(t => t.trim()).filter(Boolean);
+
+  const bulkAddTags = async () => {
+    const tags = parseTags(bulkTagInput);
+    if (!tags.length) { toast('Type one or more tags first'); return; }
+    const n = await bulkUpdate({ addTags: tags }, it => ({ ...it, tags: [...new Set([...(it.tags || []), ...tags])] }));
+    if (n) { setBulkTagInput(''); toast(`Added ${tags.length} tag(s) to ${n} link(s)`); }
+  };
+
+  const bulkRemoveTags = async () => {
+    const tags = parseTags(bulkTagInput);
+    if (!tags.length) { toast('Type one or more tags first'); return; }
+    const n = await bulkUpdate({ removeTags: tags }, it => ({ ...it, tags: (it.tags || []).filter(t => !tags.includes(t)) }));
+    if (n) { setBulkTagInput(''); toast(`Removed ${tags.length} tag(s) from ${n} link(s)`); }
+  };
+
+  const bulkSetTags = async () => {
+    const tags = parseTags(bulkTagInput);
+    const n = await bulkUpdate({ setTags: tags }, it => ({ ...it, tags: [...tags] }));
+    if (n) { setBulkTagInput(''); toast(tags.length ? `Set tags on ${n} link(s)` : `Cleared tags on ${n} link(s)`); }
+  };
+
+  const bulkSetCategory = async () => {
+    const n = await bulkUpdate({ category: bulkCategory }, it => ({ ...it, category: bulkCategory }));
+    if (n) toast(bulkCategory ? `Moved ${n} link(s) to ${bulkCategory}` : `Cleared folder on ${n} link(s)`);
+  };
+
+  const bulkSetFav = async (fav: boolean) => {
+    const n = await bulkUpdate({ fav }, it => ({ ...it, fav }));
+    if (n) toast(`${fav ? 'Starred' : 'Unstarred'} ${n} link(s)`);
+  };
+
+  const deleteSelected = async () => {
+    const urls = [...selectedUrls];
+    if (!urls.length) { toast('Select at least one link'); return; }
+    if (!confirm(`Delete ${urls.length} selected link(s)?`)) return;
+    const urlSet = new Set(urls);
+    const next = items.filter(it => !urlSet.has(it.url));
+    setItems(next);
+    updateMatches(next);
+    setSelectedUrls(new Set());
+    await fetch('/api/links/items', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    toast(`Deleted ${urls.length} link(s)`);
   };
 
   const moveSelectedToVault = async () => {
@@ -650,8 +1127,57 @@ export const LinksView = () => {
       setItems(prev => prev.filter(it => !urls.includes(it.url)));
       setSelectedUrls(new Set());
       const w = window as any;
-      if (w.toast) w.toast(`${urls.length} link(s) moved to Vault`);
+      if (w.toast) w.toast(`${urls.length} link(s) encrypted to Vault`);
     }
+  };
+
+  const encryptSelected = async () => {
+    const urls = [...selectedUrls];
+    if (!urls.length) { const w = window as any; if (w.toast) w.toast('Select at least one link'); return; }
+    const r = await fetch('/api/vault/move-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    if (r.ok) {
+      setItems(prev => prev.filter(it => !urls.includes(it.url)));
+      setSelectedUrls(new Set());
+      const w = window as any;
+      if (w.toast) w.toast(`${urls.length} link(s) encrypted to Vault`);
+    } else {
+      const d = await r.json().catch(() => ({}));
+      alert('Encrypt failed: ' + (d.error || r.statusText));
+    }
+  };
+
+  const decryptSelected = async () => {
+    const urls = [...selectedUrls];
+    if (!urls.length) { const w = window as any; if (w.toast) w.toast('Select at least one link'); return; }
+    const r = await fetch('/api/vault/restore-links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    if (r.ok) {
+      setItems(prev => prev.filter(it => !urls.includes(it.url)));
+      setSelectedUrls(new Set());
+      const w = window as any;
+      if (w.toast) w.toast(`${urls.length} link(s) decrypted to public`);
+    } else {
+      const d = await r.json().catch(() => ({}));
+      alert('Decrypt failed: ' + (d.error || r.statusText));
+    }
+  };
+
+  const toggleSiteCollapse = (site: string) => {
+    setExpandedSites(prev => {
+      const next = new Set(prev);
+      next.has(site) ? next.delete(site) : next.add(site);
+      try {
+        localStorage.setItem(`links-expanded-sites-${activeProfile.value}`, JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
   };
 
   const moveLinkToVault = async (url: string) => {
@@ -705,29 +1231,12 @@ export const LinksView = () => {
     });
   };
 
-  const saveToDb = async () => {
-    if (!items.length) {
-      alert('No links to save');
-      return;
-    }
-    setLoading(true);
-    try {
-      const r = await fetch('/api/links/save-to-db', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
-      });
-      const d = await r.json();
-      if (d.ok) {
-        const w = window as any;
-        if (w.toast) w.toast(`Saved ${d.count} links to DB`);
-      } else {
-        alert('Failed to save links: ' + (d.error || 'Unknown error'));
-      }
-    } catch (e: any) {
-      alert('Error saving links: ' + e.message);
-    }
-    setLoading(false);
+  const copyAllLinks = () => {
+    if (!items.length) return;
+    const text = items.map(item => item.url).join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`Copied ${items.length} URLs`);
+    });
   };
 
   const startScraping = async () => {
@@ -804,45 +1313,50 @@ export const LinksView = () => {
       <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ margin: 0 }}>Links</h1>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {importMenuOpen && <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setImportMenuOpen(null)} />}
-
-          {(['chrome', 'firefox'] as const).map(browser => (
-            <div key={browser} style={{ position: 'relative' }}>
-              <button type="button" class="sort-btn" onClick={() => setImportMenuOpen(v => v === browser ? null : browser)}>
-                {browser === 'chrome' ? 'Chrome' : 'Firefox'} ▾
-              </button>
-              {importMenuOpen === browser && (
-                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px', zIndex: 200, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', minWidth: '220px', overflow: 'hidden' }}>
-                  <button
-                    type="button"
-                    onClick={() => { setImportMenuOpen(null); importFavs(browser); }}
-                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', color: 'var(--tx)', cursor: 'pointer', fontSize: '13px' }}
-                  >
-                    Import Websites Bookmarks
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setImportMenuOpen(null); setBmPickerBrowser(browser); }}
-                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', borderTop: '1px solid var(--brd)', borderLeft: 'none', borderRight: 'none', borderBottom: 'none', color: 'var(--tx)', cursor: 'pointer', fontSize: '13px' }}
-                  >
-                    Import All Bookmarks…
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+          <button type="button" class={`sort-btn${showAdd ? ' on' : ''}`} onClick={() => setShowAdd(v => !v)} title="Add a bookmark by URL">+ Add Bookmark</button>
+          <button type="button" class="sort-btn" onClick={() => setBmPickerBrowser('chrome')}>Import from Chrome</button>
+          <button type="button" class="sort-btn" onClick={() => setBmPickerBrowser('firefox')}>Import from Firefox</button>
           <button class="sort-btn" onClick={exportLinksJson} title={`Export all ${items.length} links as JSON`}>Export JSON</button>
           <button class="sort-btn" onClick={() => importFileRef.current?.click()} title="Import links from JSON file">Import JSON</button>
           <input ref={importFileRef as any} type="file" accept=".json,application/json" aria-label="Import links from JSON file" style={{ display: 'none' }} onChange={onImportFileChange as any} />
           <button class="sort-btn" onClick={clearAll}>Clear All</button>
           <button class="sort-btn" onClick={removeDuplicates} title="Remove links that have duplicate URL or duplicate name/title">Remove Duplicates</button>
-          <button class="sort-btn" onClick={saveToDb}>Save to DB</button>
           <button class="sort-btn" onClick={startScraping}>Start Scraping</button>
           <button class="sort-btn" onClick={rescrapeAll}>Rescrape All</button>
         </div>
       </div>
 
-        <SectionControls 
+      {showAdd && (
+        <div style={{ marginBottom: '16px', padding: '14px', background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <textarea
+            value={addText}
+            onInput={(e: any) => setAddText(e.target.value)}
+            placeholder="Paste one or more URLs (separated by spaces, commas or new lines)…"
+            aria-label="Bookmark URLs"
+            autoFocus
+            rows={3}
+            onKeyDown={(e: any) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') addBookmarks(); }}
+            style={{ width: '100%', resize: 'vertical', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          />
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              value={addCategory}
+              onChange={(e: any) => setAddCategory(e.target.value)}
+              aria-label="Folder for new bookmarks"
+              style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px 8px', fontSize: '13px' }}
+            >
+              <option value="">Auto / Uncategorized</option>
+              {activeCats.map(c => (<option key={c.name} value={c.name}>{c.path}</option>))}
+            </select>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>Ctrl+Enter to add</span>
+            <button type="button" class="sort-btn" onClick={() => { setShowAdd(false); setAddText(''); }}>Cancel</button>
+            <button type="button" class="sort-btn on" onClick={addBookmarks} disabled={adding || !addText.trim()}>{adding ? 'Adding…' : 'Add'}</button>
+          </div>
+        </div>
+      )}
+
+        <SectionControls
           showSort={false}
           showStarred={false}
           showShuffle={false}
@@ -866,40 +1380,136 @@ export const LinksView = () => {
             </select>
           </div>
           <span className="sg-sep"></span>
-          <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
-            <button className={`ss-tab ${viewMode === 'grid' ? 'on' : ''}`} onClick={() => setViewMode('grid')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'grid' ? 'var(--ac)' : 'transparent', color: viewMode === 'grid' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Grid</button>
-            <button className={`ss-tab ${viewMode === 'list' ? 'on' : ''}`} onClick={() => setViewMode('list')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === 'list' ? 'var(--ac)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>List</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title="Sort">
+            <select
+              value={sortBy}
+              onChange={(e: any) => setSortBy(e.target.value)}
+              aria-label="Sort links"
+              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '3px 6px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="title">Title A-Z</option>
+              <option value="domain">Domain A-Z</option>
+            </select>
           </div>
           <span className="sg-sep"></span>
-          <button className={`sort-btn ${groupByCategory ? 'on' : ''}`} onClick={() => setGroupByCategory(g => !g)} title="Group by folder">
-            Folders
-          </button>
+          <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
+            {(['table', 'grouped', 'grid', 'channels'] as const).map(m => (
+              <button key={m} className={`ss-tab ${viewMode === m ? 'on' : ''}`} onClick={() => setViewMode(m)} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: viewMode === m ? 'var(--ac)' : 'transparent', color: viewMode === m ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem', textTransform: 'capitalize' }}>{m === 'grouped' ? 'By Site' : m === 'channels' ? '📺 Channels' : m.charAt(0).toUpperCase() + m.slice(1)}</button>
+            ))}
+          </div>
           <span className="sg-sep"></span>
-          <button className="sort-btn" onClick={copyAllVisible}>Copy URLs</button>
+          <button className="sort-btn" onClick={copyAllVisible} title="Copy URLs of currently visible/filtered links">Copy URLs</button>
+          <button className="sort-btn" onClick={copyAllLinks} title="Copy URLs of all links, ignoring filters">Copy All Links</button>
           <button className="sort-btn" onClick={openAllVisible}>Open All</button>
           <span className="sg-sep"></span>
           <button
+            className={`sort-btn${showWebsitesOnly ? ' on' : ''}`}
+            onClick={() => setShowWebsitesOnly(v => !v)}
+            title="Show only links from websites in your database"
+          >
+            Websites Only
+          </button>
+          <button
+            className={`sort-btn${showNoTagsOnly ? ' on' : ''}`}
+            onClick={() => setShowNoTagsOnly(v => !v)}
+            title="Show only links without any tags"
+          >
+            No Tags
+          </button>
+          <button
+            className={`sort-btn${showFavsOnly ? ' on' : ''}`}
+            onClick={() => setShowFavsOnly(v => !v)}
+            title="Show only starred bookmarks"
+          >
+            ★ Favourites{favCount ? ` (${favCount})` : ''}
+          </button>
+          {allTags.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title="Filter by tag">
+              <select
+                value={tagFilter}
+                onChange={(e: any) => setTagFilter(e.target.value)}
+                aria-label="Filter by tag"
+                style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '3px 6px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+              >
+                <option value="">All Tags</option>
+                {allTags.map(([t, n]) => (
+                  <option key={t} value={t}>{t} ({n})</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <span className="sg-sep"></span>
+          <button
+            className="sort-btn"
+            onClick={() => selectUrls(items.filter(i => isRecognizedUrl(i.url)).map(i => i.url))}
+            title="Add all links from known database websites to selection"
+            disabled={websiteHostnames.size === 0}
+          >
+            + Recognized
+          </button>
+          <button
+            className="sort-btn"
+            onClick={() => selectUrls(items.filter(i => !isRecognizedUrl(i.url)).map(i => i.url))}
+            title="Add all links from unknown websites to selection"
+          >
+            + Unrecognized
+          </button>
+          <button
             className="sort-btn"
             onClick={() => {
-              const allSelected = visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url));
-              allSelected ? deselectUrls(visibleItems.map(i => i.url)) : selectUrls(visibleItems.map(i => i.url));
+              const allSelected = allLoaded && items.length > 0 && items.every(i => selectedUrls.has(i.url));
+              if (allSelected) {
+                setSelectedUrls(new Set());
+                setPendingSelectAll(false);
+              } else if (!allLoaded) {
+                setPendingSelectAll(true);
+              } else {
+                setSelectedUrls(new Set(items.map(i => i.url)));
+              }
             }}
-            title="Select / deselect all visible links"
+            title="Select / deselect all links (including filtered-out ones)"
           >
-            {visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url)) ? 'Deselect All' : `Select All${selectedUrls.size ? ` (${selectedUrls.size})` : ''}`}
+            {pendingSelectAll
+              ? `Selecting… (${items.length}/${totalCount})`
+              : allLoaded && items.length > 0 && items.every(i => selectedUrls.has(i.url))
+                ? 'Deselect All'
+                : `Select All${selectedUrls.size ? ` (${selectedUrls.size})` : ''}`}
           </button>
-          <button className="sort-btn" onClick={downloadSelected}>Download Selected</button>
-          <button className="sort-btn" onClick={moveSelectedToVault} title="Move selected links to Vault">🔒 Vault Selected</button>
+          <button
+            className="sort-btn"
+            onClick={() => {
+              const allVisibleSel = visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url));
+              allVisibleSel ? deselectUrls(visibleItems.map(i => i.url)) : selectUrls(visibleItems.map(i => i.url));
+            }}
+            title="Select / deselect only visible (filtered) links"
+          >
+            {visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url)) ? 'Desel. Visible' : 'Select Visible'}
+          </button>
         </SectionControls>
 
-      <div class="bf-stats" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+      <div class="bf-stats" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
         <span>{visibleItems.length} links</span>
+        {tagFilter && (
+          <button
+            type="button"
+            onClick={() => setTagFilter('')}
+            title="Clear tag filter"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', border: '1px solid var(--ac, var(--accent))', borderRadius: '12px', padding: '2px 10px', cursor: 'pointer' }}
+          >
+            tag: {tagFilter} ✕
+          </button>
+        )}
         <div class="bf-pct-wrap" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
           <div class="bf-pct-bar" style={{ width: '200px', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
             <div class="bf-pct-fill" style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}></div>
           </div>
           <span>{pct}% in library</span>
         </div>
+        {loadingMore && (
+          <span style={{ fontSize: '12px', color: 'var(--tx3)' }}>Loading {items.length} / {totalCount}…</span>
+        )}
         {scrapeJob && scrapeJob.running && (
           <div class="scrape-progress" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Scraping: {scrapeJob.done}/{scrapeJob.total}</span>
@@ -915,76 +1525,290 @@ export const LinksView = () => {
         <div class="cv-loading">Loading links…</div>
       ) : visibleItems.length === 0 ? (
         <div class="empty-state">No links found</div>
-      ) : (() => {
-        const renderCard = (item: LinkItem) => (
-          <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} />
-        );
-        const renderRow = (item: LinkItem) => (
-          <div key={item.url} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderBottom: '1px solid var(--border)' }}>
-            <input type="checkbox" class="bf-chk" checked={selectedUrls.has(item.url)} onChange={() => toggleSelect(item.url)} aria-label="Select link" />
-            <img src={`https://www.google.com/s2/favicons?sz=16&domain_url=${encodeURIComponent(item.url)}`} width="16" height="16" alt="" />
-            <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: 'var(--text)', textDecoration: 'none' }}>{item.title}</a>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{new URL(item.url).hostname}</span>
-            <button class="btn" onClick={() => removeItem(item.url)}>Remove</button>
+      ) : viewMode === 'grid' ? (() => {
+        const cardsPerRow = Math.max(1, Math.floor((gridContainerW + 15) / 215));
+        const rowCount = Math.ceil(visibleItems.length / cardsPerRow);
+        const OVERSCAN = 3;
+        const startRow = Math.max(0, Math.floor(gridScrollTop / GRID_CARD_H) - OVERSCAN);
+        const endRow = Math.min(rowCount, Math.ceil((gridScrollTop + gridContainerH) / GRID_CARD_H) + OVERSCAN);
+        const visibleCards = visibleItems.slice(startRow * cardsPerRow, Math.min(visibleItems.length, endRow * cardsPerRow));
+        const topPad = startRow * GRID_CARD_H;
+        const bottomPad = (rowCount - endRow) * GRID_CARD_H;
+        return (
+          <div
+            ref={gridScrollRef}
+            style={{ overflow: 'auto', height: 'calc(100vh - 320px)', minHeight: '400px' }}
+            onScroll={(e: any) => setGridScrollTop(e.currentTarget.scrollTop)}
+          >
+            <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+              {topPad > 0 && <div style={{ gridColumn: '1 / -1', height: topPad }} />}
+              {visibleCards.map(item => (
+                <LinkCard key={item.url} item={item} onRemove={removeItem} onToggleStar={toggleStar} onUpdate={updateItem} onVault={moveLinkToVault} selected={selectedUrls.has(item.url)} onToggleSelect={toggleSelect} activeCats={activeCats} onTagClick={setTagFilter} onChannelClick={(ch) => { setChannelViewFilter(ch); setViewMode('channels'); }} />
+              ))}
+              {bottomPad > 0 && <div style={{ gridColumn: '1 / -1', height: bottomPad }} />}
+            </div>
           </div>
         );
-
-        if (groupByCategory) {
-          const groups: Record<string, LinkItem[]> = {};
-          for (const item of visibleItems) {
-            const matched = activeCats.length > 0 ? matchTitleToCategory(item.title, activeCats) : null;
-            const key = matched || item.category || 'Uncategorized';
-            (groups[key] = groups[key] || []).push(item);
-          }
-          const sortedKeys = Object.keys(groups).sort((a, b) => {
-            if (a === 'Uncategorized') return 1;
-            if (b === 'Uncategorized') return -1;
-            return a.localeCompare(b);
-          });
-          return (
-            <>
-              {sortedKeys.map(cat => {
-                const folderUrls = groups[cat].map(i => i.url);
-                const selectedCount = folderUrls.filter(u => selectedUrls.has(u)).length;
-                const allFolderSelected = selectedCount === folderUrls.length;
-                const someFolderSelected = selectedCount > 0 && !allFolderSelected;
-                return (
-                <div key={cat} style={{ marginBottom: '30px' }}>
-                  <div style={{ margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="checkbox"
-                      aria-label={`Select all in ${cat}`}
-                      checked={allFolderSelected}
-                      onChange={() => (allFolderSelected || someFolderSelected) ? deselectUrls(folderUrls) : selectUrls(folderUrls)}
-                      ref={(el: HTMLInputElement | null) => { if (el) el.indeterminate = someFolderSelected; }}
-                      style={{ cursor: 'pointer', width: '14px', height: '14px', flexShrink: 0 }}
-                    />
-                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {cat} <span style={{ fontWeight: 400, opacity: 0.6 }}>({groups[cat].length})</span>
-                    </h3>
+      })() : viewMode === 'table' ? (() => {
+        const OVERSCAN = 8;
+        const startIdx = Math.max(0, Math.floor(tableScrollTop / TABLE_ROW_H) - OVERSCAN);
+        const endIdx = Math.min(visibleItems.length, Math.ceil((tableScrollTop + tableContainerH) / TABLE_ROW_H) + OVERSCAN);
+        const visibleRows = visibleItems.slice(startIdx, endIdx);
+        const topPad = startIdx * TABLE_ROW_H;
+        const bottomPad = (visibleItems.length - endIdx) * TABLE_ROW_H;
+        const allSel = visibleItems.length > 0 && visibleItems.every(i => selectedUrls.has(i.url));
+        return (
+          <div
+            ref={tableScrollRef}
+            style={{ overflow: 'auto', height: 'calc(100vh - 320px)', minHeight: '400px' }}
+            onScroll={(e: any) => setTableScrollTop(e.currentTarget.scrollTop)}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--brd)', background: 'var(--bg3)', position: 'sticky', top: 0, zIndex: 1 }}>
+                  <th style={{ padding: '7px 8px', width: '32px' }}>
+                    <input type="checkbox" checked={allSel} onChange={() => allSel ? deselectUrls(visibleItems.map(i => i.url)) : selectUrls(visibleItems.map(i => i.url))} />
+                  </th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Title</th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>URL</th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Website</th>
+                  <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: '12px', color: 'var(--tx2)' }}>Tags</th>
+                  <th style={{ width: '56px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {topPad > 0 && <tr style={{ height: topPad }}><td colSpan={6} style={{ padding: 0 }} /></tr>}
+                {visibleRows.map((item, ri) => {
+                  const i = startIdx + ri;
+                  const hostname = (() => { try { return new URL(item.url).hostname; } catch { return item.url; } })();
+                  return (
+                    <tr
+                      key={item.url}
+                      onClick={() => { currentVideo.value = { id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), name: item.title, path: item.scrapedVideoUrl || '', relPath: item.url, category: item.category || 'Links', isLink: true, img: item.img, embedUrl: item.embedUrl, linkUrl: item.url } as any; currentView.value = 'player'; }}
+                      style={{ height: TABLE_ROW_H, cursor: 'pointer', borderBottom: '1px solid var(--brd)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}
+                    >
+                      <td style={{ padding: '6px 8px' }} onClick={(e: any) => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedUrls.has(item.url)} onChange={() => toggleSelect(item.url)} aria-label={`Select ${item.title}`} />
+                      </td>
+                      <td style={{ padding: '6px 10px', maxWidth: '280px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                          <img src={`https://www.google.com/s2/favicons?sz=14&domain_url=${encodeURIComponent(item.url)}`} width="14" height="14" alt="" style={{ flexShrink: 0 }} loading="lazy" />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '6px 10px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--tx3)', fontSize: '12px' }} title={item.url}>{item.url}</td>
+                      <td style={{ padding: '6px 10px', color: 'var(--tx3)', whiteSpace: 'nowrap', fontSize: '12px' }}>{hostname}</td>
+                      <td style={{ padding: '6px 10px' }}>
+                        {item.tags && item.tags.length > 0 && (
+                          <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                            {item.tags.slice(0, 3).map(t => (
+                              <span key={t} onClick={(e: any) => { e.stopPropagation(); setTagFilter(t); }} title={`Filter by "${t}"`} style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85, whiteSpace: 'nowrap', cursor: 'pointer' }}>{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }} onClick={(e: any) => e.stopPropagation()}>
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--tx3)', display: 'inline-flex', alignItems: 'center', marginRight: '6px' }} title="Open in browser">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                        </a>
+                        <button type="button" onClick={() => removeItem(item.url)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '0 2px', fontSize: '16px', lineHeight: 1 }} title="Remove">×</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {bottomPad > 0 && <tr style={{ height: bottomPad }}><td colSpan={6} style={{ padding: 0 }} /></tr>}
+              </tbody>
+            </table>
+          </div>
+        );
+      })() : viewMode === 'channels' ? (() => {
+        const channelItems = visibleItems.map(it => { const ch = detectChannel(it.url); return ch ? { ...it, _ch: ch } : null; }).filter(Boolean) as (LinkItem & { _ch: string })[];
+        const filtered = channelViewFilter ? channelItems.filter(it => it._ch === channelViewFilter) : channelItems;
+        if (filtered.length === 0) return (
+          <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--tx3)' }}>
+            {channelViewFilter ? (
+              <><div style={{ fontSize: '14px', marginBottom: '8px' }}>No links for channel "{channelViewFilter}"</div><button class="sort-btn" onClick={() => setChannelViewFilter('')}>Show all channels</button></>
+            ) : (
+              <><div style={{ fontSize: '32px', marginBottom: '8px' }}>📺</div><div style={{ fontSize: '14px' }}>No channels found</div><div style={{ fontSize: '12px', marginTop: '6px' }}>Save links to channel pages (e.g. youtube.com/@channelname) to see them here.</div></>
+            )}
+          </div>
+        );
+        const hostname = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {channelViewFilter && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span style={{ fontWeight: 600, fontSize: '13px' }}>Channel: {channelViewFilter}</span>
+                <button class="sort-btn" onClick={() => setChannelViewFilter('')} style={{ fontSize: '11px', padding: '2px 8px' }}>✕ Clear</button>
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+              {filtered.map(it => (
+                <div key={it.url} onClick={() => window.open(it.url, '_blank')} style={{ border: '1px solid var(--brd)', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', background: 'var(--bg3)', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ height: '80px', background: 'var(--bg2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {it.img ? <img src={it.img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <img src={`https://www.google.com/s2/favicons?sz=48&domain_url=${encodeURIComponent(it.url)}`} width="36" height="36" alt="" style={{ opacity: 0.4 }} />}
                   </div>
-                  {viewMode === 'grid' ? (
-                    <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-                      {groups[cat].map(renderCard)}
+                  <div style={{ padding: '10px 12px', flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it._ch}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(it.url)}`} width="12" height="12" alt="" />
+                      {hostname(it.url)}
                     </div>
-                  ) : (
-                    <div class="bf-list">{groups[cat].map(renderRow)}</div>
+                    {it.title && <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })() : (() => {
+        // Grouped by website — collapsible tables, all collapsed by default
+        const groups: Record<string, LinkItem[]> = {};
+        for (const item of visibleItems) {
+          const key = (() => { try { return new URL(item.url).hostname; } catch { return 'Other'; } })();
+          (groups[key] = groups[key] || []).push(item);
+        }
+        const sortedKeys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length || a.localeCompare(b));
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {sortedKeys.map(site => {
+              const siteUrls = groups[site].map(i => i.url);
+              const selectedCount = siteUrls.filter(u => selectedUrls.has(u)).length;
+              const allSiteSelected = selectedCount === siteUrls.length;
+              const someSiteSelected = selectedCount > 0 && !allSiteSelected;
+              const isExpanded = expandedSites.has(site);
+              return (
+                <div key={site} style={{ border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div onClick={() => toggleSiteCollapse(site)} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '8px 12px', background: 'var(--bg3)', userSelect: 'none' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--tx3)', width: '10px', flexShrink: 0 }}>{isExpanded ? '▼' : '▶'}</span>
+                    <input type="checkbox" aria-label={`Select all from ${site}`} checked={allSiteSelected} onChange={() => (allSiteSelected || someSiteSelected) ? deselectUrls(siteUrls) : selectUrls(siteUrls)} ref={(el: HTMLInputElement | null) => { if (el) el.indeterminate = someSiteSelected; }} onClick={(e: any) => e.stopPropagation()} style={{ cursor: 'pointer', flexShrink: 0 }} />
+                    <img src={`https://www.google.com/s2/favicons?sz=14&domain_url=${encodeURIComponent('https://' + site)}`} width="14" height="14" alt="" style={{ flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, fontSize: '13px' }}>{site}</span>
+                    <span style={{ fontSize: '12px', color: 'var(--tx3)' }}>({groups[site].length})</span>
+                  </div>
+                  {isExpanded && (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--brd)', background: 'var(--bg2)' }}>
+                          <th style={{ padding: '6px 8px', width: '32px' }}>
+                            <input type="checkbox" checked={allSiteSelected} onChange={() => (allSiteSelected || someSiteSelected) ? deselectUrls(siteUrls) : selectUrls(siteUrls)} ref={(el: HTMLInputElement | null) => { if (el) el.indeterminate = someSiteSelected; }} />
+                          </th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, fontSize: '11px', color: 'var(--tx2)' }}>Title</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, fontSize: '11px', color: 'var(--tx2)' }}>URL</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, fontSize: '11px', color: 'var(--tx2)' }}>Tags</th>
+                          <th style={{ width: '56px' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groups[site].map((item, i) => (
+                          <tr
+                            key={item.url}
+                            onClick={() => { currentVideo.value = { id: btoa(item.url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), name: item.title, path: item.scrapedVideoUrl || '', relPath: item.url, category: item.category || 'Links', isLink: true, img: item.img, embedUrl: item.embedUrl, linkUrl: item.url } as any; currentView.value = 'player'; }}
+                            style={{ cursor: 'pointer', borderBottom: '1px solid var(--brd)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}
+                          >
+                            <td style={{ padding: '5px 8px' }} onClick={(e: any) => e.stopPropagation()}>
+                              <input type="checkbox" checked={selectedUrls.has(item.url)} onChange={() => toggleSelect(item.url)} aria-label={`Select ${item.title}`} />
+                            </td>
+                            <td style={{ padding: '5px 10px', maxWidth: '280px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                                <img src={`https://www.google.com/s2/favicons?sz=14&domain_url=${encodeURIComponent(item.url)}`} width="14" height="14" alt="" style={{ flexShrink: 0 }} loading="lazy" />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>{item.title}</span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '5px 10px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--tx3)', fontSize: '12px' }} title={item.url}>{item.url}</td>
+                            <td style={{ padding: '5px 10px' }}>
+                              {item.tags && item.tags.length > 0 && (
+                                <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                                  {item.tags.slice(0, 3).map(t => (
+                                    <span key={t} style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85, whiteSpace: 'nowrap' }}>{t}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }} onClick={(e: any) => e.stopPropagation()}>
+                              <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--tx3)', display: 'inline-flex', alignItems: 'center', marginRight: '6px' }} title="Open in browser">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                              </a>
+                              <button type="button" onClick={() => removeItem(item.url)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '0 2px', fontSize: '16px', lineHeight: 1 }} title="Remove">×</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
                 </div>
-                );
-              })}
-            </>
-          );
-        }
-
-        return viewMode === 'grid' ? (
-          <div class="bf-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-            {visibleItems.map(renderCard)}
+              );
+            })}
           </div>
-        ) : (
-          <div class="bf-list">{visibleItems.map(renderRow)}</div>
         );
       })()}
+
+      {/* Mass-edit action bar */}
+      {selectedUrls.size > 0 && (
+        <div
+          style={{
+            position: 'sticky', bottom: 0, zIndex: 50, marginTop: '20px',
+            background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px',
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.35)', padding: '12px 16px',
+            display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+          }}
+        >
+          <strong style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>{selectedUrls.size} selected</strong>
+          <button class="sort-btn" onClick={() => setSelectedUrls(new Set())} title="Clear selection">Clear</button>
+
+          <span className="sg-sep"></span>
+
+          {/* Mass tagging */}
+          <input
+            type="text"
+            value={bulkTagInput}
+            onInput={(e: any) => setBulkTagInput(e.target.value)}
+            onKeyDown={(e: any) => { if (e.key === 'Enter') bulkAddTags(); }}
+            placeholder="tags, comma separated"
+            aria-label="Bulk tags"
+            list="bulk-tag-suggestions"
+            style={{ minWidth: '180px', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '5px 8px', fontSize: '13px' }}
+          />
+          <datalist id="bulk-tag-suggestions">
+            {allTags.map(([t]) => <option key={t} value={t} />)}
+          </datalist>
+          <button class="sort-btn" onClick={bulkAddTags} title="Add these tags to all selected links">+ Tags</button>
+          <button class="sort-btn" onClick={bulkRemoveTags} title="Remove these tags from all selected links">– Tags</button>
+          <button class="sort-btn" onClick={bulkSetTags} title="Replace tags on all selected links (empty clears them)">Set Tags</button>
+
+          <span className="sg-sep"></span>
+
+          {/* Mass move to folder */}
+          <select
+            value={bulkCategory}
+            onChange={(e: any) => setBulkCategory(e.target.value)}
+            aria-label="Bulk folder"
+            style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '5px 8px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
+          >
+            <option value="">Uncategorized</option>
+            {activeCats.map(c => <option key={c.name} value={c.name}>{c.path}</option>)}
+          </select>
+          <button class="sort-btn" onClick={bulkSetCategory} title="Move all selected links to this folder">Move</button>
+
+          <span className="sg-sep"></span>
+
+          {/* Mass favourite */}
+          <button class="sort-btn" onClick={() => bulkSetFav(true)} title="Star all selected">★ Star</button>
+          <button class="sort-btn" onClick={() => bulkSetFav(false)} title="Unstar all selected">☆ Unstar</button>
+
+          <span className="sg-sep"></span>
+
+          <button class="sort-btn" onClick={downloadSelected}>Download</button>
+          {isVaultUnlocked.value && vaultGlobalView.value ? (
+            <button class="sort-btn" onClick={decryptSelected} title="Decrypt selected links back to public">Decrypt</button>
+          ) : isVaultUnlocked.value ? (
+            <button class="sort-btn" onClick={encryptSelected} title="Encrypt selected links into Vault">🔒 Vault</button>
+          ) : (
+            <button class="sort-btn" onClick={moveSelectedToVault} title="Move selected links to Vault">🔒 Vault</button>
+          )}
+          <button class="sort-btn" onClick={deleteSelected} style={{ color: '#e53935', borderColor: '#e53935' }} title="Delete all selected links">Delete</button>
+        </div>
+      )}
 
       {/* Download Queue */}
       {jobs.length > 0 && (
@@ -1010,6 +1834,7 @@ export const LinksView = () => {
         <BookmarkPickerModal
           browser={bmPickerBrowser}
           existingUrls={new Set(items.map(it => it.url))}
+          activeCats={activeCats}
           onImport={handlePickerImport}
           onClose={() => setBmPickerBrowser(null)}
         />

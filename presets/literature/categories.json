@@ -1,0 +1,34 @@
+{
+  "Fiction": {
+    "displayName": "Fiction",
+    "tags": ["literary", "historical", "contemporary", "novel"]
+  },
+  "Sci-Fi": {
+    "displayName": "Science Fiction",
+    "tags": ["space opera", "cyberpunk", "dystopian", "future"]
+  },
+  "Fantasy": {
+    "displayName": "Fantasy",
+    "tags": ["epic fantasy", "urban fantasy", "mythology", "magic"]
+  },
+  "Horror": {
+    "displayName": "Horror",
+    "tags": ["gothic", "supernatural", "psychological", "scary"]
+  },
+  "Mystery": {
+    "displayName": "Mystery & Crime",
+    "tags": ["detective", "crime", "thriller", "whodunit"]
+  },
+  "Non-Fiction": {
+    "displayName": "Non-Fiction",
+    "tags": ["biography", "history", "science", "philosophy", "memoir"]
+  },
+  "Poetry": {
+    "displayName": "Poetry",
+    "tags": ["classic", "modern", "verse", "anthology"]
+  },
+  "Romance": {
+    "displayName": "Romance",
+    "tags": ["historical", "contemporary", "love"]
+  }
+}

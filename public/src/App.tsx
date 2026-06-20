@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
-import { videos, loadVideos, loadCategories, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, categories } from './store';
+import { videos, loadVideos, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders, appReady } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
+import { OnboardingWizard } from './components/modals/OnboardingWizard';
 import { ConnectModal } from './components/modals/ConnectModal';
 import { DropOverlay } from './components/UI/DropOverlay';
 
@@ -50,7 +51,7 @@ export function App() {
     fetch('/api/preload').then(r => r.json()).then(preload => {
       (window as any).__preloaded = preload;
       // Populate folder list immediately from DB index so sidebar shows names before full scan
-      if (preload.catCounts && categories.value.length === 0) {
+      if (preload.catCounts && folders.value.length === 0) {
         const initial = Object.entries(preload.catCounts as Record<string, number>)
           .map(([p, count]) => ({ name: p.replace(/\//g, ' / '), path: p, count }))
           .sort((a, b) => {
@@ -58,13 +59,15 @@ export function App() {
             if (b.path === 'uncategorized') return 1;
             return a.name.localeCompare(b.name);
           });
-        categories.value = initial;
+        folders.value = initial;
       }
     }).catch(() => {});
 
-    loadVideos();
-    loadCategories();
-    loadPrefs();
+    // Show the UI as soon as prefs (theme, cardSize, etc.) are applied — don't
+    // hold the spinner until the full video list arrives. Skeletons handle the
+    // in-flight state; loadVideos populates the grid when it finishes.
+    loadPrefs().then(() => { appReady.value = true; }).catch(() => { appReady.value = true; });
+    loadVideos().catch(() => {});
 
     // Restore vault unlock state and auto-navigate if we're in the Vault profile
     fetch('/api/vault/status')
@@ -72,16 +75,9 @@ export function App() {
       .then(s => { isVaultUnlocked.value = !!s.unlocked; })
       .catch(() => {});
 
-    loadProfiles().then(profileData => {
-      fetch('/api/presets')
-        .then(r => r.json())
-        .then(data => {
-          if (data.firstRun) {
-            presetPickerState.value = { visible: true, mergeMode: false };
-          }
-        })
-        .catch(e => console.error('Failed to check presets', e));
-    });
+    // The old PresetPicker first-run logic is replaced by OnboardingWizard
+    // which is shown when no DB files exist (checked in OnboardingWizard component)
+    loadProfiles();
 
     // Load theme
     const saved = localStorage.getItem('theme') || '';
@@ -248,10 +244,25 @@ export function App() {
 
   return (
     <>
+      <OnboardingWizard />
       <PresetPicker />
       <ProfileModal />
       {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}
       <DropOverlay />
+      {!appReady.value && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99998,
+          background: 'var(--bg, #0d0d0d)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: '20px',
+          transition: 'opacity 0.3s',
+        }}>
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+            <circle cx="22" cy="22" r="18" stroke="var(--ac, #e040fb)" strokeWidth="3" strokeDasharray="80 30" strokeLinecap="round" />
+          </svg>
+          <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.8rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Loading</div>
+        </div>
+      )}
 
       {connLost && (
         <div style={{

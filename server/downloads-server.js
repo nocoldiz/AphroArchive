@@ -5,8 +5,14 @@
 
 const fs              = require('fs');
 const path            = require('path');
+const http            = require('http');
+const https           = require('https');
 const { spawn, execFile } = require('child_process');
-const { VIDEOS_DIR, YT_DLP_BIN, LINK_DIR } = require('./config-server');
+const {
+  VIDEOS_DIR, YT_DLP_BIN, LINK_DIR,
+  AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, FILES_DIR,
+  VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT,
+} = require('./config-server');
 const { json, readBody, toId, fromId }      = require('./helpers-server');
 const { getDefaultWriteRoot } = require('./db-server');
 
@@ -28,9 +34,11 @@ function loadJobs() {
     if (!fs.existsSync(JOBS_FILE)) return;
     const saved = JSON.parse(fs.readFileSync(JOBS_FILE, 'utf-8'));
     for (const j of saved) {
+      if (j.status === 'done' || j.status === 'error') continue; // don't restore finished jobs
       if (j.status === 'running') j.status = 'queued'; // restart interrupted downloads
       downloadJobs.set(j.id, { ...j, _kill: null });
     }
+    saveJobs(); // rewrite file without the done/error entries
   } catch {}
 }
 
@@ -63,23 +71,24 @@ function nextDlId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-function enqueueDownload(dlUrl, category, pendingCategory) {
+function enqueueDownload(dlUrl, folder, pendingFolder) {
   const id = nextDlId();
   downloadJobs.set(id, {
     id, url: dlUrl, title: dlUrl,
-    category: category || '',
-    pendingCategory: pendingCategory || category || '',
+    folder: folder || '',
+    pendingFolder: pendingFolder || folder || '',
     status: 'queued', progress: 0, speed: '', eta: '', error: null,
     addedAt: Date.now(), outputPath: null, videoId: null, _kill: null,
+    kind: 'video', mediaType: null,
   });
   saveJobs();
   processDownloadQueue();
   return id;
 }
 
-async function autoMoveVideo(videoId, pendingCategory) {
+async function autoMoveVideo(videoId, pendingFolder) {
   try {
-    const cleanCat = (pendingCategory || '').trim();
+    const cleanCat = (pendingFolder || '').trim();
     if (!cleanCat) return;
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
     if (isVirtual) return;
@@ -132,17 +141,113 @@ async function processDownloadQueue() {
   }
 }
 
+// Classify a download URL by its file extension so we know whether to hand
+// it to yt-dlp (video/page) or download it directly and sort it into the
+// matching media folder.
+function classifyUrl(url) {
+  let ext = '';
+  try { ext = path.extname(new URL(url).pathname).toLowerCase(); } catch {}
+  if (!ext || VIDEO_EXT.has(ext)) return { kind: 'video' };
+  if (AUDIO_EXT.has(ext)) return { kind: 'file', mediaType: 'audio', dir: AUDIO_DIR, ext };
+  if (BOOK_EXT.has(ext))  return { kind: 'file', mediaType: 'book',  dir: BOOKS_DIR, ext };
+  if (IMAGE_EXT.has(ext)) return { kind: 'file', mediaType: 'photo', dir: PHOTOS_DIR, ext };
+  return { kind: 'file', mediaType: 'file', dir: FILES_DIR, ext };
+}
+
+function formatSpeed(bytesPerSec) {
+  if (!bytesPerSec || !isFinite(bytesPerSec)) return '';
+  if (bytesPerSec >= 1024 * 1024) return (bytesPerSec / (1024 * 1024)).toFixed(1) + 'MB/s';
+  return (bytesPerSec / 1024).toFixed(1) + 'KB/s';
+}
+
+// Direct HTTP(S) download for non-video files (audio/books/photos/misc),
+// following redirects and sorted straight into the matching media folder.
+function runDirectFileDownload(job, target, url = job.url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) return reject(new Error('Too many redirects'));
+
+    const client = url.startsWith('https') ? https : http;
+    const req = client.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+        res.resume();
+        const nextUrl = new URL(res.headers.location, url).toString();
+        return runDirectFileDownload(job, target, nextUrl, redirects + 1).then(resolve, reject);
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' for ' + url));
+      }
+
+      fs.mkdirSync(target.dir, { recursive: true });
+
+      let filename = '';
+      try {
+        filename = decodeURIComponent(path.basename(new URL(url).pathname));
+      } catch {}
+      if (!filename) filename = 'download-' + job.id;
+      if (!path.extname(filename)) filename += target.ext;
+
+      let destPath = path.join(target.dir, filename);
+      if (fs.existsSync(destPath)) {
+        const base = path.basename(filename, path.extname(filename));
+        destPath = path.join(target.dir, `${base}-${job.id}${path.extname(filename)}`);
+      }
+
+      const total = parseInt(res.headers['content-length'] || '0', 10);
+      let received = 0;
+      let lastTick = Date.now();
+      let lastBytes = 0;
+
+      const out = fs.createWriteStream(destPath);
+      job._kill = () => { req.destroy(); out.destroy(); };
+
+      res.on('data', chunk => {
+        received += chunk.length;
+        if (total > 0) job.progress = Math.min(100, (received / total) * 100);
+        const now = Date.now();
+        if (now - lastTick >= 1000) {
+          job.speed = formatSpeed((received - lastBytes) / ((now - lastTick) / 1000));
+          lastTick = now;
+          lastBytes = received;
+        }
+      });
+
+      res.pipe(out);
+      out.on('finish', () => {
+        job.outputPath = destPath;
+        job.title = path.basename(destPath, path.extname(destPath));
+        job.kind = target.kind || 'file';
+        job.mediaType = target.mediaType;
+        job.progress = 100;
+        resolve();
+      });
+      out.on('error', reject);
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+  });
+}
+
 async function runJob(next) {
-  try {
+  const classified = classifyUrl(next.url);
+  if (classified.kind === 'file') {
+    next.kind = 'file';
+    next.mediaType = classified.mediaType;
     try {
-      await runYtDlp(next);
-    } catch (ytErr) {
-      // yt-dlp couldn't extract — fall back to the universal Python scraper,
-      // which scrapes the page (og:video, JSON-LD, <video>, HLS, iframes…)
-      // and downloads via any method possible.
-      next.error = null;
-      await runUniversal(next, ytErr);
+      await runDirectFileDownload(next, classified);
+      next.status   = 'done';
+      next.progress = 100;
+    } catch (e) {
+      if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
+    } finally {
+      dlActive--;
+      saveJobs();
+      processDownloadQueue();
     }
+    return;
+  }
+  try {
+    await runAllVideoMethods(next);
     next.status   = 'done';
     next.progress = 100;
     const writeRoot = getDefaultWriteRoot();
@@ -155,24 +260,35 @@ async function runJob(next) {
         next.videoId = toId(next.outputPath);
       }
     }
-    if (next.pendingCategory && next.videoId) {
-      await autoMoveVideo(next.videoId, next.pendingCategory);
-      // Update videoId after move
-      const cleanCat = next.pendingCategory.trim();
-      const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
-      if (!isVirtual && next.outputPath) {
-        const newPath = path.join(writeRoot, cleanCat, path.basename(next.outputPath));
-        if (fs.existsSync(newPath)) {
-          const npRes = path.resolve(newPath);
-          next.videoId = npRes.startsWith(path.resolve(VIDEOS_DIR))
-            ? toId( path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/') )
-            : toId(newPath);
+    {
+      // Determine target folder: explicit pendingFolder > auto-categorize by filename
+      const rawCat = (next.pendingFolder || '').trim();
+      const isVirtual = !rawCat || rawCat.toLowerCase() === 'links' || rawCat.toLowerCase() === 'uncategorized';
+      let targetCat = isVirtual ? '' : rawCat;
+
+      if (!targetCat && next.outputPath) {
+        try {
+          const { autoCategorize } = require('./videos-server');
+          targetCat = autoCategorize(path.basename(next.outputPath)) || '';
+        } catch {}
+      }
+
+      if (targetCat && next.videoId) {
+        await autoMoveVideo(next.videoId, targetCat);
+        if (next.outputPath) {
+          const newPath = path.join(writeRoot, targetCat, path.basename(next.outputPath));
+          if (fs.existsSync(newPath)) {
+            const npRes = path.resolve(newPath);
+            next.videoId = npRes.startsWith(path.resolve(VIDEOS_DIR))
+              ? toId(path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/'))
+              : toId(newPath);
+          }
         }
       }
     }
     await handleLinkConversion(next.url, next.videoId);
   } catch (e) {
-    if (downloadJobs.has(next.id)) { next.status = 'error'; next.error = e.message; }
+    if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
   } finally {
     dlActive--;
     saveJobs();
@@ -180,71 +296,22 @@ async function runJob(next) {
   }
 }
 
-function runYtDlp(job) {
+// Primary downloader: hand the URL to bulkdownloader.py in single-URL mode.
+// It runs yt-dlp's native + generic extractors and, failing that, scrapes
+// the page for video in any way possible (Open Graph, JSON-LD, <video>/
+// <source>, JWPlayer/HLS/DASH configs, iframe recursion, direct stream) and
+// reports the saved file via a `RESULT_FILE:` line.
+function runUniversal(job) {
   return new Promise((resolve, reject) => {
-    const cleanCat = (job.category || '').trim();
+    const cleanCat = (job.folder || '').trim();
     const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
     const writeRoot = getDefaultWriteRoot();
     const physicalCat = isVirtual ? '' : cleanCat;
-    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : writeRoot;
-    try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
-
-    const proc = spawn(YT_DLP_BIN, [
-      '--no-playlist', '--progress', '--newline',
-      '--merge-output-format', 'mp4',
-      '-o', path.join(outDir, '%(title)s.%(ext)s'),
-      job.url,
-    ]);
-    job._kill = () => proc.kill('SIGKILL');
-
-    const parseLine = line => {
-      const dst = line.match(/\[download\] Destination:\s*(.+)/);
-      if (dst) { job.title = path.basename(dst[1].trim()).replace(/\.[^.]+$/, ''); job.outputPath = dst[1].trim(); }
-      const merger = line.match(/\[Merger\] Merging formats into "(.+)"/);
-      if (merger) job.outputPath = merger[1].trim();
-      const already = line.match(/\[download\] (.+) has already been downloaded/);
-      if (already) { job.title = path.basename(already[1].trim()).replace(/\.[^.]+$/, ''); job.progress = 100; job.outputPath = already[1].trim(); }
-      const prog = line.match(/\[download\]\s+([\d.]+)%.*?at\s+(\S+)\s+ETA\s+(\S+)/);
-      if (prog) { job.progress = parseFloat(prog[1]); job.speed = prog[2]; job.eta = prog[3]; }
-    };
-
-    let oBuf = '', eBuf = '';
-    const feed = (buf, data) => {
-      buf += data.toString();
-      const lines = buf.split('\n'); buf = lines.pop();
-      lines.forEach(parseLine); return buf;
-    };
-    proc.stdout.on('data', d => { oBuf = feed(oBuf, d); });
-    proc.stderr.on('data', d => { eBuf = feed(eBuf, d); });
-
-    proc.on('close', code => {
-      if (oBuf) parseLine(oBuf);
-      if (eBuf) parseLine(eBuf);
-      code === 0 ? resolve() : reject(new Error('yt-dlp exited with code ' + code));
-    });
-    proc.on('error', err => reject(new Error(
-      err.code === 'ENOENT'
-        ? 'yt-dlp not found — place yt-dlp.exe next to AphroArchive.exe or add it to PATH'
-        : err.message
-    )));
-  });
-}
-
-// Universal fallback: hand the URL to bulkdowloader.py in single-URL mode.
-// It scrapes the linked page for video in any way possible (Open Graph,
-// JSON-LD, <video>/<source>, JWPlayer/HLS/DASH configs, iframe recursion,
-// direct stream) and reports the saved file via a `RESULT_FILE:` line.
-function runUniversal(job, ytErr) {
-  return new Promise((resolve, reject) => {
-    const cleanCat = (job.category || '').trim();
-    const isVirtual = cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
-    const writeRoot = getDefaultWriteRoot();
-    const physicalCat = isVirtual ? '' : cleanCat;
-    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : writeRoot;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : path.join(writeRoot, 'downloads');
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const pythonBin  = process.platform === 'win32' ? 'python' : 'python3';
-    const scriptPath = path.join(__dirname, '..', 'bulkdowloader.py');
+    const scriptPath = path.join(__dirname, '..', 'Bulkdownloader', 'bulkdownloader.py');
 
     const proc = spawn(pythonBin, [
       '-u', scriptPath,
@@ -275,14 +342,106 @@ function runUniversal(job, ytErr) {
       if (oBuf) parseLine(oBuf);
       if (eBuf) parseLine(eBuf);
       if (resultFile && fs.existsSync(resultFile)) return resolve();
-      reject(new Error('No downloadable video found (yt-dlp: ' + (ytErr?.message || 'failed') + ')'));
+      reject(new Error('bulkdownloader.py found no downloadable video (exit code ' + code + ')'));
     });
     proc.on('error', err => reject(new Error(
       err.code === 'ENOENT'
-        ? 'Python not found — install Python 3 to enable universal page scraping (yt-dlp: ' + (ytErr?.message || 'failed') + ')'
+        ? 'Python not found — install Python 3 to enable universal page scraping'
         : err.message
     )));
   });
+}
+
+// Fallback 1: spawn the yt-dlp binary directly (used when Python / bulkdownloader.py fails).
+function runYtdlpFallback(job) {
+  return new Promise((resolve, reject) => {
+    const cleanCat = (job.folder || '').trim();
+    const isVirtual = !cleanCat || cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
+    const writeRoot = getDefaultWriteRoot();
+    const physicalCat = isVirtual ? '' : cleanCat;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : path.join(writeRoot, 'downloads');
+    try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
+
+    const outtmpl = path.join(outDir, '%(title)s.%(ext)s');
+    const proc = spawn(YT_DLP_BIN, [
+      '--no-playlist', '--merge-output-format', 'mp4',
+      '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+      '-o', outtmpl, job.url,
+    ]);
+    job._kill = () => proc.kill('SIGKILL');
+
+    let resultFile = null;
+    const parseLine = line => {
+      const dest = line.match(/\[(?:download|Merger|ffmpeg)\]\s+(?:Destination:|Merging formats into)\s+"?([^"\r\n]+)"?/);
+      if (dest) {
+        const f = dest[1].trim().replace(/^"|"$/g, '');
+        resultFile = f; job.outputPath = f; job.title = path.basename(f).replace(/\.[^.]+$/, '');
+      }
+      const prog = line.match(/\[download\]\s+([\d.]+)%/);
+      if (prog) job.progress = parseFloat(prog[1]);
+    };
+
+    let oBuf = '', eBuf = '';
+    const feed = (buf, data) => {
+      buf += data.toString();
+      const lines = buf.split(/[\r\n]/); buf = lines.pop();
+      lines.forEach(l => { if (l.trim()) parseLine(l); }); return buf;
+    };
+    proc.stdout.on('data', d => { oBuf = feed(oBuf, d); });
+    proc.stderr.on('data', d => { eBuf = feed(eBuf, d); });
+
+    proc.on('close', code => {
+      if (oBuf) parseLine(oBuf);
+      if (eBuf) parseLine(eBuf);
+      if (resultFile) {
+        const candidates = [resultFile, ...['mp4', 'mkv', 'webm', 'm4v'].map(e => resultFile.replace(/\.[^.]+$/, '.' + e))];
+        for (const p of candidates) {
+          if (fs.existsSync(p)) { job.outputPath = p; job.title = path.basename(p).replace(/\.[^.]+$/, ''); return resolve(); }
+        }
+      }
+      reject(new Error('yt-dlp fallback produced no output (exit code ' + code + ')'));
+    });
+    proc.on('error', err => reject(new Error(err.code === 'ENOENT' ? 'yt-dlp not found' : err.message)));
+  });
+}
+
+// Try all video download methods in priority order:
+//   1) bulkdownloader.py  — universal scraper + yt-dlp waterfall (best quality)
+//   2) bare yt-dlp binary — for when Python is unavailable
+//   3) direct HTTP        — last resort for plain media-file URLs
+async function runAllVideoMethods(job) {
+  try {
+    await runUniversal(job);
+    return;
+  } catch (e1) {
+    if (!downloadJobs.has(job.id) || job.status === 'paused') throw e1;
+    console.error('[download] bulkdownloader.py failed, trying yt-dlp:', e1.message);
+  }
+
+  try {
+    await runYtdlpFallback(job);
+    return;
+  } catch (e2) {
+    if (!downloadJobs.has(job.id) || job.status === 'paused') throw e2;
+    console.error('[download] yt-dlp fallback failed, trying direct HTTP:', e2.message);
+  }
+
+  const ext = (() => { try { return path.extname(new URL(job.url).pathname).toLowerCase(); } catch { return ''; } })();
+  if (VIDEO_EXT.has(ext)) {
+    const cleanCat = (job.folder || '').trim();
+    const isVirtual = !cleanCat || cleanCat.toLowerCase() === 'links' || cleanCat.toLowerCase() === 'uncategorized';
+    const writeRoot = getDefaultWriteRoot();
+    const physicalCat = isVirtual ? '' : cleanCat;
+    const outDir = physicalCat ? path.join(writeRoot, physicalCat) : path.join(writeRoot, 'downloads');
+    try {
+      await runDirectFileDownload(job, { dir: outDir, ext, kind: 'video', mediaType: null });
+      return;
+    } catch (e3) {
+      console.error('[download] direct HTTP fallback failed:', e3.message);
+    }
+  }
+
+  throw new Error('All download methods failed for ' + job.url);
 }
 
 // ── Download API handlers ────────────────────────────────────────────
@@ -297,9 +456,9 @@ async function apiDownloadAdd(req, res) {
   }
   const urls = Array.isArray(body.urls) ? body.urls : (body.url ? [body.url] : []);
   if (!urls.length) return json(res, { error: 'URL required' }, 400);
-  const category        = (body.category || '').trim();
-  const pendingCategory = (body.pendingCategory || category).trim();
-  const ids             = urls.map(u => enqueueDownload(u, category, pendingCategory));
+  const folder        = (body.category || '').trim();
+  const pendingFolder = (body.pendingCategory || folder).trim();
+  const ids           = urls.map(u => enqueueDownload(u, folder, pendingFolder));
   json(res, { ok: true, ids });
 }
 
@@ -331,11 +490,21 @@ function apiDownloadCancelAll(req, res) {
   json(res, { ok: true });
 }
 
+function apiDownloadRemoveAll(req, res) {
+  for (const job of downloadJobs.values()) {
+    if (job.status === 'running' && job._kill) job._kill();
+  }
+  downloadJobs.clear();
+  dlActive = 0;
+  saveJobs();
+  json(res, { ok: true });
+}
+
 async function apiDownloadUpdateJob(req, res, id) {
   const job = downloadJobs.get(id);
   if (!job) return json(res, { error: 'Not found' }, 404);
   const body = await readBody(req);
-  if (body.pendingCategory !== undefined) job.pendingCategory = body.pendingCategory;
+  if (body.pendingCategory !== undefined) job.pendingFolder = body.pendingCategory;
   saveJobs();
   json(res, { ok: true });
 }
@@ -349,6 +518,31 @@ function apiDownloadRestartJob(req, res, id) {
   job.speed    = '';
   job.eta      = '';
   job.error    = null;
+  saveJobs();
+  processDownloadQueue();
+  json(res, { ok: true });
+}
+
+// Pause a running job: kills the underlying process but keeps the partial
+// output on disk so yt-dlp/bulkdownloader.py can resume from the .part file.
+function apiDownloadPauseJob(req, res, id) {
+  const job = downloadJobs.get(id);
+  if (!job) return json(res, { error: 'Not found' }, 404);
+  if (job.status !== 'running') return json(res, { error: 'Job is not running' }, 409);
+  job.status = 'paused';
+  job.speed  = '';
+  job.eta    = '';
+  if (job._kill) job._kill();
+  saveJobs();
+  json(res, { ok: true });
+}
+
+function apiDownloadResumeJob(req, res, id) {
+  const job = downloadJobs.get(id);
+  if (!job) return json(res, { error: 'Not found' }, 404);
+  if (job.status !== 'paused') return json(res, { error: 'Job is not paused' }, 409);
+  job.status = 'queued';
+  job.error  = null;
   saveJobs();
   processDownloadQueue();
   json(res, { ok: true });
@@ -440,7 +634,7 @@ async function apiBulkDownloadStart(req, res) {
   bulkStatus = { running: true, log: [], done: 0, total: urls.length, current: '' };
 
   const pythonBin = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = path.join(__dirname, '..', 'bulkdowloader.py');
+  const scriptPath = path.join(__dirname, '..', 'Bulkdownloader', 'bulkdownloader.py');
   const projectRoot = path.join(__dirname, '..');
 
   try {
@@ -513,9 +707,23 @@ loadDlConfig();
 loadJobs();
 processDownloadQueue();
 
+// Graceful shutdown: kill any running yt-dlp/python children and persist jobs
+// so interrupted downloads are restored (as queued) on next startup.
+function shutdown() {
+  for (const job of downloadJobs.values()) {
+    if (job.status === 'running') {
+      if (job._kill) { try { job._kill(); } catch {} }
+      job.status = 'queued';
+    }
+  }
+  try { if (bulkProc) bulkProc.kill(); } catch {}
+  saveJobs();
+}
+
 module.exports = {
-  apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadCancelAll, apiDownloadCheck,
-  apiDownloadUpdateJob, apiDownloadRestartJob,
+  shutdown,
+  apiDownloadAdd, apiDownloadJobs, apiDownloadRemove, apiDownloadRemoveAll, apiDownloadCancelAll, apiDownloadCheck,
+  apiDownloadUpdateJob, apiDownloadRestartJob, apiDownloadPauseJob, apiDownloadResumeJob,
   apiDownloadGetConfig, apiDownloadSetConfig,
   apiReadDownloadQueue, apiWriteDownloadQueue, apiDownloadQueueAdd, apiDownloadQueueRemove,
   apiBulkDownloadStart, apiBulkDownloadStatus, apiBulkDownloadStop,

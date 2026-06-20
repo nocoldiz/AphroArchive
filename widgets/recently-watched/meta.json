@@ -1,0 +1,8 @@
+{
+  "name": "Recently Watched",
+  "description": "Up to 20 of your most recent history entries.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 2, "h": 2, "minW": 2, "minH": 2, "maxH": 3, "singleton": true }
+}

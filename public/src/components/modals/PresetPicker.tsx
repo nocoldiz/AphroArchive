@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'preact/hooks';
-import { presetPickerState, loadVideos, loadCategories } from '../../store';
+﻿import { useState, useEffect } from 'preact/hooks';
+import { presetPickerState } from '../../store';
 
 interface Preset {
   id: string;
   name: string;
   description?: string;
+  hasFolders?: boolean;
   counts: {
     categories?: number;
     actors?: number;
-    studios?: number;
+    channels?: number;
     websites?: number;
+    folders?: number;
+    links?: number;
   };
 }
 
@@ -19,6 +22,9 @@ export const PresetPicker = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [createFolders, setCreateFolders] = useState(false);
+  const [importLinks, setImportLinks] = useState(true);
+  const [linkCount, setLinkCount] = useState(0); // 0 = import all
   const [status, setStatus] = useState('');
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'orange');
 
@@ -28,6 +34,9 @@ export const PresetPicker = () => {
     setFetchError('');
     setStatus('');
     setSelected(new Set());
+    setCreateFolders(false);
+    setImportLinks(true);
+    setLinkCount(0);
     fetch('/api/presets')
       .then(r => {
         if (!r.ok) throw new Error(`Server error ${r.status}`);
@@ -49,10 +58,17 @@ export const PresetPicker = () => {
       if (!state.mergeMode && Array.isArray(selection)) {
         // Create a profile for each selected preset
         for (const p of selection) {
+          const meta = presets.find(x => x.id === p);
           await fetch('/api/profiles/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: p, preset: p }),
+            body: JSON.stringify({
+              name: p,
+              preset: p,
+              createFolders: createFolders && !!meta?.hasFolders,
+              importLinks: importLinks && !!meta?.counts.links,
+              linkCount: linkCount > 0 ? linkCount : -1,
+            }),
           });
         }
         // Switch to the first selected profile
@@ -67,7 +83,7 @@ export const PresetPicker = () => {
         const res = await fetch('/api/presets/apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selection, merge }),
+          body: JSON.stringify({ selection, merge, importLinks, linkCount: linkCount > 0 ? linkCount : -1 }),
         });
         if (!res.ok) throw new Error('Server error');
       }
@@ -115,8 +131,9 @@ export const PresetPicker = () => {
                 <div className="preset-card-counts" style={{ fontSize: '0.7rem', color: 'var(--tx3)', marginTop: '4px', display: 'flex', gap: '8px' }}>
                   {p.counts.categories && <span>{p.counts.categories} folders</span>}
                   {p.counts.actors && <span>{p.counts.actors} actors</span>}
-                  {p.counts.studios && <span>{p.counts.studios} studios</span>}
+                  {p.counts.channels && <span>{p.counts.channels} channels</span>}
                   {p.counts.websites && <span>{p.counts.websites} websites</span>}
+                  {p.counts.links && <span>{p.counts.links} links</span>}
                 </div>
               </div>
             </label>
@@ -153,6 +170,38 @@ export const PresetPicker = () => {
             ))}
           </div>
         </div>
+
+        {!state.mergeMode && Array.from(selected).some(id => presets.find(p => p.id === id)?.hasFolders) && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 12px', fontSize: '0.82rem', color: 'var(--tx2)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={createFolders} onChange={(e: any) => setCreateFolders(e.target.checked)} />
+            Create each preset's folder structure on disk
+          </label>
+        )}
+
+        {(() => {
+          const totalLinks = Array.from(selected).reduce((n, id) => n + (presets.find(p => p.id === id)?.counts.links || 0), 0);
+          if (totalLinks === 0) return null;
+          return (
+            <div style={{ margin: '0 0 12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--tx2)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={importLinks} onChange={(e: any) => setImportLinks(e.target.checked)} />
+                Import curated bookmark links from selected presets
+              </label>
+              {importLinks && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', paddingLeft: '24px', fontSize: '0.8rem', color: 'var(--tx3)' }}>
+                  <span>How many?</span>
+                  <input
+                    type="number" min={0} max={totalLinks} value={linkCount}
+                    title="Number of links to import (0 = all)" placeholder="0"
+                    onInput={(e: any) => setLinkCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    style={{ width: '70px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', padding: '4px 6px' }}
+                  />
+                  <span>{linkCount > 0 ? `of ${totalLinks}` : `all ${totalLinks}`}</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="preset-dialog-footer" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--tx3)', flex: 1 }}>{status}</span>

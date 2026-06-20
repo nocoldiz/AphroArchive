@@ -1,7 +1,13 @@
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, categories, matchLinkCat, loadVideos, ensureVaultUnlocked } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
+import { getProgress } from '../../home/progress';
+import { getThumbPref } from '../../thumbPref';
+
+// Index (within filteredVideos) of the most recently clicked card — anchor for
+// Shift+click range selection, file-manager style.
+let lastClickedIndex = -1;
 
 
 
@@ -11,6 +17,29 @@ const formatDuration = (seconds: number) => {
   const s = Math.floor(seconds % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
+
+// Shared IntersectionObserver for thumbnail generation — avoids one observer
+// per card when the grid renders hundreds of videos.
+let sharedThumbObserver: IntersectionObserver | null = null;
+const thumbObserverIds = new WeakMap<Element, string>();
+
+function getThumbObserver() {
+  if (!sharedThumbObserver) {
+    sharedThumbObserver = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          const id = thumbObserverIds.get(e.target);
+          if (id) {
+            fetch(`/api/thumbs/${id}/generate`, { method: 'POST' }).catch(() => {});
+            sharedThumbObserver!.unobserve(e.target);
+            thumbObserverIds.delete(e.target);
+          }
+        }
+      }
+    }, { rootMargin: '300px' });
+  }
+  return sharedThumbObserver;
+}
 
 interface VideoCardProps {
   video: Video;
@@ -23,8 +52,20 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
   const [showVideo, setShowVideo] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [dlQueued, setDlQueued] = useState(false);
+  const [thumbIdx, setThumbIdx] = useState(() => getThumbPref(video.id));
+  const [linkThumb, setLinkThumb] = useState('');
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Refresh the card image when the user picks a different preferred thumbnail.
+  useEffect(() => {
+    setThumbIdx(getThumbPref(video.id));
+    const onChange = (e: any) => {
+      if (e.detail?.videoId === video.id) setThumbIdx(e.detail.idx);
+    };
+    window.addEventListener('thumbpref-changed', onChange);
+    return () => window.removeEventListener('thumbpref-changed', onChange);
+  }, [video.id]);
 
   const openLink = useCallback((e: any) => {
     e.stopPropagation();
@@ -82,16 +123,39 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
 
   useEffect(() => {
     if (!cardRef.current || video.isLink) return;
+    const el = cardRef.current;
+    const observer = getThumbObserver();
+    thumbObserverIds.set(el, video.id);
+    observer.observe(el);
+    return () => {
+      observer.unobserve(el);
+      thumbObserverIds.delete(el);
+    };
+  }, [video.id]);
+
+  // Bookmark links often have no cached thumbnail (`img` is null until the
+  // background scraper fills it). When such a link card scrolls into view —
+  // e.g. in global search results — lazily resolve one via the server's
+  // /api/og-thumb endpoint (generated screenshot → OG image, both cached).
+  useEffect(() => {
+    if (!cardRef.current || !video.isLink || video.img) return;
+    const url = video.linkUrl || video.relPath;
+    if (!url) return;
+    const el = cardRef.current;
+    let fetched = false;
     const observer = new IntersectionObserver(entries => {
       for (const e of entries) {
-        if (e.isIntersecting) {
-          fetch(`/api/thumbs/${video.id}/generate`, { method: 'POST' })
+        if (e.isIntersecting && !fetched) {
+          fetched = true;
+          observer.disconnect();
+          fetch('/api/og-thumb?url=' + encodeURIComponent(url))
+            .then(r => r.json())
+            .then(d => { if (d && d.img) setLinkThumb(d.img); })
             .catch(() => {});
-          observer.unobserve(cardRef.current!);
         }
       }
     }, { rootMargin: '300px' });
-    observer.observe(cardRef.current);
+    observer.observe(el);
     return () => observer.disconnect();
   }, [video.id]);
 
@@ -99,6 +163,48 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
     currentVideo.value = video;
     currentView.value = 'player';
     if ((window as any).playVideo) (window as any).playVideo(video.id);
+  };
+
+  const playFromButton = (e: any) => {
+    e.stopPropagation();
+    play();
+  };
+
+  const handleCardClick = (e: any) => {
+    const idx = index ?? -1;
+    // Shift+click: select the range between the last-clicked card and this one,
+    // file-manager style. Falls back to plain play when there's no anchor.
+    if (e.shiftKey && idx >= 0 && lastClickedIndex >= 0 && !isRelated) {
+      e.preventDefault();
+      const list = filteredVideos.value;
+      const [a, b] = lastClickedIndex < idx ? [lastClickedIndex, idx] : [idx, lastClickedIndex];
+      const next = new Set(selectedVideoIds.value);
+      for (let i = a; i <= b && i < list.length; i++) next.add(list[i].id);
+      selectedVideoIds.value = next;
+      videoSelMode.value = next.size > 0;
+      return;
+    }
+    // Ctrl/Cmd+click toggles a single card into the selection.
+    if ((e.ctrlKey || e.metaKey) && idx >= 0 && !isRelated) {
+      e.preventDefault();
+      const next = new Set(selectedVideoIds.value);
+      if (next.has(video.id)) next.delete(video.id); else next.add(video.id);
+      selectedVideoIds.value = next;
+      videoSelMode.value = next.size > 0;
+      lastClickedIndex = idx;
+      return;
+    }
+    // While in multi-select mode a plain click toggles rather than opens.
+    if (videoSelMode.value && idx >= 0 && !isRelated) {
+      const next = new Set(selectedVideoIds.value);
+      if (next.has(video.id)) next.delete(video.id); else next.add(video.id);
+      selectedVideoIds.value = next;
+      videoSelMode.value = next.size > 0;
+      lastClickedIndex = idx;
+      return;
+    }
+    if (idx >= 0 && !isRelated) lastClickedIndex = idx;
+    play();
   };
 
   const handleMouseEnter = () => {
@@ -137,7 +243,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
 
   const handleMove = (e: any) => {
     e.stopPropagation();
-    (window as any).openMov(video.id, video.name, video.catPath || '');
+    (window as any).openMov(video.id, video.name, video.catPath || '', !!(video as any).isVault);
   };
 
   const handlePlaylist = (e: any) => {
@@ -170,20 +276,36 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
     }
   };
 
+  const isEncrypting = encryptingVideoIds.value.has(video.id);
+
   return (
     <div
       className={`video-card fade-in ${isSelected ? 'selected' : ''}`}
       id={`v-${video.id}`}
-      onClick={play}
+      onClick={isEncrypting ? undefined : handleCardClick}
       onContextMenu={openCtx}
       data-id={video.id}
+      data-index={index}
+      tabIndex={0}
+      role="button"
+      aria-label={video.name}
+      onKeyDown={(e: any) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          // Don't hijack typing inside the inline panels.
+          if ((e.target as HTMLElement).closest('input, textarea')) return;
+          e.preventDefault();
+          play();
+        }
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       style={{
         animationDelay: `${Math.min((index ?? 0) * 35, 420)}ms`,
         border: isSelected ? '2.5px solid #ff7300' : '1px solid var(--brd)',
         backgroundColor: isSelected ? 'rgba(255, 115, 0, 0.12)' : 'var(--bg2)',
-        boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined
+        boxShadow: isSelected ? '0 0 15px rgba(255, 115, 0, 0.45)' : undefined,
+        display: isEncrypting ? 'none' : undefined,
+        pointerEvents: isEncrypting ? 'none' : undefined
       }}
       draggable={true}
       onDragStart={(e) => {
@@ -195,13 +317,30 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       ref={cardRef}
     >
       <div className="card-thumb">
-        <img
-          src={video.isLink ? (video.img || '') : `/api/thumbs/${video.id}/0`}
-          loading="lazy"
-          className="video-thumb"
-          id={`img-${video.id}`}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
+        {video.isLink && !(video.img || linkThumb) ? (
+          <div
+            className="video-thumb link-thumb-placeholder"
+            style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--border)' }}
+          >
+            <img
+              src={`https://www.google.com/s2/favicons?sz=32&domain_url=${encodeURIComponent(video.linkUrl || video.relPath || '')}`}
+              width="32"
+              height="32"
+              loading="lazy"
+              alt=""
+              style={{ opacity: 0.7 }}
+            />
+          </div>
+        ) : (
+          <img
+            src={video.isLink ? (video.img || linkThumb) : `/api/thumbs/${video.id}/${thumbIdx}`}
+            loading="lazy"
+            className="video-thumb"
+            id={`img-${video.id}`}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        )}
         {showVideo && !video.isLink && (
           <video
             src={`/api/stream/${video.id}`}
@@ -235,23 +374,36 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
         }}>
           {isRelated ? (
             <>
-              <button onClick={enqueueNext} title="Add as next">
+              <button onClick={enqueueNext} title="Add as next" aria-label="Add as next in queue">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
               </button>
-              <button onClick={enqueueEnd} title="Add to end">
+              <button onClick={enqueueEnd} title="Add to end" aria-label="Add to end of queue">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5v14M5 19h14"/></svg>
               </button>
             </>
           ) : (
-            <button onClick={toggleFav} title="Favourite" className={video.fav ? 'fav-active' : ''}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            </button>
+            <>
+              {!video.isLink && (
+                <button onClick={playFromButton} title="Play" aria-label={`Play ${video.name}`}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+              )}
+              <button onClick={toggleFav} title="Favourite" aria-label={video.fav ? 'Remove from favourites' : 'Add to favourites'} aria-pressed={video.fav ? 'true' : 'false'} className={video.fav ? 'fav-active' : ''}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </button>
+              {!video.isLink && (
+                <button onClick={enqueueEnd} title="Add to queue" aria-label="Add to play queue">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h13M3 12h13M3 18h9M17 15l4 3-4 3"/></svg>
+                </button>
+              )}
+            </>
           )}
           {video.isLink && (
             <>
               <button
                 onClick={openLink}
                 title="Open in browser"
+                aria-label="Open link in browser"
                 style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', color: 'white' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -263,6 +415,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
               <button
                 onClick={downloadLink}
                 title={dlQueued ? 'Download queued…' : 'Download video'}
+                aria-label={dlQueued ? 'Download queued' : 'Download video'}
                 className={dlQueued ? 'fav-active' : ''}
                 style={{ opacity: dlQueued ? 0.5 : 1 }}
               >
@@ -274,7 +427,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
               </button>
             </>
           )}
-          <button onClick={openCtx} title="Menu">
+          <button onClick={openCtx} title="Menu" aria-label="More actions">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
           </button>
         </div>
@@ -293,6 +446,18 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
         </div>
 
         {video.rating && <div className="rating-badge" style={{ zIndex: 2 }}>{'★'.repeat(video.rating)}</div>}
+        {(() => {
+          if (video.isLink) return null;
+          const p = getProgress(video.id);
+          if (!p || p.d <= 0) return null;
+          const pct = Math.min(100, (p.t / p.d) * 100);
+          if (pct < 1) return null;
+          return (
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', background: 'rgba(0,0,0,0.35)', zIndex: 4 }}>
+              <div className="card-progress-fill" style={{ '--w': `${pct}%` } as any} />
+            </div>
+          );
+        })()}
       </div>
       <div className="card-body">
         <div className="card-title" title={video.name}>{video.name}</div>
@@ -304,7 +469,74 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
   );
 };
 
+const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: boolean; index: number }) => {
+  const [thumbIdx] = useState(() => getThumbPref(video.id));
+
+  const play = () => {
+    currentVideo.value = video;
+    currentView.value = 'player';
+  };
+
+  const handleClick = (e: any) => {
+    if (e.shiftKey || e.ctrlKey || e.metaKey || videoSelMode.value) {
+      const next = new Set(selectedVideoIds.value);
+      if (next.has(video.id)) next.delete(video.id); else next.add(video.id);
+      selectedVideoIds.value = next;
+      videoSelMode.value = next.size > 0;
+      return;
+    }
+    if (video.isLink && !video.hasVideo) {
+      if (video.linkUrl) window.open(video.linkUrl, '_blank');
+      return;
+    }
+    play();
+  };
+
+  const toggleFav = async (e: any) => {
+    e.stopPropagation();
+    const r = await fetch(`/api/favourites/${video.id}`, { method: 'POST' });
+    const d = await r.json();
+    const list = [...videos.value];
+    const i = list.findIndex(v => v.id === video.id);
+    if (i !== -1) { list[i] = { ...list[i], fav: d.fav }; videos.value = list; }
+  };
+
+  const date = new Date(video.mtime * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const sizeMb = video.size > 0 ? `${(video.size / 1_048_576).toFixed(1)} MB` : '—';
+
+  return (
+    <div
+      className={`video-list-row${isSelected ? ' selected' : ''}`}
+      onClick={handleClick}
+      tabIndex={0}
+      onContextMenu={(e: any) => {
+        e.preventDefault();
+        contextMenuState.value = { visible: true, x: e.pageX, y: e.pageY, type: 'video', data: video };
+      }}
+    >
+      <img className="vl-thumb" src={`/api/thumbs/${video.id}/${thumbIdx}`} loading="lazy" alt="" />
+      <div className="vl-title" title={video.name}>{video.name}</div>
+      <div className="vl-dur">{video.duration > 0 ? formatDuration(video.duration) : '—'}</div>
+      <div className="vl-size">{sizeMb}</div>
+      <div className="vl-rating">{video.rating ? '★'.repeat(video.rating) : '—'}</div>
+      <div className="vl-date">{date}</div>
+      <button
+        type="button"
+        className="vl-fav"
+        onClick={toggleFav}
+        title={video.fav ? 'Remove from favourites' : 'Add to favourites'}
+      >
+        {video.fav ? '★' : '☆'}
+      </button>
+    </div>
+  );
+};
+
 export const VideoSelBar = () => {
+  const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
+  const [activePanel, setActivePanel] = useState<null | 'tag' | 'actor' | 'collection'>(null);
+  const [bulkInput, setBulkInput] = useState('');
+  const [colList, setColList] = useState<{ name: string; count: number }[]>([]);
   const count = selectedVideoIds.value.size;
   if (count === 0) return null;
 
@@ -313,26 +545,108 @@ export const VideoSelBar = () => {
   const hasLinks = linkVids.length > 0;
   const localVids = selectedVids.filter(v => !v.isLink);
 
+  const togglePanel = (panel: 'tag' | 'actor' | 'collection') => {
+    if (activePanel === panel) { setActivePanel(null); return; }
+    setBulkInput('');
+    if (panel === 'collection') {
+      fetch('/api/collections').then(r => r.json()).then(d => setColList(d || [])).catch(() => {});
+    }
+    setActivePanel(panel);
+  };
+
+  const applyBulkTag = async () => {
+    const tag = bulkInput.trim();
+    if (!tag || !localVids.length) return;
+    for (const v of localVids) {
+      const existing = v.tags || [];
+      if (existing.some(t => t.toLowerCase() === tag.toLowerCase())) continue;
+      await fetch(`/api/videos/${v.id}/meta`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: [...existing, tag] }),
+      }).catch(() => {});
+    }
+    (window as any).toast?.(`Tag "${tag}" added to ${localVids.length} video${localVids.length !== 1 ? 's' : ''}`);
+    setBulkInput('');
+    setActivePanel(null);
+  };
+
+  const applyBulkActor = async () => {
+    const actor = bulkInput.trim();
+    if (!actor || !localVids.length) return;
+    for (const v of localVids) {
+      const existing = v.actors || [];
+      if (existing.some(a => a.toLowerCase() === actor.toLowerCase())) continue;
+      await fetch(`/api/videos/${v.id}/meta`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actors: [...existing, actor] }),
+      }).catch(() => {});
+    }
+    (window as any).toast?.(`Actor "${actor}" added to ${localVids.length} video${localVids.length !== 1 ? 's' : ''}`);
+    setBulkInput('');
+    setActivePanel(null);
+  };
+
+  const applyBulkCollection = async (colName: string) => {
+    let added = 0;
+    for (const v of selectedVids) {
+      const r = await fetch(`/api/collections/${encodeURIComponent(colName)}/videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: v.id }),
+      }).catch(() => null);
+      if (r?.ok) added++;
+    }
+    (window as any).toast?.(`Added ${added} video${added !== 1 ? 's' : ''} to "${colName}"`);
+    setActivePanel(null);
+  };
+
   const encryptSelected = () => {
     if (!localVids.length) return;
+    ensureVaultUnlocked(() => setShowEncryptConfirm(true));
+  };
+
+  const runEncryptSelected = () => {
+    if (!localVids.length) return;
     ensureVaultUnlocked(async () => {
-      if (!confirm(`Encrypt ${localVids.length} video${localVids.length !== 1 ? 's' : ''} into the Vault?\nOriginals will be securely deleted and removed from the public database.`)) return;
       const w = window as any;
-      let ok = 0;
-      for (const v of localVids) {
+      const items = localVids.map(v => ({ id: v.id, kind: 'video', name: v.name }));
+      const r = await fetch('/api/vault/encrypt-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        if (w.toast) w.toast('Encryption failed: ' + (err.error || 'Unknown error'));
+        return;
+      }
+
+      // Background job runs server-side; progress is shown in Sync & Background
+      // Tasks. Poll here so the grid drops each video as it gets encrypted.
+      const orderedIds = items.map(i => i.id);
+      const removeDone = (ids: Set<string>) => {
+        if (!ids.size) return;
+        videos.value = videos.value.filter(x => !ids.has(x.id));
+        allVideos.value = allVideos.value.filter(x => !ids.has(x.id));
+        selectedVideoIds.value = new Set([...selectedVideoIds.value].filter(id => !ids.has(id)));
+      };
+      const poll = async () => {
         try {
-          const r = await fetch(`/api/videos/${v.id}/encrypt`, { method: 'POST' });
-          if (r.ok) {
-            ok++;
-            // Instant gallery update — remove each file as it is encrypted
-            videos.value = videos.value.filter(x => x.id !== v.id);
-            allVideos.value = allVideos.value.filter(x => x.id !== v.id);
-            selectedVideoIds.value = new Set([...selectedVideoIds.value].filter(id => id !== v.id));
+          const s = await fetch('/api/encryption/status').then(res => res.json());
+          const done = s.done || 0;
+          if (done > 0) removeDone(new Set(orderedIds.slice(0, done)));
+          if (!s.running) {
+            clearInterval(intervalId);
+            removeDone(new Set(orderedIds));
+            videoSelMode.value = selectedVideoIds.value.size > 0;
+            if (w.toast) w.toast(s.error ? ('Encryption error: ' + s.error) : `Encrypted ${orderedIds.length} video${orderedIds.length !== 1 ? 's' : ''} into the Vault`);
           }
         } catch {}
-      }
-      videoSelMode.value = selectedVideoIds.value.size > 0;
-      if (w.toast) w.toast(`Encrypted ${ok}/${localVids.length} video${localVids.length !== 1 ? 's' : ''} into the Vault`);
+      };
+      const intervalId = setInterval(poll, 700);
+      poll();
     });
   };
 
@@ -360,8 +674,8 @@ export const VideoSelBar = () => {
     for (const v of linkVids) {
       let targetCat = v.category || '';
       if (targetCat === 'Links' || targetCat === 'Uncategorized' || !targetCat) {
-        const catsList = categories.value || [];
-        const match = matchLinkCat(v.name, catsList);
+        const catsList = folders.value || [];
+        const match = matchLinkFolder(v.name, catsList);
         if (match && match.catPath !== 'Links') {
           targetCat = match.catPath;
         } else {
@@ -390,9 +704,10 @@ export const VideoSelBar = () => {
   };
 
   return (
-    <div className="video-sel-bar" style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
+    <>
+    <div className="video-sel-bar" style={{
+      display: 'flex',
+      alignItems: 'center',
       gap: '15px',
       background: 'rgba(0, 0, 0, 0.8)',
       backdropFilter: 'blur(10px)',
@@ -448,36 +763,216 @@ export const VideoSelBar = () => {
         </button>
       )}
 
-      <button 
-        onClick={(e) => (window as any).showVideoSelMoveMenu && (window as any).showVideoSelMoveMenu(e)}
+      <button
+        onClick={() => moveModalState.value = { visible: true, vidIds: [...selectedVideoIds.value], linkUrl: null, currentFolder: '', isVault: selectedVids.some(v => (v as any).isVault) }}
         style={{ background: 'var(--ac)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         Move to
       </button>
-      <button 
+      {localVids.length > 0 && (
+        <button
+          onClick={() => togglePanel('tag')}
+          style={{ background: activePanel === 'tag' ? 'var(--ac)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Tag
+        </button>
+      )}
+      {localVids.length > 0 && (
+        <button
+          onClick={() => togglePanel('actor')}
+          style={{ background: activePanel === 'actor' ? 'var(--ac)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Actor
+        </button>
+      )}
+      <button
+        onClick={() => togglePanel('collection')}
+        style={{ background: activePanel === 'collection' ? 'var(--ac)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Playlist
+      </button>
+      <button
+        onClick={() => {
+          selectedVideoIds.value = new Set(filteredVideos.value.map(v => v.id));
+          videoSelMode.value = true;
+        }}
+        style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer' }}
+      >
+        Select all
+      </button>
+      <button
         onClick={() => {
           selectedVideoIds.value = new Set();
           videoSelMode.value = false;
+          setActivePanel(null);
         }}
         style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer' }}
       >
         Deselect all
       </button>
     </div>
+    {activePanel === 'tag' && (
+      <div style={{ position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '14px 16px', display: 'flex', gap: '8px', zIndex: 1001, minWidth: '280px' }}>
+        <input
+          autoFocus
+          value={bulkInput}
+          onInput={(e: any) => setBulkInput(e.target.value)}
+          onKeyDown={(e: any) => e.key === 'Enter' && applyBulkTag()}
+          placeholder="Tag name…"
+          style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', padding: '6px 10px', fontSize: '0.9rem' }}
+        />
+        <button onClick={applyBulkTag} style={{ background: 'var(--ac)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 600 }}>Add</button>
+      </div>
+    )}
+    {activePanel === 'actor' && (
+      <div style={{ position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '14px 16px', display: 'flex', gap: '8px', zIndex: 1001, minWidth: '280px' }}>
+        <input
+          autoFocus
+          value={bulkInput}
+          onInput={(e: any) => setBulkInput(e.target.value)}
+          onKeyDown={(e: any) => e.key === 'Enter' && applyBulkActor()}
+          placeholder="Actor name…"
+          style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', padding: '6px 10px', fontSize: '0.9rem' }}
+        />
+        <button onClick={applyBulkActor} style={{ background: 'var(--ac)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 600 }}>Add</button>
+      </div>
+    )}
+    {activePanel === 'collection' && (
+      <div style={{ position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '14px 16px', zIndex: 1001, minWidth: '240px', maxHeight: '220px', overflowY: 'auto' }}>
+        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>Add {count} video{count !== 1 ? 's' : ''} to playlist</div>
+        {colList.length === 0 ? (
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem' }}>No playlists yet</div>
+        ) : colList.map(col => (
+          <div
+            key={col.name}
+            onClick={() => applyBulkCollection(col.name)}
+            style={{ padding: '8px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '0.87rem', color: '#fff', display: 'flex', justifyContent: 'space-between' }}
+            onMouseOver={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseOut={(e: any) => e.currentTarget.style.background = 'none'}
+          >
+            <span>{col.name}</span>
+            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.78rem' }}>{col.count}</span>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {showEncryptConfirm && (
+      <div className="modal on" style={{ display: 'flex' }}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <h2>Encrypt Videos</h2>
+          </div>
+          <div className="modal-body">
+            <p>Encrypt {localVids.length} video{localVids.length !== 1 ? 's' : ''} into the Vault?</p>
+            <p>Originals will be securely deleted and removed from the public database.</p>
+          </div>
+          <div className="modal-footer">
+            <button class="modal-btn modal-btn--primary" onClick={() => {
+              setShowEncryptConfirm(false);
+              runEncryptSelected();
+            }}>Encrypt</button>
+            <button class="modal-btn" onClick={() => setShowEncryptConfirm(false)}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
+
+const CHUNK_SIZE = 60;
 
 export const VideoGrid = () => {
   const list = filteredVideos.value;
   const gridRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [renderLimit, setRenderLimit] = useState(CHUNK_SIZE);
+  const prevListRef = useRef(list);
 
   useVideoSelection(gridRef);
+
+  // Reset chunking when the filtered list itself changes (new search/category/sort/etc.)
+  if (prevListRef.current !== list) {
+    prevListRef.current = list;
+    if (renderLimit !== CHUNK_SIZE) setRenderLimit(CHUNK_SIZE);
+  }
+
+  useEffect(() => {
+    if (!sentinelRef.current || renderLimit >= list.length) return;
+    const observer = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting) setRenderLimit(l => l + CHUNK_SIZE);
+      }
+    }, { rootMargin: '600px' });
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [list, renderLimit]);
+
+  // Fade in year/decade group headers as they enter the viewport.
+  useEffect(() => {
+    if (groupByYear.value === 'none') return;
+    const headers = document.querySelectorAll<HTMLElement>('.year-group-header');
+    if (!headers.length) return;
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) (e.target as HTMLElement).classList.add('visible'); });
+    }, { threshold: 0.15 });
+    headers.forEach(h => obs.observe(h));
+    return () => obs.disconnect();
+  }, [list]);
+
+  // Arrow-key navigation between cards + Escape to clear selection.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Escape clears an active multi-selection from anywhere.
+      if (e.key === 'Escape' && selectedVideoIds.value.size > 0) {
+        const tag = (e.target as HTMLElement).tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return;
+        selectedVideoIds.value = new Set();
+        videoSelMode.value = false;
+        return;
+      }
+
+      if (!['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      const grid = gridRef.current;
+      if (!grid) return;
+      const active = document.activeElement as HTMLElement | null;
+      // Only drive grid navigation when a card already has focus.
+      if (!active || !active.classList.contains('video-card') || !grid.contains(active)) return;
+
+      const cards = Array.from(grid.querySelectorAll<HTMLElement>('.video-card'));
+      if (!cards.length) return;
+      const cur = cards.indexOf(active);
+      if (cur === -1) return;
+
+      // Derive the column count from how many cards share the top row's offsetTop.
+      const firstTop = cards[0].offsetTop;
+      let cols = cards.filter(c => c.offsetTop === firstTop).length || 1;
+
+      let next = cur;
+      if (e.key === 'ArrowRight') next = cur + 1;
+      else if (e.key === 'ArrowLeft') next = cur - 1;
+      else if (e.key === 'ArrowDown') next = cur + cols;
+      else if (e.key === 'ArrowUp') next = cur - cols;
+
+      if (next >= 0 && next < cards.length) {
+        e.preventDefault();
+        cards[next].focus();
+        cards[next].scrollIntoView({ block: 'nearest' });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   if (isLoadingVideos.value) {
     return (
       <div className="video-grid" id="video-grid">
-        {Array(12).fill(0).map((_, i) => (
+        {Array(skeletonCount.value).fill(0).map((_, i) => (
           <div key={i} className="skeleton skeleton-card"></div>
         ))}
       </div>
@@ -493,19 +988,111 @@ export const VideoGrid = () => {
     );
   }
 
+  const visible = list.slice(0, renderLimit);
+  const viewMode = gridViewMode.value;
+  const groupMode = groupByYear.value;
+
+  const sentinel = renderLimit < list.length ? (
+    <div ref={sentinelRef} style={{ textAlign: 'center', padding: '20px', color: 'var(--tx3)', fontSize: '0.85rem' }}>
+      Showing {visible.length} of {list.length} — scroll for more
+    </div>
+  ) : null;
+
+  const countBar = (
+    <div style={{ padding: '4px 2px 0', color: 'var(--tx3)', fontSize: '0.8rem' }}>
+      {list.length} video{list.length !== 1 ? 's' : ''}
+    </div>
+  );
+
+  const listHeader = (
+    <div className="vl-header">
+      <span className="vl-thumb" />
+      <span className="vl-title">Title</span>
+      <span className="vl-dur">Duration</span>
+      <span className="vl-size">Size</span>
+      <span className="vl-rating">Rating</span>
+      <span className="vl-date">Added</span>
+      <span className="vl-fav" />
+    </div>
+  );
+
+  // ── Grouped rendering ────────────────────────────────────────────────
+  if (groupMode !== 'none') {
+    const groupMap = new Map<string, Video[]>();
+    for (const v of visible) {
+      const year = new Date(v.mtime * 1000).getFullYear();
+      const label = groupMode === 'decade' ? `${Math.floor(year / 10) * 10}s` : String(year);
+      if (!groupMap.has(label)) groupMap.set(label, []);
+      groupMap.get(label)!.push(v);
+    }
+    const groups = [...groupMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
+    return (
+      <>
+        <VideoSelBar />
+        {countBar}
+        {groups.map(([label, items]) => (
+          <div key={label} className="year-group">
+            <h3 className="year-group-header">{label} <span className="year-group-count">({items.length})</span></h3>
+            {viewMode === 'list' ? (
+              <div className="video-list-view">
+                {listHeader}
+                {items.map((v, i) => (
+                  <VideoListRow key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="video-grid" data-thumb-mode={thumbBlurMode.value}>
+                {items.map((v, i) => (
+                  <VideoCard key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {sentinel}
+      </>
+    );
+  }
+
+  // ── List view ────────────────────────────────────────────────────────
+  if (viewMode === 'list') {
+    return (
+      <>
+        <VideoSelBar />
+        {countBar}
+        <div className="video-list-view" ref={gridRef}>
+          {listHeader}
+          {visible.map((v, i) => (
+            <VideoListRow key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
+          ))}
+        </div>
+        {sentinel}
+      </>
+    );
+  }
+
+  // ── Default grid view ────────────────────────────────────────────────
   return (
     <>
       <VideoSelBar />
-      <div className="video-grid" id="video-grid" ref={gridRef} data-thumb-mode={thumbBlurMode.value}>
-        {list.map((v, i) => (
-          <VideoCard
-            key={v.id}
-            video={v}
-            isSelected={selectedVideoIds.value.has(v.id)}
-            index={i}
-          />
+      {countBar}
+      <div
+        className="video-grid"
+        id="video-grid"
+        ref={gridRef}
+        data-thumb-mode={thumbBlurMode.value}
+        onContextMenu={(e: any) => {
+          if ((e.target as HTMLElement).closest('.video-card')) return;
+          e.preventDefault();
+          contextMenuState.value = { visible: true, x: e.pageX, y: e.pageY, type: 'grid', data: null };
+        }}
+      >
+        {visible.map((v, i) => (
+          <VideoCard key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
         ))}
       </div>
+      {sentinel}
     </>
   );
 };

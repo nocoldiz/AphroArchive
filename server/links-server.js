@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  links.js — Websites, browser-favs import, OG thumbnails,
 //                 links cache, and scrape proxy
@@ -11,8 +11,8 @@ const https = require('https');
 const os    = require('os');
 const url   = require('url');
 const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
-const { json, readBody, serveStatic }   = require('./helpers-server');
-const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, loadOgThumbCache, saveOgThumbCache, loadCategories, loadEnabledCategories, loadAllVideoTags } = require('./db-server');
+const { json, readBody, serveStatic, LIMITS }   = require('./helpers-server');
+const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink, loadOgThumbCache, saveOgThumbCache, loadFolderMappings, loadEnabledFolders, loadAllVideoTags, upsertChannelEntry } = require('./db-server');
 const { wordMatchAny, wordMatch } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
@@ -345,6 +345,7 @@ const EMBED_HOSTS = [
   'myvi.ru', 'ok.ru', 'rutube.ru',
   'xvideos.com', 'xhamster.com', 'pornhub.com', 'redtube.com',
   'tube8.com', 'youporn.com', 'spankbang.com', 'xnxx.com',
+  'x.com', 'twitter.com',
 ];
 
 function extractEmbedUrl(pageUrl) {
@@ -415,10 +416,10 @@ function scrapeLink(pageUrl) {
   });
 }
 
-function autoCategorizeLinks(items) {
-  const cats = loadCategories();
+function autoFolderizeLinks(items) {
+  const cats = loadFolderMappings();
   const allTags = loadAllVideoTags();
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
   const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
 
   for (const item of items) {
@@ -525,7 +526,7 @@ function startScrapingWorker({ reset = false } = {}) {
     }
     // Auto-categorise any remaining un-tagged items at the end
     const finalCache = loadLinksCache();
-    autoCategorizeLinks(finalCache.items || []);
+    autoFolderizeLinks(finalCache.items || []);
     saveLinksCache(finalCache);
     console.log(`[scrape] done — ${_scrapeJob.done} ok, ${_scrapeJob.failed} failed`);
     _scrapeJob.running = false;
@@ -562,7 +563,7 @@ function apiGetLinksCache(req, res) {
   const cache = loadLinksCache();
   let items = cache.items || [];
 
-  const enabledPaths = loadEnabledCategories();
+  const enabledPaths = loadEnabledFolders();
   if (enabledPaths.length > 0) {
     const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
     items = items.filter(item => {
@@ -603,7 +604,7 @@ async function apiSaveLinksCache(req, res) {
     if (_scrapeJob && _scrapeJob.running) {
       _scrapeJob.stop = true;
     }
-    autoCategorizeLinks(items);
+    autoFolderizeLinks(items);
     saveLinksCache({ items });
     json(res, { ok: true, count: items.length });
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -666,6 +667,8 @@ async function apiWebsitesBulkAdd(req, res) {
 async function apiWebsiteAdd(req, res) {
   const body = await readBody(req);
   if (!body.url) return json(res, { error: 'url required' }, 400);
+  if (typeof body.url !== 'string' || body.url.length > LIMITS.url) return json(res, { error: `url is invalid or too long (max ${LIMITS.url} characters)` }, 400);
+  if (body.name && String(body.name).length > LIMITS.name) return json(res, { error: `name is too long (max ${LIMITS.name} characters)` }, 400);
   const sites = loadWebsites();
   sites.push({
     name: body.name || body.url,
@@ -713,20 +716,33 @@ async function apiScrape(req, res) {
 
 // ── Browser favourites ────────────────────────────────────────────────
 
-function loadWhitelist() {
-  const sites = loadWebsites();
-  if (sites.length) return sites.map(s => { try { return new URL(s.url).hostname; } catch { return s.url; } });
-  try {
-    const { BROWSER_WHITELIST_FILE } = require('./config-server');
-    return fs.readFileSync(BROWSER_WHITELIST_FILE, 'utf-8')
-      .split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  } catch { return []; }
+function loadFolderAndTagNames() {
+  const cats = loadFolderMappings();
+  const names = new Set();
+  for (const cat of cats) {
+    // Add the display name and category name
+    if (cat.displayName) names.add(cat.displayName.toLowerCase());
+    if (cat.name) names.add(cat.name.toLowerCase());
+    // Add all terms associated with this category
+    if (Array.isArray(cat.terms)) {
+      for (const t of cat.terms) {
+        if (t && t.length >= 2) names.add(t.toLowerCase());
+      }
+    }
+  }
+  // Also load all video tags from the profile
+  const allTags = loadAllVideoTags();
+  for (const tag of allTags) {
+    if (tag && tag.length >= 2) names.add(tag.toLowerCase());
+  }
+  return [...names];
 }
 
-function matchesWhitelist(urlStr, whitelist) {
+function matchesCategoryOrTag(urlStr, matchNames) {
   try {
-    const hostname = new URL(urlStr).hostname;
-    return whitelist.some(entry => hostname.includes(entry));
+    const u = new URL(urlStr);
+    const searchText = (u.hostname + ' ' + u.pathname + ' ' + u.search).toLowerCase();
+    return matchNames.some(name => searchText.includes(name));
   } catch { return false; }
 }
 
@@ -853,9 +869,9 @@ function apiBrowserFavs(req, res) {
       return json(res, { items });
     }
 
-    const whitelist = loadWhitelist();
-    if (!whitelist.length) return json(res, { whitelist_empty: true, items: [] });
-    json(res, { items: items.filter(b => matchesWhitelist(b.url, whitelist)) });
+    const matchNames = loadFolderAndTagNames();
+    if (!matchNames.length) return json(res, { cat_tag_empty: true, items: [] });
+    json(res, { items: items.filter(b => matchesCategoryOrTag(b.url, matchNames)) });
   } catch (e) {
     console.error('apiBrowserFavs error:', e);
     json(res, { error: e.message, items: [] }, 500);
@@ -867,8 +883,8 @@ async function apiBrowserFavsFile(req, res) {
     const body     = await readBody(req);
     const { data, filename, browser } = body;
     if (!data) return json(res, { error: 'No file data' }, 400);
-    const whitelist = loadWhitelist();
-    if (!whitelist.length) return json(res, { whitelist_empty: true, items: [] });
+    const matchNames = loadFolderAndTagNames();
+    if (!matchNames.length) return json(res, { cat_tag_empty: true, items: [] });
 
     const buf         = Buffer.from(data, 'base64');
     const MOZILLA_MAGIC = Buffer.from('mozLz40\0');
@@ -890,11 +906,112 @@ async function apiBrowserFavsFile(req, res) {
       }
     }
 
-    json(res, { items: all.filter(b => matchesWhitelist(b.url, whitelist)) });
+    json(res, { items: all.filter(b => matchesCategoryOrTag(b.url, matchNames)) });
   } catch (e) {
     console.error('apiBrowserFavsFile error:', e);
     json(res, { error: e.message, items: [] }, 500);
   }
+}
+
+// ── Channel URL detection ─────────────────────────────────────────────
+
+const _CHANNEL_SEGMENTS = new Set([
+  'model', 'models', 'channel', 'channels', 'profile', 'profiles',
+  'user', 'users', 'performer', 'performers', 'pornstar', 'pornstars',
+  'creator', 'creators', 'author', 'authors',
+]);
+
+// Platform-specific rules: host suffix → { patterns, blocklist, extractHandle }
+const _CHANNEL_PLATFORMS = [
+  {
+    host: 'youtube.com',
+    patterns: [/^\/@[^/]+\/?$/, /^\/channel\/[^/]+\/?$/, /^\/user\/[^/]+\/?$/, /^\/c\/[^/]+\/?$/],
+    extractHandle(p) {
+      const m = p.match(/^\/@?([^/]+?)\/?$/);
+      return m ? m[1] : null;
+    },
+  },
+  {
+    host: 'x.com',
+    blocklist: new Set(['home','explore','notifications','messages','i','settings','search','login','signup','compose','intent']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'twitter.com',
+    blocklist: new Set(['home','explore','notifications','messages','i','settings','search','login','signup','compose','intent']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'instagram.com',
+    blocklist: new Set(['p','reel','reels','explore','accounts','stories','direct','tv','ar','about','legal','privacy','help','api','static','graphql']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'tiktok.com',
+    patterns: [/^\/@[^/]+\/?$/],
+    extractHandle(p) { const m = p.match(/^\/@([^/]+?)\/?$/); return m ? m[1] : null; },
+  },
+  {
+    host: 'onlyfans.com',
+    blocklist: new Set(['login','signup','feed','categories','bundles','referrals','my','home','terms','privacy','dmca','press','jobs']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'twitch.tv',
+    blocklist: new Set(['directory','downloads','settings','drops','subscriptions','inventory','wallet','prime','turbo','login','signup','bits']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'reddit.com',
+    patterns: [/^\/user\/[^/]+\/?$/],
+    extractHandle(p) { const m = p.match(/^\/user\/([^/]+)/); return m ? m[1] : null; },
+  },
+  {
+    host: 'fansly.com',
+    blocklist: new Set(['login','signup','explore','discover','settings','help','privacy','terms']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+  {
+    host: 'patreon.com',
+    blocklist: new Set(['login','signup','explore','create','home','policy','sitemap','apps','careers']),
+    patterns: [/^\/[^/]+\/?$/],
+    extractHandle(p) { const s = p.replace(/^\/|\/$/g, ''); return s.includes('/') ? null : s; },
+  },
+];
+
+function detectChannelUrl(rawUrl) {
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch { return null; }
+  const hostname = parsed.hostname.replace(/^www\./, '');
+  const pathname = parsed.pathname;
+  const segments = pathname.split('/').filter(Boolean);
+
+  for (const platform of _CHANNEL_PLATFORMS) {
+    if (hostname === platform.host || hostname.endsWith('.' + platform.host)) {
+      const firstSeg = (segments[0] || '').toLowerCase();
+      if (platform.blocklist && platform.blocklist.has(firstSeg)) return null;
+      for (const pat of platform.patterns) {
+        if (pat.test(pathname) || pat.test(pathname.replace(/\/$/, ''))) {
+          const handle = platform.extractHandle(pathname);
+          if (handle) return { name: handle, handle, website: parsed.origin };
+        }
+      }
+      return null;
+    }
+  }
+
+  // Generic: first path segment is a channel-type keyword, second is the handle
+  if (segments.length >= 2 && _CHANNEL_SEGMENTS.has(segments[0].toLowerCase()) && segments[1]) {
+    return { name: segments[1], handle: segments[1], website: parsed.origin };
+  }
+
+  return null;
 }
 
 // ── URL-paste import ─────────────────────────────────────────────────
@@ -923,7 +1040,7 @@ async function apiImportLinks(req, res) {
   const cache = loadLinksCache();
   const existingUrls = new Set((cache.items || []).map(i => i.url));
   const existingNames = new Set((cache.items || []).map(i => (i.title || '').trim().toLowerCase()).filter(Boolean));
-  const cats = loadCategories();
+  const cats = loadFolderMappings();
   const allTags = loadAllVideoTags();
 
   let added = 0, skipped = 0;
@@ -954,8 +1071,12 @@ async function apiImportLinks(req, res) {
   }
 
   if (newItems.length) {
-    autoCategorizeLinks(newItems);
-    for (const it of newItems) upsertLink(it);
+    autoFolderizeLinks(newItems);
+    for (const it of newItems) {
+      upsertLink(it);
+      const ch = detectChannelUrl(it.url);
+      if (ch) upsertChannelEntry(ch);
+    }
   }
 
   json(res, { ok: true, added, skipped });
@@ -1015,6 +1136,8 @@ async function apiImportLinksJson(req, res) {
       clean.addedAt = clean.addedAt || Date.now();
       clean.tags    = Array.isArray(clean.tags) ? clean.tags : [];
       upsertLink(clean);
+      const ch = detectChannelUrl(clean.url);
+      if (ch) upsertChannelEntry(ch);
       existingUrls.add(clean.url);
       if (nm) existingNames.add(nm);
       added++;
@@ -1023,6 +1146,45 @@ async function apiImportLinksJson(req, res) {
 
   const total = existingUrls.size;
   json(res, { ok: true, added, skipped, total });
+}
+
+// ── Single-item operations (avoid full-cache rewrite) ────────────────
+
+const _LINK_UPDATABLE_FIELDS = ['title', 'category', 'img', 'scrapedVideoUrl', 'hasVideo', 'embedUrl', 'hasEmbed', 'tags', 'downloaded', 'localVideoId', 'fav', 'vault'];
+
+async function apiUpdateLinkItem(req, res) {
+  try {
+    const body = await readBody(req);
+    if (!body.url) return json(res, { error: 'url required' }, 400);
+
+    const existing = getLink(body.url);
+    if (!existing) return json(res, { error: 'Link not found' }, 404);
+
+    const updated = { ...existing };
+    for (const f of _LINK_UPDATABLE_FIELDS) if (body[f] !== undefined) updated[f] = body[f];
+
+    upsertLink(updated);
+    json(res, { ok: true, item: updated });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiDeleteLinkItem(req, res) {
+  try {
+    const body = await readBody(req);
+    if (!body.url) return json(res, { error: 'url required' }, 400);
+    deleteLink(body.url);
+    json(res, { ok: true });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+async function apiDeleteLinkItems(req, res) {
+  try {
+    const body = await readBody(req);
+    const urls = Array.isArray(body.urls) ? body.urls : [];
+    if (!urls.length) return json(res, { error: 'urls required' }, 400);
+    const deleted = deleteLinks(urls);
+    json(res, { ok: true, deleted });
+  } catch (e) { json(res, { error: e.message }, 500); }
 }
 
 async function apiLinkMove(req, res) {
@@ -1038,6 +1200,43 @@ async function apiLinkMove(req, res) {
     for (const url of urls) {
       const link = byUrl.get(url);
       if (link) { upsertLink({ ...link, category }); updated++; }
+    }
+    json(res, { ok: true, updated });
+  } catch (e) { json(res, { error: e.message }, 500); }
+}
+
+// Bulk-edit many links at once: tags (add/remove/set), category, fav, title.
+async function apiLinkBulkUpdate(req, res) {
+  try {
+    const body = await readBody(req);
+    const urls = Array.isArray(body.urls) ? body.urls : [];
+    if (!urls.length) return json(res, { error: 'urls required' }, 400);
+
+    const clean = (arr) => (Array.isArray(arr) ? arr.map(t => String(t).trim()).filter(Boolean) : null);
+    const addTags = clean(body.addTags);
+    const removeTags = clean(body.removeTags);
+    const setTags = clean(body.setTags);
+
+    const { items } = loadLinksCache();
+    const byUrl = new Map(items.map(l => [l.url, l]));
+    let updated = 0;
+    for (const url of urls) {
+      const link = byUrl.get(url);
+      if (!link) continue;
+      const next = { ...link };
+      if (setTags) {
+        next.tags = [...new Set(setTags)];
+      } else if (addTags || removeTags) {
+        let tags = Array.isArray(next.tags) ? [...next.tags] : [];
+        if (addTags) for (const t of addTags) if (!tags.includes(t)) tags.push(t);
+        if (removeTags) tags = tags.filter(t => !removeTags.includes(t));
+        next.tags = tags;
+      }
+      if (body.category !== undefined) next.category = String(body.category).trim();
+      if (body.fav !== undefined) next.fav = !!body.fav;
+      if (typeof body.title === 'string' && body.title.trim()) next.title = body.title.trim();
+      upsertLink(next);
+      updated++;
     }
     json(res, { ok: true, updated });
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -1059,5 +1258,6 @@ module.exports = {
   apiRescrapeAll,
   apiImportLinks,
   apiExportLinksJson, apiImportLinksJson,
-  apiLinkMove,
+  apiLinkMove, apiLinkBulkUpdate,
+  apiUpdateLinkItem, apiDeleteLinkItem, apiDeleteLinkItems,
 };

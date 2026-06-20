@@ -1,7 +1,9 @@
-/** @jsxImportSource preact */
+﻿/** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { presetPickerState, activeProfile, dbPendingOpen, loadVideos } from '../../store';
 import { ActorScraperView } from './ActorScraperView';
+import { loadDbSeries, dbSeriesList, DbSeriesEntry, DbEpisode } from '../../series';
+import { Album, AlbumTrack } from '../../types';
 
 interface DbEntry {
   name: string;
@@ -23,6 +25,11 @@ export const DatabaseView = () => {
   const [sourceFolders, setSourceFolders] = useState<string[]>([]);
   const [defaultRoot, setDefaultRoot] = useState<string>('');
   const [newSourceFolder, setNewSourceFolder] = useState('');
+
+  // Create-folders-from-preset (folders tab)
+  const [folderPresets, setFolderPresets] = useState<{id: string, name: string, counts: Record<string, number>}[]>([]);
+  const [folderPresetSel, setFolderPresetSel] = useState('');
+  const [creatingFolders, setCreatingFolders] = useState(false);
 
   const importFileRef = useRef<HTMLInputElement>(null);
   const importAllRef = useRef<HTMLInputElement>(null);
@@ -46,13 +53,31 @@ export const DatabaseView = () => {
   const [linkSitesSelected, setLinkSitesSelected] = useState<Set<string>>(new Set());
   const [linkSitesOpen, setLinkSitesOpen] = useState(false);
 
+  // Series tab state
+  const seriesList = dbSeriesList.value;
+  const [seriesModalOpen, setSeriesModalOpen] = useState(false);
+  const [seriesEditKey, setSeriesEditKey] = useState<string | null>(null);
+  const [seriesForm, setSeriesForm] = useState<{ name: string; key: string; cover: string; episodesText: string }>({ name: '', key: '', cover: '', episodesText: '' });
+  const [seriesExpandedKey, setSeriesExpandedKey] = useState<string | null>(null);
+  const importSeriesRef = useRef<HTMLInputElement>(null);
+
+  // Albums tab state
+  const [albumsList, setAlbumsList] = useState<Album[]>([]);
+  const [albumModalOpen, setAlbumModalOpen] = useState(false);
+  const [albumEditId, setAlbumEditId] = useState<string | null>(null);
+  const [albumForm, setAlbumForm] = useState<{ id: string; name: string; artist: string; year: string; tracksText: string }>({ id: '', name: '', artist: '', year: '', tracksText: '' });
+  const [albumExpandedId, setAlbumExpandedId] = useState<string | null>(null);
+  const importAlbumsRef = useRef<HTMLInputElement>(null);
+
   const tabs = [
     { id: 'folders', name: 'Folders' },
     { id: 'actors', name: 'Actors' },
     { id: 'categories', name: 'Tags' },
-    { id: 'studios', name: 'Studios' },
+    { id: 'channels', name: 'Channels' },
     { id: 'websites', name: 'Websites' },
     { id: 'wildcards', name: 'Wildcards' },
+    { id: 'series', name: 'Series' },
+    { id: 'albums', name: 'Albums' },
   ];
 
   useEffect(() => {
@@ -73,10 +98,26 @@ export const DatabaseView = () => {
   }, []);
 
   const loadTab = async (tab: string) => {
+    if (tab === 'series') {
+      setLoading(true);
+      await loadDbSeries();
+      setLoading(false);
+      return;
+    }
+    if (tab === 'albums') {
+      setLoading(true);
+      try {
+        const r = await fetch('/api/db/albums');
+        const d = await r.json();
+        setAlbumsList(d.albums || []);
+      } catch { setAlbumsList([]); }
+      finally { setLoading(false); }
+      return;
+    }
     if (tab === 'wildcards') {
       setLoading(true);
       try {
-        const r = await fetch('/api/imagegen/assets');
+        const r = await fetch('/api/prompts/assets');
         const d = await r.json();
         setWcList(d.wildcards || []);
       } catch (e) {
@@ -89,18 +130,21 @@ export const DatabaseView = () => {
     if (tab === 'folders') {
       setLoading(true);
       try {
-        const [foldersRes, prefsRes] = await Promise.all([
-          fetch('/api/all-categories'),
+        const [foldersRes, prefsRes, presetsRes] = await Promise.all([
+          fetch('/api/all-folders'),
           fetch('/api/settings/prefs'),
+          fetch('/api/presets'),
         ]);
         const foldersData = await foldersRes.json();
         const prefsData = await prefsRes.json();
+        const presetsData = await presetsRes.json();
         const actualPaths = new Set((foldersData.categories as any[]).map(f => f.path));
         setFolders(foldersData.categories);
         const enabledArr = (foldersData.enabled as string[]).filter(p => actualPaths.has(p));
         setEnabledFolders(enabledArr.length === 0 ? null : new Set(enabledArr));
         setSourceFolders(prefsData.sourceFolders || []);
         setDefaultRoot(prefsData.defaultRoot || prefsData.defaultPath || prefsData.defaultWriteRoot || '');
+        setFolderPresets((presetsData.profiles || []).filter((p: any) => p.hasFolders));
       } catch (e) {
         console.error(e);
       } finally {
@@ -168,7 +212,7 @@ export const DatabaseView = () => {
 
   const handleReset = async () => {
     const profile = activeProfile.value;
-    if (!confirm(`Reset profile "${profile}" to its initial preset data? This will overwrite categories, studios, and websites!`)) return;
+    if (!confirm(`Reset profile "${profile}" to its initial preset data? This will overwrite categories, channels, and websites!`)) return;
     
     setLoading(true);
     try {
@@ -191,7 +235,7 @@ export const DatabaseView = () => {
 
   const handleSaveFolders = async () => {
     try {
-      const res = await fetch('/api/enabled-categories', {
+      const res = await fetch('/api/enabled-folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paths: enabledFolders === null ? [] : Array.from(enabledFolders) }),
@@ -278,9 +322,15 @@ export const DatabaseView = () => {
   };
 
   const handleExportAll = async () => {
-    const tabs = ['actors', 'categories', 'studios', 'websites'];
-    const results = await Promise.all(tabs.map(t => fetch(`/api/db/${t}/export`).then(r => r.json())));
-    const combined = Object.fromEntries(tabs.map((t, i) => [t, results[i]]));
+    const dbTabs = ['actors', 'categories', 'channels', 'websites'];
+    const [results, seriesRes, albumsRes] = await Promise.all([
+      Promise.all(dbTabs.map(t => fetch(`/api/db/${t}/export`).then(r => r.json()))),
+      fetch('/api/db/series/export').then(r => r.json()),
+      fetch('/api/db/albums/export').then(r => r.json()),
+    ]);
+    const combined: any = Object.fromEntries(dbTabs.map((t, i) => [t, results[i]]));
+    combined.series = seriesRes;
+    combined.albums = albumsRes;
     const blob = new Blob([JSON.stringify(combined, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -300,19 +350,27 @@ export const DatabaseView = () => {
       alert('Invalid JSON file');
       return;
     }
-    const knownTabs = ['actors', 'categories', 'studios', 'websites'];
+    const knownTabs = ['actors', 'categories', 'channels', 'websites'];
     const toImport = knownTabs.filter(t => data[t]);
-    if (!toImport.length) { alert('No recognizable sections found (expected actors/categories/studios/websites)'); return; }
-    const results = await Promise.all(
-      toImport.map(t => fetch(`/api/db/${t}/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data[t]),
-      }).then(r => r.ok ? r.json() : null))
-    );
+    const hasSeries = Array.isArray(data.series) && data.series.length > 0;
+    const hasAlbums = Array.isArray(data.albums) && data.albums.length > 0;
+    if (!toImport.length && !hasSeries && !hasAlbums) { alert('No recognizable sections found'); return; }
+    const results = await Promise.all([
+      ...toImport.map(t => fetch(`/api/db/${t}/import`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data[t]),
+      }).then(r => r.ok ? r.json() : null)),
+      ...(hasSeries ? [fetch('/api/db/series/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data.series),
+      }).then(r => r.ok ? r.json() : null)] : []),
+      ...(hasAlbums ? [fetch('/api/db/albums/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data.albums),
+      }).then(r => r.ok ? r.json() : null)] : []),
+    ]);
     const total = results.reduce((s, r) => s + (r?.count ?? 0), 0);
+    const sections = [...toImport, ...(hasSeries ? ['series'] : []), ...(hasAlbums ? ['albums'] : [])];
     const w = window as any;
-    if (w.toast) w.toast(`Imported ${total} entries across ${toImport.join(', ')}`);
+    if (w.toast) w.toast(`Imported ${total} entries across ${sections.join(', ')}`);
+    if (hasSeries) await loadDbSeries();
     loadTab(activeTab);
   };
 
@@ -339,6 +397,28 @@ export const DatabaseView = () => {
       loadTab(activeTab);
     } else {
       if (w.toast) w.toast('Import failed');
+    }
+  };
+
+  const handleCreateFoldersFromPreset = async () => {
+    if (!folderPresetSel) return;
+    setCreatingFolders(true);
+    try {
+      const r = await fetch('/api/folders/from-preset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset: folderPresetSel }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed');
+      const w = window as any;
+      if (w.toast) w.toast(`Created ${d.created} folders from preset`);
+      loadTab('folders');
+      loadVideos();
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setCreatingFolders(false);
     }
   };
 
@@ -373,7 +453,7 @@ export const DatabaseView = () => {
 
   const handleWcEdit = async (name: string) => {
     if (wcExpanded === name) { setWcExpanded(null); return; }
-    const r = await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`);
+    const r = await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`);
     const d = await r.json();
     setWcEditContent(d.content || '');
     setWcExpanded(name);
@@ -381,7 +461,7 @@ export const DatabaseView = () => {
 
   const handleWcSave = async (name: string) => {
     setWcEditSaving(true);
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`, {
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: wcEditContent }),
@@ -395,7 +475,7 @@ export const DatabaseView = () => {
 
   const handleWcDelete = async (name: string) => {
     if (!confirm(`Delete wildcard "${name}"?`)) return;
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
     loadTab('wildcards');
     const w = window as any;
     if (w.toast) w.toast('Deleted');
@@ -404,7 +484,7 @@ export const DatabaseView = () => {
   const handleWcCreate = async () => {
     const safe = wcNewName.trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
     if (!safe) return;
-    await fetch(`/api/imagegen/wildcards/${encodeURIComponent(safe)}`, {
+    await fetch(`/api/prompts/wildcards/${encodeURIComponent(safe)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: `# ${safe} wildcard\n` }),
@@ -415,7 +495,7 @@ export const DatabaseView = () => {
   };
 
   const handleWcExportAll = async () => {
-    const r = await fetch('/api/imagegen/wildcards-export');
+    const r = await fetch('/api/prompts/wildcards-export');
     const data = await r.json();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -431,7 +511,7 @@ export const DatabaseView = () => {
     e.target.value = '';
     let data: any;
     try { data = JSON.parse(await file.text()); } catch { alert('Invalid JSON file'); return; }
-    const r = await fetch('/api/imagegen/wildcards-import', {
+    const r = await fetch('/api/prompts/wildcards-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -444,6 +524,147 @@ export const DatabaseView = () => {
     } else {
       if (w.toast) w.toast('Import failed');
     }
+  };
+
+  // ── Series handlers ──────────────────────────────────────────────────
+
+  const openSeriesModal = (s: DbSeriesEntry | null) => {
+    if (s) {
+      setSeriesEditKey(s.key);
+      setSeriesForm({
+        name: s.name,
+        key: s.key,
+        cover: s.cover || '',
+        episodesText: s.episodes.map(e => `S${e.season}E${String(e.episode).padStart(2,'0')} ${e.name || ''}${e.duration ? ` [${Math.round(e.duration/60)}m]` : ''}`).join('\n'),
+      });
+    } else {
+      setSeriesEditKey(null);
+      setSeriesForm({ name: '', key: '', cover: '', episodesText: '' });
+    }
+    setSeriesModalOpen(true);
+  };
+
+  const handleSeriesSave = async () => {
+    const name = seriesForm.name.trim();
+    const key = (seriesForm.key.trim() || name.toLowerCase()).toLowerCase();
+    if (!name || !key) { alert('Name is required'); return; }
+    const episodes: DbEpisode[] = seriesForm.episodesText.split('\n').map(line => {
+      const m = line.match(/^[Ss](\d+)[Ee](\d+)\s*(.*?)(?:\s*\[(\d+)m\])?\s*$/);
+      if (!m) return null;
+      return { season: +m[1], episode: +m[2], name: m[3].trim() || null, duration: m[4] ? +m[4] * 60 : null, videoId: null };
+    }).filter(Boolean) as DbEpisode[];
+    await fetch('/api/db/series', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, key, cover: seriesForm.cover, episodes }),
+    });
+    setSeriesModalOpen(false);
+    await loadDbSeries();
+    const w = window as any;
+    if (w.toast) w.toast('Saved');
+  };
+
+  const handleSeriesDelete = async (key: string) => {
+    const s = seriesList.find(s => s.key === key);
+    if (!confirm(`Delete series "${s?.name || key}"?`)) return;
+    await fetch(`/api/db/series/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    await loadDbSeries();
+    const w = window as any;
+    if (w.toast) w.toast('Deleted');
+  };
+
+  const handleSeriesExport = () => {
+    const a = document.createElement('a');
+    a.href = '/api/db/series/export';
+    a.download = 'series.json';
+    a.click();
+  };
+
+  const handleSeriesImport = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    let data: any;
+    try { data = JSON.parse(await file.text()); } catch { alert('Invalid JSON'); return; }
+    if (!Array.isArray(data)) { alert('Expected array'); return; }
+    const r = await fetch('/api/db/series/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const w = window as any;
+    if (r.ok) {
+      const d = await r.json();
+      if (w.toast) w.toast(`Imported ${d.count} series`);
+      await loadDbSeries();
+    } else {
+      if (w.toast) w.toast('Import failed');
+    }
+  };
+
+  // ── Album handlers ───────────────────────────────────────────────────
+
+  const openAlbumModal = (a: Album | null) => {
+    if (a) {
+      setAlbumEditId(a.id);
+      setAlbumForm({
+        id: a.id, name: a.name, artist: a.artist || '', year: a.year ? String(a.year) : '',
+        tracksText: a.tracks.map(t => `${t.trackNumber}. ${t.title}${t.duration ? ` [${Math.floor(t.duration / 60)}:${String(t.duration % 60).padStart(2, '0')}]` : ''}`).join('\n'),
+      });
+    } else {
+      setAlbumEditId(null);
+      setAlbumForm({ id: '', name: '', artist: '', year: '', tracksText: '' });
+    }
+    setAlbumModalOpen(true);
+  };
+
+  const handleAlbumSave = async () => {
+    const name = albumForm.name.trim();
+    const id = (albumForm.id.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).toLowerCase();
+    if (!name || !id) { alert('Name is required'); return; }
+    const tracks: AlbumTrack[] = albumForm.tracksText.split('\n').map(line => {
+      const m = line.match(/^(\d+)\.\s*(.*?)(?:\s*\[(\d+):(\d+)\])?\s*$/);
+      if (!m) return null;
+      const duration = m[3] ? +m[3] * 60 + +m[4] : null;
+      return { trackNumber: +m[1], title: m[2].trim(), duration };
+    }).filter(Boolean) as AlbumTrack[];
+    await fetch('/api/db/albums', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name, artist: albumForm.artist.trim(), year: albumForm.year ? +albumForm.year : null, tracks }),
+    });
+    setAlbumModalOpen(false);
+    loadTab('albums');
+    const w = window as any;
+    if (w.toast) w.toast('Saved');
+  };
+
+  const handleAlbumDelete = async (id: string) => {
+    const a = albumsList.find(a => a.id === id);
+    if (!confirm(`Delete album "${a?.name || id}"?`)) return;
+    await fetch(`/api/db/albums/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    loadTab('albums');
+    const w = window as any;
+    if (w.toast) w.toast('Deleted');
+  };
+
+  const handleAlbumExport = () => {
+    const a = document.createElement('a');
+    a.href = '/api/db/albums/export';
+    a.download = 'albums.json';
+    a.click();
+  };
+
+  const handleAlbumImport = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    let data: any;
+    try { data = JSON.parse(await file.text()); } catch { alert('Invalid JSON'); return; }
+    if (!Array.isArray(data)) { alert('Expected array'); return; }
+    const r = await fetch('/api/db/albums/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const w = window as any;
+    if (r.ok) { const d = await r.json(); if (w.toast) w.toast(`Imported ${d.count} albums`); loadTab('albums'); }
+    else if (w.toast) w.toast('Import failed');
   };
 
   const openLinkSites = async () => {
@@ -506,7 +727,7 @@ export const DatabaseView = () => {
       </div>
 
       {/* Action Bar */}
-      {activeTab !== 'folders' && activeTab !== 'wildcards' && (
+      {activeTab !== 'folders' && activeTab !== 'wildcards' && activeTab !== 'series' && activeTab !== 'albums' && (
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
           <input ref={importFileRef} type="file" accept=".json" title="Import JSON" style={{ display: 'none' }} onChange={handleImportJson} />
           <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: false }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset as Profile</button>
@@ -527,6 +748,119 @@ export const DatabaseView = () => {
       {/* Grid */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading…</div>
+      ) : activeTab === 'series' ? (
+        <div>
+          {/* Series toolbar */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--tx3)', flex: 1 }}>{seriesList.length} series defined in database</span>
+            <input ref={importSeriesRef} type="file" accept=".json" title="Import series JSON" style={{ display: 'none' }} onChange={handleSeriesImport} />
+            <button type="button" className="modal-btn" onClick={handleSeriesExport} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Export JSON</button>
+            <button type="button" className="modal-btn" onClick={() => importSeriesRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Import JSON</button>
+            <button type="button" className="modal-btn modal-btn--primary" onClick={() => openSeriesModal(null)}>+ Add Series</button>
+          </div>
+
+          {seriesList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
+              No series in database. Import a <code>series.json</code> or add one manually.
+            </div>
+          ) : (
+            <div style={{ border: '1px solid var(--brd)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 120px', background: 'var(--bg3)', padding: '8px 14px', borderBottom: '1px solid var(--brd)', fontSize: '0.75rem', color: 'var(--tx3)', fontWeight: 600 }}>
+                <span>Name</span>
+                <span style={{ textAlign: 'center' }}>Seasons</span>
+                <span style={{ textAlign: 'center' }}>Episodes</span>
+                <span style={{ textAlign: 'right' }}>Actions</span>
+              </div>
+              {seriesList.map((s, idx) => {
+                const seasons = [...new Set(s.episodes.map(e => e.season))].sort((a, b) => a - b);
+                return (
+                  <div key={s.key} style={{ borderBottom: idx < seriesList.length - 1 ? '1px solid var(--brd)' : 'none' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 120px', alignItems: 'center', padding: '8px 14px', background: seriesExpandedKey === s.key ? 'var(--bg2)' : 'transparent' }}>
+                      <div>
+                        <div style={{ fontSize: '0.9rem', color: 'var(--tx)', fontWeight: 500 }}>{s.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', fontFamily: 'monospace' }}>{s.key}</div>
+                      </div>
+                      <span style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--tx2)' }}>{seasons.length}</span>
+                      <span style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--tx2)' }}>{s.episodes.length}</span>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={() => setSeriesExpandedKey(v => v === s.key ? null : s.key)} style={{ background: 'none', border: '1px solid var(--brd)', color: seriesExpandedKey === s.key ? 'var(--ac)' : 'var(--tx3)', borderRadius: '4px', padding: '2px 10px', cursor: 'pointer', fontSize: '0.78rem' }}>
+                          {seriesExpandedKey === s.key ? 'Close' : 'View'}
+                        </button>
+                        <button type="button" onClick={() => openSeriesModal(s)} style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>Edit</button>
+                        <button type="button" onClick={() => handleSeriesDelete(s.key)} style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>✕</button>
+                      </div>
+                    </div>
+                    {seriesExpandedKey === s.key && (
+                      <div style={{ padding: '0 14px 12px', background: 'var(--bg2)', borderTop: '1px solid var(--brd)', maxHeight: '240px', overflowY: 'auto' }}>
+                        {s.episodes.map(ep => (
+                          <div key={`${ep.season}-${ep.episode}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0', borderBottom: '1px solid var(--brd)', fontSize: '0.82rem' }}>
+                            <span style={{ color: 'var(--ac)', minWidth: 56, flexShrink: 0 }}>S{ep.season}E{String(ep.episode).padStart(2, '0')}</span>
+                            <span style={{ flex: 1, color: 'var(--tx)' }}>{ep.name || `Episode ${ep.episode}`}</span>
+                            {ep.duration ? <span style={{ color: 'var(--tx3)', flexShrink: 0 }}>{Math.round(ep.duration / 60)}m</span> : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : activeTab === 'albums' ? (
+        <div>
+          {/* Albums toolbar */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--tx3)', flex: 1 }}>{albumsList.length} album{albumsList.length !== 1 ? 's' : ''} in database</span>
+            <input ref={importAlbumsRef} type="file" accept=".json" title="Import albums JSON" style={{ display: 'none' }} onChange={handleAlbumImport} />
+            <button type="button" className="modal-btn" onClick={handleAlbumExport} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Export JSON</button>
+            <button type="button" className="modal-btn" onClick={() => importAlbumsRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Import JSON</button>
+            <button type="button" className="modal-btn modal-btn--primary" onClick={() => openAlbumModal(null)}>+ Add Album</button>
+          </div>
+
+          {albumsList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
+              No albums in database. Import an <code>albums.json</code> or add one manually.
+            </div>
+          ) : (
+            <div style={{ border: '1px solid var(--brd)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 60px 80px 120px', background: 'var(--bg3)', padding: '8px 14px', borderBottom: '1px solid var(--brd)', fontSize: '0.75rem', color: 'var(--tx3)', fontWeight: 600 }}>
+                <span>Album</span><span>Artist</span><span style={{ textAlign: 'center' }}>Year</span><span style={{ textAlign: 'center' }}>Tracks</span><span style={{ textAlign: 'right' }}>Actions</span>
+              </div>
+              {albumsList.map((a, idx) => (
+                <div key={a.id} style={{ borderBottom: idx < albumsList.length - 1 ? '1px solid var(--brd)' : 'none' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 60px 80px 120px', alignItems: 'center', padding: '8px 14px', background: albumExpandedId === a.id ? 'var(--bg2)' : 'transparent' }}>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', color: 'var(--tx)', fontWeight: 500 }}>{a.name}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', fontFamily: 'monospace' }}>{a.id}</div>
+                    </div>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.artist}</span>
+                    <span style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--tx2)' }}>{a.year || '—'}</span>
+                    <span style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--tx2)' }}>{a.tracks.length}</span>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={() => setAlbumExpandedId(v => v === a.id ? null : a.id)} style={{ background: 'none', border: '1px solid var(--brd)', color: albumExpandedId === a.id ? 'var(--ac)' : 'var(--tx3)', borderRadius: '4px', padding: '2px 10px', cursor: 'pointer', fontSize: '0.78rem' }}>
+                        {albumExpandedId === a.id ? 'Close' : 'Tracks'}
+                      </button>
+                      <button type="button" onClick={() => openAlbumModal(a)} style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>Edit</button>
+                      <button type="button" onClick={() => handleAlbumDelete(a.id)} style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>✕</button>
+                    </div>
+                  </div>
+                  {albumExpandedId === a.id && a.tracks.length > 0 && (
+                    <div style={{ padding: '0 14px 12px', background: 'var(--bg2)', borderTop: '1px solid var(--brd)', maxHeight: '240px', overflowY: 'auto' }}>
+                      {a.tracks.map(t => (
+                        <div key={t.trackNumber} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0', borderBottom: '1px solid var(--brd)', fontSize: '0.82rem' }}>
+                          <span style={{ width: 24, textAlign: 'right', color: 'var(--tx3)', flexShrink: 0 }}>{t.trackNumber}</span>
+                          <span style={{ flex: 1, color: 'var(--tx)' }}>{t.title}</span>
+                          {t.duration ? <span style={{ color: 'var(--tx3)', flexShrink: 0 }}>{Math.floor(t.duration / 60)}:{String(t.duration % 60).padStart(2, '0')}</span> : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : activeTab === 'wildcards' ? (
         <div>
           {/* Wildcards toolbar */}
@@ -649,6 +983,36 @@ export const DatabaseView = () => {
           </div>
 
 
+          {/* Create folders from a preset */}
+          {folderPresets.length > 0 && (
+            <div style={{ marginBottom: '24px', background: 'var(--bg2)', padding: '16px', borderRadius: '8px', border: '1px solid var(--brd)' }}>
+              <h4 style={{ margin: '0 0 8px', fontSize: '0.9rem', color: 'var(--ac)' }}>Create Folders from Preset</h4>
+              <div style={{ fontSize: '0.8rem', color: 'var(--tx3)', marginBottom: '10px' }}>
+                Creates the preset's genre folders and subgenre subfolders in your active videos folder. Existing folders are left untouched.
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  value={folderPresetSel}
+                  title="Preset folder structure"
+                  onChange={(e: any) => setFolderPresetSel(e.target.value)}
+                  style={{ flex: 1, padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+                >
+                  <option value="">Select a preset…</option>
+                  {folderPresets.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.counts?.folders || 0} folders)</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleCreateFoldersFromPreset}
+                  disabled={!folderPresetSel || creatingFolders}
+                  style={{ background: (!folderPresetSel || creatingFolders) ? 'var(--bg3)' : 'var(--ac)', border: 'none', color: (!folderPresetSel || creatingFolders) ? 'var(--tx3)' : '#fff', padding: '8px 12px', borderRadius: '4px', cursor: (!folderPresetSel || creatingFolders) ? 'default' : 'pointer', fontSize: '0.85rem', flexShrink: 0 }}
+                >
+                  {creatingFolders ? 'Creating…' : 'Create Folders'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Category visibility */}
           <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)' }}>
@@ -718,7 +1082,7 @@ export const DatabaseView = () => {
                 {activeTab === 'categories' && (
                   <div>Tags: {Array.isArray(info.tags) ? info.tags.join(', ') : ''}</div>
                 )}
-                {activeTab === 'studios' && (
+                {activeTab === 'channels' && (
                   <>
                     {info.website && <a href={info.website} target="_blank" style={{ color: 'var(--ac)' }}>Website ↗</a>}
                     {info.short_description && <div style={{ marginTop: '5px' }}>{info.short_description}</div>}
@@ -787,7 +1151,7 @@ export const DatabaseView = () => {
                 </div>
               )}
 
-              {activeTab === 'studios' && (
+              {activeTab === 'channels' && (
                 <>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Website URL</label>
@@ -915,6 +1279,122 @@ export const DatabaseView = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Series Add/Edit Modal */}
+      {seriesModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '520px', maxWidth: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{seriesEditKey ? `Edit — ${seriesForm.name}` : 'Add Series'}</h3>
+              <button type="button" onClick={() => setSeriesModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.3rem' }}>&times;</button>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Name</label>
+              <input
+                type="text"
+                value={seriesForm.name}
+                onInput={(e: any) => {
+                  const name = e.target.value;
+                  setSeriesForm(f => ({ ...f, name, key: seriesEditKey ? f.key : name.toLowerCase() }));
+                }}
+                style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Key (lowercase, used for matching)</label>
+              <input
+                type="text"
+                title="Series key (lowercase)"
+                value={seriesForm.key}
+                onInput={(e: any) => setSeriesForm(f => ({ ...f, key: e.target.value }))}
+                style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', boxSizing: 'border-box', fontFamily: 'monospace' }}
+              />
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>
+                Episodes — one per line: <code>S1E01 Title [47m]</code>
+              </label>
+              <textarea
+                value={seriesForm.episodesText}
+                onInput={(e: any) => setSeriesForm(f => ({ ...f, episodesText: e.target.value }))}
+                spellcheck={false}
+                rows={12}
+                style={{ width: '100%', boxSizing: 'border-box', flex: 1, resize: 'vertical', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', fontSize: '12px', fontFamily: 'monospace', lineHeight: '1.5' }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button type="button" className="modal-btn" onClick={() => setSeriesModalOpen(false)}>Cancel</button>
+              <button type="button" className="modal-btn modal-btn--primary" onClick={handleSeriesSave}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Albums Add/Edit Modal */}
+      {albumModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '520px', maxWidth: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--tx)' }}>{albumEditId ? 'Edit Album' : 'Add Album'}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: '0.78rem', color: 'var(--tx3)' }}>ID (slug)</label>
+                <input
+                  className="modal-input"
+                  value={albumForm.id}
+                  onInput={(e: any) => setAlbumForm(f => ({ ...f, id: e.target.value }))}
+                  placeholder="e.g. thriller"
+                  disabled={!!albumEditId}
+                  style={{ opacity: albumEditId ? 0.5 : 1 }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: '0.78rem', color: 'var(--tx3)' }}>Year</label>
+                <input
+                  className="modal-input"
+                  type="number"
+                  value={albumForm.year}
+                  onInput={(e: any) => setAlbumForm(f => ({ ...f, year: e.target.value }))}
+                  placeholder="e.g. 1982"
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: '0.78rem', color: 'var(--tx3)' }}>Album Name</label>
+              <input
+                className="modal-input"
+                value={albumForm.name}
+                onInput={(e: any) => setAlbumForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Thriller"
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: '0.78rem', color: 'var(--tx3)' }}>Artist</label>
+              <input
+                className="modal-input"
+                value={albumForm.artist}
+                onInput={(e: any) => setAlbumForm(f => ({ ...f, artist: e.target.value }))}
+                placeholder="e.g. Michael Jackson"
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minHeight: 0 }}>
+              <label style={{ fontSize: '0.78rem', color: 'var(--tx3)' }}>
+                Tracks — one per line: <code style={{ fontSize: '0.72rem' }}>1. Track Title [4:23]</code>
+              </label>
+              <textarea
+                value={albumForm.tracksText}
+                onInput={(e: any) => setAlbumForm(f => ({ ...f, tracksText: e.target.value }))}
+                spellcheck={false}
+                rows={12}
+                style={{ width: '100%', boxSizing: 'border-box', flex: 1, resize: 'vertical', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', fontSize: '12px', fontFamily: 'monospace', lineHeight: '1.5' }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button type="button" className="modal-btn" onClick={() => setAlbumModalOpen(false)}>Cancel</button>
+              <button type="button" className="modal-btn modal-btn--primary" onClick={handleAlbumSave}>Save</button>
+            </div>
           </div>
         </div>
       )}

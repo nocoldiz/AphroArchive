@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
-import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, sourceFilter, currentCategory, updatePrefs } from '../../store';
+import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, currentFolder, updatePrefs, gridViewMode, groupByYear } from '../../store';
 import { CategoryTagsModal } from './CategoryTagsModal';
+import { FilterPanel } from './FilterPanel';
 
 interface SectionControlsProps {
   showSort?: boolean;
@@ -10,6 +11,9 @@ interface SectionControlsProps {
   showClearHistory?: boolean;
   showCardSize?: boolean;
   showFilter?: boolean;
+  showFilters?: boolean;
+  showViewMode?: boolean;
+  showGroupBy?: boolean;
   
   sortOptions?: { value: string, label: string }[];
   
@@ -37,10 +41,12 @@ export const SectionControls = ({
   showSort = true,
   showStarred = true,
   showShuffle = true,
-  showSource = true,
   showClearHistory = false,
   showCardSize = true,
   showFilter = true,
+  showFilters = false,
+  showViewMode = true,
+  showGroupBy = true,
   sortOptions = [
     { value: 'date', label: 'Recent' },
     { value: 'name', label: 'Name' },
@@ -76,7 +82,7 @@ export const SectionControls = ({
   const setCSize = onCardSizeChange || ((val: number) => cardSize.value = val);
 
   const [tagsOpen, setTagsOpen] = useState(false);
-  const activeCat = currentCategory.value;
+  const activeCat = currentFolder.value;
   const showTagsBtn = activeCat && activeCat !== 'uncategorized';
 
   return (
@@ -110,6 +116,8 @@ export const SectionControls = ({
       {showStarred && (
         <button className={`sort-btn ${starred ? 'on' : ''}`} onClick={() => setStarred(!starred)}>Starred Only</button>
       )}
+
+      {showFilters && <FilterPanel />}
       
       {showShuffle && (
         <button className={`sort-btn ${shuffle ? 'on' : ''}`} onClick={() => setShuffle(!shuffle)}>
@@ -121,15 +129,6 @@ export const SectionControls = ({
             <path d="M4 4l5 5" />
           </svg>Shuffle
         </button>
-      )}
-      
-      {showSource && (
-        <>
-          <span className="sg-sep"></span>
-          <button className={`sort-btn src-btn ${sourceFilter.value === 'both' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'both'}>Both</button>
-          <button className={`sort-btn src-btn ${sourceFilter.value === 'local' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'local'}>Local</button>
-          <button className={`sort-btn src-btn ${sourceFilter.value === 'remote' ? 'on' : ''}`} onClick={() => sourceFilter.value = 'remote'}>Remote</button>
-        </>
       )}
       
       {showClearHistory && (
@@ -180,6 +179,47 @@ export const SectionControls = ({
           </select>
         </div>
       </>
+      {showViewMode && (
+        <>
+          <span className="sg-sep"></span>
+          <button
+            className={`sort-btn${gridViewMode.value === 'grid' ? ' on' : ''}`}
+            onClick={() => { gridViewMode.value = 'grid'; }}
+            title="Grid view"
+            aria-pressed={gridViewMode.value === 'grid' ? 'true' : 'false'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+          </button>
+          <button
+            className={`sort-btn${gridViewMode.value === 'list' ? ' on' : ''}`}
+            onClick={() => { gridViewMode.value = 'list'; }}
+            title="List view"
+            aria-pressed={gridViewMode.value === 'list' ? 'true' : 'false'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+        </>
+      )}
+      {showGroupBy && (
+        <>
+          <span className="sg-sep"></span>
+          <select
+            value={groupByYear.value}
+            onChange={(e: any) => { groupByYear.value = e.target.value; }}
+            title="Group by year"
+            style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '3px 6px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+          >
+            <option value="none">No grouping</option>
+            <option value="year">By year</option>
+            <option value="decade">By decade</option>
+          </select>
+        </>
+      )}
       {showTagsBtn && (
         <>
           <span className="sg-sep"></span>
@@ -189,7 +229,7 @@ export const SectionControls = ({
       {children}
     </div>
     {tagsOpen && showTagsBtn && (
-      <CategoryTagsModal catPath={activeCat} onClose={() => setTagsOpen(false)} />
+      <CategoryTagsModal folderPath={activeCat} onClose={() => setTagsOpen(false)} />
     )}
     </>
   );

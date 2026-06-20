@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>AphroArchive Downloader</h1>
+    <a href="#" id="optionsLink" title="Options">⚙</a>
+  </header>
+
+  <!-- Server bar -->
+  <div class="server-bar">
+    <span id="serverDot" class="dot" title="Server status"></span>
+    <input id="serverUrl" type="text" placeholder="http://localhost:3000">
+    <button id="testBtn">Test</button>
+  </div>
+  <div id="serverHint" class="hint"></div>
+
+  <!-- This page actions (server only) -->
+  <section class="sec gated-sec" data-open="1">
+    <div class="sec-head"><span class="caret">▾</span> This page <span class="badge" id="pageKindBadge">page</span></div>
+    <div class="sec-body">
+      <div class="row wrap">
+        <button id="addSiteBtn">➕ Add site to DB</button>
+        <button id="savePageBtn">💾 Save page (offline)</button>
+        <button id="saveBookBtn" class="hidden">📖 Save text to Books</button>
+        <button id="sendThisVideoBtn" class="hidden">🎬 Send video to library</button>
+        <button id="sendThisPhotoBtn" class="hidden">🖼 Send photo to library</button>
+      </div>
+      <div class="row wrap">
+        <button id="saveAllTabsBtn" class="primary gated">🗂 Save all open tabs to AphroArchive</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Videos -->
+  <section class="sec" data-open="1">
+    <div class="sec-head"><span class="caret">▾</span> Videos on this page <span class="badge" id="vidCount">0</span></div>
+    <div class="sec-body">
+      <ul id="videos" class="medialist"></ul>
+      <div class="row">
+        <button id="rescanBtn">↻ Rescan</button>
+        <button id="sendVideosBtn" class="primary gated">Send all to AphroArchive</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Photos -->
+  <section class="sec" data-open="1">
+    <div class="sec-head"><span class="caret">▾</span> Photos on this page <span class="badge" id="photoCount">0</span></div>
+    <div class="sec-body">
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="photoSelectAll" checked> Select all</label>
+        <span class="muted" id="photoNote"></span>
+      </div>
+      <div id="photos" class="photogrid"></div>
+      <div class="row wrap">
+        <button id="dlPhotosBtn">⬇ Download</button>
+        <button id="zipPhotosBtn">🗜 Download ZIP</button>
+        <button id="sendPhotosBtn" class="primary gated">Send to gallery</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scraped links -->
+  <section class="sec">
+    <div class="sec-head"><span class="caret">▸</span> Scraped links <span class="badge" id="count">0</span></div>
+    <div class="sec-body">
+      <div class="row">
+        <span class="muted">Mode:</span>
+        <label class="chk"><input type="radio" name="mode" value="manual"> Manual</label>
+        <label class="chk"><input type="radio" name="mode" value="auto"> Auto</label>
+      </div>
+      <button id="scrapeBtn" class="primary">Scrape Current Page</button>
+      <input id="filter" type="text" placeholder="Filter regex (e.g. watch|episode|\.mp4)">
+      <ul id="links"></ul>
+      <div class="row wrap">
+        <button id="copyBtn">Copy List</button>
+        <button id="exportBtn">Export .txt</button>
+        <button id="sendLinksBtn" class="gated">Send to AphroArchive</button>
+        <button id="clearBtn" class="danger">Clear</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Queue -->
+  <section class="sec gated-sec">
+    <div class="sec-head"><span class="caret">▸</span> Download queue <span class="badge" id="jobCount">0</span></div>
+    <div class="sec-body">
+      <div id="jobs" class="medialist"></div>
+      <div class="row"><button id="refreshJobsBtn">↻ Refresh</button></div>
+    </div>
+  </section>
+
+  <div id="status" class="status"></div>
+
+  <script src="fflate.min.js"></script>
+  <script src="mux.min.js"></script>
+  <script src="hls.js"></script>
+  <script src="aphro.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+[
+  { "url": "https://www.youtube.com/@RottenMango", "title": "Rotten Mango Podcast", "category": "Podcasts", "hasVideo": true, "tags": ["podcast"] },
+  { "url": "https://www.youtube.com/@lastpodcastontheleft", "title": "Last Podcast On The Left", "category": "Podcasts", "hasVideo": true, "tags": ["podcast"] },
+  { "url": "https://www.youtube.com/@MrBallen", "title": "MrBallen — Strange & Dark Stories", "category": "Podcasts", "hasVideo": true, "tags": ["narrative"] },
+  { "url": "https://www.youtube.com/@ThatChapter", "title": "That Chapter", "category": "Documentaries", "hasVideo": true, "tags": ["case"] },
+  { "url": "https://www.youtube.com/@MattOrchard", "title": "Matt Orchard — Crime & Society", "category": "Documentaries", "hasVideo": true, "tags": ["investigation"] },
+  { "url": "https://www.youtube.com/@BaileySarian", "title": "Bailey Sarian — Murder, Mystery & Makeup", "category": "Documentaries", "hasVideo": true, "tags": ["narrative"] },
+  { "url": "https://www.youtube.com/@KendallRaeOnYT", "title": "Kendall Rae", "category": "Cold Cases", "hasVideo": true, "tags": ["missing", "unsolved"] },
+  { "url": "https://www.youtube.com/@CoffeehouseCrime", "title": "Coffeehouse Crime", "category": "Cold Cases", "hasVideo": true, "tags": ["unsolved"] },
+  { "url": "https://www.youtube.com/@jcs", "title": "JCS — Criminal Psychology", "category": "Forensics", "hasVideo": true, "tags": ["psychology", "analysis"] },
+  { "url": "https://www.youtube.com/@ExploreWithUs", "title": "Explore With Us — Court Footage", "category": "Court Cases", "hasVideo": true, "tags": ["trial", "court"] }
+]

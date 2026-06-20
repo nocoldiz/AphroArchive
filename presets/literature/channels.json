@@ -1,0 +1,86 @@
+{
+  "Better Than Food": {
+    "website": "https://www.youtube.com/@BetterThanFood",
+    "handle": "@BetterThanFood",
+    "country": "US",
+    "language": "English",
+    "short_description": "Thoughtful, literary book reviews focused on fiction and the classics."
+  },
+  "Jack Edwards": {
+    "website": "https://www.youtube.com/@jackbenedwards",
+    "handle": "@jackbenedwards",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Witty reading vlogs, challenges, and literature commentary."
+  },
+  "PolandbananasBOOKS": {
+    "website": "https://www.youtube.com/@PolandbananasBOOKS",
+    "handle": "@PolandbananasBOOKS",
+    "country": "US",
+    "language": "English",
+    "short_description": "Long-running BookTube channel — reviews and discussions."
+  },
+  "Merphy Napier": {
+    "website": "https://www.youtube.com/@MerphyNapier",
+    "handle": "@MerphyNapier",
+    "country": "US",
+    "language": "English",
+    "short_description": "Fantasy and fiction reviews, readalongs, and book club."
+  },
+  "Daniel Greene": {
+    "website": "https://www.youtube.com/@DanielGreeneReviews",
+    "handle": "@DanielGreeneReviews",
+    "country": "US",
+    "language": "English",
+    "short_description": "Fantasy and sci-fi reviews, news, and recommendations."
+  },
+  "A Clockwork Reader": {
+    "website": "https://www.youtube.com/@AClockworkReader",
+    "handle": "@AClockworkReader",
+    "country": "US",
+    "language": "English",
+    "short_description": "Reviews, classics, and aesthetic reading vlogs."
+  },
+  "Books with Emily Fox": {
+    "website": "https://www.youtube.com/@bookswithemilyfox",
+    "handle": "@bookswithemilyfox",
+    "country": "US",
+    "language": "English",
+    "short_description": "Classic literature reviews and reading guides."
+  },
+  "Steve Donoghue": {
+    "website": "https://www.youtube.com/@SteveDonoghue",
+    "handle": "@SteveDonoghue",
+    "country": "US",
+    "language": "English",
+    "short_description": "Prolific critic covering fiction, non-fiction, and the classics."
+  },
+  "Tale Foundry": {
+    "website": "https://www.youtube.com/@TaleFoundry",
+    "handle": "@TaleFoundry",
+    "country": "US",
+    "language": "English",
+    "short_description": "Storytelling craft, literary analysis, and the lore of genres."
+  },
+  "The Book Leo": {
+    "website": "https://www.youtube.com/@TheBookLeo",
+    "handle": "@TheBookLeo",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Reading vlogs, recommendations, and bookish challenges."
+  },
+  "Penguin Books": {
+    "website": "https://www.youtube.com/@penguinbooks",
+    "handle": "@penguinbooks",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Author interviews and trailers from the iconic publisher."
+  },
+  "CrashCourse": {
+    "website": "https://www.youtube.com/@crashcourse",
+    "handle": "@crashcourse",
+    "country": "US",
+    "language": "English",
+    "short_description": "Crash Course Literature — guided readings of major works."
+  }
+}

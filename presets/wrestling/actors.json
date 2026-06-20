@@ -1,0 +1,462 @@
+{
+  "Hulk Hogan": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=172",
+    "date_of_birth": "August 11, 1953",
+    "nationality": "American"
+  },
+  "Randy Savage": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=201",
+    "date_of_birth": "November 15, 1952",
+    "nationality": "American"
+  },
+  "Ric Flair": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=32",
+    "date_of_birth": "February 25, 1949",
+    "nationality": "American"
+  },
+  "Roddy Piper": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=150",
+    "date_of_birth": "April 17, 1954",
+    "nationality": "Canadian"
+  },
+  "Ted DiBiase Sr.": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=155",
+    "date_of_birth": "January 18, 1954",
+    "nationality": "American"
+  },
+  "Ultimate Warrior": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=162",
+    "date_of_birth": "June 16, 1959",
+    "nationality": "American"
+  },
+  "Andre the Giant": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=7",
+    "date_of_birth": "May 19, 1946",
+    "nationality": "French"
+  },
+  "Jake Roberts": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=148",
+    "date_of_birth": "May 30, 1955",
+    "nationality": "American"
+  },
+  "Dusty Rhodes": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=145",
+    "date_of_birth": "October 11, 1945",
+    "nationality": "American"
+  },
+  "Harley Race": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=40",
+    "date_of_birth": "April 11, 1943",
+    "nationality": "American"
+  },
+  "Sting": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=1",
+    "date_of_birth": "March 20, 1959",
+    "nationality": "American"
+  },
+  "Diamond Dallas Page": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=225",
+    "date_of_birth": "April 5, 1956",
+    "nationality": "American"
+  },
+  "Booker T": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=260",
+    "date_of_birth": "March 1, 1965",
+    "nationality": "American"
+  },
+  "Stone Cold Steve Austin": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=88",
+    "date_of_birth": "December 18, 1964",
+    "nationality": "American"
+  },
+  "The Rock": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=103",
+    "date_of_birth": "May 2, 1972",
+    "nationality": "American"
+  },
+  "The Undertaker": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=51",
+    "date_of_birth": "March 24, 1965",
+    "nationality": "American"
+  },
+  "Mick Foley": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=140",
+    "date_of_birth": "June 7, 1965",
+    "nationality": "American"
+  },
+  "Triple H": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=182",
+    "date_of_birth": "July 27, 1969",
+    "nationality": "American"
+  },
+  "Shawn Michaels": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=187",
+    "date_of_birth": "July 22, 1965",
+    "nationality": "American"
+  },
+  "Bret Hart": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=176",
+    "date_of_birth": "July 2, 1957",
+    "nationality": "Canadian"
+  },
+  "Chris Jericho": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=205",
+    "date_of_birth": "November 9, 1970",
+    "nationality": "Canadian"
+  },
+  "Edge": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=183",
+    "date_of_birth": "October 30, 1973",
+    "nationality": "Canadian"
+  },
+  "Kurt Angle": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=197",
+    "date_of_birth": "December 9, 1968",
+    "nationality": "American"
+  },
+  "Eddie Guerrero": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=195",
+    "date_of_birth": "October 9, 1967",
+    "nationality": "American"
+  },
+  "Rey Mysterio": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=388",
+    "date_of_birth": "December 11, 1974",
+    "nationality": "American"
+  },
+  "Goldberg": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=211",
+    "date_of_birth": "December 11, 1966",
+    "nationality": "American"
+  },
+  "Rob Van Dam": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=270",
+    "date_of_birth": "December 18, 1970",
+    "nationality": "American"
+  },
+  "Lita": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=3500",
+    "date_of_birth": "April 14, 1975",
+    "nationality": "American"
+  },
+  "Trish Stratus": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=3502",
+    "date_of_birth": "December 18, 1975",
+    "nationality": "Canadian"
+  },
+  "John Cena": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=5765",
+    "date_of_birth": "April 23, 1977",
+    "nationality": "American"
+  },
+  "Batista": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=6264",
+    "date_of_birth": "January 18, 1969",
+    "nationality": "American"
+  },
+  "Randy Orton": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=6254",
+    "date_of_birth": "April 1, 1980",
+    "nationality": "American"
+  },
+  "Jeff Hardy": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=5200",
+    "date_of_birth": "August 31, 1977",
+    "nationality": "American"
+  },
+  "Matt Hardy": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=5195",
+    "date_of_birth": "September 23, 1974",
+    "nationality": "American"
+  },
+  "CM Punk": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=282",
+    "date_of_birth": "October 26, 1978",
+    "nationality": "American"
+  },
+  "Cody Rhodes": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=254",
+    "date_of_birth": "June 30, 1985",
+    "nationality": "American"
+  },
+  "Daniel Bryan": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=3930",
+    "date_of_birth": "May 22, 1981",
+    "nationality": "American"
+  },
+  "AJ Styles": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=2511",
+    "date_of_birth": "June 2, 1977",
+    "nationality": "American"
+  },
+  "Jon Moxley": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=9695",
+    "date_of_birth": "December 7, 1985",
+    "nationality": "American"
+  },
+  "Seth Rollins": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=11887",
+    "date_of_birth": "May 28, 1986",
+    "nationality": "American"
+  },
+  "Roman Reigns": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=11882",
+    "date_of_birth": "May 25, 1985",
+    "nationality": "American"
+  },
+  "Kevin Owens": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=8636",
+    "date_of_birth": "May 7, 1984",
+    "nationality": "Canadian"
+  },
+  "Sami Zayn": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=7430",
+    "date_of_birth": "July 12, 1984",
+    "nationality": "Canadian"
+  },
+  "Finn Balor": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=7793",
+    "date_of_birth": "July 25, 1981",
+    "nationality": "Irish"
+  },
+  "Samoa Joe": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=6649",
+    "date_of_birth": "March 17, 1979",
+    "nationality": "American"
+  },
+  "Sheamus": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=9693",
+    "date_of_birth": "January 28, 1978",
+    "nationality": "Irish"
+  },
+  "Becky Lynch": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=10284",
+    "date_of_birth": "January 30, 1987",
+    "nationality": "Irish"
+  },
+  "Charlotte Flair": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=15697",
+    "date_of_birth": "April 5, 1986",
+    "nationality": "American"
+  },
+  "Mercedes Moné": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=16113",
+    "date_of_birth": "January 26, 1992",
+    "nationality": "American"
+  },
+  "Bayley": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=15700",
+    "date_of_birth": "June 15, 1989",
+    "nationality": "American"
+  },
+  "Bianca Belair": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=23197",
+    "date_of_birth": "April 9, 1989",
+    "nationality": "American"
+  },
+  "Rhea Ripley": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=22545",
+    "date_of_birth": "October 11, 1996",
+    "nationality": "Australian"
+  },
+  "Asuka": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=6040",
+    "date_of_birth": "September 26, 1981",
+    "nationality": "Japanese"
+  },
+  "Iyo Sky": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=7768",
+    "date_of_birth": "October 25, 1990",
+    "nationality": "Japanese"
+  },
+  "Saraya": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=16789",
+    "date_of_birth": "August 17, 1992",
+    "nationality": "British"
+  },
+  "Jade Cargill": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=25678",
+    "date_of_birth": "June 3, 1992",
+    "nationality": "American"
+  },
+  "Gunther": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=10127",
+    "date_of_birth": "April 16, 1992",
+    "nationality": "Austrian"
+  },
+  "Drew McIntyre": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=10136",
+    "date_of_birth": "June 6, 1985",
+    "nationality": "Scottish"
+  },
+  "LA Knight": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=19876",
+    "date_of_birth": "September 1, 1983",
+    "nationality": "American"
+  },
+  "MJF": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=21567",
+    "date_of_birth": "March 21, 1996",
+    "nationality": "American"
+  },
+  "Kenny Omega": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=2977",
+    "date_of_birth": "October 16, 1983",
+    "nationality": "Canadian"
+  },
+  "Adam Cole": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=11234",
+    "date_of_birth": "March 15, 1989",
+    "nationality": "American"
+  },
+  "Swerve Strickland": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=19543",
+    "date_of_birth": "November 13, 1991",
+    "nationality": "American"
+  },
+  "Konosuke Takeshita": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=14987",
+    "date_of_birth": "September 27, 1997",
+    "nationality": "Japanese"
+  },
+  "Hiroshi Tanahashi": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=2777",
+    "date_of_birth": "November 13, 1976",
+    "nationality": "Japanese"
+  },
+  "Kazuchika Okada": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=6637",
+    "date_of_birth": "November 8, 1988",
+    "nationality": "Japanese"
+  },
+  "Tetsuya Naito": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=11052",
+    "date_of_birth": "May 17, 1982",
+    "nationality": "Japanese"
+  },
+  "Kota Ibushi": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=8157",
+    "date_of_birth": "May 21, 1982",
+    "nationality": "Japanese"
+  },
+  "Hiromu Takahashi": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=12463",
+    "date_of_birth": "August 14, 1990",
+    "nationality": "Japanese"
+  },
+  "Shingo Takagi": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=6695",
+    "date_of_birth": "November 28, 1981",
+    "nationality": "Japanese"
+  },
+  "Will Ospreay": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=18987",
+    "date_of_birth": "May 4, 1993",
+    "nationality": "British"
+  },
+  "Jay White": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=20124",
+    "date_of_birth": "April 9, 1992",
+    "nationality": "New Zealander"
+  },
+  "El Phantasmo": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=18905",
+    "date_of_birth": "April 27, 1991",
+    "nationality": "Canadian"
+  },
+  "Zack Sabre Jr.": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=9714",
+    "date_of_birth": "July 14, 1987",
+    "nationality": "British"
+  },
+  "PAC": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=9697",
+    "date_of_birth": "April 12, 1986",
+    "nationality": "British"
+  },
+  "Mayu Iwatani": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=12345",
+    "date_of_birth": "April 16, 1993",
+    "nationality": "Japanese"
+  },
+  "Giulia": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=22345",
+    "date_of_birth": "March 15, 1995",
+    "nationality": "Japanese"
+  },
+  "Meiko Satomura": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=5432",
+    "date_of_birth": "June 24, 1977",
+    "nationality": "Japanese"
+  },
+  "Tam Nakano": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=19312",
+    "date_of_birth": "August 2, 1994",
+    "nationality": "Japanese"
+  },
+  "El Hijo del Vikingo": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=26543",
+    "date_of_birth": "December 17, 1996",
+    "nationality": "Mexican"
+  },
+  "Psycho Clown": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=15234",
+    "date_of_birth": "August 30, 1989",
+    "nationality": "Mexican"
+  },
+  "Dr. Wagner Jr.": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=1287",
+    "date_of_birth": "December 24, 1963",
+    "nationality": "Mexican"
+  },
+  "Blue Demon Jr.": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=1345",
+    "date_of_birth": "August 27, 1964",
+    "nationality": "Mexican"
+  },
+  "Volador Jr.": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=7891",
+    "date_of_birth": "November 22, 1979",
+    "nationality": "Mexican"
+  },
+  "Ultimo Guerrero": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=2345",
+    "date_of_birth": "April 13, 1970",
+    "nationality": "Mexican"
+  },
+  "Caristico": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=8456",
+    "date_of_birth": "July 27, 1982",
+    "nationality": "Mexican"
+  },
+  "Andrade": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=9888",
+    "date_of_birth": "July 22, 1989",
+    "nationality": "Mexican"
+  },
+  "Santos Escobar": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=14567",
+    "date_of_birth": "October 1, 1985",
+    "nationality": "Mexican"
+  },
+  "Pete Dunne": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=17654",
+    "date_of_birth": "November 9, 1993",
+    "nationality": "British"
+  },
+  "Toni Storm": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=18976",
+    "date_of_birth": "October 19, 1995",
+    "nationality": "New Zealander"
+  },
+  "Jordynne Grace": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=22876",
+    "date_of_birth": "May 10, 1996",
+    "nationality": "American"
+  },
+  "Deonna Purrazzo": {
+    "imdb_page": "https://www.cagematch.net/?id=2&nr=18432",
+    "date_of_birth": "March 25, 1994",
+    "nationality": "American"
+  }
+}

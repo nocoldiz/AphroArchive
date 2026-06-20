@@ -1,0 +1,8 @@
+{
+  "name": "Surprise Me",
+  "description": "Opens a random (unwatched-preferred) video instantly.",
+  "location": "home",
+  "type": "widget",
+  "enabledByDefault": true,
+  "homeWidget": { "w": 1, "h": 1, "minW": 1, "minH": 1, "maxH": 2, "singleton": true }
+}

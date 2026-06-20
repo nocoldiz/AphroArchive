@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'preact/hooks';
-import { profileModalState, profiles, activeProfile, switchProfile } from '../../store';
+﻿import { useState, useEffect } from 'preact/hooks';
+import { profileModalState, profiles, activeProfile, switchProfile, loadProfiles, reloadAppData } from '../../store';
 
 interface Preset {
   id: string;
   name: string;
+  hasFolders?: boolean;
+  counts?: { folders?: number };
 }
 
 export const ProfileModal = () => {
@@ -11,6 +13,7 @@ export const ProfileModal = () => {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [newName, setNewName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('');
+  const [createFolders, setCreateFolders] = useState(false);
   const [cloneSource, setCloneSource] = useState('');
   const [loading, setLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -39,16 +42,26 @@ export const ProfileModal = () => {
           body: JSON.stringify({ sourceName: cloneSource, newName: newName.trim() }),
         });
         if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Clone failed'); }
+        await loadProfiles();
+        setNewName('');
+        setCloneSource('');
       } else {
+        const presetMeta = presets.find(p => p.id === selectedPreset);
+        const wantFolders = !!(selectedPreset && presetMeta?.hasFolders && createFolders);
         const r = await fetch('/api/profiles/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: newName.trim(), preset: selectedPreset || undefined }),
+          body: JSON.stringify({ name: newName.trim(), preset: selectedPreset || undefined, createFolders: wantFolders }),
         });
         if (!r.ok) throw new Error('Server error');
+        const d = await r.json();
+        activeProfile.value = d.current;
+        const w = window as any;
+        if (wantFolders && d.foldersCreated && w.toast) w.toast(`Created ${d.foldersCreated} folders from preset`);
+        await loadProfiles();
+        await reloadAppData();
+        close();
       }
-      close();
-      window.location.reload();
     } catch (e: any) {
       alert('Error: ' + e.message);
     } finally {
@@ -66,7 +79,9 @@ export const ProfileModal = () => {
         body: JSON.stringify({ oldName, newName: n }),
       });
       if (!r.ok) throw new Error('Server error');
-      window.location.reload();
+      const d = await r.json();
+      activeProfile.value = d.current;
+      await loadProfiles();
     } catch (e: any) {
       alert('Error: ' + e.message);
     }
@@ -83,9 +98,7 @@ export const ProfileModal = () => {
       if (!r.ok) { const e = await r.json(); throw new Error(e.error || 'Delete failed'); }
       const w = window as any;
       if (w.toast) w.toast(`Profile "${name}" deleted`);
-      // Refresh profiles list
-      const r2 = await fetch('/api/profiles');
-      if (r2.ok) profiles.value = await r2.json();
+      await loadProfiles();
     } catch (e: any) {
       alert('Error: ' + e.message);
     }
@@ -178,7 +191,7 @@ export const ProfileModal = () => {
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
-              {cloneSource && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: 'var(--tx3)' }}>Categories, tags, studios and websites will be copied. Videos and links will not.</p>}
+              {cloneSource && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: 'var(--tx3)' }}>Categories, tags, channels and websites will be copied. Videos and links will not.</p>}
             </div>
 
             {!cloneSource && (
@@ -195,6 +208,16 @@ export const ProfileModal = () => {
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
+                {(() => {
+                  const meta = presets.find(p => p.id === selectedPreset);
+                  if (!meta?.hasFolders) return null;
+                  return (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '0.8rem', color: 'var(--tx2)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={createFolders} onChange={(e: any) => setCreateFolders(e.target.checked)} />
+                      Create folder structure on disk ({meta.counts?.folders || 0} folders)
+                    </label>
+                  );
+                })()}
               </div>
             )}
 
