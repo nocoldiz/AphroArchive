@@ -1,222 +1,34 @@
 {
-  "Horror": {
-    "displayName": "Horror",
-    "tags": [
-      "Dracula",
-      "Blood",
-      "Scary",
-      "Supernatural",
-      "Slasher",
-      "Psychological"
-    ]
+  "Fiction": {
+    "displayName": "Fiction",
+    "tags": ["literary", "historical", "contemporary", "novel"]
   },
   "Sci-Fi": {
     "displayName": "Science Fiction",
-    "tags": [
-      "Space",
-      "Future",
-      "Robot",
-      "AI",
-      "Time Travel",
-      "Alien"
-    ]
-  },
-  "Action": {
-    "displayName": "Action",
-    "tags": [
-      "Explosion",
-      "Chase",
-      "Fight",
-      "Hero",
-      "Stunt",
-      "Adrenaline"
-    ]
-  },
-  "Comedy": {
-    "displayName": "Comedy",
-    "tags": [
-      "Funny",
-      "Satire",
-      "Slapstick",
-      "Parody",
-      "Laughter",
-      "Sitcom"
-    ]
-  },
-  "Drama": {
-    "displayName": "Drama",
-    "tags": [
-      "Emotion",
-      "Conflict",
-      "Family",
-      "Historical",
-      "Character Study",
-      "Tragedy"
-    ]
+    "tags": ["space opera", "cyberpunk", "dystopian", "future"]
   },
   "Fantasy": {
     "displayName": "Fantasy",
-    "tags": [
-      "Magic",
-      "Dragon",
-      "Quest",
-      "Mythology",
-      "Sword",
-      "Sorcery"
-    ]
+    "tags": ["epic fantasy", "urban fantasy", "mythology", "magic"]
   },
-  "Thriller": {
-    "displayName": "Thriller",
-    "tags": [
-      "Suspense",
-      "Mystery",
-      "Crime",
-      "Twist",
-      "Intrigue",
-      "Danger"
-    ]
+  "Horror": {
+    "displayName": "Horror",
+    "tags": ["gothic", "supernatural", "psychological", "scary"]
   },
-  "Western": {
-    "displayName": "Western",
-    "tags": [
-      "Cowboy",
-      "Frontier",
-      "Outlaw",
-      "Saloon",
-      "Gunslinger",
-      "Desert"
-    ]
+  "Mystery": {
+    "displayName": "Mystery & Crime",
+    "tags": ["detective", "crime", "thriller", "whodunit"]
   },
-  "RealityTV": {
-    "displayName": "Reality TV",
-    "tags": [
-      "Unscripted",
-      "Competition",
-      "Lifestyle",
-      "Drama",
-      "Game Show",
-      "Fly-on-the-wall"
-    ]
+  "Non-Fiction": {
+    "displayName": "Non-Fiction",
+    "tags": ["biography", "history", "science", "philosophy", "memoir"]
   },
-  "Docuseries": {
-    "displayName": "Docuseries",
-    "tags": [
-      "True Crime",
-      "Investigative",
-      "History",
-      "Nature",
-      "Biography",
-      "Educational"
-    ]
+  "Poetry": {
+    "displayName": "Poetry",
+    "tags": ["classic", "modern", "verse", "anthology"]
   },
-  "WebSeries": {
-    "displayName": "Web Series",
-    "tags": [
-      "Internet",
-      "Short-form",
-      "Indie",
-      "Vlog",
-      "Streaming",
-      "Independent"
-    ]
-  },
-  "Mockumentary": {
-    "displayName": "Mockumentary",
-    "tags": [
-      "Fake Documentary",
-      "Satire",
-      "Deadpan",
-      "Cringe Comedy",
-      "Handheld",
-      "Interview"
-    ]
-  },
-  "Cyberpunk": {
-    "displayName": "Cyberpunk",
-    "tags": [
-      "Dystopia",
-      "Hacker",
-      "Neon",
-      "Megacorporation",
-      "Cybernetics",
-      "Underground"
-    ]
-  },
-  "Anime": {
-    "displayName": "Anime",
-    "tags": [
-      "Animation",
-      "Manga",
-      "Shounen",
-      "Shoujo",
-      "Mecha",
-      "Isekai"
-    ]
-  },
-  "SoapOpera": {
-    "displayName": "Soap Opera",
-    "tags": [
-      "Melodrama",
-      "Serial",
-      "Daytime",
-      "Romance",
-      "Betrayal",
-      "Ensemble"
-    ]
-  },
-  "Interactive": {
-    "displayName": "Interactive",
-    "tags": [
-      "Choose Your Own Adventure",
-      "Branching Narrative",
-      "FMV",
-      "Viewer Choice",
-      "Multiple Endings",
-      "Immersive"
-    ]
-  },
-  "Anthology": {
-    "displayName": "Anthology",
-    "tags": [
-      "Standalone",
-      "Thematic",
-      "Collection",
-      "Episodic",
-      "Short Story",
-      "Diverse"
-    ]
-  },
-  "Tokusatsu": {
-    "displayName": "Tokusatsu",
-    "tags": [
-      "Kaiju",
-      "Henshin",
-      "Special Effects",
-      "Monster",
-      "Hero Team",
-      "Giant Robot"
-    ]
-  },
-  "SliceOfLife": {
-    "displayName": "Slice of Life",
-    "tags": [
-      "Everyday",
-      "Mundane",
-      "Realistic",
-      "Character-driven",
-      "Low Stakes",
-      "Relatable"
-    ]
-  },
-  "NeoNoir": {
-    "displayName": "Neo-Noir",
-    "tags": [
-      "Cynical",
-      "Detective",
-      "Shadows",
-      "Morally Ambiguous",
-      "Urban",
-      "Gritty"
-    ]
+  "Romance": {
+    "displayName": "Romance",
+    "tags": ["historical", "contemporary", "love"]
   }
 }

@@ -1,0 +1,14 @@
+[
+  { "url": "https://www.youtube.com/@BetterThanFood", "title": "Better Than Food — Book Reviews", "category": "Fiction", "hasVideo": true, "tags": ["review", "literary"] },
+  { "url": "https://www.youtube.com/@jackbenedwards", "title": "Jack Edwards", "category": "Fiction", "hasVideo": true, "tags": ["vlog", "review"] },
+  { "url": "https://www.youtube.com/@PolandbananasBOOKS", "title": "PolandbananasBOOKS", "category": "Fiction", "hasVideo": true, "tags": ["review"] },
+  { "url": "https://www.youtube.com/@SteveDonoghue", "title": "Steve Donoghue", "category": "Fiction", "hasVideo": true, "tags": ["criticism"] },
+  { "url": "https://www.youtube.com/@DanielGreeneReviews", "title": "Daniel Greene", "category": "Sci-Fi", "hasVideo": true, "tags": ["scifi", "review"] },
+  { "url": "https://www.youtube.com/@MerphyNapier", "title": "Merphy Napier", "category": "Fantasy", "hasVideo": true, "tags": ["fantasy", "review"] },
+  { "url": "https://www.youtube.com/@TaleFoundry", "title": "Tale Foundry — Storytelling & Lore", "category": "Fantasy", "hasVideo": true, "tags": ["craft", "lore"] },
+  { "url": "https://www.youtube.com/@AClockworkReader", "title": "A Clockwork Reader", "category": "Horror", "hasVideo": true, "tags": ["classics", "review"] },
+  { "url": "https://www.youtube.com/@bookswithemilyfox", "title": "Books with Emily Fox — Classics", "category": "Non-Fiction", "hasVideo": true, "tags": ["classics"] },
+  { "url": "https://www.youtube.com/@crashcourse", "title": "CrashCourse — Literature", "category": "Non-Fiction", "hasVideo": true, "tags": ["course", "analysis"] },
+  { "url": "https://www.youtube.com/@penguinbooks", "title": "Penguin Books", "category": "Non-Fiction", "hasVideo": true, "tags": ["publisher", "interview"] },
+  { "url": "https://www.youtube.com/@TheBookLeo", "title": "The Book Leo", "category": "Romance", "hasVideo": true, "tags": ["vlog"] }
+]

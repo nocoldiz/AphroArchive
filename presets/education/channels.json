@@ -1,1 +1,184 @@
-﻿{}
+{
+  "freeCodeCamp.org": {
+    "website": "https://www.youtube.com/@freecodecamp",
+    "handle": "@freecodecamp",
+    "country": "US",
+    "language": "English",
+    "short_description": "Full-length free programming courses on web dev, data science, and more."
+  },
+  "Traversy Media": {
+    "website": "https://www.youtube.com/@TraversyMedia",
+    "handle": "@TraversyMedia",
+    "country": "US",
+    "language": "English",
+    "short_description": "Practical web development crash courses and project builds."
+  },
+  "The Net Ninja": {
+    "website": "https://www.youtube.com/@NetNinja",
+    "handle": "@NetNinja",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Structured playlists on modern web frameworks and languages."
+  },
+  "Programming with Mosh": {
+    "website": "https://www.youtube.com/@programmingwithmosh",
+    "handle": "@programmingwithmosh",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Clear, beginner-friendly programming tutorials."
+  },
+  "CS Dojo": {
+    "website": "https://www.youtube.com/@CSDojo",
+    "handle": "@CSDojo",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Algorithms, coding interviews, and Python basics."
+  },
+  "Veritasium": {
+    "website": "https://www.youtube.com/@veritasium",
+    "handle": "@veritasium",
+    "country": "US",
+    "language": "English",
+    "short_description": "Science and engineering explained through experiments."
+  },
+  "Kurzgesagt – In a Nutshell": {
+    "website": "https://www.youtube.com/@kurzgesagt",
+    "handle": "@kurzgesagt",
+    "country": "DE",
+    "language": "English",
+    "short_description": "Beautifully animated explainers on science and big questions."
+  },
+  "SciShow": {
+    "website": "https://www.youtube.com/@SciShow",
+    "handle": "@SciShow",
+    "country": "US",
+    "language": "English",
+    "short_description": "Fast, fact-packed science across every discipline."
+  },
+  "Vsauce": {
+    "website": "https://www.youtube.com/@Vsauce",
+    "handle": "@Vsauce",
+    "country": "US",
+    "language": "English",
+    "short_description": "Michael Stevens' deep dives into curious science questions."
+  },
+  "MinutePhysics": {
+    "website": "https://www.youtube.com/@minutephysics",
+    "handle": "@minutephysics",
+    "country": "US",
+    "language": "English",
+    "short_description": "Physics concepts explained simply with whiteboard animation."
+  },
+  "PBS Space Time": {
+    "website": "https://www.youtube.com/@pbsspacetime",
+    "handle": "@pbsspacetime",
+    "country": "US",
+    "language": "English",
+    "short_description": "Astrophysics and cosmology at a rigorous level."
+  },
+  "3Blue1Brown": {
+    "website": "https://www.youtube.com/@3blue1brown",
+    "handle": "@3blue1brown",
+    "country": "US",
+    "language": "English",
+    "short_description": "Grant Sanderson's visual, intuition-first mathematics."
+  },
+  "Numberphile": {
+    "website": "https://www.youtube.com/@numberphile",
+    "handle": "@numberphile",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Fun, surprising videos about numbers and mathematics."
+  },
+  "Mathologer": {
+    "website": "https://www.youtube.com/@Mathologer",
+    "handle": "@Mathologer",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Beautiful maths explained with clarity and depth."
+  },
+  "Khan Academy": {
+    "website": "https://www.youtube.com/@khanacademy",
+    "handle": "@khanacademy",
+    "country": "US",
+    "language": "English",
+    "short_description": "Free lessons across maths, science, economics, and more."
+  },
+  "CrashCourse": {
+    "website": "https://www.youtube.com/@crashcourse",
+    "handle": "@crashcourse",
+    "country": "US",
+    "language": "English",
+    "short_description": "Fast-paced courses in history, science, literature, and philosophy."
+  },
+  "OverSimplified": {
+    "website": "https://www.youtube.com/@OverSimplified",
+    "handle": "@OverSimplified",
+    "country": "US",
+    "language": "English",
+    "short_description": "History told with humour and animation."
+  },
+  "Kings and Generals": {
+    "website": "https://www.youtube.com/@KingsandGenerals",
+    "handle": "@KingsandGenerals",
+    "country": "US",
+    "language": "English",
+    "short_description": "Animated military history and battle breakdowns."
+  },
+  "The History Guy": {
+    "website": "https://www.youtube.com/@TheHistoryGuyChannel",
+    "handle": "@TheHistoryGuyChannel",
+    "country": "US",
+    "language": "English",
+    "short_description": "Forgotten history that deserves to be remembered."
+  },
+  "Extra History": {
+    "website": "https://www.youtube.com/@extrahistory",
+    "handle": "@extrahistory",
+    "country": "US",
+    "language": "English",
+    "short_description": "Animated narrative history series."
+  },
+  "Philosophy Tube": {
+    "website": "https://www.youtube.com/@PhilosophyTube",
+    "handle": "@PhilosophyTube",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Abigail Thorn's theatrical essays on philosophy and politics."
+  },
+  "Wireless Philosophy": {
+    "website": "https://www.youtube.com/@WirelessPhilosophy",
+    "handle": "@WirelessPhilosophy",
+    "country": "US",
+    "language": "English",
+    "short_description": "Free philosophy lessons from academics worldwide."
+  },
+  "The School of Life": {
+    "website": "https://www.youtube.com/@theschooloflifetv",
+    "handle": "@theschooloflifetv",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Ideas on philosophy, psychology, and how to live well."
+  },
+  "Langfocus": {
+    "website": "https://www.youtube.com/@Langfocus",
+    "handle": "@Langfocus",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Explorations of the world's languages and how they work."
+  },
+  "NativLang": {
+    "website": "https://www.youtube.com/@NativLang",
+    "handle": "@NativLang",
+    "country": "US",
+    "language": "English",
+    "short_description": "The history and curiosities of languages and writing systems."
+  },
+  "Easy Languages": {
+    "website": "https://www.youtube.com/@EasyLanguages",
+    "handle": "@EasyLanguages",
+    "country": "DE",
+    "language": "English",
+    "short_description": "Learn languages from real street interviews with subtitles."
+  }
+}

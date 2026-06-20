@@ -1,18 +1,26 @@
 {
   "Programming": {
     "displayName": "Programming",
-    "tags": ["code", "development"]
+    "tags": ["code", "development", "web", "algorithms", "tutorial"]
   },
   "Science": {
     "displayName": "Science",
-    "tags": ["science", "physics", "biology"]
+    "tags": ["science", "physics", "biology", "chemistry", "astronomy"]
+  },
+  "Mathematics": {
+    "displayName": "Mathematics",
+    "tags": ["math", "algebra", "calculus", "statistics", "geometry"]
   },
   "History": {
     "displayName": "History",
-    "tags": ["history", "past"]
+    "tags": ["history", "ancient", "modern", "wars", "biography"]
   },
   "Philosophy": {
     "displayName": "Philosophy",
-    "tags": ["philosophy", "thinking"]
+    "tags": ["philosophy", "ethics", "logic", "metaphysics", "thinking"]
+  },
+  "Languages": {
+    "displayName": "Languages",
+    "tags": ["language", "linguistics", "english", "spanish", "learning"]
   }
 }
