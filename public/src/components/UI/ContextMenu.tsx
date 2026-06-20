@@ -1,4 +1,4 @@
-import { contextMenuState, profiles, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds } from '../../store';
+import { contextMenuState, profiles, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds, createTempProfile } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 import { setItemPlacement, setSectionPlacement, PLUGINS_GROUP_ID } from './navItems';
@@ -449,6 +449,11 @@ export const ContextMenu = () => {
             <ContextItem label="Compress Videos" icon="download" onClick={handleCompress} />
             <ContextItem label="Download ZIP" icon="download" onClick={handleDownloadZip} />
             <ContextItem label="Manage Subfolders" icon="folder" onClick={handleManageSubfolders} />
+            <ContextItem label="Make Temp Profile" icon="user" onClick={() => {
+              closeMenu();
+              createTempProfile('folder', data.path);
+              toast(`Temp profile "${data.name}" — only this folder is shown`);
+            }} />
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
             {data.encrypted ? (
               <ContextItem label="Restore to Profile" icon="lock" onClick={handleUnlock} />
@@ -626,6 +631,11 @@ export const ContextMenu = () => {
               icon="star"
               onClick={handleTogglePinTag}
             />
+            <ContextItem label="Make Temp Profile" icon="user" onClick={() => {
+              closeMenu();
+              createTempProfile('tag', data.name, Array.isArray(data.terms) ? data.terms : []);
+              toast(`Temp profile "${data.name}" — only this tag is shown`);
+            }} />
             <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
             <ContextItem label="Rename Tag" icon="edit" onClick={handleRenameTag} />
             <ContextItem label="Remove from all videos" icon="trash" color="#ff4a4a" onClick={handleDeleteTag} />

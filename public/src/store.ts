@@ -402,6 +402,65 @@ export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true
 export const profiles = signal<string[]>(['default']);
 export const activeProfile = signal<string>('default');
 export const profileModalState = signal<{ visible: boolean }>({ visible: false });
+
+// ── Temporary profiles ──────────────────────────────────────────────
+// Ephemeral, in-memory-only profiles that scope the entire library to a
+// single folder or tag. They are never persisted, so they vanish when the
+// app closes. Multiple can exist at once; each is named after its source
+// folder/tag. Activating one hides every folder/video outside its scope.
+export interface TempProfile {
+  name: string;
+  kind: 'folder' | 'tag';
+  value: string;     // folder catPath or tag name
+  terms?: string[];  // tag terms for name-based matching
+}
+export const tempProfiles = signal<TempProfile[]>([]);
+export const activeTempProfile = signal<TempProfile | null>(null);
+
+// True when a video belongs to the given temp profile's scope.
+export function videoInTempProfile(v: any, tp: TempProfile): boolean {
+  if (tp.kind === 'folder') {
+    if (v.isLink) return false;
+    const cl = tp.value.toLowerCase().replace(/\\/g, '/');
+    const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+    return vp === cl || vp.startsWith(cl + '/') || v.category === tp.value;
+  }
+  const tagLo = tp.value.toLowerCase();
+  if (v.tags && (v.tags as string[]).some((t: string) => t.toLowerCase() === tagLo)) return true;
+  if (tp.terms && tp.terms.length) {
+    const name = (v.name || '').toLowerCase();
+    return tp.terms.some(t =>
+      new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(name)
+    );
+  }
+  return false;
+}
+
+// Create (or reuse) a temp profile for a folder/tag and switch to it.
+export async function createTempProfile(kind: 'folder' | 'tag', value: string, terms: string[] = []) {
+  const name = kind === 'folder' && value.includes('/') ? value.split('/').pop()! : value;
+  const tp: TempProfile = { name, kind, value, terms };
+  const existing = tempProfiles.value.find(p => p.kind === kind && p.value === value);
+  if (existing) {
+    tempProfiles.value = tempProfiles.value.map(p => p === existing ? tp : p);
+  } else {
+    tempProfiles.value = [...tempProfiles.value, tp];
+  }
+  await activateTempProfile(tp);
+}
+
+export async function activateTempProfile(tp: TempProfile) {
+  activeTempProfile.value = tp;
+  profileModalState.value = { visible: false };
+  await reloadAppData();
+}
+
+// Leave temp-profile mode and return to the underlying real profile.
+export async function exitTempProfile() {
+  if (!activeTempProfile.value) return;
+  activeTempProfile.value = null;
+  await reloadAppData();
+}
 export const dbPendingOpen = signal<{ tab: string; action: 'add' } | null>(null);
 export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
 
@@ -500,6 +559,7 @@ export async function switchProfile(name: string) {
     }
   }
 
+  activeTempProfile.value = null;
   activeProfile.value = name;
   profileModalState.value = { visible: false };
   await reloadAppData();
@@ -507,7 +567,7 @@ export async function switchProfile(name: string) {
 
 if (typeof document !== 'undefined') {
   folders.subscribe(list => {
-    if (list.length && activeProfile.value === 'default' && !vaultGlobalView.value) {
+    if (list.length && activeProfile.value === 'default' && !vaultGlobalView.value && !activeTempProfile.value) {
       writeFoldersCache(list);
     }
   });
@@ -1096,7 +1156,9 @@ async function loadVideosInner() {
     .map(linkItemToVideo);
 
   // Refresh the localStorage cache that seeds the Links dropdown on next load.
-  if (activeProfile.value === 'default' && !isVaultGlobal) {
+  // Skip while a temp profile is active so its scoped subset doesn't poison
+  // the real profile's cached links.
+  if (activeProfile.value === 'default' && !isVaultGlobal && !activeTempProfile.value) {
     writeLinksCache(linkVideos, linkTotalCount.value);
   }
 
@@ -1108,7 +1170,12 @@ async function loadVideosInner() {
       })
     : data;
 
-  const combined = [...localVideos, ...linkVideos];
+  let combined = [...localVideos, ...linkVideos];
+
+  // A temp profile scopes the whole library to one folder/tag: everything
+  // outside its scope is dropped before the lists/counts are computed.
+  const tp = activeTempProfile.value;
+  if (tp) combined = combined.filter(v => videoInTempProfile(v, tp));
 
   allVideos.value = combined;
   videos.value = combined;
@@ -1137,6 +1204,20 @@ async function loadVideosInner() {
       // so keep the server's authoritative count rather than clobbering it to 0.
       const count = ((c.encrypted || c.partial || c.locked) && local === 0) ? (c.count || 0) : local;
       return { ...c, count };
+    });
+  }
+
+  // Temp profile: hide every folder outside its scope. For a folder profile
+  // keep the folder itself and its descendants; for a tag profile keep only
+  // folders that still contain in-scope videos.
+  if (tp) {
+    folders.value = folders.value.filter((c: any) => {
+      if (tp.kind === 'folder') {
+        const cl = tp.value.toLowerCase();
+        const cp = (c.path || '').toLowerCase();
+        return cp === cl || cp.startsWith(cl + '/');
+      }
+      return (c.count || 0) > 0;
     });
   }
 
