@@ -1,19 +1,270 @@
 [
-  { "url": "https://www.youtube.com/@COLORSxSTUDIOS", "title": "COLORS — A COLORS SHOW", "category": "Pop", "hasVideo": true, "tags": ["live", "performance"] },
-  { "url": "https://www.youtube.com/@nprmusic", "title": "NPR Music — Tiny Desk Concerts", "category": "Pop", "hasVideo": true, "tags": ["live", "tinydesk"] },
-  { "url": "https://www.youtube.com/@Vevo", "title": "Vevo — Official Music Videos", "category": "Pop", "hasVideo": true, "tags": ["mv"] },
-  { "url": "https://www.youtube.com/watch?v=9bZkp7q19f0", "title": "PSY — Gangnam Style", "category": "Pop", "hasVideo": true, "tags": ["iconic"] },
-  { "url": "https://www.youtube.com/@Genius", "title": "Genius — Verified & Open Mic", "category": "Hip Hop", "hasVideo": true, "tags": ["lyrics", "interview"] },
-  { "url": "https://www.youtube.com/@stonesthrow", "title": "Stones Throw Records", "category": "Hip Hop", "hasVideo": true, "tags": ["label", "beats"] },
-  { "url": "https://www.youtube.com/@LofiGirl", "title": "Lofi Girl", "category": "Hip Hop", "hasVideo": true, "tags": ["lofi", "beats"] },
-  { "url": "https://www.youtube.com/@ChillhopMusic", "title": "Chillhop Music", "category": "Hip Hop", "hasVideo": true, "tags": ["lofi", "jazzhop"] },
-  { "url": "https://www.youtube.com/@kexp", "title": "KEXP — Live Sessions", "category": "Rock", "hasVideo": true, "tags": ["live", "indie"] },
-  { "url": "https://www.youtube.com/@audiotree", "title": "Audiotree Live", "category": "Rock", "hasVideo": true, "tags": ["live", "indie"] },
-  { "url": "https://www.youtube.com/watch?v=djV11Xbc914", "title": "a-ha — Take On Me", "category": "Rock", "hasVideo": true, "tags": ["iconic", "80s"] },
-  { "url": "https://www.youtube.com/@NoCopyrightSounds", "title": "NoCopyrightSounds (NCS)", "category": "Electronic", "hasVideo": true, "tags": ["edm", "royalty-free"] },
-  { "url": "https://www.youtube.com/@Monstercat", "title": "Monstercat", "category": "Electronic", "hasVideo": true, "tags": ["edm", "label"] },
-  { "url": "https://www.youtube.com/@Cercle", "title": "Cercle — Scenic DJ Sets", "category": "Electronic", "hasVideo": true, "tags": ["dj", "live"] },
-  { "url": "https://www.youtube.com/@boilerroom", "title": "Boiler Room", "category": "Electronic", "hasVideo": true, "tags": ["dj", "underground"] },
-  { "url": "https://www.youtube.com/@Anjunabeats", "title": "Anjunabeats", "category": "Electronic", "hasVideo": true, "tags": ["trance", "label"] },
-  { "url": "https://www.youtube.com/watch?v=y6120QOlsfU", "title": "Darude — Sandstorm", "category": "Electronic", "hasVideo": true, "tags": ["iconic", "trance"] }
+  {
+    "url": "https://www.youtube.com/@COLORSxSTUDIOS",
+    "title": "COLORS — A COLORS SHOW",
+    "category": "Pop",
+    "hasVideo": true,
+    "tags": [
+      "live",
+      "performance"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@nprmusic",
+    "title": "NPR Music — Tiny Desk Concerts",
+    "category": "Pop",
+    "hasVideo": true,
+    "tags": [
+      "live",
+      "tinydesk"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Vevo",
+    "title": "Vevo — Official Music Videos",
+    "category": "Pop",
+    "hasVideo": true,
+    "tags": [
+      "mv"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=9bZkp7q19f0",
+    "title": "PSY — Gangnam Style",
+    "category": "Pop",
+    "hasVideo": true,
+    "tags": [
+      "iconic"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Genius",
+    "title": "Genius — Verified & Open Mic",
+    "category": "Hip Hop",
+    "hasVideo": true,
+    "tags": [
+      "lyrics",
+      "interview"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@stonesthrow",
+    "title": "Stones Throw Records",
+    "category": "Hip Hop",
+    "hasVideo": true,
+    "tags": [
+      "label",
+      "beats"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@LofiGirl",
+    "title": "Lofi Girl",
+    "category": "Hip Hop",
+    "hasVideo": true,
+    "tags": [
+      "lofi",
+      "beats"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ChillhopMusic",
+    "title": "Chillhop Music",
+    "category": "Hip Hop",
+    "hasVideo": true,
+    "tags": [
+      "lofi",
+      "jazzhop"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@kexp",
+    "title": "KEXP — Live Sessions",
+    "category": "Rock",
+    "hasVideo": true,
+    "tags": [
+      "live",
+      "indie"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@audiotree",
+    "title": "Audiotree Live",
+    "category": "Rock",
+    "hasVideo": true,
+    "tags": [
+      "live",
+      "indie"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=djV11Xbc914",
+    "title": "a-ha — Take On Me",
+    "category": "Rock",
+    "hasVideo": true,
+    "tags": [
+      "iconic",
+      "80s"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@NoCopyrightSounds",
+    "title": "NoCopyrightSounds (NCS)",
+    "category": "Electronic",
+    "hasVideo": true,
+    "tags": [
+      "edm",
+      "royalty-free"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Monstercat",
+    "title": "Monstercat",
+    "category": "Electronic",
+    "hasVideo": true,
+    "tags": [
+      "edm",
+      "label"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Cercle",
+    "title": "Cercle — Scenic DJ Sets",
+    "category": "Electronic",
+    "hasVideo": true,
+    "tags": [
+      "dj",
+      "live"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@boilerroom",
+    "title": "Boiler Room",
+    "category": "Electronic",
+    "hasVideo": true,
+    "tags": [
+      "dj",
+      "underground"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Anjunabeats",
+    "title": "Anjunabeats",
+    "category": "Electronic",
+    "hasVideo": true,
+    "tags": [
+      "trance",
+      "label"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=y6120QOlsfU",
+    "title": "Darude — Sandstorm",
+    "category": "Electronic",
+    "hasVideo": true,
+    "tags": [
+      "iconic",
+      "trance"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@RickBeato",
+    "title": "Rick Beato",
+    "category": "Rock",
+    "hasVideo": true,
+    "tags": [
+      "theory",
+      "analysis"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AdamNeely",
+    "title": "Adam Neely",
+    "category": "Jazz",
+    "hasVideo": true,
+    "tags": [
+      "theory",
+      "bass"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@NahreSol",
+    "title": "Nahre Sol",
+    "category": "Classical",
+    "hasVideo": true,
+    "tags": [
+      "composition",
+      "piano"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@DavidBennettPiano",
+    "title": "David Bennett Piano",
+    "category": "Pop",
+    "hasVideo": true,
+    "tags": [
+      "theory",
+      "analysis"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Polyphonic",
+    "title": "Polyphonic",
+    "category": "Rock",
+    "hasVideo": true,
+    "tags": [
+      "essay",
+      "history"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Sideways",
+    "title": "Sideways",
+    "category": "Classical",
+    "hasVideo": true,
+    "tags": [
+      "theory",
+      "film"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@MahoganySessions",
+    "title": "Mahogany",
+    "category": "Pop",
+    "hasVideo": true,
+    "tags": [
+      "acoustic",
+      "live"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@triplej",
+    "title": "triple j — Like A Version",
+    "category": "Rock",
+    "hasVideo": true,
+    "tags": [
+      "cover",
+      "live"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TrapNation",
+    "title": "Trap Nation",
+    "category": "Electronic",
+    "hasVideo": true,
+    "tags": [
+      "trap",
+      "edm"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@majesticcasual",
+    "title": "Majestic Casual",
+    "category": "Lo-Fi",
+    "hasVideo": true,
+    "tags": [
+      "chill",
+      "electronic"
+    ]
+  }
 ]

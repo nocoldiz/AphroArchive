@@ -1,26 +1,120 @@
 {
   "Programming": {
     "displayName": "Programming",
-    "tags": ["code", "development", "web", "algorithms", "tutorial"]
+    "tags": [
+      "code",
+      "development",
+      "web",
+      "algorithms",
+      "tutorial",
+      "python",
+      "javascript",
+      "webdev"
+    ]
   },
   "Science": {
     "displayName": "Science",
-    "tags": ["science", "physics", "biology", "chemistry", "astronomy"]
+    "tags": [
+      "science",
+      "physics",
+      "biology",
+      "chemistry",
+      "astronomy",
+      "experiment",
+      "research"
+    ]
   },
   "Mathematics": {
     "displayName": "Mathematics",
-    "tags": ["math", "algebra", "calculus", "statistics", "geometry"]
+    "tags": [
+      "math",
+      "algebra",
+      "calculus",
+      "statistics",
+      "geometry",
+      "proofs"
+    ]
   },
   "History": {
     "displayName": "History",
-    "tags": ["history", "ancient", "modern", "wars", "biography"]
+    "tags": [
+      "history",
+      "ancient",
+      "modern",
+      "wars",
+      "biography",
+      "world war",
+      "civilization"
+    ]
   },
   "Philosophy": {
     "displayName": "Philosophy",
-    "tags": ["philosophy", "ethics", "logic", "metaphysics", "thinking"]
+    "tags": [
+      "philosophy",
+      "ethics",
+      "logic",
+      "metaphysics",
+      "thinking"
+    ]
   },
   "Languages": {
     "displayName": "Languages",
-    "tags": ["language", "linguistics", "english", "spanish", "learning"]
+    "tags": [
+      "language",
+      "linguistics",
+      "english",
+      "spanish",
+      "learning",
+      "grammar",
+      "vocabulary"
+    ]
+  },
+  "Economics": {
+    "displayName": "Economics",
+    "tags": [
+      "economy",
+      "finance",
+      "markets"
+    ]
+  },
+  "Psychology": {
+    "displayName": "Psychology",
+    "tags": [
+      "mind",
+      "behavior",
+      "cognition"
+    ]
+  },
+  "Engineering": {
+    "displayName": "Engineering",
+    "tags": [
+      "mechanical",
+      "civil",
+      "electrical"
+    ]
+  },
+  "Biology": {
+    "displayName": "Biology",
+    "tags": [
+      "cells",
+      "evolution",
+      "genetics"
+    ]
+  },
+  "Astronomy": {
+    "displayName": "Astronomy",
+    "tags": [
+      "space",
+      "cosmos",
+      "planets"
+    ]
+  },
+  "Chemistry": {
+    "displayName": "Chemistry",
+    "tags": [
+      "reactions",
+      "elements",
+      "lab"
+    ]
   }
 }

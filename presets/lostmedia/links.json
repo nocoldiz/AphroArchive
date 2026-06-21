@@ -1,12 +1,187 @@
 [
-  { "url": "https://www.youtube.com/@blameitonjorge", "title": "blameitonjorge — Lost Cartoons", "category": "Lost Cartoons", "hasVideo": true, "tags": ["lost media", "animation"] },
-  { "url": "https://www.youtube.com/@QuintonReviews", "title": "Quinton Reviews — TV Retrospectives", "category": "Lost Cartoons", "hasVideo": true, "tags": ["tv", "retrospective"] },
-  { "url": "https://www.youtube.com/@Whang", "title": "Whang!", "category": "Internet Mysteries", "hasVideo": true, "tags": ["internet", "mystery"] },
-  { "url": "https://www.youtube.com/@Wendigoon", "title": "Wendigoon — Iceberg Explainers", "category": "Internet Mysteries", "hasVideo": true, "tags": ["iceberg"] },
-  { "url": "https://www.youtube.com/@BarelySociable", "title": "Barely Sociable", "category": "Internet Mysteries", "hasVideo": true, "tags": ["mystery"] },
-  { "url": "https://www.youtube.com/@FredrikKnudsen", "title": "Down the Rabbit Hole", "category": "Internet Mysteries", "hasVideo": true, "tags": ["history", "documentary"] },
-  { "url": "https://www.youtube.com/@NickCrowley", "title": "Nick Crowley", "category": "Internet Mysteries", "hasVideo": true, "tags": ["mystery", "dark"] },
-  { "url": "https://www.youtube.com/@AtrocityGuide", "title": "Atrocity Guide", "category": "Internet Mysteries", "hasVideo": true, "tags": ["subculture"] },
-  { "url": "https://www.youtube.com/@OrdinaryThings", "title": "Ordinary Things", "category": "Internet Mysteries", "hasVideo": true, "tags": ["essay"] },
-  { "url": "https://www.youtube.com/@KanePixels", "title": "Kane Pixels — The Backrooms", "category": "Found Footage", "hasVideo": true, "tags": ["analog horror"] }
+  {
+    "url": "https://www.youtube.com/@blameitonjorge",
+    "title": "blameitonjorge — Lost Cartoons",
+    "category": "Lost Cartoons",
+    "hasVideo": true,
+    "tags": [
+      "lost media",
+      "animation"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@QuintonReviews",
+    "title": "Quinton Reviews — TV Retrospectives",
+    "category": "Lost Cartoons",
+    "hasVideo": true,
+    "tags": [
+      "tv",
+      "retrospective"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Whang",
+    "title": "Whang!",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "internet",
+      "mystery"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Wendigoon",
+    "title": "Wendigoon — Iceberg Explainers",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "iceberg"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@BarelySociable",
+    "title": "Barely Sociable",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "mystery"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@FredrikKnudsen",
+    "title": "Down the Rabbit Hole",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "history",
+      "documentary"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@NickCrowley",
+    "title": "Nick Crowley",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "mystery",
+      "dark"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AtrocityGuide",
+    "title": "Atrocity Guide",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "subculture"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@OrdinaryThings",
+    "title": "Ordinary Things",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "essay"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@KanePixels",
+    "title": "Kane Pixels — The Backrooms",
+    "category": "Found Footage",
+    "hasVideo": true,
+    "tags": [
+      "analog horror"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Nexpo",
+    "title": "Nexpo",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "mystery",
+      "internet"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@NightMind",
+    "title": "Night Mind",
+    "category": "Analog Horror",
+    "hasVideo": true,
+    "tags": [
+      "arg",
+      "horror"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ReignBot",
+    "title": "ReignBot",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "mystery",
+      "investigation"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@InternetHistorian",
+    "title": "Internet Historian",
+    "category": "Internet Mysteries",
+    "hasVideo": true,
+    "tags": [
+      "documentary",
+      "internet"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@LEMMiNO",
+    "title": "Lemmino",
+    "category": "Unsolved",
+    "hasVideo": true,
+    "tags": [
+      "mystery",
+      "documentary"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@oddheader",
+    "title": "oddheader",
+    "category": "Video Games",
+    "hasVideo": true,
+    "tags": [
+      "easteregg",
+      "secrets"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@hecan",
+    "title": "Hecarim",
+    "category": "Lost Cartoons",
+    "hasVideo": true,
+    "tags": [
+      "lostmedia",
+      "gaming"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@bigjoel",
+    "title": "Big Joel",
+    "category": "Lost TV",
+    "hasVideo": true,
+    "tags": [
+      "analysis",
+      "media"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Razbuten",
+    "title": "Razbuten",
+    "category": "Video Games",
+    "hasVideo": true,
+    "tags": [
+      "gaming",
+      "curiosity"
+    ]
+  }
 ]

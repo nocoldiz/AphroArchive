@@ -82,5 +82,89 @@
     "country": "US",
     "language": "English",
     "short_description": "Crash Course Literature — guided readings of major works."
+  },
+  "Hardcover": {
+    "website": "https://www.youtube.com/@hardcoverliterature",
+    "handle": "@hardcoverliterature",
+    "country": "US",
+    "language": "English",
+    "short_description": "Classic literature analysis and study guides."
+  },
+  "The Bookchemist": {
+    "website": "https://www.youtube.com/@TheBookchemist",
+    "handle": "@TheBookchemist",
+    "country": "IT",
+    "language": "English",
+    "short_description": "Critical takes on fantasy and sci-fi writing."
+  },
+  "Hello Future Me": {
+    "website": "https://www.youtube.com/@HelloFutureMe",
+    "handle": "@HelloFutureMe",
+    "country": "NZ",
+    "language": "English",
+    "short_description": "Worldbuilding and writing craft essays."
+  },
+  "Just Write": {
+    "website": "https://www.youtube.com/@JustWriteMedia",
+    "handle": "@JustWriteMedia",
+    "country": "US",
+    "language": "English",
+    "short_description": "Storytelling analysis and screenwriting craft."
+  },
+  "Bookpilled": {
+    "website": "https://www.youtube.com/@bookpilled",
+    "handle": "@bookpilled",
+    "country": "US",
+    "language": "English",
+    "short_description": "Deep dives on literary fiction and difficult books."
+  },
+  "Leena Norms": {
+    "website": "https://www.youtube.com/@LeenaNorms",
+    "handle": "@LeenaNorms",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Books, poetry, and cultural commentary."
+  },
+  "Lindsay Ellis": {
+    "website": "https://www.youtube.com/@LindsayEllisVids",
+    "handle": "@LindsayEllisVids",
+    "country": "US",
+    "language": "English",
+    "short_description": "Media and literary criticism video essays."
+  },
+  "withcindy": {
+    "website": "https://www.youtube.com/@withcindy",
+    "handle": "@withcindy",
+    "country": "US",
+    "language": "English",
+    "short_description": "Snarky YA and book review commentary."
+  },
+  "climbthestacks": {
+    "website": "https://www.youtube.com/@climbthestacks",
+    "handle": "@climbthestacks",
+    "country": "US",
+    "language": "English",
+    "short_description": "Thoughtful literary fiction reviews."
+  },
+  "Books & Lala": {
+    "website": "https://www.youtube.com/@booksandlala",
+    "handle": "@booksandlala",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Thriller, horror, and literary book reviews."
+  },
+  "Ariel Bissett": {
+    "website": "https://www.youtube.com/@ArielBissett",
+    "handle": "@ArielBissett",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Reading culture and book discussions."
+  },
+  "The Closer Look": {
+    "website": "https://www.youtube.com/@TheCloserLook",
+    "handle": "@TheCloserLook",
+    "country": "US",
+    "language": "English",
+    "short_description": "Narrative and theme analysis essays."
   }
 }

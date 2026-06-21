@@ -1,15 +1,257 @@
 [
-  { "url": "https://www.youtube.com/@mkbhd", "title": "Marques Brownlee (MKBHD)", "category": "Reviews", "hasVideo": true, "tags": ["review"] },
-  { "url": "https://www.youtube.com/@Dave2D", "title": "Dave2D — Laptop Reviews", "category": "Reviews", "hasVideo": true, "tags": ["review", "laptop"] },
-  { "url": "https://www.youtube.com/@Mrwhosetheboss", "title": "Mrwhosetheboss", "category": "Reviews", "hasVideo": true, "tags": ["review", "phone"] },
-  { "url": "https://www.youtube.com/@Fireship", "title": "Fireship", "category": "Programming", "hasVideo": true, "tags": ["webdev", "tutorial"] },
-  { "url": "https://www.youtube.com/@ThePrimeagen", "title": "ThePrimeagen", "category": "Programming", "hasVideo": true, "tags": ["programming"] },
-  { "url": "https://www.youtube.com/@Computerphile", "title": "Computerphile", "category": "Programming", "hasVideo": true, "tags": ["cs", "education"] },
-  { "url": "https://www.youtube.com/@veritasium", "title": "Veritasium", "category": "Science", "hasVideo": true, "tags": ["science"] },
-  { "url": "https://www.youtube.com/@ColdFusion", "title": "ColdFusion", "category": "Science", "hasVideo": true, "tags": ["documentary"] },
-  { "url": "https://www.youtube.com/@TwoMinutePapers", "title": "Two Minute Papers", "category": "AI", "hasVideo": true, "tags": ["ai", "research"] },
-  { "url": "https://www.youtube.com/@lexfridman", "title": "Lex Fridman Podcast", "category": "AI", "hasVideo": true, "tags": ["ai", "podcast"] },
-  { "url": "https://www.youtube.com/@LinusTechTips", "title": "Linus Tech Tips", "category": "Hardware", "hasVideo": true, "tags": ["pc", "hardware"] },
-  { "url": "https://www.youtube.com/@NetworkChuck", "title": "NetworkChuck", "category": "Hardware", "hasVideo": true, "tags": ["networking", "linux"] },
-  { "url": "https://www.youtube.com/@The8BitGuy", "title": "The 8-Bit Guy — Retro", "category": "Hardware", "hasVideo": true, "tags": ["retro"] }
+  {
+    "url": "https://www.youtube.com/@mkbhd",
+    "title": "Marques Brownlee (MKBHD)",
+    "category": "Reviews",
+    "hasVideo": true,
+    "tags": [
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Dave2D",
+    "title": "Dave2D — Laptop Reviews",
+    "category": "Reviews",
+    "hasVideo": true,
+    "tags": [
+      "review",
+      "laptop"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Mrwhosetheboss",
+    "title": "Mrwhosetheboss",
+    "category": "Reviews",
+    "hasVideo": true,
+    "tags": [
+      "review",
+      "phone"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Fireship",
+    "title": "Fireship",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "webdev",
+      "tutorial"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ThePrimeagen",
+    "title": "ThePrimeagen",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "programming"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Computerphile",
+    "title": "Computerphile",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "cs",
+      "education"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@veritasium",
+    "title": "Veritasium",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "science"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ColdFusion",
+    "title": "ColdFusion",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "documentary"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TwoMinutePapers",
+    "title": "Two Minute Papers",
+    "category": "AI",
+    "hasVideo": true,
+    "tags": [
+      "ai",
+      "research"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@lexfridman",
+    "title": "Lex Fridman Podcast",
+    "category": "AI",
+    "hasVideo": true,
+    "tags": [
+      "ai",
+      "podcast"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@LinusTechTips",
+    "title": "Linus Tech Tips",
+    "category": "Hardware",
+    "hasVideo": true,
+    "tags": [
+      "pc",
+      "hardware"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@NetworkChuck",
+    "title": "NetworkChuck",
+    "category": "Hardware",
+    "hasVideo": true,
+    "tags": [
+      "networking",
+      "linux"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@The8BitGuy",
+    "title": "The 8-Bit Guy — Retro",
+    "category": "Hardware",
+    "hasVideo": true,
+    "tags": [
+      "retro"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@davidbombal",
+    "title": "David Bombal",
+    "category": "Cybersecurity",
+    "hasVideo": true,
+    "tags": [
+      "networking",
+      "hacking"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@_JohnHammond",
+    "title": "John Hammond",
+    "category": "Cybersecurity",
+    "hasVideo": true,
+    "tags": [
+      "ctf",
+      "malware"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@LiveOverflow",
+    "title": "LiveOverflow",
+    "category": "Cybersecurity",
+    "hasVideo": true,
+    "tags": [
+      "hacking",
+      "exploits"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@t3dotgg",
+    "title": "Theo - t3.gg",
+    "category": "Web Development",
+    "hasVideo": true,
+    "tags": [
+      "webdev",
+      "typescript"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@WebDevSimplified",
+    "title": "Web Dev Simplified",
+    "category": "Web Development",
+    "hasVideo": true,
+    "tags": [
+      "webdev",
+      "tutorial"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TheCodingTrain",
+    "title": "The Coding Train",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "creative",
+      "javascript"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@sentdex",
+    "title": "sentdex",
+    "category": "Data Science",
+    "hasVideo": true,
+    "tags": [
+      "python",
+      "ml"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@statquest",
+    "title": "StatQuest",
+    "category": "Data Science",
+    "hasVideo": true,
+    "tags": [
+      "statistics",
+      "ml"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Hardwareunboxed",
+    "title": "Hardware Unboxed",
+    "category": "Hardware",
+    "hasVideo": true,
+    "tags": [
+      "gpu",
+      "benchmark"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@GamersNexus",
+    "title": "Gamers Nexus",
+    "category": "Hardware",
+    "hasVideo": true,
+    "tags": [
+      "pc",
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AndrejKarpathy",
+    "title": "Andrej Karpathy",
+    "category": "AI",
+    "hasVideo": true,
+    "tags": [
+      "deeplearning",
+      "neuralnets"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TechnoTim",
+    "title": "TechnoTim",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "homelab",
+      "devops"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Bisqwit",
+    "title": "Bisqwit",
+    "category": "Retrotech",
+    "hasVideo": true,
+    "tags": [
+      "lowlevel",
+      "retro"
+    ]
+  }
 ]

@@ -208,5 +208,68 @@
     "country": "US",
     "language": "English",
     "short_description": "Music culture outlet — interviews, documentaries, and sessions."
+  },
+  "Theo Katzman": {
+    "website": "https://www.youtube.com/@theokatzman",
+    "handle": "@theokatzman",
+    "country": "US",
+    "language": "English",
+    "short_description": "Singer-songwriter and Vulfpeck member."
+  },
+  "Adam Neely": {
+    "website": "https://www.youtube.com/@AdamNeely",
+    "handle": "@AdamNeely",
+    "country": "US",
+    "language": "English",
+    "short_description": "Music theory, bass, and analysis from a working musician."
+  },
+  "Rick Beato": {
+    "website": "https://www.youtube.com/@RickBeato",
+    "handle": "@RickBeato",
+    "country": "US",
+    "language": "English",
+    "short_description": "What Makes This Song Great and music theory deep dives."
+  },
+  "Nahre Sol": {
+    "website": "https://www.youtube.com/@NahreSol",
+    "handle": "@NahreSol",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Composition, piano, and musical exploration."
+  },
+  "David Bennett Piano": {
+    "website": "https://www.youtube.com/@DavidBennettPiano",
+    "handle": "@DavidBennettPiano",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Music theory explained through famous songs."
+  },
+  "Polyphonic": {
+    "website": "https://www.youtube.com/@Polyphonic",
+    "handle": "@Polyphonic",
+    "country": "US",
+    "language": "English",
+    "short_description": "Video essays on musicians and albums."
+  },
+  "Sideways": {
+    "website": "https://www.youtube.com/@Sideways",
+    "handle": "@Sideways",
+    "country": "US",
+    "language": "English",
+    "short_description": "Music in film and theory analysis."
+  },
+  "triple j": {
+    "website": "https://www.youtube.com/@triplej",
+    "handle": "@triplej",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Australia's youth radio — Like A Version covers."
+  },
+  "NPR Music (Tiny Desk)": {
+    "website": "https://www.youtube.com/@nprmusic",
+    "handle": "@nprmusic",
+    "country": "US",
+    "language": "English",
+    "short_description": "Tiny Desk Concerts and live sessions."
   }
 }

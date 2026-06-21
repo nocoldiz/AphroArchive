@@ -110,5 +110,61 @@
     "country": "US",
     "language": "English",
     "short_description": "Modern YTPMV/remix creator known for technically intricate musical edits."
+  },
+  "Cs188": {
+    "website": "https://www.youtube.com/@cs188",
+    "handle": "@cs188",
+    "country": "US",
+    "language": "English",
+    "short_description": "Classic and influential YouTube Poop creator."
+  },
+  "Plotagon": {
+    "website": "https://www.youtube.com/@GiIvaSunner",
+    "handle": "@GiIvaSunner",
+    "country": "US",
+    "language": "English",
+    "short_description": "Rips and musical remixes in the SiIvaGunner style."
+  },
+  "Hugo": {
+    "website": "https://www.youtube.com/@Hugobossman",
+    "handle": "@Hugobossman",
+    "country": "US",
+    "language": "English",
+    "short_description": "YTP and absurd remix edits."
+  },
+  "Black Yoshi": {
+    "website": "https://www.youtube.com/@BlackYoshi",
+    "handle": "@BlackYoshi",
+    "country": "US",
+    "language": "English",
+    "short_description": "YTP comedy edits."
+  },
+  "Chincherrinas": {
+    "website": "https://www.youtube.com/@Chincherrinas",
+    "handle": "@Chincherrinas",
+    "country": "ES",
+    "language": "English",
+    "short_description": "The Ultimate Showdown gaming-meets-YTP series."
+  },
+  "GfooMaster": {
+    "website": "https://www.youtube.com/@GfooMaster",
+    "handle": "@GfooMaster",
+    "country": "US",
+    "language": "English",
+    "short_description": "Classic-era YouTube Poop content."
+  },
+  "cartoonlover98": {
+    "website": "https://www.youtube.com/@cartoonlover98",
+    "handle": "@cartoonlover98",
+    "country": "US",
+    "language": "English",
+    "short_description": "Cartoon-based YouTube Poops."
+  },
+  "Geli Rol": {
+    "website": "https://www.youtube.com/@GeliRol",
+    "handle": "@GeliRol",
+    "country": "AR",
+    "language": "Spanish",
+    "short_description": "Spanish-language YTP and YTPMV edits."
   }
 }

@@ -1,22 +1,93 @@
 {
   "Lost Cartoons": {
     "displayName": "Lost Cartoons & TV",
-    "tags": ["animation", "tv", "lost episode", "missing"]
+    "tags": [
+      "animation",
+      "tv",
+      "lost episode",
+      "missing",
+      "banned episode",
+      "pilot"
+    ]
   },
   "Lost Films": {
     "displayName": "Lost Films",
-    "tags": ["cinema", "unreleased", "missing", "archive"]
+    "tags": [
+      "cinema",
+      "unreleased",
+      "missing",
+      "archive",
+      "cut footage"
+    ]
   },
   "Internet Mysteries": {
     "displayName": "Internet Mysteries",
-    "tags": ["arg", "iceberg", "webcore", "unsolved", "creepy"]
+    "tags": [
+      "arg",
+      "iceberg",
+      "webcore",
+      "unsolved",
+      "creepy",
+      "cicada",
+      "deep web"
+    ]
   },
   "Found Footage": {
     "displayName": "Found Footage & Analog Horror",
-    "tags": ["recovered", "analog horror", "vhs", "tape"]
+    "tags": [
+      "recovered",
+      "analog horror",
+      "vhs",
+      "tape"
+    ]
   },
   "Video Games": {
     "displayName": "Lost Video Games",
-    "tags": ["beta", "cancelled", "prototype", "unreleased"]
+    "tags": [
+      "beta",
+      "cancelled",
+      "prototype",
+      "unreleased"
+    ]
+  },
+  "Lost TV": {
+    "displayName": "Lost TV",
+    "tags": [
+      "television",
+      "broadcast",
+      "lost episode"
+    ]
+  },
+  "Creepypasta": {
+    "displayName": "Creepypasta",
+    "tags": [
+      "creepypasta",
+      "horror",
+      "analog"
+    ]
+  },
+  "Analog Horror": {
+    "displayName": "Analog Horror",
+    "tags": [
+      "analog",
+      "vhs",
+      "horror"
+    ]
+  },
+  "Iceberg": {
+    "displayName": "Iceberg",
+    "tags": [
+      "iceberg",
+      "mystery",
+      "deep dive"
+    ]
+  },
+  "Unsolved": {
+    "displayName": "Unsolved",
+    "tags": [
+      "unsolved",
+      "mystery",
+      "investigation"
+    ]
   }
 }

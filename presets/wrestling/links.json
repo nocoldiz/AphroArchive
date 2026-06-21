@@ -1,20 +1,259 @@
 [
-  { "url": "https://www.youtube.com/@WWE", "title": "WWE — Official Channel", "category": "Raw", "hasVideo": true, "tags": ["wwe"] },
-  { "url": "https://www.youtube.com/@AEW", "title": "All Elite Wrestling — Official", "category": "AEW Dynamite", "hasVideo": true, "tags": ["aew"] },
-  { "url": "https://www.youtube.com/@njpw1972", "title": "New Japan Pro-Wrestling", "category": "NJPW", "hasVideo": true, "tags": ["njpw", "japan"] },
-  { "url": "https://www.youtube.com/@IMPACTWRESTLING", "title": "Impact Wrestling / TNA", "category": "Impact Wrestling", "hasVideo": true, "tags": ["impact", "tna"] },
-  { "url": "https://www.youtube.com/@ringofhonor", "title": "Ring of Honor", "category": "Ring of Honor", "hasVideo": true, "tags": ["roh"] },
-  { "url": "https://www.youtube.com/@CMLLLuchaLibre", "title": "CMLL Lucha Libre", "category": "CMLL", "hasVideo": true, "tags": ["cmll", "lucha"] },
-  { "url": "https://www.youtube.com/@luchalibreaaa", "title": "Lucha Libre AAA", "category": "AAA", "hasVideo": true, "tags": ["aaa", "lucha"] },
-  { "url": "https://www.youtube.com/@GameChangerWrestling", "title": "GCW — Game Changer Wrestling", "category": "Independent", "hasVideo": true, "tags": ["gcw", "indie"] },
-  { "url": "https://www.youtube.com/@MLWWrestling", "title": "Major League Wrestling", "category": "Independent", "hasVideo": true, "tags": ["mlw", "indie"] },
-  { "url": "https://www.youtube.com/@stardomworld", "title": "STARDOM World", "category": "STARDOM", "hasVideo": true, "tags": ["stardom", "joshi"] },
-  { "url": "https://www.youtube.com/@TJPW_English", "title": "Tokyo Joshi Pro (English)", "category": "Women's Wrestling", "hasVideo": true, "tags": ["joshi", "women"] },
-  { "url": "https://www.youtube.com/@PROGRESSWrestling", "title": "PROGRESS Wrestling", "category": "British Wrestling", "hasVideo": true, "tags": ["uk", "indie"] },
-  { "url": "https://www.youtube.com/@RevolutionProWrestling", "title": "Revolution Pro Wrestling", "category": "British Wrestling", "hasVideo": true, "tags": ["uk", "revpro"] },
-  { "url": "https://www.youtube.com/@WrestleTalk", "title": "WrestleTalk", "category": "Documentaries", "hasVideo": true, "tags": ["news", "talk"] },
-  { "url": "https://www.youtube.com/@CultaholicWrestling", "title": "Cultaholic Wrestling", "category": "Documentaries", "hasVideo": true, "tags": ["news", "talk"] },
-  { "url": "https://www.youtube.com/@WrestlingBios", "title": "Wrestling Bios", "category": "Documentaries", "hasVideo": true, "tags": ["documentary", "biography"] },
-  { "url": "https://www.youtube.com/@ChrisVanVliet", "title": "Chris Van Vliet — Interviews", "category": "Documentaries", "hasVideo": true, "tags": ["interview", "podcast"] },
-  { "url": "https://www.youtube.com/@JimCornette", "title": "The Jim Cornette Experience", "category": "Documentaries", "hasVideo": true, "tags": ["podcast", "commentary"] }
+  {
+    "url": "https://www.youtube.com/@WWE",
+    "title": "WWE — Official Channel",
+    "category": "Raw",
+    "hasVideo": true,
+    "tags": [
+      "wwe"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AEW",
+    "title": "All Elite Wrestling — Official",
+    "category": "AEW Dynamite",
+    "hasVideo": true,
+    "tags": [
+      "aew"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@njpw1972",
+    "title": "New Japan Pro-Wrestling",
+    "category": "NJPW",
+    "hasVideo": true,
+    "tags": [
+      "njpw",
+      "japan"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@IMPACTWRESTLING",
+    "title": "Impact Wrestling / TNA",
+    "category": "Impact Wrestling",
+    "hasVideo": true,
+    "tags": [
+      "impact",
+      "tna"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ringofhonor",
+    "title": "Ring of Honor",
+    "category": "Ring of Honor",
+    "hasVideo": true,
+    "tags": [
+      "roh"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@CMLLLuchaLibre",
+    "title": "CMLL Lucha Libre",
+    "category": "CMLL",
+    "hasVideo": true,
+    "tags": [
+      "cmll",
+      "lucha"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@luchalibreaaa",
+    "title": "Lucha Libre AAA",
+    "category": "AAA",
+    "hasVideo": true,
+    "tags": [
+      "aaa",
+      "lucha"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@GameChangerWrestling",
+    "title": "GCW — Game Changer Wrestling",
+    "category": "Independent",
+    "hasVideo": true,
+    "tags": [
+      "gcw",
+      "indie"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@MLWWrestling",
+    "title": "Major League Wrestling",
+    "category": "Independent",
+    "hasVideo": true,
+    "tags": [
+      "mlw",
+      "indie"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@stardomworld",
+    "title": "STARDOM World",
+    "category": "STARDOM",
+    "hasVideo": true,
+    "tags": [
+      "stardom",
+      "joshi"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TJPW_English",
+    "title": "Tokyo Joshi Pro (English)",
+    "category": "Women's Wrestling",
+    "hasVideo": true,
+    "tags": [
+      "joshi",
+      "women"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@PROGRESSWrestling",
+    "title": "PROGRESS Wrestling",
+    "category": "British Wrestling",
+    "hasVideo": true,
+    "tags": [
+      "uk",
+      "indie"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@RevolutionProWrestling",
+    "title": "Revolution Pro Wrestling",
+    "category": "British Wrestling",
+    "hasVideo": true,
+    "tags": [
+      "uk",
+      "revpro"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@WrestleTalk",
+    "title": "WrestleTalk",
+    "category": "Documentaries",
+    "hasVideo": true,
+    "tags": [
+      "news",
+      "talk"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@CultaholicWrestling",
+    "title": "Cultaholic Wrestling",
+    "category": "Documentaries",
+    "hasVideo": true,
+    "tags": [
+      "news",
+      "talk"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@WrestlingBios",
+    "title": "Wrestling Bios",
+    "category": "Documentaries",
+    "hasVideo": true,
+    "tags": [
+      "documentary",
+      "biography"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ChrisVanVliet",
+    "title": "Chris Van Vliet — Interviews",
+    "category": "Documentaries",
+    "hasVideo": true,
+    "tags": [
+      "interview",
+      "podcast"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@JimCornette",
+    "title": "The Jim Cornette Experience",
+    "category": "Documentaries",
+    "hasVideo": true,
+    "tags": [
+      "podcast",
+      "commentary"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@BeingTheElite",
+    "title": "Being The Elite",
+    "category": "AEW Dynamite",
+    "hasVideo": true,
+    "tags": [
+      "aew",
+      "series"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@MLW",
+    "title": "Major League Wrestling",
+    "category": "Independent",
+    "hasVideo": true,
+    "tags": [
+      "mlw",
+      "indie"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@GCWFanForever",
+    "title": "Game Changer Wrestling",
+    "category": "Hardcore / Deathmatch",
+    "hasVideo": true,
+    "tags": [
+      "gcw",
+      "deathmatch"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AdamWilbourn",
+    "title": "Adam Wilbourn",
+    "category": "Promos & Mic Work",
+    "hasVideo": true,
+    "tags": [
+      "comedy",
+      "list"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@OSWReview",
+    "title": "OSW Review",
+    "category": "Classic",
+    "hasVideo": true,
+    "tags": [
+      "retro",
+      "ppv"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@OutofCharacterwithRyanSatin",
+    "title": "Out of Character",
+    "category": "Podcasts",
+    "hasVideo": true,
+    "tags": [
+      "interview",
+      "shoot"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Tetsujin81",
+    "title": "Tetsujin",
+    "category": "Japanese Wrestling",
+    "hasVideo": true,
+    "tags": [
+      "puroresu",
+      "classic"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@denkops",
+    "title": "denkops",
+    "category": "Pay-Per-View",
+    "hasVideo": true,
+    "tags": [
+      "highlights",
+      "compilation"
+    ]
+  }
 ]

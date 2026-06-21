@@ -1,22 +1,108 @@
 {
   "Reviews": {
     "displayName": "Tech Reviews",
-    "tags": ["review", "unboxing", "phone", "laptop", "gadget"]
+    "tags": [
+      "review",
+      "unboxing",
+      "phone",
+      "laptop",
+      "gadget",
+      "smartphone",
+      "first impressions"
+    ]
   },
   "Programming": {
     "displayName": "Programming",
-    "tags": ["code", "web dev", "tutorial", "software", "developer"]
+    "tags": [
+      "code",
+      "web dev",
+      "tutorial",
+      "software",
+      "developer",
+      "python",
+      "rust",
+      "systems"
+    ]
   },
   "Science": {
     "displayName": "Science & Engineering",
-    "tags": ["physics", "engineering", "explainer", "education"]
+    "tags": [
+      "physics",
+      "engineering",
+      "explainer",
+      "education"
+    ]
   },
   "AI": {
     "displayName": "AI & Machine Learning",
-    "tags": ["ai", "machine learning", "llm", "research", "neural"]
+    "tags": [
+      "ai",
+      "machine learning",
+      "llm",
+      "research",
+      "neural",
+      "neural networks"
+    ]
   },
   "Hardware": {
     "displayName": "Hardware",
-    "tags": ["pc building", "retro", "networking", "components"]
+    "tags": [
+      "pc building",
+      "retro",
+      "networking",
+      "components",
+      "cpu",
+      "gpu",
+      "benchmarks",
+      "pc build"
+    ]
+  },
+  "Cybersecurity": {
+    "displayName": "Cybersecurity",
+    "tags": [
+      "security",
+      "hacking",
+      "infosec"
+    ]
+  },
+  "Web Development": {
+    "displayName": "Web Development",
+    "tags": [
+      "webdev",
+      "frontend",
+      "backend"
+    ]
+  },
+  "Gadgets": {
+    "displayName": "Gadgets",
+    "tags": [
+      "gadgets",
+      "unboxing",
+      "review"
+    ]
+  },
+  "Data Science": {
+    "displayName": "Data Science",
+    "tags": [
+      "data",
+      "ml",
+      "analytics"
+    ]
+  },
+  "Retrotech": {
+    "displayName": "Retro Tech",
+    "tags": [
+      "retro",
+      "vintage",
+      "restoration"
+    ]
+  },
+  "Robotics": {
+    "displayName": "Robotics",
+    "tags": [
+      "robots",
+      "automation",
+      "diy"
+    ]
   }
 }

@@ -1,22 +1,95 @@
 {
   "Podcasts": {
     "displayName": "True Crime Podcasts",
-    "tags": ["podcast", "audio", "narrative", "weekly", "host"]
+    "tags": [
+      "podcast",
+      "audio",
+      "narrative",
+      "weekly",
+      "host",
+      "interview"
+    ]
   },
   "Documentaries": {
     "displayName": "Documentaries",
-    "tags": ["documentary", "series", "investigation", "feature"]
+    "tags": [
+      "documentary",
+      "series",
+      "investigation",
+      "feature",
+      "archive"
+    ]
   },
   "Cold Cases": {
     "displayName": "Cold Cases & Unsolved",
-    "tags": ["unsolved", "cold case", "missing", "mystery"]
+    "tags": [
+      "unsolved",
+      "cold case",
+      "missing",
+      "mystery",
+      "reopened",
+      "evidence"
+    ]
   },
   "Forensics": {
     "displayName": "Forensics & Psychology",
-    "tags": ["forensic", "criminal psychology", "analysis", "behaviour"]
+    "tags": [
+      "forensic",
+      "criminal psychology",
+      "analysis",
+      "behaviour",
+      "dna",
+      "autopsy"
+    ]
   },
   "Court Cases": {
     "displayName": "Court Cases & Trials",
-    "tags": ["trial", "court", "verdict", "testimony", "law"]
+    "tags": [
+      "trial",
+      "court",
+      "verdict",
+      "testimony",
+      "law"
+    ]
+  },
+  "Serial": {
+    "displayName": "Serial Killers",
+    "tags": [
+      "serial killer",
+      "profile",
+      "psychology"
+    ]
+  },
+  "Heists": {
+    "displayName": "Heists",
+    "tags": [
+      "heist",
+      "robbery",
+      "fraud"
+    ]
+  },
+  "Disappearances": {
+    "displayName": "Disappearances",
+    "tags": [
+      "missing",
+      "unsolved",
+      "investigation"
+    ]
+  },
+  "Scams": {
+    "displayName": "Scams & Fraud",
+    "tags": [
+      "scam",
+      "fraud",
+      "conman"
+    ]
+  },
+  "Mafia": {
+    "displayName": "Organized Crime",
+    "tags": [
+      "mafia",
+      "cartel",
+      "gang"
+    ]
   }
 }

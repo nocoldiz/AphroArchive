@@ -89,5 +89,96 @@
     "country": "US",
     "language": "English",
     "short_description": "Retro computing restoration and history."
+  },
+  "David Bombal": {
+    "website": "https://www.youtube.com/@davidbombal",
+    "handle": "@davidbombal",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Networking, ethical hacking, and IT certifications."
+  },
+  "John Hammond": {
+    "website": "https://www.youtube.com/@_JohnHammond",
+    "handle": "@_JohnHammond",
+    "country": "US",
+    "language": "English",
+    "short_description": "Cybersecurity, CTFs, and malware analysis."
+  },
+  "LiveOverflow": {
+    "website": "https://www.youtube.com/@LiveOverflow",
+    "handle": "@LiveOverflow",
+    "country": "DE",
+    "language": "English",
+    "short_description": "Hacking explained through challenges and exploits."
+  },
+  "Theo - t3.gg": {
+    "website": "https://www.youtube.com/@t3dotgg",
+    "handle": "@t3dotgg",
+    "country": "US",
+    "language": "English",
+    "short_description": "Web development opinions and modern stack reviews."
+  },
+  "Web Dev Simplified": {
+    "website": "https://www.youtube.com/@WebDevSimplified",
+    "handle": "@WebDevSimplified",
+    "country": "US",
+    "language": "English",
+    "short_description": "Clear web development tutorials."
+  },
+  "The Coding Train": {
+    "website": "https://www.youtube.com/@TheCodingTrain",
+    "handle": "@TheCodingTrain",
+    "country": "US",
+    "language": "English",
+    "short_description": "Creative coding and generative art tutorials."
+  },
+  "sentdex": {
+    "website": "https://www.youtube.com/@sentdex",
+    "handle": "@sentdex",
+    "country": "US",
+    "language": "English",
+    "short_description": "Python, machine learning, and data science."
+  },
+  "StatQuest": {
+    "website": "https://www.youtube.com/@statquest",
+    "handle": "@statquest",
+    "country": "US",
+    "language": "English",
+    "short_description": "Statistics and machine learning clearly explained."
+  },
+  "Hardware Unboxed": {
+    "website": "https://www.youtube.com/@Hardwareunboxed",
+    "handle": "@Hardwareunboxed",
+    "country": "AU",
+    "language": "English",
+    "short_description": "In-depth GPU and CPU benchmarking."
+  },
+  "Gamers Nexus": {
+    "website": "https://www.youtube.com/@GamersNexus",
+    "handle": "@GamersNexus",
+    "country": "US",
+    "language": "English",
+    "short_description": "Rigorous PC hardware testing and reviews."
+  },
+  "TechnoTim": {
+    "website": "https://www.youtube.com/@TechnoTim",
+    "handle": "@TechnoTim",
+    "country": "US",
+    "language": "English",
+    "short_description": "Homelab, self-hosting, and DevOps tutorials."
+  },
+  "Andrej Karpathy": {
+    "website": "https://www.youtube.com/@AndrejKarpathy",
+    "handle": "@AndrejKarpathy",
+    "country": "US",
+    "language": "English",
+    "short_description": "Deep learning and neural network lectures."
+  },
+  "Bisqwit": {
+    "website": "https://www.youtube.com/@Bisqwit",
+    "handle": "@Bisqwit",
+    "country": "FI",
+    "language": "English",
+    "short_description": "Low-level programming and retro computing."
   }
 }

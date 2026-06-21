@@ -215,5 +215,103 @@
     "country": "US",
     "language": "English",
     "short_description": "Aggregated movie trailers, clips, and bonus features."
+  },
+  "Letterboxd": {
+    "website": "https://www.youtube.com/@letterboxd",
+    "handle": "@letterboxd",
+    "country": "US",
+    "language": "English",
+    "short_description": "Interviews and film-culture content from the social platform."
+  },
+  "Be Kind Rewind": {
+    "website": "https://www.youtube.com/@BeKindRewind",
+    "handle": "@BeKindRewind",
+    "country": "US",
+    "language": "English",
+    "short_description": "Video essays on classic Hollywood and Oscar history."
+  },
+  "Accented Cinema": {
+    "website": "https://www.youtube.com/@AccentedCinema",
+    "handle": "@AccentedCinema",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Analysis of international and Asian cinema."
+  },
+  "Cinema Therapy": {
+    "website": "https://www.youtube.com/@CinemaTherapyShow",
+    "handle": "@CinemaTherapyShow",
+    "country": "US",
+    "language": "English",
+    "short_description": "A filmmaker and therapist break down movies."
+  },
+  "In Praise of Shadows": {
+    "website": "https://www.youtube.com/@InPraiseofShadows",
+    "handle": "@InPraiseofShadows",
+    "country": "US",
+    "language": "English",
+    "short_description": "Essays on horror and arthouse cinema."
+  },
+  "The Cinema Cartography": {
+    "website": "https://www.youtube.com/@TheCinemaCartography",
+    "handle": "@TheCinemaCartography",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Dense visual essays on film theory."
+  },
+  "Storytellers": {
+    "website": "https://www.youtube.com/@StorytellersUnion",
+    "handle": "@StorytellersUnion",
+    "country": "IT",
+    "language": "English",
+    "short_description": "Filmmaking and storytelling craft analysis."
+  },
+  "Filmento": {
+    "website": "https://www.youtube.com/@Filmento",
+    "handle": "@Filmento",
+    "country": "FI",
+    "language": "English",
+    "short_description": "Why movie scenes and scripts work (or fail)."
+  },
+  "Movies Insider": {
+    "website": "https://www.youtube.com/@InsiderEntertainment",
+    "handle": "@InsiderEntertainment",
+    "country": "US",
+    "language": "English",
+    "short_description": "How movie effects, props, and scenes are made."
+  },
+  "Half in the Bag": {
+    "website": "https://www.youtube.com/@RedLetterMedia",
+    "handle": "@RedLetterMedia",
+    "country": "US",
+    "language": "English",
+    "short_description": "RedLetterMedia movie reviews and discussion."
+  },
+  "Schaffrillas Productions": {
+    "website": "https://www.youtube.com/@Schaffrillas",
+    "handle": "@Schaffrillas",
+    "country": "US",
+    "language": "English",
+    "short_description": "Animated film analysis and rankings."
+  },
+  "Maggie Mae Fish": {
+    "website": "https://www.youtube.com/@MaggieMaeFish",
+    "handle": "@MaggieMaeFish",
+    "country": "US",
+    "language": "English",
+    "short_description": "Political and cultural film analysis."
+  },
+  "Focus Features": {
+    "website": "https://www.youtube.com/@FocusFeatures",
+    "handle": "@FocusFeatures",
+    "country": "US",
+    "language": "English",
+    "short_description": "Trailers and clips from Focus Features releases."
+  },
+  "Apple TV": {
+    "website": "https://www.youtube.com/@AppleTV",
+    "handle": "@AppleTV",
+    "country": "US",
+    "language": "English",
+    "short_description": "Trailers for Apple Originals films and series."
   }
 }

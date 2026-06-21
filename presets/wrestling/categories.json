@@ -1,86 +1,272 @@
 {
   "Raw": {
     "displayName": "Monday Night Raw",
-    "tags": ["WWE", "Raw", "Monday", "USA Network", "Weekly"]
+    "tags": [
+      "WWE",
+      "Raw",
+      "Monday",
+      "USA Network",
+      "Weekly",
+      "monday night",
+      "flagship"
+    ]
   },
   "SmackDown": {
     "displayName": "Friday Night SmackDown",
-    "tags": ["WWE", "SmackDown", "Friday", "Fox", "Weekly"]
+    "tags": [
+      "WWE",
+      "SmackDown",
+      "Friday",
+      "Fox",
+      "Weekly",
+      "friday night",
+      "blue brand"
+    ]
   },
   "NXT": {
     "displayName": "WWE NXT",
-    "tags": ["WWE", "NXT", "Developmental", "Tuesday"]
+    "tags": [
+      "WWE",
+      "NXT",
+      "Developmental",
+      "Tuesday"
+    ]
   },
   "NXT Europe": {
     "displayName": "NXT Europe",
-    "tags": ["WWE", "NXT", "UK", "Europe", "Developmental"]
+    "tags": [
+      "WWE",
+      "NXT",
+      "UK",
+      "Europe",
+      "Developmental"
+    ]
   },
   "AEW Dynamite": {
     "displayName": "AEW Dynamite",
-    "tags": ["AEW", "Dynamite", "Wednesday", "TNT", "TBS", "Weekly"]
+    "tags": [
+      "AEW",
+      "Dynamite",
+      "Wednesday",
+      "TNT",
+      "TBS",
+      "Weekly"
+    ]
   },
   "AEW Collision": {
     "displayName": "AEW Collision",
-    "tags": ["AEW", "Collision", "Saturday", "TNT", "Weekly"]
+    "tags": [
+      "AEW",
+      "Collision",
+      "Saturday",
+      "TNT",
+      "Weekly"
+    ]
   },
   "AEW Rampage": {
     "displayName": "AEW Rampage",
-    "tags": ["AEW", "Rampage", "Friday", "TNT", "Weekly"]
+    "tags": [
+      "AEW",
+      "Rampage",
+      "Friday",
+      "TNT",
+      "Weekly"
+    ]
   },
   "Impact Wrestling": {
     "displayName": "Impact Wrestling / TNA",
-    "tags": ["Impact", "TNA", "Total Nonstop Action", "X Division", "Knockouts"]
+    "tags": [
+      "Impact",
+      "TNA",
+      "Total Nonstop Action",
+      "X Division",
+      "Knockouts"
+    ]
   },
   "Ring of Honor": {
     "displayName": "Ring of Honor",
-    "tags": ["ROH", "Pure Wrestling", "ROH TV", "Code of Honor"]
+    "tags": [
+      "ROH",
+      "Pure Wrestling",
+      "ROH TV",
+      "Code of Honor"
+    ]
   },
   "NJPW": {
     "displayName": "New Japan Pro-Wrestling",
-    "tags": ["NJPW", "Strong Style", "G1 Climax", "Wrestle Kingdom", "Japan"]
+    "tags": [
+      "NJPW",
+      "Strong Style",
+      "G1 Climax",
+      "Wrestle Kingdom",
+      "Japan"
+    ]
   },
   "STARDOM": {
     "displayName": "STARDOM",
-    "tags": ["STARDOM", "Women", "Japan", "5STAR Grand Prix", "Cinderella"]
+    "tags": [
+      "STARDOM",
+      "Women",
+      "Japan",
+      "5STAR Grand Prix",
+      "Cinderella"
+    ]
   },
   "CMLL": {
     "displayName": "CMLL Lucha Libre",
-    "tags": ["CMLL", "Lucha Libre", "Mexico", "Arena Mexico", "Friday"]
+    "tags": [
+      "CMLL",
+      "Lucha Libre",
+      "Mexico",
+      "Arena Mexico",
+      "Friday"
+    ]
   },
   "AAA": {
     "displayName": "Lucha Libre AAA",
-    "tags": ["AAA", "Lucha Libre", "Mexico", "TripleMania", "Vikingo"]
+    "tags": [
+      "AAA",
+      "Lucha Libre",
+      "Mexico",
+      "TripleMania",
+      "Vikingo"
+    ]
   },
   "Pay-Per-View": {
     "displayName": "Pay-Per-View & Premium Live Events",
-    "tags": ["PPV", "PLE", "WrestleMania", "SummerSlam", "All Out", "Double or Nothing", "Forbidden Door"]
+    "tags": [
+      "PPV",
+      "PLE",
+      "WrestleMania",
+      "SummerSlam",
+      "All Out",
+      "Double or Nothing",
+      "Forbidden Door",
+      "premium live event",
+      "main event"
+    ]
   },
   "Independent": {
     "displayName": "Independent Wrestling",
-    "tags": ["Indie", "GCW", "PWG", "MLW", "NWA", "Independent"]
+    "tags": [
+      "Indie",
+      "GCW",
+      "PWG",
+      "MLW",
+      "NWA",
+      "Independent"
+    ]
   },
   "Japanese Wrestling": {
     "displayName": "Japanese Wrestling",
-    "tags": ["Japan", "NOAH", "AJPW", "DDT", "Dragon Gate", "BJW"]
+    "tags": [
+      "Japan",
+      "NOAH",
+      "AJPW",
+      "DDT",
+      "Dragon Gate",
+      "BJW",
+      "puroresu",
+      "strong style",
+      "g1"
+    ]
   },
   "Lucha Libre": {
     "displayName": "Lucha Libre",
-    "tags": ["Lucha", "Mexico", "Masks", "High-Flying", "The Crash", "Zona 23"]
+    "tags": [
+      "Lucha",
+      "Mexico",
+      "Masks",
+      "High-Flying",
+      "The Crash",
+      "Zona 23"
+    ]
   },
   "British Wrestling": {
     "displayName": "British Wrestling",
-    "tags": ["UK", "Progress", "RevPro", "ICW", "British", "wXw", "OTT"]
+    "tags": [
+      "UK",
+      "Progress",
+      "RevPro",
+      "ICW",
+      "British",
+      "wXw",
+      "OTT"
+    ]
   },
   "Women's Wrestling": {
     "displayName": "Women's Wrestling",
-    "tags": ["Women", "Knockouts", "Revolution", "STARDOM", "Joshi", "WWE Women's"]
+    "tags": [
+      "Women",
+      "Knockouts",
+      "Revolution",
+      "STARDOM",
+      "Joshi",
+      "WWE Women's",
+      "division",
+      "title"
+    ]
   },
   "Classic": {
     "displayName": "Classic & Vintage Wrestling",
-    "tags": ["WWF", "WCW", "ECW", "AWA", "Attitude Era", "Golden Age", "Vintage"]
+    "tags": [
+      "WWF",
+      "WCW",
+      "ECW",
+      "AWA",
+      "Attitude Era",
+      "Golden Age",
+      "Vintage"
+    ]
   },
   "Documentaries": {
     "displayName": "Documentaries & Interviews",
-    "tags": ["Documentary", "Interview", "Behind the Scenes", "Biography", "Podcast"]
+    "tags": [
+      "Documentary",
+      "Interview",
+      "Behind the Scenes",
+      "Biography",
+      "Podcast"
+    ]
+  },
+  "Promos & Mic Work": {
+    "displayName": "Promos & Mic Work",
+    "tags": [
+      "promo",
+      "mic",
+      "segment"
+    ]
+  },
+  "Tag Team": {
+    "displayName": "Tag Team",
+    "tags": [
+      "tag",
+      "team",
+      "division"
+    ]
+  },
+  "Hardcore / Deathmatch": {
+    "displayName": "Hardcore / Deathmatch",
+    "tags": [
+      "hardcore",
+      "deathmatch",
+      "extreme"
+    ]
+  },
+  "Royal Rumble": {
+    "displayName": "Royal Rumble",
+    "tags": [
+      "rumble",
+      "battle royal",
+      "elimination"
+    ]
+  },
+  "Podcasts": {
+    "displayName": "Podcasts & Shoots",
+    "tags": [
+      "podcast",
+      "shoot",
+      "interview"
+    ]
   }
 }

@@ -7,7 +7,10 @@
       "Upbeat",
       "Vocal",
       "Synthesizer",
-      "Radio"
+      "Radio",
+      "synthpop",
+      "indie pop",
+      "k-pop"
     ]
   },
   "Hip Hop": {
@@ -18,7 +21,11 @@
       "Flow",
       "Urban",
       "Turntablism",
-      "Sampled"
+      "Sampled",
+      "rap",
+      "trap",
+      "boom bap",
+      "drill"
     ]
   },
   "Rock": {
@@ -29,7 +36,11 @@
       "Band",
       "Solo",
       "Distortion",
-      "Anthem"
+      "Anthem",
+      "indie",
+      "punk",
+      "alternative",
+      "classic rock"
     ]
   },
   "Electronic": {
@@ -40,7 +51,65 @@
       "Club",
       "Synthesizer",
       "House",
-      "Techno"
+      "Techno",
+      "dnb",
+      "ambient"
+    ]
+  },
+  "Jazz": {
+    "displayName": "Jazz",
+    "tags": [
+      "jazz",
+      "bebop",
+      "swing"
+    ]
+  },
+  "Classical": {
+    "displayName": "Classical",
+    "tags": [
+      "classical",
+      "orchestra",
+      "symphony"
+    ]
+  },
+  "Metal": {
+    "displayName": "Metal",
+    "tags": [
+      "metal",
+      "heavy",
+      "thrash"
+    ]
+  },
+  "R&B / Soul": {
+    "displayName": "R&B / Soul",
+    "tags": [
+      "rnb",
+      "soul",
+      "funk"
+    ]
+  },
+  "Country": {
+    "displayName": "Country",
+    "tags": [
+      "country",
+      "folk",
+      "americana"
+    ]
+  },
+  "Lo-Fi": {
+    "displayName": "Lo-Fi",
+    "tags": [
+      "lofi",
+      "chill",
+      "study"
+    ]
+  },
+  "Reggae": {
+    "displayName": "Reggae",
+    "tags": [
+      "reggae",
+      "dub",
+      "ska"
     ]
   }
 }

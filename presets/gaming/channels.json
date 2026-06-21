@@ -222,5 +222,96 @@
     "country": "US",
     "language": "English",
     "short_description": "Family-friendly Minecraft mods and mini-games."
+  },
+  "Game Grumps": {
+    "website": "https://www.youtube.com/@GameGrumps",
+    "handle": "@GameGrumps",
+    "country": "US",
+    "language": "English",
+    "short_description": "Long-running Let's Play comedy duo."
+  },
+  "jacksfilms": {
+    "website": "https://www.youtube.com/@jacksfilms",
+    "handle": "@jacksfilms",
+    "country": "US",
+    "language": "English",
+    "short_description": "Comedy and gaming sketches."
+  },
+  "CallMeKevin": {
+    "website": "https://www.youtube.com/@CallMeKevin",
+    "handle": "@CallMeKevin",
+    "country": "IE",
+    "language": "English",
+    "short_description": "Chaotic and comedic playthroughs."
+  },
+  "ManlyBadassHero": {
+    "website": "https://www.youtube.com/@ManlyBadassHero",
+    "handle": "@ManlyBadassHero",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Indie horror game showcases."
+  },
+  "GMTK": {
+    "website": "https://www.youtube.com/@GMTK",
+    "handle": "@GMTK",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Game Maker's Toolkit — game design analysis."
+  },
+  "Noclip": {
+    "website": "https://www.youtube.com/@NoclipDocs",
+    "handle": "@NoclipDocs",
+    "country": "US",
+    "language": "English",
+    "short_description": "Documentaries about video games and the people who make them."
+  },
+  "Ahoy": {
+    "website": "https://www.youtube.com/@XboxAhoy",
+    "handle": "@XboxAhoy",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Beautifully produced video game history and weapon documentaries."
+  },
+  "People Make Games": {
+    "website": "https://www.youtube.com/@PeopleMakeGames",
+    "handle": "@PeopleMakeGames",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Investigative journalism about the games industry."
+  },
+  "Karl Jobst": {
+    "website": "https://www.youtube.com/@KarlJobst",
+    "handle": "@KarlJobst",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Speedrun history and gaming drama deep dives."
+  },
+  "EazySpeezy": {
+    "website": "https://www.youtube.com/@EazySpeezy",
+    "handle": "@EazySpeezy",
+    "country": "US",
+    "language": "English",
+    "short_description": "Gaming trivia and easter eggs."
+  },
+  "theScore esports": {
+    "website": "https://www.youtube.com/@theScoreesports",
+    "handle": "@theScoreesports",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Esports documentaries and competitive history."
+  },
+  "Sapnap": {
+    "website": "https://www.youtube.com/@Sapnap",
+    "handle": "@Sapnap",
+    "country": "US",
+    "language": "English",
+    "short_description": "Minecraft challenges and multiplayer content."
+  },
+  "DougDoug": {
+    "website": "https://www.youtube.com/@DougDoug",
+    "handle": "@DougDoug",
+    "country": "US",
+    "language": "English",
+    "short_description": "Programming-meets-gaming chaos and challenges."
   }
 }
