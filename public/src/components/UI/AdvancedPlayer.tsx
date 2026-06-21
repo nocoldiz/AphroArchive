@@ -79,6 +79,14 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const [buffered, setBuffered] = useState<{ start: number; end: number }[]>([]);
   const [localZap, setLocalZap] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Auto-recovery: transient load failures (404 race on a fresh stream, network
+  // blip, mid-buffer stall) used to leave a blank player until a full page
+  // reload. Instead we silently re-fetch the source a few times, only surfacing
+  // a manual retry overlay once the budget is exhausted.
+  const [loadError, setLoadError] = useState(false);
+  const retryTimerRef = useRef<any>(null);
+  const retryCountRef = useRef(0);
+  const stallTimerRef = useRef<any>(null);
   const [ccOn, setCcOn] = useState(false);
   const [ccText, setCcText] = useState('');
   const [selectedSubIdx, setSelectedSubIdx] = useState<number | null>(null);
@@ -95,9 +103,18 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const chaptersRef = useRef(chapters);
   const autoChaptersRef = useRef(autoChapters);
   const selectedSubIdxRef = useRef(selectedSubIdx);
-  const [usingHls, setUsingHls] = useState(!!hlsSrc);
+  // Default to direct range-streaming: instant start, no server-side transcode.
+  // HLS (ffmpeg transcode) is a fallback for formats the browser can't decode
+  // natively — engaged automatically on a media error, or manually via the HLS
+  // button / a non-default audio track.
+  const [usingHls, setUsingHls] = useState(false);
   const hlsInstanceRef = useRef<any>(null);
-  const prevUsingHlsRef = useRef(!!hlsSrc);
+  const prevUsingHlsRef = useRef(false);
+  const triedHlsFallbackRef = useRef(false);
+  // Live mirror of `usingHls` so the mount-time recovery closures read the
+  // current transcode mode rather than the stale value captured at mount.
+  const usingHlsRef = useRef(false);
+  useEffect(() => { usingHlsRef.current = usingHls; }, [usingHls]);
   const [audioTracks, setAudioTracks] = useState<{ index: number; language: string; title: string; codec: string; channels: number }[]>([]);
   const [selectedAudio, setSelectedAudio] = useState(0);
   const [showChannelPicker, setShowChannelPicker] = useState(false);
@@ -177,6 +194,45 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
 
   const toast = (msg: string) => (window as any).toast?.(msg);
 
+  const MAX_RELOAD_RETRIES = 4;
+
+  // Re-fetch the current source from scratch, preserving the playback position
+  // so a transient failure doesn't lose the user's place.
+  const reloadStream = () => {
+    const vid = videoRef.current;
+    if (!vid || usingHlsRef.current) return;
+    const resumeAt = vid.currentTime || 0;
+    setLoading(true);
+    try { vid.load(); } catch {}
+    const onLoaded = () => {
+      vid.removeEventListener('loadedmetadata', onLoaded);
+      if (resumeAt > 0.5) { try { vid.currentTime = resumeAt; } catch {} }
+      vid.play().catch(() => {
+        if (!vid.muted) { vid.muted = true; setMuted(true); isMutedSignal.value = true; vid.play().catch(() => {}); }
+      });
+    };
+    vid.addEventListener('loadedmetadata', onLoaded);
+  };
+
+  // Direct-stream load/stall failure → retry a few times with linear backoff
+  // before giving up and surfacing the manual retry overlay.
+  const handleLoadFailure = () => {
+    if (usingHlsRef.current) return; // HLS errors are surfaced via their own toast
+    if (retryTimerRef.current) return; // a retry is already pending
+    if (retryCountRef.current >= MAX_RELOAD_RETRIES) { setLoading(false); setLoadError(true); return; }
+    retryCountRef.current++;
+    const delay = 400 * retryCountRef.current;
+    setLoading(true);
+    retryTimerRef.current = setTimeout(() => { retryTimerRef.current = null; reloadStream(); }, delay);
+  };
+
+  const manualRetry = () => {
+    retryCountRef.current = 0;
+    setLoadError(false);
+    if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+    reloadStream();
+  };
+
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -225,8 +281,26 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       }
       setBuffered(ranges);
     };
-    const onWaiting = () => setLoading(true);
-    const onCanPlay = () => setLoading(false);
+    // Stall watchdog: if the element gets stuck buffering and the playback
+    // position stops advancing, force a reload instead of leaving it frozen.
+    const clearStall = () => {
+      if (stallTimerRef.current) { clearTimeout(stallTimerRef.current); stallTimerRef.current = null; }
+    };
+    const armStall = () => {
+      if (stallTimerRef.current || usingHlsRef.current) return;
+      const at = vid.currentTime;
+      stallTimerRef.current = setTimeout(() => {
+        stallTimerRef.current = null;
+        // Only intervene if we're genuinely stuck (not paused, no progress, not ended).
+        if (!vid.paused && !vid.ended && vid.currentTime <= at + 0.1 && vid.readyState < 3) {
+          handleLoadFailure();
+        }
+      }, 12000);
+    };
+    const onWaiting = () => { setLoading(true); armStall(); };
+    const onStalled = () => armStall();
+    const onCanPlay = () => { setLoading(false); clearStall(); retryCountRef.current = 0; setLoadError(false); };
+    const onPlaying = () => { setLoading(false); clearStall(); };
 
     vid.addEventListener('play', onPlay);
     vid.addEventListener('pause', onPause);
@@ -237,6 +311,8 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     vid.addEventListener('ended', onEnded);
     vid.addEventListener('progress', onProgress);
     vid.addEventListener('waiting', onWaiting);
+    vid.addEventListener('stalled', onStalled);
+    vid.addEventListener('playing', onPlaying);
     vid.addEventListener('canplay', onCanPlay);
 
     // Browsers block unmuted autoplay without a user gesture (e.g. on page
@@ -256,6 +332,8 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     return () => {
       // Persist final position when navigating away mid-playback.
       setProgress(videoId, vid.currentTime, vid.duration || 0);
+      clearStall();
+      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
       vid.removeEventListener('play', onPlay);
       vid.removeEventListener('pause', onPause);
       vid.removeEventListener('timeupdate', onTimeUpdate);
@@ -265,6 +343,8 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       vid.removeEventListener('ended', onEnded);
       vid.removeEventListener('progress', onProgress);
       vid.removeEventListener('waiting', onWaiting);
+      vid.removeEventListener('stalled', onStalled);
+      vid.removeEventListener('playing', onPlaying);
       vid.removeEventListener('canplay', onCanPlay);
     };
   }, []);
@@ -598,6 +678,27 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     }
   };
 
+  const hasChapters = () => chaptersRef.current.length > 0 || autoChaptersRef.current.length > 0;
+
+  // Skip back: jump to the previous chapter, or restart the current one if none precedes.
+  const prevChapter = () => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    const all = [...chaptersRef.current, ...autoChaptersRef.current].sort((a, b) => a.time - b.time);
+    const prev = [...all].reverse().find(c => c.time < vid.currentTime - 1);
+    vid.currentTime = prev ? prev.time : 0;
+  };
+
+  // Skip forward: jump to the next chapter; falls through to onNext if already past the last one.
+  const nextChapter = () => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    const all = [...chaptersRef.current, ...autoChaptersRef.current].sort((a, b) => a.time - b.time);
+    const next = all.find(c => c.time > vid.currentTime + 0.5);
+    if (next) vid.currentTime = next.time;
+    else onNextRef.current?.();
+  };
+
   const handleTimebarClick = (e: MouseEvent) => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -650,6 +751,28 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     return Math.floor(pct * 5);
   };
 
+  // Coarse thumbnails are captured at these fractions of the duration (see genThumbs).
+  const COARSE_FRACTIONS = [0.1, 0.25, 0.5, 0.75, 0.9];
+
+  // Pick the preview frame closest to `time`. Scene-detection / chapter thumbnails
+  // are captured at their exact timecode, so when one is nearer than the coarse
+  // thumbnail it gives a far more accurate seek preview.
+  const getPreviewSrc = (time: number) => {
+    let bestSrc = `/api/thumbs/${videoId}/${getThumbIndex(time)}`;
+    let bestDist = Infinity;
+    if (duration) {
+      for (let i = 0; i < COARSE_FRACTIONS.length; i++) {
+        const d = Math.abs(COARSE_FRACTIONS[i] * duration - time);
+        if (d < bestDist) { bestDist = d; bestSrc = `/api/thumbs/${videoId}/${i}`; }
+      }
+    }
+    for (const c of [...chaptersRef.current, ...autoChaptersRef.current]) {
+      const d = Math.abs(c.time - time);
+      if (d < bestDist) { bestDist = d; bestSrc = `/api/thumbs/${videoId}/chapter/${c.id}`; }
+    }
+    return bestSrc;
+  };
+
   return (
     <div
       ref={containerRef}
@@ -670,6 +793,20 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         style={{ width: '100%', maxHeight: isFullscreen ? '100vh' : '80vh', display: 'block' }}
         onClick={togglePlay}
         onDblClick={(e: any) => { e.preventDefault(); toggleFullscreen(); }}
+        onError={() => {
+          // Browser can't decode the original file (e.g. mkv/hevc) — fall back to
+          // the HLS transcode once. Direct streaming stays the default for the
+          // common case (mp4/webm), which starts instantly without ffmpeg.
+          if (!usingHls && hlsSrc && !triedHlsFallbackRef.current) {
+            triedHlsFallbackRef.current = true;
+            setUsingHls(true);
+            return;
+          }
+          // Otherwise it's a transient load failure (stream not ready yet, 404
+          // race, network blip) — auto-retry the same source instead of leaving
+          // a blank player that only a full page reload would fix.
+          handleLoadFailure();
+        }}
         autoPlay
       >
         {subtitles.map((t, i) => (
@@ -712,6 +849,34 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
               to { transform: rotate(360deg); }
             }
           `}</style>
+        </div>
+      )}
+
+      {/* Load failure overlay — shown only after auto-retries are exhausted */}
+      {loadError && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '14px',
+          background: 'rgba(0,0,0,0.78)',
+          color: '#fff',
+          zIndex: 7
+        }}>
+          <div style={{ fontSize: '0.95rem', opacity: 0.85 }}>This video failed to load.</div>
+          <button
+            type="button"
+            onClick={manualRetry}
+            style={{ background: 'var(--ac, #ff4a4a)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 700, padding: '8px 20px', borderRadius: '6px' }}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -792,7 +957,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
               zIndex: 10
             }}>
               <img
-                src={`/api/thumbs/${videoId}/${getThumbIndex(hoverTime)}`}
+                src={getPreviewSrc(hoverTime)}
                 alt=""
                 style={{ width: '120px', height: 'auto', borderRadius: '2px' }}
                 onError={(e: any) => e.target.style.display = 'none'}
@@ -840,9 +1005,9 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
             <button onClick={togglePlay} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem' }}>
               {playing ? '⏸' : '▶'}
             </button>
-            <button onClick={() => isTVMode.value ? prevTVChannel() : onPrev?.()} title={isTVMode.value ? 'Prev channel (P)' : 'Previous'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
+            <button onClick={() => isTVMode.value ? prevTVChannel() : hasChapters() ? prevChapter() : onPrev?.()} title={isTVMode.value ? 'Prev channel (P)' : hasChapters() ? 'Previous chapter' : 'Previous'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
             <button onClick={() => setLocalZap(!localZap)} style={{ background: 'none', border: 'none', color: localZap ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '1.2rem' }} title="Local Zap Mode">⚡</button>
-            <button onClick={() => isTVMode.value ? nextTVChannel() : onNext?.()} title={isTVMode.value ? 'Next channel (N)' : 'Next'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
+            <button onClick={() => isTVMode.value ? nextTVChannel() : hasChapters() ? nextChapter() : onNext?.()} title={isTVMode.value ? 'Next channel (N)' : hasChapters() ? 'Next chapter' : 'Next'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
             <span style={{ fontSize: '0.9rem' }}>{formatDuration(currentTime)} / {formatDuration(duration)}</span>
             <button
               onClick={() => { setLoopA(currentTime); if (loopB !== null && currentTime >= loopB) setLoopB(null); }}
