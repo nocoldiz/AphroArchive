@@ -52,3 +52,4 @@ yt-dlp.exe
 
 # ── Local fast build script ──────────────────
 build_fast.bat
+bulkdownloader/link_failed.txt

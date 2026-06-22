@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'preact/hooks';
-import { moveModalState, loadVideos } from '../../store';
+import { moveModalState, loadVideos, videos, allVideos, selectedVideoIds, videoSelMode } from '../../store';
 import { moveVideo } from '../../api';
-import { Folder } from '../../types';
+import { Folder, Video } from '../../types';
 
 export const MoveModal = () => {
   const state = moveModalState.value;
@@ -63,10 +63,22 @@ export const MoveModal = () => {
         }
       } else {
         if (state.vidIds.length > 0) {
-          if (w.toast) w.toast(`Moving ${state.vidIds.length} videos...`);
+          if (w.toast) w.toast(`Moving ${state.vidIds.length} video${state.vidIds.length > 1 ? 's' : ''}…`);
+          const movedIds = new Set(state.vidIds);
           for (const id of state.vidIds) {
             await moveVideo(id, targetCat);
           }
+          // Optimistically reflect the new folder in the in-memory lists so the
+          // grid drops the moved cards out of the current folder view and the
+          // sidebar counts react *immediately*; `loadVideos()` then reconciles
+          // the authoritative IDs/counts from the rescanned library.
+          const leaf = targetCat ? (targetCat.split('/').pop() || '') : '';
+          const recat = (arr: Video[]) => arr.map(v =>
+            movedIds.has(v.id) ? { ...v, catPath: targetCat, category: leaf } : v);
+          allVideos.value = recat(allVideos.value);
+          videos.value = recat(videos.value);
+          selectedVideoIds.value = new Set([...selectedVideoIds.value].filter(id => !movedIds.has(id)));
+          videoSelMode.value = selectedVideoIds.value.size > 0;
           await loadVideos();
           if (w.toast) w.toast(`Moved to ${targetCat || 'Uncategorized'}`);
         }

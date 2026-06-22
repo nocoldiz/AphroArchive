@@ -134,6 +134,19 @@ def _append_link(path, url):
         _write_link_lines(path, lines)
 
 
+def _prepend_links(path, urls):
+    """Add *urls* to the TOP of *path*, preserving their order and skipping any
+    already present. Newly pasted links land first so they download first."""
+    new = [u for u in dict.fromkeys(urls) if u]
+    if not new:
+        return
+    existing = _read_link_lines(path)
+    existing_set = set(existing)
+    new = [u for u in new if u not in existing_set]
+    if new:
+        _write_link_lines(path, new + existing)
+
+
 def _read_stream(stream):
     """Yield output split on both \\n and \\r so yt-dlp's carriage-return
     progress updates surface immediately instead of only on newline."""
@@ -322,17 +335,19 @@ class DownloadManager(tk.Tk):
     def _add_to_queue(self):
         raw = self.url_text.get('1.0', 'end').splitlines()
         existing = {it['url'] for it in self.items.values()}
-        added = 0
+        added_urls = []
         for line in raw:
             url = line.strip()
             if not url.startswith(('http://', 'https://')) or url in existing:
                 continue
             existing.add(url)
             self._add_item(url)
-            added += 1
-        if added:
+            added_urls.append(url)
+        if added_urls:
+            # Persist newly pasted links to the top of links_to_download.txt.
+            _prepend_links(LINKS_TO_DOWNLOAD, added_urls)
             self.url_text.delete('1.0', 'end')
-            self.status_var.set(f'Added {added} URL{"s" if added != 1 else ""} to the queue.')
+            self.status_var.set(f'Added {len(added_urls)} URL{"s" if len(added_urls) != 1 else ""} to the queue.')
         else:
             messagebox.showinfo('Nothing added', 'No new http(s) URLs found in the box.')
         self._update_overall()

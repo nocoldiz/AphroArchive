@@ -5,9 +5,12 @@ import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
 
-// Index (within filteredVideos) of the most recently clicked card — anchor for
-// Shift+click range selection, file-manager style.
+// Index of the most recently clicked card — anchor for Shift+click range
+// selection, file-manager style. `lastClickedList` records *which* list the
+// anchor belongs to so a stale anchor from another view (e.g. browse) can't
+// corrupt a range select in a different list (e.g. search results).
 let lastClickedIndex = -1;
+let lastClickedList: Video[] | null = null;
 
 
 
@@ -46,9 +49,14 @@ interface VideoCardProps {
   isSelected: boolean;
   index?: number;
   isRelated?: boolean;
+  // The list this card belongs to, used as the basis for Shift+click range
+  // selection. Defaults to `filteredVideos` (the browse/folder/tag grid); the
+  // universal search view passes its own result list so ranges select across
+  // the visible search results rather than the hidden browse list.
+  selectionList?: Video[];
 }
 
-export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProps) => {
+export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }: VideoCardProps) => {
   const [showVideo, setShowVideo] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [dlQueued, setDlQueued] = useState(false);
@@ -172,16 +180,26 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
 
   const handleCardClick = (e: any) => {
     const idx = index ?? -1;
-    // Shift+click: select the range between the last-clicked card and this one,
-    // file-manager style. Falls back to plain play when there's no anchor.
-    if (e.shiftKey && idx >= 0 && lastClickedIndex >= 0 && !isRelated) {
+    const list = selectionList ?? filteredVideos.value;
+
+    // Shift+click multi-selects and NEVER opens the video. With a valid anchor
+    // in the same list it selects the range between the anchor and this card
+    // (file-manager style); otherwise it just adds this card and becomes the
+    // new anchor. This is what makes "hold Shift and click" work in the
+    // folder, tag and search grids.
+    if (e.shiftKey && idx >= 0 && !isRelated) {
       e.preventDefault();
-      const list = filteredVideos.value;
-      const [a, b] = lastClickedIndex < idx ? [lastClickedIndex, idx] : [idx, lastClickedIndex];
       const next = new Set(selectedVideoIds.value);
-      for (let i = a; i <= b && i < list.length; i++) next.add(list[i].id);
+      if (lastClickedList === list && lastClickedIndex >= 0 && lastClickedIndex < list.length) {
+        const [a, b] = lastClickedIndex < idx ? [lastClickedIndex, idx] : [idx, lastClickedIndex];
+        for (let i = a; i <= b && i < list.length; i++) next.add(list[i].id);
+      } else {
+        next.add(video.id);
+      }
       selectedVideoIds.value = next;
       videoSelMode.value = next.size > 0;
+      lastClickedIndex = idx;
+      lastClickedList = list;
       return;
     }
     // Ctrl/Cmd+click toggles a single card into the selection.
@@ -192,6 +210,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       selectedVideoIds.value = next;
       videoSelMode.value = next.size > 0;
       lastClickedIndex = idx;
+      lastClickedList = list;
       return;
     }
     // While in multi-select mode a plain click toggles rather than opens.
@@ -201,9 +220,10 @@ export const VideoCard = ({ video, isSelected, index, isRelated }: VideoCardProp
       selectedVideoIds.value = next;
       videoSelMode.value = next.size > 0;
       lastClickedIndex = idx;
+      lastClickedList = list;
       return;
     }
-    if (idx >= 0 && !isRelated) lastClickedIndex = idx;
+    if (idx >= 0 && !isRelated) { lastClickedIndex = idx; lastClickedList = list; }
     play();
   };
 

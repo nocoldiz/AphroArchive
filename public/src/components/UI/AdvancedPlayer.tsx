@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { isMuted as isMutedSignal } from '../../store';
+import { isMuted as isMutedSignal, appPrefs } from '../../store';
 import { getProgress, setProgress } from '../../home/progress';
 import { isTVMode, tvChannels, tvCurrentChannelIdx, tvFavChannels, toggleTVFav, nextTVChannel, prevTVChannel, playChannel } from '../../tv-mode';
-
-interface Chapter {
-  id: string;
-  title: string;
-  time: number;
-}
+import {
+  Chapter,
+  formatTimecode,
+  mergeChapters,
+  findNextChapter,
+  findPrevChapter,
+  loopWrapTarget,
+  pickPreviewThumb,
+  chapterAt,
+  clampPreviewX,
+} from '../../player/playerLogic';
 
 interface Subtitle {
   filename: string | null;
@@ -45,6 +50,9 @@ function loadHlsJs(): Promise<any> {
 }
 
 const clampVol = (v: number) => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+
+// Approx width (px) of the scrub-preview tooltip, used to keep it on-screen.
+const PREVIEW_W = 140;
 
 // Per-video volume memory: loud/quiet videos can be pre-adjusted without
 // touching the global level. Falls back to the last global volume.
@@ -93,9 +101,13 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const [showSubPicker, setShowSubPicker] = useState(false);
   const [loopA, setLoopA] = useState<number | null>(null);
   const [loopB, setLoopB] = useState<number | null>(null);
+  // A/B repeat is tucked behind a single loop toggle; the A/B/clear controls
+  // only appear once the user opens it.
+  const [showAbLoop, setShowAbLoop] = useState(false);
   const loopARef = useRef<number | null>(null);
   const loopBRef = useRef<number | null>(null);
   const controlsTimeoutRef = useRef<any>(null);
+  const showControlsRef = useRef(true);
   const seekHoldRef = useRef<{ dir: string; since: number }>({ dir: '', since: 0 });
   const recRef = useRef<any>(null);
   const subPickerRef = useRef<HTMLDivElement>(null);
@@ -237,6 +249,19 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     const vid = videoRef.current;
     if (!vid) return;
 
+    // Initial-load watchdog: occasionally a fresh stream never fires
+    // loadedmetadata/canplay/error at all (server slow to send headers, a
+    // dropped first request) and the player just sits blank — the bug that
+    // used to force a full page reload. If nothing has loaded within the
+    // budget, kick the same auto-retry path instead of waiting forever.
+    let firstLoadTimer: any = setTimeout(() => {
+      firstLoadTimer = null;
+      if (!usingHlsRef.current && vid.readyState < 1) handleLoadFailure();
+    }, 9000);
+    const clearFirstLoad = () => {
+      if (firstLoadTimer) { clearTimeout(firstLoadTimer); firstLoadTimer = null; }
+    };
+
     const onPlay = () => setPlaying(true);
     const onPause = () => {
       setPlaying(false);
@@ -249,14 +274,12 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         lastSaveRef.current = now;
         setProgress(videoId, vid.currentTime, vid.duration || 0);
       }
-      const a = loopARef.current;
-      const b = loopBRef.current;
-      if (a !== null && b !== null && vid.currentTime >= b) {
-        vid.currentTime = a;
-      }
+      const wrapTo = loopWrapTarget(vid.currentTime, loopARef.current, loopBRef.current);
+      if (wrapTo !== null) vid.currentTime = wrapTo;
     };
     const onDurationChange = () => setDuration(vid.duration);
     const onLoadedMetadata = () => {
+      clearFirstLoad();
       setDuration(vid.duration);
       if (startTimeRef.current > 0) {
         vid.currentTime = startTimeRef.current;
@@ -299,8 +322,8 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     };
     const onWaiting = () => { setLoading(true); armStall(); };
     const onStalled = () => armStall();
-    const onCanPlay = () => { setLoading(false); clearStall(); retryCountRef.current = 0; setLoadError(false); };
-    const onPlaying = () => { setLoading(false); clearStall(); };
+    const onCanPlay = () => { clearFirstLoad(); setLoading(false); clearStall(); retryCountRef.current = 0; setLoadError(false); };
+    const onPlaying = () => { clearFirstLoad(); setLoading(false); clearStall(); };
 
     vid.addEventListener('play', onPlay);
     vid.addEventListener('pause', onPause);
@@ -333,6 +356,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       // Persist final position when navigating away mid-playback.
       setProgress(videoId, vid.currentTime, vid.duration || 0);
       clearStall();
+      clearFirstLoad();
       if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
       vid.removeEventListener('play', onPlay);
       vid.removeEventListener('pause', onPause);
@@ -607,8 +631,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         case 'ArrowLeft':
           e.preventDefault();
           if (e.shiftKey) {
-            const all = [...chaptersRef.current, ...autoChaptersRef.current].sort((a, b) => a.time - b.time);
-            const prev = [...all].reverse().find(c => c.time < vid.currentTime - 1);
+            const prev = findPrevChapter(mergeChapters(chaptersRef.current, autoChaptersRef.current), vid.currentTime);
             vid.currentTime = prev ? prev.time : 0;
           } else {
             vid.currentTime = Math.max(0, vid.currentTime + seekStep('left'));
@@ -617,8 +640,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         case 'ArrowRight':
           e.preventDefault();
           if (e.shiftKey) {
-            const all = [...chaptersRef.current, ...autoChaptersRef.current].sort((a, b) => a.time - b.time);
-            const next = all.find(c => c.time > vid.currentTime + 0.5);
+            const next = findNextChapter(mergeChapters(chaptersRef.current, autoChaptersRef.current), vid.currentTime);
             if (next) vid.currentTime = next.time;
           } else {
             vid.currentTime = Math.min(vid.duration || Infinity, vid.currentTime + seekStep('right'));
@@ -678,14 +700,11 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     }
   };
 
-  const hasChapters = () => chaptersRef.current.length > 0 || autoChaptersRef.current.length > 0;
-
   // Skip back: jump to the previous chapter, or restart the current one if none precedes.
   const prevChapter = () => {
     const vid = videoRef.current;
     if (!vid) return;
-    const all = [...chaptersRef.current, ...autoChaptersRef.current].sort((a, b) => a.time - b.time);
-    const prev = [...all].reverse().find(c => c.time < vid.currentTime - 1);
+    const prev = findPrevChapter(mergeChapters(chaptersRef.current, autoChaptersRef.current), vid.currentTime);
     vid.currentTime = prev ? prev.time : 0;
   };
 
@@ -693,8 +712,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const nextChapter = () => {
     const vid = videoRef.current;
     if (!vid) return;
-    const all = [...chaptersRef.current, ...autoChaptersRef.current].sort((a, b) => a.time - b.time);
-    const next = all.find(c => c.time > vid.currentTime + 0.5);
+    const next = findNextChapter(mergeChapters(chaptersRef.current, autoChaptersRef.current), vid.currentTime);
     if (next) vid.currentTime = next.time;
     else onNextRef.current?.();
   };
@@ -711,10 +729,11 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
 
   const handleTimebarMouseMove = (e: MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pct = x / rect.width;
+    const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const pct = rect.width ? x / rect.width : 0;
     setHoverTime(pct * duration);
-    setHoverX(x);
+    // Clamp the preview-box centre so it never spills past either edge of the bar.
+    setHoverX(clampPreviewX(x, PREVIEW_W, rect.width));
   };
 
   const handleTimebarMouseLeave = () => {
@@ -722,12 +741,15 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   };
 
   const resetControlsTimeout = () => {
-    setShowControls(true);
+    // Avoid a re-render on every mousemove once controls are already visible —
+    // only flip state when it actually changes, then re-arm the hide timer.
+    if (!showControlsRef.current) { showControlsRef.current = true; setShowControls(true); }
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
     controlsTimeoutRef.current = setTimeout(() => {
       if (playing) {
+        showControlsRef.current = false;
         setShowControls(false);
       }
     }, 3000);
@@ -738,40 +760,17 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     return () => window.removeEventListener('mousemove', resetControlsTimeout);
   }, [playing]);
 
-  const formatDuration = (secs: number) => {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = Math.floor(secs % 60);
-    return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':').replace(/^00:/, '');
-  };
+  const formatDuration = formatTimecode;
 
-  const getThumbIndex = (time: number) => {
-    if (!duration) return 0;
-    const pct = time / duration;
-    return Math.floor(pct * 5);
-  };
+  const allChaptersSorted = mergeChapters(chapters, autoChapters);
+  // Skip-to-chapter buttons only make sense when there are chapters; in TV mode
+  // the same buttons step between channels instead.
+  const chaptersAvailable = allChaptersSorted.length > 0;
+  const showSkipButtons = isTVMode.value || chaptersAvailable;
+  const loopActive = loopA !== null || loopB !== null;
 
-  // Coarse thumbnails are captured at these fractions of the duration (see genThumbs).
-  const COARSE_FRACTIONS = [0.1, 0.25, 0.5, 0.75, 0.9];
-
-  // Pick the preview frame closest to `time`. Scene-detection / chapter thumbnails
-  // are captured at their exact timecode, so when one is nearer than the coarse
-  // thumbnail it gives a far more accurate seek preview.
-  const getPreviewSrc = (time: number) => {
-    let bestSrc = `/api/thumbs/${videoId}/${getThumbIndex(time)}`;
-    let bestDist = Infinity;
-    if (duration) {
-      for (let i = 0; i < COARSE_FRACTIONS.length; i++) {
-        const d = Math.abs(COARSE_FRACTIONS[i] * duration - time);
-        if (d < bestDist) { bestDist = d; bestSrc = `/api/thumbs/${videoId}/${i}`; }
-      }
-    }
-    for (const c of [...chaptersRef.current, ...autoChaptersRef.current]) {
-      const d = Math.abs(c.time - time);
-      if (d < bestDist) { bestDist = d; bestSrc = `/api/thumbs/${videoId}/chapter/${c.id}`; }
-    }
-    return bestSrc;
-  };
+  const getPreviewSrc = (time: number) =>
+    pickPreviewThumb(videoId, time, duration, allChaptersSorted);
 
   return (
     <div
@@ -795,9 +794,10 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         onDblClick={(e: any) => { e.preventDefault(); toggleFullscreen(); }}
         onError={() => {
           // Browser can't decode the original file (e.g. mkv/hevc) — fall back to
-          // the HLS transcode once. Direct streaming stays the default for the
+          // the HLS transcode once, but only when the user has left HLS enabled
+          // in Settings → Playback. Direct streaming stays the default for the
           // common case (mp4/webm), which starts instantly without ffmpeg.
-          if (!usingHls && hlsSrc && !triedHlsFallbackRef.current) {
+          if (!usingHls && hlsSrc && appPrefs.value.hlsTranscode !== false && !triedHlsFallbackRef.current) {
             triedHlsFallbackRef.current = true;
             setUsingHls(true);
             return;
@@ -962,7 +962,13 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
                 style={{ width: '120px', height: 'auto', borderRadius: '2px' }}
                 onError={(e: any) => e.target.style.display = 'none'}
               />
-              <span>{formatDuration(hoverTime)}</span>
+              {(() => {
+                const ch = chapterAt(allChaptersSorted, hoverTime);
+                return ch ? (
+                  <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', color: 'rgba(255,255,255,0.7)', fontSize: '0.72rem' }}>{ch.title}</span>
+                ) : null;
+              })()}
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatDuration(hoverTime)}</span>
             </div>
           )}
 
@@ -1005,30 +1011,47 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
             <button onClick={togglePlay} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem' }}>
               {playing ? '⏸' : '▶'}
             </button>
-            <button onClick={() => isTVMode.value ? prevTVChannel() : hasChapters() ? prevChapter() : onPrev?.()} title={isTVMode.value ? 'Prev channel (P)' : hasChapters() ? 'Previous chapter' : 'Previous'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
+            {showSkipButtons && (
+              <button onClick={() => isTVMode.value ? prevTVChannel() : prevChapter()} title={isTVMode.value ? 'Prev channel (P)' : 'Previous chapter'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
+            )}
             <button onClick={() => setLocalZap(!localZap)} style={{ background: 'none', border: 'none', color: localZap ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '1.2rem' }} title="Local Zap Mode">⚡</button>
-            <button onClick={() => isTVMode.value ? nextTVChannel() : hasChapters() ? nextChapter() : onNext?.()} title={isTVMode.value ? 'Next channel (N)' : hasChapters() ? 'Next chapter' : 'Next'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
+            {showSkipButtons && (
+              <button onClick={() => isTVMode.value ? nextTVChannel() : nextChapter()} title={isTVMode.value ? 'Next channel (N)' : 'Next chapter'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
+            )}
             <span style={{ fontSize: '0.9rem' }}>{formatDuration(currentTime)} / {formatDuration(duration)}</span>
+
+            {/* A/B repeat — single loop toggle that reveals the A/B controls */}
             <button
-              onClick={() => { setLoopA(currentTime); if (loopB !== null && currentTime >= loopB) setLoopB(null); }}
-              title="Set loop start (A)"
-              style={{ background: loopA !== null ? 'rgba(74,222,128,0.25)' : 'none', border: loopA !== null ? '1px solid #4ade80' : '1px solid rgba(255,255,255,0.3)', color: loopA !== null ? '#4ade80' : '#fff', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+              onClick={() => setShowAbLoop(v => !v)}
+              title={loopActive ? 'A/B repeat (active)' : 'A/B repeat'}
+              style={{ background: (showAbLoop || loopActive) ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'none', border: (showAbLoop || loopActive) ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', color: (showAbLoop || loopActive) ? 'var(--ac, #ff4a4a)' : '#fff', borderRadius: '3px', padding: '2px 6px', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}
             >
-              {loopA !== null ? `A ${formatDuration(loopA)}` : 'A'}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
             </button>
-            <button
-              onClick={() => { setLoopB(currentTime); if (loopA !== null && currentTime <= loopA) setLoopA(null); }}
-              title="Set loop end (B)"
-              style={{ background: loopB !== null ? 'rgba(248,113,113,0.25)' : 'none', border: loopB !== null ? '1px solid #f87171' : '1px solid rgba(255,255,255,0.3)', color: loopB !== null ? '#f87171' : '#fff', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
-            >
-              {loopB !== null ? `B ${formatDuration(loopB)}` : 'B'}
-            </button>
-            {(loopA !== null || loopB !== null) && (
-              <button
-                onClick={() => { setLoopA(null); setLoopB(null); }}
-                title="Clear A/B loop"
-                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.8rem', padding: '0 2px' }}
-              >✕</button>
+            {showAbLoop && (
+              <>
+                <button
+                  onClick={() => { setLoopA(currentTime); if (loopB !== null && currentTime >= loopB) setLoopB(null); }}
+                  title="Set loop start (A)"
+                  style={{ background: loopA !== null ? 'rgba(74,222,128,0.25)' : 'none', border: loopA !== null ? '1px solid #4ade80' : '1px solid rgba(255,255,255,0.3)', color: loopA !== null ? '#4ade80' : '#fff', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                >
+                  {loopA !== null ? `A ${formatDuration(loopA)}` : 'A'}
+                </button>
+                <button
+                  onClick={() => { setLoopB(currentTime); if (loopA !== null && currentTime <= loopA) setLoopA(null); }}
+                  title="Set loop end (B)"
+                  style={{ background: loopB !== null ? 'rgba(248,113,113,0.25)' : 'none', border: loopB !== null ? '1px solid #f87171' : '1px solid rgba(255,255,255,0.3)', color: loopB !== null ? '#f87171' : '#fff', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
+                >
+                  {loopB !== null ? `B ${formatDuration(loopB)}` : 'B'}
+                </button>
+                {loopActive && (
+                  <button
+                    onClick={() => { setLoopA(null); setLoopB(null); }}
+                    title="Clear A/B loop"
+                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.8rem', padding: '0 2px' }}
+                  >✕</button>
+                )}
+              </>
             )}
           </div>
 
@@ -1218,16 +1241,9 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
               <option value="2">2x</option>
             </select>
 
-            {hlsSrc && (
-              <button
-                type="button"
-                onClick={() => setUsingHls(v => !v)}
-                title={usingHls ? 'Switch back to direct stream' : 'Transcode via HLS (for unsupported formats)'}
-                style={{ background: usingHls ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'none', border: usingHls ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: usingHls ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, padding: '2px 6px' }}
-              >
-                HLS
-              </button>
-            )}
+            {/* HLS transcoding is no longer a player button — it's controlled in
+                Settings → Playback and engages automatically for formats the
+                browser can't decode natively. */}
 
             {/* Chapters dropdown */}
             {(chapters.length > 0 || autoChapters.length > 0) && (() => {

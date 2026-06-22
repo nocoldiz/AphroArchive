@@ -60,6 +60,7 @@ export const BrowseView = () => {
         <Breadcrumb /><span id="result-count"></span>
         <SectionControls
           showFilters
+          showSelect
           showClearHistory={currentView.value === 'recent'}
           onClearHistory={async () => {
             if (confirm('Clear watch history?')) {

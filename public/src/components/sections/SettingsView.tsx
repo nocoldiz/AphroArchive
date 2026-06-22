@@ -63,6 +63,7 @@ const THEMES = [
 const TABS = [
   { id: 'folders',    label: 'Folders' },
   { id: 'appearance', label: 'Appearance' },
+  { id: 'playback',   label: 'Playback' },
   { id: 'ai',         label: 'AI' },
   { id: 'cache',      label: 'Cache' },
   { id: 'security',   label: 'Security' },
@@ -437,6 +438,53 @@ export const SettingsView = () => {
             <div style={secLast}>
               <h3 style={{ ...secH, marginBottom: '6px' }}>Bar Layout</h3>
               <p style={{ fontSize: '12px', color: 'var(--tx3)' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar.</p>
+            </div>
+          </div>
+        )}
+
+        {/* ══ Playback ════════════════════════════════════════════════ */}
+        {activeTab === 'playback' && (
+          <div style={wrap}>
+            <div style={sec}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, color: 'var(--ac)' }}>HLS Transcoding</h3>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={prefs.hlsTranscode !== false}
+                    onChange={(e) => updatePrefs({ hlsTranscode: (e.currentTarget as HTMLInputElement).checked })}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  Enable
+                </label>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', lineHeight: 1.5, margin: 0 }}>
+                Videos always start by streaming the original file directly from disk, which begins
+                instantly and never has to download the whole file first. If a file is in a format the
+                browser can't decode natively (e.g. MKV or HEVC), the player can transcode it to HLS on
+                the fly using ffmpeg. This makes those files playable but uses CPU and starts more slowly.
+                Turn it off to only ever direct-stream — unsupported files will then fail to play instead
+                of transcoding. (This replaces the old per-player HLS button.)
+              </p>
+            </div>
+            <div style={secLast}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, color: 'var(--ac)' }}>Auto-detect Chapters</h3>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!prefs.autoChapterDetection}
+                    onChange={(e) => updatePrefs({ autoChapterDetection: (e.currentTarget as HTMLInputElement).checked })}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  Enable
+                </label>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', lineHeight: 1.5, margin: 0 }}>
+                Run scene detection on videos to generate chapter markers automatically. Detected chapters
+                appear on the timeline and in the player's chapter menu, enabling the next / previous
+                chapter skip buttons.
+              </p>
             </div>
           </div>
         )}

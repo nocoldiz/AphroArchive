@@ -95,6 +95,12 @@ export interface AppPrefs {
   whisperLanguage?: string;
   autoChapterDetection?: boolean;
   /**
+   * Allow the player to transcode unsupported formats (e.g. mkv/HEVC) to HLS
+   * on the fly via ffmpeg. When false the player only ever direct-streams the
+   * original file. Defaults to enabled.
+   */
+  hlsTranscode?: boolean;
+  /**
    * Per-item bar placement overrides. Maps a movable item id (nav item,
    * plugin id, or the 'folders-filter' / 'tags-filter' blocks) to the bar it
    * should render in. Absent keys fall back to the item's default location.

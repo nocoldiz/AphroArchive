@@ -1004,9 +1004,10 @@ def run_single(args):
 def run_interactive():
     print('Universal Video Downloader — Extensive Edition', flush=True)
     print('=' * 75, flush=True)
-    print("\nPaste your URLs (one per line). Type 'done' when finished:\n", flush=True)
+    print("\nPaste your URLs (one per line). Type 'done' or press Enter twice when finished:\n", flush=True)
     seen_input = set()
     pasted = []
+    blank_streak = 0
     while True:
         try:
             line = input().strip()
@@ -1014,6 +1015,13 @@ def run_interactive():
             break
         if line.lower() == 'done':
             break
+        if not line:
+            # Two consecutive blank lines (double Enter) finishes input.
+            blank_streak += 1
+            if blank_streak >= 2:
+                break
+            continue
+        blank_streak = 0
         if line.startswith(('http://', 'https://')) and line not in seen_input:
             seen_input.add(line)
             pasted.append(line)
@@ -1129,19 +1137,20 @@ def _append_to_failed(links_file, url):
 
 
 def _add_urls_to_file(links_file, urls):
-    """Append URLs that are not already present in links_file, then dedup."""
+    """Prepend newly-pasted URLs to the TOP of links_file, preserving order
+    and skipping any that are already queued."""
     try:
         links_file.parent.mkdir(parents=True, exist_ok=True)
-        existing = set()
+        existing = []
         if links_file.exists():
-            existing = {l.strip() for l in links_file.read_text(encoding='utf-8').splitlines() if l.strip()}
-        new = [u for u in urls if u not in existing]
+            existing = [l.strip() for l in links_file.read_text(encoding='utf-8').splitlines() if l.strip()]
+        existing = list(dict.fromkeys(existing))  # dedup, keep order
+        existing_set = set(existing)
+        new = [u for u in dict.fromkeys(urls) if u and u not in existing_set]
         if new:
-            with open(links_file, 'a', encoding='utf-8') as f:
-                for u in new:
-                    f.write(u + '\n')
-            print(f'[links] Added {len(new)} URL{"s" if len(new) != 1 else ""} to {links_file.name}', flush=True)
-        _dedup_file(links_file)
+            combined = new + existing  # newest at the top
+            links_file.write_text('\n'.join(combined) + '\n', encoding='utf-8')
+            print(f'[links] Added {len(new)} URL{"s" if len(new) != 1 else ""} to the top of {links_file.name}', flush=True)
     except Exception as e:
         print(f'   [warn] could not update {links_file.name}: {e}', flush=True)
 

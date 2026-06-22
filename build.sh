@@ -171,27 +171,17 @@ if [ "$DO_ANDROID" -eq 1 ]; then
 fi
 
 # ============================================================
-# Bulk Downloader (PyInstaller)
+# Bulk Downloader (PyInstaller — uses bulkdownloader/build.sh + .spec)
 # ============================================================
 echo "[bulkdownloader] Building BulkDownloaderGUI..."
-PYEXE=""
-if command -v python3 >/dev/null 2>&1; then PYEXE=python3
-elif command -v python >/dev/null 2>&1; then PYEXE=python
-fi
-if [ -z "$PYEXE" ]; then
-  echo " WARN: Python not found, skipping BulkDownloaderGUI build."
-else
-  $PYEXE -c "import PyInstaller" 2>/dev/null || $PYEXE -m pip install -U pyinstaller --quiet
-  if $PYEXE -m PyInstaller --noconfirm --onefile --windowed --name BulkDownloaderGUI \
-    --add-data "bulkdownloader/bulkdownloader.py:." \
-    --distpath dist \
-    --workpath build/bulkdownloader \
-    --specpath build \
-    bulkdownloader/bulkdownloader_gui.py; then
-    echo " done: dist/BulkDownloaderGUI"
+if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
+  if bash bulkdownloader/build.sh; then
+    echo " done."
   else
     echo " WARN: BulkDownloaderGUI build failed"
   fi
+else
+  echo " WARN: Python not found, skipping BulkDownloaderGUI build."
 fi
 echo
 
@@ -212,9 +202,11 @@ echo " Build complete. Outputs in dist/:"
 echo
 [ -f dist/AphroArchive.exe          ] && echo "   AphroArchive.exe            Windows x64"
 [ -f dist/AphroArchive-linux        ] && echo "   AphroArchive-linux          Linux x64"
-[ -f dist/AphroArchive-mac.zip      ] && echo "   AphroArchive-mac.zip        macOS (arm64 + x64)"
-[ -f dist/AphroArchive.apk          ] && echo "   AphroArchive.apk            Android"
-[ -f dist/BulkDownloaderGUI         ] && echo "   BulkDownloaderGUI           Bulk Downloader GUI"
-[ -f dist/AphroArchive-firefox.xpi  ] && echo "   AphroArchive-firefox.xpi    Firefox extension"
+[ -f dist/AphroArchive-mac.zip          ] && echo "   AphroArchive-mac.zip            macOS (arm64 + x64)"
+[ -f dist/AphroArchive.apk              ] && echo "   AphroArchive.apk                Android"
+[ -f dist/BulkDownloaderGUI             ] && echo "   BulkDownloaderGUI               Bulk Downloader GUI (Linux)"
+[ -d dist/BulkDownloaderGUI.app         ] && echo "   BulkDownloaderGUI.app           Bulk Downloader GUI (macOS)"
+[ -f dist/BulkDownloaderGUI-mac.zip     ] && echo "   BulkDownloaderGUI-mac.zip       Bulk Downloader GUI (macOS release)"
+[ -f dist/AphroArchive-firefox.xpi      ] && echo "   AphroArchive-firefox.xpi        Firefox extension"
 echo "============================================================"
 echo

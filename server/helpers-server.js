@@ -25,6 +25,32 @@ function formatDuration(secs) {
   return m + ':' + String(s).padStart(2, '0');
 }
 
+// ── HTTP range parsing ───────────────────────────────────────────────
+
+// Parse a single-range HTTP `Range` header against a known content `size`.
+// Returns:
+//   null                  → no header / unparseable (caller serves the whole body)
+//   { invalid: true }     → syntactically valid but unsatisfiable (caller → 416)
+//   { start, end }        → inclusive byte offsets to serve (206)
+// Supports `bytes=START-`, `bytes=START-END` and suffix `bytes=-N` (last N bytes).
+function parseRange(rangeHeader, size) {
+  if (!rangeHeader) return null;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(rangeHeader).trim());
+  if (!m) return null;
+  let start = m[1] === '' ? NaN : parseInt(m[1], 10);
+  let end   = m[2] === '' ? NaN : parseInt(m[2], 10);
+  if (Number.isNaN(start)) {
+    // Suffix range: the last `end` bytes.
+    if (Number.isNaN(end) || end <= 0) return { invalid: true };
+    start = Math.max(0, size - end);
+    end = size - 1;
+  } else if (Number.isNaN(end)) {
+    end = size - 1;
+  }
+  if (start < 0 || end >= size || start > end) return { invalid: true };
+  return { start, end };
+}
+
 // ── ID encoding ──────────────────────────────────────────────────────
 
 function toId(rel)  { return Buffer.from(rel).toString('base64url'); }
@@ -238,7 +264,7 @@ function serveStatic(req, res, filePath) {
 }
 
 module.exports = {
-  formatBytes, formatDuration,
+  formatBytes, formatDuration, parseRange,
   toId, fromId, safePath,
   wordMatch, wordMatchAny, channelMatchAny, actorMatches, actorMatchesAny,
   json, jsonError, readBody, validateBody, LIMITS,
