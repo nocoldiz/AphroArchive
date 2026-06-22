@@ -5,6 +5,9 @@ cd "$(dirname "$0")"
 # NOTE: PyInstaller cannot cross-compile. To get a standalone macOS .app you must
 # run THIS script on a Mac. Running it on Linux produces a Linux binary; the
 # Windows .exe comes from build.bat on Windows.
+#
+# Don't need a packaged app on macOS? You don't have to build at all — just
+# double-click  BulkDownloader.command  to run the GUI straight from source.
 
 # ── Resolve a Python 3 interpreter ──────────────────────────────────────
 if command -v python3 >/dev/null 2>&1; then

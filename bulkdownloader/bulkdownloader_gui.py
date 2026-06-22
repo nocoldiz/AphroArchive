@@ -33,6 +33,7 @@ import re
 import sys
 import json
 import time
+import random
 import shutil
 import queue
 import hashlib
@@ -514,6 +515,50 @@ def _write_x_cookies_from_tokens(auth_token, ct0):
     COOKIES_FILE.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
+def _detect_installed_browsers():
+    """yt-dlp browser names whose profile directory exists on this machine
+    (checked across Windows / macOS / Linux). Firefox is listed first when
+    present — its cookies are the most reliable to read (no DPAPI lock)."""
+    home = Path.home()
+    found = []
+
+    def check(name, path):
+        try:
+            if path.is_dir():
+                found.append(name)
+        except OSError:
+            pass
+
+    if sys.platform == 'win32':
+        local = Path(os.environ.get('LOCALAPPDATA', home / 'AppData' / 'Local'))
+        roam = Path(os.environ.get('APPDATA', home / 'AppData' / 'Roaming'))
+        check('firefox', roam / 'Mozilla' / 'Firefox' / 'Profiles')
+        check('chrome', local / 'Google' / 'Chrome' / 'User Data')
+        check('edge', local / 'Microsoft' / 'Edge' / 'User Data')
+        check('brave', local / 'BraveSoftware' / 'Brave-Browser' / 'User Data')
+        check('opera', roam / 'Opera Software' / 'Opera Stable')
+        check('vivaldi', local / 'Vivaldi' / 'User Data')
+    elif sys.platform == 'darwin':
+        app = home / 'Library' / 'Application Support'
+        check('firefox', app / 'Firefox' / 'Profiles')
+        check('chrome', app / 'Google' / 'Chrome')
+        check('edge', app / 'Microsoft Edge')
+        check('brave', app / 'BraveSoftware' / 'Brave-Browser')
+        check('safari', home / 'Library' / 'Safari')
+        check('opera', app / 'com.operasoftware.Opera')
+        check('vivaldi', app / 'Vivaldi')
+    else:
+        cfg = home / '.config'
+        check('firefox', home / '.mozilla' / 'firefox')
+        check('chrome', cfg / 'google-chrome')
+        check('chromium', cfg / 'chromium')
+        check('edge', cfg / 'microsoft-edge')
+        check('brave', cfg / 'BraveSoftware' / 'Brave-Browser')
+        check('opera', cfg / 'opera')
+        check('vivaldi', cfg / 'vivaldi')
+    return found
+
+
 def _autodetect_cookies():
     """Scan common folders for an exported cookies.txt with x.com cookies."""
     home = Path.home()
@@ -582,6 +627,9 @@ class DownloadManager(tk.Tk):
         self._gallery_imgs = []
         self._gallery_cols = 0
 
+        self._dupe_gen = 0
+        self._dupe_paths = {}
+
         self.out_dir = tk.StringVar(value=self._config.get('out_dir') or str(DEFAULT_OUT_DIR))
         self.max_parallel = tk.IntVar(value=int(self._config.get('max_parallel', 2) or 2))
         self.start_timeout = tk.IntVar(value=int(self._config.get('start_timeout', 90) or 0))
@@ -606,8 +654,15 @@ class DownloadManager(tk.Tk):
         self.out_dir.trace_add('write', lambda *_: self._save_config())
         self.max_parallel.trace_add('write', lambda *_: self._save_config())
 
+        if self._config.get('console_open'):
+            self._toggle_console()
+
         self.after(100, self._poll_queue)
         self.protocol('WM_DELETE_WINDOW', self._on_close)
+
+        # Auto-start the queue shortly after launch (gives the UI time to draw).
+        if self.autostart_var.get() and self._next_pending():
+            self.after(500, self._autostart)
 
     # ── styling ───────────────────────────────────────────────────────
     def _setup_style(self):
@@ -670,21 +725,27 @@ class DownloadManager(tk.Tk):
         self.nb.pack(side='left', fill='both', expand=True)
 
         self.tab_downloads = ttk.Frame(self.nb)
+        self.tab_errored = ttk.Frame(self.nb)
         self.tab_bookmarks = ttk.Frame(self.nb)
         self.tab_search = ttk.Frame(self.nb)
         self.tab_gallery = ttk.Frame(self.nb)
+        self.tab_duplicates = ttk.Frame(self.nb)
         self.tab_xlogin = ttk.Frame(self.nb)
 
         self.nb.add(self.tab_downloads, text='⬇ Downloads')
+        self.nb.add(self.tab_errored, text='❌ Errored')
         self.nb.add(self.tab_bookmarks, text='🔖 Bookmarks')
         self.nb.add(self.tab_search, text='🔍 Search')
         self.nb.add(self.tab_gallery, text='🎬 Gallery')
+        self.nb.add(self.tab_duplicates, text='🧬 Duplicates')
         self.nb.add(self.tab_xlogin, text='🔑 X.com')
 
         self._build_downloads_tab(self.tab_downloads)
+        self._build_errored_tab(self.tab_errored)
         self._build_bookmarks_tab(self.tab_bookmarks)
         self._build_search_tab(self.tab_search)
         self._build_gallery_tab(self.tab_gallery)
+        self._build_duplicates_tab(self.tab_duplicates)
         self._build_xlogin_tab(self.tab_xlogin)
 
         self.nb.bind('<<NotebookTabChanged>>', self._on_tab_changed)
@@ -807,6 +868,7 @@ class DownloadManager(tk.Tk):
         ttk.Button(ctrl, text='↻ Retry', command=self._retry_selected).pack(side='left', padx=(10, 0))
         ttk.Button(ctrl, text='🗑 Remove', command=self._remove_selected).pack(side='left', padx=6)
         ttk.Button(ctrl, text='🧹 Clear finished', command=self._clear_finished).pack(side='left')
+        ttk.Button(ctrl, text='⌫ Clear errored', command=self._clear_errored).pack(side='left', padx=6)
         ttk.Label(ctrl, textvariable=self.overall_var, style='Count.TLabel').pack(side='right')
 
         list_panel = ttk.LabelFrame(parent, text='Queue  ·  tick rows, drag to reorder, Delete removes')
@@ -1187,6 +1249,11 @@ class DownloadManager(tk.Tk):
             env['BULK_COOKIES_FILE'] = str(COOKIES_FILE)
         return env
 
+    def _autostart(self):
+        if not self.is_running and self._next_pending():
+            self.status_var.set('Auto-starting downloads…')
+            self._start()
+
     def _start(self):
         if self.is_running and not self.paused:
             return
@@ -1287,6 +1354,7 @@ class DownloadManager(tk.Tk):
             except OSError:
                 pass
 
+        host = _host_of(url) or 'download'
         result_file, last = None, ''
         for line in _read_stream(proc.stdout):
             line = line.strip()
@@ -1299,6 +1367,8 @@ class DownloadManager(tk.Tk):
                 self.out_queue.put(('progress', iid, float(m.group(1)),
                                     (sp.group(1) if sp else '', eta.group(1) if eta else '')))
                 continue
+            # Everything that isn't a raw progress bar goes to the console drawer.
+            self.out_queue.put(('console', iid, f'[{host}] {line}', None))
             mt = TITLE_RE.search(line)
             if mt:
                 self.out_queue.put(('title', iid, mt.group(1), None))
@@ -1310,6 +1380,232 @@ class DownloadManager(tk.Tk):
         if code != 0 and last:
             self.items[iid]['error'] = last
         return code, result_file
+
+    # ════════════════════════════════════════════════════════════════
+    #  Errored tab
+    # ════════════════════════════════════════════════════════════════
+    def _build_errored_tab(self, parent):
+        pad = {'padx': 12, 'pady': 6}
+        head = ttk.Frame(parent)
+        head.pack(fill='x', **pad)
+        ttk.Label(head, text='Failed downloads', style='Header.TLabel').pack(anchor='w')
+        ttk.Label(head, text='Everything that errored or timed out. Re-queue to try again, or clear them out.',
+                  style='Sub.TLabel').pack(anchor='w')
+
+        bar = ttk.Frame(parent)
+        bar.pack(fill='x', **pad)
+        ttk.Button(bar, text='↻ Retry ticked', style='Accent.TButton', command=self._errored_retry).pack(side='left')
+        ttk.Button(bar, text='↻ Retry all', command=self._errored_retry_all).pack(side='left', padx=6)
+        ttk.Button(bar, text='📋 Copy URLs', command=self._errored_copy).pack(side='left')
+        ttk.Button(bar, text='⌫ Clear errored', style='Stop.TButton', command=self._clear_errored).pack(side='left', padx=6)
+        self.err_count_var = tk.StringVar(value='')
+        ttk.Label(bar, textvariable=self.err_count_var, style='Count.TLabel').pack(side='right')
+
+        list_panel = ttk.LabelFrame(parent, text='Errored items  ·  double-click for the error detail')
+        list_panel.pack(fill='both', expand=True, **pad)
+        list_inner = ttk.Frame(list_panel)
+        list_inner.pack(fill='both', expand=True, padx=8, pady=8)
+        self.err_tree = ttk.Treeview(list_inner, columns=('chk', 'reason'),
+                                     show='tree headings', selectmode='extended')
+        self.err_tree.heading('#0', text='URL')
+        self.err_tree.heading('reason', text='Reason')
+        self.err_tree.column('#0', width=440, stretch=True)
+        self.err_tree.column('chk', width=34, anchor='center', stretch=False)
+        self.err_tree.column('reason', width=360, stretch=True)
+        esb = ttk.Scrollbar(list_inner, command=self.err_tree.yview)
+        self.err_tree.configure(yscrollcommand=esb.set)
+        self.err_tree.pack(side='left', fill='both', expand=True)
+        esb.pack(side='right', fill='y')
+        self._setup_checktree(self.err_tree)
+        self.err_tree.bind('<Double-1>', self._errored_show_detail)
+        self.err_tree.bind('<Delete>', lambda e: self._clear_errored())
+
+    def _refresh_errored(self):
+        if not hasattr(self, 'err_tree'):
+            return
+        self.err_tree._checked.clear()
+        for iid in self.err_tree.get_children():
+            self.err_tree.delete(iid)
+        n = 0
+        for iid in self.tree.get_children():
+            it = self.items.get(iid)
+            if it and it['status'] == ST_ERROR:
+                self.err_tree.insert('', 'end', iid=iid, text=it['url'],
+                                     values=(CHK_OFF, it.get('error') or 'unknown error'))
+                n += 1
+        self.err_count_var.set(f'{n} failed' if n else 'No failed downloads')
+
+    def _requeue_iids(self, iids):
+        changed = 0
+        for iid in iids:
+            it = self.items.get(iid)
+            if it and it['status'] == ST_ERROR:
+                self._set_item(iid, status=ST_QUEUED, pct=0, error='', speed='', eta='')
+                _remove_link(LINKS_FAILED, it['url'])
+                changed += 1
+        if changed:
+            self._rebuild_to_download_file()
+            self._update_overall()
+            self._refresh_errored()
+            self._pump()
+            self.status_var.set(f'Re-queued {changed} failed item(s).')
+
+    def _errored_retry(self):
+        self._requeue_iids(self._targets(self.err_tree))
+
+    def _errored_retry_all(self):
+        self._requeue_iids(list(self.err_tree.get_children()))
+
+    def _errored_copy(self):
+        rows = self._targets(self.err_tree, fallback_all=True)
+        urls = [self.items[i]['url'] for i in rows if i in self.items]
+        if urls:
+            self.clipboard_clear()
+            self.clipboard_append('\n'.join(urls))
+            self.status_var.set(f'Copied {len(urls)} URL(s) to clipboard.')
+
+    def _errored_show_detail(self, event=None):
+        sel = self.err_tree.selection()
+        if not sel:
+            return
+        it = self.items.get(sel[0])
+        if it:
+            messagebox.showwarning('Download failed', f"{it['url']}\n\n{it.get('error') or 'unknown error'}")
+
+    # ════════════════════════════════════════════════════════════════
+    #  Duplicates tab
+    # ════════════════════════════════════════════════════════════════
+    def _build_duplicates_tab(self, parent):
+        pad = {'padx': 12, 'pady': 6}
+        head = ttk.Frame(parent)
+        head.pack(fill='x', **pad)
+        ttk.Label(head, text='Duplicate finder', style='Header.TLabel').pack(anchor='w')
+        ttk.Label(head, text='Finds videos in the download folder with identical size + content hash. '
+                             'Tick the copies you want to delete.', style='Sub.TLabel').pack(anchor='w')
+
+        bar = ttk.Frame(parent)
+        bar.pack(fill='x', **pad)
+        ttk.Button(bar, text='🔍 Scan now', style='Accent.TButton', command=self._scan_duplicates).pack(side='left')
+        ttk.Button(bar, text='✓ Tick all but newest', command=self._dupe_tick_extras).pack(side='left', padx=6)
+        ttk.Button(bar, text='🗑 Delete ticked', style='Stop.TButton', command=self._delete_duplicates).pack(side='left')
+        self.dupe_info = tk.StringVar(value='Press Scan to find duplicate videos.')
+        ttk.Label(bar, textvariable=self.dupe_info, style='Count.TLabel').pack(side='right')
+
+        list_panel = ttk.LabelFrame(parent, text='Duplicate groups  ·  double-click to play')
+        list_panel.pack(fill='both', expand=True, **pad)
+        li = ttk.Frame(list_panel)
+        li.pack(fill='both', expand=True, padx=8, pady=8)
+        self.dupe_tree = ttk.Treeview(li, columns=('chk', 'size'), show='tree headings', selectmode='extended')
+        self.dupe_tree.heading('#0', text='File')
+        self.dupe_tree.heading('size', text='Size')
+        self.dupe_tree.column('#0', width=520, stretch=True)
+        self.dupe_tree.column('chk', width=34, anchor='center', stretch=False)
+        self.dupe_tree.column('size', width=100, anchor='e', stretch=False)
+        dsb = ttk.Scrollbar(li, command=self.dupe_tree.yview)
+        self.dupe_tree.configure(yscrollcommand=dsb.set)
+        self.dupe_tree.pack(side='left', fill='both', expand=True)
+        dsb.pack(side='right', fill='y')
+        self._setup_checktree(self.dupe_tree)
+        self.dupe_tree.bind('<Double-1>', self._dupe_open)
+
+    def _scan_duplicates(self):
+        folder = Path(self.out_dir.get())
+        if not folder.is_dir():
+            self.dupe_info.set('Download folder does not exist yet.')
+            return
+        self.dupe_info.set('Scanning…')
+        self._dupe_gen += 1
+        gen = self._dupe_gen
+        threading.Thread(target=self._scan_duplicates_thread, args=(folder, gen), daemon=True).start()
+
+    def _scan_duplicates_thread(self, folder, gen):
+        from collections import defaultdict
+        by_size = defaultdict(list)
+        try:
+            for p in folder.iterdir():
+                if p.is_file() and p.suffix.lower() in VIDEO_EXTS:
+                    try:
+                        by_size[p.stat().st_size].append(p)
+                    except OSError:
+                        pass
+        except OSError:
+            self.out_queue.put(('duplicates', gen, [], None))
+            return
+        groups = []
+        for size, paths in by_size.items():
+            if len(paths) < 2:
+                continue
+            by_hash = defaultdict(list)
+            for p in paths:
+                if gen != self._dupe_gen:
+                    return
+                sig = _dupe_hash(p)
+                if sig:
+                    by_hash[sig].append(p)
+            for ps in by_hash.values():
+                if len(ps) > 1:
+                    groups.append(sorted(ps, key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True))
+        groups.sort(key=lambda g: g[0].stat().st_size if g and g[0].exists() else 0, reverse=True)
+        self.out_queue.put(('duplicates', gen, groups, None))
+
+    def _handle_duplicates(self, gen, groups):
+        if gen != self._dupe_gen:
+            return
+        self.dupe_tree._checked.clear()
+        for iid in self.dupe_tree.get_children():
+            self.dupe_tree.delete(iid)
+        self._dupe_paths = {}
+        total_files, wasted = 0, 0
+        for gi, grp in enumerate(groups):
+            try:
+                size = grp[0].stat().st_size
+            except OSError:
+                size = 0
+            self.dupe_tree.insert('', 'end', iid=f'g{gi}', open=True,
+                                  text=f'Group {gi + 1}  ·  {len(grp)} copies', values=('', _fmt_bytes(size)))
+            for fi, p in enumerate(grp):
+                iid = f'g{gi}f{fi}'
+                self._dupe_paths[iid] = p
+                tag = '  (newest — kept)' if fi == 0 else ''
+                self.dupe_tree.insert(f'g{gi}', 'end', iid=iid, text=p.name + tag,
+                                      values=(CHK_OFF, _human_size(p)))
+                total_files += 1
+            wasted += size * (len(grp) - 1)
+        if groups:
+            self.dupe_info.set(f'{len(groups)} group(s) · {total_files} files · ~{_fmt_bytes(wasted)} reclaimable')
+        else:
+            self.dupe_info.set('No duplicates found.')
+
+    def _dupe_tick_extras(self):
+        """Tick every copy except the newest in each group (the kept one)."""
+        for iid, p in self._dupe_paths.items():
+            self._set_check(self.dupe_tree, iid, not iid.endswith('f0'))
+
+    def _delete_duplicates(self):
+        rows = [i for i in self._dupe_paths if i in getattr(self.dupe_tree, '_checked', ())]
+        if not rows:
+            messagebox.showinfo('Nothing ticked', 'Tick the duplicate copies you want to delete '
+                                                   '(or use “Tick all but newest”).')
+            return
+        if not messagebox.askyesno('Delete files', f'Permanently delete {len(rows)} file(s) from disk?'):
+            return
+        deleted = 0
+        for iid in rows:
+            p = self._dupe_paths.get(iid)
+            if p and p.exists():
+                try:
+                    p.unlink()
+                    deleted += 1
+                except OSError:
+                    pass
+        self.status_var.set(f'Deleted {deleted} duplicate file(s).')
+        self._scan_duplicates()
+
+    def _dupe_open(self, event):
+        iid = self.dupe_tree.identify_row(event.y)
+        p = self._dupe_paths.get(iid)
+        if p and p.exists():
+            self._open_file(p)
 
     # ════════════════════════════════════════════════════════════════
     #  Bookmarks tab
@@ -1450,6 +1746,7 @@ class DownloadManager(tk.Tk):
         q_entry.bind('<Return>', lambda e: self._open_all_favourites())
         ttk.Button(bar, text='⭐ Open all favourites', style='Accent.TButton',
                    command=self._open_all_favourites).pack(side='left')
+        ttk.Button(bar, text='🎲 Random site', command=self._open_random_search).pack(side='left', padx=6)
 
         sub = ttk.Frame(parent)
         sub.pack(fill='x', padx=12)
@@ -1482,18 +1779,35 @@ class DownloadManager(tk.Tk):
 
         self._populate_search_sites()
 
+    def _site_label(self, s):
+        return s.get('name') or _host_of(s.get('url') or '') or s.get('searchURL') or ''
+
     def _populate_search_sites(self):
         self.search_tree._checked.clear()
         for iid in self.search_tree.get_children():
             self.search_tree.delete(iid)
-        for idx, s in enumerate(self.sites_raw):
-            if not (s.get('searchURL') or '').strip():
-                continue
+        # Favourites first, then alphabetical by name. iids keep the original index.
+        searchable = [i for i, s in enumerate(self.sites_raw) if (s.get('searchURL') or '').strip()]
+        searchable.sort(key=lambda i: (not bool(self.sites_raw[i].get('favourite')),
+                                       self._site_label(self.sites_raw[i]).lower()))
+        for idx in searchable:
+            s = self.sites_raw[idx]
             fav = bool(s.get('favourite'))
             self.search_tree.insert('', 'end', iid=f'site{idx}',
-                                    text=s.get('name') or _host_of(s.get('url') or ''),
+                                    text=self._site_label(s),
                                     values=(CHK_OFF, '★' if fav else '☆', s.get('searchURL') or ''),
                                     tags=('fav',) if fav else ())
+
+    def _open_random_search(self):
+        searchable = [s for s in self.sites_raw if (s.get('searchURL') or '').strip()]
+        if not searchable:
+            messagebox.showinfo('No sites', 'No searchable sites in websites.json.')
+            return
+        s = random.choice(searchable)
+        q = self.search_query.get().strip()
+        full = s['searchURL'].strip() + urllib.parse.quote(q) if q else (s.get('url') or s['searchURL'])
+        webbrowser.open(full, new=2)
+        self.status_var.set(f'🎲 Opened random site: {self._site_label(s)}')
 
     def _on_search_click(self, event):
         if self.search_tree.identify_region(event.x, event.y) != 'cell':
@@ -1514,9 +1828,10 @@ class DownloadManager(tk.Tk):
         s = self.sites_raw[idx]
         s['favourite'] = not bool(s.get('favourite'))
         fav = s['favourite']
-        self.search_tree.set(iid, 'fav', '★' if fav else '☆')
-        self.search_tree.item(iid, tags=('fav',) if fav else ())
-        if _save_websites_raw(self.sites_raw):
+        saved = _save_websites_raw(self.sites_raw)
+        self._populate_search_sites()   # re-sort so favourites stay on top
+        self.search_tree.see(iid)
+        if saved:
             n = sum(1 for x in self.sites_raw if x.get('favourite'))
             self.status_var.set(f'{"★ Favourited" if fav else "☆ Unfavourited"} {s.get("name")}  ·  {n} favourite(s).')
         else:
@@ -1713,11 +2028,20 @@ class DownloadManager(tk.Tk):
         ttk.Label(parent, textvariable=self.cookie_status_var, style='Status.TLabel',
                   wraplength=900).pack(anchor='w', padx=12, pady=(0, 4))
 
+        maint = ttk.Frame(parent)
+        maint.pack(fill='x', padx=12, pady=(0, 4))
+        ttk.Label(maint, text='X.com downloads break when yt-dlp is outdated — update it if they fail:',
+                  style='Sub.TLabel').pack(side='left')
+        ttk.Button(maint, text='⬆ Update yt-dlp', command=lambda: self._update_ytdlp(False)).pack(side='left', padx=6)
+        ttk.Button(maint, text='⬆ Nightly', command=lambda: self._update_ytdlp(True)).pack(side='left')
+
         # Method 1 — browser login (recommended)
         m1 = ttk.LabelFrame(parent, text='① Recommended: use your browser login (no copy-paste)')
         m1.pack(fill='x', **pad)
-        ttk.Label(m1, text='Stay logged in to x.com in your browser; yt-dlp reads its cookies live.',
-                  style='Sub.TLabel').pack(anchor='w', padx=8, pady=(6, 2))
+        ttk.Label(m1, text='Stay logged in to x.com in your browser; yt-dlp reads its cookies live. '
+                          'Firefox is the most reliable — Chrome/Edge on Windows encrypt their cookie '
+                          'store (v127+) and often fail, so close them or prefer Firefox.',
+                  style='Sub.TLabel', wraplength=900, justify='left').pack(anchor='w', padx=8, pady=(6, 2))
         m1row = ttk.Frame(m1)
         m1row.pack(fill='x', padx=8, pady=(0, 8))
         ttk.Label(m1row, text='Browser:').pack(side='left')
@@ -1816,12 +2140,22 @@ class DownloadManager(tk.Tk):
             self._save_config()
 
     def _autodetect_cookies_action(self):
-        self.status_var.set('Searching common folders for cookies…')
+        self.status_var.set('Searching for cookies and installed browsers…')
         threading.Thread(target=self._autodetect_thread, daemon=True).start()
 
     def _autodetect_thread(self):
+        # 1) an exported cookies.txt anywhere common → use it directly
         found = _autodetect_cookies()
-        self.out_queue.put(('cookies_found', None, str(found) if found else '', None))
+        if found:
+            self.out_queue.put(('autodetect', None, ('file', str(found)), None))
+            return
+        # 2) otherwise detect an installed browser (all OSes) and use its live login
+        browsers = _detect_installed_browsers()
+        if browsers:
+            pref = 'firefox' if 'firefox' in browsers else browsers[0]
+            self.out_queue.put(('autodetect', None, ('browser', pref, browsers), None))
+            return
+        self.out_queue.put(('autodetect', None, None, None))
 
     def _clear_cookies(self):
         existed = COOKIES_FILE.exists()
@@ -1868,6 +2202,36 @@ class DownloadManager(tk.Tk):
         self._refresh_cookie_status()
         self.status_var.set('Pasted cookies saved.')
 
+    def _update_ytdlp(self, nightly=False):
+        """pip-update yt-dlp (the engine behind every download). Outdated yt-dlp is
+        the #1 reason X.com / tube downloads suddenly stop working."""
+        if not self._console_open:
+            self._toggle_console()
+        self.status_var.set('Updating yt-dlp… (see console)')
+        threading.Thread(target=self._update_ytdlp_thread, args=(nightly,), daemon=True).start()
+
+    def _update_ytdlp_thread(self, nightly):
+        cmd = [_python_bin(), '-m', 'pip', 'install', '-U']
+        cmd += ['--pre', 'yt-dlp[default]'] if nightly else ['yt-dlp']
+        self.out_queue.put(('console', None, f'[pip] {" ".join(cmd)}', None))
+        try:
+            proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, encoding='utf-8', errors='replace', **_subprocess_flags())
+            for line in _read_stream(proc.stdout):
+                line = line.strip()
+                if line:
+                    self.out_queue.put(('console', None, f'[pip] {line}', None))
+            code = proc.wait()
+        except OSError as e:
+            self.out_queue.put(('console', None, f'[pip] error: {e}', None))
+            self.out_queue.put(('status_msg', None, f'yt-dlp update failed: {e}', None))
+            return
+        self.out_queue.put(('console', None, f'[pip] finished (exit {code})', None))
+        self.out_queue.put(('status_msg', None,
+                            'yt-dlp updated — try the download again.' if code == 0
+                            else 'yt-dlp update failed — see console.', None))
+
     # ── UI message pump ───────────────────────────────────────────────
     def _poll_queue(self):
         try:
@@ -1876,9 +2240,15 @@ class DownloadManager(tk.Tk):
                 if kind == 'done':
                     self._handle_done(iid, a, b)
                 elif kind == 'progress':
+                    if iid in self.active:
+                        self._activity[iid] = time.monotonic()
                     if iid in self.items:
                         sp, eta = b
                         self._set_item(iid, status=ST_DOWNLOADING, pct=a, speed=sp, eta=eta)
+                elif kind == 'console':
+                    if iid in self.active:
+                        self._activity[iid] = time.monotonic()
+                    self._console_log(a)
                 elif kind == 'title':
                     if iid in self.items:
                         self._set_item(iid, title=a)
@@ -1886,48 +2256,75 @@ class DownloadManager(tk.Tk):
                     self._populate_bookmarks(a)
                 elif kind == 'gthumb':
                     self._apply_gallery_thumb(iid, a, b)
-                elif kind == 'cookies_found':
-                    self._handle_cookies_found(a)
+                elif kind == 'duplicates':
+                    self._handle_duplicates(iid, a)
+                elif kind == 'autodetect':
+                    self._handle_autodetect(a)
+                elif kind == 'status_msg':
+                    self.status_var.set(a)
         except queue.Empty:
             pass
+        self._check_timeouts()
         self.after(100, self._poll_queue)
 
     def _handle_done(self, iid, code, result_file):
-        cancelled = iid in self._cancelling
+        timed_out = iid in self._timeouts
+        cancelled = iid in self._cancelling and not timed_out
         self._cancelling.discard(iid)
+        self._timeouts.discard(iid)
         self.active.pop(iid, None)
+        self._activity.pop(iid, None)
         if iid not in self.items:            # row was removed mid-download
             self._pump()
             return
         url = self.items[iid]['url']
         if cancelled:
             self._set_item(iid, status=ST_STOPPED)
+            self._console_log(f'⏸ stopped {url}')
         elif code == 0 and result_file:
             self._set_item(iid, status=ST_DONE, file=result_file, pct=100)
             self._mark_downloaded(url)
+            self._console_log(f'✓ done    {os.path.basename(result_file)}')
         else:
             self._set_item(iid, status=ST_ERROR)
             _append_link(LINKS_FAILED, url)
+            self._console_log(f'✗ {"timeout" if timed_out else "error"}   {url}')
         self._rebuild_to_download_file()
         self._update_overall()
+        self._refresh_errored()
         self._pump()
 
-    def _handle_cookies_found(self, path):
-        if not path:
-            self.status_var.set('No cookies.txt with x.com cookies found.')
+    def _handle_autodetect(self, result):
+        if not result:
             messagebox.showinfo('Nothing found',
-                                'No cookies.txt with x.com/twitter cookies found in your '
-                                'Downloads / Desktop / Documents / home folders.')
+                                'No cookies.txt and no supported browser profile found.\n\n'
+                                'Log in to x.com in Chrome/Firefox/Edge/Brave, then use method ① above.')
+            self.status_var.set('Auto-detect found nothing.')
             return
-        try:
-            shutil.copyfile(path, COOKIES_FILE)
-        except OSError as e:
-            messagebox.showerror('Could not save cookies', str(e))
-            return
-        self._clear_browser_login_silent()
-        self._refresh_cookie_status()
-        self.status_var.set(f'Auto-detected cookies from {path}')
-        messagebox.showinfo('Cookies found', f'Imported cookies from:\n{path}')
+        if result[0] == 'file':
+            path = result[1]
+            try:
+                shutil.copyfile(path, COOKIES_FILE)
+            except OSError as e:
+                messagebox.showerror('Could not save cookies', str(e))
+                return
+            self._clear_browser_login_silent()
+            self._refresh_cookie_status()
+            self.status_var.set(f'Auto-detected cookies from {path}')
+            messagebox.showinfo('Cookies found', f'Imported cookies from:\n{path}')
+        elif result[0] == 'browser':
+            browser = result[1]
+            others = result[2] if len(result) > 2 else [browser]
+            self.browser_var.set(browser)
+            self._config['cookies_from_browser'] = browser
+            self._save_config()
+            self._refresh_cookie_status()
+            self.status_var.set(f'Using {browser.title()} browser login (auto-detected).')
+            messagebox.showinfo('Browser login enabled',
+                                'No cookies.txt found, but these browsers are installed:\n'
+                                f'  {", ".join(b.title() for b in others)}\n\n'
+                                f'Now using your {browser.title()} login automatically — make sure '
+                                f'you are signed in to x.com in {browser.title()}.')
 
     def _apply_gallery_thumb(self, gen, idx, png):
         if gen != self._gallery_gen or not (0 <= idx < len(self._gallery_thumb_labels)):
@@ -1944,14 +2341,72 @@ class DownloadManager(tk.Tk):
         _remove_link(LINKS_FAILED, url)
         _append_link(LINKS_DOWNLOADED, url, cap=DOWNLOADED_FILE_CAP)
 
+    # ── console drawer ────────────────────────────────────────────────
+    def _build_console_drawer(self, body):
+        self._console_open = False
+        self.console_drawer = ttk.Frame(body, width=440)
+        hdr = ttk.Frame(self.console_drawer)
+        hdr.pack(fill='x', pady=(0, 4))
+        ttk.Label(hdr, text='🖥 Console', style='Header.TLabel').pack(side='left')
+        ttk.Button(hdr, text='✕', width=3, command=self._toggle_console).pack(side='right')
+        ttk.Button(hdr, text='Clear', command=self._clear_console).pack(side='right', padx=4)
+        cwrap = ttk.Frame(self.console_drawer)
+        cwrap.pack(fill='both', expand=True)
+        self.console_text = tk.Text(cwrap, bg=LOG_BG, fg=LOG_FG, insertbackground=LOG_FG,
+                                    font=FONT_MONO, wrap='none', relief='flat', borderwidth=0,
+                                    state='disabled', width=54)
+        csb = ttk.Scrollbar(cwrap, command=self.console_text.yview)
+        self.console_text.configure(yscrollcommand=csb.set)
+        self.console_text.pack(side='left', fill='both', expand=True)
+        csb.pack(side='right', fill='y')
+
+    def _toggle_console(self):
+        if self._console_open:
+            self.console_drawer.pack_forget()
+            self._console_open = False
+            self.console_btn.configure(text='🖥 Console ▸')
+        else:
+            self.console_drawer.pack(side='right', fill='y', padx=(6, 0))
+            self.console_drawer.pack_propagate(False)
+            self._console_open = True
+            self.console_btn.configure(text='🖥 Console ◂')
+        self._save_config()
+
+    def _clear_console(self):
+        self.console_text.configure(state='normal')
+        self.console_text.delete('1.0', 'end')
+        self.console_text.configure(state='disabled')
+
+    def _console_log(self, line):
+        if not hasattr(self, 'console_text'):
+            return
+        self.console_text.configure(state='normal')
+        self.console_text.insert('end', line + '\n')
+        try:
+            last = int(self.console_text.index('end-1c').split('.')[0])
+            if last > 2500:
+                self.console_text.delete('1.0', f'{last - 2000}.0')
+        except (ValueError, tk.TclError):
+            pass
+        self.console_text.see('end')
+        self.console_text.configure(state='disabled')
+
     def _on_tab_changed(self, event=None):
-        if self.nb.select() == str(self.tab_gallery) and not self._gallery_cards:
+        sel = self.nb.select()
+        if sel == str(self.tab_gallery) and not self._gallery_cards:
             self._refresh_gallery()
+        elif sel == str(self.tab_errored):
+            self._refresh_errored()
 
     # ── config persistence ────────────────────────────────────────────
     def _save_config(self):
         self._config['out_dir'] = self.out_dir.get()
         self._config['max_parallel'] = self._parallel()
+        self._config['start_timeout'] = self._start_timeout()
+        if hasattr(self, 'autostart_var'):
+            self._config['autostart'] = bool(self.autostart_var.get())
+        if hasattr(self, '_console_open'):
+            self._config['console_open'] = bool(self._console_open)
         try:
             self._config['last_tab'] = self.nb.index(self.nb.select())
         except (tk.TclError, AttributeError):
@@ -2052,17 +2507,35 @@ def _make_thumb(ffmpeg, video_path, out_png):
             return
 
 
-def _human_size(path):
-    try:
-        size = path.stat().st_size
-    except OSError:
-        return ''
-    val = float(size)
+def _fmt_bytes(num):
+    val = float(num)
     for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
         if val < 1024 or unit == 'TB':
             return f'{val:.0f} {unit}' if unit == 'B' else f'{val:.1f} {unit}'
         val /= 1024
     return ''
+
+
+def _human_size(path):
+    try:
+        return _fmt_bytes(path.stat().st_size)
+    except OSError:
+        return ''
+
+
+def _dupe_hash(path):
+    """Fast content fingerprint: md5 of the first + last 1 MB (size already matched)."""
+    try:
+        size = path.stat().st_size
+        h = hashlib.md5()
+        with open(path, 'rb') as f:
+            h.update(f.read(1024 * 1024))
+            if size > 2 * 1024 * 1024:
+                f.seek(-1024 * 1024, 2)
+                h.update(f.read(1024 * 1024))
+        return h.hexdigest()
+    except OSError:
+        return None
 
 
 if __name__ == '__main__':

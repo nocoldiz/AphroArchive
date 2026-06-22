@@ -4,10 +4,20 @@ cd "$(dirname "$0")"
 # Resolve a Python 3 interpreter (python3 preferred, fall back to python).
 if command -v python3 >/dev/null 2>&1; then
     PYTHON="python3"
-elif command -v python >/dev/null 2>&1 && python --version 2>&1 | grep -q "Python 3"; then
+elif command -v python >/dev/null 2>&1 && python -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
     PYTHON="python"
 else
     echo "  ERROR: Python 3 not found. Install it from https://python.org"
+    echo "         macOS:  brew install python3"
+    echo "         Linux:  sudo apt-get install python3 python3-pip  (or dnf/pacman)"
+    exit 1
+fi
+
+# The GUI needs Tkinter.
+if ! "$PYTHON" -c 'import tkinter' >/dev/null 2>&1; then
+    echo "  ERROR: Python is missing Tkinter (required for the GUI)."
+    echo "         macOS:  use python.org Python, or  brew install python-tk"
+    echo "         Linux:  sudo apt-get install python3-tk"
     exit 1
 fi
 
@@ -18,16 +28,5 @@ if ! "$PYTHON" -c "import yt_dlp" >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "=================================="
-echo "BulkDownloader Launcher"
-echo "=================================="
-echo "  1. GUI version"
-echo "  2. Console version"
-echo ""
-read -r -p "Choose (1 or 2): " choice
-
-case "$choice" in
-    1) exec "$PYTHON" bulkdownloader_gui.py ;;
-    2) exec "$PYTHON" bulkdownloader.py ;;
-    *) echo "Invalid choice." ; exit 1 ;;
-esac
+# Launch the GUI directly.
+exec "$PYTHON" bulkdownloader_gui.py

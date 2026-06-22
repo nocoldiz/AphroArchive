@@ -51,7 +51,16 @@ else
     echo "      Try: pip install -U \"curl_cffi>=0.7.0\" --force-reinstall"
 fi
 
+# Make the launchers executable (so BulkDownloader.command double-clicks on macOS).
+chmod +x ./launch.sh ./build.sh ./BulkDownloader.command 2>/dev/null || true
+
 echo ""
 echo "======================================"
-echo "Done. Run ./launch.sh to start BulkDownloader."
+echo "Done."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "macOS: double-click  BulkDownloader.command  to launch the app,"
+    echo "       or run  ./launch.sh  from Terminal."
+else
+    echo "Run  ./launch.sh  to start BulkDownloader."
+fi
 echo "======================================"
