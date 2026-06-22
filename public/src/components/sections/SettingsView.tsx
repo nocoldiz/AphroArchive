@@ -84,6 +84,7 @@ export const SettingsView = () => {
   const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
   const [availableModels, setAvailableModels] = useState<Set<string>>(new Set());
   const [hiddenCats, setHiddenCats] = useState<string[]>([]);
+  const [barLayoutReset, setBarLayoutReset] = useState(false);
 
   const [connectUrls, setConnectUrls] = useState<ConnectUrl[]>([]);
   const [connectIdx, setConnectIdx] = useState(0);
@@ -437,7 +438,18 @@ export const SettingsView = () => {
             </div>
             <div style={secLast}>
               <h3 style={{ ...secH, marginBottom: '6px' }}>Bar Layout</h3>
-              <p style={{ fontSize: '12px', color: 'var(--tx3)' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar.</p>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar.</p>
+              <button
+                type="button"
+                onClick={async () => {
+                  await updatePrefs({ itemPlacements: {}, sectionPlacements: {}, navOrder: {}, collapsedDropdowns: [] } as any);
+                  setBarLayoutReset(true);
+                  setTimeout(() => setBarLayoutReset(false), 2000);
+                }}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--brd)', background: 'var(--bg3)', color: 'var(--tx)', cursor: 'pointer', fontSize: '13px' }}
+              >
+                {barLayoutReset ? 'Positions Restored ✓' : 'Restore Default Positions'}
+              </button>
             </div>
           </div>
         )}

@@ -140,6 +140,8 @@ ERROR = '#dc2626'
 MUTED = '#6b7280'
 BORDER = '#d1d5db'
 GOLD = '#d97706'
+LOG_BG = '#1e1e1e'
+LOG_FG = '#d4d4d4'
 
 # Pick fonts that actually exist on the host OS — Segoe UI/Consolas are
 # Windows-only and fall back to ugly defaults on macOS/Linux.
@@ -563,6 +565,8 @@ class DownloadManager(tk.Tk):
         # ── parallel download engine state (all mutated on the main thread) ──
         self.active = {}                 # iid -> Popen (or None until launched)
         self._cancelling = set()         # iids intentionally terminated (pause / cancel)
+        self._timeouts = set()           # iids killed by the stall watchdog
+        self._activity = {}              # iid -> monotonic ts of last output (watchdog)
         self.is_running = False
         self.paused = False
         self._env = None
@@ -580,6 +584,8 @@ class DownloadManager(tk.Tk):
 
         self.out_dir = tk.StringVar(value=self._config.get('out_dir') or str(DEFAULT_OUT_DIR))
         self.max_parallel = tk.IntVar(value=int(self._config.get('max_parallel', 2) or 2))
+        self.start_timeout = tk.IntVar(value=int(self._config.get('start_timeout', 90) or 0))
+        self.autostart_var = tk.BooleanVar(value=bool(self._config.get('autostart', True)))
         self.status_var = tk.StringVar(value='Idle')
         self.overall_var = tk.StringVar(value='')
 
@@ -655,8 +661,13 @@ class DownloadManager(tk.Tk):
 
     # ── overall layout ────────────────────────────────────────────────
     def _build_ui(self):
-        self.nb = ttk.Notebook(self)
-        self.nb.pack(fill='both', expand=True, padx=8, pady=(8, 4))
+        body = ttk.Frame(self)
+        body.pack(fill='both', expand=True, padx=8, pady=(8, 4))
+
+        self._build_console_drawer(body)   # right-hand drawer (created hidden)
+
+        self.nb = ttk.Notebook(body)
+        self.nb.pack(side='left', fill='both', expand=True)
 
         self.tab_downloads = ttk.Frame(self.nb)
         self.tab_bookmarks = ttk.Frame(self.nb)
@@ -682,6 +693,8 @@ class DownloadManager(tk.Tk):
         status.pack(fill='x', padx=12, pady=(0, 8))
         ttk.Label(status, textvariable=self.status_var, style='Status.TLabel',
                   anchor='w').pack(side='left', fill='x', expand=True)
+        self.console_btn = ttk.Button(status, text='🖥 Console ▸', command=self._toggle_console)
+        self.console_btn.pack(side='right')
 
     # ── reusable tick-box behaviour for any Treeview (column name 'chk') ──
     def _setup_checktree(self, tree):
@@ -751,17 +764,19 @@ class DownloadManager(tk.Tk):
         self.url_text.configure(yscrollcommand=url_vscroll.set)
         self.url_text.pack(side='left', fill='both', expand=True)
         url_vscroll.pack(side='right', fill='y')
-        self.url_text.bind('<Control-Return>', lambda e: (self._add_box_to_queue(False), 'break')[1])
+        self.url_text.bind('<Control-Return>', lambda e: (self._download_now(), 'break')[1])
 
         url_btns = ttk.Frame(url_panel)
         url_btns.pack(fill='x', padx=8, pady=(0, 8))
-        ttk.Button(url_btns, text='➕ Add to bottom', style='Accent.TButton',
-                   command=lambda: self._add_box_to_queue(at_top=False)).pack(side='left')
+        ttk.Button(url_btns, text='⚡ Download now', style='Accent.TButton',
+                   command=self._download_now).pack(side='left')
+        ttk.Button(url_btns, text='➕ Add to bottom',
+                   command=lambda: self._add_box_to_queue(at_top=False)).pack(side='left', padx=6)
         ttk.Button(url_btns, text='⤴ Add to top',
-                   command=lambda: self._add_box_to_queue(at_top=True)).pack(side='left', padx=6)
-        ttk.Button(url_btns, text='📋 Paste', command=self._paste_clipboard).pack(side='left')
+                   command=lambda: self._add_box_to_queue(at_top=True)).pack(side='left')
+        ttk.Button(url_btns, text='📋 Paste', command=self._paste_clipboard).pack(side='left', padx=6)
         ttk.Button(url_btns, text='✖ Clear box',
-                   command=lambda: self.url_text.delete('1.0', 'end')).pack(side='left', padx=6)
+                   command=lambda: self.url_text.delete('1.0', 'end')).pack(side='left')
         ttk.Button(url_btns, text='🔄 Reload from files', command=self._reload_from_files).pack(side='right')
 
         out_panel = ttk.LabelFrame(parent, text='Destination')
@@ -784,6 +799,11 @@ class DownloadManager(tk.Tk):
         ttk.Label(ctrl, text='Parallel:').pack(side='left', padx=(6, 2))
         ttk.Spinbox(ctrl, from_=1, to=10, width=4, textvariable=self.max_parallel,
                     command=self._pump).pack(side='left')
+        ttk.Label(ctrl, text='Stall timeout (s):').pack(side='left', padx=(8, 2))
+        ttk.Spinbox(ctrl, from_=0, to=600, increment=10, width=5, textvariable=self.start_timeout,
+                    command=self._save_config).pack(side='left')
+        ttk.Checkbutton(ctrl, text='Auto-start', variable=self.autostart_var,
+                        command=self._save_config).pack(side='left', padx=(8, 0))
         ttk.Button(ctrl, text='↻ Retry', command=self._retry_selected).pack(side='left', padx=(10, 0))
         ttk.Button(ctrl, text='🗑 Remove', command=self._remove_selected).pack(side='left', padx=6)
         ttk.Button(ctrl, text='🧹 Clear finished', command=self._clear_finished).pack(side='left')
@@ -826,6 +846,8 @@ class DownloadManager(tk.Tk):
         self.tree.tag_configure(ST_STOPPED, foreground=MUTED)
 
         self.ctx_menu = tk.Menu(self, tearoff=0)
+        self.ctx_menu.add_command(label='⚡ Download now', command=self._download_now_rows)
+        self.ctx_menu.add_separator()
         self.ctx_menu.add_command(label='Move to top', command=lambda: self._move_targets(0))
         self.ctx_menu.add_command(label='Move to bottom', command=lambda: self._move_targets('end'))
         self.ctx_menu.add_separator()
@@ -1033,6 +1055,91 @@ class DownloadManager(tk.Tk):
             self.tree.move(iid, '', index)
         self._rebuild_to_download_file()
 
+    # ── "download now" (top of queue + start immediately) ─────────────
+    def _start_or_pump(self):
+        if not self.is_running or self.paused:
+            self._start()
+        else:
+            self._pump()
+
+    def _promote_and_start(self, iids):
+        """Move the given rows to the top, re-queueing finished/failed ones."""
+        promoted = 0
+        for iid in iids:
+            it = self.items.get(iid)
+            if not it:
+                continue
+            if it['status'] in (ST_ERROR, ST_DONE):
+                self._set_item(iid, status=ST_QUEUED, pct=0, error='', speed='', eta='')
+                _remove_link(LINKS_FAILED, it['url'])
+                _remove_link(LINKS_DOWNLOADED, it['url'])
+            self.tree.move(iid, '', promoted)
+            promoted += 1
+        if promoted:
+            self._rebuild_to_download_file()
+            self._update_overall()
+        return promoted
+
+    def _download_now(self):
+        """Put the box URLs (or, if none, the ticked/selected rows) on top and start now."""
+        raw = [l.strip() for l in self.url_text.get('1.0', 'end').splitlines()]
+        added = self._queue_urls(raw, at_top=True)
+        if added:
+            self.url_text.delete('1.0', 'end')
+        elif not self._promote_and_start(self._targets(self.tree)) and not self._next_pending():
+            messagebox.showinfo('Nothing to download', 'Paste a URL or tick a queue row first.')
+            return
+        self._start_or_pump()
+        self.status_var.set('⚡ Downloading now…')
+
+    def _download_now_rows(self):
+        """Context-menu action: download the ticked/selected rows immediately."""
+        if self._promote_and_start(self._targets(self.tree)):
+            self._start_or_pump()
+            self.status_var.set('⚡ Downloading now…')
+
+    def _clear_errored(self):
+        """Remove every failed row from the queue and from link_failed.txt."""
+        n = 0
+        for iid in list(self.tree.get_children()):
+            it = self.items.get(iid)
+            if it and it['status'] == ST_ERROR:
+                _remove_link(LINKS_FAILED, it['url'])
+                self.items.pop(iid, None)
+                self.tree._checked.discard(iid)
+                self.tree.delete(iid)
+                n += 1
+        self._update_overall()
+        self._refresh_errored()
+        self.status_var.set(f'Cleared {n} errored item(s).')
+
+    # ── stall watchdog: skip downloads that produce no output for N s ──
+    def _start_timeout(self):
+        try:
+            return max(0, int(self.start_timeout.get()))
+        except (tk.TclError, ValueError):
+            return 0
+
+    def _check_timeouts(self):
+        timeout = self._start_timeout()
+        if timeout <= 0 or not self.active:
+            return
+        now = time.monotonic()
+        for iid in list(self.active):
+            if iid in self._cancelling or iid in self._timeouts:
+                continue
+            if now - self._activity.get(iid, now) > timeout:
+                self._timeouts.add(iid)
+                if iid in self.items:
+                    self.items[iid]['error'] = f'timed out — no output for {timeout}s'
+                    self._console_log(f'⏱ timeout  {self.items[iid]["url"]}  (no output for {timeout}s)')
+                proc = self.active.get(iid)
+                if proc and proc.poll() is None:
+                    try:
+                        proc.terminate()
+                    except OSError:
+                        pass
+
     def _popup_menu(self, event):
         iid = self.tree.identify_row(event.y)
         if iid and iid not in self.tree.selection():
@@ -1151,8 +1258,10 @@ class DownloadManager(tk.Tk):
     def _launch(self, iid):
         self._set_item(iid, status=ST_DOWNLOADING, pct=0, speed='', eta='', error='')
         self.active[iid] = None
+        self._activity[iid] = time.monotonic()
         self._rebuild_to_download_file()
         url = self.items[iid]['url']
+        self._console_log(f'▶ start   {url}')
         threading.Thread(target=self._download_worker, args=(iid, url), daemon=True).start()
 
     def _download_worker(self, iid, url):
