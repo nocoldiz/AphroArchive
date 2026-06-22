@@ -222,6 +222,11 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (video) setCardThumb(getThumbPref(video.id));
+    // Opening a video should always start at the top — reset both the window
+    // (normal layout) and the .main-content pane (dual mode) scroll positions.
+    window.scrollTo({ top: 0 });
+    const mc = document.querySelector('.main-content') as HTMLElement | null;
+    if (mc) mc.scrollTop = 0;
     // Reset any chapter-based start time after the player has consumed it,
     // so a stale value doesn't bleed into the next video opened from VideoGrid.
     return () => {

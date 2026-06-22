@@ -82,8 +82,9 @@ def _user_data_dir():
 
 
 PROJECT_ROOT = _find_project_root()
-VIDEOS_ROOT = PROJECT_ROOT / 'videos'
-DEFAULT_OUT_DIR = VIDEOS_ROOT / 'downloads'
+# Downloads land in a plain ./downloads folder next to the app (not videos/downloads).
+DEFAULT_OUT_DIR = APP_DIR / 'downloads'
+_LEGACY_OUT_DIR = PROJECT_ROOT / 'videos' / 'downloads'
 
 # In dev (running the script) keep everything in the repo folder so it works
 # with bulkdownloader.py's own links files. When frozen, use the per-OS dir.
@@ -660,7 +661,13 @@ class DownloadManager(tk.Tk):
         self._dupe_gen = 0
         self._dupe_paths = {}
 
-        self.out_dir = tk.StringVar(value=self._config.get('out_dir') or str(DEFAULT_OUT_DIR))
+        _saved_out = self._config.get('out_dir')
+        try:   # migrate the old videos/downloads default to the plain downloads folder
+            if _saved_out and Path(_saved_out).resolve() == _LEGACY_OUT_DIR.resolve():
+                _saved_out = None
+        except (OSError, ValueError):
+            pass
+        self.out_dir = tk.StringVar(value=_saved_out or str(DEFAULT_OUT_DIR))
         self.max_parallel = tk.IntVar(value=int(self._config.get('max_parallel', 2) or 2))
         self.start_timeout = tk.IntVar(value=int(self._config.get('start_timeout', 90) or 0))
         self.autostart_var = tk.BooleanVar(value=bool(self._config.get('autostart', True)))

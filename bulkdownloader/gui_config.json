@@ -1,8 +1,8 @@
 {
   "geometry": "1060x740+254+146",
-  "out_dir": "C:\\github\\AphroArchive\\bulkdownloader\\videos\\downloads",
+  "out_dir": "E:/AphroArchive/videos/downloads",
   "max_parallel": 3,
-  "last_tab": 6,
+  "last_tab": 0,
   "cookies_from_browser": "firefox",
   "start_timeout": 20,
   "autostart": true,
