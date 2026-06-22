@@ -836,6 +836,14 @@ class UniversalVideoDownloader:
         if cookie_file:
             opts['cookiefile'] = cookie_file
 
+        # "Proper login": pull cookies live from the user's logged-in browser when
+        # $BULK_COOKIES_FROM_BROWSER names one (chrome/firefox/edge/brave/…). This is
+        # the most reliable X.com login — the user just stays logged in in the browser.
+        browser = os.environ.get('BULK_COOKIES_FROM_BROWSER', '').strip().lower()
+        if browser:
+            opts.pop('cookiefile', None)
+            opts['cookiesfrombrowser'] = (browser,)
+
         # --- Explicit per-site optimizations (format, referer, rate limiting) ---
         if any(s in u for s in ('pornhub.com', 'youporn.com', 'redtube.com', 'tube8.com')):
             opts.update({

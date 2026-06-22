@@ -5,25 +5,27 @@ Five tabs:
 
 * **Downloads** — a download queue backed by ``links_to_download.txt``.
   The queue auto-loads from the txt files on launch (queued / done / failed),
-  preserves the file order, can be paused/resumed and drag-reordered, and
-  every change is written straight back to the txt files so the order
-  survives a restart. Each URL is downloaded by its own
-  ``bulkdownloader.py --url …`` subprocess, so a paused item resumes from its
-  partial ``.part`` file on the next run.
+  preserves the file order, can be paused/resumed and drag-reordered, runs
+  several downloads in parallel (configurable), and every change is written
+  straight back to the txt files so the order survives a restart. Each URL is
+  downloaded by its own ``bulkdownloader.py --url …`` subprocess, so a paused
+  item resumes from its partial ``.part`` file on the next run. Rows have
+  tick-box selection; Delete removes the ticked/selected rows.
 * **Bookmarks** — temporarily reads Firefox + Chromium (Chrome/Edge/Brave)
   bookmarks and shows only the ones whose host matches a site in
-  ``websites.json``; filter by typing, then push the selection to the top or
+  ``websites.json``; filter by typing, tick rows, then push them to the top or
   bottom of the download queue.
-* **Search** — open any site's ``searchURL`` for a query in the browser,
-  star sites as favourites (persisted to ``websites.json``) and open every
+* **Search** — open any site's ``searchURL`` for a query in the browser, star
+  sites as favourites (persisted to ``websites.json``) and open every
   favourite's search in its own browser tab with one button.
 * **Gallery** — a thumbnail grid of every video already in the download
   folder; double-click to play in the system player.
-* **X.com** — manage the login cookies used for sensitive / login-gated
-  X.com videos: import a ``cookies.txt``, paste ``auth_token`` / ``ct0``
-  tokens, paste raw Netscape cookies, or auto-detect an exported file.
+* **X.com** — log in for sensitive / login-gated X.com videos: use your
+  browser's live login (recommended), paste ``auth_token`` / ``ct0`` tokens
+  (with a step-by-step guide), or import / paste a ``cookies.txt``.
 
-Files land in the chosen output folder — there is no categorization here.
+The window size, download folder, parallel count and last tab are remembered
+between runs. Files land in the chosen output folder — no categorization here.
 """
 
 import os
@@ -65,33 +67,68 @@ def _find_project_root():
     return APP_DIR.parent if APP_DIR.parent.exists() else APP_DIR
 
 
+def _user_data_dir():
+    """Per-OS writable folder for user data — used when frozen, so a packaged
+    .app/.exe never writes inside its own (possibly read-only / signed) bundle."""
+    home = Path.home()
+    if sys.platform == 'win32':
+        base = Path(os.environ.get('APPDATA', home / 'AppData' / 'Roaming'))
+    elif sys.platform == 'darwin':
+        base = home / 'Library' / 'Application Support'
+    else:
+        base = Path(os.environ.get('XDG_CONFIG_HOME', home / '.config'))
+    return base / 'AphroArchive' / 'bulkdownloader'
+
+
 PROJECT_ROOT = _find_project_root()
 VIDEOS_ROOT = PROJECT_ROOT / 'videos'
 DEFAULT_OUT_DIR = VIDEOS_ROOT / 'downloads'
 
-LINKS_TO_DOWNLOAD = APP_DIR / 'links_to_download.txt'
-LINKS_DOWNLOADED = APP_DIR / 'links_downloaded.txt'
-LINKS_FAILED = APP_DIR / 'link_failed.txt'
+# In dev (running the script) keep everything in the repo folder so it works
+# with bulkdownloader.py's own links files. When frozen, use the per-OS dir.
+DATA_DIR = APP_DIR if not FROZEN else _user_data_dir()
+try:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    DATA_DIR = APP_DIR
+
+LINKS_TO_DOWNLOAD = DATA_DIR / 'links_to_download.txt'
+LINKS_DOWNLOADED = DATA_DIR / 'links_downloaded.txt'
+LINKS_FAILED = DATA_DIR / 'link_failed.txt'
+CONFIG_FILE = DATA_DIR / 'gui_config.json'
 
 # Website registry — the same shape AphroArchive exports via
-# GET /api/db/websites/export. Kept next to the exe so favourites persist.
-WEBSITES_JSON = APP_DIR / 'websites.json'
+# GET /api/db/websites/export. Kept in DATA_DIR so favourites persist.
+WEBSITES_JSON = DATA_DIR / 'websites.json'
 
 # Netscape-format cookies for login-gated sites (X.com sensitive/age-gated tweets).
-# Passed to each bulkdownloader.py subprocess via $BULK_COOKIES_FILE.
-COOKIES_FILE = APP_DIR / 'cookies.txt'
+COOKIES_FILE = DATA_DIR / 'cookies.txt'
 
 # Cache dir for the gallery's ffmpeg-generated thumbnails.
 THUMB_CACHE_DIR = Path(tempfile.gettempdir()) / 'aphro_gallery_thumbs'
 
 VIDEO_EXTS = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.m4v', '.flv', '.ts', '.wmv', '.mpg', '.mpeg', '.m2ts'}
 GALLERY_MAX = 240          # cap files shown so a huge folder doesn't stall the UI
+DONE_LOAD_CAP = 60         # only show the most recent N completed rows on launch
+DOWNLOADED_FILE_CAP = 2000  # trim links_downloaded.txt to this many lines
 THUMB_W, THUMB_H = 240, 135
 CARD_W = 264
 
-# Per-item subprocess output: "   [download]  45.3% of 120.4MiB at … ETA …"
+# Browsers yt-dlp can read live cookies from (the "proper login" path).
+BROWSER_CHOICES = ['chrome', 'firefox', 'edge', 'brave', 'chromium', 'opera', 'vivaldi']
+if sys.platform == 'darwin':
+    BROWSER_CHOICES.append('safari')
+
+# Per-item subprocess output: "   [download]  45.3% of 120.4MiB at 5.2MiB/s ETA 00:12"
 PROGRESS_RE = re.compile(r'\[download\]\s+([\d.]+)%')
+SPEED_RE = re.compile(r'\bat\s+([\d.]+\s*[KMG]?i?B/s)', re.I)
+ETA_RE = re.compile(r'\bETA\s+([\d:]+)')
 TITLE_RE = re.compile(r'\[title\]\s+"(.+)"')
+
+# Query params that are pure tracking noise — stripped only for de-dup keys,
+# never from the URL we actually download.
+TRACKING_PARAMS = {'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+                   'fbclid', 'gclid', 'ref', 'ref_', 'igshid', 'si', 'feature'}
 
 # ── palette ──────────────────────────────────────────────────────────
 BG = '#f3f4f6'
@@ -135,6 +172,9 @@ STATUS_LABEL = {
 }
 
 PENDING_STATUSES = (ST_QUEUED, ST_STOPPED, ST_DOWNLOADING)
+RESUMABLE_STATUSES = (ST_QUEUED, ST_STOPPED)
+
+CHK_ON, CHK_OFF = '☑', '☐'
 
 
 def _python_bin():
@@ -158,20 +198,24 @@ def _subprocess_flags():
 def _ensure_link_files():
     for path in (LINKS_TO_DOWNLOAD, LINKS_DOWNLOADED, LINKS_FAILED):
         if not path.exists():
-            path.touch()
+            try:
+                path.touch()
+            except OSError:
+                pass
 
 
 def _seed_websites_json():
-    """When frozen, copy the bundled websites.json next to the exe once so the
-    user can edit it (and persist favourites)."""
+    """Copy the bundled websites.json into DATA_DIR once (frozen builds) so the
+    user can edit it and persist favourites."""
     if WEBSITES_JSON.exists():
         return
-    bundled = BUNDLE_DIR / 'websites.json'
-    if bundled.exists():
-        try:
-            shutil.copyfile(bundled, WEBSITES_JSON)
-        except OSError:
-            pass
+    for src in (BUNDLE_DIR / 'websites.json', APP_DIR / 'websites.json'):
+        if src.exists() and src.resolve() != WEBSITES_JSON.resolve():
+            try:
+                shutil.copyfile(src, WEBSITES_JSON)
+            except OSError:
+                pass
+            return
 
 
 def _read_link_lines(path):
@@ -193,15 +237,34 @@ def _remove_link(path, url):
         _write_link_lines(path, [u for u in lines if u != url])
 
 
-def _append_link(path, url):
+def _append_link(path, url, cap=None):
     lines = _read_link_lines(path)
     if url not in lines:
         lines.append(url)
+        if cap and len(lines) > cap:
+            lines = lines[-cap:]
         _write_link_lines(path, lines)
 
 
 def _is_http(url):
     return url.startswith(('http://', 'https://'))
+
+
+def _norm_key(url):
+    """De-dup key: lowercase host, drop tracking params + trailing slash/fragment.
+    Used ONLY for duplicate detection — the original URL is what gets downloaded."""
+    try:
+        p = urllib.parse.urlsplit(url.strip())
+    except ValueError:
+        return url.strip().lower()
+    host = (p.hostname or '').lower()
+    if host.startswith('www.'):
+        host = host[4:]
+    query = urllib.parse.urlencode([
+        (k, v) for k, v in urllib.parse.parse_qsl(p.query, keep_blank_values=True)
+        if k.lower() not in TRACKING_PARAMS
+    ])
+    return urllib.parse.urlunsplit((p.scheme.lower(), host, p.path.rstrip('/'), query, ''))
 
 
 def _read_stream(stream):
@@ -222,15 +285,28 @@ def _read_stream(stream):
             buf.append(ch)
 
 
+# ── config persistence ────────────────────────────────────────────────
+
+def _load_config():
+    try:
+        data = json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
+        if isinstance(data, dict):
+            return data
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
 # ── website registry (raw JSON, so favourites + all fields round-trip) ──
 
 def _load_websites_raw():
-    try:
-        data = json.loads(WEBSITES_JSON.read_text(encoding='utf-8'))
-        if isinstance(data, list):
-            return [s for s in data if isinstance(s, dict)]
-    except (OSError, ValueError):
-        pass
+    for path in (WEBSITES_JSON, APP_DIR / 'websites.json', BUNDLE_DIR / 'websites.json'):
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            if isinstance(data, list):
+                return [s for s in data if isinstance(s, dict)]
+        except (OSError, ValueError):
+            continue
     return []
 
 
@@ -265,17 +341,26 @@ def _build_site_matchers(sites):
 
 
 def _match_host(host, matchers):
-    """Return the matching site name for a bookmark host, or None."""
+    """Return the matching site name for a bookmark host, or None.
+
+    A bookmark matches when its host equals/is a sub-domain of a registered
+    host, or when a whole domain label equals the site's name token (also
+    catching numbered mirrors like ``xvideos2``). Substring matching is
+    deliberately avoided so a site literally named ``porn`` doesn't swallow
+    every host that happens to contain the word.
+    """
     host = host.lower()
     if host.startswith('www.'):
         host = host[4:]
-    flat = host.replace('.', '')
+    labels = host.split('.')
     for name, hosts, token in matchers:
         for h in hosts:
             if h and (host == h or host.endswith('.' + h) or h.endswith('.' + host)):
                 return name
-        if token and len(token) >= 4 and token in flat:
-            return name
+        if token and len(token) >= 4:
+            for lab in labels:
+                if lab == token or (lab.startswith(token) and lab[len(token):].isdigit()):
+                    return name
     return None
 
 
@@ -310,7 +395,11 @@ def _chromium_bookmark_files():
     for browser, root in roots.items():
         if not root.is_dir():
             continue
-        for prof in sorted(root.iterdir()):
+        try:
+            profiles = sorted(root.iterdir())
+        except OSError:
+            continue
+        for prof in profiles:
             bm = prof / 'Bookmarks'
             if bm.is_file():
                 found.append((f'{browser} · {prof.name}', bm))
@@ -356,16 +445,25 @@ def _firefox_places_files():
 
 
 def _read_firefox_bookmarks(places_path):
-    """Read bookmarks from a copy of places.sqlite (the live file is locked
-    while Firefox is open)."""
+    """Read bookmarks from a copy of places.sqlite (the live file is locked while
+    Firefox is open). The -wal / -shm sidecars are copied too so the newest
+    bookmarks aren't missed."""
     out = []
-    tmp = THUMB_CACHE_DIR.parent / f'aphro_places_{os.getpid()}_{abs(hash(str(places_path)))}.sqlite'
+    tmpdir = Path(tempfile.mkdtemp(prefix='aphro_ff_'))
     try:
-        shutil.copyfile(places_path, tmp)
+        dst = tmpdir / 'places.sqlite'
+        shutil.copyfile(places_path, dst)
+        for ext in ('-wal', '-shm'):
+            side = Path(str(places_path) + ext)
+            if side.exists():
+                try:
+                    shutil.copyfile(side, Path(str(dst) + ext))
+                except OSError:
+                    pass
         try:
-            con = sqlite3.connect(f'file:{tmp}?mode=ro', uri=True)
+            con = sqlite3.connect(f'file:{dst}?mode=ro', uri=True)
         except sqlite3.Error:
-            con = sqlite3.connect(str(tmp))
+            con = sqlite3.connect(str(dst))
         try:
             cur = con.execute(
                 'SELECT b.title, p.url FROM moz_bookmarks b '
@@ -379,25 +477,25 @@ def _read_firefox_bookmarks(places_path):
     except (OSError, sqlite3.Error):
         pass
     finally:
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
+        shutil.rmtree(tmpdir, ignore_errors=True)
     return out
 
 
 # ── X.com cookie helpers ─────────────────────────────────────────────
 
-def _cookie_status():
-    """Return a human label describing the current cookies.txt state."""
+def _cookie_status(config):
+    """Human label describing the active X.com login method."""
+    browser = (config or {}).get('cookies_from_browser', '')
+    if browser:
+        return (f'✓ Using your {browser.title()} browser login — yt-dlp reads its live '
+                f'cookies. Stay signed in to x.com in {browser.title()}.')
     if not COOKIES_FILE.exists():
-        return '○ No cookies saved — sensitive X.com videos may fail.'
+        return '○ No X.com login configured — sensitive / login-gated videos may fail.'
     try:
         head = COOKIES_FILE.read_text(encoding='utf-8', errors='replace')[:65536]
     except OSError:
         return '○ cookies.txt present but unreadable.'
-    has_x = 'x.com' in head or 'twitter.com' in head
-    if has_x:
+    if 'x.com' in head or 'twitter.com' in head:
         return '✓ X.com login cookies saved — used automatically for downloads.'
     return '⚠ cookies.txt present but contains no x.com/twitter cookies.'
 
@@ -417,7 +515,7 @@ def _write_x_cookies_from_tokens(auth_token, ct0):
 def _autodetect_cookies():
     """Scan common folders for an exported cookies.txt with x.com cookies."""
     home = Path.home()
-    dirs = [APP_DIR, Path.cwd(), home, home / 'Downloads', home / 'Desktop', home / 'Documents']
+    dirs = [DATA_DIR, APP_DIR, Path.cwd(), home, home / 'Downloads', home / 'Desktop', home / 'Documents']
     best = None
     for d in dirs:
         if not d.is_dir():
@@ -427,9 +525,9 @@ def _autodetect_cookies():
         except OSError:
             continue
         for p in candidates:
-            if p.resolve() == COOKIES_FILE.resolve():
-                continue
             try:
+                if p.resolve() == COOKIES_FILE.resolve():
+                    continue
                 head = p.read_text(encoding='utf-8', errors='replace')[:65536]
             except OSError:
                 continue
@@ -451,38 +549,57 @@ class DownloadManager(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('AphroArchive — Download Manager')
-        self.geometry('1040x720')
-        self.minsize(820, 560)
+        self.minsize(860, 580)
         self.configure(bg=BG)
 
         _ensure_link_files()
         _seed_websites_json()
+        self._config = _load_config()
 
         self._ids = itertools.count(1)
-        self.items = {}                  # iid -> {url, status, pct, file, title}
+        self.items = {}                  # iid -> {url, status, pct, file, title, speed, eta, error}
         self.out_queue = queue.Queue()   # worker/threads -> UI messages
 
-        self.current_proc = None
-        self.is_running = False          # worker actively processing the queue
-        self._stop_requested = False     # terminate current + halt loop
-        self._drag_iid = None            # drag-to-reorder state
+        # ── parallel download engine state (all mutated on the main thread) ──
+        self.active = {}                 # iid -> Popen (or None until launched)
+        self._cancelling = set()         # iids intentionally terminated (pause / cancel)
+        self.is_running = False
+        self.paused = False
+        self._env = None
+        self._out_dir_path = None
+        self._drag_iid = None
 
         self.sites_raw = _load_websites_raw()
-        self._all_bookmarks = []         # [{site, title, url}]
+        self._all_bookmarks = []
 
         self._gallery_gen = 0
         self._gallery_cards = []
         self._gallery_thumb_labels = []
-        self._gallery_imgs = []          # keep PhotoImage refs alive
+        self._gallery_imgs = []
         self._gallery_cols = 0
 
-        self.out_dir = tk.StringVar(value=str(DEFAULT_OUT_DIR))
+        self.out_dir = tk.StringVar(value=self._config.get('out_dir') or str(DEFAULT_OUT_DIR))
+        self.max_parallel = tk.IntVar(value=int(self._config.get('max_parallel', 2) or 2))
         self.status_var = tk.StringVar(value='Idle')
         self.overall_var = tk.StringVar(value='')
 
         self._setup_style()
         self._build_ui()
         self._load_initial_queue()
+
+        # Restore geometry / tab, then start auto-saving on changes.
+        geo = self._config.get('geometry')
+        try:
+            self.geometry(geo if geo else '1060x740')
+        except tk.TclError:
+            self.geometry('1060x740')
+        try:
+            self.nb.select(int(self._config.get('last_tab', 0)))
+        except (tk.TclError, ValueError):
+            pass
+        self.out_dir.trace_add('write', lambda *_: self._save_config())
+        self.max_parallel.trace_add('write', lambda *_: self._save_config())
+
         self.after(100, self._poll_queue)
         self.protocol('WM_DELETE_WINDOW', self._on_close)
 
@@ -515,6 +632,7 @@ class DownloadManager(tk.Tk):
 
         style.configure('Header.TLabel', font=FONT_HEADER, background=BG, foreground='#111827')
         style.configure('Sub.TLabel', font=FONT_SUB, background=BG, foreground=MUTED)
+        style.configure('Guide.TLabel', font=FONT_SUB, background=PANEL_BG, foreground='#374151')
         style.configure('Status.TLabel', font=FONT, background=BG, foreground='#374151')
         style.configure('Count.TLabel', font=FONT_SUB, background=BG, foreground=MUTED)
         style.configure('Card.TFrame', background=PANEL_BG, relief='solid', borderwidth=1)
@@ -560,11 +678,59 @@ class DownloadManager(tk.Tk):
 
         self.nb.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
-        # Shared status bar
         status = ttk.Frame(self)
         status.pack(fill='x', padx=12, pady=(0, 8))
         ttk.Label(status, textvariable=self.status_var, style='Status.TLabel',
                   anchor='w').pack(side='left', fill='x', expand=True)
+
+    # ── reusable tick-box behaviour for any Treeview (column name 'chk') ──
+    def _setup_checktree(self, tree):
+        tree._checked = set()
+        tree.heading('chk', text=CHK_OFF, command=lambda t=tree: self._toggle_all_checks(t))
+        tree.bind('<Button-1>', lambda e, t=tree: self._on_chk_click(e, t), add='+')
+        tree.bind('<space>', lambda e, t=tree: self._space_toggle(t))
+
+    def _on_chk_click(self, event, tree):
+        if tree.identify_region(event.x, event.y) != 'cell':
+            return None
+        if tree.identify_column(event.x) != '#1':   # the leading tick-box column
+            return None
+        iid = tree.identify_row(event.y)
+        if iid:
+            self._set_check(tree, iid, iid not in tree._checked)
+            return 'break'
+        return None
+
+    def _set_check(self, tree, iid, on):
+        if on:
+            tree._checked.add(iid)
+        else:
+            tree._checked.discard(iid)
+        try:
+            tree.set(iid, 'chk', CHK_ON if on else CHK_OFF)
+        except tk.TclError:
+            pass
+
+    def _toggle_all_checks(self, tree):
+        kids = tree.get_children()
+        turn_on = not (kids and all(i in tree._checked for i in kids))
+        for i in kids:
+            self._set_check(tree, i, turn_on)
+
+    def _space_toggle(self, tree):
+        for iid in tree.selection():
+            self._set_check(tree, iid, iid not in tree._checked)
+        return 'break'
+
+    def _targets(self, tree, fallback_all=False):
+        """Ticked rows, else the normal selection, else (optionally) every row."""
+        checked = [i for i in tree.get_children() if i in getattr(tree, '_checked', ())]
+        if checked:
+            return checked
+        sel = list(tree.selection())
+        if sel:
+            return sel
+        return list(tree.get_children()) if fallback_all else []
 
     # ════════════════════════════════════════════════════════════════
     #  Downloads tab
@@ -572,7 +738,6 @@ class DownloadManager(tk.Tk):
     def _build_downloads_tab(self, parent):
         pad = {'padx': 12, 'pady': 6}
 
-        # URL input
         url_panel = ttk.LabelFrame(parent, text='Add URLs (one per line)')
         url_panel.pack(fill='x', **pad)
 
@@ -586,6 +751,7 @@ class DownloadManager(tk.Tk):
         self.url_text.configure(yscrollcommand=url_vscroll.set)
         self.url_text.pack(side='left', fill='both', expand=True)
         url_vscroll.pack(side='right', fill='y')
+        self.url_text.bind('<Control-Return>', lambda e: (self._add_box_to_queue(False), 'break')[1])
 
         url_btns = ttk.Frame(url_panel)
         url_btns.pack(fill='x', padx=8, pady=(0, 8))
@@ -598,7 +764,6 @@ class DownloadManager(tk.Tk):
                    command=lambda: self.url_text.delete('1.0', 'end')).pack(side='left', padx=6)
         ttk.Button(url_btns, text='🔄 Reload from files', command=self._reload_from_files).pack(side='right')
 
-        # Destination
         out_panel = ttk.LabelFrame(parent, text='Destination')
         out_panel.pack(fill='x', **pad)
         out_inner = ttk.Frame(out_panel)
@@ -609,64 +774,94 @@ class DownloadManager(tk.Tk):
         ttk.Button(out_inner, text='Open',
                    command=lambda: self._open_path(Path(self.out_dir.get()))).pack(side='left', padx=(6, 0))
 
-        # Controls
         ctrl = ttk.Frame(parent)
         ctrl.pack(fill='x', **pad)
         self.start_btn = ttk.Button(ctrl, text='▶  Start', style='Accent.TButton', command=self._start)
         self.start_btn.pack(side='left')
-        self.stop_btn = ttk.Button(ctrl, text='⏸  Pause', style='Stop.TButton',
-                                   command=self._stop, state='disabled')
-        self.stop_btn.pack(side='left', padx=6)
-        ttk.Button(ctrl, text='↻ Retry selected', command=self._retry_selected).pack(side='left')
-        ttk.Button(ctrl, text='🗑 Remove selected', command=self._remove_selected).pack(side='left', padx=6)
+        self.pause_btn = ttk.Button(ctrl, text='⏸  Pause', style='Stop.TButton',
+                                    command=self._pause, state='disabled')
+        self.pause_btn.pack(side='left', padx=6)
+        ttk.Label(ctrl, text='Parallel:').pack(side='left', padx=(6, 2))
+        ttk.Spinbox(ctrl, from_=1, to=10, width=4, textvariable=self.max_parallel,
+                    command=self._pump).pack(side='left')
+        ttk.Button(ctrl, text='↻ Retry', command=self._retry_selected).pack(side='left', padx=(10, 0))
+        ttk.Button(ctrl, text='🗑 Remove', command=self._remove_selected).pack(side='left', padx=6)
         ttk.Button(ctrl, text='🧹 Clear finished', command=self._clear_finished).pack(side='left')
         ttk.Label(ctrl, textvariable=self.overall_var, style='Count.TLabel').pack(side='right')
 
-        # Queue list
-        list_panel = ttk.LabelFrame(parent, text='Queue  ·  drag rows to reorder')
+        list_panel = ttk.LabelFrame(parent, text='Queue  ·  tick rows, drag to reorder, Delete removes')
         list_panel.pack(fill='both', expand=True, **pad)
         list_inner = ttk.Frame(list_panel)
         list_inner.pack(fill='both', expand=True, padx=8, pady=8)
 
-        self.tree = ttk.Treeview(list_inner, columns=('status', 'progress'),
+        self.tree = ttk.Treeview(list_inner, columns=('chk', 'status', 'progress', 'speed'),
                                  show='tree headings', selectmode='extended')
         self.tree.heading('#0', text='URL / File')
         self.tree.heading('status', text='Status')
-        self.tree.heading('progress', text='Progress')
-        self.tree.column('#0', width=560, stretch=True)
-        self.tree.column('status', width=130, anchor='w', stretch=False)
-        self.tree.column('progress', width=90, anchor='e', stretch=False)
+        self.tree.heading('progress', text='%')
+        self.tree.heading('speed', text='Speed / ETA')
+        self.tree.column('#0', width=480, stretch=True)
+        self.tree.column('chk', width=34, anchor='center', stretch=False)
+        self.tree.column('status', width=120, anchor='w', stretch=False)
+        self.tree.column('progress', width=56, anchor='e', stretch=False)
+        self.tree.column('speed', width=150, anchor='w', stretch=False)
         tree_scroll = ttk.Scrollbar(list_inner, command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scroll.set)
         self.tree.pack(side='left', fill='both', expand=True)
         tree_scroll.pack(side='right', fill='y')
+        self._setup_checktree(self.tree)
         self.tree.bind('<Double-1>', self._open_selected_file)
-        self.tree.bind('<ButtonPress-1>', self._on_tree_press)
+        self.tree.bind('<ButtonPress-1>', self._on_tree_press, add='+')
         self.tree.bind('<B1-Motion>', self._on_tree_motion)
         self.tree.bind('<ButtonRelease-1>', self._on_tree_release)
+        self.tree.bind('<Delete>', lambda e: self._remove_selected())
+        self.tree.bind('<KP_Delete>', lambda e: self._remove_selected())
+        self.tree.bind('<BackSpace>', lambda e: self._remove_selected())
+        self.tree.bind('<Button-3>', self._popup_menu)
+        self.tree.bind('<Button-2>', self._popup_menu)
 
         self.tree.tag_configure(ST_DONE, foreground=SUCCESS)
         self.tree.tag_configure(ST_ERROR, foreground=ERROR)
         self.tree.tag_configure(ST_DOWNLOADING, foreground=ACCENT)
         self.tree.tag_configure(ST_STOPPED, foreground=MUTED)
 
+        self.ctx_menu = tk.Menu(self, tearoff=0)
+        self.ctx_menu.add_command(label='Move to top', command=lambda: self._move_targets(0))
+        self.ctx_menu.add_command(label='Move to bottom', command=lambda: self._move_targets('end'))
+        self.ctx_menu.add_separator()
+        self.ctx_menu.add_command(label='Retry', command=self._retry_selected)
+        self.ctx_menu.add_command(label='Remove', command=self._remove_selected)
+        self.ctx_menu.add_separator()
+        self.ctx_menu.add_command(label='Open file / folder', command=self._open_selected_file)
+
     # ── queue file <-> tree sync ──────────────────────────────────────
     def _load_initial_queue(self):
-        """Populate the tree from the txt files on launch, preserving order."""
+        """Populate the tree from the txt files on launch, preserving order.
+        Done rows are capped so a long history doesn't bloat the queue."""
         seen = set()
-        for path, status in ((LINKS_TO_DOWNLOAD, ST_QUEUED),
-                             (LINKS_FAILED, ST_ERROR),
-                             (LINKS_DOWNLOADED, ST_DONE)):
-            for url in _read_link_lines(path):
-                if _is_http(url) and url not in seen:
-                    seen.add(url)
+
+        def add_all(path, status, limit=None):
+            urls = [u for u in _read_link_lines(path) if _is_http(u)]
+            if limit:
+                urls = urls[-limit:]
+            for url in urls:
+                k = _norm_key(url)
+                if k not in seen:
+                    seen.add(k)
                     self._add_item(url, status=status)
+            return len(urls)
+
+        add_all(LINKS_TO_DOWNLOAD, ST_QUEUED)
+        add_all(LINKS_FAILED, ST_ERROR)
+        total_done = len([u for u in _read_link_lines(LINKS_DOWNLOADED) if _is_http(u)])
+        add_all(LINKS_DOWNLOADED, ST_DONE, limit=DONE_LOAD_CAP)
+
         self._update_overall()
-        if self._next_queued():
-            self.status_var.set('Queue loaded from files. Press Start to download.')
+        if self._next_pending():
+            extra = f' ({total_done - DONE_LOAD_CAP} older done rows hidden)' if total_done > DONE_LOAD_CAP else ''
+            self.status_var.set(f'Queue loaded from files. Press Start to download.{extra}')
 
     def _rebuild_to_download_file(self):
-        """Rewrite links_to_download.txt from the pending items in tree order."""
         urls = []
         for iid in self.tree.get_children():
             it = self.items.get(iid)
@@ -690,6 +885,7 @@ class DownloadManager(tk.Tk):
         for iid in list(self.tree.get_children()):
             self.tree.delete(iid)
         self.items.clear()
+        self.tree._checked.clear()
         self._load_initial_queue()
         self.status_var.set('Queue reloaded from txt files.')
 
@@ -700,17 +896,21 @@ class DownloadManager(tk.Tk):
             self.url_text.delete('1.0', 'end')
             where = 'top' if at_top else 'bottom'
             self.status_var.set(f'Added {added} URL{"s" if added != 1 else ""} to the {where} of the queue.')
+            self._pump()
         else:
             messagebox.showinfo('Nothing added', 'No new http(s) URLs found in the box.')
 
     def _queue_urls(self, urls, at_top=False):
-        """Add new http(s) URLs to the queue (top or bottom), returns count added."""
-        existing = {it['url'] for it in self.items.values()}
+        existing = {_norm_key(it['url']) for it in self.items.values()}
         new = []
         for u in urls:
-            if _is_http(u) and u not in existing:
-                existing.add(u)
-                new.append(u)
+            if not _is_http(u):
+                continue
+            k = _norm_key(u)
+            if k in existing:
+                continue
+            existing.add(k)
+            new.append(u)
         for i, u in enumerate(new):
             self._add_item(u, index=(i if at_top else 'end'))
         if new:
@@ -720,10 +920,9 @@ class DownloadManager(tk.Tk):
 
     def _add_item(self, url, status=ST_QUEUED, index='end'):
         iid = f'item{next(self._ids)}'
-        self.items[iid] = {'url': url, 'status': status,
-                           'pct': 100 if status == ST_DONE else 0,
-                           'file': None, 'title': None}
-        self.tree.insert('', index, iid=iid, text=url, values=('', ''))
+        self.items[iid] = {'url': url, 'status': status, 'pct': 100 if status == ST_DONE else 0,
+                           'file': None, 'title': None, 'speed': '', 'eta': '', 'error': ''}
+        self.tree.insert('', index, iid=iid, text=url, values=(CHK_OFF, '', '', ''))
         self._set_item(iid)
         return iid
 
@@ -732,31 +931,51 @@ class DownloadManager(tk.Tk):
         if not item:
             return
         item.update(changes)
+        status = item['status']
         label = item.get('title') or item['url']
-        if item['status'] == ST_DONE and item['file']:
+        if status == ST_DONE and item.get('file'):
             label = os.path.basename(item['file'])
-        pct = item['pct']
-        pct_text = f'{pct:.0f}%' if item['status'] == ST_DOWNLOADING and pct else (
-            '100%' if item['status'] == ST_DONE else '')
-        tag = item['status'] if item['status'] in (ST_DONE, ST_ERROR, ST_DOWNLOADING, ST_STOPPED) else ''
-        self.tree.item(iid, text=label, values=(STATUS_LABEL[item['status']], pct_text),
-                       tags=(tag,) if tag else ())
+        pct = item.get('pct') or 0
+        if status == ST_DOWNLOADING and pct:
+            pct_text = f'{pct:.0f}%'
+        elif status == ST_DONE:
+            pct_text = '100%'
+        else:
+            pct_text = ''
+        speed_text = ''
+        if status == ST_DOWNLOADING:
+            bits = [b for b in (item.get('speed'), ('ETA ' + item['eta']) if item.get('eta') else '') if b]
+            speed_text = '  '.join(bits)
+        elif status == ST_ERROR and item.get('error'):
+            speed_text = '⚠ double-click for details'
+        tag = status if status in (ST_DONE, ST_ERROR, ST_DOWNLOADING, ST_STOPPED) else ''
+        self.tree.item(iid, text=label, tags=(tag,) if tag else ())
+        self.tree.set(iid, 'status', STATUS_LABEL[status])
+        self.tree.set(iid, 'progress', pct_text)
+        self.tree.set(iid, 'speed', speed_text)
 
-    def _next_queued(self):
+    def _next_pending(self):
         for iid in self.tree.get_children():
-            if self.items[iid]['status'] in (ST_QUEUED, ST_STOPPED):
+            if iid in self.active:
+                continue
+            if self.items[iid]['status'] in RESUMABLE_STATUSES:
                 return iid
         return None
+
+    def _has_pending(self):
+        return any(it['status'] in RESUMABLE_STATUSES for it in self.items.values())
 
     def _update_overall(self):
         total = len(self.items)
         done = sum(1 for it in self.items.values() if it['status'] == ST_DONE)
         err = sum(1 for it in self.items.values() if it['status'] == ST_ERROR)
-        pend = sum(1 for it in self.items.values() if it['status'] in (ST_QUEUED, ST_STOPPED))
+        pend = sum(1 for it in self.items.values() if it['status'] in RESUMABLE_STATUSES)
         if not total:
             self.overall_var.set('')
             return
         parts = [f'{done}/{total} done']
+        if self.active:
+            parts.append(f'{len(self.active)} active')
         if pend:
             parts.append(f'{pend} queued')
         if err:
@@ -764,41 +983,72 @@ class DownloadManager(tk.Tk):
         self.overall_var.set('  ·  '.join(parts))
 
     def _remove_selected(self):
-        for iid in self.tree.selection():
-            if self.items.get(iid, {}).get('status') == ST_DOWNLOADING:
-                messagebox.showwarning('In progress', 'Pause the queue before removing the active download.')
-                return
-        for iid in self.tree.selection():
+        targets = self._targets(self.tree)
+        if not targets:
+            return
+        for iid in targets:
+            url = self.items.get(iid, {}).get('url')
+            if iid in self.active:                 # remove an in-flight download
+                self._cancelling.add(iid)
+                proc = self.active.get(iid)
+                if proc and proc.poll() is None:
+                    try:
+                        proc.terminate()
+                    except OSError:
+                        pass
             self.items.pop(iid, None)
+            self.tree._checked.discard(iid)
             self.tree.delete(iid)
+            if url:
+                _remove_link(LINKS_TO_DOWNLOAD, url)
         self._rebuild_to_download_file()
         self._update_overall()
 
     def _retry_selected(self):
         changed = False
-        for iid in self.tree.selection():
+        for iid in self._targets(self.tree):
             item = self.items.get(iid)
             if item and item['status'] in (ST_ERROR, ST_DONE, ST_STOPPED):
-                self._set_item(iid, status=ST_QUEUED, pct=0)
+                self._set_item(iid, status=ST_QUEUED, pct=0, error='', speed='', eta='')
                 _remove_link(LINKS_FAILED, item['url'])
                 _remove_link(LINKS_DOWNLOADED, item['url'])
                 changed = True
         if changed:
             self._rebuild_to_download_file()
             self._update_overall()
-            if not self.is_running and self._next_queued():
+            self._pump()
+            if not self.is_running and self._next_pending():
                 self.status_var.set('Items re-queued. Press Start to download.')
 
     def _clear_finished(self):
         for iid in list(self.tree.get_children()):
             if self.items[iid]['status'] == ST_DONE:
                 self.items.pop(iid, None)
+                self.tree._checked.discard(iid)
                 self.tree.delete(iid)
         self._update_overall()
 
+    def _move_targets(self, index):
+        for iid in self._targets(self.tree):
+            self.tree.move(iid, '', index)
+        self._rebuild_to_download_file()
+
+    def _popup_menu(self, event):
+        iid = self.tree.identify_row(event.y)
+        if iid and iid not in self.tree.selection():
+            self.tree.selection_set(iid)
+        if self.tree.selection() or self._targets(self.tree):
+            try:
+                self.ctx_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.ctx_menu.grab_release()
+
     # ── drag-to-reorder ───────────────────────────────────────────────
     def _on_tree_press(self, event):
-        self._drag_iid = self.tree.identify_row(event.y)
+        if self.tree.identify_column(event.x) == '#1':   # don't drag from the tick-box
+            self._drag_iid = None
+        else:
+            self._drag_iid = self.tree.identify_row(event.y)
 
     def _on_tree_motion(self, event):
         if not self._drag_iid:
@@ -812,14 +1062,31 @@ class DownloadManager(tk.Tk):
             self._drag_iid = None
             self._rebuild_to_download_file()
 
-    # ── run control ───────────────────────────────────────────────────
+    # ── run control (parallel scheduler) ──────────────────────────────
+    def _parallel(self):
+        try:
+            return max(1, min(10, int(self.max_parallel.get())))
+        except (tk.TclError, ValueError):
+            return 1
+
+    def _build_env(self):
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        env['APHRO_DOWNLOADS_DIR'] = str(self._out_dir_path)
+        browser = self._config.get('cookies_from_browser', '')
+        if browser:
+            env['BULK_COOKIES_FROM_BROWSER'] = browser
+        elif COOKIES_FILE.exists():
+            env['BULK_COOKIES_FILE'] = str(COOKIES_FILE)
+        return env
+
     def _start(self):
-        if self.is_running:
+        if self.is_running and not self.paused:
             return
         if not SCRIPT_PATH.exists():
             messagebox.showerror('Not found', f'Could not find {SCRIPT_PATH}')
             return
-        if not self._next_queued():
+        if not self._next_pending():
             messagebox.showinfo('Empty queue', 'Add some URLs to the queue first.')
             return
         out_dir = Path(self.out_dir.get())
@@ -829,85 +1096,111 @@ class DownloadManager(tk.Tk):
             messagebox.showerror('Invalid folder', str(e))
             return
 
+        self._out_dir_path = out_dir
+        self._env = self._build_env()
         self.is_running = True
-        self._stop_requested = False
-        self.start_btn.configure(state='disabled')
-        self.stop_btn.configure(state='normal')
-        self.status_var.set('Downloading…')
-        threading.Thread(target=self._worker, args=(out_dir,), daemon=True).start()
+        self.paused = False
+        self._update_controls()
+        self._pump()
 
-    def _stop(self):
-        self._stop_requested = True
-        self.stop_btn.configure(state='disabled')
-        self.status_var.set('Pausing after the current item…')
-        if self.current_proc and self.current_proc.poll() is None:
-            try:
-                self.current_proc.terminate()
-            except OSError:
-                pass
+    def _pause(self):
+        if not self.is_running or self.paused:
+            return
+        self.paused = True
+        for iid, proc in list(self.active.items()):
+            self._cancelling.add(iid)
+            if proc and proc.poll() is None:
+                try:
+                    proc.terminate()
+                except OSError:
+                    pass
+        self._update_controls()
+        self.status_var.set('Pausing… active downloads stop and resume from their .part files.')
 
-    def _worker(self, out_dir):
-        env = os.environ.copy()
-        env['PYTHONIOENCODING'] = 'utf-8'
-        env['APHRO_DOWNLOADS_DIR'] = str(out_dir)
-        if COOKIES_FILE.exists():
-            # Lets the downloader fetch login-gated / sensitive X.com videos.
-            env['BULK_COOKIES_FILE'] = str(COOKIES_FILE)
+    def _update_controls(self):
+        if not self.is_running:
+            self.start_btn.configure(state='normal', text='▶  Start')
+            self.pause_btn.configure(state='disabled')
+        elif self.paused:
+            self.start_btn.configure(state='normal', text='▶  Resume')
+            self.pause_btn.configure(state='disabled')
+        else:
+            self.start_btn.configure(state='disabled', text='▶  Start')
+            self.pause_btn.configure(state='normal')
 
-        while self.is_running and not self._stop_requested:
-            iid = self._next_queued()
+    def _pump(self):
+        """Main-thread scheduler: keep up to N downloads running. Safe because all
+        tree/order access happens here on the UI thread; workers only download."""
+        if not self.is_running or self.paused:
+            return
+        while len(self.active) < self._parallel():
+            iid = self._next_pending()
             if not iid:
                 break
-            item = self.items[iid]
-            self.out_queue.put(('status', iid, ST_DOWNLOADING, None))
-            code, result_file, title = self._download_item(item['url'], out_dir, iid, env)
+            self._launch(iid)
+        if not self.active and not self._next_pending():
+            self.is_running = False
+            self.paused = False
+            self._update_controls()
+            self.status_var.set('✅ All downloads finished.' if not self._has_pending()
+                                else 'Paused — items remain in the queue.')
+        elif self.active:
+            self.status_var.set(f'⬇ Downloading {len(self.active)} item(s)…')
+        self._update_overall()
 
-            if self._stop_requested:
-                # Re-queue (as stopped) so resume continues from the .part file.
-                self.out_queue.put(('status', iid, ST_STOPPED, None))
-                break
-            if code == 0 and result_file:
-                self.out_queue.put(('status', iid, ST_DONE, result_file))
-                self.out_queue.put(('mark', item['url'], None, None))
-            else:
-                self.out_queue.put(('status', iid, ST_ERROR, None))
+    def _launch(self, iid):
+        self._set_item(iid, status=ST_DOWNLOADING, pct=0, speed='', eta='', error='')
+        self.active[iid] = None
+        self._rebuild_to_download_file()
+        url = self.items[iid]['url']
+        threading.Thread(target=self._download_worker, args=(iid, url), daemon=True).start()
 
-        self.out_queue.put(('finished', None, None, None))
+    def _download_worker(self, iid, url):
+        code, result_file = self._run_download(iid, url, self._out_dir_path, self._env)
+        self.out_queue.put(('done', iid, code, result_file))
 
-    def _download_item(self, url, out_dir, iid, env):
+    def _run_download(self, iid, url, out_dir, env):
         cmd = [_python_bin(), '-u', str(SCRIPT_PATH), '--url', url, '--out-dir', str(out_dir)]
         try:
-            self.current_proc = subprocess.Popen(
+            proc = subprocess.Popen(
                 cmd, stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding='utf-8', errors='replace',
                 env=env, cwd=str(PROJECT_ROOT), **_subprocess_flags(),
             )
         except OSError as e:
-            self.out_queue.put(('log', None, f'[error] failed to launch: {e}', None))
-            self.current_proc = None
-            return -1, None, None
+            self.items[iid]['error'] = f'failed to launch downloader: {e}'
+            return -1, None
+        self.active[iid] = proc
+        if iid in self._cancelling:        # paused/removed during the launch window
+            try:
+                proc.terminate()
+            except OSError:
+                pass
 
-        result_file, title = None, None
-        for line in _read_stream(self.current_proc.stdout):
+        result_file, last = None, ''
+        for line in _read_stream(proc.stdout):
             line = line.strip()
             if not line:
                 continue
             m = PROGRESS_RE.search(line)
             if m:
-                self.out_queue.put(('progress', iid, float(m.group(1)), None))
+                sp = SPEED_RE.search(line)
+                eta = ETA_RE.search(line)
+                self.out_queue.put(('progress', iid, float(m.group(1)),
+                                    (sp.group(1) if sp else '', eta.group(1) if eta else '')))
                 continue
             mt = TITLE_RE.search(line)
             if mt:
-                title = mt.group(1)
-                self.out_queue.put(('title', iid, title, None))
+                self.out_queue.put(('title', iid, mt.group(1), None))
             elif line.startswith('RESULT_FILE:'):
                 result_file = line.split(':', 1)[1].strip()
-            self.out_queue.put(('log', iid, line, None))
-
-        code = self.current_proc.wait()
-        self.current_proc = None
-        return code, result_file, title
+            elif not line.startswith('RESULT_'):
+                last = line
+        code = proc.wait()
+        if code != 0 and last:
+            self.items[iid]['error'] = last
+        return code, result_file
 
     # ════════════════════════════════════════════════════════════════
     #  Bookmarks tab
@@ -943,23 +1236,25 @@ class DownloadManager(tk.Tk):
         ttk.Button(filt, text='⤵ Add to bottom', style='Accent.TButton',
                    command=lambda: self._add_bookmarks_to_queue(at_top=False)).pack(side='left', padx=6)
 
-        list_panel = ttk.LabelFrame(parent, text='Matching bookmarks  ·  select rows, or add all when none selected')
+        list_panel = ttk.LabelFrame(parent, text='Matching bookmarks  ·  tick rows (or add all when none ticked)')
         list_panel.pack(fill='both', expand=True, **pad)
         list_inner = ttk.Frame(list_panel)
         list_inner.pack(fill='both', expand=True, padx=8, pady=8)
 
-        self.bm_tree = ttk.Treeview(list_inner, columns=('site', 'url'),
+        self.bm_tree = ttk.Treeview(list_inner, columns=('chk', 'site', 'url'),
                                     show='tree headings', selectmode='extended')
         self.bm_tree.heading('#0', text='Title')
         self.bm_tree.heading('site', text='Site')
         self.bm_tree.heading('url', text='URL')
-        self.bm_tree.column('#0', width=320, stretch=True)
-        self.bm_tree.column('site', width=120, stretch=False)
-        self.bm_tree.column('url', width=360, stretch=True)
+        self.bm_tree.column('#0', width=300, stretch=True)
+        self.bm_tree.column('chk', width=34, anchor='center', stretch=False)
+        self.bm_tree.column('site', width=110, stretch=False)
+        self.bm_tree.column('url', width=340, stretch=True)
         bm_scroll = ttk.Scrollbar(list_inner, command=self.bm_tree.yview)
         self.bm_tree.configure(yscrollcommand=bm_scroll.set)
         self.bm_tree.pack(side='left', fill='both', expand=True)
         bm_scroll.pack(side='right', fill='y')
+        self._setup_checktree(self.bm_tree)
 
     def _load_bookmarks(self, source):
         self.bm_count_var.set('Reading bookmarks…')
@@ -976,8 +1271,7 @@ class DownloadManager(tk.Tk):
             for _label, path in _chromium_bookmark_files():
                 raw.extend(_read_chromium_bookmarks(path))
 
-        results = []
-        seen = set()
+        results, seen = [], set()
         for title, url in raw:
             if url in seen:
                 continue
@@ -996,6 +1290,7 @@ class DownloadManager(tk.Tk):
 
     def _refilter_bookmarks(self):
         needle = self.bm_filter_var.get().strip().lower()
+        self.bm_tree._checked.clear()
         for iid in self.bm_tree.get_children():
             self.bm_tree.delete(iid)
         shown = 0
@@ -1004,25 +1299,23 @@ class DownloadManager(tk.Tk):
                     and needle not in bm['url'].lower() and needle not in bm['site'].lower():
                 continue
             self.bm_tree.insert('', 'end', iid=f'bm{i}', text=bm['title'],
-                                values=(bm['site'], bm['url']))
+                                values=(CHK_OFF, bm['site'], bm['url']))
             shown += 1
         total = len(self._all_bookmarks)
         self.bm_count_var.set(f'{shown} shown / {total} matched' if total else 'No bookmarks loaded')
 
     def _add_bookmarks_to_queue(self, at_top=False):
-        sel = self.bm_tree.selection()
-        if sel:
-            urls = [self.bm_tree.set(iid, 'url') for iid in sel]
-        else:
-            urls = [self.bm_tree.set(iid, 'url') for iid in self.bm_tree.get_children()]
+        rows = self._targets(self.bm_tree, fallback_all=True)
+        urls = [self.bm_tree.set(iid, 'url') for iid in rows]
         urls = [u for u in urls if u]
         if not urls:
-            messagebox.showinfo('Nothing to add', 'Load and select some bookmarks first.')
+            messagebox.showinfo('Nothing to add', 'Load and tick some bookmarks first.')
             return
         added = self._queue_urls(urls, at_top=at_top)
         where = 'top' if at_top else 'bottom'
         if added:
             self.status_var.set(f'Added {added} bookmark(s) to the {where} of the queue.')
+            self._pump()
             self.nb.select(self.tab_downloads)
         else:
             messagebox.showinfo('Already queued', 'Those bookmarks are already in the queue.')
@@ -1051,34 +1344,37 @@ class DownloadManager(tk.Tk):
 
         sub = ttk.Frame(parent)
         sub.pack(fill='x', padx=12)
-        ttk.Label(sub, text='Click the ★ to favourite a site · double-click a row to search it.',
+        ttk.Label(sub, text='Click the ★ to favourite a site · double-click a row (or tick + button) to search.',
                   style='Sub.TLabel').pack(side='left')
-        ttk.Button(sub, text='↗ Search selected', command=self._open_selected_search).pack(side='right')
+        ttk.Button(sub, text='↗ Search ticked', command=self._open_ticked_search).pack(side='right')
 
         list_panel = ttk.LabelFrame(parent, text='Sites with search')
         list_panel.pack(fill='both', expand=True, **pad)
         list_inner = ttk.Frame(list_panel)
         list_inner.pack(fill='both', expand=True, padx=8, pady=8)
 
-        self.search_tree = ttk.Treeview(list_inner, columns=('fav', 'url'),
+        self.search_tree = ttk.Treeview(list_inner, columns=('chk', 'fav', 'url'),
                                         show='tree headings', selectmode='extended')
         self.search_tree.heading('#0', text='Website')
         self.search_tree.heading('fav', text='★')
         self.search_tree.heading('url', text='Search URL')
-        self.search_tree.column('#0', width=220, stretch=False)
-        self.search_tree.column('fav', width=44, anchor='center', stretch=False)
-        self.search_tree.column('url', width=520, stretch=True)
+        self.search_tree.column('#0', width=200, stretch=False)
+        self.search_tree.column('chk', width=34, anchor='center', stretch=False)
+        self.search_tree.column('fav', width=40, anchor='center', stretch=False)
+        self.search_tree.column('url', width=480, stretch=True)
         s_scroll = ttk.Scrollbar(list_inner, command=self.search_tree.yview)
         self.search_tree.configure(yscrollcommand=s_scroll.set)
         self.search_tree.pack(side='left', fill='both', expand=True)
         s_scroll.pack(side='right', fill='y')
         self.search_tree.tag_configure('fav', foreground=GOLD)
-        self.search_tree.bind('<Button-1>', self._on_search_click)
+        self._setup_checktree(self.search_tree)
+        self.search_tree.bind('<Button-1>', self._on_search_click, add='+')
         self.search_tree.bind('<Double-1>', self._on_search_double)
 
         self._populate_search_sites()
 
     def _populate_search_sites(self):
+        self.search_tree._checked.clear()
         for iid in self.search_tree.get_children():
             self.search_tree.delete(iid)
         for idx, s in enumerate(self.sites_raw):
@@ -1087,18 +1383,19 @@ class DownloadManager(tk.Tk):
             fav = bool(s.get('favourite'))
             self.search_tree.insert('', 'end', iid=f'site{idx}',
                                     text=s.get('name') or _host_of(s.get('url') or ''),
-                                    values=('★' if fav else '☆', s.get('searchURL') or ''),
+                                    values=(CHK_OFF, '★' if fav else '☆', s.get('searchURL') or ''),
                                     tags=('fav',) if fav else ())
 
     def _on_search_click(self, event):
         if self.search_tree.identify_region(event.x, event.y) != 'cell':
-            return
-        if self.search_tree.identify_column(event.x) != '#1':   # the ★ column
-            return
+            return None
+        if self.search_tree.identify_column(event.x) != '#2':   # the ★ column
+            return None
         iid = self.search_tree.identify_row(event.y)
         if iid:
             self._toggle_favourite(iid)
             return 'break'
+        return None
 
     def _toggle_favourite(self, iid):
         try:
@@ -1121,12 +1418,12 @@ class DownloadManager(tk.Tk):
         if iid:
             self._open_site_search(iid)
 
-    def _open_selected_search(self):
-        sel = self.search_tree.selection()
-        if not sel:
-            messagebox.showinfo('No site selected', 'Select one or more sites first.')
+    def _open_ticked_search(self):
+        rows = self._targets(self.search_tree)
+        if not rows:
+            messagebox.showinfo('No site selected', 'Tick or select one or more sites first.')
             return
-        for iid in sel:
+        for iid in rows:
             self._open_site_search(iid)
 
     def _open_site_search(self, iid):
@@ -1151,6 +1448,9 @@ class DownloadManager(tk.Tk):
             return
         if not q:
             messagebox.showinfo('Enter a query', 'Type something to search for.')
+            return
+        if len(favs) > 8 and not messagebox.askyesno(
+                'Open many tabs', f'This will open {len(favs)} browser tabs. Continue?'):
             return
         for s in favs:
             webbrowser.open(s['searchURL'].strip() + urllib.parse.quote(q), new=2)
@@ -1184,17 +1484,23 @@ class DownloadManager(tk.Tk):
         self.gallery_inner.bind('<Configure>',
                                 lambda e: self.gallery_canvas.configure(scrollregion=self.gallery_canvas.bbox('all')))
         self.gallery_canvas.bind('<Configure>', self._on_gallery_configure)
-        self.gallery_canvas.bind_all('<MouseWheel>', self._on_gallery_wheel)
-        self.gallery_canvas.bind_all('<Button-4>', self._on_gallery_wheel)
-        self.gallery_canvas.bind_all('<Button-5>', self._on_gallery_wheel)
+        # Scope the mousewheel to when the pointer is actually over the gallery.
+        self.gallery_canvas.bind('<Enter>', lambda e: self._gallery_wheel_bind(True))
+        self.gallery_canvas.bind('<Leave>', lambda e: self._gallery_wheel_bind(False))
+
+    def _gallery_wheel_bind(self, on):
+        events = ('<MouseWheel>', '<Button-4>', '<Button-5>')
+        for ev in events:
+            if on:
+                self.gallery_canvas.bind_all(ev, self._on_gallery_wheel)
+            else:
+                self.gallery_canvas.unbind_all(ev)
 
     def _on_gallery_configure(self, event):
         self.gallery_canvas.itemconfigure(self._gallery_window, width=event.width)
         self._gallery_reflow(event.width)
 
     def _on_gallery_wheel(self, event):
-        if self.nb.index(self.nb.select()) != self.nb.index(self.tab_gallery):
-            return
         if getattr(event, 'num', None) == 4:
             delta = 1
         elif getattr(event, 'num', None) == 5:
@@ -1266,7 +1572,10 @@ class DownloadManager(tk.Tk):
                              args=(ffmpeg, list(files), gen), daemon=True).start()
 
     def _gallery_thumb_thread(self, ffmpeg, files, gen):
-        THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return
         for idx, path in enumerate(files):
             if gen != self._gallery_gen:
                 return
@@ -1280,58 +1589,102 @@ class DownloadManager(tk.Tk):
         widget.bind('<Double-Button-1>', lambda e, p=path: self._open_file(p))
 
     # ════════════════════════════════════════════════════════════════
-    #  X.com credentials tab
+    #  X.com login tab
     # ════════════════════════════════════════════════════════════════
     def _build_xlogin_tab(self, parent):
         pad = {'padx': 12, 'pady': 6}
 
         head = ttk.Frame(parent)
         head.pack(fill='x', **pad)
-        ttk.Label(head, text='X.com login cookies', style='Header.TLabel').pack(anchor='w')
-        ttk.Label(head, text='Sensitive or login-gated X.com videos need your browser login. '
-                             'Supply it any of these ways:', style='Sub.TLabel').pack(anchor='w')
+        ttk.Label(head, text='X.com login', style='Header.TLabel').pack(anchor='w')
+        ttk.Label(head, text='Sensitive / login-gated X.com videos need your login. Pick ONE method below.',
+                  style='Sub.TLabel').pack(anchor='w')
 
-        self.cookie_status_var = tk.StringVar(value=_cookie_status())
-        ttk.Label(parent, textvariable=self.cookie_status_var, style='Status.TLabel').pack(anchor='w', padx=12, pady=(0, 4))
+        self.cookie_status_var = tk.StringVar(value=_cookie_status(self._config))
+        ttk.Label(parent, textvariable=self.cookie_status_var, style='Status.TLabel',
+                  wraplength=900).pack(anchor='w', padx=12, pady=(0, 4))
 
-        row = ttk.Frame(parent)
-        row.pack(fill='x', **pad)
-        ttk.Button(row, text='📄 Import cookies.txt…', style='Accent.TButton',
-                   command=self._import_cookies_file).pack(side='left')
-        ttk.Button(row, text='🔎 Auto-detect', command=self._autodetect_cookies_action).pack(side='left', padx=6)
-        ttk.Button(row, text='🗑 Clear', style='Stop.TButton', command=self._clear_cookies).pack(side='left')
+        # Method 1 — browser login (recommended)
+        m1 = ttk.LabelFrame(parent, text='① Recommended: use your browser login (no copy-paste)')
+        m1.pack(fill='x', **pad)
+        ttk.Label(m1, text='Stay logged in to x.com in your browser; yt-dlp reads its cookies live.',
+                  style='Sub.TLabel').pack(anchor='w', padx=8, pady=(6, 2))
+        m1row = ttk.Frame(m1)
+        m1row.pack(fill='x', padx=8, pady=(0, 8))
+        ttk.Label(m1row, text='Browser:').pack(side='left')
+        self.browser_var = tk.StringVar(value=self._config.get('cookies_from_browser') or 'firefox')
+        ttk.Combobox(m1row, textvariable=self.browser_var, values=BROWSER_CHOICES,
+                     state='readonly', width=12).pack(side='left', padx=6)
+        ttk.Button(m1row, text='✓ Use this browser login', style='Accent.TButton',
+                   command=self._use_browser_login).pack(side='left')
+        ttk.Button(m1row, text='Stop using browser login',
+                   command=self._clear_browser_login).pack(side='left', padx=6)
 
-        # Tokens
-        tok = ttk.LabelFrame(parent, text='Paste tokens  (from x.com → DevTools → Application → Cookies)')
-        tok.pack(fill='x', **pad)
-        tok_inner = ttk.Frame(tok)
-        tok_inner.pack(fill='x', padx=8, pady=8)
-        ttk.Label(tok_inner, text='auth_token:').grid(row=0, column=0, sticky='w', pady=3)
+        # Method 2 — paste tokens, with a step-by-step guide
+        m2 = ttk.LabelFrame(parent, text='② Paste tokens')
+        m2.pack(fill='x', **pad)
+        guide = (
+            'Step-by-step:\n'
+            '  1.  Open  https://x.com  in your browser and log in.\n'
+            '  2.  Press  F12  to open Developer Tools.\n'
+            '  3.  Open the “Application” tab (Chrome/Edge) or “Storage” tab (Firefox).\n'
+            '  4.  In the left sidebar expand  Cookies  →  click  https://x.com.\n'
+            '  5.  Find the row named  auth_token  →  copy its Value into the field below.\n'
+            '  6.  Find the row named  ct0  →  copy its Value into the field below.\n'
+            '  7.  Click  “Save tokens”.'
+        )
+        ttk.Label(m2, text=guide, style='Guide.TLabel', justify='left').pack(anchor='w', padx=8, pady=(6, 4))
+        tok = ttk.Frame(m2)
+        tok.pack(fill='x', padx=8, pady=(0, 8))
+        ttk.Label(tok, text='auth_token:').grid(row=0, column=0, sticky='w', pady=3)
         self.auth_token_var = tk.StringVar()
-        ttk.Entry(tok_inner, textvariable=self.auth_token_var, width=64).grid(row=0, column=1, sticky='we', padx=6, pady=3)
-        ttk.Label(tok_inner, text='ct0:').grid(row=1, column=0, sticky='w', pady=3)
+        ttk.Entry(tok, textvariable=self.auth_token_var).grid(row=0, column=1, sticky='we', padx=6, pady=3)
+        ttk.Label(tok, text='ct0:').grid(row=1, column=0, sticky='w', pady=3)
         self.ct0_var = tk.StringVar()
-        ttk.Entry(tok_inner, textvariable=self.ct0_var, width=64).grid(row=1, column=1, sticky='we', padx=6, pady=3)
-        tok_inner.columnconfigure(1, weight=1)
-        ttk.Button(tok_inner, text='💾 Save tokens', command=self._save_tokens).grid(row=2, column=1, sticky='e', pady=(4, 0))
+        ttk.Entry(tok, textvariable=self.ct0_var).grid(row=1, column=1, sticky='we', padx=6, pady=3)
+        tok.columnconfigure(1, weight=1)
+        ttk.Button(tok, text='💾 Save tokens', command=self._save_tokens).grid(row=2, column=1, sticky='e', pady=(4, 0))
 
-        # Raw paste
-        raw = ttk.LabelFrame(parent, text='Or paste a raw Netscape cookies.txt')
-        raw.pack(fill='both', expand=True, **pad)
-        raw_inner = ttk.Frame(raw)
-        raw_inner.pack(fill='both', expand=True, padx=8, pady=8)
-        self.raw_cookies_text = tk.Text(raw_inner, height=6, wrap='none', font=FONT_MONO,
+        # Method 3 — cookies.txt file
+        m3 = ttk.LabelFrame(parent, text='③ Import a cookies.txt')
+        m3.pack(fill='both', expand=True, **pad)
+        row = ttk.Frame(m3)
+        row.pack(fill='x', padx=8, pady=(8, 4))
+        ttk.Button(row, text='📄 Import cookies.txt…', command=self._import_cookies_file).pack(side='left')
+        ttk.Button(row, text='🔎 Auto-detect', command=self._autodetect_cookies_action).pack(side='left', padx=6)
+        ttk.Button(row, text='🗑 Clear cookies', style='Stop.TButton', command=self._clear_cookies).pack(side='left')
+        raw_inner = ttk.Frame(m3)
+        raw_inner.pack(fill='both', expand=True, padx=8, pady=4)
+        ttk.Label(raw_inner, text='…or paste a raw Netscape cookies.txt:', style='Sub.TLabel').pack(anchor='w')
+        self.raw_cookies_text = tk.Text(raw_inner, height=4, wrap='none', font=FONT_MONO,
                                         relief='flat', borderwidth=1, highlightthickness=1,
                                         highlightbackground=BORDER, highlightcolor=ACCENT)
-        rc_scroll = ttk.Scrollbar(raw_inner, command=self.raw_cookies_text.yview)
-        self.raw_cookies_text.configure(yscrollcommand=rc_scroll.set)
-        self.raw_cookies_text.pack(side='left', fill='both', expand=True)
-        rc_scroll.pack(side='right', fill='y')
-        ttk.Button(raw, text='💾 Save pasted cookies',
+        self.raw_cookies_text.pack(fill='both', expand=True, pady=(2, 4))
+        ttk.Button(m3, text='💾 Save pasted cookies',
                    command=self._save_raw_cookies).pack(anchor='e', padx=8, pady=(0, 8))
 
     def _refresh_cookie_status(self):
-        self.cookie_status_var.set(_cookie_status())
+        self.cookie_status_var.set(_cookie_status(self._config))
+
+    def _use_browser_login(self):
+        browser = self.browser_var.get().strip().lower()
+        if browser not in BROWSER_CHOICES:
+            return
+        self._config['cookies_from_browser'] = browser
+        self._save_config()
+        self._refresh_cookie_status()
+        self.status_var.set(f'Using {browser.title()} browser login for X.com.')
+        messagebox.showinfo('Browser login set',
+                            f'X.com downloads will use your {browser.title()} login.\n\n'
+                            f'Make sure you are signed in to x.com in {browser.title()}, '
+                            f'and that {browser.title()} is closed if it locks its cookie DB '
+                            '(mainly Chrome/Edge on Windows).')
+
+    def _clear_browser_login(self):
+        self._config['cookies_from_browser'] = ''
+        self._save_config()
+        self._refresh_cookie_status()
+        self.status_var.set('Browser login disabled.')
 
     def _import_cookies_file(self):
         path = filedialog.askopenfilename(
@@ -1344,35 +1697,33 @@ class DownloadManager(tk.Tk):
         except OSError as e:
             messagebox.showerror('Could not save cookies', str(e))
             return
+        self._clear_browser_login_silent()
         self._refresh_cookie_status()
         self.status_var.set('X.com cookies imported.')
 
+    def _clear_browser_login_silent(self):
+        if self._config.get('cookies_from_browser'):
+            self._config['cookies_from_browser'] = ''
+            self._save_config()
+
     def _autodetect_cookies_action(self):
+        self.status_var.set('Searching common folders for cookies…')
+        threading.Thread(target=self._autodetect_thread, daemon=True).start()
+
+    def _autodetect_thread(self):
         found = _autodetect_cookies()
-        if not found:
-            messagebox.showinfo('Nothing found',
-                                'No cookies.txt with x.com/twitter cookies found in your '
-                                'Downloads/Desktop/Documents/home folders.')
-            return
-        try:
-            shutil.copyfile(found, COOKIES_FILE)
-        except OSError as e:
-            messagebox.showerror('Could not save cookies', str(e))
-            return
-        self._refresh_cookie_status()
-        self.status_var.set(f'Auto-detected cookies from {found}')
-        messagebox.showinfo('Cookies found', f'Imported cookies from:\n{found}')
+        self.out_queue.put(('cookies_found', None, str(found) if found else '', None))
 
     def _clear_cookies(self):
-        if not COOKIES_FILE.exists():
-            return
-        if not messagebox.askyesno('Clear cookies', 'Delete the saved X.com cookies?'):
-            return
-        try:
-            COOKIES_FILE.unlink()
-        except OSError as e:
-            messagebox.showerror('Could not delete', str(e))
-            return
+        existed = COOKIES_FILE.exists()
+        if existed:
+            if not messagebox.askyesno('Clear cookies', 'Delete the saved X.com cookies?'):
+                return
+            try:
+                COOKIES_FILE.unlink()
+            except OSError as e:
+                messagebox.showerror('Could not delete', str(e))
+                return
         self._refresh_cookie_status()
         self.status_var.set('X.com cookies cleared.')
 
@@ -1387,9 +1738,10 @@ class DownloadManager(tk.Tk):
         except OSError as e:
             messagebox.showerror('Could not save', str(e))
             return
+        self._clear_browser_login_silent()
         self._refresh_cookie_status()
         self.status_var.set('X.com cookies built from tokens.')
-        messagebox.showinfo('Saved', 'Login cookies built from your tokens — they will be used automatically.')
+        messagebox.showinfo('Saved', 'Login cookies built from your tokens — used automatically.')
 
     def _save_raw_cookies(self):
         text = self.raw_cookies_text.get('1.0', 'end').strip()
@@ -1403,6 +1755,7 @@ class DownloadManager(tk.Tk):
         except OSError as e:
             messagebox.showerror('Could not save', str(e))
             return
+        self._clear_browser_login_silent()
         self._refresh_cookie_status()
         self.status_var.set('Pasted cookies saved.')
 
@@ -1411,37 +1764,64 @@ class DownloadManager(tk.Tk):
         try:
             while True:
                 kind, iid, a, b = self.out_queue.get_nowait()
-                if kind == 'status':
-                    if a == ST_DONE:
-                        self._set_item(iid, status=ST_DONE, file=b, pct=100)
-                    else:
-                        self._set_item(iid, status=a)
-                        if a == ST_ERROR:
-                            _append_link(LINKS_FAILED, self.items[iid]['url'])
-                    self._rebuild_to_download_file()
-                    self._update_overall()
+                if kind == 'done':
+                    self._handle_done(iid, a, b)
                 elif kind == 'progress':
-                    self._set_item(iid, status=ST_DOWNLOADING, pct=a)
+                    if iid in self.items:
+                        sp, eta = b
+                        self._set_item(iid, status=ST_DOWNLOADING, pct=a, speed=sp, eta=eta)
                 elif kind == 'title':
-                    self._set_item(iid, title=a)
-                elif kind == 'mark':
-                    self._mark_downloaded(iid)  # iid holds the url here
-                elif kind == 'log':
-                    self.status_var.set(a)
-                elif kind == 'finished':
-                    self._on_finished()
+                    if iid in self.items:
+                        self._set_item(iid, title=a)
                 elif kind == 'bookmarks':
                     self._populate_bookmarks(a)
                 elif kind == 'gthumb':
                     self._apply_gallery_thumb(iid, a, b)
+                elif kind == 'cookies_found':
+                    self._handle_cookies_found(a)
         except queue.Empty:
             pass
         self.after(100, self._poll_queue)
 
-    def _apply_gallery_thumb(self, gen, idx, png):
-        if gen != self._gallery_gen:
+    def _handle_done(self, iid, code, result_file):
+        cancelled = iid in self._cancelling
+        self._cancelling.discard(iid)
+        self.active.pop(iid, None)
+        if iid not in self.items:            # row was removed mid-download
+            self._pump()
             return
-        if not (0 <= idx < len(self._gallery_thumb_labels)):
+        url = self.items[iid]['url']
+        if cancelled:
+            self._set_item(iid, status=ST_STOPPED)
+        elif code == 0 and result_file:
+            self._set_item(iid, status=ST_DONE, file=result_file, pct=100)
+            self._mark_downloaded(url)
+        else:
+            self._set_item(iid, status=ST_ERROR)
+            _append_link(LINKS_FAILED, url)
+        self._rebuild_to_download_file()
+        self._update_overall()
+        self._pump()
+
+    def _handle_cookies_found(self, path):
+        if not path:
+            self.status_var.set('No cookies.txt with x.com cookies found.')
+            messagebox.showinfo('Nothing found',
+                                'No cookies.txt with x.com/twitter cookies found in your '
+                                'Downloads / Desktop / Documents / home folders.')
+            return
+        try:
+            shutil.copyfile(path, COOKIES_FILE)
+        except OSError as e:
+            messagebox.showerror('Could not save cookies', str(e))
+            return
+        self._clear_browser_login_silent()
+        self._refresh_cookie_status()
+        self.status_var.set(f'Auto-detected cookies from {path}')
+        messagebox.showinfo('Cookies found', f'Imported cookies from:\n{path}')
+
+    def _apply_gallery_thumb(self, gen, idx, png):
+        if gen != self._gallery_gen or not (0 <= idx < len(self._gallery_thumb_labels)):
             return
         try:
             img = tk.PhotoImage(file=png)
@@ -1450,27 +1830,27 @@ class DownloadManager(tk.Tk):
         self._gallery_imgs.append(img)
         self._gallery_thumb_labels[idx].configure(image=img, text='')
 
-    def _on_finished(self):
-        self.is_running = False
-        self.start_btn.configure(state='normal')
-        self.stop_btn.configure(state='disabled')
-        if self._stop_requested:
-            self.status_var.set('⏸ Paused. Press Start to resume.')
-        elif self._next_queued():
-            self.status_var.set('Paused — items remain in the queue.')
-        else:
-            self.status_var.set('✅ All downloads finished.')
-        self._stop_requested = False
-
     def _mark_downloaded(self, url):
         _remove_link(LINKS_TO_DOWNLOAD, url)
         _remove_link(LINKS_FAILED, url)
-        _append_link(LINKS_DOWNLOADED, url)
+        _append_link(LINKS_DOWNLOADED, url, cap=DOWNLOADED_FILE_CAP)
 
     def _on_tab_changed(self, event=None):
-        # Lazily build the gallery the first time its tab is opened.
         if self.nb.select() == str(self.tab_gallery) and not self._gallery_cards:
             self._refresh_gallery()
+
+    # ── config persistence ────────────────────────────────────────────
+    def _save_config(self):
+        self._config['out_dir'] = self.out_dir.get()
+        self._config['max_parallel'] = self._parallel()
+        try:
+            self._config['last_tab'] = self.nb.index(self.nb.select())
+        except (tk.TclError, AttributeError):
+            pass
+        try:
+            CONFIG_FILE.write_text(json.dumps(self._config, indent=2), encoding='utf-8')
+        except OSError:
+            pass
 
     # ── misc actions ──────────────────────────────────────────────────
     def _browse(self):
@@ -1499,20 +1879,32 @@ class DownloadManager(tk.Tk):
             messagebox.showerror('Could not open', str(e))
 
     def _open_selected_file(self, event=None):
-        sel = self.tree.selection()
+        sel = self.tree.selection() or self._targets(self.tree)
         if not sel:
             return
         item = self.items.get(sel[0])
-        if item and item.get('file') and os.path.exists(item['file']):
+        if not item:
+            return
+        if item['status'] == ST_ERROR and item.get('error'):
+            messagebox.showwarning('Download failed', item['error'][:2000])
+            return
+        if item.get('file') and os.path.exists(item['file']):
             self._open_file(item['file'])
 
     def _on_close(self):
-        self._stop_requested = True
-        if self.current_proc and self.current_proc.poll() is None:
-            try:
-                self.current_proc.terminate()
-            except OSError:
-                pass
+        self.paused = True
+        self.is_running = False
+        for proc in list(self.active.values()):
+            if proc and proc.poll() is None:
+                try:
+                    proc.terminate()
+                except OSError:
+                    pass
+        try:
+            self._config['geometry'] = self.geometry()
+        except tk.TclError:
+            pass
+        self._save_config()
         self.destroy()
 
 
@@ -1538,20 +1930,17 @@ def _thumb_path(video_path):
 
 
 def _make_thumb(ffmpeg, video_path, out_png):
-    cmd = [ffmpeg, '-y', '-ss', '3', '-i', str(video_path), '-frames:v', '1',
-           '-vf', f'scale={THUMB_W}:-2', '-loglevel', 'error', str(out_png)]
-    try:
-        subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, timeout=30, **_subprocess_flags())
-    except (OSError, subprocess.SubprocessError):
-        # Retry from the very start for clips shorter than the 3s seek.
+    base = [ffmpeg, '-y']
+    tail = ['-frames:v', '1', '-vf', f'scale={THUMB_W}:-2', '-loglevel', 'error', str(out_png)]
+    for seek in (['-ss', '3', '-i', str(video_path)], ['-i', str(video_path)]):
         try:
-            subprocess.run([ffmpeg, '-y', '-i', str(video_path), '-frames:v', '1',
-                            '-vf', f'scale={THUMB_W}:-2', '-loglevel', 'error', str(out_png)],
-                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, timeout=30, **_subprocess_flags())
+            subprocess.run(base + seek + tail, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=30, **_subprocess_flags())
         except (OSError, subprocess.SubprocessError):
             pass
+        if out_png.exists():
+            return
 
 
 def _human_size(path):
@@ -1559,10 +1948,11 @@ def _human_size(path):
         size = path.stat().st_size
     except OSError:
         return ''
+    val = float(size)
     for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
-        if size < 1024 or unit == 'TB':
-            return f'{size:.0f} {unit}' if unit == 'B' else f'{size:.1f} {unit}'
-        size /= 1024
+        if val < 1024 or unit == 'TB':
+            return f'{val:.0f} {unit}' if unit == 'B' else f'{val:.1f} {unit}'
+        val /= 1024
     return ''
 
 
