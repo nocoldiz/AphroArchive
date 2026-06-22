@@ -865,7 +865,8 @@ class DownloadManager(tk.Tk):
                     command=self._save_config).pack(side='left')
         ttk.Checkbutton(ctrl, text='Auto-start', variable=self.autostart_var,
                         command=self._save_config).pack(side='left', padx=(8, 0))
-        ttk.Button(ctrl, text='↻ Retry', command=self._retry_selected).pack(side='left', padx=(10, 0))
+        ttk.Button(ctrl, text='🔀 Shuffle', command=self._shuffle_queue).pack(side='left', padx=(10, 0))
+        ttk.Button(ctrl, text='↻ Retry', command=self._retry_selected).pack(side='left', padx=6)
         ttk.Button(ctrl, text='🗑 Remove', command=self._remove_selected).pack(side='left', padx=6)
         ttk.Button(ctrl, text='🧹 Clear finished', command=self._clear_finished).pack(side='left')
         ttk.Button(ctrl, text='⌫ Clear errored', command=self._clear_errored).pack(side='left', padx=6)
@@ -1116,6 +1117,21 @@ class DownloadManager(tk.Tk):
         for iid in self._targets(self.tree):
             self.tree.move(iid, '', index)
         self._rebuild_to_download_file()
+
+    def _shuffle_queue(self):
+        """Randomly reorder the pending (queued/stopped) rows; finished/active rows
+        keep their place so an in-flight download isn't disturbed."""
+        pending = [iid for iid in self.tree.get_children()
+                   if iid not in self.active and self.items[iid]['status'] in RESUMABLE_STATUSES]
+        if len(pending) < 2:
+            return
+        slots = [i for i, iid in enumerate(self.tree.get_children()) if iid in pending]
+        shuffled = pending[:]
+        random.shuffle(shuffled)
+        for slot, iid in zip(slots, shuffled):
+            self.tree.move(iid, '', slot)
+        self._rebuild_to_download_file()
+        self.status_var.set(f'🔀 Shuffled {len(pending)} queued item(s).')
 
     # ── "download now" (top of queue + start immediately) ─────────────
     def _start_or_pump(self):

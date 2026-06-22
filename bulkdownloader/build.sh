@@ -40,11 +40,17 @@ echo "Building BulkDownloaderGUI for $PLATFORM..."
     BulkDownloaderGUI.spec
 
 echo ""
-if [[ "$PLATFORM" == "macOS" ]] && [ -d ../dist/BulkDownloaderGUI.app ]; then
-    # Zip the .app bundle into a distributable release archive.
-    ( cd ../dist && rm -f BulkDownloaderGUI-mac.zip \
-        && zip -qr BulkDownloaderGUI-mac.zip BulkDownloaderGUI.app )
-    echo "Done: dist/BulkDownloaderGUI.app  (release: dist/BulkDownloaderGUI-mac.zip)"
+if [[ "$PLATFORM" == "macOS" ]]; then
+    chmod +x ./BulkDownloader.command 2>/dev/null || true
+    if [ -d ../dist/BulkDownloaderGUI.app ]; then
+        # Zip the .app bundle into a distributable release archive.
+        ( cd ../dist && rm -f BulkDownloaderGUI-mac.zip \
+            && zip -qr BulkDownloaderGUI-mac.zip BulkDownloaderGUI.app )
+        echo "Done: dist/BulkDownloaderGUI.app  (release: dist/BulkDownloaderGUI-mac.zip)"
+    else
+        echo "WARNING: no .app bundle was produced by PyInstaller."
+        echo "         Run the GUI from source instead — double-click  BulkDownloader.command"
+    fi
 else
     chmod +x ../dist/BulkDownloaderGUI 2>/dev/null || true
     echo "Done: dist/BulkDownloaderGUI"
