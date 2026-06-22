@@ -633,12 +633,15 @@ _JS_HANDLE = r"""
 
 _JS_FOLLOWING = r"""
 (() => {
+  const RESERVED = new Set(['home','explore','notifications','messages','settings',
+    'i','search','compose','bookmarks','hashtag','lists','communities','jobs',
+    'tos','privacy','login','logout','signup','about']);
   const out = [];
   document.querySelectorAll('[data-testid="UserCell"]').forEach(c => {
     const a = c.querySelector('a[href^="/"]');
     if (!a) return;
     const m = (a.getAttribute('href') || '').match(/^\/([A-Za-z0-9_]{1,15})$/);
-    if (m) out.push(m[1]);
+    if (m && !RESERVED.has(m[1].toLowerCase())) out.push(m[1]);
   });
   return Array.from(new Set(out));
 })()
@@ -1062,6 +1065,9 @@ class DownloadManager(tk.Tk):
         self._update_overall()
         if self._migrated_count or fed:
             self._persist_db()
+        # Auto-reload the saved bookmark DB into the Bookmarks tab on launch.
+        if self.bookmarks and hasattr(self, 'bm_tree'):
+            self._load_saved_bookmarks(announce=False)
         if self._next_pending():
             extra = f' (+{len(fed)} from links_to_download.txt)' if fed else ''
             self.status_var.set(f'Queue loaded.{extra} Press Start to download.')
@@ -1858,6 +1864,15 @@ class DownloadManager(tk.Tk):
         self.bm_count_var = tk.StringVar(value='')
         ttk.Label(src, textvariable=self.bm_count_var, style='Count.TLabel').pack(side='right')
 
+        save = ttk.Frame(parent)
+        save.pack(fill='x', padx=12)
+        ttk.Button(save, text='⭳ Save shown to DB (permanent)',
+                   command=self._save_shown_bookmarks).pack(side='left')
+        ttk.Button(save, text='📥 Import queue as bookmarks',
+                   command=self._import_queue_to_bookmarks).pack(side='left', padx=6)
+        ttk.Label(save, text='Saved bookmarks auto-reload on launch.',
+                  style='Sub.TLabel').pack(side='left', padx=(8, 0))
+
         filt = ttk.Frame(parent)
         filt.pack(fill='x', **pad)
         ttk.Label(filt, text='Filter:').pack(side='left')
@@ -1907,9 +1922,9 @@ class DownloadManager(tk.Tk):
         self.status_var.set('Reading browser bookmarks…')
         threading.Thread(target=self._read_bookmarks_thread, args=(source,), daemon=True).start()
 
-    def _load_saved_bookmarks(self):
-        """Show the saved bookmark DB (e.g. links scraped from X.com) in this tab.
-        Downloaded ones are highlighted; un-downloaded can be added to the queue."""
+    def _load_saved_bookmarks(self, announce=True):
+        """Show the saved bookmark DB (browser imports + links scraped from X.com)
+        in this tab. Downloaded ones are highlighted; the rest can be queued."""
         results = []
         for bm in self.bookmarks:
             url = bm.get('url', '')
@@ -1919,7 +1934,43 @@ class DownloadManager(tk.Tk):
                             'title': bm.get('title') or url, 'url': url})
         self._all_bookmarks = results
         self._refilter_bookmarks()
-        self.status_var.set(f'Loaded {len(results)} saved bookmark(s) from the DB.')
+        if announce:
+            self.status_var.set(f'Loaded {len(results)} saved bookmark(s) from the DB.')
+
+    def _save_shown_bookmarks(self):
+        """Persist the currently shown (ticked, or all) bookmarks into the DB."""
+        rows = self._targets(self.bm_tree, fallback_all=True)
+        items = []
+        for iid in rows:
+            try:
+                i = int(iid[2:])              # rows are 'bm{i}' into _all_bookmarks
+            except (ValueError, IndexError):
+                continue
+            if 0 <= i < len(self._all_bookmarks):
+                bm = self._all_bookmarks[i]
+                items.append({'url': bm['url'], 'title': bm.get('title'), 'site': bm.get('site')})
+        if not items:
+            messagebox.showinfo('Nothing to save', 'Load some bookmarks first.')
+            return
+        added = self._add_bookmarks_db(items, source='bookmarks')
+        self._refresh_bookmark_counts()
+        self.status_var.set(f'Saved {added} bookmark(s) to the DB permanently '
+                            f'({len(items) - added} already saved).')
+
+    def _import_queue_to_bookmarks(self):
+        """Save every current queue link into the bookmark DB (deduped)."""
+        items = []
+        for iid in self.tree.get_children():
+            it = self.items.get(iid)
+            if it and _is_http(it.get('url', '')):
+                items.append({'url': it['url'], 'title': it.get('title'), 'site': _host_of(it['url'])})
+        if not items:
+            messagebox.showinfo('Empty queue', 'No queue links to import.')
+            return
+        added = self._add_bookmarks_db(items, source='queue')
+        self._refresh_bookmark_counts()
+        self.status_var.set(f'Imported {added} queue link(s) into the bookmark DB '
+                            f'({len(items) - added} already saved).')
 
     def _read_bookmarks_thread(self, source):
         matchers = _build_site_matchers(self.sites_raw)
@@ -3398,6 +3449,8 @@ class DownloadManager(tk.Tk):
             self._refresh_gallery()
         elif sel == str(self.tab_errored):
             self._refresh_errored()
+        elif sel == str(self.tab_bookmarks) and not self.bm_tree.get_children() and self.bookmarks:
+            self._load_saved_bookmarks(announce=False)
 
     # ── config persistence ────────────────────────────────────────────
     def _save_config(self):
