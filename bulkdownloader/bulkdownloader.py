@@ -902,6 +902,13 @@ class UniversalVideoDownloader:
             # Default for everything else (including obscure/brand new porn sites) — very good for most unknown sites
             opts.setdefault('format', 'bestvideo+bestaudio/best/best')
 
+        # Always aim for the highest available quality (overrides the per-site caps
+        # above). Disable by setting BULK_MAX_QUALITY=0. format_sort guarantees the
+        # top resolution / fps / bitrate is picked when several renditions exist.
+        if os.environ.get('BULK_MAX_QUALITY', '1') != '0':
+            opts['format'] = 'bestvideo*+bestaudio/best'
+            opts['format_sort'] = ['res', 'fps', 'hdr', 'vbr', 'abr']
+
         return opts
 
     # ── filename helpers ─────────────────────────────────────────────────
@@ -1137,9 +1144,26 @@ class UniversalVideoDownloader:
         status = d.get('status')
         if status == 'downloading':
             done = d.get('downloaded_bytes', 0)
-            total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+            total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+            pct = None
             if total:
-                print(f"\r   [download] {done/total*100:5.1f}% of {total/1048576:.1f}MiB "
+                pct = done / total * 100
+            else:
+                # Fragmented (HLS/DASH) streams often have no byte total — fall back
+                # to the fragment count, then to yt-dlp's own percentage string, so the
+                # GUI always sees a [download] NN% line to drive its progress bar.
+                frag_i, frag_n = d.get('fragment_index'), d.get('fragment_count')
+                if frag_i and frag_n:
+                    pct = frag_i / frag_n * 100
+                else:
+                    ps = (d.get('_percent_str') or '').strip().rstrip('%')
+                    try:
+                        pct = float(ps)
+                    except ValueError:
+                        pct = None
+            if pct is not None:
+                size = f" of {total/1048576:.1f}MiB" if total else ''
+                print(f"\r   [download] {pct:5.1f}%{size} "
                       f"at {d.get('_speed_str', '').strip()} ETA {d.get('_eta_str', '').strip()}",
                       end='', flush=True)
         elif status == 'finished':
