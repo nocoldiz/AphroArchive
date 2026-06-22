@@ -102,6 +102,10 @@ CONFIG_FILE = DATA_DIR / 'gui_config.json'
 # GET /api/db/websites/export. Kept in DATA_DIR so favourites persist.
 WEBSITES_JSON = DATA_DIR / 'websites.json'
 
+# Merged category → tags map (joined from every preset) powering the gallery's
+# tag sidebar (title-keyword matching).
+CATEGORIES_JSON = DATA_DIR / 'categories.json'
+
 # Netscape-format cookies for login-gated sites (X.com sensitive/age-gated tweets).
 COOKIES_FILE = DATA_DIR / 'cookies.txt'
 
@@ -207,17 +211,17 @@ def _ensure_link_files():
                 pass
 
 
-def _seed_websites_json():
-    """Copy the bundled websites.json into DATA_DIR once (frozen builds) so the
-    user can edit it and persist favourites."""
-    if WEBSITES_JSON.exists():
+def _seed_bundled(dest):
+    """Copy a bundled data file (websites.json / categories.json) into DATA_DIR
+    once — frozen builds and first runs — so it's editable and always present."""
+    if dest.exists():
         return
-    for src in (BUNDLE_DIR / 'websites.json', APP_DIR / 'websites.json'):
-        if src.exists() and src.resolve() != WEBSITES_JSON.resolve():
-            try:
-                shutil.copyfile(src, WEBSITES_JSON)
-            except OSError:
-                pass
+    for src in (BUNDLE_DIR / dest.name, APP_DIR / dest.name):
+        try:
+            if src.exists() and src.resolve() != dest.resolve():
+                shutil.copyfile(src, dest)
+                return
+        except OSError:
             return
 
 
@@ -319,6 +323,24 @@ def _save_websites_raw(sites):
         return True
     except OSError:
         return False
+
+
+def _load_categories():
+    """The merged {category: {displayName, tags[]}} map for the gallery sidebar."""
+    for path in (CATEGORIES_JSON, APP_DIR / 'categories.json', BUNDLE_DIR / 'categories.json'):
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            if isinstance(data, dict):
+                return data
+        except (OSError, ValueError):
+            continue
+    return {}
+
+
+def _title_tokens(name):
+    """Lowercase alphanumeric word-set of a filename (extension stripped)."""
+    base = os.path.splitext(name)[0].lower()
+    return set(re.sub(r'[^a-z0-9]+', ' ', base).split())
 
 
 def _host_of(url):
@@ -600,7 +622,8 @@ class DownloadManager(tk.Tk):
         self.configure(bg=BG)
 
         _ensure_link_files()
-        _seed_websites_json()
+        _seed_bundled(WEBSITES_JSON)
+        _seed_bundled(CATEGORIES_JSON)
         self._config = _load_config()
 
         self._ids = itertools.count(1)
@@ -620,6 +643,13 @@ class DownloadManager(tk.Tk):
 
         self.sites_raw = _load_websites_raw()
         self._all_bookmarks = []
+
+        self.categories_map = _load_categories()
+        self._gallery_cat_terms = self._build_cat_terms()
+        self._gallery_files = []
+        self._gallery_truncated = False
+        self._gallery_tag_filter = None
+        self._gallery_selecting = False
 
         self._gallery_gen = 0
         self._gallery_cards = []
@@ -754,8 +784,6 @@ class DownloadManager(tk.Tk):
         status.pack(fill='x', padx=12, pady=(0, 8))
         ttk.Label(status, textvariable=self.status_var, style='Status.TLabel',
                   anchor='w').pack(side='left', fill='x', expand=True)
-        self.console_btn = ttk.Button(status, text='🖥 Console ▸', command=self._toggle_console)
-        self.console_btn.pack(side='right')
 
     # ── reusable tick-box behaviour for any Treeview (column name 'chk') ──
     def _setup_checktree(self, tree):
@@ -857,6 +885,8 @@ class DownloadManager(tk.Tk):
         self.pause_btn = ttk.Button(ctrl, text='⏸  Pause', style='Stop.TButton',
                                     command=self._pause, state='disabled')
         self.pause_btn.pack(side='left', padx=6)
+        self.console_btn = ttk.Button(ctrl, text='🖥 Console', command=self._toggle_console)
+        self.console_btn.pack(side='left', padx=(0, 6))
         ttk.Label(ctrl, text='Parallel:').pack(side='left', padx=(6, 2))
         ttk.Spinbox(ctrl, from_=1, to=10, width=4, textvariable=self.max_parallel,
                     command=self._pump).pack(side='left')
@@ -1920,6 +1950,28 @@ class DownloadManager(tk.Tk):
     # ════════════════════════════════════════════════════════════════
     #  Gallery tab
     # ════════════════════════════════════════════════════════════════
+    def _build_cat_terms(self):
+        """category label -> list of token-tuples (its name, displayName and tags).
+        A video matches the category if ANY of these token-tuples is fully present
+        in the filename's word set."""
+        out = {}
+        for cat, info in (self.categories_map or {}).items():
+            if isinstance(info, dict):
+                label = info.get('displayName') or cat
+                terms = [cat, label] + (info.get('tags') if isinstance(info.get('tags'), list) else [])
+            else:
+                label, terms = cat, [cat]
+            toks, seen = [], set()
+            for t in terms:
+                if isinstance(t, str) and t.strip():
+                    tt = tuple(re.sub(r'[^a-z0-9]+', ' ', t.lower()).split())
+                    if tt and tt not in seen:
+                        seen.add(tt)
+                        toks.append(tt)
+            if toks:
+                out[label] = toks
+        return out
+
     def _build_gallery_tab(self, parent):
         pad = {'padx': 12, 'pady': 6}
 
@@ -1932,8 +1984,29 @@ class DownloadManager(tk.Tk):
         self.gallery_info = tk.StringVar(value='Press Refresh to scan the download folder.')
         ttk.Label(bar, textvariable=self.gallery_info, style='Count.TLabel').pack(side='right')
 
-        wrap = ttk.Frame(parent)
-        wrap.pack(fill='both', expand=True, padx=12, pady=(0, 8))
+        content = ttk.Frame(parent)
+        content.pack(fill='both', expand=True, padx=12, pady=(0, 8))
+
+        # Left: categories ranked by how many videos match (by name or a related tag).
+        cats = ttk.LabelFrame(content, text='Categories  ·  by video count')
+        cats.pack(side='left', fill='y', padx=(0, 8))
+        cats_inner = ttk.Frame(cats)
+        cats_inner.pack(fill='both', expand=True, padx=4, pady=4)
+        self.gallery_cats = ttk.Treeview(cats_inner, columns=('n',), show='tree headings',
+                                         selectmode='browse', height=18)
+        self.gallery_cats.heading('#0', text='Category')
+        self.gallery_cats.heading('n', text='#')
+        self.gallery_cats.column('#0', width=160, stretch=True)
+        self.gallery_cats.column('n', width=46, anchor='e', stretch=False)
+        cscroll = ttk.Scrollbar(cats_inner, command=self.gallery_cats.yview)
+        self.gallery_cats.configure(yscrollcommand=cscroll.set)
+        self.gallery_cats.pack(side='left', fill='both', expand=True)
+        cscroll.pack(side='right', fill='y')
+        self.gallery_cats.bind('<<TreeviewSelect>>', self._on_gallery_cat_select)
+
+        # Right: the thumbnail grid.
+        wrap = ttk.Frame(content)
+        wrap.pack(side='left', fill='both', expand=True)
         self.gallery_canvas = tk.Canvas(wrap, bg=BG, highlightthickness=0)
         g_scroll = ttk.Scrollbar(wrap, orient='vertical', command=self.gallery_canvas.yview)
         self.gallery_canvas.configure(yscrollcommand=g_scroll.set)
@@ -1981,17 +2054,14 @@ class DownloadManager(tk.Tk):
             card.grid(row=i // cols, column=i % cols, padx=8, pady=8, sticky='n')
 
     def _refresh_gallery(self):
+        """Re-scan the download folder, rebuild the category list, render the grid."""
         folder = Path(self.out_dir.get())
-        self._gallery_gen += 1
-        gen = self._gallery_gen
-        for child in self.gallery_inner.winfo_children():
-            child.destroy()
-        self._gallery_cards = []
-        self._gallery_thumb_labels = []
-        self._gallery_imgs = []
-        self._gallery_cols = 0
-
         if not folder.is_dir():
+            self._gallery_files = []
+            self._gallery_truncated = False
+            self._gallery_tag_filter = None
+            self._build_gallery_categories()
+            self._render_gallery_grid([])
             self.gallery_info.set('Download folder does not exist yet.')
             return
         try:
@@ -2000,12 +2070,63 @@ class DownloadManager(tk.Tk):
             self.gallery_info.set(f'Cannot read folder: {e}')
             return
         files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        truncated = len(files) > GALLERY_MAX
-        files = files[:GALLERY_MAX]
+        self._gallery_truncated = len(files) > GALLERY_MAX
+        self._gallery_files = files[:GALLERY_MAX]
+        self._gallery_tag_filter = None
+        self._build_gallery_categories()
+        self._render_gallery_grid(self._gallery_files)
 
-        if not files:
-            self.gallery_info.set('No videos in the download folder.')
+    def _build_gallery_categories(self):
+        """List categories ordered by how many videos match (name or related tag).
+        A video may match — and so be counted under — several categories."""
+        if not hasattr(self, 'gallery_cats'):
             return
+        for iid in self.gallery_cats.get_children():
+            self.gallery_cats.delete(iid)
+        files = self._gallery_files
+        self._gallery_selecting = True
+        self.gallery_cats.insert('', 'end', iid='all', text='All videos', values=(len(files),))
+        if files and self._gallery_cat_terms:
+            file_tokens = [_title_tokens(p.name) for p in files]
+            counts = []
+            for label, terms in self._gallery_cat_terms.items():
+                c = sum(1 for ft in file_tokens
+                        if any(all(w in ft for w in term) for term in terms))
+                if c:
+                    counts.append((label, c))
+            counts.sort(key=lambda kv: (-kv[1], kv[0].lower()))
+            for label, c in counts:
+                self.gallery_cats.insert('', 'end', iid='cat:' + label, text=label, values=(c,))
+        self.gallery_cats.selection_set('all')
+        self._gallery_selecting = False
+
+    def _on_gallery_cat_select(self, event=None):
+        if getattr(self, '_gallery_selecting', False):
+            return
+        sel = self.gallery_cats.selection()
+        if not sel:
+            return
+        iid = sel[0]
+        if iid == 'all':
+            self._gallery_tag_filter = None
+            self._render_gallery_grid(self._gallery_files)
+        elif iid.startswith('cat:'):
+            label = iid[4:]
+            terms = self._gallery_cat_terms.get(label, [])
+            files = [p for p in self._gallery_files
+                     if any(all(w in _title_tokens(p.name) for w in term) for term in terms)]
+            self._gallery_tag_filter = label
+            self._render_gallery_grid(files)
+
+    def _render_gallery_grid(self, files):
+        self._gallery_gen += 1
+        gen = self._gallery_gen
+        for child in self.gallery_inner.winfo_children():
+            child.destroy()
+        self._gallery_cards = []
+        self._gallery_thumb_labels = []
+        self._gallery_imgs = []
+        self._gallery_cols = 0
 
         ffmpeg = _find_ffmpeg()
         for path in files:
@@ -2024,11 +2145,18 @@ class DownloadManager(tk.Tk):
             self._gallery_thumb_labels.append(thumb)
 
         self._gallery_reflow()
-        note = f'  ·  showing first {GALLERY_MAX}' if truncated else ''
-        ffnote = '' if ffmpeg else '  ·  ffmpeg not found, thumbnails disabled'
-        self.gallery_info.set(f'{len(files)} video(s){note}{ffnote}  ·  double-click to play')
+        total = len(self._gallery_files)
+        note = f'  ·  first {GALLERY_MAX}' if getattr(self, '_gallery_truncated', False) else ''
+        ffnote = '' if ffmpeg else '  ·  ffmpeg not found'
+        filt = f'  ·  filtered: {self._gallery_tag_filter}' if self._gallery_tag_filter else ''
+        if not total:
+            self.gallery_info.set('No videos in the download folder.')
+        elif not files:
+            self.gallery_info.set(f'No videos match{filt}.  ·  {total} total')
+        else:
+            self.gallery_info.set(f'{len(files)}/{total} video(s){note}{ffnote}{filt}  ·  double-click to play')
 
-        if ffmpeg:
+        if ffmpeg and files:
             threading.Thread(target=self._gallery_thumb_thread,
                              args=(ffmpeg, list(files), gen), daemon=True).start()
 
