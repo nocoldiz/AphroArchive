@@ -1001,7 +1001,15 @@ class DownloadManager(tk.Tk):
         if new:
             self._rebuild_to_download_file()
             self._update_overall()
+            self._maybe_autostart()
         return len(new)
+
+    def _maybe_autostart(self):
+        """Keep a running queue fed; if idle and Auto-start is on, start the top now."""
+        if self.is_running:
+            self._pump()
+        elif self.autostart_var.get() and self._next_pending():
+            self._autostart()
 
     def _add_item(self, url, status=ST_QUEUED, index='end'):
         iid = f'item{next(self._ids)}'
@@ -1101,17 +1109,22 @@ class DownloadManager(tk.Tk):
         if changed:
             self._rebuild_to_download_file()
             self._update_overall()
-            self._pump()
-            if not self.is_running and self._next_pending():
+            self._maybe_autostart()
+            if not self.is_running and not self.autostart_var.get() and self._next_pending():
                 self.status_var.set('Items re-queued. Press Start to download.')
 
     def _clear_finished(self):
+        """Clear both completed AND errored rows (errored leave link_failed.txt too)."""
         for iid in list(self.tree.get_children()):
-            if self.items[iid]['status'] == ST_DONE:
+            it = self.items.get(iid)
+            if it and it['status'] in (ST_DONE, ST_ERROR):
+                if it['status'] == ST_ERROR:
+                    _remove_link(LINKS_FAILED, it['url'])
                 self.items.pop(iid, None)
                 self.tree._checked.discard(iid)
                 self.tree.delete(iid)
         self._update_overall()
+        self._refresh_errored()
 
     def _move_targets(self, index):
         for iid in self._targets(self.tree):
@@ -1119,19 +1132,22 @@ class DownloadManager(tk.Tk):
         self._rebuild_to_download_file()
 
     def _shuffle_queue(self):
-        """Randomly reorder the pending (queued/stopped) rows; finished/active rows
-        keep their place so an in-flight download isn't disturbed."""
-        pending = [iid for iid in self.tree.get_children()
-                   if iid not in self.active and self.items[iid]['status'] in RESUMABLE_STATUSES]
-        if len(pending) < 2:
+        """Randomly reorder ONLY the pending (queued/stopped) rows. Completed, errored
+        and active rows keep their exact positions."""
+        children = list(self.tree.get_children())
+        pending_idx = [i for i, iid in enumerate(children)
+                       if iid not in self.active and self.items[iid]['status'] in RESUMABLE_STATUSES]
+        if len(pending_idx) < 2:
             return
-        slots = [i for i, iid in enumerate(self.tree.get_children()) if iid in pending]
-        shuffled = pending[:]
+        shuffled = [children[i] for i in pending_idx]
         random.shuffle(shuffled)
-        for slot, iid in zip(slots, shuffled):
-            self.tree.move(iid, '', slot)
+        target = list(children)
+        for slot, iid in zip(pending_idx, shuffled):
+            target[slot] = iid                 # fixed rows keep their slot
+        for i, iid in enumerate(target):       # apply the order from the top down
+            self.tree.move(iid, '', i)
         self._rebuild_to_download_file()
-        self.status_var.set(f'🔀 Shuffled {len(pending)} queued item(s).')
+        self.status_var.set(f'🔀 Shuffled {len(pending_idx)} queued item(s) (completed left in place).')
 
     # ── "download now" (top of queue + start immediately) ─────────────
     def _start_or_pump(self):
@@ -1319,8 +1335,9 @@ class DownloadManager(tk.Tk):
             self.pause_btn.configure(state='normal')
 
     def _pump(self):
-        """Main-thread scheduler: keep up to N downloads running. Safe because all
-        tree/order access happens here on the UI thread; workers only download."""
+        """Main-thread scheduler: keep up to N downloads running, always pulling the
+        next pending row from the top of the queue. Safe because all tree/order
+        access happens here on the UI thread; workers only download."""
         if not self.is_running or self.paused:
             return
         while len(self.active) < self._parallel():
@@ -1334,8 +1351,6 @@ class DownloadManager(tk.Tk):
             self._update_controls()
             self.status_var.set('✅ All downloads finished.' if not self._has_pending()
                                 else 'Paused — items remain in the queue.')
-        elif self.active:
-            self.status_var.set(f'⬇ Downloading {len(self.active)} item(s)…')
         self._update_overall()
 
     def _launch(self, iid):
@@ -1345,13 +1360,22 @@ class DownloadManager(tk.Tk):
         self._rebuild_to_download_file()
         url = self.items[iid]['url']
         self._console_log(f'▶ start   {url}')
+        self.status_var.set(f'⬇ Downloading {len(self.active)} item(s)…')
         threading.Thread(target=self._download_worker, args=(iid, url), daemon=True).start()
 
     def _download_worker(self, iid, url):
-        code, result_file = self._run_download(iid, url, self._out_dir_path, self._env)
-        self.out_queue.put(('done', iid, code, result_file))
+        # Must ALWAYS post 'done' — otherwise the slot in self.active leaks and the
+        # whole queue stalls. So catch everything and report it back.
+        try:
+            code, result_file, err = self._run_download(iid, url, self._out_dir_path, self._env)
+        except Exception as e:
+            code, result_file, err = -1, None, f'downloader crashed: {e}'
+        self.out_queue.put(('done', iid, code, (result_file, err)))
 
     def _run_download(self, iid, url, out_dir, env):
+        """Runs entirely on a worker thread. Returns (code, result_file, error_text).
+        It must NOT mutate self.items — that's the main thread's job — it only sets
+        self.active[iid] (so the row can be terminated) and emits queue messages."""
         cmd = [_python_bin(), '-u', str(SCRIPT_PATH), '--url', url, '--out-dir', str(out_dir)]
         try:
             proc = subprocess.Popen(
@@ -1361,8 +1385,7 @@ class DownloadManager(tk.Tk):
                 env=env, cwd=str(PROJECT_ROOT), **_subprocess_flags(),
             )
         except OSError as e:
-            self.items[iid]['error'] = f'failed to launch downloader: {e}'
-            return -1, None
+            return -1, None, f'failed to launch downloader: {e}'
         self.active[iid] = proc
         if iid in self._cancelling:        # paused/removed during the launch window
             try:
@@ -1393,9 +1416,7 @@ class DownloadManager(tk.Tk):
             elif not line.startswith('RESULT_'):
                 last = line
         code = proc.wait()
-        if code != 0 and last:
-            self.items[iid]['error'] = last
-        return code, result_file
+        return code, result_file, (last if code != 0 else '')
 
     # ════════════════════════════════════════════════════════════════
     #  Errored tab
@@ -1463,7 +1484,7 @@ class DownloadManager(tk.Tk):
             self._rebuild_to_download_file()
             self._update_overall()
             self._refresh_errored()
-            self._pump()
+            self._maybe_autostart()
             self.status_var.set(f'Re-queued {changed} failed item(s).')
 
     def _errored_retry(self):
@@ -2281,9 +2302,16 @@ class DownloadManager(tk.Tk):
         except queue.Empty:
             pass
         self._check_timeouts()
+        # Safety net: keep the scheduler fed, and auto-start the top of the queue.
+        if self.is_running and not self.paused:
+            if not self.active or (len(self.active) < self._parallel() and self._next_pending()):
+                self._pump()
+        elif not self.is_running and self.autostart_var.get() and self._next_pending():
+            self._autostart()
         self.after(100, self._poll_queue)
 
-    def _handle_done(self, iid, code, result_file):
+    def _handle_done(self, iid, code, payload):
+        result_file, err = payload if isinstance(payload, tuple) else (payload, '')
         timed_out = iid in self._timeouts
         cancelled = iid in self._cancelling and not timed_out
         self._cancelling.discard(iid)
@@ -2295,16 +2323,20 @@ class DownloadManager(tk.Tk):
             return
         url = self.items[iid]['url']
         if cancelled:
-            self._set_item(iid, status=ST_STOPPED)
+            self._set_item(iid, status=ST_STOPPED, speed='', eta='')
             self._console_log(f'⏸ stopped {url}')
         elif code == 0 and result_file:
-            self._set_item(iid, status=ST_DONE, file=result_file, pct=100)
+            self._set_item(iid, status=ST_DONE, file=result_file, pct=100, speed='', eta='')
             self._mark_downloaded(url)
             self._console_log(f'✓ done    {os.path.basename(result_file)}')
         else:
-            self._set_item(iid, status=ST_ERROR)
+            if timed_out:
+                reason = self.items[iid].get('error') or 'timed out — no output'
+            else:
+                reason = err or 'no downloadable video found'
+            self._set_item(iid, status=ST_ERROR, error=reason, speed='', eta='')
             _append_link(LINKS_FAILED, url)
-            self._console_log(f'✗ {"timeout" if timed_out else "error"}   {url}')
+            self._console_log(f'✗ {"timeout" if timed_out else "error"}   {url}  — {reason}')
         self._rebuild_to_download_file()
         self._update_overall()
         self._refresh_errored()
