@@ -27,6 +27,15 @@ except ImportError:
     os.system(f'"{sys.executable}" -m pip install -U yt-dlp')
     import yt_dlp
 
+# Shared unified database (db.json) — the same module the GUI uses, so the console
+# and GUI normalise + de-dup links identically. Optional: falls back to the legacy
+# txt flow if it can't be imported.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import bulk_db
+except Exception:
+    bulk_db = None
+
 
 # Browser impersonation via curl_cffi is now ENABLED BY DEFAULT for virtually
 # every site. This is currently the single most effective technique to download
@@ -1410,6 +1419,70 @@ def run_from_links(args):
     sys.exit(0 if not failed else 2)
 
 
+def run_from_db(args):
+    """db.json-centric queue processor shared with the GUI.
+
+    Feeds links_to_download.txt into the queue section (deduped, the txt file is
+    NEVER emptied), then downloads every queued item, marking results back into
+    db.json. Cookies (cookies.txt) are picked up automatically, so login-gated
+    links download with your saved credentials."""
+    if bulk_db is None:
+        print('[db] bulk_db module unavailable — falling back to --from-links.', flush=True)
+        return run_from_links(args)
+
+    data = bulk_db.load()
+
+    # 1) feed the txt queue file into db.json (kept intact, deduped)
+    links_file = Path(args.links_file) if args.links_file else _find_queue_file()
+    if not links_file:
+        links_file = Path(__file__).resolve().parent / 'links_to_download.txt'
+    if links_file.exists():
+        fed = bulk_db.ingest_links_txt(data, links_file)
+        if fed:
+            print(f'[db] Fed {len(fed)} new link(s) from {links_file.name} into db.json '
+                  f'(file left untouched).', flush=True)
+
+    # 2) de-dup the whole queue/bookmarks, then persist
+    q_removed, _ = bulk_db.dedup(data)
+    if q_removed:
+        print(f'[db] Removed {q_removed} duplicate queue link(s).', flush=True)
+    bulk_db.save(data)
+
+    pending = [it for it in data['queue']
+               if it.get('status') in (bulk_db.ST_QUEUED, bulk_db.ST_STOPPED)]
+    if not pending:
+        print('[db] Nothing queued to download.', flush=True)
+        sys.exit(0)
+
+    base_dir = (args.out_dir
+                or os.environ.get('APHRO_DOWNLOADS_DIR')
+                or os.path.join(os.environ.get('VIDEOS_DIR', 'videos'), 'downloads'))
+    dl = UniversalVideoDownloader(base_dir=base_dir)
+    folder = Path(base_dir)
+
+    print(f'[db] {len(pending)} item(s) to download into {base_dir}', flush=True)
+    ok = fail = 0
+    for i, it in enumerate(pending, 1):
+        url = it['url']
+        print(f'\n[{i}/{len(pending)}] Processing: {url}', flush=True)
+        try:
+            result = dl.download(url, folder)
+        except Exception as e:
+            result = None
+            print(f'   [error] {e}', flush=True)
+        if result and os.path.exists(result):
+            print(f'   [ok] saved to: {result}', flush=True)
+            bulk_db.mark_downloaded(data, url, os.path.abspath(result))
+            ok += 1
+        else:
+            bulk_db.mark_failed(data, url, 'no downloadable video found')
+            fail += 1
+        bulk_db.save(data)          # persist after every item so progress survives a crash
+
+    print(f'\n[db] Finished: {ok} ok, {fail} failed.', flush=True)
+    sys.exit(0 if not fail else 2)
+
+
 def setup_x_login():
     """Save a cookies.txt so yt-dlp can fetch login-gated / sensitive X.com (and
     other site) videos. The cookies are then reused automatically for every
@@ -1503,15 +1576,21 @@ def main():
     parser.add_argument('--out-dir', help='Output directory')
     parser.add_argument('--out-tmpl', help='yt-dlp output template (default: %%(title)s.%%(ext)s)')
     parser.add_argument('--from-links', action='store_true',
-                        help='Process URLs from cache/links_to_download.txt; successful URLs move to links_downloaded.txt')
+                        help='Feed cache/links_to_download.txt into db.json and download the queue (txt kept)')
+    parser.add_argument('--from-db', action='store_true',
+                        help='Download everything queued in the unified db.json (shared with the GUI)')
+    parser.add_argument('--legacy-links', action='store_true',
+                        help='Old behaviour: process links_to_download.txt in place (moves URLs to links_downloaded.txt)')
     parser.add_argument('--links-file', metavar='FILE',
                         help='Path to a URL queue file (default: auto-detect cache/links_to_download.txt)')
     args = parser.parse_args()
 
     if args.url:
         run_single(args)
-    elif args.from_links or args.links_file:
+    elif args.legacy_links:
         run_from_links(args)
+    elif args.from_db or args.from_links or args.links_file:
+        run_from_db(args)
     else:
         _run_menu(args)
 

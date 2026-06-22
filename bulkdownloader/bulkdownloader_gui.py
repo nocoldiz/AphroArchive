@@ -56,6 +56,13 @@ FROZEN = getattr(sys, 'frozen', False)
 APP_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', APP_DIR))
 
+# Shared queue/bookmarks database — the single source of truth used by BOTH this
+# GUI and the console (bulkdownloader.py). Imported from the script/bundle dir.
+for _p in (str(APP_DIR), str(BUNDLE_DIR)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+import bulk_db  # noqa: E402
+
 if FROZEN:
     # bulkdownloader.py is bundled as data alongside the frozen exe.
     SCRIPT_PATH = BUNDLE_DIR / 'bulkdownloader.py'
@@ -101,9 +108,14 @@ LINKS_DOWNLOADED = DATA_DIR / 'links_downloaded.txt'
 LINKS_FAILED = DATA_DIR / 'link_failed.txt'
 CONFIG_FILE = DATA_DIR / 'gui_config.json'
 
-# Single source of truth for the queue + the downloaded registry. The old
-# links_*.txt files are now only an *import* source (migrated once into this).
-DB_FILE = DATA_DIR / 'queue_db.json'
+# Single source of truth for the queue + downloaded registry + bookmarks — the
+# unified db.json shared with the console. links_*.txt are now an *import* source
+# only (fed into the queue, never emptied). OLD_DB_FILE is the pre-unification
+# file, migrated once into db.json. The env var makes child bulkdownloader.py
+# subprocesses read/write the very same file.
+DB_FILE = DATA_DIR / 'db.json'
+os.environ.setdefault('BULK_DB_FILE', str(DB_FILE))
+OLD_DB_FILE = DATA_DIR / 'queue_db.json'
 
 # Website registry — the same shape AphroArchive exports via
 # GET /api/db/websites/export. Kept in DATA_DIR so favourites persist.
@@ -257,51 +269,15 @@ def _append_link(path, url, cap=None):
     return None
 
 
-# ── JSON queue database ───────────────────────────────────────────────
-
-def _load_db():
-    try:
-        data = json.loads(DB_FILE.read_text(encoding='utf-8'))
-        if isinstance(data, dict):
-            data.setdefault('items', [])
-            data.setdefault('downloaded', {})
-            if isinstance(data['items'], list) and isinstance(data['downloaded'], dict):
-                return data
-    except (OSError, ValueError):
-        pass
-    return {'version': 1, 'items': [], 'downloaded': {}}
-
-
-def _save_db(items, downloaded):
-    """Atomically persist the queue (ordered) + the downloaded registry."""
-    data = {'version': 1, 'items': items, 'downloaded': downloaded}
-    try:
-        tmp = DB_FILE.with_name(DB_FILE.name + '.tmp')
-        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding='utf-8')
-        tmp.replace(DB_FILE)
-    except OSError:
-        pass
-
+# ── queue database — delegate to the shared bulk_db so the GUI and console
+# normalise + de-dup links identically ────────────────────────────────
 
 def _is_http(url):
-    return url.startswith(('http://', 'https://'))
+    return bulk_db.is_http(url)
 
 
 def _norm_key(url):
-    """De-dup key: lowercase host, drop tracking params + trailing slash/fragment.
-    Used ONLY for duplicate detection — the original URL is what gets downloaded."""
-    try:
-        p = urllib.parse.urlsplit(url.strip())
-    except ValueError:
-        return url.strip().lower()
-    host = (p.hostname or '').lower()
-    if host.startswith('www.'):
-        host = host[4:]
-    query = urllib.parse.urlencode([
-        (k, v) for k, v in urllib.parse.parse_qsl(p.query, keep_blank_values=True)
-        if k.lower() not in TRACKING_PARAMS
-    ])
-    return urllib.parse.urlunsplit((p.scheme.lower(), host, p.path.rstrip('/'), query, ''))
+    return bulk_db.norm_key(url)
 
 
 def _read_stream(stream):
@@ -709,6 +685,7 @@ class DownloadManager(tk.Tk):
         self._ids = itertools.count(1)
         self.items = {}                  # iid -> {url, status, pct, file, title, speed, eta, error}
         self.downloaded = {}             # norm_key -> {url, file, ts}  (persistent registry)
+        self.bookmarks = []              # saved video links (scraped from X, etc.)
         self._migrated_count = 0
         self.out_queue = queue.Queue()   # worker/threads -> UI messages
 
@@ -1047,17 +1024,23 @@ class DownloadManager(tk.Tk):
         self.ctx_menu.add_command(label='📂 Open folder', command=self._q_open_folder)
         self.ctx_menu.add_command(label='🌐 Open link', command=self._q_open_link)
 
-    # ── JSON db <-> tree sync ─────────────────────────────────────────
+    # ── unified db.json <-> tree sync ─────────────────────────────────
     def _load_initial_queue(self):
-        """Populate the tree from queue_db.json on launch, preserving order.
-        On first run (no db yet) the legacy links_*.txt files are migrated in."""
-        data = _load_db()
-        if not DB_FILE.exists() and not data['items'] and not data['downloaded']:
-            data = self._migrate_txt_to_db()
+        """Populate the tree from the shared db.json on launch, preserving order.
+        On first run the legacy queue_db.json / links_*.txt are migrated in, and
+        links_to_download.txt is always fed into the queue (without being emptied)."""
+        data = bulk_db.load()
+        if not DB_FILE.exists() and not data['queue'] and not data['downloaded']:
+            data = self._migrate_to_db()
 
-        self.downloaded = dict(data.get('downloaded') or {})
+        # Always feed links_to_download.txt into the queue section (deduped). The
+        # txt file is an input only — it is never emptied here.
+        fed = bulk_db.ingest_links_txt(data, LINKS_TO_DOWNLOAD, source='links.txt')
+
+        self.downloaded = data.get('downloaded') or {}
+        self.bookmarks = data.get('bookmarks') or []
         seen = set()
-        for entry in data.get('items', []):
+        for entry in data.get('queue', []):
             url = (entry.get('url') or '').strip()
             if not _is_http(url):
                 continue
@@ -1077,31 +1060,46 @@ class DownloadManager(tk.Tk):
             self._set_item(iid)
 
         self._update_overall()
-        if self._migrated_count:
+        if self._migrated_count or fed:
             self._persist_db()
         if self._next_pending():
-            self.status_var.set('Queue loaded. Press Start to download.')
+            extra = f' (+{len(fed)} from links_to_download.txt)' if fed else ''
+            self.status_var.set(f'Queue loaded.{extra} Press Start to download.')
 
-    def _migrate_txt_to_db(self):
-        """One-time import of the legacy links_*.txt files into the JSON model."""
-        items, downloaded = [], {}
-        for url in _read_link_lines(LINKS_TO_DOWNLOAD):
-            if _is_http(url):
-                items.append({'url': url, 'status': ST_QUEUED})
+    def _migrate_to_db(self):
+        """One-time import of the old queue_db.json (or legacy links_*.txt) into the
+        unified bulk_db schema."""
+        data = bulk_db.blank()
+        # Prefer the previous queue_db.json if present.
+        if OLD_DB_FILE.exists():
+            try:
+                old = json.loads(OLD_DB_FILE.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                old = {}
+            for entry in (old.get('items') or []):
+                if _is_http(entry.get('url', '')):
+                    data['queue'].append({'url': entry['url'], 'status': entry.get('status') or ST_QUEUED,
+                                          'title': entry.get('title'), 'file': entry.get('file'),
+                                          'error': entry.get('error') or '', 'source': 'queue_db.json'})
+            if isinstance(old.get('downloaded'), dict):
+                data['downloaded'] = dict(old['downloaded'])
+            self._migrated_count = len(data['queue'])
+            return data
+        # Otherwise fall back to the legacy txt files.
         for url in _read_link_lines(LINKS_FAILED):
             if _is_http(url):
-                items.append({'url': url, 'status': ST_ERROR, 'error': 'failed on a previous run'})
+                data['queue'].append({'url': url, 'status': ST_ERROR, 'error': 'failed on a previous run'})
         done = [u for u in _read_link_lines(LINKS_DOWNLOADED) if _is_http(u)]
         for url in done[-DONE_LOAD_CAP:]:
-            items.append({'url': url, 'status': ST_DONE})
+            data['queue'].append({'url': url, 'status': ST_DONE})
         for url in done[-DOWNLOADED_FILE_CAP:]:
-            downloaded[_norm_key(url)] = {'url': url, 'file': None, 'ts': 0}
-        self._migrated_count = len(items)
-        return {'version': 1, 'items': items, 'downloaded': downloaded}
+            data['downloaded'][_norm_key(url)] = {'url': url, 'file': None, 'ts': 0}
+        self._migrated_count = len(data['queue'])
+        return data
 
-    def _persist_db(self):
-        """Save the full queue (in display order) + the downloaded registry."""
-        items = []
+    def _db_snapshot(self):
+        """Assemble the current full db (queue in display order + registry + bookmarks)."""
+        queue = []
         for iid in self.tree.get_children():
             it = self.items.get(iid)
             if not it:
@@ -1109,9 +1107,15 @@ class DownloadManager(tk.Tk):
             status = it['status']
             if status == ST_DOWNLOADING:          # store as queued so a crash resumes cleanly
                 status = ST_QUEUED
-            items.append({'url': it['url'], 'status': status, 'title': it.get('title'),
-                          'file': it.get('file'), 'error': it.get('error') or ''})
-        _save_db(items, self.downloaded)
+            queue.append({'url': it['url'], 'status': status, 'title': it.get('title'),
+                          'file': it.get('file'), 'error': it.get('error') or '',
+                          'source': it.get('source')})
+        return {'version': 2, 'queue': queue, 'downloaded': self.downloaded,
+                'bookmarks': self.bookmarks}
+
+    def _persist_db(self):
+        """Save the full queue (in display order) + downloaded registry + bookmarks."""
+        bulk_db.save(self._db_snapshot())
 
     # Kept as the canonical "queue changed → persist" hook (legacy name).
     def _rebuild_to_download_file(self):
@@ -1850,6 +1854,7 @@ class DownloadManager(tk.Tk):
                    command=lambda: self._load_bookmarks('chromium')).pack(side='left', padx=6)
         ttk.Button(src, text='📚 Load all', style='Accent.TButton',
                    command=lambda: self._load_bookmarks('all')).pack(side='left')
+        ttk.Button(src, text='💾 Saved (DB)', command=self._load_saved_bookmarks).pack(side='left', padx=6)
         self.bm_count_var = tk.StringVar(value='')
         ttk.Label(src, textvariable=self.bm_count_var, style='Count.TLabel').pack(side='right')
 
@@ -1901,6 +1906,20 @@ class DownloadManager(tk.Tk):
         self.bm_count_var.set('Reading bookmarks…')
         self.status_var.set('Reading browser bookmarks…')
         threading.Thread(target=self._read_bookmarks_thread, args=(source,), daemon=True).start()
+
+    def _load_saved_bookmarks(self):
+        """Show the saved bookmark DB (e.g. links scraped from X.com) in this tab.
+        Downloaded ones are highlighted; un-downloaded can be added to the queue."""
+        results = []
+        for bm in self.bookmarks:
+            url = bm.get('url', '')
+            if not _is_http(url):
+                continue
+            results.append({'site': bm.get('site') or _host_of(url) or 'saved',
+                            'title': bm.get('title') or url, 'url': url})
+        self._all_bookmarks = results
+        self._refilter_bookmarks()
+        self.status_var.set(f'Loaded {len(results)} saved bookmark(s) from the DB.')
 
     def _read_bookmarks_thread(self, source):
         matchers = _build_site_matchers(self.sites_raw)
@@ -2432,8 +2451,8 @@ class DownloadManager(tk.Tk):
         ttk.Label(row1b, text='(installs Playwright + a private Chromium — one ~150 MB download)',
                   style='Sub.TLabel').pack(side='left')
 
-        # ② scrape sources
-        sp = ttk.LabelFrame(parent, text='② Pull videos into the queue')
+        # ② scrape sources → bookmark DB
+        sp = ttk.LabelFrame(parent, text='② Scrape video links into the bookmark DB')
         sp.pack(fill='x', **pad)
         opts = ttk.Frame(sp)
         opts.pack(fill='x', padx=8, pady=(8, 4))
@@ -2441,11 +2460,13 @@ class DownloadManager(tk.Tk):
         self.x_max_var = tk.IntVar(value=int(self._config.get('x_max_items', 300) or 300))
         ttk.Spinbox(opts, from_=10, to=5000, increment=50, width=6, textvariable=self.x_max_var,
                     command=self._save_config).pack(side='left', padx=(4, 12))
-        self.x_at_top_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(opts, text='Add to top of queue', variable=self.x_at_top_var).pack(side='left')
         self.x_sensitive_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(opts, text='Include sensitive / blurred media',
-                        variable=self.x_sensitive_var).pack(side='left', padx=(12, 0))
+                        variable=self.x_sensitive_var).pack(side='left')
+        self.x_autoqueue_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(opts, text='Queue immediately too', variable=self.x_autoqueue_var).pack(side='left', padx=(12, 0))
+        self.x_at_top_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(opts, text='…at top', variable=self.x_at_top_var).pack(side='left', padx=(6, 0))
 
         srcrow = ttk.Frame(sp)
         srcrow.pack(fill='x', padx=8, pady=(0, 6))
@@ -2473,7 +2494,20 @@ class DownloadManager(tk.Tk):
         ttk.Spinbox(hrow, from_=5, to=500, increment=5, width=5, textvariable=self.x_per_var,
                     command=self._save_config).pack(side='left')
 
-        self._x_source_btns = [self.x_open_btn, b_likes, b_bm, b_foll, b_prof]
+        # ③ generic scrape (current page) + download the saved bookmarks
+        dlrow = ttk.LabelFrame(parent, text='③ Find any video links here, then download them')
+        dlrow.pack(fill='x', **pad)
+        drow = ttk.Frame(dlrow)
+        drow.pack(fill='x', padx=8, pady=8)
+        b_page = ttk.Button(drow, text='🔎 Scrape video links (this page)', command=self._x_scrape_page)
+        b_page.pack(side='left')
+        ttk.Button(drow, text='⬇ Download saved bookmarks', style='Accent.TButton',
+                   command=self._download_bookmarks).pack(side='left', padx=6)
+        self.x_bm_var = tk.StringVar(value='Bookmark DB: 0 saved')
+        ttk.Label(drow, textvariable=self.x_bm_var, style='Count.TLabel').pack(side='right')
+
+        self._x_source_btns = [self.x_open_btn, b_likes, b_bm, b_foll, b_prof, b_page]
+        self.after(200, self._refresh_bookmark_counts)
 
         # activity log
         logf = ttk.LabelFrame(parent, text='Activity')
@@ -2658,6 +2692,15 @@ class DownloadManager(tk.Tk):
         self.x_status_var.set(f'Scraping {kind}…')
         self._x_send(cmd)
 
+    def _x_scrape_page(self):
+        """Generic: find every video link on whatever page is open in the browser."""
+        if not self._x_require_engine():
+            return
+        self._save_config()
+        self.x_status_var.set('Scraping video links on the current page…')
+        self._x_send({'op': 'page', 'cap': max(10, int(self.x_max_var.get() or 300)),
+                      'sensitive': bool(self.x_sensitive_var.get())})
+
     def _x_following(self):
         if not self._x_require_engine():
             return
@@ -2713,14 +2756,49 @@ class DownloadManager(tk.Tk):
         urls = [u for u in (payload.get('urls') or []) if _is_http(u)]
         label = payload.get('label', 'X.com')
         if not urls:
-            self.x_status_var.set(f'No video tweets found in {label}.')
+            self.x_status_var.set(f'No video links found in {label}.')
             self._x_log(f'→ nothing video-like found in {label}.')
             return
-        added = self._queue_urls(urls, at_top=payload.get('at_top', False))
-        self.x_status_var.set(f'Added {added} new video URL(s) from {label} '
-                              f'({len(urls) - added} already queued or downloaded).')
-        self._x_log(f'→ {added} new of {len(urls)} from {label} added to the queue.')
-        self._pump()
+        # Save every scraped video link into the bookmark DB (deduped). They can
+        # then be downloaded with the saved X.com login via "Download saved bookmarks".
+        added = self._add_bookmarks_db([{'url': u, 'site': 'x.com'} for u in urls], source=f'x:{label}')
+        self._refresh_bookmark_counts()
+        self.x_status_var.set(f'Saved {added} new video link(s) from {label} to the bookmark DB '
+                              f'({len(urls) - added} already saved). Click “Download saved bookmarks”.')
+        self._x_log(f'→ saved {added} of {len(urls)} from {label} to the bookmark DB.')
+        # Optionally queue them right away for download too.
+        if getattr(self, 'x_autoqueue_var', None) is not None and self.x_autoqueue_var.get():
+            q = self._queue_urls(urls, at_top=bool(self.x_at_top_var.get()))
+            if q:
+                self._x_log(f'→ also queued {q} for immediate download.')
+                self._pump()
+
+    # ── bookmark DB helpers (scraped links live here, then get downloaded) ──
+    def _add_bookmarks_db(self, items, source=None):
+        added = bulk_db.add_bookmarks(self._db_snapshot(), items, source=source)
+        # add_bookmarks appended to self.bookmarks (same list ref via the snapshot)
+        if added:
+            self._persist_db()
+        return added
+
+    def _refresh_bookmark_counts(self):
+        if hasattr(self, 'x_bm_var'):
+            pend = len(bulk_db.pending_bookmark_urls(self._db_snapshot()))
+            self.x_bm_var.set(f'Bookmark DB: {len(self.bookmarks)} saved · {pend} to download')
+
+    def _download_bookmarks(self):
+        """Queue every saved bookmark link that isn't downloaded yet and start —
+        downloads use the saved cookies.txt (your X.com login)."""
+        pending = bulk_db.pending_bookmark_urls(self._db_snapshot())
+        if not pending:
+            messagebox.showinfo('Nothing to download',
+                                'No new (un-downloaded) bookmark links to fetch.')
+            return
+        added = self._queue_urls(pending, at_top=False)
+        self.status_var.set(f'Queued {added} bookmark link(s) — downloading with your saved login.')
+        self._refresh_bookmark_counts()
+        self.nb.select(self.tab_downloads)
+        self._start_or_pump()
 
     def _x_handle_following(self, handles):
         self._x_following = list(handles or [])
@@ -2817,6 +2895,14 @@ class DownloadManager(tk.Tk):
             return
         if op == 'export':
             self._x_after_nav(context, page)
+            return
+        if op == 'page':
+            # Generic: scrape any video links on whatever page is currently open
+            # (search results, a list, a profile, a single tweet thread, …).
+            js = _js_video(cmd.get('sensitive', True))
+            urls = self._x_scroll_collect(page, js, cmd.get('cap', 300), 'current page')
+            self._xpost('x_result', {'urls': urls, 'label': 'current page'})
+            self._x_export_cookies(context)
             return
         if op == 'following':
             handle = self._x_require_login(page)
