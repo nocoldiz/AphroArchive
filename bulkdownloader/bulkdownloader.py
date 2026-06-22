@@ -6,6 +6,7 @@ import gzip
 import json
 import zlib
 import html
+import shutil
 import base64
 import argparse
 from pathlib import Path
@@ -80,6 +81,114 @@ def set_impersonate(opts, target='chrome'):
     return opts
 
 
+# Filenames a browser "export cookies" extension typically produces.
+_COOKIE_FILE_NAMES = (
+    'cookies.txt', 'x_cookies.txt', 'x.com_cookies.txt',
+    'www.x.com_cookies.txt', 'twitter.com_cookies.txt', 'twitter_cookies.txt',
+)
+
+_cookie_file_cache = None  # 1-tuple holding the resolved path (or None) once probed
+
+
+def _aggressive_cookie_dirs():
+    """Common cross-platform folders where an exported cookies.txt might live."""
+    home = Path.home()
+    dirs = [
+        Path(__file__).resolve().parent,   # next to this script (highest trust)
+        Path.cwd(),
+        home,
+        home / 'Downloads', home / 'Desktop', home / 'Documents',
+    ]
+    # Honour XDG / localised download dirs and a couple of OS-specific spots.
+    xdg = os.environ.get('XDG_DOWNLOAD_DIR', '').strip()
+    if xdg:
+        dirs.append(Path(xdg))
+    if sys.platform == 'win32':
+        up = os.environ.get('USERPROFILE', '').strip()
+        if up:
+            dirs.append(Path(up) / 'Downloads')
+    return dirs
+
+
+def _score_cookie_file(p):
+    """Rank a candidate cookies file: real X/Twitter Netscape cookies + newest win."""
+    try:
+        head = p.read_text(encoding='utf-8', errors='replace')[:65536]
+    except OSError:
+        head = ''
+    has_twitter = ('x.com' in head or 'twitter.com' in head)
+    is_netscape = ('# Netscape HTTP Cookie File' in head or '\t' in head)
+    try:
+        mtime = p.stat().st_mtime
+    except OSError:
+        mtime = 0
+    return (has_twitter, is_netscape, mtime)
+
+
+def _discover_cookie_file():
+    """Locate a Netscape-format cookies.txt for login-gated sites (X.com etc.).
+
+    Order: $BULK_COOKIES_FILE → aggressive scan of common cross-platform folders
+    (Downloads / Desktop / Documents / home / cwd / next to this script), picking
+    the file that actually contains X/Twitter cookies and is most recent.
+
+    An exported cookies.txt avoids yt-dlp's flaky live browser-cookie extraction
+    on Windows (Chrome DPAPI / Edge locked-DB errors).
+    """
+    env = os.environ.get('BULK_COOKIES_FILE', '').strip().strip('"').strip("'")
+    if env and os.path.isfile(env):
+        return env
+
+    candidates, seen = [], set()
+
+    def _consider(p):
+        try:
+            if not p.is_file():
+                return
+            rp = p.resolve()
+        except OSError:
+            return
+        if rp in seen:
+            return
+        seen.add(rp)
+        candidates.append(rp)
+
+    for d in _aggressive_cookie_dirs():
+        try:
+            if not d.is_dir():
+                continue
+        except OSError:
+            continue
+        for name in _COOKIE_FILE_NAMES:
+            _consider(d / name)
+        try:  # shallow glob catches "<site>_cookies.txt" extension exports
+            for p in d.glob('*cookies*.txt'):
+                _consider(p)
+        except OSError:
+            pass
+
+    if not candidates:
+        return None
+    return str(max(candidates, key=_score_cookie_file))
+
+
+def resolve_cookie_file():
+    """Cached wrapper around _discover_cookie_file() (scans the FS only once)."""
+    global _cookie_file_cache
+    if _cookie_file_cache is None:
+        path = _discover_cookie_file()
+        _cookie_file_cache = (path,)
+        if path:
+            print(f'   [cookies] using cookie file: {path}', flush=True)
+    return _cookie_file_cache[0]
+
+
+def _invalidate_cookie_cache():
+    """Force the next resolve_cookie_file() to re-scan (after saving new cookies)."""
+    global _cookie_file_cache
+    _cookie_file_cache = None
+
+
 # ════════════════════════════════════════════════════════════════════════
 #  Constants
 # ════════════════════════════════════════════════════════════════════════
@@ -94,6 +203,32 @@ DIRECT_MEDIA_EXTS = (
 )
 # Streaming-manifest extensions yt-dlp handles best.
 MANIFEST_EXTS = ('m3u8', 'mpd')
+
+# Hosts that only ever serve a site's own static/brand assets — never user media.
+# X/Twitter's no-JS wall ("JavaScript is not available.") embeds brand clips such as
+# abs.twimg.com/videos/grok-4-key-visual.mp4 and pbs.twimg.com/static/money/x-card-*.mp4.
+JUNK_MEDIA_HOST_SUBSTRINGS = (
+    'abs.twimg.com',
+)
+
+
+def _is_junk_media_url(u):
+    """True for URLs that only ever point at a site's static/brand assets, never
+    real user media — so the scraper never 'succeeds' on X's no-JS brand clips."""
+    netloc = urlparse(u).netloc.lower()
+    if any(j in netloc for j in JUNK_MEDIA_HOST_SUBSTRINGS):
+        return True
+    # X/Twitter: real tweet videos are served ONLY from video.twimg.com. Any other
+    # *.twimg.com host (abs / pbs / static) is a brand/UI asset, never tweet content.
+    if netloc.endswith('twimg.com') and not netloc.endswith('video.twimg.com'):
+        return True
+    return False
+
+# Page titles that signal a bot/no-JS wall rather than real content — their titles and
+# scraped media must NOT be trusted (X serves these when a tweet needs login/JS).
+WALL_TITLES = (
+    'javascript is not available.',
+)
 
 # Hosts that almost always wrap an embeddable player worth recursing into.
 EMBED_HOST_HINTS = (
@@ -360,6 +495,8 @@ def extract_candidates(base_url, page):
         u = urljoin(base_url, u)
         if not u.startswith('http'):
             return
+        if _is_junk_media_url(u):
+            return  # static/brand asset host — never the real video
         if u in seen:
             return
         seen.add(u)
@@ -693,6 +830,12 @@ class UniversalVideoDownloader:
         # require realistic browser fingerprints.
         set_impersonate(opts)
 
+        # If the user configured a cookies.txt (X.com login etc.), use it for every
+        # attempt — this is what unlocks sensitive / login-gated tweets reliably.
+        cookie_file = resolve_cookie_file()
+        if cookie_file:
+            opts['cookiefile'] = cookie_file
+
         # --- Explicit per-site optimizations (format, referer, rate limiting) ---
         if any(s in u for s in ('pornhub.com', 'youporn.com', 'redtube.com', 'tube8.com')):
             opts.update({
@@ -798,11 +941,15 @@ class UniversalVideoDownloader:
         """
         Last-resort attempt: run yt-dlp with real browser cookies so login-gated,
         age-restricted, or paywall-protected content can be accessed.
-        Tries Chrome → Firefox → Edge in order; skips silently if none installed.
+        Tries every yt-dlp-supported browser; skips silently if none installed.
+        Firefox first — it has no DPAPI/locked-DB issues and works on Windows where
+        Chromium-based browsers often fail to decrypt their cookie store.
         """
-        for browser in ('chrome', 'firefox', 'edge'):
+        for browser in ('firefox', 'chrome', 'edge', 'brave', 'vivaldi',
+                        'opera', 'chromium', 'whale', 'safari'):
             opts = self.get_site_specific_opts(url)
             opts['outtmpl'] = outtmpl
+            opts.pop('cookiefile', None)  # browser cookies take over for this attempt
             opts['cookiesfrombrowser'] = (browser,)
             self.last_file = None
             try:
@@ -874,6 +1021,8 @@ class UniversalVideoDownloader:
         Returns the downloaded file path, or None.
         """
         folder.mkdir(parents=True, exist_ok=True)
+        host = urlparse(url).netloc.lower()
+        is_twitter = any(h in host for h in ('x.com', 'twitter.com'))
         stem = self._probe_stem(url)
 
         # When yt-dlp can't probe a filename, fetch the page ourselves for the title.
@@ -883,6 +1032,11 @@ class UniversalVideoDownloader:
             _, raw_page = http_get(url)
             if raw_page:
                 title = _extract_page_title(raw_page)
+                # Ignore no-JS/bot walls (e.g. X's "JavaScript is not available.") —
+                # their title is meaningless and would mislabel the file.
+                if title and title.strip().lower() in WALL_TITLES:
+                    print(f'   [title] ignoring no-JS wall title "{title}"', flush=True)
+                    title = None
                 if title:
                     stem = _title_to_stem(title)
                     print(f'   [title] "{title}"', flush=True)
@@ -903,6 +1057,14 @@ class UniversalVideoDownloader:
         if f:
             return f
 
+        # For X/Twitter, sensitive or login-gated tweets need real auth. Try browser
+        # cookies BEFORE the generic scraper — the scraper only ever sees X's no-JS
+        # wall and would "succeed" on a brand promo clip instead of the real video.
+        if is_twitter:
+            f = self._try_ytdlp_with_cookies(url, outtmpl)
+            if f:
+                return f
+
         # 3) Scrape the page (and iframes) ourselves for media URLs.
         print('   [scrape] yt-dlp could not extract — scraping page for media…', flush=True)
         media = scrape_for_media(url)
@@ -919,9 +1081,10 @@ class UniversalVideoDownloader:
                     return f
 
         # 4) Native extractor with real browser cookies (login-gated / age-restricted content).
-        f = self._try_ytdlp_with_cookies(url, outtmpl)
-        if f:
-            return f
+        if not is_twitter:
+            f = self._try_ytdlp_with_cookies(url, outtmpl)
+            if f:
+                return f
 
         print('   [error] no downloadable video found by any method.', flush=True)
         return None
@@ -1215,6 +1378,47 @@ def run_from_links(args):
     sys.exit(0 if not failed else 2)
 
 
+def setup_x_login():
+    """Save a cookies.txt so yt-dlp can fetch login-gated / sensitive X.com (and
+    other site) videos. The cookies are then reused automatically for every
+    download — far more reliable than live browser-cookie extraction on Windows."""
+    script_dir = Path(__file__).resolve().parent
+    dest = script_dir / 'cookies.txt'
+
+    print('\nX.com / Twitter login (cookies) setup', flush=True)
+    print('=' * 50, flush=True)
+    existing = resolve_cookie_file()
+    if existing:
+        print(f'Currently using cookies from: {existing}', flush=True)
+    print(
+        '\nSensitive or login-gated tweets need your X.com login cookies.\n'
+        'Export them once to a Netscape-format cookies.txt file:\n'
+        '  1. Install a "Get cookies.txt LOCALLY" extension (Chrome/Firefox/Edge)\n'
+        '  2. Log in to https://x.com in that browser\n'
+        '  3. Click the extension and Export / Save cookies.txt\n'
+        '  4. Paste the full path to that file below\n',
+        flush=True,
+    )
+    try:
+        raw = input('Path to cookies.txt (blank to cancel): ').strip().strip('"').strip("'")
+    except EOFError:
+        return
+    if not raw:
+        print('Cancelled.', flush=True)
+        return
+    src = Path(raw)
+    if not src.is_file():
+        print(f'[error] File not found: {src}', flush=True)
+        return
+    try:
+        shutil.copyfile(src, dest)
+        _invalidate_cookie_cache()
+        print(f'[ok] Login cookies saved to {dest}', flush=True)
+        print('     They will be used automatically for all downloads from now on.', flush=True)
+    except Exception as e:
+        print(f'[error] Could not save cookies: {e}', flush=True)
+
+
 def _run_menu(args):
     """Interactive mode selection shown when the script is run with no arguments."""
     print('Universal Video Downloader — Extensive Edition', flush=True)
@@ -1232,13 +1436,15 @@ def _run_menu(args):
         else 'Process links queue  (links_to_download.txt not found or empty)'
     )
 
+    x_login = 'configured ✓' if resolve_cookie_file() else 'not set'
     print('\nWhat would you like to do?\n', flush=True)
     print(f'  [1] Paste URLs manually', flush=True)
     print(f'  [2] {queue_label}', flush=True)
+    print(f'  [3] Set up X.com login (cookies)  [{x_login}]', flush=True)
     print(flush=True)
 
     try:
-        choice = input('Enter choice (1/2): ').strip()
+        choice = input('Enter choice (1/2/3): ').strip()
     except EOFError:
         choice = '1'
 
@@ -1252,6 +1458,9 @@ def _run_menu(args):
             out_dir = args.out_dir
             remove_after = False  # run_from_links always removes on success now
         run_from_links(_Args())
+    elif choice == '3':
+        setup_x_login()
+        _run_menu(args)  # back to the menu after configuring login
     else:
         run_interactive()
 

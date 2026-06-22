@@ -47,6 +47,10 @@ DEFAULT_OUT_DIR = VIDEOS_ROOT / 'downloads'
 LINKS_TO_DOWNLOAD = APP_DIR / 'links_to_download.txt'
 LINKS_DOWNLOADED = APP_DIR / 'links_downloaded.txt'
 
+# Netscape-format cookies for login-gated sites (X.com sensitive/age-gated tweets).
+# Passed to each bulkdownloader.py subprocess via $BULK_COOKIES_FILE.
+COOKIES_FILE = APP_DIR / 'cookies.txt'
+
 # Per-item subprocess output: "   [download]  45.3% of 120.4MiB at … ETA …"
 PROGRESS_RE = re.compile(r'\[download\]\s+([\d.]+)%')
 TITLE_RE = re.compile(r'\[title\]\s+"(.+)"')
@@ -263,6 +267,8 @@ class DownloadManager(tk.Tk):
         ttk.Button(url_btns, text='📋 Paste', command=self._paste_clipboard).pack(side='left', padx=6)
         ttk.Button(url_btns, text='📄 Load links_to_download.txt', command=self._load_links_file).pack(side='left')
         ttk.Button(url_btns, text='✖ Clear box', command=lambda: self.url_text.delete('1.0', 'end')).pack(side='left', padx=6)
+        self.x_login_btn = ttk.Button(url_btns, text=self._x_login_label(), command=self._setup_x_login)
+        self.x_login_btn.pack(side='right')
 
         # Destination
         out_panel = ttk.LabelFrame(self, text='Destination')
@@ -453,6 +459,9 @@ class DownloadManager(tk.Tk):
         env = os.environ.copy()
         env['PYTHONIOENCODING'] = 'utf-8'
         env['APHRO_DOWNLOADS_DIR'] = str(out_dir)
+        if COOKIES_FILE.exists():
+            # Lets the downloader fetch login-gated / sensitive X.com videos.
+            env['BULK_COOKIES_FILE'] = str(COOKIES_FILE)
 
         while self.is_running and not self._stop_requested:
             iid = self._next_queued()
@@ -549,6 +558,40 @@ class DownloadManager(tk.Tk):
     def _mark_downloaded(self, url):
         _remove_link(LINKS_TO_DOWNLOAD, url)
         _append_link(LINKS_DOWNLOADED, url)
+
+    # ── X.com login (cookies) ────────────────────────────────────────
+    def _x_login_label(self):
+        return '🔑 X.com Login ✓' if COOKIES_FILE.exists() else '🔑 X.com Login'
+
+    def _setup_x_login(self):
+        """Pick a cookies.txt exported from the browser so login-gated / sensitive
+        X.com videos download instead of falling back to brand-asset junk."""
+        if not messagebox.askokcancel(
+            'X.com login',
+            'Sensitive or login-gated X.com videos need your browser login cookies.\n\n'
+            'How to get them:\n'
+            '  1. Install a "Get cookies.txt LOCALLY" browser extension\n'
+            '  2. Log in to x.com\n'
+            '  3. Export / Save a cookies.txt file\n\n'
+            'Click OK, then select that cookies.txt file.'):
+            return
+        path = filedialog.askopenfilename(
+            title='Select X.com cookies.txt (Netscape format)',
+            filetypes=[('Cookies file', '*.txt'), ('All files', '*.*')],
+        )
+        if not path:
+            return
+        try:
+            shutil.copyfile(path, COOKIES_FILE)
+        except OSError as e:
+            messagebox.showerror('Could not save cookies', str(e))
+            return
+        self.x_login_btn.configure(text=self._x_login_label())
+        self.status_var.set('X.com login cookies saved — they will be used automatically.')
+        messagebox.showinfo(
+            'X.com login saved',
+            'Login cookies saved. Sensitive / login-gated X.com videos will now use '
+            'these cookies automatically.')
 
     # ── misc actions ─────────────────────────────────────────────────
     def _browse(self):

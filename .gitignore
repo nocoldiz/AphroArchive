@@ -46,6 +46,10 @@ android-app/www/index.html
 bulkdownloader/links_downloaded.txt
 bulkdownloader/links_failed.txt
 bulkdownloader/links_to_download.txt
+# Login cookies contain auth tokens — never commit them
+bulkdownloader/cookies.txt
+bulkdownloader/x_cookies.txt
+cookies.txt
 
 # ── Binaries ─────────────────────────────────
 yt-dlp.exe
@@ -53,3 +57,5 @@ yt-dlp.exe
 # ── Local fast build script ──────────────────
 build_fast.bat
 bulkdownloader/link_failed.txt
+dist/links_downloaded.txt
+dist/links_to_download.txt
