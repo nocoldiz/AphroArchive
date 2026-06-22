@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 
-echo BulkDownloader — Dependency Installer
+echo BulkDownloader - Dependency Installer
 echo ======================================
 
 REM Core deps (always install)
@@ -13,24 +13,24 @@ if errorlevel 1 (
     echo      OK
 )
 
-REM Playwright (optional — headless browser fallback for JS-heavy sites)
+REM Playwright (optional - headless browser fallback for JS-heavy sites)
 python -c "import playwright" 2>nul
 if errorlevel 1 (
     echo [2/4] Installing Playwright ^(headless browser for JS-rendered sites^)...
     python -m pip install playwright --quiet
     if errorlevel 1 (
-        echo      WARNING: Playwright install failed ^(optional — skipping^)
+        echo      WARNING: Playwright install failed ^(optional - skipping^)
     ) else (
         echo [3/4] Installing Chromium browser for Playwright...
         python -m playwright install chromium --with-deps
         if errorlevel 1 (
-            echo      WARNING: Chromium install failed ^(optional — skipping^)
+            echo      WARNING: Chromium install failed ^(optional - skipping^)
         ) else (
             echo      OK
         )
     )
 ) else (
-    echo [2/4] Playwright already installed — skipping.
+    echo [2/4] Playwright already installed - skipping.
     echo [3/4] Skipped.
 )
 

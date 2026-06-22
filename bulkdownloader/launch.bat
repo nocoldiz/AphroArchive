@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 
-REM Make sure dependencies are installed — run install.bat first if yt-dlp is missing.
+REM Make sure dependencies are installed - run install.bat first if yt-dlp is missing.
 python -c "import yt_dlp" 2>nul
 if errorlevel 1 (
     echo yt-dlp is not installed.

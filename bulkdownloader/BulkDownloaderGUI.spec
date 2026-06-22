@@ -11,7 +11,7 @@ a = Analysis(
     ['bulkdownloader_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('bulkdownloader.py', '.'), ('site_search.py', '.')],
+    datas=[('bulkdownloader.py', '.'), ('site_search.py', '.'), ('websites.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -48,4 +48,10 @@ if sys.platform == 'darwin':
         exe,
         name='BulkDownloaderGUI.app',
         bundle_identifier='com.aphroarchive.bulkdownloader',
+        info_plist={
+            'CFBundleName': 'BulkDownloaderGUI',
+            'CFBundleDisplayName': 'AphroArchive Downloader',
+            'NSHighResolutionCapable': True,
+            'LSApplicationCategoryType': 'public.app-category.utilities',
+        },
     )
