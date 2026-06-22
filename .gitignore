@@ -50,6 +50,12 @@ bulkdownloader/links_to_download.txt
 bulkdownloader/cookies.txt
 bulkdownloader/x_cookies.txt
 cookies.txt
+# Runtime/local state — never commit (queue db, GUI prefs, build zip)
+bulkdownloader/queue_db.json
+bulkdownloader/gui_config.json
+bulkdownloader/*.zip
+# Persistent X.com browser profile — contains the logged-in session, never commit
+bulkdownloader/x_browser_profile/
 
 # ── Binaries ─────────────────────────────────
 yt-dlp.exe

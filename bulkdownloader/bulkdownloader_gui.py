@@ -20,9 +20,11 @@ Five tabs:
   favourite's search in its own browser tab with one button.
 * **Gallery** — a thumbnail grid of every video already in the download
   folder; double-click to play in the system player.
-* **X.com** — log in for sensitive / login-gated X.com videos: use your
-  browser's live login (recommended), paste ``auth_token`` / ``ct0`` tokens
-  (with a step-by-step guide), or import / paste a ``cookies.txt``.
+* **X.com** — a built-in browser (Playwright/Chromium) you log in to once; the
+  login is remembered between runs. From there, pull your Likes, Bookmarks, the
+  profiles you follow, or any ``@handle``'s media straight into the queue, and the
+  session is exported as cookies so yt-dlp can download the gated videos. An
+  *Advanced* panel keeps the old cookies.txt / token fallbacks.
 
 The window size, download folder, parallel count and last tab are remembered
 between runs. Files land in the chosen output folder — no categorization here.
@@ -2040,13 +2042,13 @@ class DownloadManager(tk.Tk):
         list_inner = ttk.Frame(list_panel)
         list_inner.pack(fill='both', expand=True, padx=8, pady=8)
 
-        self.search_tree = ttk.Treeview(list_inner, columns=('chk', 'fav', 'url'),
-                                        show='tree headings', selectmode='extended')
-        self.search_tree.heading('#0', text='Website')
+        self.search_tree = ttk.Treeview(list_inner, columns=('chk', 'site', 'fav', 'url'),
+                                        show='headings', selectmode='extended')
+        self.search_tree.heading('site', text='Website')
         self.search_tree.heading('fav', text='★')
         self.search_tree.heading('url', text='Search URL')
-        self.search_tree.column('#0', width=200, stretch=False)
         self.search_tree.column('chk', width=34, anchor='center', stretch=False)
+        self.search_tree.column('site', width=200, stretch=False)
         self.search_tree.column('fav', width=40, anchor='center', stretch=False)
         self.search_tree.column('url', width=480, stretch=True)
         s_scroll = ttk.Scrollbar(list_inner, command=self.search_tree.yview)
@@ -2075,8 +2077,8 @@ class DownloadManager(tk.Tk):
             s = self.sites_raw[idx]
             fav = bool(s.get('favourite'))
             self.search_tree.insert('', 'end', iid=f'site{idx}',
-                                    text=self._site_label(s),
-                                    values=(CHK_OFF, '★' if fav else '☆', s.get('searchURL') or ''),
+                                    values=(CHK_OFF, self._site_label(s), '★' if fav else '☆',
+                                            s.get('searchURL') or ''),
                                     tags=('fav',) if fav else ())
 
     def _open_random_search(self):
@@ -2093,7 +2095,7 @@ class DownloadManager(tk.Tk):
     def _on_search_click(self, event):
         if self.search_tree.identify_region(event.x, event.y) != 'cell':
             return None
-        if self.search_tree.identify_column(event.x) != '#2':   # the ★ column
+        if self.search_tree.identify_column(event.x) != '#3':   # the ★ column (chk, site, fav, url)
             return None
         iid = self.search_tree.identify_row(event.y)
         if iid:
@@ -3320,6 +3322,12 @@ class DownloadManager(tk.Tk):
             self._config['autostart'] = bool(self.autostart_var.get())
         if hasattr(self, '_console_open'):
             self._config['console_open'] = bool(self._console_open)
+        for attr, key in (('x_max_var', 'x_max_items'), ('x_per_var', 'x_per_profile')):
+            if hasattr(self, attr):
+                try:
+                    self._config[key] = int(getattr(self, attr).get())
+                except (tk.TclError, ValueError):
+                    pass
         try:
             self._config['last_tab'] = self.nb.index(self.nb.select())
         except (tk.TclError, AttributeError):
