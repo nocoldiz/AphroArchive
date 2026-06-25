@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-AphroArchive Recategorizer — standalone CLI (no server needed)
-Scans the videos folder, derives categories from subfolders, loads category
-tags from SQLite (if found), dry-runs the recategorization plan, then
-physically moves files on confirmation.
+AphroArchive Downloads Sorter — standalone CLI (no server needed)
+Sorts ONLY the videos sitting in the <media>/downloads folder into the most
+fitting existing category folder (or subfolder). It derives candidate folders
+from the existing subfolders (excluding downloads itself), loads category tags
+from SQLite (if found), prints the move plan, then physically moves files on
+confirmation.
 
 Usage:
-  python categorizer.py <videos_dir>
-  python categorizer.py <videos_dir> --db <path/to/aphroarchive_default.db>
-  python categorizer.py <videos_dir> --profile MyProfile
+  python categorizer.py <media_dir>
+  python categorizer.py <media_dir> --db <path/to/aphroarchive_default.db>
+  python categorizer.py <media_dir> --profile MyProfile
+
+<media_dir> is the media root (e.g. ./videos). Its `downloads` subfolder is the
+source; every other subfolder is a possible destination.
 """
 
 import sys
@@ -31,6 +36,15 @@ VIDEO_EXTS = {
 }
 
 MIN_SCORE = 50  # minimum term_score to accept a folder match
+
+DOWNLOAD_NAMES = {'downloads', 'download'}  # source folder name(s)
+
+
+def is_in_downloads(cat_path: str) -> bool:
+    """True if a video's category path lives under a downloads folder."""
+    if not cat_path:
+        return False
+    return cat_path.split('/')[0].lower() in DOWNLOAD_NAMES
 
 
 # ── Matching logic (mirrors CategorizerView.tsx) ──────────────────────────────
@@ -233,34 +247,25 @@ def build_plan(videos: list, folder_terms: list) -> list:
 
 def print_plan(moves: list):
     if not moves:
-        print('No moves needed — all videos are already in their best-matching folder.')
+        print('No moves needed — no downloads video matched an existing folder.')
         return
 
-    uncategorized = [m for m in moves if not m['cat_path']]
-    recategorized = [m for m in moves if m['cat_path']]
-
-    def _print_section(section_moves: list, header: str):
-        if not section_moves:
-            return
-        by_dest: dict = {}
-        for m in section_moves:
-            by_dest.setdefault(m['to_path'], []).append(m)
-        print(f'\n  {header} ({len(section_moves)})\n')
-        for _, ms in sorted(by_dest.items(), key=lambda x: x[0]):
-            print(f'  → {ms[0]["to_path"]}')
-            for m in ms:
-                short = re.sub(r'\.[^.]+$', '', m['name'])
-                if len(short) > 58:
-                    short = short[:55] + '…'
-                from_label = m['cat_path'] or 'root'
-                print(f'      {short}')
-                print(f'        from: {from_label}   matched: "{m["matched"]}"  score: {m.get("score", "?")}')
-            print()
+    by_dest: dict = {}
+    for m in moves:
+        by_dest.setdefault(m['to_path'], []).append(m)
 
     print(f'\n{"─"*64}')
-    print(f'  {len(moves)} video(s) would be moved')
-    _print_section(uncategorized, 'Uncategorized → folder')
-    _print_section(recategorized, 'Wrong folder → correct folder')
+    print(f'  {len(moves)} downloads video(s) would be sorted into existing folders\n')
+    for _, ms in sorted(by_dest.items(), key=lambda x: x[0]):
+        print(f'  → {ms[0]["to_path"]}')
+        for m in ms:
+            short = re.sub(r'\.[^.]+$', '', m['name'])
+            if len(short) > 58:
+                short = short[:55] + '…'
+            from_label = m['cat_path'] or 'root'
+            print(f'      {short}')
+            print(f'        from: {from_label}   matched: "{m["matched"]}"  score: {m.get("score", "?")}')
+        print()
     print('─'*64)
 
 
@@ -311,16 +316,6 @@ def main():
             return
         args.profile = profile_input or 'default'
 
-    try:
-        print('\nScope:')
-        print('  1) All videos')
-        print('  2) Downloads folder + unsorted (root-level only)')
-        scope_input = input('Choose [1/2, default 1]: ').strip()
-    except (EOFError, KeyboardInterrupt):
-        print('\nCancelled.')
-        return
-    scope_limited = scope_input == '2'
-
     # DB for category tags
     if args.db:
         db_path = Path(args.db).resolve()
@@ -337,17 +332,19 @@ def main():
     cats   = scan_categories(videos_dir)
     videos = scan_videos(videos_dir)
 
-    if scope_limited:
-        downloads_lower = {'downloads', 'download'}
-        videos = [
-            v for v in videos
-            if not v['cat_path']
-            or v['cat_path'].split('/')[0].lower() in downloads_lower
-        ]
+    # Source: ONLY videos currently inside a downloads folder
+    videos = [v for v in videos if is_in_downloads(v['cat_path'])]
+
+    # Destinations: every existing folder EXCEPT downloads (and its subfolders)
+    cats = [c for c in cats if not is_in_downloads(c['path'])]
+
+    if not videos:
+        print('No videos found in a downloads folder — nothing to sort.')
+        return
 
     cat_tags = load_cat_tags(db_path) if db_path else {}
 
-    print(f'{len(videos)} videos, {len(cats)} category folders, {sum(len(v) for v in cat_tags.values())} tags loaded')
+    print(f'{len(videos)} downloads video(s), {len(cats)} destination folder(s), {sum(len(v) for v in cat_tags.values())} tags loaded')
 
     folder_terms = build_folder_terms(cats, cat_tags)
     moves        = build_plan(videos, folder_terms)
