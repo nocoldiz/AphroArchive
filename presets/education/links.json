@@ -1,24 +1,368 @@
 [
-  { "url": "https://www.youtube.com/@freecodecamp", "title": "freeCodeCamp.org", "category": "Programming", "hasVideo": true, "tags": ["course", "coding"] },
-  { "url": "https://www.youtube.com/@TraversyMedia", "title": "Traversy Media", "category": "Programming", "hasVideo": true, "tags": ["webdev"] },
-  { "url": "https://www.youtube.com/@NetNinja", "title": "The Net Ninja", "category": "Programming", "hasVideo": true, "tags": ["webdev", "playlist"] },
-  { "url": "https://www.youtube.com/@programmingwithmosh", "title": "Programming with Mosh", "category": "Programming", "hasVideo": true, "tags": ["tutorial"] },
-  { "url": "https://www.youtube.com/@veritasium", "title": "Veritasium", "category": "Science", "hasVideo": true, "tags": ["science"] },
-  { "url": "https://www.youtube.com/@kurzgesagt", "title": "Kurzgesagt – In a Nutshell", "category": "Science", "hasVideo": true, "tags": ["science", "animation"] },
-  { "url": "https://www.youtube.com/@SciShow", "title": "SciShow", "category": "Science", "hasVideo": true, "tags": ["science"] },
-  { "url": "https://www.youtube.com/@pbsspacetime", "title": "PBS Space Time", "category": "Science", "hasVideo": true, "tags": ["astronomy", "physics"] },
-  { "url": "https://www.youtube.com/@3blue1brown", "title": "3Blue1Brown", "category": "Mathematics", "hasVideo": true, "tags": ["math", "visual"] },
-  { "url": "https://www.youtube.com/@numberphile", "title": "Numberphile", "category": "Mathematics", "hasVideo": true, "tags": ["math"] },
-  { "url": "https://www.youtube.com/@Mathologer", "title": "Mathologer", "category": "Mathematics", "hasVideo": true, "tags": ["math"] },
-  { "url": "https://www.youtube.com/@khanacademy", "title": "Khan Academy", "category": "Mathematics", "hasVideo": true, "tags": ["lessons"] },
-  { "url": "https://www.youtube.com/@crashcourse", "title": "CrashCourse", "category": "History", "hasVideo": true, "tags": ["course"] },
-  { "url": "https://www.youtube.com/@OverSimplified", "title": "OverSimplified", "category": "History", "hasVideo": true, "tags": ["history", "animation"] },
-  { "url": "https://www.youtube.com/@KingsandGenerals", "title": "Kings and Generals", "category": "History", "hasVideo": true, "tags": ["military"] },
-  { "url": "https://www.youtube.com/@TheHistoryGuyChannel", "title": "The History Guy", "category": "History", "hasVideo": true, "tags": ["history"] },
-  { "url": "https://www.youtube.com/@PhilosophyTube", "title": "Philosophy Tube", "category": "Philosophy", "hasVideo": true, "tags": ["philosophy"] },
-  { "url": "https://www.youtube.com/@WirelessPhilosophy", "title": "Wireless Philosophy", "category": "Philosophy", "hasVideo": true, "tags": ["philosophy", "course"] },
-  { "url": "https://www.youtube.com/@theschooloflifetv", "title": "The School of Life", "category": "Philosophy", "hasVideo": true, "tags": ["philosophy", "psychology"] },
-  { "url": "https://www.youtube.com/@Langfocus", "title": "Langfocus", "category": "Languages", "hasVideo": true, "tags": ["linguistics"] },
-  { "url": "https://www.youtube.com/@NativLang", "title": "NativLang", "category": "Languages", "hasVideo": true, "tags": ["linguistics"] },
-  { "url": "https://www.youtube.com/@EasyLanguages", "title": "Easy Languages", "category": "Languages", "hasVideo": true, "tags": ["learning"] }
+  {
+    "url": "https://www.youtube.com/@freecodecamp",
+    "title": "freeCodeCamp.org",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "course",
+      "coding"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TraversyMedia",
+    "title": "Traversy Media",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "webdev"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@NetNinja",
+    "title": "The Net Ninja",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "webdev",
+      "playlist"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@programmingwithmosh",
+    "title": "Programming with Mosh",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "tutorial"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@veritasium",
+    "title": "Veritasium",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "science"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@kurzgesagt",
+    "title": "Kurzgesagt – In a Nutshell",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "science",
+      "animation"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@SciShow",
+    "title": "SciShow",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "science"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@pbsspacetime",
+    "title": "PBS Space Time",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "astronomy",
+      "physics"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@3blue1brown",
+    "title": "3Blue1Brown",
+    "category": "Mathematics",
+    "hasVideo": true,
+    "tags": [
+      "math",
+      "visual"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@numberphile",
+    "title": "Numberphile",
+    "category": "Mathematics",
+    "hasVideo": true,
+    "tags": [
+      "math"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Mathologer",
+    "title": "Mathologer",
+    "category": "Mathematics",
+    "hasVideo": true,
+    "tags": [
+      "math"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@khanacademy",
+    "title": "Khan Academy",
+    "category": "Mathematics",
+    "hasVideo": true,
+    "tags": [
+      "lessons"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@crashcourse",
+    "title": "CrashCourse",
+    "category": "History",
+    "hasVideo": true,
+    "tags": [
+      "course"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@OverSimplified",
+    "title": "OverSimplified",
+    "category": "History",
+    "hasVideo": true,
+    "tags": [
+      "history",
+      "animation"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@KingsandGenerals",
+    "title": "Kings and Generals",
+    "category": "History",
+    "hasVideo": true,
+    "tags": [
+      "military"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TheHistoryGuyChannel",
+    "title": "The History Guy",
+    "category": "History",
+    "hasVideo": true,
+    "tags": [
+      "history"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@PhilosophyTube",
+    "title": "Philosophy Tube",
+    "category": "Philosophy",
+    "hasVideo": true,
+    "tags": [
+      "philosophy"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@WirelessPhilosophy",
+    "title": "Wireless Philosophy",
+    "category": "Philosophy",
+    "hasVideo": true,
+    "tags": [
+      "philosophy",
+      "course"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@theschooloflifetv",
+    "title": "The School of Life",
+    "category": "Philosophy",
+    "hasVideo": true,
+    "tags": [
+      "philosophy",
+      "psychology"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Langfocus",
+    "title": "Langfocus",
+    "category": "Languages",
+    "hasVideo": true,
+    "tags": [
+      "linguistics"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@NativLang",
+    "title": "NativLang",
+    "category": "Languages",
+    "hasVideo": true,
+    "tags": [
+      "linguistics"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@EasyLanguages",
+    "title": "Easy Languages",
+    "category": "Languages",
+    "hasVideo": true,
+    "tags": [
+      "learning"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TEDEd",
+    "title": "TED-Ed",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "lessons",
+      "animation"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@smartereveryday",
+    "title": "SmarterEveryDay",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "engineering",
+      "curiosity"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@SteveMould",
+    "title": "Steve Mould",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "physics",
+      "demos"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@minutephysics",
+    "title": "minutephysics",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "physics",
+      "animation"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TwoMinutePapers",
+    "title": "Two Minute Papers",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "ai",
+      "research"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@EconomicsExplained",
+    "title": "Economics Explained",
+    "category": "Economics",
+    "hasVideo": true,
+    "tags": [
+      "economy",
+      "finance"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TheOrganicChemistryTutor",
+    "title": "The Organic Chemistry Tutor",
+    "category": "Mathematics",
+    "hasVideo": true,
+    "tags": [
+      "math",
+      "tutorial"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ProfessorLeonard",
+    "title": "Professor Leonard",
+    "category": "Mathematics",
+    "hasVideo": true,
+    "tags": [
+      "calculus",
+      "lectures"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Fireship",
+    "title": "Fireship",
+    "category": "Programming",
+    "hasVideo": true,
+    "tags": [
+      "webdev",
+      "javascript"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TomScottGo",
+    "title": "Tom Scott",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "tech",
+      "geography"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@PracticalEngineeringChannel",
+    "title": "Practical Engineering",
+    "category": "Engineering",
+    "hasVideo": true,
+    "tags": [
+      "civil",
+      "infrastructure"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@RealEngineering",
+    "title": "Real Engineering",
+    "category": "Engineering",
+    "hasVideo": true,
+    "tags": [
+      "engineering",
+      "tech"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@scishowspace",
+    "title": "SciShow Space",
+    "category": "Astronomy",
+    "hasVideo": true,
+    "tags": [
+      "space",
+      "astronomy"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@CGPGrey",
+    "title": "CGP Grey",
+    "category": "History",
+    "hasVideo": true,
+    "tags": [
+      "explainer",
+      "geography"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@DoS",
+    "title": "Domain of Science",
+    "category": "Science",
+    "hasVideo": true,
+    "tags": [
+      "maps",
+      "overview"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ProkoTV",
+    "title": "Proko (anatomy lessons)",
+    "category": "Biology",
+    "hasVideo": true,
+    "tags": [
+      "anatomy",
+      "figure"
+    ]
+  }
 ]

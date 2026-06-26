@@ -46,9 +46,33 @@ android-app/www/index.html
 bulkdownloader/links_downloaded.txt
 bulkdownloader/links_failed.txt
 bulkdownloader/links_to_download.txt
+# Login cookies contain auth tokens — never commit them
+bulkdownloader/cookies.txt
+bulkdownloader/x_cookies.txt
+cookies.txt
+# Runtime/local state — never commit (queue db, GUI prefs, build zip)
+bulkdownloader/queue_db.json
+bulkdownloader/db.json
+bulkdownloader/db.json.tmp
+bulkdownloader/gui_config.json
+bulkdownloader/*.zip
+# Persistent X.com browser profile — contains the logged-in session, never commit
+bulkdownloader/x_browser_profile/
+# Playwright / built-in browser engine + downloaded Chromium
+bulkdownloader/ms-playwright/
+ms-playwright/
+.playwright/
+# Test + tooling caches
+.pytest_cache/
+bulkdownloader/tests/__pycache__/
 
 # ── Binaries ─────────────────────────────────
 yt-dlp.exe
 
 # ── Local fast build script ──────────────────
 build_fast.bat
+bulkdownloader/link_failed.txt
+dist/links_downloaded.txt
+dist/links_to_download.txt
+
+

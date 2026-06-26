@@ -222,6 +222,11 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (video) setCardThumb(getThumbPref(video.id));
+    // Opening a video should always start at the top — reset both the window
+    // (normal layout) and the .main-content pane (dual mode) scroll positions.
+    window.scrollTo({ top: 0 });
+    const mc = document.querySelector('.main-content') as HTMLElement | null;
+    if (mc) mc.scrollTop = 0;
     // Reset any chapter-based start time after the player has consumed it,
     // so a stale value doesn't bleed into the next video opened from VideoGrid.
     return () => {
@@ -1126,25 +1131,8 @@ export const PlayerView = () => {
             </div>
           )}
 
-          {chapters.length > 0 && (
-            <div className="playlist-panel" style={{ marginBottom: '20px' }}>
-              <div className="playlist-header">
-                <span>Chapters</span>
-                <span className="playlist-count">{chapters.length}</span>
-              </div>
-              <div className="playlist-list">
-                {chapters.map(c => (
-                  <div key={c.id} className="playlist-item" onClick={() => jumpToChapter(c.time)}>
-                    <img src={`/api/thumbs/${video.id}/chapter/${c.id}`} className="pl-thumb" onError={(e: any) => e.target.src = `/api/thumbs/${video.id}/0`} />
-                    <div className="pl-info">
-                      <div className="pl-name">{c.title}</div>
-                      <div className="pl-meta">{formatDuration(c.time)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* The chapter list lives in the player's chapter dropdown now, so the
+              big side-panel chapter view was removed from the details page. */}
 
           {/* Auto-detected chapters — only shown when option is enabled */}
           {appPrefs.value.autoChapterDetection && autoChapters.length > 0 && (

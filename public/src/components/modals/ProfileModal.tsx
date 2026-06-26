@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'preact/hooks';
-import { profileModalState, profiles, activeProfile, switchProfile, loadProfiles, reloadAppData } from '../../store';
+import { profileModalState, profiles, activeProfile, switchProfile, loadProfiles, reloadAppData, tempProfiles, activeTempProfile, activateTempProfile, exitTempProfile, type TempProfile } from '../../store';
 
 interface Preset {
   id: string;
@@ -118,24 +118,26 @@ export const ProfileModal = () => {
 
         {/* Profiles List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
-          {profiles.value.map(p => (
+          {profiles.value.map(p => {
+            const isActive = !activeTempProfile.value && p === activeProfile.value;
+            return (
             <div
               key={p}
-              onClick={() => { if (p !== activeProfile.value) switchProfile(p); }}
+              onClick={() => { if (!isActive) switchProfile(p); }}
               style={{
                 padding: '12px',
-                background: p === activeProfile.value ? 'var(--bg3)' : 'var(--bg2)',
-                border: p === activeProfile.value ? '1px solid var(--ac)' : '1px solid var(--brd)',
+                background: isActive ? 'var(--bg3)' : 'var(--bg2)',
+                border: isActive ? '1px solid var(--ac)' : '1px solid var(--brd)',
                 borderRadius: '6px',
-                cursor: p === activeProfile.value ? 'default' : 'pointer',
+                cursor: isActive ? 'default' : 'pointer',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontWeight: p === activeProfile.value ? 'bold' : 'normal' }}>{p}</span>
-                {p === activeProfile.value && <span style={{ fontSize: '0.8rem', color: 'var(--ac)' }}>Active</span>}
+                <span style={{ fontWeight: isActive ? 'bold' : 'normal' }}>{p}</span>
+                {isActive && <span style={{ fontSize: '0.8rem', color: 'var(--ac)' }}>Active</span>}
               </div>
               <div style={{ display: 'flex', gap: '4px' }}>
                 {p !== 'Vault' && (
@@ -160,7 +162,55 @@ export const ProfileModal = () => {
                 )}
               </div>
             </div>
-          ))}
+          );
+          })}
+
+          {/* Temporary profiles — ephemeral, scoped to one folder/tag, gone on close */}
+          {tempProfiles.value.map((tp: TempProfile) => {
+            const isActive = activeTempProfile.value?.kind === tp.kind && activeTempProfile.value?.value === tp.value;
+            return (
+              <div
+                key={`${tp.kind}:${tp.value}`}
+                onClick={() => { if (!isActive) activateTempProfile(tp); }}
+                style={{
+                  padding: '12px',
+                  background: isActive ? 'var(--bg3)' : 'var(--bg2)',
+                  border: isActive ? '1px solid var(--ac)' : '1px dashed var(--brd)',
+                  borderRadius: '6px',
+                  cursor: isActive ? 'default' : 'pointer',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontWeight: isActive ? 'bold' : 'normal' }}>{tp.name}</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--tx3)', textTransform: 'uppercase' }}>temp · {tp.kind}</span>
+                  {isActive && <span style={{ fontSize: '0.8rem', color: 'var(--ac)' }}>Active</span>}
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    tempProfiles.value = tempProfiles.value.filter(x => !(x.kind === tp.kind && x.value === tp.value));
+                    if (isActive) exitTempProfile();
+                  }}
+                  style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '4px', fontSize: '1.1rem', lineHeight: 1 }}
+                  title="Remove temp profile"
+                >&times;</button>
+              </div>
+            );
+          })}
+
+          {activeTempProfile.value && (
+            <button
+              type="button"
+              onClick={() => exitTempProfile()}
+              style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', cursor: 'pointer' }}
+            >
+              ← Exit temp profile (back to {activeProfile.value})
+            </button>
+          )}
         </div>
 
         {/* Add New Profile */}

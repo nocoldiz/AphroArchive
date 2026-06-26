@@ -1,14 +1,238 @@
 [
-  { "url": "https://www.youtube.com/@BetterThanFood", "title": "Better Than Food — Book Reviews", "category": "Fiction", "hasVideo": true, "tags": ["review", "literary"] },
-  { "url": "https://www.youtube.com/@jackbenedwards", "title": "Jack Edwards", "category": "Fiction", "hasVideo": true, "tags": ["vlog", "review"] },
-  { "url": "https://www.youtube.com/@PolandbananasBOOKS", "title": "PolandbananasBOOKS", "category": "Fiction", "hasVideo": true, "tags": ["review"] },
-  { "url": "https://www.youtube.com/@SteveDonoghue", "title": "Steve Donoghue", "category": "Fiction", "hasVideo": true, "tags": ["criticism"] },
-  { "url": "https://www.youtube.com/@DanielGreeneReviews", "title": "Daniel Greene", "category": "Sci-Fi", "hasVideo": true, "tags": ["scifi", "review"] },
-  { "url": "https://www.youtube.com/@MerphyNapier", "title": "Merphy Napier", "category": "Fantasy", "hasVideo": true, "tags": ["fantasy", "review"] },
-  { "url": "https://www.youtube.com/@TaleFoundry", "title": "Tale Foundry — Storytelling & Lore", "category": "Fantasy", "hasVideo": true, "tags": ["craft", "lore"] },
-  { "url": "https://www.youtube.com/@AClockworkReader", "title": "A Clockwork Reader", "category": "Horror", "hasVideo": true, "tags": ["classics", "review"] },
-  { "url": "https://www.youtube.com/@bookswithemilyfox", "title": "Books with Emily Fox — Classics", "category": "Non-Fiction", "hasVideo": true, "tags": ["classics"] },
-  { "url": "https://www.youtube.com/@crashcourse", "title": "CrashCourse — Literature", "category": "Non-Fiction", "hasVideo": true, "tags": ["course", "analysis"] },
-  { "url": "https://www.youtube.com/@penguinbooks", "title": "Penguin Books", "category": "Non-Fiction", "hasVideo": true, "tags": ["publisher", "interview"] },
-  { "url": "https://www.youtube.com/@TheBookLeo", "title": "The Book Leo", "category": "Romance", "hasVideo": true, "tags": ["vlog"] }
+  {
+    "url": "https://www.youtube.com/@BetterThanFood",
+    "title": "Better Than Food — Book Reviews",
+    "category": "Fiction",
+    "hasVideo": true,
+    "tags": [
+      "review",
+      "literary"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@jackbenedwards",
+    "title": "Jack Edwards",
+    "category": "Fiction",
+    "hasVideo": true,
+    "tags": [
+      "vlog",
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@PolandbananasBOOKS",
+    "title": "PolandbananasBOOKS",
+    "category": "Fiction",
+    "hasVideo": true,
+    "tags": [
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@SteveDonoghue",
+    "title": "Steve Donoghue",
+    "category": "Fiction",
+    "hasVideo": true,
+    "tags": [
+      "criticism"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@DanielGreeneReviews",
+    "title": "Daniel Greene",
+    "category": "Sci-Fi",
+    "hasVideo": true,
+    "tags": [
+      "scifi",
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@MerphyNapier",
+    "title": "Merphy Napier",
+    "category": "Fantasy",
+    "hasVideo": true,
+    "tags": [
+      "fantasy",
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TaleFoundry",
+    "title": "Tale Foundry — Storytelling & Lore",
+    "category": "Fantasy",
+    "hasVideo": true,
+    "tags": [
+      "craft",
+      "lore"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AClockworkReader",
+    "title": "A Clockwork Reader",
+    "category": "Horror",
+    "hasVideo": true,
+    "tags": [
+      "classics",
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@bookswithemilyfox",
+    "title": "Books with Emily Fox — Classics",
+    "category": "Non-Fiction",
+    "hasVideo": true,
+    "tags": [
+      "classics"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@crashcourse",
+    "title": "CrashCourse — Literature",
+    "category": "Non-Fiction",
+    "hasVideo": true,
+    "tags": [
+      "course",
+      "analysis"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@penguinbooks",
+    "title": "Penguin Books",
+    "category": "Non-Fiction",
+    "hasVideo": true,
+    "tags": [
+      "publisher",
+      "interview"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TheBookLeo",
+    "title": "The Book Leo",
+    "category": "Romance",
+    "hasVideo": true,
+    "tags": [
+      "vlog"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@HelloFutureMe",
+    "title": "Hello Future Me",
+    "category": "Writing Craft",
+    "hasVideo": true,
+    "tags": [
+      "worldbuilding",
+      "writing"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@JustWriteMedia",
+    "title": "Just Write",
+    "category": "Writing Craft",
+    "hasVideo": true,
+    "tags": [
+      "storytelling",
+      "craft"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TheBookchemist",
+    "title": "The Bookchemist",
+    "category": "Literary Analysis",
+    "hasVideo": true,
+    "tags": [
+      "analysis",
+      "fantasy"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@bookpilled",
+    "title": "Bookpilled",
+    "category": "Literary Analysis",
+    "hasVideo": true,
+    "tags": [
+      "literary",
+      "analysis"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@booksandlala",
+    "title": "Books & Lala",
+    "category": "Book Reviews",
+    "hasVideo": true,
+    "tags": [
+      "review",
+      "thriller"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@withcindy",
+    "title": "withcindy",
+    "category": "Book Reviews",
+    "hasVideo": true,
+    "tags": [
+      "review",
+      "ya"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@climbthestacks",
+    "title": "climbthestacks",
+    "category": "Book Reviews",
+    "hasVideo": true,
+    "tags": [
+      "review",
+      "literary"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@LeenaNorms",
+    "title": "Leena Norms",
+    "category": "Poetry",
+    "hasVideo": true,
+    "tags": [
+      "poetry",
+      "culture"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ArielBissett",
+    "title": "Ariel Bissett",
+    "category": "Book Reviews",
+    "hasVideo": true,
+    "tags": [
+      "books",
+      "discussion"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@hardcoverliterature",
+    "title": "Hardcover",
+    "category": "Classics",
+    "hasVideo": true,
+    "tags": [
+      "classic",
+      "analysis"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TheCloserLook",
+    "title": "The Closer Look",
+    "category": "Literary Analysis",
+    "hasVideo": true,
+    "tags": [
+      "theme",
+      "essay"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@LindsayEllisVids",
+    "title": "Lindsay Ellis",
+    "category": "Literary Analysis",
+    "hasVideo": true,
+    "tags": [
+      "criticism",
+      "essay"
+    ]
+  }
 ]

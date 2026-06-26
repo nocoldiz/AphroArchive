@@ -180,5 +180,117 @@
     "country": "DE",
     "language": "English",
     "short_description": "Learn languages from real street interviews with subtitles."
+  },
+  "TED-Ed": {
+    "website": "https://www.youtube.com/@TEDEd",
+    "handle": "@TEDEd",
+    "country": "US",
+    "language": "English",
+    "short_description": "Animated educational lessons across every subject."
+  },
+  "SmarterEveryDay": {
+    "website": "https://www.youtube.com/@smartereveryday",
+    "handle": "@smartereveryday",
+    "country": "US",
+    "language": "English",
+    "short_description": "Science and engineering explored with curiosity by Destin Sandlin."
+  },
+  "Steve Mould": {
+    "website": "https://www.youtube.com/@SteveMould",
+    "handle": "@SteveMould",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Science demonstrations and physics curiosities."
+  },
+  "minutephysics": {
+    "website": "https://www.youtube.com/@minutephysics",
+    "handle": "@minutephysics",
+    "country": "US",
+    "language": "English",
+    "short_description": "Simple animated explanations of physics concepts."
+  },
+  "Domain of Science": {
+    "website": "https://www.youtube.com/@DoS",
+    "handle": "@DoS",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Maps of science and clear explainer videos."
+  },
+  "Two Minute Papers": {
+    "website": "https://www.youtube.com/@TwoMinutePapers",
+    "handle": "@TwoMinutePapers",
+    "country": "AT",
+    "language": "English",
+    "short_description": "Bite-sized summaries of AI and graphics research."
+  },
+  "Economics Explained": {
+    "website": "https://www.youtube.com/@EconomicsExplained",
+    "handle": "@EconomicsExplained",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Country economies and macroeconomic concepts explained."
+  },
+  "CrashCourse Computer Science": {
+    "website": "https://www.youtube.com/@crashcourse",
+    "handle": "@crashcourse",
+    "country": "US",
+    "language": "English",
+    "short_description": "Structured courses across science and humanities."
+  },
+  "The Organic Chemistry Tutor": {
+    "website": "https://www.youtube.com/@TheOrganicChemistryTutor",
+    "handle": "@TheOrganicChemistryTutor",
+    "country": "US",
+    "language": "English",
+    "short_description": "Math, physics, and chemistry problem walkthroughs."
+  },
+  "Professor Leonard": {
+    "website": "https://www.youtube.com/@ProfessorLeonard",
+    "handle": "@ProfessorLeonard",
+    "country": "US",
+    "language": "English",
+    "short_description": "Full-length college calculus and algebra lectures."
+  },
+  "Fireship": {
+    "website": "https://www.youtube.com/@Fireship",
+    "handle": "@Fireship",
+    "country": "US",
+    "language": "English",
+    "short_description": "Fast-paced coding tutorials and tech explainers."
+  },
+  "Tom Scott": {
+    "website": "https://www.youtube.com/@TomScottGo",
+    "handle": "@TomScottGo",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Things you might not know — tech, geography, language."
+  },
+  "Practical Engineering": {
+    "website": "https://www.youtube.com/@PracticalEngineeringChannel",
+    "handle": "@PracticalEngineeringChannel",
+    "country": "US",
+    "language": "English",
+    "short_description": "How infrastructure and civil engineering really work."
+  },
+  "Real Engineering": {
+    "website": "https://www.youtube.com/@RealEngineering",
+    "handle": "@RealEngineering",
+    "country": "IE",
+    "language": "English",
+    "short_description": "Engineering breakdowns of planes, machines, and tech."
+  },
+  "SciShow Space": {
+    "website": "https://www.youtube.com/@scishowspace",
+    "handle": "@scishowspace",
+    "country": "US",
+    "language": "English",
+    "short_description": "Astronomy and space science news and explainers."
+  },
+  "CGP Grey": {
+    "website": "https://www.youtube.com/@CGPGrey",
+    "handle": "@CGPGrey",
+    "country": "US",
+    "language": "English",
+    "short_description": "Explainer videos on politics, geography, and ideas."
   }
 }

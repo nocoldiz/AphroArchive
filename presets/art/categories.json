@@ -1,26 +1,122 @@
 {
   "Painting": {
     "displayName": "Painting",
-    "tags": ["oil", "watercolour", "acrylic", "canvas", "brush"]
+    "tags": [
+      "oil",
+      "watercolour",
+      "acrylic",
+      "canvas",
+      "brush",
+      "watercolor",
+      "plein air",
+      "portrait"
+    ]
   },
   "Drawing": {
     "displayName": "Drawing & Sketching",
-    "tags": ["pencil", "figure", "gesture", "ink", "charcoal"]
+    "tags": [
+      "pencil",
+      "figure",
+      "gesture",
+      "ink",
+      "charcoal",
+      "sketch",
+      "graphite"
+    ]
   },
   "Digital Art": {
     "displayName": "Digital Art",
-    "tags": ["concept art", "illustration", "photoshop", "procreate", "pixel"]
+    "tags": [
+      "concept art",
+      "illustration",
+      "photoshop",
+      "procreate",
+      "pixel",
+      "krita",
+      "speedpaint"
+    ]
   },
   "Art History": {
     "displayName": "Art History",
-    "tags": ["movement", "masterpiece", "museum", "analysis", "restoration"]
+    "tags": [
+      "movement",
+      "masterpiece",
+      "museum",
+      "analysis",
+      "restoration",
+      "renaissance",
+      "baroque",
+      "modernism"
+    ]
   },
   "Sculpture": {
     "displayName": "Sculpture & 3D",
-    "tags": ["clay", "zbrush", "modelling", "form"]
+    "tags": [
+      "clay",
+      "zbrush",
+      "modelling",
+      "form",
+      "bronze",
+      "carving"
+    ]
   },
   "Crafts": {
     "displayName": "Crafts & DIY",
-    "tags": ["printmaking", "diy", "handmade", "mixed media"]
+    "tags": [
+      "printmaking",
+      "diy",
+      "handmade",
+      "mixed media",
+      "ceramics"
+    ]
+  },
+  "Animation": {
+    "displayName": "Animation",
+    "tags": [
+      "animation",
+      "2d",
+      "3d",
+      "motion"
+    ]
+  },
+  "Photography": {
+    "displayName": "Photography",
+    "tags": [
+      "photo",
+      "camera",
+      "composition"
+    ]
+  },
+  "Concept Art": {
+    "displayName": "Concept Art",
+    "tags": [
+      "concept",
+      "design",
+      "environment"
+    ]
+  },
+  "Printmaking": {
+    "displayName": "Printmaking",
+    "tags": [
+      "print",
+      "linocut",
+      "screenprint"
+    ]
+  },
+  "Calligraphy": {
+    "displayName": "Calligraphy",
+    "tags": [
+      "lettering",
+      "typography",
+      "ink"
+    ]
+  },
+  "Street Art": {
+    "displayName": "Street Art",
+    "tags": [
+      "graffiti",
+      "mural",
+      "urban"
+    ]
   }
 }

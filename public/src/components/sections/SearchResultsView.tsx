@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { ComponentChildren } from 'preact';
 import {
-  searchQuery, searchScopes, searchAllVideos, currentView, thumbBlurMode,
+  searchQuery, searchScopes, searchAllVideos, currentView, thumbBlurMode, selectedVideoIds,
 } from '../../store';
-import { VideoCard } from '../UI/VideoGrid';
+import { VideoCard, VideoSelBar } from '../UI/VideoGrid';
 
 // Each macro category the universal search can surface. The async ones are
 // fetched once per session (full list) then filtered client-side.
@@ -143,6 +143,7 @@ export const SearchResultsView = () => {
 
   return (
     <div className="search-results-view" style={{ padding: '16px 0' }}>
+      <VideoSelBar />
       <div style={{ color: 'var(--tx3)', fontSize: '0.85rem', marginBottom: '16px' }}>
         {total} result{total !== 1 ? 's' : ''} for “{q}”
       </div>
@@ -151,25 +152,31 @@ export const SearchResultsView = () => {
         <div className="empty-state"><h3>No matches</h3><p>Nothing found in the selected categories. Try widening the search scope from the filter next to the search box.</p></div>
       )}
 
-      {on('videos') && videoMatches.length > 0 && (
-        <Section title={SCOPE_LABELS.videos} count={videoMatches.length}>
-          <div className="video-grid" data-thumb-mode={thumbBlurMode.value}>
-            {videoMatches.slice(0, MEDIA_CAP).map((v, i) => (
-              <VideoCard key={v.id} video={v} isSelected={false} index={i} />
-            ))}
-          </div>
-        </Section>
-      )}
+      {on('videos') && videoMatches.length > 0 && (() => {
+        const shown = videoMatches.slice(0, MEDIA_CAP);
+        return (
+          <Section title={SCOPE_LABELS.videos} count={videoMatches.length}>
+            <div className="video-grid" data-thumb-mode={thumbBlurMode.value}>
+              {shown.map((v, i) => (
+                <VideoCard key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} selectionList={shown} />
+              ))}
+            </div>
+          </Section>
+        );
+      })()}
 
-      {on('links') && linkMatches.length > 0 && (
-        <Section title={SCOPE_LABELS.links} count={linkMatches.length}>
-          <div className="video-grid" data-thumb-mode={thumbBlurMode.value}>
-            {linkMatches.slice(0, MEDIA_CAP).map((v, i) => (
-              <VideoCard key={v.id} video={v} isSelected={false} index={i} />
-            ))}
-          </div>
-        </Section>
-      )}
+      {on('links') && linkMatches.length > 0 && (() => {
+        const shown = linkMatches.slice(0, MEDIA_CAP);
+        return (
+          <Section title={SCOPE_LABELS.links} count={linkMatches.length}>
+            <div className="video-grid" data-thumb-mode={thumbBlurMode.value}>
+              {shown.map((v, i) => (
+                <VideoCard key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} selectionList={shown} />
+              ))}
+            </div>
+          </Section>
+        );
+      })()}
 
       {actors.length > 0 && (
         <Section title={SCOPE_LABELS.actors} count={actors.length}>

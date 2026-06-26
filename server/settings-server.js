@@ -148,6 +148,7 @@ async function apiSavePrefs(req, res) {
     }
   }
   if ('autoChapterDetection' in body) prefs.autoChapterDetection = !!body.autoChapterDetection;
+  if ('hlsTranscode' in body) prefs.hlsTranscode = !!body.hlsTranscode;
   if ('pinnedFolders' in body) {
     if (Array.isArray(body.pinnedFolders)) prefs.pinnedFolders = body.pinnedFolders.map(String).filter(Boolean).slice(0, 100);
   }

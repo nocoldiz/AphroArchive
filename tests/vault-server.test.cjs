@@ -72,6 +72,11 @@ injectMock('../server/db-server', {
   loadLinksCache: vi.fn(() => ({ items: state.links })),
   deleteLink: vi.fn((url) => { state.links = state.links.filter(l => l.url !== url); }),
   upsertLink: vi.fn((link) => { state.links.push(link); }),
+  // videos-server is pulled in transitively and sets up an fs.watch on
+  // VIDEOS_DIR; its debounced invalidateScanCache() calls these, so they must
+  // exist or a stray timer throws an uncaught "not a function" after teardown.
+  clearVideoIndex: vi.fn(() => {}),
+  clearMediaIndex: vi.fn(() => {}),
 });
 
 injectMock('../server/feed-watcher-server', {

@@ -1,18 +1,89 @@
 {
   "Let's Play": {
     "displayName": "Let's Play",
-    "tags": ["gameplay", "playthrough"]
+    "tags": [
+      "gameplay",
+      "playthrough",
+      "commentary",
+      "funny",
+      "co-op"
+    ]
   },
   "Speedruns": {
     "displayName": "Speedruns",
-    "tags": ["speedrun", "fast"]
+    "tags": [
+      "speedrun",
+      "fast",
+      "glitches",
+      "world record",
+      "any%"
+    ]
   },
   "Walkthroughs": {
     "displayName": "Walkthroughs",
-    "tags": ["guide", "tutorial"]
+    "tags": [
+      "guide",
+      "tutorial",
+      "100%",
+      "collectibles",
+      "boss"
+    ]
   },
   "Reviews": {
     "displayName": "Reviews",
-    "tags": ["review", "critique"]
+    "tags": [
+      "review",
+      "critique",
+      "first impressions",
+      "recommendation"
+    ]
+  },
+  "Esports": {
+    "displayName": "Esports",
+    "tags": [
+      "competitive",
+      "tournament",
+      "pro"
+    ]
+  },
+  "Indie": {
+    "displayName": "Indie Games",
+    "tags": [
+      "indie",
+      "pixel",
+      "roguelike"
+    ]
+  },
+  "Retro": {
+    "displayName": "Retro Gaming",
+    "tags": [
+      "retro",
+      "classic",
+      "emulation"
+    ]
+  },
+  "Game Design": {
+    "displayName": "Game Design",
+    "tags": [
+      "design",
+      "gamedev",
+      "analysis"
+    ]
+  },
+  "Horror": {
+    "displayName": "Horror Games",
+    "tags": [
+      "horror",
+      "survival",
+      "scary"
+    ]
+  },
+  "MMO": {
+    "displayName": "MMO",
+    "tags": [
+      "mmorpg",
+      "online",
+      "raid"
+    ]
   }
 }

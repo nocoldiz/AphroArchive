@@ -1,18 +1,71 @@
 {
   "YTP": {
     "displayName": "YouTube Poop",
-    "tags": ["ytp", "poop"]
+    "tags": [
+      "ytp",
+      "poop",
+      "sentence mixing",
+      "stutter loop",
+      "classic"
+    ]
   },
   "YTPMV": {
     "displayName": "YTPMV",
-    "tags": ["ytpmv", "music"]
+    "tags": [
+      "ytpmv",
+      "music",
+      "remix",
+      "sus"
+    ]
   },
   "Collabs": {
     "displayName": "Collabs",
-    "tags": ["collab", "joint"]
+    "tags": [
+      "collab",
+      "joint",
+      "tennis",
+      "community"
+    ]
   },
   "Source Material": {
     "displayName": "Source Material",
-    "tags": ["source", "base"]
+    "tags": [
+      "source",
+      "base",
+      "raw",
+      "clips"
+    ]
+  },
+  "Poop": {
+    "displayName": "Classic Poop",
+    "tags": [
+      "ytp",
+      "sentence mixing",
+      "classic"
+    ]
+  },
+  "Tennis": {
+    "displayName": "YTP Tennis",
+    "tags": [
+      "tennis",
+      "collab",
+      "back and forth"
+    ]
+  },
+  "Editing Tutorials": {
+    "displayName": "Editing Tutorials",
+    "tags": [
+      "tutorial",
+      "vegas",
+      "editing"
+    ]
+  },
+  "Surreal": {
+    "displayName": "Surreal",
+    "tags": [
+      "surreal",
+      "abstract",
+      "weird"
+    ]
   }
 }

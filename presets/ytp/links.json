@@ -1,16 +1,197 @@
 [
-  { "url": "https://www.youtube.com/@cs188", "title": "cs188 — Channel", "category": "YTP", "hasVideo": true, "tags": ["ytp", "creator"] },
-  { "url": "https://www.youtube.com/@WalrusGuy", "title": "WalrusGuy — Channel", "category": "YTP", "hasVideo": true, "tags": ["ytp", "classic"] },
-  { "url": "https://www.youtube.com/@Hurricoaster", "title": "Hurricoaster — Channel", "category": "YTP", "hasVideo": true, "tags": ["ytp"] },
-  { "url": "https://www.youtube.com/@Stegblob", "title": "Stegblob — Channel", "category": "YTP", "hasVideo": true, "tags": ["ytp"] },
-  { "url": "https://www.youtube.com/@EmpLemon", "title": "EmpLemon — Channel", "category": "YTP", "hasVideo": true, "tags": ["ytp", "essay"] },
-  { "url": "https://www.youtube.com/@deepercutt", "title": "Deepercutt — Channel", "category": "YTP", "hasVideo": true, "tags": ["ytp", "classic"] },
-  { "url": "https://www.youtube.com/@MoBrosStudios", "title": "MoBrosStudios — Channel", "category": "YTP", "hasVideo": true, "tags": ["ytp"] },
-  { "url": "https://www.youtube.com/@KroboProductions", "title": "KroboProductions — Channel", "category": "YTP", "hasVideo": true, "tags": ["ytp", "classic"] },
-  { "url": "https://www.youtube.com/@SiIvaGunner", "title": "SiIvaGunner — High Quality Rips", "category": "YTPMV", "hasVideo": true, "tags": ["ytpmv", "rips"] },
-  { "url": "https://www.youtube.com/@Spadinner", "title": "Spadinner — Channel", "category": "YTPMV", "hasVideo": true, "tags": ["ytpmv"] },
-  { "url": "https://www.youtube.com/@DELTARENDER", "title": "DELTARENDER — Channel", "category": "YTPMV", "hasVideo": true, "tags": ["ytpmv", "remix"] },
-  { "url": "https://www.youtube.com/@AmbassadorHawk", "title": "AmbassadorHawk — Collab Host", "category": "Collabs", "hasVideo": true, "tags": ["collab"] },
-  { "url": "https://www.youtube.com/@TerminalMontage", "title": "TerminalMontage — Something About", "category": "Source Material", "hasVideo": true, "tags": ["animation", "parody"] },
-  { "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw", "title": "Me at the zoo (first YouTube video)", "category": "Source Material", "hasVideo": true, "tags": ["classic", "source"] }
+  {
+    "url": "https://www.youtube.com/@cs188",
+    "title": "cs188 — Channel",
+    "category": "YTP",
+    "hasVideo": true,
+    "tags": [
+      "ytp",
+      "creator"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@WalrusGuy",
+    "title": "WalrusGuy — Channel",
+    "category": "YTP",
+    "hasVideo": true,
+    "tags": [
+      "ytp",
+      "classic"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Hurricoaster",
+    "title": "Hurricoaster — Channel",
+    "category": "YTP",
+    "hasVideo": true,
+    "tags": [
+      "ytp"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Stegblob",
+    "title": "Stegblob — Channel",
+    "category": "YTP",
+    "hasVideo": true,
+    "tags": [
+      "ytp"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@EmpLemon",
+    "title": "EmpLemon — Channel",
+    "category": "YTP",
+    "hasVideo": true,
+    "tags": [
+      "ytp",
+      "essay"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@deepercutt",
+    "title": "Deepercutt — Channel",
+    "category": "YTP",
+    "hasVideo": true,
+    "tags": [
+      "ytp",
+      "classic"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@MoBrosStudios",
+    "title": "MoBrosStudios — Channel",
+    "category": "YTP",
+    "hasVideo": true,
+    "tags": [
+      "ytp"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@KroboProductions",
+    "title": "KroboProductions — Channel",
+    "category": "YTP",
+    "hasVideo": true,
+    "tags": [
+      "ytp",
+      "classic"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@SiIvaGunner",
+    "title": "SiIvaGunner — High Quality Rips",
+    "category": "YTPMV",
+    "hasVideo": true,
+    "tags": [
+      "ytpmv",
+      "rips"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Spadinner",
+    "title": "Spadinner — Channel",
+    "category": "YTPMV",
+    "hasVideo": true,
+    "tags": [
+      "ytpmv"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@DELTARENDER",
+    "title": "DELTARENDER — Channel",
+    "category": "YTPMV",
+    "hasVideo": true,
+    "tags": [
+      "ytpmv",
+      "remix"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AmbassadorHawk",
+    "title": "AmbassadorHawk — Collab Host",
+    "category": "Collabs",
+    "hasVideo": true,
+    "tags": [
+      "collab"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TerminalMontage",
+    "title": "TerminalMontage — Something About",
+    "category": "Source Material",
+    "hasVideo": true,
+    "tags": [
+      "animation",
+      "parody"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    "title": "Me at the zoo (first YouTube video)",
+    "category": "Source Material",
+    "hasVideo": true,
+    "tags": [
+      "classic",
+      "source"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@GiIvaSunner",
+    "title": "SiIvaGunner",
+    "category": "YTPMV",
+    "hasVideo": true,
+    "tags": [
+      "rip",
+      "music"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Chincherrinas",
+    "title": "Chincherrinas",
+    "category": "Collabs",
+    "hasVideo": true,
+    "tags": [
+      "showdown",
+      "gaming"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@GfooMaster",
+    "title": "GfooMaster",
+    "category": "Poop",
+    "hasVideo": true,
+    "tags": [
+      "ytp",
+      "classic"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@cartoonlover98",
+    "title": "cartoonlover98",
+    "category": "Poop",
+    "hasVideo": true,
+    "tags": [
+      "cartoon",
+      "ytp"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Hugobossman",
+    "title": "Hugo",
+    "category": "Surreal",
+    "hasVideo": true,
+    "tags": [
+      "remix",
+      "edit"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@GeliRol",
+    "title": "Geli Rol",
+    "category": "YTPMV",
+    "hasVideo": true,
+    "tags": [
+      "ytpmv",
+      "spanish"
+    ]
+  }
 ]

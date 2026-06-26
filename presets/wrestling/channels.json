@@ -1,4 +1,4 @@
-﻿{
+{
   "WWE": {
     "website": "https://www.youtube.com/@WWE",
     "handle": "@WWE",
@@ -454,5 +454,68 @@
     "social_links": {
       "twitter": "https://twitter.com/TheChairshot"
     }
+  },
+  "Being The Elite": {
+    "website": "https://www.youtube.com/@BeingTheElite",
+    "handle": "@BeingTheElite",
+    "country": "US",
+    "language": "English",
+    "short_description": "Weekly YouTube series from AEW talent."
+  },
+  "New Japan Pro-Wrestling": {
+    "website": "https://www.youtube.com/@njpw1972",
+    "handle": "@njpw1972",
+    "country": "JP",
+    "language": "English",
+    "short_description": "Official NJPW channel — puroresu matches and clips."
+  },
+  "Major League Wrestling": {
+    "website": "https://www.youtube.com/@MLW",
+    "handle": "@MLW",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official MLW Fusion and event content."
+  },
+  "Game Changer Wrestling": {
+    "website": "https://www.youtube.com/@GCWFanForever",
+    "handle": "@GCWFanForever",
+    "country": "US",
+    "language": "English",
+    "short_description": "Official GCW deathmatch and indie events."
+  },
+  "Adam Wilbourn": {
+    "website": "https://www.youtube.com/@AdamWilbourn",
+    "handle": "@AdamWilbourn",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Wrestling comedy, lists, and reviews."
+  },
+  "denkops": {
+    "website": "https://www.youtube.com/@denkops",
+    "handle": "@denkops",
+    "country": "US",
+    "language": "English",
+    "short_description": "Wrestling match compilations and highlights."
+  },
+  "OSW Review": {
+    "website": "https://www.youtube.com/@OSWReview",
+    "handle": "@OSWReview",
+    "country": "IE",
+    "language": "English",
+    "short_description": "Old School Wrestling Review — retro PPV breakdowns."
+  },
+  "Out of Character": {
+    "website": "https://www.youtube.com/@OutofCharacterwithRyanSatin",
+    "handle": "@OutofCharacterwithRyanSatin",
+    "country": "US",
+    "language": "English",
+    "short_description": "Wrestler interviews and shoots."
+  },
+  "Tetsujin": {
+    "website": "https://www.youtube.com/@Tetsujin81",
+    "handle": "@Tetsujin81",
+    "country": "US",
+    "language": "English",
+    "short_description": "Classic puroresu and Japanese wrestling archives."
   }
 }

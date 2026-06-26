@@ -1,34 +1,124 @@
 {
   "Fiction": {
     "displayName": "Fiction",
-    "tags": ["literary", "historical", "contemporary", "novel"]
+    "tags": [
+      "literary",
+      "historical",
+      "contemporary",
+      "novel",
+      "short story"
+    ]
   },
   "Sci-Fi": {
     "displayName": "Science Fiction",
-    "tags": ["space opera", "cyberpunk", "dystopian", "future"]
+    "tags": [
+      "space opera",
+      "cyberpunk",
+      "dystopian",
+      "future",
+      "dystopia"
+    ]
   },
   "Fantasy": {
     "displayName": "Fantasy",
-    "tags": ["epic fantasy", "urban fantasy", "mythology", "magic"]
+    "tags": [
+      "epic fantasy",
+      "urban fantasy",
+      "mythology",
+      "magic",
+      "epic",
+      "grimdark",
+      "worldbuilding"
+    ]
   },
   "Horror": {
     "displayName": "Horror",
-    "tags": ["gothic", "supernatural", "psychological", "scary"]
+    "tags": [
+      "gothic",
+      "supernatural",
+      "psychological",
+      "scary",
+      "lovecraft",
+      "thriller"
+    ]
   },
   "Mystery": {
     "displayName": "Mystery & Crime",
-    "tags": ["detective", "crime", "thriller", "whodunit"]
+    "tags": [
+      "detective",
+      "crime",
+      "thriller",
+      "whodunit",
+      "noir"
+    ]
   },
   "Non-Fiction": {
     "displayName": "Non-Fiction",
-    "tags": ["biography", "history", "science", "philosophy", "memoir"]
+    "tags": [
+      "biography",
+      "history",
+      "science",
+      "philosophy",
+      "memoir"
+    ]
   },
   "Poetry": {
     "displayName": "Poetry",
-    "tags": ["classic", "modern", "verse", "anthology"]
+    "tags": [
+      "classic",
+      "modern",
+      "verse",
+      "anthology",
+      "sonnet",
+      "spoken word"
+    ]
   },
   "Romance": {
     "displayName": "Romance",
-    "tags": ["historical", "contemporary", "love"]
+    "tags": [
+      "historical",
+      "contemporary",
+      "love"
+    ]
+  },
+  "Classics": {
+    "displayName": "Classics",
+    "tags": [
+      "classic",
+      "canon",
+      "literature"
+    ]
+  },
+  "Book Reviews": {
+    "displayName": "Book Reviews",
+    "tags": [
+      "review",
+      "recommendation",
+      "critique"
+    ]
+  },
+  "Writing Craft": {
+    "displayName": "Writing Craft",
+    "tags": [
+      "writing",
+      "craft",
+      "authorship"
+    ]
+  },
+  "Manga": {
+    "displayName": "Manga",
+    "tags": [
+      "manga",
+      "comics",
+      "graphic novel"
+    ]
+  },
+  "Literary Analysis": {
+    "displayName": "Literary Analysis",
+    "tags": [
+      "analysis",
+      "theme",
+      "essay"
+    ]
   }
 }

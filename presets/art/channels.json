@@ -89,5 +89,110 @@
     "country": "AU",
     "language": "English",
     "short_description": "Art challenges, tutorials, and experiments across media."
+  },
+  "Ross Draws": {
+    "website": "https://www.youtube.com/@RossDraws",
+    "handle": "@RossDraws",
+    "country": "US",
+    "language": "English",
+    "short_description": "Painterly digital illustration tutorials and process videos."
+  },
+  "Jazza": {
+    "website": "https://www.youtube.com/@JazzaStudios",
+    "handle": "@JazzaStudios",
+    "country": "AU",
+    "language": "English",
+    "short_description": "Drawing challenges, art tutorials, and creative experiments."
+  },
+  "Sycra": {
+    "website": "https://www.youtube.com/@Sycra",
+    "handle": "@Sycra",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Art theory, drawing fundamentals, and creative growth."
+  },
+  "Ian Hubert": {
+    "website": "https://www.youtube.com/@mrdodobird",
+    "handle": "@mrdodobird",
+    "country": "US",
+    "language": "English",
+    "short_description": "Blender VFX and 3D environment lazy-tutorials."
+  },
+  "Blender Guru": {
+    "website": "https://www.youtube.com/@blenderguru",
+    "handle": "@blenderguru",
+    "country": "AU",
+    "language": "English",
+    "short_description": "The famous donut tutorial and 3D rendering in Blender."
+  },
+  "Feng Zhu Design": {
+    "website": "https://www.youtube.com/@FZDSCHOOL",
+    "handle": "@FZDSCHOOL",
+    "country": "SG",
+    "language": "English",
+    "short_description": "Concept design lectures from FZD School of Design."
+  },
+  "Trent Kaniuga": {
+    "website": "https://www.youtube.com/@TrentKaniuga",
+    "handle": "@TrentKaniuga",
+    "country": "US",
+    "language": "English",
+    "short_description": "Concept art and game art career advice."
+  },
+  "Sara Tepes": {
+    "website": "https://www.youtube.com/@saritea",
+    "handle": "@saritea",
+    "country": "US",
+    "language": "English",
+    "short_description": "Watercolor and digital portrait illustration."
+  },
+  "Aaron Blaise": {
+    "website": "https://www.youtube.com/@AaronBlaiseArt",
+    "handle": "@AaronBlaiseArt",
+    "country": "US",
+    "language": "English",
+    "short_description": "Former Disney animator teaching animal art and animation."
+  },
+  "Alphonso Dunn": {
+    "website": "https://www.youtube.com/@AlphonsoDunn",
+    "handle": "@AlphonsoDunn",
+    "country": "US",
+    "language": "English",
+    "short_description": "Pen and ink drawing techniques and fundamentals."
+  },
+  "Marc Brunet": {
+    "website": "https://www.youtube.com/@BraveJusticeKidsClub",
+    "handle": "@BraveJusticeKidsClub",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Digital painting and art career tutorials."
+  },
+  "The Futur": {
+    "website": "https://www.youtube.com/@thefutur",
+    "handle": "@thefutur",
+    "country": "US",
+    "language": "English",
+    "short_description": "Design business, branding, and creative career education."
+  },
+  "Adam Duff LUCIDPIXUL": {
+    "website": "https://www.youtube.com/@AdamDuffArt",
+    "handle": "@AdamDuffArt",
+    "country": "IE",
+    "language": "English",
+    "short_description": "Deep dives on art mindset and digital illustration."
+  },
+  "Stan Prokopenko": {
+    "website": "https://www.youtube.com/@ProkoTV",
+    "handle": "@ProkoTV",
+    "country": "US",
+    "language": "English",
+    "short_description": "Figure drawing, anatomy, and gesture lessons."
+  },
+  "Moderndayjames": {
+    "website": "https://www.youtube.com/@moderndayjames",
+    "handle": "@moderndayjames",
+    "country": "US",
+    "language": "English",
+    "short_description": "Form, perspective, and digital drawing fundamentals."
   }
 }

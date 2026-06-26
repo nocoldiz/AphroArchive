@@ -15,7 +15,7 @@ const {
 const { pipeline } = require('stream');
 const { promisify } = require('util');
 const pipe = promisify(pipeline);
-const { toId, fromId, safePath, formatBytes, formatDuration, json, readBody, wordMatch, wordMatchAny, channelMatchAny, actorMatchesAny, LIMITS } = require('./helpers-server');
+const { toId, fromId, safePath, formatBytes, formatDuration, parseRange, json, readBody, wordMatch, wordMatchAny, channelMatchAny, actorMatchesAny, LIMITS } = require('./helpers-server');
 const {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
@@ -1563,17 +1563,13 @@ async function apiStream(req, res, id) {
     fs.readSync(fd, tag, 0, tagLen, size - tagLen);
     fs.closeSync(fd);
 
-    const range = req.headers.range;
-    if (range) {
-      const [s, e2] = range.replace(/bytes=/, '').split('-');
-      let start = parseInt(s, 10);
-      let end = e2 ? parseInt(e2, 10) : contentSize - 1;
-      if (Number.isNaN(start)) start = 0;
-      if (Number.isNaN(end)) end = contentSize - 1;
-      if (start < 0 || end >= contentSize || start > end) {
+    const r = parseRange(req.headers.range, contentSize);
+    if (r) {
+      if (r.invalid) {
         res.writeHead(416, { 'Content-Range': `bytes */${contentSize}` });
         return res.end();
       }
+      const { start, end } = r;
       const chunkSz = end - start + 1;
 
       res.writeHead(206, {
@@ -1627,17 +1623,13 @@ async function apiStream(req, res, id) {
     return;
   }
 
-  const range = req.headers.range;
-  if (range) {
-    const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-    let start = parseInt(startStr, 10);
-    let end   = endStr ? parseInt(endStr, 10) : size - 1;
-    if (Number.isNaN(start)) start = 0;
-    if (Number.isNaN(end)) end = size - 1;
-    if (start < 0 || end >= size || start > end) {
+  const r = parseRange(req.headers.range, size);
+  if (r) {
+    if (r.invalid) {
       res.writeHead(416, { 'Content-Range': `bytes */${size}` });
       return res.end();
     }
+    const { start, end } = r;
     res.writeHead(206, {
       'Content-Range': `bytes ${start}-${end}/${size}`,
       'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct,

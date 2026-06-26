@@ -68,5 +68,75 @@
     "country": "US",
     "language": "English",
     "short_description": "Essays on internet culture, lost media, and the strange web."
+  },
+  "Nexpo": {
+    "website": "https://www.youtube.com/@Nexpo",
+    "handle": "@Nexpo",
+    "country": "CA",
+    "language": "English",
+    "short_description": "Internet mysteries and unsettling online stories."
+  },
+  "Night Mind": {
+    "website": "https://www.youtube.com/@NightMind",
+    "handle": "@NightMind",
+    "country": "US",
+    "language": "English",
+    "short_description": "ARG and online horror series breakdowns."
+  },
+  "ReignBot": {
+    "website": "https://www.youtube.com/@ReignBot",
+    "handle": "@ReignBot",
+    "country": "US",
+    "language": "English",
+    "short_description": "Strange internet phenomena and unsolved mysteries."
+  },
+  "Internet Historian": {
+    "website": "https://www.youtube.com/@InternetHistorian",
+    "handle": "@InternetHistorian",
+    "country": "NZ",
+    "language": "English",
+    "short_description": "Documentary-style retellings of internet events."
+  },
+  "Fredrik Knudsen": {
+    "website": "https://www.youtube.com/@FredrikKnudsen",
+    "handle": "@FredrikKnudsen",
+    "country": "US",
+    "language": "English",
+    "short_description": "Down the Rabbit Hole — long-form deep dives."
+  },
+  "Razbuten": {
+    "website": "https://www.youtube.com/@Razbuten",
+    "handle": "@Razbuten",
+    "country": "US",
+    "language": "English",
+    "short_description": "Thoughtful gaming and curiosity videos."
+  },
+  "Big Joel": {
+    "website": "https://www.youtube.com/@bigjoel",
+    "handle": "@bigjoel",
+    "country": "US",
+    "language": "English",
+    "short_description": "Media analysis and cultural deep dives."
+  },
+  "Lemmino": {
+    "website": "https://www.youtube.com/@LEMMiNO",
+    "handle": "@LEMMiNO",
+    "country": "SE",
+    "language": "English",
+    "short_description": "High-quality mystery and history documentaries."
+  },
+  "Hecarim": {
+    "website": "https://www.youtube.com/@hecan",
+    "handle": "@hecan",
+    "country": "US",
+    "language": "English",
+    "short_description": "Lost media investigations and gaming mysteries."
+  },
+  "Oddheader": {
+    "website": "https://www.youtube.com/@oddheader",
+    "handle": "@oddheader",
+    "country": "US",
+    "language": "English",
+    "short_description": "Gaming easter eggs, secrets, and unsolved mysteries."
   }
 }

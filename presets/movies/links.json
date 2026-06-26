@@ -1,19 +1,297 @@
 [
-  { "url": "https://www.youtube.com/@MOVIECLIPS", "title": "Movieclips", "category": "Action", "hasVideo": true, "tags": ["clips"] },
-  { "url": "https://www.youtube.com/@RottenTomatoesTRAILERS", "title": "Rotten Tomatoes Trailers", "category": "Action", "hasVideo": true, "tags": ["trailers"] },
-  { "url": "https://www.youtube.com/@UniversalPictures", "title": "Universal Pictures", "category": "Action", "hasVideo": true, "tags": ["studio", "trailers"] },
-  { "url": "https://www.youtube.com/@MARVEL", "title": "Marvel Entertainment", "category": "Action", "hasVideo": true, "tags": ["studio", "trailers"] },
-  { "url": "https://www.youtube.com/@A24", "title": "A24", "category": "Horror", "hasVideo": true, "tags": ["studio", "arthouse"] },
-  { "url": "https://www.youtube.com/@screenjunkies", "title": "Screen Junkies — Honest Trailers", "category": "Comedy", "hasVideo": true, "tags": ["comedy", "honest-trailers"] },
-  { "url": "https://www.youtube.com/@CinemaSins", "title": "CinemaSins — Everything Wrong With", "category": "Comedy", "hasVideo": true, "tags": ["comedy", "nitpick"] },
-  { "url": "https://www.youtube.com/@Nerdwriter1", "title": "Nerdwriter1 — Video Essays", "category": "Drama", "hasVideo": true, "tags": ["essay"] },
-  { "url": "https://www.youtube.com/@everyframeapainting", "title": "Every Frame a Painting", "category": "Drama", "hasVideo": true, "tags": ["essay", "craft"] },
-  { "url": "https://www.youtube.com/@LessonsfromtheScreenplay", "title": "Lessons from the Screenplay", "category": "Drama", "hasVideo": true, "tags": ["essay", "writing"] },
-  { "url": "https://www.youtube.com/@RedLetterMedia", "title": "RedLetterMedia", "category": "Drama", "hasVideo": true, "tags": ["review", "comedy"] },
-  { "url": "https://www.youtube.com/@ChrisStuckmann", "title": "Chris Stuckmann — Reviews", "category": "Drama", "hasVideo": true, "tags": ["review"] },
-  { "url": "https://www.youtube.com/@JeremyJahns", "title": "Jeremy Jahns — Reviews", "category": "Drama", "hasVideo": true, "tags": ["review"] },
-  { "url": "https://www.youtube.com/@LikeStoriesofOld", "title": "Like Stories of Old", "category": "Fantasy", "hasVideo": true, "tags": ["essay", "mythology"] },
-  { "url": "https://www.youtube.com/@Wisecrack", "title": "Wisecrack — Philosophy of Film", "category": "Docuseries", "hasVideo": true, "tags": ["essay", "philosophy"] },
-  { "url": "https://www.youtube.com/@StudioBinder", "title": "StudioBinder — Filmmaking", "category": "Docuseries", "hasVideo": true, "tags": ["craft", "filmmaking"] },
-  { "url": "https://www.youtube.com/@CineFix", "title": "CineFix", "category": "Docuseries", "hasVideo": true, "tags": ["lists", "craft"] }
+  {
+    "url": "https://www.youtube.com/@MOVIECLIPS",
+    "title": "Movieclips",
+    "category": "Action",
+    "hasVideo": true,
+    "tags": [
+      "clips"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@RottenTomatoesTRAILERS",
+    "title": "Rotten Tomatoes Trailers",
+    "category": "Action",
+    "hasVideo": true,
+    "tags": [
+      "trailers"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@UniversalPictures",
+    "title": "Universal Pictures",
+    "category": "Action",
+    "hasVideo": true,
+    "tags": [
+      "studio",
+      "trailers"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@MARVEL",
+    "title": "Marvel Entertainment",
+    "category": "Action",
+    "hasVideo": true,
+    "tags": [
+      "studio",
+      "trailers"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@A24",
+    "title": "A24",
+    "category": "Horror",
+    "hasVideo": true,
+    "tags": [
+      "studio",
+      "arthouse"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@screenjunkies",
+    "title": "Screen Junkies — Honest Trailers",
+    "category": "Comedy",
+    "hasVideo": true,
+    "tags": [
+      "comedy",
+      "honest-trailers"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@CinemaSins",
+    "title": "CinemaSins — Everything Wrong With",
+    "category": "Comedy",
+    "hasVideo": true,
+    "tags": [
+      "comedy",
+      "nitpick"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Nerdwriter1",
+    "title": "Nerdwriter1 — Video Essays",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "essay"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@everyframeapainting",
+    "title": "Every Frame a Painting",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "essay",
+      "craft"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@LessonsfromtheScreenplay",
+    "title": "Lessons from the Screenplay",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "essay",
+      "writing"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@RedLetterMedia",
+    "title": "RedLetterMedia",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "review",
+      "comedy"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@ChrisStuckmann",
+    "title": "Chris Stuckmann — Reviews",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@JeremyJahns",
+    "title": "Jeremy Jahns — Reviews",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "review"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@LikeStoriesofOld",
+    "title": "Like Stories of Old",
+    "category": "Fantasy",
+    "hasVideo": true,
+    "tags": [
+      "essay",
+      "mythology"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Wisecrack",
+    "title": "Wisecrack — Philosophy of Film",
+    "category": "Docuseries",
+    "hasVideo": true,
+    "tags": [
+      "essay",
+      "philosophy"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@StudioBinder",
+    "title": "StudioBinder — Filmmaking",
+    "category": "Docuseries",
+    "hasVideo": true,
+    "tags": [
+      "craft",
+      "filmmaking"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@CineFix",
+    "title": "CineFix",
+    "category": "Docuseries",
+    "hasVideo": true,
+    "tags": [
+      "lists",
+      "craft"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@BeKindRewind",
+    "title": "Be Kind Rewind",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "essay",
+      "oscars"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AccentedCinema",
+    "title": "Accented Cinema",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "international",
+      "analysis"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@CinemaTherapyShow",
+    "title": "Cinema Therapy",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "analysis",
+      "psychology"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@InPraiseofShadows",
+    "title": "In Praise of Shadows",
+    "category": "Horror",
+    "hasVideo": true,
+    "tags": [
+      "horror",
+      "essay"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@TheCinemaCartography",
+    "title": "The Cinema Cartography",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "theory",
+      "essay"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Filmento",
+    "title": "Filmento",
+    "category": "Action",
+    "hasVideo": true,
+    "tags": [
+      "screenwriting",
+      "analysis"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@Schaffrillas",
+    "title": "Schaffrillas Productions",
+    "category": "Comedy",
+    "hasVideo": true,
+    "tags": [
+      "animation",
+      "ranking"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@letterboxd",
+    "title": "Letterboxd",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "interview",
+      "culture"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@InsiderEntertainment",
+    "title": "Movies Insider",
+    "category": "Action",
+    "hasVideo": true,
+    "tags": [
+      "vfx",
+      "behindthescenes"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@MaggieMaeFish",
+    "title": "Maggie Mae Fish",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "analysis",
+      "culture"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@FocusFeatures",
+    "title": "Focus Features",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "trailer",
+      "indie"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@AppleTV",
+    "title": "Apple TV",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "trailer",
+      "originals"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/@StorytellersUnion",
+    "title": "Storytellers",
+    "category": "Drama",
+    "hasVideo": true,
+    "tags": [
+      "craft",
+      "analysis"
+    ]
+  }
 ]

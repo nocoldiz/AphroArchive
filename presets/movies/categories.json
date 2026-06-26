@@ -7,7 +7,10 @@
       "Scary",
       "Supernatural",
       "Slasher",
-      "Psychological"
+      "Psychological",
+      "found footage",
+      "folk horror",
+      "zombie"
     ]
   },
   "Sci-Fi": {
@@ -29,7 +32,10 @@
       "Fight",
       "Hero",
       "Stunt",
-      "Adrenaline"
+      "Adrenaline",
+      "martial arts",
+      "heist",
+      "spy"
     ]
   },
   "Comedy": {
@@ -40,7 +46,8 @@
       "Slapstick",
       "Parody",
       "Laughter",
-      "Sitcom"
+      "Sitcom",
+      "rom-com"
     ]
   },
   "Drama": {
@@ -51,7 +58,9 @@
       "Family",
       "Historical",
       "Character Study",
-      "Tragedy"
+      "Tragedy",
+      "coming of age",
+      "biopic"
     ]
   },
   "Fantasy": {
@@ -73,7 +82,8 @@
       "Crime",
       "Twist",
       "Intrigue",
-      "Danger"
+      "Danger",
+      "psychological"
     ]
   },
   "Western": {
@@ -217,6 +227,54 @@
       "Morally Ambiguous",
       "Urban",
       "Gritty"
+    ]
+  },
+  "Documentary": {
+    "displayName": "Documentary",
+    "tags": [
+      "documentary",
+      "nonfiction",
+      "true story"
+    ]
+  },
+  "Musical": {
+    "displayName": "Musical",
+    "tags": [
+      "musical",
+      "song",
+      "broadway"
+    ]
+  },
+  "Romance": {
+    "displayName": "Romance",
+    "tags": [
+      "romance",
+      "love",
+      "drama"
+    ]
+  },
+  "Crime": {
+    "displayName": "Crime",
+    "tags": [
+      "crime",
+      "heist",
+      "gangster"
+    ]
+  },
+  "War": {
+    "displayName": "War",
+    "tags": [
+      "war",
+      "military",
+      "historical"
+    ]
+  },
+  "Adventure": {
+    "displayName": "Adventure",
+    "tags": [
+      "adventure",
+      "quest",
+      "epic"
     ]
   }
 }

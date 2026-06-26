@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, currentFolder, updatePrefs, gridViewMode, groupByYear } from '../../store';
+import { sortMode, isShuffle, favFilter, galleryFilter, cardSize, thumbBlurMode, currentFolder, updatePrefs, gridViewMode, groupByYear, filteredVideos, selectedVideoIds, videoSelMode } from '../../store';
 import { CategoryTagsModal } from './CategoryTagsModal';
 import { FilterPanel } from './FilterPanel';
 
@@ -14,7 +14,8 @@ interface SectionControlsProps {
   showFilters?: boolean;
   showViewMode?: boolean;
   showGroupBy?: boolean;
-  
+  showSelect?: boolean;
+
   sortOptions?: { value: string, label: string }[];
   
   // Overrides
@@ -47,6 +48,7 @@ export const SectionControls = ({
   showFilters = false,
   showViewMode = true,
   showGroupBy = true,
+  showSelect = false,
   sortOptions = [
     { value: 'date', label: 'Recent' },
     { value: 'name', label: 'Name' },
@@ -218,6 +220,33 @@ export const SectionControls = ({
             <option value="year">By year</option>
             <option value="decade">By decade</option>
           </select>
+        </>
+      )}
+      {showSelect && (
+        <>
+          <span className="sg-sep"></span>
+          <button
+            className="sort-btn"
+            title="Select every video in this view"
+            onClick={() => {
+              selectedVideoIds.value = new Set(filteredVideos.value.map(v => v.id));
+              videoSelMode.value = filteredVideos.value.length > 0;
+            }}
+          >
+            Select all
+          </button>
+          {selectedVideoIds.value.size > 0 && (
+            <button
+              className="sort-btn"
+              title="Clear the current selection"
+              onClick={() => {
+                selectedVideoIds.value = new Set();
+                videoSelMode.value = false;
+              }}
+            >
+              Deselect all
+            </button>
+          )}
         </>
       )}
       {showTagsBtn && (

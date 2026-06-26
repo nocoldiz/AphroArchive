@@ -68,5 +68,75 @@
     "country": "GB",
     "language": "English",
     "short_description": "Long-form investigative crime and internet documentaries."
+  },
+  "EWU - Explore With Us": {
+    "website": "https://www.youtube.com/@ExploreWithUs",
+    "handle": "@ExploreWithUs",
+    "country": "US",
+    "language": "English",
+    "short_description": "Interrogation and court case breakdowns."
+  },
+  "Stephanie Soo": {
+    "website": "https://www.youtube.com/@MukbangwithStephanieSoo",
+    "handle": "@MukbangwithStephanieSoo",
+    "country": "US",
+    "language": "English",
+    "short_description": "True crime storytelling over mukbang."
+  },
+  "Lazy Masquerade": {
+    "website": "https://www.youtube.com/@LazyMasquerade",
+    "handle": "@LazyMasquerade",
+    "country": "GB",
+    "language": "English",
+    "short_description": "Narrated true crime and unsettling stories."
+  },
+  "Eleanor Neale": {
+    "website": "https://www.youtube.com/@EleanorNeale",
+    "handle": "@EleanorNeale",
+    "country": "GB",
+    "language": "English",
+    "short_description": "In-depth true crime case coverage."
+  },
+  "Danelle Hallan": {
+    "website": "https://www.youtube.com/@DanelleHallan",
+    "handle": "@DanelleHallan",
+    "country": "US",
+    "language": "English",
+    "short_description": "True crime cases told over crafting."
+  },
+  "Disturban": {
+    "website": "https://www.youtube.com/@Disturban",
+    "handle": "@Disturban",
+    "country": "US",
+    "language": "English",
+    "short_description": "Disturbing crime cases and analysis."
+  },
+  "Mile Higher": {
+    "website": "https://www.youtube.com/@MileHigherPodcast",
+    "handle": "@MileHigherPodcast",
+    "country": "US",
+    "language": "English",
+    "short_description": "True crime and mystery podcast."
+  },
+  "Crime Weekly": {
+    "website": "https://www.youtube.com/@CrimeWeekly",
+    "handle": "@CrimeWeekly",
+    "country": "US",
+    "language": "English",
+    "short_description": "Weekly true crime case deep dives."
+  },
+  "The Casual Criminalist": {
+    "website": "https://www.youtube.com/@TheCasualCriminalist",
+    "handle": "@TheCasualCriminalist",
+    "country": "GB",
+    "language": "English",
+    "short_description": "True crime stories with a casual twist."
+  },
+  "Going Postal": {
+    "website": "https://www.youtube.com/@GoingPostalShow",
+    "handle": "@GoingPostalShow",
+    "country": "US",
+    "language": "English",
+    "short_description": "Mass crime and historical case analysis."
   }
 }
