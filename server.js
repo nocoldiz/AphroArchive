@@ -700,7 +700,6 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 server.listen(PORT, () => {
   if (loadPrefs().chronologyMode === 'delete-on-startup') saveHistory([]);
   feedWatcher.startWatchers();
-  genWhisper.autoDownloadTurbo();
   const localIP = getLocalIP();
   console.log(`\n  \x1b[1;31m▶\x1b[0m  \x1b[1mAphroArchive\x1b[0m running at \x1b[4mhttp://localhost:${PORT}\x1b[0m`);
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);

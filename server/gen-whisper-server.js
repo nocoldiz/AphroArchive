@@ -331,24 +331,6 @@ function downloadModel(model) {
   });
 }
 
-// Auto-download the turbo model in the background at server startup.
-function autoDownloadTurbo() {
-  if (isModelDownloaded('turbo')) return;
-  console.log('[whisper] Auto-downloading turbo model…');
-  _modelDownloads.set('turbo', { model: 'turbo', progress: 0, status: 'downloading', error: null });
-  downloadModel('turbo').then(() => {
-    const r = _modelDownloads.get('turbo');
-    if (r) { r.status = 'done'; r.progress = 100; }
-    console.log('[whisper] Turbo model downloaded');
-    setTimeout(() => { const x = _modelDownloads.get('turbo'); if (x && x.status === 'done') _modelDownloads.delete('turbo'); }, 8000);
-  }).catch(e => {
-    const r = _modelDownloads.get('turbo');
-    if (r) { r.status = 'error'; r.error = e.message; }
-    console.warn('[whisper] Auto-download of turbo model failed:', e.message);
-    setTimeout(() => { const x = _modelDownloads.get('turbo'); if (x && x.status === 'error') _modelDownloads.delete('turbo'); }, 20000);
-  });
-}
-
 // ── API Handlers ──────────────────────────────────────────────────────
 
 function apiGenWhisperStart(_req, res) {
@@ -485,6 +467,6 @@ function apiWhisperAvailableModels(_req, res) {
 module.exports = {
   apiGenWhisperStart, apiGenWhisperStop, apiGenWhisperStatus, apiGenWhisperPoll,
   apiWhisperEnqueue, apiWhisperDownloadModel, apiWhisperDownloadingModels,
-  apiWhisperAvailableModels, autoDownloadTurbo,
+  apiWhisperAvailableModels,
   forceEnqueue,
 };

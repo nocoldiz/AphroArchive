@@ -171,21 +171,6 @@ if [ "$DO_ANDROID" -eq 1 ]; then
 fi
 
 # ============================================================
-# Bulk Downloader (PyInstaller — uses bulkdownloader/build.sh + .spec)
-# ============================================================
-echo "[bulkdownloader] Building BulkDownloaderGUI..."
-if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
-  if bash bulkdownloader/build.sh; then
-    echo " done."
-  else
-    echo " WARN: BulkDownloaderGUI build failed"
-  fi
-else
-  echo " WARN: Python not found, skipping BulkDownloaderGUI build."
-fi
-echo
-
-# ============================================================
 # Firefox Extension
 # ============================================================
 echo "[firefox] Packaging Firefox extension..."
@@ -204,9 +189,6 @@ echo
 [ -f dist/AphroArchive-linux        ] && echo "   AphroArchive-linux          Linux x64"
 [ -f dist/AphroArchive-mac.zip          ] && echo "   AphroArchive-mac.zip            macOS (arm64 + x64)"
 [ -f dist/AphroArchive.apk              ] && echo "   AphroArchive.apk                Android"
-[ -f dist/BulkDownloaderGUI             ] && echo "   BulkDownloaderGUI               Bulk Downloader GUI (Linux)"
-[ -d dist/BulkDownloaderGUI.app         ] && echo "   BulkDownloaderGUI.app           Bulk Downloader GUI (macOS)"
-[ -f dist/BulkDownloaderGUI-mac.zip     ] && echo "   BulkDownloaderGUI-mac.zip       Bulk Downloader GUI (macOS release)"
 [ -f dist/AphroArchive-firefox.xpi      ] && echo "   AphroArchive-firefox.xpi        Firefox extension"
 echo "============================================================"
 echo

@@ -175,29 +175,6 @@ if !DO_ANDROID!==1 (
 )
 
 :: ============================================================
-:: Bulk Downloader (PyInstaller)
-:: ============================================================
-echo [bulkdownloader] Building BulkDownloaderGUI...
-set PYEXE=
-where python >nul 2>&1
-if not errorlevel 1 set PYEXE=python
-if "!PYEXE!"=="" (
-  echo  WARN: Python not found, skipping BulkDownloaderGUI build.
-) else (
-  !PYEXE! -c "import PyInstaller" >nul 2>&1
-  if errorlevel 1 (
-    !PYEXE! -m pip install -U pyinstaller --quiet
-  )
-  !PYEXE! -m PyInstaller --noconfirm --onefile --windowed --name BulkDownloaderGUI --add-data "bulkdownloader\bulkdownloader.py;." --distpath dist --workpath build\bulkdownloader --specpath build bulkdownloader\bulkdownloader_gui.py
-  if errorlevel 1 (
-    echo  WARN: BulkDownloaderGUI build failed
-  ) else (
-    echo  done: dist\BulkDownloaderGUI.exe
-  )
-)
-echo.
-
-:: ============================================================
 :: Firefox Extension
 :: ============================================================
 echo [firefox] Packaging Firefox extension...
@@ -217,7 +194,6 @@ if exist dist\electron\                     echo    electron\                   
 if exist dist\AphroArchive-linux            echo    AphroArchive-linux          Linux x64
 if exist dist\AphroArchive-mac.zip          echo    AphroArchive-mac.zip        macOS ^(arm64 + x64^)
 if exist dist\AphroArchive.apk              echo    AphroArchive.apk            Android
-if exist dist\BulkDownloaderGUI.exe         echo    BulkDownloaderGUI.exe       Bulk Downloader GUI ^(Windows^)
 if exist dist\AphroArchive-firefox.xpi      echo    AphroArchive-firefox.xpi    Firefox extension
 echo ============================================================
 echo.
