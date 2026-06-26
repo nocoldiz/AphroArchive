@@ -74,5 +74,5 @@ build_fast.bat
 bulkdownloader/link_failed.txt
 dist/links_downloaded.txt
 dist/links_to_download.txt
-
+dist
 
