@@ -6,39 +6,11 @@ echo  ==========================================
 echo   AphroArchive Installer
 echo  ==========================================
 echo.
-echo   1  Minimal  ^|  Node + ffmpeg + yt-dlp
-echo              ^|  Everything needed to run the server
+echo   Node + ffmpeg + yt-dlp — everything needed to run the server
 echo.
-echo   2  Full     ^|  Minimal + Python + Whisper + base model
-echo              ^|  AI subtitles, dev server, standalone build
-echo.
-
-REM ─── Accept mode from command-line arg ──────────────────────────────
-set INSTALL_MODE=
-set ARG=%~1
-if /i "!ARG!"=="minimal" ( set INSTALL_MODE=1 & goto :start )
-if /i "!ARG!"=="full"    ( set INSTALL_MODE=2 & goto :start )
-if "!ARG!"=="1"          ( set INSTALL_MODE=1 & goto :start )
-if "!ARG!"=="2"          ( set INSTALL_MODE=2 & goto :start )
-
-:ask
-set /p INSTALL_MODE=  Choose [1/2]:
-if "!INSTALL_MODE!"=="1" goto :start
-if "!INSTALL_MODE!"=="2" goto :start
-echo   Please enter 1 or 2.
-goto :ask
-
-:start
-echo.
-if "!INSTALL_MODE!"=="1" (
-    echo  [MODE] Minimal — run only
-) else (
-    echo  [MODE] Full — AI subtitles + dev build
-)
 echo  ------------------------------------------
 
 set ERRORS=0
-set PYTHON_CMD=
 
 REM ─── Node.js ─────────────────────────────────────────────────────────
 where node >nul 2>&1
@@ -107,63 +79,6 @@ if not errorlevel 1 (
     )
 )
 
-REM ─── Minimal done — skip Whisper ─────────────────────────────────────
-if "!INSTALL_MODE!"=="1" goto :done
-
-REM ════════════════════════════════════════════════════════════════════
-REM  Full mode — Python + Whisper + base model
-REM ════════════════════════════════════════════════════════════════════
-
-REM ─── Python ──────────────────────────────────────────────────────────
-where python >nul 2>&1
-if not errorlevel 1 (
-    set PYTHON_CMD=python
-    for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo  [OK]   %%v
-) else (
-    where python3 >nul 2>&1
-    if not errorlevel 1 (
-        set PYTHON_CMD=python3
-        for /f "tokens=*" %%v in ('python3 --version 2^>^&1') do echo  [OK]   %%v
-    ) else (
-        echo  [WARN] Python not found. Install Python 3.8+ from https://www.python.org
-        echo         Whisper requires Python — skipping Whisper setup.
-        set ERRORS=1
-        goto :done
-    )
-)
-
-REM ─── Whisper ─────────────────────────────────────────────────────────
-where whisper >nul 2>&1
-if not errorlevel 1 (
-    echo  [OK]   whisper found in PATH
-) else (
-    echo  [INFO] Installing openai-whisper via pip ^(this may take a while^)...
-    !PYTHON_CMD! -m pip install openai-whisper --quiet
-    if not errorlevel 1 (
-        echo  [OK]   openai-whisper installed
-        where whisper >nul 2>&1
-        if errorlevel 1 (
-            echo  [NOTE] Add Python Scripts to PATH if the whisper command is not found later.
-            echo         Typical location: %APPDATA%\Python\PythonXX\Scripts
-        )
-    ) else (
-        echo  [WARN] Whisper install failed. Try manually: pip install openai-whisper
-        set ERRORS=1
-        goto :done
-    )
-)
-
-REM ─── Pre-download Whisper base model (~139 MB) into models\ ───────────
-if not exist models mkdir models
-echo  [INFO] Pre-downloading Whisper base model ^(~139 MB^) into models\ ...
-!PYTHON_CMD! -c "import os, whisper; whisper.load_model('base', download_root=os.path.join(os.getcwd(), 'models'))"
-if not errorlevel 1 (
-    echo  [OK]   Whisper base model ready in models\
-) else (
-    echo  [WARN] Base model pre-download failed — it will download on first subtitle generation.
-)
-
-:done
 echo  ------------------------------------------
 echo.
 if !ERRORS! == 0 (
@@ -173,16 +88,7 @@ if !ERRORS! == 0 (
 )
 echo.
 echo   Start:  node server.js
-if "!INSTALL_MODE!"=="2" (
-    echo   Dev:    npm run dev          ^(Vite frontend hot-reload^)
-    echo   Build:  npm run build:win    ^(standalone AphroArchive.exe^)
-    echo.
-    echo   Whisper models beyond "base" can be downloaded from
-    echo   Settings ^> AI ^> Whisper Subtitles.
-)
+echo   Dev:    npm run dev          ^(Vite frontend hot-reload^)
+echo   Build:  npm run build:win    ^(standalone AphroArchive.exe^)
 echo.
-if "!INSTALL_MODE!"=="1" (
-    echo   Optional: run "install.bat full" to also set up Whisper AI subtitles.
-    echo.
-)
 pause
