@@ -1,4 +1,5 @@
-﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, appPrefs } from '../../store';
+﻿import { formatVideoTitle } from '../../utils';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, appPrefs } from '../../store';
 import { zapOn, zapStartTime } from '../../zap';
 import { isTVMode, tvStartTime, nextVideoInChannel } from '../../tv-mode';
 import { ZapView } from './ZapView';
@@ -719,7 +720,7 @@ export const PlayerView = () => {
 
           <div className="player-info">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <h1 id="player-title" style={{ margin: 0 }}>{video.name}</h1>
+              <h1 id="player-title" style={{ margin: 0 }}>{formatVideoTitle(video.name)}</h1>
               <div className="player-rating" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '1.4rem' }}>
                 {[1, 2, 3, 4, 5].map(i => (
                   <span key={i} style={{ color: i <= (hoveredRating ?? rating ?? 0) ? 'var(--ac)' : 'var(--brd)', cursor: 'pointer' }}

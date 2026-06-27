@@ -1,3 +1,4 @@
+import { formatVideoTitle } from '../../utils';
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
@@ -480,7 +481,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
         })()}
       </div>
       <div className="card-body">
-        <div className="card-title" title={video.name}>{video.name}</div>
+        <div className="card-title" title={video.name}>{formatVideoTitle(video.name)}</div>
         <div className="card-meta" style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <span className="card-category">{video.category}</span>
         </div>
@@ -535,7 +536,7 @@ const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: 
       }}
     >
       <img className="vl-thumb" src={`/api/thumbs/${video.id}/${thumbIdx}`} loading="lazy" alt="" />
-      <div className="vl-title" title={video.name}>{video.name}</div>
+      <div className="vl-title" title={video.name}>{formatVideoTitle(video.name)}</div>
       <div className="vl-dur">{video.duration > 0 ? formatDuration(video.duration) : '—'}</div>
       <div className="vl-size">{sizeMb}</div>
       <div className="vl-rating">{video.rating ? '★'.repeat(video.rating) : '—'}</div>
