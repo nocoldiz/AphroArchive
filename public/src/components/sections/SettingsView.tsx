@@ -438,7 +438,7 @@ export const SettingsView = () => {
             </div>
             <div style={secLast}>
               <h3 style={{ ...secH, marginBottom: '6px' }}>Bar Layout</h3>
-              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar.</p>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar. Restoring defaults groups the Library / Media / Tools entries and all plugins into topbar dropdowns and shows the Tags list in the sidebar.</p>
               <button
                 type="button"
                 onClick={async () => {

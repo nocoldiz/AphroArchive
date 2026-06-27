@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, updatePrefs, sidebarSide, sidebarReveal, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, unlockZipCategory, linkTotalCount } from '../../store';
-import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken } from './navItems';
+import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID } from './navItems';
+import { pluginsList, isPluginEnabled, runPluginAction, type PluginMeta } from '../../plugins';
+import { zapOn } from '../../zap';
+import { isTVMode } from '../../tv-mode';
 
 interface SidebarItemProps {
   id?: string;
@@ -692,6 +695,85 @@ export const SectionDropdowns = () => {
           </div>
         );
       })}
+    </div>
+  );
+};
+
+/** A single topbar dropdown grouping every plugin the user hasn't pinned elsewhere. */
+export const PluginsDropdown = () => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const view = currentView.value;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  if (pluginGroupLocation() !== 'topbar') return null;
+
+  const plugins = pluginsList.value.filter(p =>
+    pluginInGroup(p) && isPluginEnabled(p.id) && (!p.contexts || p.contexts.includes(view))
+  );
+  if (!plugins.length) return null;
+
+  const shrinkId = PLUGINS_GROUP_ID;
+  const shrunken = isDropdownShrunken(shrinkId);
+
+  const isActive = (p: PluginMeta) => {
+    if (p.type === 'toggle' && p.toggleAction === 'toggleZapping') return zapOn.value;
+    if (p.type === 'toggle' && p.toggleAction === 'toggleTVMode') return isTVMode.value;
+    if (p.type === 'view') return view === p.view;
+    return false;
+  };
+
+  return (
+    <div className="filter-dropdowns" ref={ref}>
+      <div className="filter-dropdown">
+        <button
+          type="button"
+          className={`filter-dropdown-btn${open ? ' on' : ''}`}
+          onClick={() => setOpen(o => !o)}
+          onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, PLUGINS_GROUP_ID, 'Plugins', 'topbar'); }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ marginRight: shrunken ? '0' : '6px' }}>
+            <path d="M4 7h3a2 2 0 0 0 2-2 2 2 0 0 1 4 0 2 2 0 0 0 2 2h3a1 1 0 0 1 1 1v3a2 2 0 0 0 2 2 2 2 0 0 1 0 4 2 2 0 0 0-2 2v3a1 1 0 0 1-1 1h-3a2 2 0 0 1-2-2 2 2 0 0 0-4 0 2 2 0 0 1-2 2H4a1 1 0 0 1-1-1v-3a2 2 0 0 0-2-2 2 2 0 0 1 0-4 2 2 0 0 0 2-2V8a1 1 0 0 1 1-1z" />
+          </svg>
+          {!shrunken && 'Plugins'}
+          <Chevron open={open} />
+        </button>
+        {open && (
+          <div className="filter-dropdown-menu">
+            <div className="filter-dropdown-head">
+              <span>Plugins</span>
+              <ShrinkBtn dropdownId={shrinkId} />
+            </div>
+            <div className="filter-dropdown-body">
+              {plugins.map(p => (
+                <SidebarItem
+                  key={p.id}
+                  label={p.name}
+                  icon={p.icon
+                    ? navIcon(<g dangerouslySetInnerHTML={{ __html: p.icon }} />, 13, dropdownItemStyle)
+                    : navIcon(<circle cx="12" cy="12" r="5" />, 13, dropdownItemStyle)}
+                  isActive={isActive(p)}
+                  onClick={() => { runPluginAction(p, currentView); setOpen(false); }}
+                  onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar-dropdown'); }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

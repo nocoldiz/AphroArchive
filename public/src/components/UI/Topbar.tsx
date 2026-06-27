@@ -3,12 +3,12 @@ import { Fragment } from 'preact';
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
-import { FilterDropdowns, SectionDropdowns } from './LibraryFilters';
+import { FilterDropdowns, SectionDropdowns, PluginsDropdown } from './LibraryFilters';
 import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles, openExternalFolder, appPrefs } from '../../store';
 import { zapOn } from '../../zap';
 import { isTVMode } from '../../tv-mode';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction, type PluginMeta } from '../../plugins';
-import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, sectionPlacementFor, setItemPlacement, setNavOrder, activeDrag, getNavOrder, type NavItem } from './navItems';
+import { getNavItems, navIcon, placementFor, openMoveMenu, sectionPlacementFor, setItemPlacement, setNavOrder, activeDrag, getNavOrder, type NavItem } from './navItems';
 
 type TopbarSlot =
   | { kind: 'search'; id: 'search-bar' }
@@ -45,8 +45,10 @@ export const Topbar = () => {
     return false;
   });
 
+  // Only plugins the user has explicitly pinned to the topbar render as
+  // standalone icons here; the rest live in the grouped <PluginsDropdown />.
   const topbarPlugins = pluginsList.value
-    .filter(p => pluginLocation(p) === 'topbar' && isPluginEnabled(p.id))
+    .filter(p => placements[p.id] === 'topbar' && isPluginEnabled(p.id))
     .filter(p => !p.contexts || p.contexts.includes(view));
 
   const allSlots: TopbarSlot[] = [
@@ -155,6 +157,7 @@ export const Topbar = () => {
 
       <SectionDropdowns />
       <FilterDropdowns />
+      <PluginsDropdown />
 
       <div
         className="tb-moved"
