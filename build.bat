@@ -126,10 +126,18 @@ if !DO_MAC!==1 (
 
   powershell -NoProfile -Command "$s = '#!/bin/bash`ncd ""$(dirname ""$0"")""'`n$s += '`necho Setting permissions...`nchmod +x AphroArchive-macos-arm64 AphroArchive-macos-x64 AphroArchive.app/Contents/MacOS/launcher`necho Done! Double-click AphroArchive.app to launch.`necho If macOS blocks it: System Settings > Privacy & Security > Allow'; $s | Set-Content -Encoding UTF8 'dist\mac-stage\setup.sh'"
 
+  echo   [mac] Creating .dmg ^(UDF image^)...
+  call powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0make-dmg.ps1" -SourceDir "!STAGE!" -VolumeName AphroArchive -Output "dist\AphroArchive-mac.dmg"
+  if !ERRORLEVEL! NEQ 0 (
+    if exist dist\AphroArchive-mac.dmg del dist\AphroArchive-mac.dmg
+    echo  WARNING: .dmg creation failed; the .zip below is the usable artifact
+  )
+
   if exist dist\AphroArchive-mac.zip del dist\AphroArchive-mac.zip
   powershell -NoProfile -Command "Compress-Archive -Path 'dist\mac-stage\*' -DestinationPath 'dist\AphroArchive-mac.zip' -Force"
   rmdir /s /q "!STAGE!"
 
+  if exist dist\AphroArchive-mac.dmg echo  done: dist\AphroArchive-mac.dmg
   echo  done: dist\AphroArchive-mac.zip
   echo.
 )
@@ -192,7 +200,8 @@ echo.
 if exist dist\AphroArchive.exe              echo    AphroArchive.exe            Windows x64 ^(pkg^)
 if exist dist\electron\                     echo    electron\                   Windows Electron installer
 if exist dist\AphroArchive-linux            echo    AphroArchive-linux          Linux x64
-if exist dist\AphroArchive-mac.zip          echo    AphroArchive-mac.zip        macOS ^(arm64 + x64^)
+if exist dist\AphroArchive-mac.dmg          echo    AphroArchive-mac.dmg        macOS ^(arm64 + x64, UDF .dmg^)
+if exist dist\AphroArchive-mac.zip          echo    AphroArchive-mac.zip        macOS ^(arm64 + x64, zip fallback^)
 if exist dist\AphroArchive.apk              echo    AphroArchive.apk            Android
 if exist dist\AphroArchive-firefox.xpi      echo    AphroArchive-firefox.xpi    Firefox extension
 echo ============================================================
