@@ -369,7 +369,7 @@ export const Sidebar = () => {
     </>
   );
 
-  const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'sidebar';
+  const showFolders = placementFor(FILTER_IDS.folders, 'topbar') === 'sidebar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'sidebar' && !inVaultMode;
   const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'sidebar' && !inVaultMode;
 

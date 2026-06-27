@@ -1,3 +1,38 @@
+
+
+
+
+
+BY default in sidebar there is the folder view and in topbar the tags, this should be inverted so that by default in sidebar there is tags list and folders is on top
+
+
+
+Rework how the app handles all media: instead of having videos photos books pages ecc... folder it should have a single folder called media (that will contain also the hidden folder of vault, so update references)
+Fles in media folder or any subfolders or any remothe media paths will be autosorted in books view, video view, photo view, books view  by their filetype, make sure that the sql handling is updated cc... 
+After the task is done i'll give you some db to migrate. so prepare before also a python script for migration from the current structure
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # AphroArchive — TODO & Roadmap
 
 

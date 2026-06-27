@@ -518,6 +518,19 @@ export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onN
 
   return (
     <>
+      <SidebarItem
+        label="All Videos"
+        badge={filteredVids.length}
+        onClick={() => {
+          currentView.value = 'browse';
+          currentFolder.value = '';
+          currentTag.value = null; currentTagTerms.value = [];
+          sourceFilter.value = linksOnly ? 'remote' : 'local';
+          isSidebarOpen.value = false;
+          onNavigate?.();
+        }}
+        isActive={!currentFolder.value && !currentTag.value && sourceFilter.value !== (linksOnly ? 'local' : 'remote')}
+      />
       {pinnedTagsList.filter(t => matchName(t.name)).map(t => (
         <SidebarItem
           key={`pintag-${t.name}`}
@@ -692,7 +705,7 @@ export const FilterDropdowns = () => {
   const folderCtrlRef = useRef<FoldersFilterControl | null>(null);
   const [, folderForceUpdate] = useState(0);
 
-  const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'topbar';
+  const showFolders = placementFor(FILTER_IDS.folders, 'topbar') === 'topbar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'topbar' && !inVaultMode;
   const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'topbar' && !inVaultMode;
 
