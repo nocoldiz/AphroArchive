@@ -37,24 +37,10 @@ let vaultTimer = null;
 // orphaning every already-encrypted file. While this counter is > 0 the
 // auto-lock timer is held off; resumeAutoLock() re-arms it once the job ends.
 let _autoLockHold = 0;
-// Set by scheduleDeferredLock() when a profile switch away from Vault happens
-// while an encryption/decryption job is running. Cleared in lockVault() and
-// when the vault is unlocked again. The lock fires when _autoLockHold returns
-// to 0 inside resumeAutoLock().
-let _deferredLock = false;
 function suspendAutoLock() { _autoLockHold++; if (vaultTimer) { clearTimeout(vaultTimer); vaultTimer = null; } }
 function resumeAutoLock() {
   if (_autoLockHold > 0) _autoLockHold--;
-  if (_autoLockHold === 0) {
-    if (_deferredLock) { _deferredLock = false; lockVault(); return; }
-    resetVaultTimer();
-  }
-}
-// Called by the profile-switch handler instead of lockVault() so that an
-// in-progress batch job can finish before the session key is cleared.
-function scheduleDeferredLock() {
-  if (_autoLockHold > 0) { _deferredLock = true; }
-  else { lockVault(); }
+  if (_autoLockHold === 0) resetVaultTimer();
 }
 
 const NO_CACHE_HEADERS = {
@@ -93,7 +79,6 @@ function resetVaultTimer() {
     vaultPassword = null;
     vaultTimer = null;
     try { setVaultKey(null); } catch { }
-    try { require('./vault-zip-mount-server').unmountAll(); } catch {}
   }, ms);
 }
 
@@ -242,19 +227,40 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     dec.setAuthTag(tag);
     const src = fs.createReadStream(encPath, { start: ivLen, end: total - tagLen - 1 });
 
-    // Decrypt full stream but only pipe the requested byte range to response
+    // GCM forces decrypting from byte 0, but the pipeline stops the moment the
+    // requested range is served, honours socket backpressure, and tears down on
+    // client abort — otherwise every seek leaves a full-file decrypt running
+    // on an occupied connection (the infinite-loading hang).
     let pos = 0;
+    let ended = false;
+    const finish = () => {
+      if (ended) return;
+      ended = true;
+      try { src.destroy(); } catch {}
+      try { dec.destroy(); } catch {}
+      try { res.end(); } catch {}
+    };
     dec.on('data', chunk => {
       const chunkEnd = pos + chunk.length - 1;
-      if (chunkEnd < start || pos > end) { pos += chunk.length; return; }
+      if (chunkEnd < start || pos > end) {
+        pos += chunk.length;
+        if (pos > end) finish();
+        return;
+      }
       const sl = Math.max(0, start - pos);
       const se = Math.min(chunk.length, end - pos + 1);
-      res.write(chunk.slice(sl, se));
+      const ok = res.write(chunk.slice(sl, se));
+      if (!ok && !ended) {
+        src.pause();
+        res.once('drain', () => { if (!ended) src.resume(); });
+      }
       pos += chunk.length;
+      if (pos > end) finish();
     });
-    dec.on('end', () => { try { res.end(); } catch { } });
-    dec.on('error', () => { try { res.end(); } catch { } });
-    src.on('error', () => { try { res.end(); } catch { } });
+    dec.on('end', finish);
+    dec.on('error', finish);
+    src.on('error', finish);
+    res.on('close', finish);
     src.pipe(dec);
   } else {
     res.writeHead(200, {
@@ -267,6 +273,7 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     dec.setAuthTag(tag);
     const src = fs.createReadStream(encPath, { start: ivLen, end: total - tagLen - 1 });
     src.on('error', () => { try { res.end(); } catch { } });
+    res.on('close', () => { try { src.destroy(); } catch {} try { dec.destroy(); } catch {} });
     src.pipe(dec).pipe(res);
     dec.on('error', () => { try { res.end(); } catch { } });
   }
@@ -939,7 +946,6 @@ async function apiVaultSetup(req, res) {
     json(res, { ok: true });
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on setup failed:', e.message); }
     processHiddenFolder();
-    try { require('./vault-zip-mount-server').scanAndMountZips(pw, decryptToBuffer, loadVaultMeta()); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
@@ -989,7 +995,6 @@ async function apiVaultUnlock(req, res) {
     resetVaultTimer();
     json(res, { ok: true });
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on unlock failed:', e.message); }
-    try { require('./vault-zip-mount-server').scanAndMountZips(pw, decryptToBuffer, loadVaultMeta()); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
     processHiddenFolder();
     try { require('./feed-watcher-server').processVaultFeed(); } catch {}
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -1000,7 +1005,6 @@ function apiVaultLock(req, res) {
   vaultKey = null;
   vaultPassword = null;
   setVaultKey(null);
-  try { require('./vault-zip-mount-server').unmountAll(); } catch {}
   json(res, { ok: true });
 }
 
@@ -1009,9 +1013,6 @@ function apiVaultFiles(req, res) {
   resetVaultTimer();
   const meta  = loadVaultMeta();
   const items = Object.entries(meta).map(([id, m]) => ({ id, ...m }));
-  let mounted = [];
-  try { mounted = require('./vault-zip-mount-server').getMountedItems(); } catch {}
-  items.push(...mounted);
   items.sort((a, b) => b.mtime - a.mtime);
   json(res, items);
 }
@@ -1093,16 +1094,6 @@ function apiVaultDownload(req, res, id) {
 function apiVaultDelete(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
 
-  // Virtual ids from a mounted ZIP aren't in meta. A read-only archive can't
-  // have a single entry removed without rewriting it, so reject individual
-  // files/sub-folders with a clear message and let the user delete the whole
-  // archive (its root folder) instead — see apiVaultDeleteFolder.
-  let mount = null;
-  try { mount = require('./vault-zip-mount-server').resolveMount(id); } catch {}
-  if (mount) {
-    return json(res, { error: "Items inside a mounted ZIP can't be deleted individually. Delete the archive instead." }, 400);
-  }
-
   const meta = loadVaultMeta();
   if (!meta[id]) return json(res, { error: 'Not found' }, 404);
   _shredFile(path.join(VAULT_DIR, id + '.enc'));
@@ -1114,9 +1105,6 @@ function apiVaultDelete(req, res, id) {
   if (fs.existsSync(pageDir)) _shredDir(pageDir);
   delete meta[id];
   saveVaultMeta(meta);
-  // If this file was mounted as a ZIP, drop the stale in-memory mount so its
-  // virtual folder/files disappear from the listing right away.
-  try { require('./vault-zip-mount-server').unmountByVaultId(id); } catch {}
   json(res, { ok: true });
 }
 
@@ -1365,17 +1353,6 @@ function createVaultFolder(name, parent = null) {
 
 async function apiVaultDeleteFolder(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
-
-  // A mounted ZIP surfaces as a virtual folder (not in meta). Deleting that
-  // folder means "remove the archive": delete the backing .enc and unmount.
-  // Virtual sub-folders can't be deleted on their own (read-only archive).
-  let mount = null;
-  try { mount = require('./vault-zip-mount-server').resolveMount(id); } catch {}
-  if (mount) {
-    if (!mount.isRoot) return json(res, { error: "Sub-folders inside a mounted ZIP can't be deleted. Delete the archive instead." }, 400);
-    if (!mount.vaultId) return json(res, { error: 'This archive cannot be deleted from here.' }, 400);
-    return apiVaultDelete(req, res, mount.vaultId);
-  }
 
   const meta = loadVaultMeta();
   if (!meta[id] || meta[id].type !== 'folder') return json(res, { error: 'Not found' }, 404);
@@ -1896,7 +1873,7 @@ module.exports = {
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
-  deriveKeys, NO_CACHE_HEADERS, isUnlocked, lockVault, scheduleDeferredLock, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
+  deriveKeys, NO_CACHE_HEADERS, isUnlocked, lockVault, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
   encryptBufferToVault, createVaultFolder, suspendAutoLock, resumeAutoLock, reconcileVaultOrphans,
   apiVaultThumb, apiVaultGenThumbs, apiVaultGenThumbsStatus, generateVaultThumb,
   shredFile: _shredFile,

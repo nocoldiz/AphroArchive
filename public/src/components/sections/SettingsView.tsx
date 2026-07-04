@@ -1,6 +1,5 @@
 import { appPrefs, updatePrefs, loadVideos } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { PERSONALITIES, Personality } from '../../personalities';
 import { JSX } from 'preact';
 import { ensureQRCode } from '../../utils';
 import { CategorizeModal, PlanItem, Move } from '../UI/CategorizeModal';
@@ -75,8 +74,6 @@ export const SettingsView = () => {
 
   const [activeTab, setActiveTab] = useState('folders');
 
-  const [commentPrompt, setCommentPrompt] = useState(prefs.aiCommentMasterPrompt || '');
-  const [replyPrompt, setReplyPrompt] = useState(prefs.aiReplyMasterPrompt || '');
   const [anthropicKey, setAnthropicKey] = useState(prefs.anthropicApiKey || '');
   const [whisperEnabled, setWhisperEnabled] = useState(prefs.whisperEnabled ?? true);
   const [whisperModel, setWhisperModel] = useState(prefs.whisperModel || 'base');
@@ -232,8 +229,6 @@ export const SettingsView = () => {
   };
 
   useEffect(() => {
-    setCommentPrompt(prefs.aiCommentMasterPrompt || '');
-    setReplyPrompt(prefs.aiReplyMasterPrompt || '');
     setAnthropicKey(prefs.anthropicApiKey || '');
     setNetEnabled(!!prefs.networkEnabled);
     setOpenrouterKey(prefs.openrouterApiKey || '');
@@ -334,9 +329,6 @@ export const SettingsView = () => {
     })();
   }, [connectUrls, connectIdx]);
 
-  const applyPersonality = (p: Personality) => { setCommentPrompt(p.prompt); setReplyPrompt(p.replyPrompt); };
-
-  const handleSaveAi = () => { updatePrefs({ aiCommentMasterPrompt: commentPrompt, aiReplyMasterPrompt: replyPrompt }); alert('AI Prompts saved!'); };
   const handleSaveAnthropic = () => { updatePrefs({ anthropicApiKey: anthropicKey }); alert('Anthropic API key saved!'); };
 
   const handleSaveHidden = async () => {
@@ -438,7 +430,7 @@ export const SettingsView = () => {
             </div>
             <div style={secLast}>
               <h3 style={{ ...secH, marginBottom: '6px' }}>Bar Layout</h3>
-              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar.</p>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar. Restoring defaults groups the Library / Media / Tools entries and all plugins into topbar dropdowns and shows the Tags list in the sidebar.</p>
               <button
                 type="button"
                 onClick={async () => {
@@ -508,7 +500,7 @@ export const SettingsView = () => {
             {/* OpenRouter API Key */}
             <div style={sec}>
               <h3 style={secH}>OpenRouter API Key</h3>
-              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Used by Chat Assistant and AI Comments when their provider is set to OpenRouter. Get a free key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ac)' }}>openrouter.ai/keys</a>.</p>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Used by the Chat Assistant when its provider is set to OpenRouter. Get a free key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ac)' }}>openrouter.ai/keys</a>.</p>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input
                   type="password"
@@ -521,34 +513,6 @@ export const SettingsView = () => {
                   {openrouterKeySaved ? 'Saved ✓' : 'Save Key'}
                 </button>
               </div>
-            </div>
-
-            {/* AI Comments */}
-            <div style={sec}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0, color: 'var(--ac)' }}>AI Comments</h3>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                  <input type="checkbox" checked={!!prefs.aiCommentsEnabled} onChange={(e) => updatePrefs({ aiCommentsEnabled: (e.currentTarget as HTMLInputElement).checked })} style={{ width: '16px', height: '16px' }} />
-                  Enable
-                </label>
-              </div>
-              <div style={fieldRow}>
-                <label style={label}>Preset Personality</label>
-                <select onChange={(e) => { const p = PERSONALITIES.find(x => x.id === (e.target as HTMLSelectElement).value); if (p) applyPersonality(p); }}
-                  style={{ ...inp }}>
-                  <option value="">— Select a preset personality —</option>
-                  {PERSONALITIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div style={fieldRow}>
-                <label style={label}>Comment Master Prompt</label>
-                <textarea value={commentPrompt} onInput={(e) => setCommentPrompt((e.target as HTMLTextAreaElement).value)} rows={4} style={{ ...inp, fontFamily: 'monospace', resize: 'vertical' }} />
-              </div>
-              <div style={fieldRow}>
-                <label style={label}>Reply Master Prompt</label>
-                <textarea value={replyPrompt} onInput={(e) => setReplyPrompt((e.target as HTMLTextAreaElement).value)} rows={3} style={{ ...inp, fontFamily: 'monospace', resize: 'vertical' }} />
-              </div>
-              <button class="modal-btn modal-btn--primary" onClick={handleSaveAi} style={{ width: '100%' }}>Save Prompts</button>
             </div>
 
             {/* Vision Provider */}
@@ -801,7 +765,7 @@ export const SettingsView = () => {
                 <i className="icon-database" /> Storage Paths
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
-                Override where cache, database, and vault files are stored. Applied to all profiles. Requires a server restart to take effect. If the configured folder is deleted, the default path is used.
+                Override where cache, database, and vault files are stored. Requires a server restart to take effect. If the configured folder is deleted, the default path is used.
               </p>
               {storagePaths && (() => {
                 const browse = async (key: 'cacheDir' | 'dbDir' | 'vaultDir') => {
@@ -830,7 +794,7 @@ export const SettingsView = () => {
                 };
                 const rows: { key: 'cacheDir' | 'dbDir' | 'vaultDir'; label: string; hint: string }[] = [
                   { key: 'cacheDir', label: 'Cache Folder', hint: 'Thumbnails, favourites, ratings, history and other cached data.' },
-                  { key: 'dbDir',    label: 'Database Folder', hint: 'SQLite database files for all profiles.' },
+                  { key: 'dbDir',    label: 'Database Folder', hint: 'SQLite database files.' },
                   { key: 'vaultDir', label: 'Vault / Hidden Folder', hint: 'Encrypted vault storage (videos/hidden by default).' },
                 ];
                 return (

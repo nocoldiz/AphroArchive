@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { memo } from 'preact/compat';
-import { rebuildLinkVidIds, currentVideo, currentView, activeProfile, isVaultUnlocked, vaultGlobalView, syncLinkCache } from '../../store';
+import { rebuildLinkVidIds, currentVideo, currentView, isVaultUnlocked, vaultGlobalView, syncLinkCache } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
 interface LinkItem {
@@ -614,7 +614,7 @@ export const LinksView = () => {
   const [channelViewFilter, setChannelViewFilter] = useState('');
   const [expandedSites, setExpandedSites] = useState<Set<string>>(() => {
     try {
-      const raw = localStorage.getItem(`links-expanded-sites-${activeProfile.value}`);
+      const raw = localStorage.getItem('links-expanded-sites');
       return raw ? new Set(JSON.parse(raw)) : new Set();
     } catch { return new Set(); }
   });
@@ -1174,7 +1174,7 @@ export const LinksView = () => {
       const next = new Set(prev);
       next.has(site) ? next.delete(site) : next.add(site);
       try {
-        localStorage.setItem(`links-expanded-sites-${activeProfile.value}`, JSON.stringify([...next]));
+        localStorage.setItem('links-expanded-sites', JSON.stringify([...next]));
       } catch {}
       return next;
     });

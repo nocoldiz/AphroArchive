@@ -41,10 +41,6 @@ export interface Folder {
   // Temporarily opened folder (Open button) — not part of the library DB.
   opened?: boolean;
   openedRoot?: string;
-  // Virtual folder backed by a ZIP archive (media-zip mount).
-  isZipMount?: boolean;
-  // Encrypted ZIP archive awaiting a password before its contents are shown.
-  locked?: boolean;
 }
 
 export interface Actor {
@@ -63,9 +59,6 @@ export interface AppPrefs {
   cardSize: number;
   networkEnabled: boolean;
   chronologyMode: 'keep' | 'delete-on-startup' | 'dont-save';
-  aiCommentMasterPrompt?: string;
-  aiReplyMasterPrompt?: string;
-  aiCommentsEnabled?: boolean;
   anthropicApiKey?: string;
   disableSearchTracking?: boolean;
   vaultSelfDestruct?: boolean;
@@ -85,6 +78,8 @@ export interface AppPrefs {
   hideEmptyFolders?: boolean;
   pinnedFolders?: string[];
   pinnedTags?: string[];
+  hiddenFolders?: string[];
+  pinnedTagsOnly?: boolean;
   comfyuiUrl?: string;
   comfyuiWorkflowJson?: string;
   comfyuiPositiveNodeId?: string;

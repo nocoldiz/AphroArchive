@@ -378,8 +378,8 @@ export const AssistantView = () => {
     const prompt = text.split('\n\n')[0].replace(/\*\*/g, '').trim();
     setLastImagePrompt(prompt);
     navigator.clipboard?.writeText(prompt).catch(() => {});
-    currentView.value = 'imagegen';
-    if ((window as any).toast) (window as any).toast('Navigated to Image Gen — paste prompt there');
+    currentView.value = 'prompts';
+    if ((window as any).toast) (window as any).toast('Navigated to Prompts — paste prompt there');
   };
 
   const clearChat = () => setMessages([]);
@@ -632,7 +632,7 @@ export const AssistantView = () => {
               style={{ background: 'var(--bg3)', color: 'var(--tx2)', border: '1px solid var(--brd)', borderRadius: '7px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: streaming ? 0.5 : 1, whiteSpace: 'nowrap' }}
             >Gen Prompt</button>
             <button
-              onClick={() => { currentView.value = 'imagegen'; if ((window as any).toast) (window as any).toast('Opened Image Gen — use the Prompt Generator panel (Static wildcards or AI)'); }}
+              onClick={() => { currentView.value = 'prompts'; if ((window as any).toast) (window as any).toast('Opened Prompts — use the Prompt Generator panel (Static wildcards or AI)'); }}
               disabled={streaming}
               title="Open Prompt Generator"
               style={{ background: 'var(--bg3)', color: 'var(--tx2)', border: '1px solid var(--brd)', borderRadius: '7px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', opacity: streaming ? 0.5 : 1, whiteSpace: 'nowrap' }}

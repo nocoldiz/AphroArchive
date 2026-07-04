@@ -1194,7 +1194,7 @@ input {
 
 .video-player-wrap {
   width: 100%;
-  max-width: 940px;
+  max-width: 1200px;
   margin: 0 auto;
   border-radius: var(--rl);
   overflow: hidden;
@@ -1206,7 +1206,23 @@ input {
 .video-player-wrap video {
   width: 100%;
   display: block;
-  max-height: 70vh
+  max-height: 85vh
+}
+
+/* When the wrapper itself is the fullscreen element (kept stable so fullscreen
+   survives switching to the next/previous video), drop the library layout caps. */
+.video-player-wrap:fullscreen,
+.video-player-wrap:-webkit-full-screen {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  border-radius: 0
+}
+
+.video-player-wrap:fullscreen .advanced-player,
+.video-player-wrap:-webkit-full-screen .advanced-player {
+  width: 100%;
+  height: 100%
 }
 
 .video-subtitle-overlay {
@@ -4210,6 +4226,32 @@ input {
   background: var(--ac)18
 }
 
+/* Circular library-load progress ring (topbar + tag list header) */
+.load-progress {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.load-progress-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--tx2);
+  line-height: 1;
+}
+.load-progress-arc {
+  transition: stroke-dashoffset 0.25s ease;
+}
+.load-progress-spin svg {
+  animation: spin 0.9s linear infinite;
+}
+
 .sidebar-heading-actions {
   display: flex;
   align-items: center;
@@ -6859,9 +6901,13 @@ input {
   display: flex; align-items: center; padding: 4px 0;
 }
 
-/* horizontal video rows */
-.dw-row { display: flex; gap: 10px; overflow-x: auto; height: 100%; padding-bottom: 6px; }
-.dw-row::-webkit-scrollbar { height: 6px; }
+/* video grid — cards wrap and reflow with the widget size */
+.dw-row {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px; align-content: start;
+  height: 100%; overflow-y: auto; padding-bottom: 6px;
+}
+.dw-row::-webkit-scrollbar { width: 6px; }
 .dw-row::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
 .dw-card { flex: 0 0 auto; width: 158px; cursor: pointer; }
 .dw-thumb {
@@ -6887,8 +6933,8 @@ input {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
-/* Browse-style card inside a widget row */
-.dw-card-wrap { position: relative; flex: 0 0 auto; width: 220px; }
+/* Browse-style card inside a widget grid */
+.dw-card-wrap { position: relative; min-width: 0; }
 .dw-card-wrap .video-card { width: 100%; margin: 0; }
 .dw-card-wrap .dw-card-x {
   top: 6px; left: 6px; right: auto; z-index: 5;
@@ -7853,6 +7899,47 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   border: 1px solid var(--brd)
 }
 
+.ph-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  min-height: 28px
+}
+
+.ph-back {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px
+}
+
+.ph-folder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg3)
+}
+
+.ph-folder:hover {
+  border-color: var(--ac)
+}
+
+.ph-folder-name {
+  font-size: .82rem;
+  color: var(--tx);
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+
+.ph-folder-count {
+  font-size: .7rem;
+  color: var(--tx3)
+}
+
 .ph-card:hover .ph-overlay {
   opacity: 1
 }
@@ -8747,35 +8834,27 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   }
 }
 
-/* ── ImageGen responsive columns ── */
-.imagegen-cols {
+/* ── Prompts builder responsive columns ── */
+.prompts-builder-2col {
   grid-template-columns: 1fr 1fr;
 }
 
-.imagegen-builder-2col {
-  grid-template-columns: 1fr 1fr;
-}
-
-.imagegen-photo-grid {
+.prompts-photo-grid {
   grid-template-columns: repeat(4, 1fr);
 }
 
 @media(max-width:700px) {
-  .imagegen-cols {
+  .prompts-builder-2col {
     grid-template-columns: 1fr;
   }
 
-  .imagegen-builder-2col {
-    grid-template-columns: 1fr;
-  }
-
-  .imagegen-photo-grid {
+  .prompts-photo-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media(max-width:420px) {
-  .imagegen-photo-grid {
+  .prompts-photo-grid {
     grid-template-columns: 1fr;
   }
 }

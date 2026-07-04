@@ -32,13 +32,12 @@ let _thumbs     = null;
 let _actors          = null;
 let _folderMappings  = null;
 let _channels         = null;
-// FTS5 full-text index state (declared here so switchProfile — which runs at
-// module load — can touch it before the helper section below is reached).
+// FTS5 full-text index state (declared here so the DB init block — which runs
+// at module load — can touch it before the helper section below is reached).
 let _ftsDirty = true;
 let _ftsAvailable = null;
 
 let db;
-let currentProfile = 'default';
 let _dbInMemory = false;
 
 // Wraps a synchronous function in a BEGIN/COMMIT/ROLLBACK block
@@ -167,11 +166,6 @@ function ensureSchema(database) {
       hash TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS comments (
-      video_id TEXT PRIMARY KEY,
-      data TEXT
-    );
-
     CREATE TABLE IF NOT EXISTS prompts (
       id TEXT PRIMARY KEY,
       text TEXT,
@@ -224,7 +218,10 @@ function ensureSchema(database) {
       media_type TEXT,
       size INTEGER,
       size_f TEXT,
-      mtime INTEGER
+      mtime INTEGER,
+      cat_path TEXT,
+      title TEXT,
+      note TEXT
     );
 
     CREATE TABLE IF NOT EXISTS files_meta (
@@ -336,54 +333,76 @@ function ensureSchema(database) {
   try { database.exec('ALTER TABLE links ADD COLUMN vault INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE videos ADD COLUMN language TEXT'); } catch {}
   try { database.exec('ALTER TABLE videos ADD COLUMN reencoded INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE media_index ADD COLUMN cat_path TEXT'); } catch {}
+  try { database.exec('ALTER TABLE media_index ADD COLUMN title TEXT'); } catch {}
+  try { database.exec('ALTER TABLE media_index ADD COLUMN note TEXT'); } catch {}
 }
 
-function switchProfile(profileName) {
-  currentProfile = profileName;
-  _dbInMemory = false;
-  if (db) {
-    try { db.close(); } catch(e) {}
-  }
-  const dbPath = path.join(DB_DIR, `aphroarchive_${profileName}.db`);
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  db = new DatabaseSync(dbPath);
-  db.exec('PRAGMA journal_mode=WAL');
-  db.exec('PRAGMA busy_timeout=5000');
-  ensureSchema(db);
-  runMigrations(db);
+// Initialize database; defer disk creation until preset is chosen if needed
+const DB_FILE = path.join(DB_DIR, 'db.db');
 
-  // Clear caches
+function _clearCaches() {
   _favs       = null;
   _history    = null;
-  _videoMeta  = null;
+  _videoMeta  = null; _notifyVideoMetaChanged();
   _thumbs     = null;
   _actors          = null;
   _folderMappings  = null;
   _channels         = null;
   _ftsDirty         = true;
-
-  return db;
 }
 
-// Initialize with last active profile (or default); defer disk creation until preset is chosen
-{
-  let startProfile = 'default';
+// Promote the first-run in-memory DB to a real file on disk. No-op if the DB is
+// already persisted. Called once the user picks a preset / completes onboarding.
+function persistDbToDisk() {
+  if (!_dbInMemory) return;
+  if (db) { try { db.close(); } catch {} }
+  fs.mkdirSync(DB_DIR, { recursive: true });
+  db = new DatabaseSync(DB_FILE);
+  db.exec('PRAGMA journal_mode=WAL');
+  db.exec('PRAGMA busy_timeout=5000');
+  ensureSchema(db);
+  runMigrations(db);
+  _dbInMemory = false;
+  _clearCaches();
+}
+
+// One-time migration from the old multi-profile layout: promote the previous
+// default profile's DB (aphroarchive_default.db) to the single db.db so existing
+// libraries carry over. Only runs when db.db is absent, so it never clobbers.
+function _migrateLegacyDefaultDb() {
+  if (fs.existsSync(DB_FILE)) return;
+  const legacy = path.join(DB_DIR, 'aphroarchive_default.db');
+  if (!fs.existsSync(legacy)) return;
   try {
-    const _lastFile = path.join(DB_DIR, 'last-profile.txt');
-    const _name = fs.readFileSync(_lastFile, 'utf-8').trim();
-    const _dbPath = path.join(DB_DIR, `aphroarchive_${_name}.db`);
-    if (_name && _name !== 'Vault' && fs.existsSync(_dbPath)) startProfile = _name;
-  } catch {}
-  const _startDbPath = path.join(DB_DIR, `aphroarchive_${startProfile}.db`);
-  if (fs.existsSync(_startDbPath)) {
-    switchProfile(startProfile);
+    fs.renameSync(legacy, DB_FILE);
+    // Carry over the WAL/SHM sidecars if present so no committed pages are lost.
+    for (const ext of ['-wal', '-shm']) {
+      const from = legacy + ext, to = DB_FILE + ext;
+      if (fs.existsSync(from)) { try { fs.renameSync(from, to); } catch {} }
+    }
+  } catch (e) {
+    console.error('[db] legacy default DB migration failed:', e.message);
+  }
+}
+
+{
+  _migrateLegacyDefaultDb();
+  if (fs.existsSync(DB_FILE)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+    db = new DatabaseSync(DB_FILE);
+    db.exec('PRAGMA journal_mode=WAL');
+    db.exec('PRAGMA busy_timeout=5000');
+    ensureSchema(db);
+    runMigrations(db);
+    _dbInMemory = false;
   } else {
     // First run — no DB on disk yet; stay in memory until the user picks a preset
-    currentProfile = startProfile;
     _dbInMemory = true;
     db = new DatabaseSync(':memory:');
     ensureSchema(db);
   }
+  _clearCaches();
 }
 
 
@@ -474,30 +493,6 @@ function _migrateJsonToSqlite() {
       }
     }
   } catch (e) { console.error('[migrate] prompts:', e.message); }
-
-  // Comments (per-video JSON files in cache/)
-  try {
-    const cCount = db.prepare('SELECT COUNT(*) as c FROM comments').get().c;
-    if (cCount === 0) {
-      const cacheDir = CACHE_DIR;
-      if (fs.existsSync(cacheDir)) {
-        const files = fs.readdirSync(cacheDir).filter(f => f.startsWith('comments_') && f.endsWith('.json'));
-        if (files.length) {
-          txn(() => {
-            const ins = db.prepare('INSERT OR IGNORE INTO comments (video_id, data) VALUES (?, ?)');
-            for (const f of files) {
-              try {
-                const videoId = f.replace(/^comments_/, '').replace(/\.json$/, '');
-                const data = fs.readFileSync(path.join(cacheDir, f), 'utf-8');
-                ins.run(videoId, data);
-              } catch {}
-            }
-          });
-          console.log(`[migrate] ${files.length} comment files → comments table`);
-        }
-      }
-    }
-  } catch (e) { console.error('[migrate] comments:', e.message); }
 
   // Books meta
   try {
@@ -695,7 +690,7 @@ function _readVideoMetaFromDb(database) {
 // profile is active the row lives in another profile's DB, so it is deleted
 // there too — encryption must leave no trace in any public database.
 // Remove every trace of a video from a database: its metadata, tags,
-// actors, favourites, history, thumbnail/visual-hash caches, comments,
+// actors, favourites, history, thumbnail/visual-hash caches,
 // the scan index, and any collection it belongs to.
 function _wipeVideoEverywhere(database, id) {
   database.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
@@ -705,7 +700,6 @@ function _wipeVideoEverywhere(database, id) {
   database.prepare('DELETE FROM history WHERE video_id = ?').run(id);
   database.prepare('DELETE FROM thumbs_cache WHERE video_id = ?').run(id);
   database.prepare('DELETE FROM visual_hashes WHERE video_id = ?').run(id);
-  database.prepare('DELETE FROM comments WHERE video_id = ?').run(id);
   database.prepare('DELETE FROM video_index WHERE id = ?').run(id);
 
   const collections = database.prepare('SELECT id, video_ids FROM collections').all();
@@ -719,7 +713,7 @@ function _wipeVideoEverywhere(database, id) {
 }
 
 function deleteVideoMetaEverywhere(id) {
-  _videoMeta = null;
+  _videoMeta = null; _notifyVideoMetaChanged();
   _favs = null;
   _history = null;
   _thumbs = null;
@@ -729,38 +723,9 @@ function deleteVideoMetaEverywhere(id) {
   } catch (e) { console.error('Failed to delete video meta:', e); }
   // Always wipe the id from every OTHER profile's DB too — not just from the
   // Vault profile. Each profile keeps its own `video_index` scan cache, and the
-  // fast-path prune only drops entries whose directory vanished, not whose file
-  // did. So a video encrypted (and shredded) under one user would otherwise keep
-  // showing for other users until a full rescan/restart.
-  for (const dbPath of _otherProfileDbPaths()) {
-    let other = null;
-    try {
-      other = new DatabaseSync(dbPath);
-      ensureSchema(other);
-      _wipeVideoEverywhere(other, id);
-    } catch (e) {
-      console.error('[delete] failed to wipe video meta in', path.basename(dbPath), e.message);
-    } finally {
-      if (other) { try { other.close(); } catch {} }
-    }
-  }
 }
 
 function loadVideoMeta() {
-  if (currentProfile === 'Vault') {
-    if (!_videoMeta) {
-      const result = {};
-      // Public meta from every other profile, then private vault meta on top
-      for (const metaMap of _mapOtherProfiles(_readVideoMetaFromDb)) Object.assign(result, metaMap);
-      const meta = loadVaultMeta();
-      for (const [id, item] of Object.entries(meta)) {
-        if (item.videoMeta) result[id] = item.videoMeta;
-      }
-      _videoMeta = result;
-    }
-    return _videoMeta;
-  }
-
   if (!_videoMeta) {
     _videoMeta = {};
     try {
@@ -772,8 +737,16 @@ function loadVideoMeta() {
   return _videoMeta;
 }
 
+// Cross-module cache invalidation hook: videos-server registers its actor
+// inverted-index invalidator here so ANY meta write (including vault/profile
+// switches that clear _videoMeta) also drops the derived index.
+let _onVideoMetaChanged = null;
+function setOnVideoMetaChanged(fn) { _onVideoMetaChanged = fn; }
+function _notifyVideoMetaChanged() { try { _onVideoMetaChanged && _onVideoMetaChanged(); } catch {} }
+
 function saveVideoMeta(m) {
   _videoMeta = m;
+  _notifyVideoMetaChanged();
   // This is a legacy fallback. In SQLite we should use setVideoMetaFields.
   // But if we must save the whole object, we can do it in a transaction.
   try {
@@ -803,28 +776,11 @@ function saveVideoMeta(m) {
 }
 
 function setVideoMetaFields(id, fields) {
+  _notifyVideoMetaChanged();
   const meta = loadVideoMeta();
   if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], channel: '', rating: null, category: '', note: '', date: '', language: '', reencoded: 0 };
   Object.assign(meta[id], fields);
 
-  // In the Vault profile a vault item's canonical metadata lives in
-  // VAULT_META_FILE (item.videoMeta) — that's what loadVideoMeta()/allVideos()
-  // read back. Writing it to the SQLite videos table instead (as below) would
-  // be a lost write: no Vault read path consults that table, so the edit would
-  // vanish on the next reload. Persist vault-item edits to the vault store.
-  if (currentProfile === 'Vault') {
-    try {
-      const vmeta = loadVaultMeta();
-      const item = vmeta[id];
-      if (item && item.type !== 'folder') {
-        item.videoMeta = { ...(item.videoMeta || {}), ...fields };
-        saveVaultMeta(vmeta); // invalidates _videoMeta so the merge picks it up
-        return;
-      }
-    } catch (e) {
-      console.error('Failed to persist vault item meta:', e);
-    }
-  }
 
   try {
     txn(() => {
@@ -925,38 +881,6 @@ function _decryptString(jsonStr, key) {
   return dec;
 }
 
-// ── Vault superuser merge ────────────────────────────────────────────
-// When the Vault profile is active, reads act as a merged view of every
-// other profile's public database plus the Vault's own private rows.
-// Writes always go to the Vault's own DB, so private entries (actors,
-// websites, tags, links…) never leak into public profiles.
-
-function _otherProfileDbPaths() {
-  try {
-    return fs.readdirSync(DB_DIR)
-      .filter(f => /^aphroarchive_.+\.db$/.test(f) && f !== `aphroarchive_${currentProfile}.db` && f !== 'aphroarchive_Vault.db')
-      .map(f => path.join(DB_DIR, f));
-  } catch { return []; }
-}
-
-// Run fn against each other profile's DB (read-only) and collect results.
-// Returns [] unless the Vault profile is active.
-function _mapOtherProfiles(fn) {
-  if (currentProfile !== 'Vault') return [];
-  const out = [];
-  for (const dbPath of _otherProfileDbPaths()) {
-    let other = null;
-    try {
-      other = new DatabaseSync(dbPath, { readOnly: true });
-      out.push(fn(other));
-    } catch (e) {
-      console.error('[vault] merged read failed for', path.basename(dbPath), e.message);
-    } finally {
-      if (other) { try { other.close(); } catch {} }
-    }
-  }
-  return out;
-}
 
 function loadVaultConfig() { try { return JSON.parse(fs.readFileSync(VAULT_CONFIG_FILE, 'utf-8')); } catch { return null; } }
 function saveVaultConfig(c) { fs.writeFileSync(VAULT_CONFIG_FILE, JSON.stringify(c)); }
@@ -990,7 +914,6 @@ function _vaultMetaEncryptedOnDisk() {
 }
 
 function saveVaultMeta(m) {
-  if (currentProfile === 'Vault') _videoMeta = null; // merged view includes vault meta
   const jsonStr = JSON.stringify(m);
   if (!_vaultKey) {
     // Refuse to write plaintext over an encrypted vault meta. loadVaultMeta()
@@ -1076,12 +999,7 @@ function _readWebsiteRows(database) {
 
 function loadWebsites() {
   try {
-    const merged = new Map();
-    for (const list of _mapOtherProfiles(_readWebsiteRows)) {
-      for (const s of list) merged.set(s.name.toLowerCase(), s);
-    }
-    for (const s of _readWebsiteRows(db)) merged.set(s.name.toLowerCase(), s); // private rows win
-    return [...merged.values()];
+    return _readWebsiteRows(db);
   } catch (e) {
     console.error('Failed to load websites from SQLite:', e);
     return [];
@@ -1189,12 +1107,7 @@ function loadLinksCache() {
   try {
     const publicLinks = (database) =>
       database.prepare(`SELECT ${_LINK_COLS} FROM links WHERE vault = 0 OR vault IS NULL`).all().map(_rowToLink);
-    const merged = new Map();
-    for (const list of _mapOtherProfiles(publicLinks)) {
-      for (const l of list) merged.set(l.url, l);
-    }
-    for (const l of publicLinks(db)) merged.set(l.url, l); // private rows win
-    return { items: [...merged.values()] };
+    return { items: publicLinks(db) };
   } catch (e) {
     console.error('Failed to load links cache from SQLite:', e);
     return { items: [] };
@@ -1318,30 +1231,6 @@ function saveAudioMeta(m) {
   } catch (e) { console.error('Failed to save audio meta:', e); }
 }
 
-// ── Comments ─────────────────────────────────────────────────────────
-
-function loadComments(videoId) {
-  try {
-    const row = db.prepare('SELECT data FROM comments WHERE video_id = ?').get(videoId);
-    if (!row) return null;
-    const raw = _isVaultEncryptActive() ? _tryDecrypt(row.data) : row.data;
-    return JSON.parse(raw);
-  } catch (e) { console.error('Failed to load comments:', e); return null; }
-}
-
-function saveComments(videoId, arr) {
-  try {
-    const vault = _isVaultEncryptActive();
-    const data = vault ? _encryptString(JSON.stringify(arr), _vaultKey) : JSON.stringify(arr);
-    db.prepare('INSERT INTO comments (video_id, data) VALUES (?, ?) ON CONFLICT(video_id) DO UPDATE SET data=excluded.data')
-      .run(videoId, data);
-  } catch (e) { console.error('Failed to save comments:', e); }
-}
-
-function clearAllComments() {
-  try { db.prepare('DELETE FROM comments').run(); } catch (e) { console.error('Failed to clear comments:', e); }
-}
-
 // ── Visual hashes (duplicate detection) ──────────────────────────────
 
 function loadVisualHashes() {
@@ -1373,7 +1262,7 @@ function saveVisualHashes(hashes) {
 // ── Prompts ───────────────────────────────────────────────────────────
 
 function _isVaultEncryptActive() {
-  return currentProfile === 'Vault' && !!_vaultKey;
+  return !!_vaultKey;
 }
 
 function _tryDecrypt(str) {
@@ -1424,7 +1313,7 @@ function updatePrompt(id, fields) {
   } catch (e) { console.error('Failed to update prompt:', e); return false; }
 }
 
-// Re-encrypts all prompts and comments in the current DB from oldKey → newKey.
+// Re-encrypts all prompts in the current DB from oldKey → newKey.
 // Called by vault-server.js during password change.
 function reEncryptVaultSqlite(oldKey, newKey) {
   try {
@@ -1437,16 +1326,6 @@ function reEncryptVaultSqlite(oldKey, newKey) {
       upd.run(_encryptString(text, newKey), _encryptString(sites, newKey), row.id);
     }
   } catch (e) { console.error('[vault] re-encrypt prompts failed:', e); }
-
-  try {
-    const rows = db.prepare('SELECT video_id, data FROM comments').all();
-    const upd  = db.prepare('UPDATE comments SET data = ? WHERE video_id = ?');
-    for (const row of rows) {
-      let data = row.data;
-      try { data = _decryptString(row.data, oldKey); } catch {}
-      upd.run(_encryptString(data, newKey), row.video_id);
-    }
-  } catch (e) { console.error('[vault] re-encrypt comments failed:', e); }
 }
 
 function deletePrompt(id) {
@@ -1501,12 +1380,7 @@ function _readActorRows(database) {
 function loadActors() {
   if (!_actors) {
     try {
-      const merged = new Map();
-      for (const list of _mapOtherProfiles(_readActorRows)) {
-        for (const a of list) merged.set(a.name.toLowerCase(), a);
-      }
-      for (const a of _readActorRows(db)) merged.set(a.name.toLowerCase(), a); // private rows win
-      _actors = [...merged.values()];
+      _actors = _readActorRows(db);
     } catch (e) { console.error('Failed to load actors from SQLite:', e); _actors = []; }
   }
   return _actors;
@@ -1544,25 +1418,6 @@ function _readFolderMappingRows(database) {
 }
 
 function loadFolderMappings() {
-  if (currentProfile === 'Vault') {
-    // Superuser view: every profile's categories, the Vault's own private
-    // categories table, plus categories derived from encrypted file metadata.
-    const merged = new Map();
-    for (const list of _mapOtherProfiles(_readFolderMappingRows)) {
-      for (const c of list) merged.set(c.name.toLowerCase(), c);
-    }
-    try {
-      for (const c of _readFolderMappingRows(db)) merged.set(c.name.toLowerCase(), c); // private rows win
-    } catch (e) { console.error('Failed to load vault categories from SQLite:', e); }
-    const meta = loadVaultMeta();
-    for (const item of Object.values(meta)) {
-      if (item.category && !merged.has(item.category.toLowerCase())) {
-        merged.set(item.category.toLowerCase(), { name: item.category, displayName: item.category, terms: [item.category] });
-      }
-    }
-    return [...merged.values()];
-  }
-
   if (!_folderMappings) {
     try {
       _folderMappings = _readFolderMappingRows(db);
@@ -1847,6 +1702,9 @@ function loadMediaIndex(type) {
       size: r.size,
       sizeF: r.size_f,
       mtime: r.mtime,
+      catPath: r.cat_path || '',
+      title: r.title || null,
+      note: r.note || null,
     }));
   } catch (e) {
     console.error('Failed to load media index:', e);
@@ -1856,13 +1714,22 @@ function loadMediaIndex(type) {
 
 function saveMediaIndex(items) {
   try {
+    // The scan rebuilds media_index from scratch, but user-set / migrated
+    // title & note must survive a rescan — snapshot and re-apply them by id.
+    const keep = {};
+    try {
+      for (const r of db.prepare('SELECT id, title, note FROM media_index WHERE title IS NOT NULL OR note IS NOT NULL').all()) {
+        keep[r.id] = { title: r.title, note: r.note };
+      }
+    } catch {}
     txn(() => {
       db.prepare('DELETE FROM media_index').run();
       const insert = db.prepare(
-        'INSERT INTO media_index (id, name, filename, abs_path, source_path, ext, media_type, size, size_f, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO media_index (id, name, filename, abs_path, source_path, ext, media_type, size, size_f, mtime, cat_path, title, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       );
       for (const m of items) {
-        insert.run(m.id, m.name, m.filename, m.absPath, m.sourcePath, m.ext, m.mediaType, m.size || 0, m.sizeF || '', m.mtime || 0);
+        const k = keep[m.id] || {};
+        insert.run(m.id, m.name, m.filename, m.absPath, m.sourcePath, m.ext, m.mediaType, m.size || 0, m.sizeF || '', m.mtime || 0, m.catPath || '', m.title ?? k.title ?? null, m.note ?? k.note ?? null);
       }
     });
   } catch (e) {
@@ -2191,32 +2058,33 @@ function saveSeries(seriesArray) {
 }
 
 function deleteTagFromAllVideos(tag) {
-  _videoMeta = null;
+  _videoMeta = null; _notifyVideoMetaChanged();
   try { db.prepare('DELETE FROM video_tags WHERE LOWER(tag) = LOWER(?)').run(tag); } catch (e) { console.error(e); }
 }
 
 function renameTagInAllVideos(oldTag, newTag) {
-  _videoMeta = null;
+  _videoMeta = null; _notifyVideoMetaChanged();
   try { db.prepare('UPDATE video_tags SET tag = ? WHERE LOWER(tag) = LOWER(?)').run(newTag, oldTag); } catch (e) { console.error(e); }
 }
 
 // ── Media counts (sidebar badges) ────────────────────────────────────────
 function getMediaCounts() {
-  const { PAGES_DIR, SCREENSHOTS_DIR } = require('./config-server');
-  const PAGE_EXT = new Set(['.html', '.htm', '.xhtml', '.mhtml']);
+  const { SCREENSHOTS_DIR } = require('./config-server');
   const IMG_EXT  = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp']);
   const dirCount = (dir, extSet) => {
     try { return fs.readdirSync(dir).filter(f => extSet.has(path.extname(f).toLowerCase())).length; } catch { return 0; }
   };
   try {
-    const q = (sql) => { try { return db.prepare(sql).get().c; } catch { return 0; } };
+    const q = (sql, ...a) => { try { return db.prepare(sql).get(...a).c; } catch { return 0; } };
+    // All non-video media now derives from the single media_index (auto-sorted by extension).
+    const byType = t => q('SELECT COUNT(*) as c FROM media_index WHERE media_type = ?', t);
     return {
       links:       q('SELECT COUNT(*) as c FROM links WHERE vault = 0 OR vault IS NULL'),
-      audio:       q('SELECT COUNT(*) as c FROM audio_meta') + q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'audio'"),
-      books:       q('SELECT COUNT(*) as c FROM books_meta') + q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'book'"),
-      photos:      q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'photo'"),
-      files:       q('SELECT COUNT(*) as c FROM files_meta'),
-      pages:       dirCount(PAGES_DIR, PAGE_EXT),
+      audio:       byType('audio'),
+      books:       byType('book'),
+      photos:      byType('photo'),
+      files:       byType('file'),
+      pages:       byType('page'),
       screenshots: dirCount(SCREENSHOTS_DIR, IMG_EXT),
     };
   } catch (e) {
@@ -2226,6 +2094,7 @@ function getMediaCounts() {
 }
 
 module.exports = {
+  setOnVideoMetaChanged,
   loadFavs, saveFavs,
   loadHistory, saveHistory,
   loadPrefs, savePrefs, getDefaultWriteRoot, resolveCategoryPhysicalPath,
@@ -2243,7 +2112,6 @@ module.exports = {
   loadAudioMeta, saveAudioMeta,
   loadActors, saveActors, loadFolderMappings, saveFolderMappings, loadChannels, saveChannels, invalidateDbTypeCache, upsertChannelEntry,
   loadEnabledFolders, saveEnabledFolders,
-  loadComments, saveComments, clearAllComments,
   loadVisualHashes, setVisualHash, saveVisualHashes,
   loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,
@@ -2251,8 +2119,8 @@ module.exports = {
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
   loadFilesMeta, upsertFileMeta, deleteFileMeta,
   loadFileVirtualFolders, setFileVirtualFolder, renameFileVirtualFolder, deleteFileVirtualFolder, listFileVirtualFolderNames,
-  switchProfile, getCurrentProfile: () => currentProfile,
   isDbOnDisk: () => !_dbInMemory,
+  persistDbToDisk,
   closeDb: () => { if (db) { db.close(); db = null; } },
   getMediaCounts,
   saveLinksToDb, loadAllVideoTags,

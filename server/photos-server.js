@@ -1,16 +1,22 @@
 'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  photos.js — Photo listing, serving, and deletion
+//
+//  All photos now derive from the unified media_index (media_type='photo'),
+//  auto-sorted by extension during the main scan. Files are identified by
+//  toId(absPath) and may live anywhere under MEDIA_DIR (or a sourceFolder).
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
 const path = require('path');
-const { PHOTOS_DIR, VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, MIME } = require('./config-server');
-const { json, formatBytes }  = require('./helpers-server');
-const { loadMediaIndex, loadPrefs } = require('./db-server');
+const { MEDIA_DIR, MIME } = require('./config-server');
+const { json, toId, fromId, isAllowedMediaPath } = require('./helpers-server');
+const { loadMediaIndex } = require('./db-server');
 
-const IMAGE_EXT = new Set(['.jpg','.jpeg','.png','.gif','.webp','.avif','.bmp','.heic','.tiff','.tif']);
+function _invalidate() { try { require('./videos-server').invalidateScanCache(); } catch {} }
 
+// Stable-Diffusion / ComfyUI write the generation prompt into a PNG `parameters`
+// text chunk. Read it lazily (only for .png rows) when listing.
 function readPngMetadata(filePath) {
   try {
     const fd = fs.openSync(filePath, 'r');
@@ -20,7 +26,6 @@ function readPngMetadata(filePath) {
       fs.closeSync(fd);
       return null; // Not a PNG
     }
-
     const buf = Buffer.alloc(8192); // Read 8KB
     const bytesRead = fs.readSync(fd, buf, 0, 8192, 8);
     fs.closeSync(fd);
@@ -34,114 +39,43 @@ function readPngMetadata(filePath) {
         const nullIdx = data.indexOf(0);
         if (nullIdx !== -1) {
           const keyword = data.toString('ascii', 0, nullIdx);
-          if (keyword === 'parameters') {
-            const text = data.toString('utf-8', nullIdx + 1);
-            return text; // This is the prompt and metadata!
-          }
+          if (keyword === 'parameters') return data.toString('utf-8', nullIdx + 1);
         }
       }
       offset += 12 + len; // 4 (len) + 4 (type) + len + 4 (crc)
     }
-  } catch (e) {
-    // Ignore errors
-  }
+  } catch (e) { /* ignore */ }
   return null;
 }
 
-function photoToId(rootType, rel) { 
-  return rootType + ':' + Buffer.from(rel).toString('base64url'); 
-}
-function photoFromId(id) { 
-  const parts = id.split(':');
-  if (parts.length === 1) return { rootType: 'p', rel: Buffer.from(id, 'base64url').toString('utf-8') };
-  return { rootType: parts[0], rel: Buffer.from(parts[1], 'base64url').toString('utf-8') };
-}
-
-function scanPhotos(dir, base, rootType, folderPath) {
-  if (!base) base = dir;
-  if (folderPath === undefined) folderPath = '';
-  const out = [];
-  let entries;
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-  catch { return out; }
-  for (const e of entries) {
-    const fp = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (rootType === 'v') {
-        if (path.resolve(fp) === path.resolve(VAULT_DIR) || path.resolve(fp) === path.resolve(IGNORED_DIR)) continue;
-      }
-      const childFolder = folderPath ? folderPath + '/' + e.name : e.name;
-      out.push(...scanPhotos(fp, base, rootType, childFolder));
-    } else if (e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase())) {
-      const rel  = rootType === 's' ? fp : path.relative(base, fp);
-      const stat = fs.statSync(fp);
-      const ext  = path.extname(e.name).toLowerCase();
-
-      let isAi = false;
-      let aiPrompt = '';
-      if (ext === '.png') {
-        const meta = readPngMetadata(fp);
-        if (meta) {
-          isAi = true;
-          aiPrompt = meta;
-        }
-      }
-
-      out.push({
-        id:       photoToId(rootType, rel),
-        filename: e.name,
-        folder:   folderPath,
-        rel,
-        ext,
-        size:     stat.size,
-        sizeF:    formatBytes(stat.size),
-        date:     stat.mtimeMs,
-        isAi,
-        aiPrompt,
-      });
+function _listPhotos() {
+  return loadMediaIndex('photo').map(m => {
+    let isAi = false, aiPrompt = '';
+    if (m.ext === '.png') {
+      const meta = readPngMetadata(m.absPath);
+      if (meta) { isAi = true; aiPrompt = meta; }
     }
-  }
-  return out;
-}
-
-function _mediaIndexPhotos() {
-  try {
-    const prefs = loadPrefs();
-    const available = new Set();
-    for (const sf of (prefs.sourceFolders || [])) {
-      if (fs.existsSync(sf)) available.add(sf);
-    }
-    return loadMediaIndex('photo')
-      .filter(m => available.has(m.sourcePath))
-      .map(m => ({
-        id:       photoToId('s', m.absPath),
-        filename: m.filename,
-        folder:   path.relative(m.sourcePath, path.dirname(m.absPath)).replace(/\\/g, '/'),
-        rel:      m.absPath,
-        ext:      m.ext,
-        size:     m.size,
-        sizeF:    m.sizeF,
-        date:     m.mtime,
-        isAi:     false,
-        aiPrompt: '',
-      }));
-  } catch { return []; }
+    return {
+      id:       m.id,
+      filename: m.filename,
+      folder:   m.catPath || '',
+      rel:      m.absPath,
+      ext:      m.ext,
+      size:     m.size,
+      sizeF:    m.sizeF,
+      date:     m.mtime,
+      isAi,
+      aiPrompt,
+    };
+  });
 }
 
 function apiPhotoFolders(req, res) {
-  fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-  const photos = [
-    ...scanPhotos(PHOTOS_DIR, PHOTOS_DIR, 'p'),
-    ...scanPhotos(VIDEOS_DIR, VIDEOS_DIR, 'v'),
-    ..._mediaIndexPhotos(),
-  ];
-
   const folderSet = new Map();
-  for (const p of photos) {
-    if (!p.folder) continue;
-    const parts = p.folder.split('/');
+  for (const m of loadMediaIndex('photo')) {
+    if (!m.catPath) continue;
     let cur = '';
-    for (const part of parts) {
+    for (const part of m.catPath.split('/')) {
       cur = cur ? cur + '/' + part : part;
       if (!folderSet.has(cur)) folderSet.set(cur, cur.replace(/\//g, ' / '));
     }
@@ -153,45 +87,19 @@ function apiPhotoFolders(req, res) {
 }
 
 function apiPhotosList(req, res) {
-  fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-  const photos = [
-    ...scanPhotos(PHOTOS_DIR, PHOTOS_DIR, 'p'),
-    ...scanPhotos(VIDEOS_DIR, VIDEOS_DIR, 'v'),
-    ..._mediaIndexPhotos(),
-  ].sort((a, b) => b.date - a.date);
-  json(res, photos);
+  json(res, _listPhotos().sort((a, b) => b.date - a.date));
 }
 
-function _getFp(id) {
-  const { rootType, rel } = photoFromId(id);
-  
-  if (rootType === 's') {
-    const fp = path.resolve(rel);
-    try {
-      const { loadPrefs } = require('./db-server');
-      const prefs = loadPrefs();
-      if (prefs.sourceFolders) {
-        for (const folder of prefs.sourceFolders) {
-          if (fp.startsWith(path.resolve(folder))) {
-            if (fs.existsSync(fp)) return fp;
-          }
-        }
-      }
-    } catch (e) {
-      // Ignore
-    }
-    return null;
-  }
-  
-  const root = rootType === 'v' ? VIDEOS_DIR : PHOTOS_DIR;
-  const fp   = path.resolve(path.join(root, rel));
-  if (!fp.startsWith(path.resolve(root) + path.sep) && fp !== path.resolve(root)) return null;
+// Resolve a photo id to an on-disk path, guarded to allowed media roots.
+function getPhotoPath(id) {
+  const fp = fromId(id);
+  if (!fp || !isAllowedMediaPath(fp) || !fs.existsSync(fp)) return null;
   return fp;
 }
 
 function apiPhotoServe(req, res, id) {
-  const fp = _getFp(id);
-  if (!fp || !fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
+  const fp = getPhotoPath(id);
+  if (!fp) { res.writeHead(404); res.end(); return; }
   const ext  = path.extname(fp).toLowerCase();
   const ct   = MIME[ext] || (ext === '.avif' ? 'image/avif' : ext === '.heic' ? 'image/heic' : 'image/jpeg');
   const stat = fs.statSync(fp);
@@ -200,15 +108,16 @@ function apiPhotoServe(req, res, id) {
 }
 
 function apiPhotoDelete(req, res, id) {
-  const fp = _getFp(id);
-  if (!fp) { res.writeHead(403); res.end(); return; }
+  const fp = fromId(id);
+  if (!fp || !isAllowedMediaPath(fp)) { res.writeHead(403); res.end(); return; }
   try { fs.unlinkSync(fp); } catch { json(res, { error: 'Delete failed' }, 500); return; }
+  _invalidate();
   json(res, { ok: true });
 }
 
 function apiPhotoDownload(req, res, id) {
-  const fp = _getFp(id);
-  if (!fp || !fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
+  const fp = getPhotoPath(id);
+  if (!fp) { res.writeHead(404); res.end(); return; }
   const ext      = path.extname(fp).toLowerCase();
   const ct       = MIME[ext] || 'application/octet-stream';
   const stat     = fs.statSync(fp);
@@ -222,20 +131,25 @@ function apiPhotoDownload(req, res, id) {
 }
 
 function apiPhotosUpload(req, res) {
-  const { PHOTOS_DIR } = require('./config-server');
-  fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+  fs.mkdirSync(MEDIA_DIR, { recursive: true });
   const rawName = req.headers['x-filename'] || 'photo.jpg';
   const safeName = path.basename(rawName).replace(/[^a-zA-Z0-9._\-\s]/g, '_');
-  
-  const dest = path.join(PHOTOS_DIR, safeName);
+  const ext = path.extname(safeName).toLowerCase();
+
+  let outName = safeName, counter = 1;
+  while (fs.existsSync(path.join(MEDIA_DIR, outName))) {
+    outName = path.basename(safeName, ext) + ` (${counter++})` + ext;
+  }
+  const dest = path.join(MEDIA_DIR, outName);
   const chunks = [];
   req.on('data', c => chunks.push(c));
   req.on('end', () => {
     try {
       fs.writeFileSync(dest, Buffer.concat(chunks));
-      json(res, { ok: true, file: safeName });
+      _invalidate();
+      json(res, { ok: true, file: outName, id: toId(dest) });
     } catch (e) { json(res, { error: e.message }, 500); }
   });
 }
 
-module.exports = { apiPhotosList, apiPhotoFolders, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload, getPhotoPath: _getFp };
+module.exports = { apiPhotosList, apiPhotoFolders, apiPhotoServe, apiPhotoDelete, apiPhotoDownload, apiPhotosUpload, getPhotoPath };

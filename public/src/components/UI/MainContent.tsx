@@ -28,15 +28,8 @@ import { BrowseView } from '../sections/BrowseView';
 import { SearchResultsView } from '../sections/SearchResultsView';
 import { PlayerView } from '../sections/PlayerView';
 import { HomeView } from '../sections/HomeView';
-import { ChaptersView } from '../sections/ChaptersView';
-import { SeriesView } from '../sections/SeriesView';
-import { DownloadQueueView } from '../sections/DownloadQueueView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
-import { SubtitlesView } from '../sections/SubtitlesView';
-import { SubtitleEditorModal } from '../modals/SubtitleEditorModal';
-import { GuideView } from '../sections/GuideView';
-import { RadioModeView } from '../sections/RadioModeView';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
 // Heavy/rare views — code-split so the initial bundle stays small
@@ -51,6 +44,13 @@ const PromptsView = lazy(() => import('../../../../plugins/prompts/PromptsView')
 const DuplicatesView = lazy(() => import('../sections/DuplicatesView').then(m => ({ default: m.DuplicatesView })));
 const CorruptedView = lazy(() => import('../sections/CorruptedView').then(m => ({ default: m.CorruptedView })));
 const LibraryHealthView = lazy(() => import('../sections/LibraryHealthView').then(m => ({ default: m.LibraryHealthView })));
+const ChaptersView = lazy(() => import('../sections/ChaptersView').then(m => ({ default: m.ChaptersView })));
+const SeriesView = lazy(() => import('../sections/SeriesView').then(m => ({ default: m.SeriesView })));
+const DownloadQueueView = lazy(() => import('../sections/DownloadQueueView').then(m => ({ default: m.DownloadQueueView })));
+const SubtitlesView = lazy(() => import('../sections/SubtitlesView').then(m => ({ default: m.SubtitlesView })));
+const SubtitleEditorModal = lazy(() => import('../modals/SubtitleEditorModal').then(m => ({ default: m.SubtitleEditorModal })));
+const GuideView = lazy(() => import('../sections/GuideView').then(m => ({ default: m.GuideView })));
+const RadioModeView = lazy(() => import('../sections/RadioModeView').then(m => ({ default: m.RadioModeView })));
 
 const ViewLoading = () => <div className="skeleton" style={{ margin: '40px auto', width: '120px', height: '24px' }} />;
 
@@ -161,7 +161,9 @@ export const MainContent = () => {
       <VisionModal />
       <VaultUnlockModal />
       <ImportModal />
-      <SubtitleEditorModal />
+      <Suspense fallback={null}>
+        <SubtitleEditorModal />
+      </Suspense>
     </>
   );
 };

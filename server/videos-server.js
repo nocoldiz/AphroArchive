@@ -8,9 +8,9 @@ const path = require('path');
 const { exec, execFile, execFileSync, spawn } = require('child_process');
 const crypto = require('crypto');
 const {
-  VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
+  VIDEOS_DIR, MEDIA_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
-  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN, FFPROBE_BIN, FILES_DIR
+  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN, FFPROBE_BIN, FILES_DIR, classifyExt
 } = require('./config-server');
 const { pipeline } = require('stream');
 const { promisify } = require('util');
@@ -318,11 +318,11 @@ async function runEncryptFolder(catPath) {
 }
 
 // Run decryption in background
-async function runDecryptFolder(catPath, targetProfile) {
+async function runDecryptFolder(catPath) {
   if (_encryptionProgress.running) return false;
   _encryptionCancel = false;
   const { isUnlocked, getVaultKey, suspendAutoLock, resumeAutoLock } = require('./vault-server');
-  const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
+  const { loadVaultMeta, saveVaultMeta, setVideoMetaFields } = require('./db-server');
 
   if (!isUnlocked()) {
     updateEncryptionProgress({ error: 'Vault is locked. Unlock it first', running: false });
@@ -349,7 +349,6 @@ async function runDecryptFolder(catPath, targetProfile) {
     const total = itemsToDecrypt.length;
     let doneCount = 0;
     const vaultKey = getVaultKey();
-    const originalProfile = getCurrentProfile();
 
     for (const item of itemsToDecrypt) {
       if (_encryptionCancel) {
@@ -372,9 +371,7 @@ async function runDecryptFolder(catPath, targetProfile) {
       const newId = toId(newRel);
 
       if (item.videoMeta) {
-        switchProfile(targetProfile);
         setVideoMetaFields(newId, item.videoMeta);
-        switchProfile(originalProfile);
       }
 
       const oldThumb = path.join(THUMBS_DIR, item.id);
@@ -436,14 +433,20 @@ function apiScanEvents(req, res) {
   });
   res.write(': connected\n\n');
   _scanSseClients.add(res);
-  req.on('close', () => _scanSseClients.delete(res));
+  // Heartbeat comment every 25s: keeps intermediaries/browsers from silently
+  // dropping the idle stream, and doubles as the client's liveness signal
+  // (the frontend derives its "connection lost" banner from this stream
+  // instead of polling /api/ping).
+  const hb = setInterval(() => {
+    try { res.write(': hb\n\n'); } catch { clearInterval(hb); _scanSseClients.delete(res); }
+  }, 25000);
+  req.on('close', () => { clearInterval(hb); _scanSseClients.delete(res); });
 }
 
 function invalidateScanCache() {
   _scanCache = null;
   clearVideoIndex();
   clearMediaIndex();
-  try { require('./media-zip-mount-server').invalidate(); } catch {}
   broadcastScanChange();
 }
 
@@ -477,19 +480,28 @@ async function cachedScan() {
       // Validate file existence in the background; if anything was deleted the
       // cache is pruned and clients are notified via SSE to refresh.
       _scanCache = indexed;
-      setImmediate(() => {
+      // Background existence validation, chunked: one existsSync per file is a
+      // blocking syscall — done for the whole library in one tick it freezes
+      // the event loop for seconds on large/slow disks, exactly while the
+      // first page load is fetching /api/videos and thumbnails. Yield every
+      // CHUNK files so those requests interleave.
+      setImmediate(async () => {
         try {
           let prefs;
           try { prefs = loadPrefs(); } catch { prefs = {}; }
           const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
-          const valid = indexed.filter(v => {
+          const CHUNK = 200;
+          const valid = [];
+          for (let i = 0; i < indexed.length; i++) {
+            if (i > 0 && i % CHUNK === 0) await new Promise(r => setImmediate(r));
+            const v = indexed[i];
             const filePath = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
-            if (fs.existsSync(filePath)) return true;
-            if (v.isExternal && v.catPath && v.filename) {
-              return sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)));
+            if (fs.existsSync(filePath)) { valid.push(v); continue; }
+            if (v.isExternal && v.catPath && v.filename &&
+                sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)))) {
+              valid.push(v);
             }
-            return false;
-          });
+          }
           if (valid.length !== indexed.length) {
             _scanCache = valid;
             saveVideoIndex(valid);
@@ -587,17 +599,16 @@ async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
             encrypted = true;
           }
         } else if (!VIDEO_EXT.has(ext)) {
-          // Collect non-video media files into the unified media index
+          // Collect ALL non-video media files into the unified media index,
+          // auto-sorted into a view by extension (audio/book/page/photo/file).
           if (mediaOut) {
-            let mediaType = null;
-            if (AUDIO_EXT.has(ext)) mediaType = 'audio';
-            else if (BOOK_EXT.has(ext)) mediaType = 'book';
-            // Photos from sourceFolders only — VIDEOS_DIR photos are already handled by the photos dynamic scan
-            else if (IMAGE_EXT.has(ext) && isExternal) mediaType = 'photo';
-            else if (ext !== '.enc' && ext !== '.db' && ext !== '.log' && ext !== '.tmp') mediaType = 'file';
-            if (mediaType) {
+            const mediaType = classifyExt(ext);
+            if (mediaType && mediaType !== 'video') {
               try {
                 const st = await fs.promises.stat(fp);
+                const mRel = path.relative(base, fp);
+                const mCatDir = path.dirname(mRel);
+                const mCatPath = mCatDir === '.' ? '' : mCatDir.replace(/\\/g, '/');
                 mediaOut.push({
                   id: toId(fp),
                   name: path.basename(ent.name, ext),
@@ -609,6 +620,7 @@ async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
                   size: st.size,
                   sizeF: formatBytes(st.size),
                   mtime: st.mtimeMs,
+                  catPath: mCatPath,
                 });
               } catch {}
             }
@@ -640,31 +652,6 @@ async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
 }
 
 async function allVideos(forceAll = false) {
-  const db = require('./db-server');
-  if (db.getCurrentProfile() === 'Vault' && !forceAll) {
-    const { loadVaultMeta } = require('./db-server');
-    const meta = loadVaultMeta();
-    const list = [];
-    for (const [id, item] of Object.entries(meta)) {
-      if (item.type !== 'folder') {
-        list.push({
-          id,
-          name: item.originalName || item.name,
-          rel: id + '.enc',
-          ext: item.ext || '',
-          catPath: item.category || '',
-          encrypted: true,
-          // Mark as a vault item so the player streams via /api/vault/stream/:id
-          // (decrypting on the fly) instead of /api/stream/:id, which 404s.
-          isVault: true,
-          mtime: item.mtime || Date.now(),
-          size: item.size || 0
-        });
-      }
-    }
-    return list;
-  }
-
   const all    = await cachedScan();
   const meta   = loadVideoMeta();
   
@@ -734,13 +721,6 @@ function isUnlocked(catPath) {
 }
 
 function getUnlockKey(catPath) {
-  const db = require('./db-server');
-  const { isUnlocked, getVaultKey } = require('./vault-server');
-  
-  if (db.getCurrentProfile() === 'Vault' && isUnlocked()) {
-    return getVaultKey();
-  }
-
   let p = getCatKey(catPath);
   while (true) {
     if (unlockedFolders.has(p)) return unlockedFolders.get(p);
@@ -764,7 +744,16 @@ async function initVideoMeta() {
     let oldRatings   = {};
     try { oldRatings = loadRatings(); } catch {}
 
-    for (const v of videos) {
+    // Chunked: term-matching every filename against every category/channel/
+    // actor is CPU-heavy on big libraries. This runs right after the first
+    // page load (/api/ready), so yield to the event loop every CHUNK videos —
+    // otherwise the initial /api/videos, thumbnails and stream requests all
+    // stall behind it and the spinner lingers.
+    const CHUNK = 200;
+    const yieldLoop = () => new Promise(r => setImmediate(r));
+    for (let i = 0; i < videos.length; i++) {
+      if (i > 0 && i % CHUNK === 0) await yieldLoop();
+      const v = videos[i];
       if (!meta[v.id]) {
         const detectedTags   = [...new Set(categories.filter(e => wordMatchAny(v.name, e.terms)).map(e => e.displayName))];
         const detectedChannel = channels.find(e => channelMatchAny(v.name, e.terms));
@@ -784,8 +773,9 @@ async function initVideoMeta() {
         changed = true;
       }
     }
+    const liveIds = new Set(videos.map(v => v.id));
     for (const id of Object.keys(meta)) {
-      if (!videos.find(v => v.id === id)) { delete meta[id]; changed = true; }
+      if (!liveIds.has(id)) { delete meta[id]; changed = true; }
     }
     if (changed) saveVideoMeta(meta);
   } catch (e) { console.error('initVideoMeta error:', e.message); }
@@ -795,12 +785,17 @@ async function initVideoMeta() {
 
 async function apiVideos(req, res, params) {
   const favs        = loadFavs();
+  const favSet      = new Set(favs); // O(1) lookups — .includes() per video was O(favs×videos)
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
   const enabledPaths = loadEnabledFolders();
   const prefs       = loadPrefs();
   const historyEnabled = prefs.chronologyMode !== 'dont-save';
   const historySet  = historyEnabled ? new Set(loadHistory()) : null;
+  // Slim mode (?slim=1) drops the heavyweight per-video fields the grid never
+  // renders (chapters, note, actors) — they're refetched per-video by the
+  // player detail endpoint.
+  const slim = params.get('slim') === '1';
   // all=1 (vault unlocked only): bypass the per-profile enabled-categories
   // filter so the Vault's Global view can import files from any profile
   const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
@@ -813,7 +808,7 @@ async function apiVideos(req, res, params) {
       const vMeta    = meta[v.id] || {};
       return {
         ...v,
-        fav: favs.includes(v.id),
+        fav: favSet.has(v.id),
         rating: vMeta.rating ?? null,
         reencoded: !!vMeta.reencoded,
         duration,
@@ -887,21 +882,6 @@ async function apiVideos(req, res, params) {
       });
     }
   }
-  // Append virtual ZIP-based video entries (unencrypted ZIPs in all media roots).
-  if (!showAll) {
-    try {
-      const mediaZip = require('./media-zip-mount-server');
-      let zipVideos = mediaZip.getVirtualVideos(cat || null);
-      if (q) {
-        const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
-        zipVideos = zipVideos.filter(v => tokens.every(t => v.name.toLowerCase().includes(t) || v.catPath.toLowerCase().includes(t)));
-      }
-      for (const zv of zipVideos) {
-        list.push({ ...zv, fav: false, rating: null, reencoded: false, duration: null, durationF: null, actors: [], note: '', chapters: [], width: null, height: null });
-      }
-    } catch (e) { console.error('[apiVideos] zip videos error:', e.message); }
-  }
-
   if (sort === 'name')     list.sort((a, b) => a.name.localeCompare(b.name));
   else if (sort === 'size')     list.sort((a, b) => b.size - a.size);
   else if (sort === 'duration') list.sort((a, b) => (b.duration || 0) - (a.duration || 0));
@@ -914,17 +894,31 @@ async function apiVideos(req, res, params) {
     });
   }
   else list.sort((a, b) => b.mtime - a.mtime);
-  json(res, list);
+
+  // Paged mode (?offset&limit): responds {total, items} so the client can
+  // paint the first page instantly and stream the rest in the background —
+  // the response is no longer proportional to library size on first load.
+  // Slim mode strips heavyweight per-video fields the grid never renders
+  // (chapters/note/actors — refetched per-video by the player detail call).
+  // No params — legacy full-array response, so existing callers are untouched.
+  const stripSlim = (v) => {
+    if (!slim) return v;
+    const { chapters, note, actors, ...rest } = v;
+    return rest;
+  };
+  const limitRaw  = params.get('limit');
+  const offsetRaw = params.get('offset');
+  if (limitRaw !== null || offsetRaw !== null) {
+    const offset = Math.max(0, parseInt(offsetRaw || '0', 10) || 0);
+    const limit  = Math.min(5000, Math.max(1, parseInt(limitRaw || '500', 10) || 500));
+    json(res, { total: list.length, offset, limit, items: list.slice(offset, offset + limit).map(stripSlim) });
+    return;
+  }
+  json(res, slim ? list.map(stripSlim) : list);
 }
 
 async function apiFolders(req, res, params) {
-  const db = require('./db-server');
-  // all=1 (vault unlocked only): mirrors apiVideos' Global view — use the
-  // disk-scan set bypassing the per-profile enabled-categories filter.
-  const showAll = !!params && params.get('all') === '1' && require('./vault-server').isUnlocked();
-  // Vault Only: build categories from the Vault's own item list (catPath = item.category)
-  const isVaultOnly = db.getCurrentProfile() === 'Vault' && !showAll;
-  const videos = isVaultOnly ? await allVideos(false) : await cachedScan();
+  const videos = await cachedScan();
   const meta = loadVideoMeta();
   const catMap = new Map();
 
@@ -964,9 +958,8 @@ async function apiFolders(req, res, params) {
   }
 
   // Include empty directories from the filesystem so newly created folders appear
-  // (skipped in Vault Only mode — vault categories come purely from vault meta)
   try {
-    if (!isVaultOnly && fs.existsSync(VIDEOS_DIR)) {
+    if (fs.existsSync(VIDEOS_DIR)) {
       // Async (non-blocking) walk: a sync recursive readdir here stalls the
       // single-threaded event loop, delaying the concurrent /api/videos
       // response from flushing even when it's already built.
@@ -1041,9 +1034,8 @@ async function apiFolders(req, res, params) {
 
   const vaultCats = getVaultCategoryPaths();
 
-  // Remove categories whose physical directory no longer exists — vault-only
-  // categories live purely in the Vault's item list, so skip this for them.
-  if (!isVaultOnly) {
+  // Remove categories whose physical directory no longer exists.
+  {
     let sfPrefs;
     try { sfPrefs = loadPrefs(); } catch (e) { sfPrefs = {}; }
     const existingSF = (sfPrefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
@@ -1082,7 +1074,9 @@ async function apiFolders(req, res, params) {
   }).length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
 
-  const enabledPaths = db.loadEnabledFolders();
+  const enabledPaths = loadEnabledFolders();
+  // all=1 (vault unlocked only): bypass the per-profile enabled-categories filter
+  const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
   const filtered = showAll ? cats : cats.filter(c => isFolderEnabled(c.path, enabledPaths));
 
   // Append temporarily opened folders (always visible, regardless of enabled set).
@@ -1092,18 +1086,6 @@ async function apiFolders(req, res, params) {
       filtered.push({ ...entry, encrypted: false, partial: false, unlocked: true });
     }
   } catch (e) {}
-
-  // Inject ZIP-based virtual categories (always visible — bypass enabled-folder filter).
-  try {
-    const existingPaths = new Set(filtered.map(c => c.path));
-    const mediaZip = require('./media-zip-mount-server');
-    for (const vc of mediaZip.getVirtualCategories()) {
-      if (!existingPaths.has(vc.path)) {
-        filtered.push({ name: vc.name, path: vc.path, count: vc.count, encrypted: false, partial: false, unlocked: true, isZipMount: true });
-        existingPaths.add(vc.path);
-      }
-    }
-  } catch (e) { console.error('[apiFolders] zip categories error:', e.message); }
 
   filtered.sort((a, b) => {
     if (a.path === 'uncategorized') return -1;
@@ -1189,32 +1171,45 @@ async function apiSetEnabledFolders(req, res) {
 
 async function apiMainFolders(req, res) {
   const result = [{ name: 'Uncategorized', path: '' }];
+  const seen = new Set(['']); // dedupe same category path across roots (case-insensitive)
 
-  async function walk(dir, rel = '') {
+  async function walk(dir, rel, isExternal) {
     if (!fs.existsSync(dir)) return;
     try {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true });
       for (const ent of entries) {
         if (!ent.isDirectory()) continue;
         if (isHiddenFolderName(ent.name)) continue;
-        const subRel = rel ? path.join(rel, ent.name) : ent.name;
-        const full = path.join(VIDEOS_DIR, subRel);
+        const subRel = rel ? rel + '/' + ent.name : ent.name;
+        const full = path.join(dir, ent.name);
         if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-        result.push({ name: subRel.replace(/[\\/]/g, ' / '), path: subRel.replace(/\\/g, '/') });
-        await walk(full, subRel);
+        const key = subRel.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          result.push({ name: subRel.replace(/\//g, ' / '), path: subRel, isExternal });
+        }
+        await walk(full, subRel, isExternal);
       }
     } catch (e) {}
   }
 
-  await walk(VIDEOS_DIR);
+  await walk(VIDEOS_DIR, '', false);
+
+  // Folders living on media source paths are valid move targets too — without
+  // them the Move modal can never target an existing folder on a media path.
+  try {
+    const prefs = loadPrefs();
+    for (const sf of (prefs.sourceFolders || [])) {
+      if (sf && fs.existsSync(sf)) await walk(sf, '', true);
+    }
+  } catch (e) {
+    console.error('[main-folders] source folders error:', e.message);
+  }
 
   // Filter to only enabled folders for current user (consistent with browser folder lists)
   try {
     const dbmod = require('./db-server');
     const enabledPaths = dbmod.loadEnabledFolders();
-    // keep uncat + enabled ones; note main-cats only covers VIDEOS_DIR not sources
-    const before = result.length;
-    // re-filter in place
     for (let i = result.length - 1; i >= 0; i--) {
       if (!isFolderEnabled(result[i].path, enabledPaths)) {
         result.splice(i, 1);
@@ -1223,18 +1218,6 @@ async function apiMainFolders(req, res) {
   } catch (e) {
     console.error('[main-categories] enabled filter error:', e.message);
   }
-
-  // Inject ZIP-based virtual categories so they appear in folder lists.
-  try {
-    const mediaZip = require('./media-zip-mount-server');
-    const existingPaths = new Set(result.map(c => c.path));
-    for (const vc of mediaZip.getVirtualCategories()) {
-      if (!existingPaths.has(vc.path)) {
-        result.push({ name: vc.name, path: vc.path, isZipMount: true });
-        existingPaths.add(vc.path);
-      }
-    }
-  } catch (e) { console.error('[main-folders] zip categories error:', e.message); }
 
   result.sort((a, b) => {
     if (a.path === '') return -1;
@@ -1256,11 +1239,9 @@ async function apiCreateFolder(req, res) {
   catch (e) { json(res, { error: e.message }, 500); }
 }
 
-// ── Physical folder management (non-Vault profiles only) ──────────────
+// ── Physical folder management ────────────────────────────────────────
 
 async function apiFolderCreate(req, res) {
-  const { getCurrentProfile } = require('./db-server');
-  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
   const body = await readBody(req);
   const parentPath = (body.parentPath || '').replace(/[<>:"|?*]/g, '_');
   const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
@@ -1275,8 +1256,6 @@ async function apiFolderCreate(req, res) {
 }
 
 async function apiFolderRename(req, res) {
-  const { getCurrentProfile } = require('./db-server');
-  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
   const body = await readBody(req);
   const oldPath = body.path;
   const newName = (body.newName || '').trim().replace(/[<>:"|?*]/g, '_');
@@ -1293,8 +1272,6 @@ async function apiFolderRename(req, res) {
 }
 
 async function apiFolderDelete(req, res) {
-  const { getCurrentProfile } = require('./db-server');
-  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
   const body = await readBody(req);
   const folderPath = body.path;
   if (!folderPath) return json(res, { error: 'path required' }, 400);
@@ -1324,8 +1301,6 @@ async function apiFolderDelete(req, res) {
 }
 
 async function apiFolderMove(req, res) {
-  const { getCurrentProfile } = require('./db-server');
-  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
   const body = await readBody(req);
   const fromPath = body.fromPath;
   const toParentPath = body.toParentPath || '';
@@ -1345,6 +1320,32 @@ async function apiFolderMove(req, res) {
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
+
+// ── Cached actor inverted index ──────────────────────────────────────
+// Rebuilding actorLower → Set<videoId> over the whole meta map on EVERY video
+// click is O(library) work on the hot path (the player detail request).
+// Cache it and invalidate whenever video meta is written.
+let _actorIndexCache = null;
+
+function _getActorIndex(meta) {
+  if (_actorIndexCache) return _actorIndexCache;
+  const idx = new Map(); // actorLower → Set<videoId>
+  for (const [vid, m] of Object.entries(meta)) {
+    for (const a of (m.actors || [])) {
+      const k = a.toLowerCase();
+      let s = idx.get(k);
+      if (!s) { s = new Set(); idx.set(k, s); }
+      s.add(vid);
+    }
+  }
+  _actorIndexCache = idx;
+  return idx;
+}
+
+function invalidateActorIndex() { _actorIndexCache = null; }
+// Any meta write anywhere (tags/actors edits, vault ops, profile switches)
+// drops the cached inverted index.
+try { require('./db-server').setOnVideoMetaChanged(invalidateActorIndex); } catch {}
 
 async function apiVideoDetail(req, res, id) {
   const videos = await allVideos();
@@ -1371,40 +1372,36 @@ async function apiVideoDetail(req, res, id) {
   const enabledPaths = loadEnabledFolders();
   const visibleVideos = enabledPaths.length ? videos.filter(x => isFolderEnabled(x.catPath, enabledPaths)) : videos;
 
-  // Build actor → [videoId] inverted index from the already-loaded meta map.
-  const actorIndex = new Map(); // actorLower → Set<videoId>
-  for (const [vid, m] of Object.entries(meta)) {
-    for (const a of (m.actors || [])) {
-      const k = a.toLowerCase();
-      let s = actorIndex.get(k);
-      if (!s) { s = new Set(); actorIndex.set(k, s); }
-      s.add(vid);
+  // Related-video ranking priority: same actor ≫ same studio (channel) ≫
+  // shared tags ≫ same folder. Weighted so a higher tier always outranks any
+  // amount of a lower tier.
+  const actorSet = new Set(combinedActors.map(a => a.toLowerCase()));
+  const vChannel = (vMeta.channel || '').toLowerCase();
+  const vTagSet  = new Set(metaTags.map(t => t.toLowerCase()));
+
+  const scored = [];
+  for (const x of visibleVideos) {
+    if (x.id === v.id) continue;
+    const xm = meta[x.id] || {};
+    let score = 0;
+
+    const sharedActors = (xm.actors || []).filter(a => actorSet.has(a.toLowerCase())).length;
+    score += sharedActors * 1000;
+
+    if (vChannel && (xm.channel || '').toLowerCase() === vChannel) score += 100;
+
+    if (vTagSet.size) {
+      const sharedTags = (xm.tags || []).filter(t => vTagSet.has(t.toLowerCase())).length;
+      score += sharedTags * 10;
     }
+
+    if (x.category === v.category) score += 1;
+
+    if (score > 0) scored.push({ video: x, score });
   }
-
-  // Collect candidate video IDs that share at least one actor with this video.
-  const candidateIds = new Set();
-  for (const a of combinedActors) {
-    const s = actorIndex.get(a.toLowerCase());
-    if (s) s.forEach(id => candidateIds.add(id));
-  }
-  candidateIds.delete(v.id);
-
-  // Score only candidates (shared actors) plus same-category videos.
-  const sameCat = visibleVideos.filter(x => x.id !== v.id && x.category === v.category && !candidateIds.has(x.id));
-  const candidates = visibleVideos.filter(x => candidateIds.has(x.id));
-
-  const scored = [
-    ...candidates.map(x => {
-      const xActors = meta[x.id]?.actors || [];
-      const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
-      return { video: x, score: shared.length * 100 + (x.category === v.category ? 50 : 0) };
-    }),
-    ...sameCat.map(x => ({ video: x, score: 50 })),
-  ];
 
   const suggested = scored
-    .sort((a, b) => b.score - a.score || Math.random() - 0.5)
+    .sort((a, b) => b.score - a.score || (a.video.id < b.video.id ? -1 : 1))
     .slice(0, 12)
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
@@ -1448,38 +1445,35 @@ async function apiVideoDetailFast(req, res, id) {
   const visibleVideos = enabledPaths.length ? allVisible.filter(x => isFolderEnabled(x.catPath, enabledPaths)) : allVisible;
   const allMeta = db.loadVideoMeta();
 
-  const actorIndex = new Map();
-  for (const [vid, m] of Object.entries(allMeta)) {
-    for (const a of (m.actors || [])) {
-      const k = a.toLowerCase();
-      let s = actorIndex.get(k);
-      if (!s) { s = new Set(); actorIndex.set(k, s); }
-      s.add(vid);
+  // Related-video ranking priority: same actor ≫ same studio (channel) ≫
+  // shared tags ≫ same folder (see apiVideoDetail for the weighting rationale).
+  const actorSet = new Set(combinedActors.map(a => a.toLowerCase()));
+  const vChannel = (vMeta.channel || '').toLowerCase();
+  const vTagSet  = new Set(metaTags.map(t => t.toLowerCase()));
+
+  const scored = [];
+  for (const x of visibleVideos) {
+    if (x.id === v.id) continue;
+    const xm = allMeta[x.id] || {};
+    let score = 0;
+
+    const sharedActors = (xm.actors || []).filter(a => actorSet.has(a.toLowerCase())).length;
+    score += sharedActors * 1000;
+
+    if (vChannel && (xm.channel || '').toLowerCase() === vChannel) score += 100;
+
+    if (vTagSet.size) {
+      const sharedTags = (xm.tags || []).filter(t => vTagSet.has(t.toLowerCase())).length;
+      score += sharedTags * 10;
     }
+
+    if (x.category === v.category) score += 1;
+
+    if (score > 0) scored.push({ video: { ...x, fav: favs.includes(x.id), rating: xm.rating ?? null }, score });
   }
-
-  const candidateIds = new Set();
-  for (const a of combinedActors) {
-    const s = actorIndex.get(a.toLowerCase());
-    if (s) s.forEach(xid => candidateIds.add(xid));
-  }
-  candidateIds.delete(v.id);
-
-  const sameCat = visibleVideos.filter(x => x.id !== v.id && x.category === v.category && !candidateIds.has(x.id));
-  const candidateVids = visibleVideos.filter(x => candidateIds.has(x.id));
-
-  const scored = [
-    ...candidateVids.map(x => {
-      const xActors = allMeta[x.id]?.actors || [];
-      const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
-      const score = shared.length * 100 + (x.category === v.category ? 50 : 0);
-      return { video: { ...x, fav: favs.includes(x.id), rating: allMeta[x.id]?.rating ?? null }, score };
-    }),
-    ...sameCat.map(x => ({ video: { ...x, fav: favs.includes(x.id), rating: allMeta[x.id]?.rating ?? null }, score: 50 })),
-  ];
 
   const suggested = scored
-    .sort((a, b) => b.score - a.score || Math.random() - 0.5)
+    .sort((a, b) => b.score - a.score || (a.video.id < b.video.id ? -1 : 1))
     .slice(0, 12)
     .map(item => item.video);
 
@@ -1580,33 +1574,51 @@ async function apiStream(req, res, id) {
         'Cache-Control': 'no-store'
       });
 
+      // AES-GCM has no random access, so decryption must start from byte 0 —
+      // but it must NOT run to EOF: once the requested range has been served
+      // we stop immediately, honour backpressure while serving, and tear
+      // everything down if the client aborts (video seeks abort constantly).
+      // Without these three guards every seek left a full-file decrypt job
+      // running with an occupied connection — the main cause of the
+      // "infinite loading until page reload" hang on encrypted libraries.
       const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
       dec.setAuthTag(tag);
       const src = fs.createReadStream(fp, { start: ivLen, end: size - tagLen - 1 });
 
       let pos = 0;
       let ended = false;
-      
+
+      const finish = () => {
+        if (ended) return;
+        ended = true;
+        try { src.destroy(); } catch {}
+        try { dec.destroy(); } catch {}
+        try { res.end(); } catch {}
+      };
+
       const writeRange = (chunk) => {
         const chunkEnd = pos + chunk.length - 1;
         if (chunkEnd >= start && pos <= end) {
           const sl = Math.max(0, start - pos);
           const se = Math.min(chunk.length, end - pos + 1);
-          res.write(chunk.slice(sl, se));
+          const ok = res.write(chunk.slice(sl, se));
+          // Backpressure: pause the pipeline until the socket drains.
+          if (!ok && !ended) {
+            src.pause();
+            res.once('drain', () => { if (!ended) src.resume(); });
+          }
         }
         pos += chunk.length;
+        // Range fully served — stop decrypting the rest of the file.
+        if (pos > end) finish();
       };
 
       dec.on('data', writeRange);
-      dec.on('end', () => {
-        if (!ended) { ended = true; res.end(); }
-      });
-      dec.on('error', () => {
-        if (!ended) { ended = true; res.end(); }
-      });
-      src.on('error', () => {
-        if (!ended) { ended = true; try { res.end(); } catch {} }
-      });
+      dec.on('end', finish);
+      dec.on('error', finish);
+      src.on('error', finish);
+      // Client hung up (seek, tab close, player teardown) — kill the decrypt.
+      res.on('close', finish);
       src.pipe(dec);
     } else {
       res.writeHead(200, {
@@ -1618,6 +1630,7 @@ async function apiStream(req, res, id) {
       const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
       dec.setAuthTag(tag);
       const src = fs.createReadStream(fp, { start: ivLen, end: size - tagLen - 1 });
+      res.on('close', () => { try { src.destroy(); } catch {} try { dec.destroy(); } catch {} });
       pipeline(src, dec, res, (err) => { if (err) try { res.end(); } catch {} });
     }
     return;
@@ -1636,11 +1649,15 @@ async function apiStream(req, res, id) {
     });
     const rs = fs.createReadStream(fp, { start, end });
     rs.on('error', () => { try { res.destroy(); } catch {} });
+    // Aborted range requests (every seek aborts the previous one) must destroy
+    // the source stream, or file descriptors leak one per seek.
+    res.on('close', () => { try { rs.destroy(); } catch {} });
     rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
     const rs = fs.createReadStream(fp);
     rs.on('error', () => { try { res.destroy(); } catch {} });
+    res.on('close', () => { try { rs.destroy(); } catch {} });
     rs.pipe(res);
   }
 }
@@ -1737,11 +1754,22 @@ async function apiMove(req, res, id) {
   if (!fp) return json(res, { error: 'Not found' }, 404);
 
   const writeRoot = getDefaultWriteRoot();
-  const resolvedWrite = path.resolve(writeRoot);
 
-  const targetDir = targetCategory ? path.join(writeRoot, targetCategory) : writeRoot;
+  // Valid move-target roots: write root, main library, configured media source folders.
+  const roots = [path.resolve(writeRoot), path.resolve(VIDEOS_DIR)];
+  try {
+    for (const sf of (loadPrefs().sourceFolders || [])) {
+      if (sf && fs.existsSync(sf)) roots.push(path.resolve(sf));
+    }
+  } catch {}
+
+  // Prefer the folder where the category already physically exists — it may live
+  // on a media source path, not under the write root. Only fall back to creating
+  // a new folder under the write root when it exists nowhere.
+  const targetDir = targetCategory ? resolveCategoryPhysicalPath(targetCategory) : writeRoot;
   const resolvedTarget = path.resolve(targetDir);
-  if (!resolvedTarget.startsWith(resolvedWrite)) return json(res, { error: 'Invalid category' }, 400);
+  if (!roots.some(r => resolvedTarget === r || resolvedTarget.startsWith(r + path.sep)))
+    return json(res, { error: 'Invalid category' }, 400);
   if (!fs.existsSync(resolvedTarget)) fs.mkdirSync(resolvedTarget, { recursive: true });
 
   const filename = path.basename(fp);
@@ -1824,46 +1852,46 @@ async function apiMove(req, res, id) {
 
 async function apiAutoSort(req, res) {
   const systemDirs = new Set([path.basename(VAULT_DIR), path.basename(IGNORED_DIR)]);
-  let folders;
+  // Cheap short-circuit first, then respond immediately: this endpoint fires
+  // on every page load, so the client must never wait on renames. Any moves
+  // surface through invalidateScanCache() → SSE refresh instead.
+  let folders, loose;
   try {
-    folders = (await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true }))
-      .filter(e => e.isDirectory() && !systemDirs.has(e.name))
-      .map(e => e.name);
+    const entries = await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true });
+    folders = entries.filter(e => e.isDirectory() && !systemDirs.has(e.name)).map(e => e.name);
+    loose   = entries.filter(e => e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase())).map(e => e.name);
   } catch { return json(res, { moved: 0 }); }
-  if (!folders.length) return json(res, { moved: 0 });
+  if (!folders.length || !loose.length) return json(res, { moved: 0 });
 
-  let loose;
-  try {
-    loose = (await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true }))
-      .filter(e => e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-      .map(e => e.name);
-  } catch { return json(res, { moved: 0 }); }
-  if (!loose.length) return json(res, { moved: 0 });
+  json(res, { moved: 0, deferred: true });
 
-  const norm = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  let moved = 0;
-  const favs = loadFavs();
-  let favsChanged = false;
-
-  for (const filename of loose) {
-    const nameNoExt = norm(path.basename(filename, path.extname(filename)));
-    const match     = folders.find(folder => nameNoExt.includes(norm(folder)));
-    if (!match) continue;
-    const src = path.join(VIDEOS_DIR, filename);
-    const dst = path.join(VIDEOS_DIR, match, filename);
-    if (fs.existsSync(dst)) continue;
+  setImmediate(async () => {
     try {
-      await fs.promises.rename(src, dst);
-      moved++;
-      const oldId = toId(filename);
-      const newId = toId(path.join(match, filename));
-      const fi    = favs.indexOf(oldId);
-      if (fi !== -1) { favs[fi] = newId; favsChanged = true; }
-    } catch {}
-  }
-  if (favsChanged) saveFavs(favs);
-  if (moved > 0) invalidateScanCache();
-  json(res, { moved });
+      const norm = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      let moved = 0;
+      const favs = loadFavs();
+      let favsChanged = false;
+
+      for (const filename of loose) {
+        const nameNoExt = norm(path.basename(filename, path.extname(filename)));
+        const match     = folders.find(folder => nameNoExt.includes(norm(folder)));
+        if (!match) continue;
+        const src = path.join(VIDEOS_DIR, filename);
+        const dst = path.join(VIDEOS_DIR, match, filename);
+        if (fs.existsSync(dst)) continue;
+        try {
+          await fs.promises.rename(src, dst);
+          moved++;
+          const oldId = toId(filename);
+          const newId = toId(path.join(match, filename));
+          const fi    = favs.indexOf(oldId);
+          if (fi !== -1) { favs[fi] = newId; favsChanged = true; }
+        } catch {}
+      }
+      if (favsChanged) saveFavs(favs);
+      if (moved > 0) invalidateScanCache();
+    } catch (e) { console.error('[auto-sort] deferred error:', e.message); }
+  });
 }
 
 // ── Favourites / History / Ratings ───────────────────────────────────
@@ -3173,22 +3201,21 @@ async function apiUnlockFolder(req, res) {
 }
 
 async function apiDecryptFolder(req, res) {
-  const { isUnlocked, getVaultKey } = require('./vault-server');
-  const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
-  
+  const { isUnlocked } = require('./vault-server');
+
   const body = await readBody(req);
-  const { path: catPath, targetProfile } = body;
-  
-  if (!catPath || !targetProfile) return json(res, { error: 'path and targetProfile required' }, 400);
-  
+  const { path: catPath } = body;
+
+  if (!catPath) return json(res, { error: 'path required' }, 400);
+
   if (!isUnlocked()) {
     return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
   }
-  
+
   // Start background decryption task and return immediately
   try {
     if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
-    runDecryptFolder(catPath, targetProfile).catch(err => console.error('[apiDecryptCategory] background error:', err));
+    runDecryptFolder(catPath).catch(err => console.error('[apiDecryptCategory] background error:', err));
     json(res, { ok: true });
   } catch (e) {
     json(res, { error: e.message }, 500);

@@ -918,3 +918,89 @@ describe('apiVaultUpdateTextFile()', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+// ─── apiVaultStream() — range streaming hygiene ──────────────────────
+// Regression tests for the connection-exhaustion fix: a Range request must
+// (a) serve exactly the requested bytes with a 206, and (b) stop the decrypt
+// pipeline as soon as the range is served instead of decrypting to EOF —
+// otherwise every player seek left a full-file decrypt occupying one of the
+// browser's six per-origin connections.
+
+function makeStreamRes() {
+  const chunks = [];
+  let sc = 200, hdrs = {}, hdrsSent = false;
+  // A real Writable so pipe()d sources (the no-Range full-file path) get a
+  // spec-compliant destination; plain-object mocks lack removeListener etc.
+  const res = new stream.Writable({
+    write(c, _enc, cb) { chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)); cb(); },
+  });
+  res.writeHead = (s2, h) => { hdrs = h ? { ...hdrs, ...h } : hdrs; sc = s2; hdrsSent = true; };
+  Object.defineProperty(res, 'headersSent', { get: () => hdrsSent });
+  Object.defineProperty(res, 'statusCode2', { get: () => sc });
+  Object.defineProperty(res, 'headers', { get: () => hdrs });
+  Object.defineProperty(res, 'bodyBuffer', { get: () => Buffer.concat(chunks) });
+  res.waitEnd = (timeoutMs = 5000) => new Promise((resolve, reject) => {
+    if (res.writableEnded) return resolve();
+    const t = setTimeout(() => reject(new Error('stream response never ended')), timeoutMs);
+    res.on('finish', () => { clearTimeout(t); resolve(); });
+    res.on('close',  () => { clearTimeout(t); resolve(); });
+  });
+  return res;
+}
+
+describe('apiVaultStream() range requests', () => {
+  const PW = 'stream-pw-1!';
+  // Content large enough to span many decipher chunks (multiple 64KB reads).
+  const CONTENT = Buffer.alloc(512 * 1024);
+  for (let i = 0; i < CONTENT.length; i++) CONTENT[i] = i % 251;
+  let fileId;
+
+  beforeEach(async () => {
+    await vault.apiVaultSetup(makeJsonReq('/setup', { password: PW }), makeRes());
+    const addRes = makeRes();
+    await vault.apiVaultAdd(makeStreamReq('big.mp4', CONTENT), addRes);
+    fileId = addRes.jsonBody.id;
+  });
+
+  it('serves exactly the requested middle range with a 206', async () => {
+    const res = makeStreamRes();
+    const req = { url: '/', headers: { range: 'bytes=1000-1999' } };
+    vault.apiVaultStream(req, res, fileId);
+    await res.waitEnd();
+    expect(res.statusCode2).toBe(206);
+    expect(res.headers['Content-Range']).toBe(`bytes 1000-1999/${CONTENT.length}`);
+    expect(res.bodyBuffer.length).toBe(1000);
+    expect(res.bodyBuffer.equals(CONTENT.slice(1000, 2000))).toBe(true);
+  });
+
+  it('ends the response as soon as the range is served (no decrypt-to-EOF)', async () => {
+    const res = makeStreamRes();
+    // A tiny range at the very start of a large file: with the early-stop fix
+    // the response must end promptly, long before a full-file decrypt would.
+    const req = { url: '/', headers: { range: 'bytes=0-99' } };
+    vault.apiVaultStream(req, res, fileId);
+    await res.waitEnd();
+    expect(res.bodyBuffer.length).toBe(100);
+    expect(res.bodyBuffer.equals(CONTENT.slice(0, 100))).toBe(true);
+  });
+
+  it('serves an open-ended tail range to the last byte', async () => {
+    const res = makeStreamRes();
+    const start = CONTENT.length - 500;
+    const req = { url: '/', headers: { range: `bytes=${start}-` } };
+    vault.apiVaultStream(req, res, fileId);
+    await res.waitEnd();
+    expect(res.statusCode2).toBe(206);
+    expect(res.bodyBuffer.length).toBe(500);
+    expect(res.bodyBuffer.equals(CONTENT.slice(start))).toBe(true);
+  });
+
+  it('still streams the whole file when no Range header is sent', async () => {
+    const res = makeStreamRes();
+    const req = { url: '/', headers: {} };
+    vault.apiVaultStream(req, res, fileId);
+    await res.waitEnd();
+    expect(res.statusCode2).toBe(200);
+    expect(res.bodyBuffer.equals(CONTENT)).toBe(true);
+  });
+});

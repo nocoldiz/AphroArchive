@@ -1,7 +1,0 @@
-{
-  "Podcasts": ["Weekly", "Interview", "Narrative"],
-  "Documentaries": ["Series", "Feature"],
-  "Cold Cases": ["Unsolved", "Missing Persons"],
-  "Forensics": ["Analysis", "Psychology"],
-  "Court Cases": ["Trials", "Verdicts"]
-}

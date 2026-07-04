@@ -1,10 +1,10 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
-import { vaultUnlockModalState, switchProfile, isVaultUnlocked } from '../../store';
+import { vaultUnlockModalState, isVaultUnlocked } from '../../store';
 
 export const VaultUnlockModal = () => {
   const state = vaultUnlockModalState.value;
-  const { visible, targetProfileAfterUnlock } = state;
+  const { visible } = state;
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -46,10 +46,7 @@ export const VaultUnlockModal = () => {
       } else {
         setPassword('');
         isVaultUnlocked.value = true;
-        vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null };
-        if (targetProfileAfterUnlock) {
-          switchProfile(targetProfileAfterUnlock);
-        }
+        vaultUnlockModalState.value = { visible: false };
       }
     } catch (e: any) {
       setError(e.message || 'Failed to unlock');
@@ -89,10 +86,7 @@ export const VaultUnlockModal = () => {
         setConfirmPassword('');
         setSelfDestructPassword('');
         isVaultUnlocked.value = true;
-        vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null };
-        if (targetProfileAfterUnlock) {
-          switchProfile(targetProfileAfterUnlock);
-        }
+        vaultUnlockModalState.value = { visible: false };
       }
     } catch (e: any) {
       setError(e.message || 'Failed to setup');
@@ -207,7 +201,7 @@ export const VaultUnlockModal = () => {
           </button>
           <button
             class="modal-btn"
-            onClick={() => vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null }}
+            onClick={() => vaultUnlockModalState.value = { visible: false }}
           >
             Cancel
           </button>

@@ -2,13 +2,14 @@
 set -e
 
 # ============================================================
-# Parse flags: --windows --linux --mac --android
-# No flags = build all platforms
+# Parse flags: --windows --linux --mac
+# --publish  publishes the built artifacts to a GitHub release
+# No platform flags = build all platforms
 # ============================================================
 DO_WINDOWS=0
 DO_LINUX=0
 DO_MAC=0
-DO_ANDROID=0
+DO_PUBLISH=0
 ANY_FLAG=0
 
 for arg in "$@"; do
@@ -16,19 +17,19 @@ for arg in "$@"; do
     --windows) DO_WINDOWS=1; ANY_FLAG=1 ;;
     --linux)   DO_LINUX=1;   ANY_FLAG=1 ;;
     --mac)     DO_MAC=1;     ANY_FLAG=1 ;;
-    --android) DO_ANDROID=1; ANY_FLAG=1 ;;
+    --publish) DO_PUBLISH=1 ;;
     *) echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac
 done
 
 if [ "$ANY_FLAG" -eq 0 ]; then
-  DO_WINDOWS=1; DO_LINUX=1; DO_MAC=1; DO_ANDROID=1
+  DO_WINDOWS=1; DO_LINUX=1; DO_MAC=1
 fi
 
 [ "$DO_WINDOWS" -eq 1 ] && echo " Target: Windows"
 [ "$DO_LINUX"   -eq 1 ] && echo " Target: Linux"
 [ "$DO_MAC"     -eq 1 ] && echo " Target: macOS"
-[ "$DO_ANDROID" -eq 1 ] && echo " Target: Android"
+[ "$DO_PUBLISH" -eq 1 ] && echo " Publish: GitHub Releases"
 echo
 
 mkdir -p dist
@@ -135,42 +136,6 @@ SETUP
 fi
 
 # ============================================================
-# Android APK
-# ============================================================
-if [ "$DO_ANDROID" -eq 1 ]; then
-  echo "[android] Building Android APK..."
-
-  echo "  [a] Building Android web assets..."
-  npm run build:android-web
-
-  echo "  [b] Syncing to Android project..."
-  cd android-app
-  npx cap sync android
-
-  echo "  [c] Running Gradle (assembleRelease)..."
-  cd android
-  APK_LABEL=release
-  APK_SRC=""
-  if ./gradlew assembleRelease; then
-    for candidate in \
-      app/build/outputs/apk/release/app-release-unsigned.apk \
-      app/build/outputs/apk/release/app-release.apk; do
-      [ -f "$candidate" ] && APK_SRC="$candidate" && break
-    done
-  else
-    echo " Release build failed, trying assembleDebug..."
-    ./gradlew assembleDebug
-    APK_SRC=app/build/outputs/apk/debug/app-debug.apk
-    APK_LABEL=debug
-  fi
-
-  cd ../..
-  cp "android-app/android/$APK_SRC" dist/AphroArchive.apk
-  echo " done: dist/AphroArchive.apk  ($APK_LABEL)"
-  echo
-fi
-
-# ============================================================
 # Firefox Extension
 # ============================================================
 echo "[firefox] Packaging Firefox extension..."
@@ -188,7 +153,53 @@ echo
 [ -f dist/AphroArchive.exe          ] && echo "   AphroArchive.exe            Windows x64"
 [ -f dist/AphroArchive-linux        ] && echo "   AphroArchive-linux          Linux x64"
 [ -f dist/AphroArchive-mac.zip          ] && echo "   AphroArchive-mac.zip            macOS (arm64 + x64)"
-[ -f dist/AphroArchive.apk              ] && echo "   AphroArchive.apk                Android"
 [ -f dist/AphroArchive-firefox.xpi      ] && echo "   AphroArchive-firefox.xpi        Firefox extension"
 echo "============================================================"
 echo
+
+# ============================================================
+# Publish to GitHub Releases
+# ============================================================
+if [ "$DO_PUBLISH" -eq 1 ]; then
+  echo "[publish] Publishing to GitHub Releases..."
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo " FAILED: GitHub CLI (gh) not found. Install from https://cli.github.com/ and run 'gh auth login'." >&2
+    exit 1
+  fi
+
+  APP_VERSION="$(node -p "require('./package.json').version")"
+  [ -n "$APP_VERSION" ] || { echo " FAILED: could not read version from package.json" >&2; exit 1; }
+  TAG="v$APP_VERSION"
+  echo "  Release tag: $TAG"
+
+  ASSETS=()
+  for f in \
+    dist/AphroArchive.exe \
+    dist/AphroArchive-linux \
+    dist/AphroArchive-mac.dmg \
+    dist/AphroArchive-mac.zip \
+    dist/AphroArchive-firefox.xpi; do
+    [ -f "$f" ] && ASSETS+=("$f")
+  done
+  for f in dist/electron/*.exe; do
+    [ -f "$f" ] && ASSETS+=("$f")
+  done
+
+  if [ "${#ASSETS[@]}" -eq 0 ]; then
+    echo " FAILED: no build artifacts found in dist/" >&2
+    exit 1
+  fi
+
+  if gh release view "$TAG" >/dev/null 2>&1; then
+    echo "  Release $TAG already exists; updating assets..."
+  else
+    echo "  Creating release $TAG..."
+    gh release create "$TAG" --title "AphroArchive $TAG" --notes "Automated build of AphroArchive $TAG"
+  fi
+
+  echo "  Uploading assets..."
+  gh release upload "$TAG" "${ASSETS[@]}" --clobber
+  echo " done: published $TAG to GitHub Releases"
+  echo
+fi

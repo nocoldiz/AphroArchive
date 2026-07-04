@@ -18,8 +18,8 @@ VIDEOS_DIR=~/Movies PORT=8080 node server.js
 ```
 
 Start scripts:
-- **Windows**: `start.bat`
-- **Linux/macOS**: `./start.sh`
+- **Windows**: `utils\start.bat`
+- **Linux/macOS**: `./utils/start.sh`
 
 Install dependencies (ffmpeg, yt-dlp):
 - **Windows**: `install.bat`
@@ -45,7 +45,7 @@ Module responsibilities (files are suffixed with `-server.js`):
 - `server/db-server.js` — SQLite manager using `node:sqlite` DatabaseSync with write-through in-memory caches. Single source of truth for all persistence. See schema below.
 - `server/helpers-server.js` — Shared utilities: `json(res, data, status)`, `serveStatic`, `toId`/`fromId` (base64url file ID encoding), `readBody` (JSON parser), `formatBytes`, `formatDuration`, `safePath` (validates against VIDEOS_DIR), `wordMatch`/`wordMatchAny`/`studioMatchAny`/`actorMatches`.
 - `server/videos-server.js` — Video file scanning (`cachedScan`, `allVideos`), all video API handlers, category derivation, streaming with range support, per-category AES-256-GCM encryption/decryption, suggested video scoring.
-- Feature modules: `actors-server.js`, `vault-server.js`, `thumbnails-server.js`, `collections-server.js`, `downloads-server.js`, `links-server.js`, `books-server.js`, `audio-server.js`, `database-server.js`, `remote-server.js`, `settings-server.js`, `comments-server.js`, `duplicates-server.js`, `feed-watcher-server.js`, `gen-thumbs-server.js`, `imagegen-server.js`, `pages-server.js`, `photos-server.js`, `profiles-server.js`, `prompts-server.js`, `scrapeMethods-server.js`, `vault-zip-server.js`, `vision-server.js`, `assistant-server.js`, `background-worker-server.js`, `plugins-server.js`.
+- Feature modules: `actors-server.js`, `vault-server.js`, `thumbnails-server.js`, `collections-server.js`, `downloads-server.js`, `links-server.js`, `books-server.js`, `audio-server.js`, `database-server.js`, `remote-server.js`, `settings-server.js`, `duplicates-server.js`, `feed-watcher-server.js`, `gen-thumbs-server.js`, `pages-server.js`, `photos-server.js`, `profiles-server.js`, `prompts-server.js`, `scrapeMethods-server.js`, `vault-zip-server.js`, `vision-server.js`, `assistant-server.js`, `background-worker-server.js`, `plugins-server.js`.
 
 **Data storage**: Uses SQLite (`node:sqlite` DatabaseSync) as the primary database. In-memory write-through caches for favourites, history, ratings, and actors reduce database access.
 
@@ -78,7 +78,6 @@ Module responsibilities (files are suffixed with `-server.js`):
 - `collections` — `id PK, name, video_ids (JSON array)`
 - `favourites` — `video_id PK`
 - `history` — `video_id PK, timestamp INT`
-- `comments` — `video_id PK, data (JSON or AES-256-GCM encrypted blob)`
 - `prompts` — `id PK, text (encrypted if vault), sites (JSON, encrypted if vault), created_at INT`
 
 **Caches**:
@@ -89,7 +88,7 @@ Module responsibilities (files are suffixed with `-server.js`):
 **Links / Bookmarks**:
 - `links` — `url PK, title, category, img, scraped_video_url, has_video, embed_url, has_embed, added_at, tags (JSON), downloaded INT, local_video_id, fav INT, vault INT`
 
-**Settings**: `settings` — `key PK, value (JSON)`. Key prefs: `chronologyMode`, `aiCommentsEnabled`, `disableSearchTracking`, `vaultTimeoutMinutes`, `aiCommentMasterPrompt`, `aiReplyMasterPrompt`, `anthropicApiKey`, `openrouterApiKey`, `openrouterModel`, `networkEnabled`, `sourceFolders`, `feedFolders`, `privateFeedFolders`, `assistantNsfw`, `theme`, `cardSize`, `isMuted`, `thumbBlurMode`, `comfyuiUrl`, `comfyuiWorkflowJson`, `comfyuiPositiveNodeId`, `disabledPlugins`.
+**Settings**: `settings` — `key PK, value (JSON)`. Key prefs: `chronologyMode`, `disableSearchTracking`, `vaultTimeoutMinutes`, `anthropicApiKey`, `openrouterApiKey`, `openrouterModel`, `networkEnabled`, `sourceFolders`, `feedFolders`, `privateFeedFolders`, `assistantNsfw`, `theme`, `cardSize`, `isMuted`, `thumbBlurMode`, `comfyuiUrl`, `comfyuiWorkflowJson`, `comfyuiPositiveNodeId`, `disabledPlugins`.
 
 ### Server Module API Reference
 
@@ -162,13 +161,6 @@ Module responsibilities (files are suffixed with `-server.js`):
 - `POST /api/collections/:name/add` — `{id}`
 - `DELETE /api/collections/:name/:id`
 - `GET /api/collections/:name/videos`
-
-**`comments-server.js`**:
-- Seeded deterministic comment generation: `_seededCount(videoId)` → 4–30 comments; 35% chance of reply threads
-- Texts generated via OpenRouter API (configurable master prompt with `{count}`, `{videoName}`)
-- `GET /api/comments/:id` — auto-generates if null and `aiCommentsEnabled`
-- `POST /api/comments/:id/add` — user comment + optional auto-reply
-- Comments stored encrypted if in Vault profile
 
 **`settings-server.js`**:
 - `GET /api/settings/lists` — `hidden`, `categories`, `actors`, `studios` as newline-separated text

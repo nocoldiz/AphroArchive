@@ -1,3 +1,5 @@
+import { formatVideoTitle } from '../../utils';
+
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { duplicatesDeleteProgress, refreshLibraryQuietly } from '../../store';
@@ -406,7 +408,7 @@ export const DuplicatesView = () => {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {video.name}
+                      {formatVideoTitle(video.name)}
                       {isBest && <span style={{ fontSize: '0.7rem', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.4)', borderRadius: '4px', padding: '1px 6px', flexShrink: 0 }}>★ keep</span>}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '2px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>

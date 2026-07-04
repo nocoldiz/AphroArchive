@@ -1,3 +1,4 @@
+import { formatVideoTitle } from '../../utils';
 import { useState, useCallback, useMemo, useRef } from 'preact/hooks';
 import { isMuted, allVideos, linkVidIds, actors, folders } from '../../store';
 import {
@@ -200,7 +201,7 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
           />
         </div>
         <video id="zap-preload" className="zap-preload-vid" />
-        <div className="zap-title-overlay">{video.name}</div>
+        <div className="zap-title-overlay">{formatVideoTitle(video.name)}</div>
       </div>
 
       <div className="zap-queue">
@@ -299,7 +300,7 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
                 onError={(e: any) => e.target.style.visibility = 'hidden'}
               />
               <div className="zap-queue-info">
-                <div className="zap-queue-name">{item.video.name}</div>
+                <div className="zap-queue-name">{formatVideoTitle(item.video.name)}</div>
                 <div className="zap-queue-cat">{item.video.category}</div>
               </div>
             </div>

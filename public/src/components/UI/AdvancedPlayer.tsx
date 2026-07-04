@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { signal } from '@preact/signals';
 import { isMuted as isMutedSignal, appPrefs } from '../../store';
 import { getProgress, setProgress } from '../../home/progress';
 import { isTVMode, tvChannels, tvCurrentChannelIdx, tvFavChannels, toggleTVFav, nextTVChannel, prevTVChannel, playChannel } from '../../tv-mode';
@@ -54,6 +55,13 @@ const clampVol = (v: number) => Number.isFinite(v) ? Math.min(1, Math.max(0, v))
 // Approx width (px) of the scrub-preview tooltip, used to keep it on-screen.
 const PREVIEW_W = 140;
 
+// Local Zap: skip randomly forward through the current video, then roll on to
+// the next video in the playlist. Held in module-level signals (not component
+// state) so the mode survives the per-video remount and keeps zapping across
+// videos until turned off. `localZapSeconds === null` means a random 8–20s gap.
+export const localZapOn = signal(false);
+export const localZapSeconds = signal<number | null>(null);
+
 // Per-video volume memory: loud/quiet videos can be pre-adjusted without
 // touching the global level. Falls back to the last global volume.
 const loadSavedVolume = (videoId?: string) => {
@@ -81,11 +89,15 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const [muted, setMuted] = useState(isMuted);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Seed from the current document fullscreen state so a player remounting into
+  // an already-fullscreen wrapper (next/prev video) knows it's fullscreen.
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    const fsEl = document.fullscreenElement || (document as any).webkitFullscreenElement;
+    return !!fsEl && !!(fsEl as HTMLElement).classList?.contains('video-player-wrap');
+  });
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState(0);
   const [buffered, setBuffered] = useState<{ start: number; end: number }[]>([]);
-  const [localZap, setLocalZap] = useState(false);
   const [loading, setLoading] = useState(false);
   // Auto-recovery: transient load failures (404 race on a fresh stream, network
   // blip, mid-buffer stall) used to leave a blank player until a full page
@@ -163,7 +175,18 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       hls.loadSource(activeHlsSrc);
       hls.attachMedia(vid);
       hls.on(Hls.Events.MANIFEST_PARSED, () => vid.play().catch(() => {}));
-      hls.on(Hls.Events.ERROR, (_: any, data: any) => { if (data.fatal) toast('HLS error: ' + data.details); });
+      hls.on(Hls.Events.ERROR, (_: any, data: any) => {
+        if (!data.fatal) return;
+        // Try hls.js's built-in recovery first; only if that's not applicable do
+        // we tear HLS down and drop back to direct streaming, so a transcode
+        // hiccup never leaves the player stuck forever.
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) { try { hls.recoverMediaError(); return; } catch {} }
+        try { hls.destroy(); } catch {}
+        if (hlsInstanceRef.current === hls) hlsInstanceRef.current = null;
+        toast('HLS error: ' + data.details);
+        setUsingHls(false);
+      });
     };
 
     // Safari supports HLS natively — just point src directly
@@ -215,6 +238,12 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     if (!vid || usingHlsRef.current) return;
     const resumeAt = vid.currentTime || 0;
     setLoading(true);
+    // Abort the stalled request first: a bare load() would queue a *second*
+    // request behind the hung one inside the browser's connection pool.
+    const currentSrc = vid.getAttribute('src') || src;
+    try { vid.pause(); } catch {}
+    try { vid.removeAttribute('src'); vid.load(); } catch {}
+    if (currentSrc) { try { vid.src = currentSrc; } catch {} }
     try { vid.load(); } catch {}
     const onLoaded = () => {
       vid.removeEventListener('loadedmetadata', onLoaded);
@@ -370,6 +399,12 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       vid.removeEventListener('stalled', onStalled);
       vid.removeEventListener('playing', onPlaying);
       vid.removeEventListener('canplay', onCanPlay);
+      // Release the media connection NOW. Leaving a detached <video> (or a live
+      // HLS loader) holding an open/stalled stream socket leaks a connection;
+      // after a handful of switches the browser's per-host connection cap is
+      // exhausted and every later video hangs "forever" until a full reload.
+      if (hlsInstanceRef.current) { try { hlsInstanceRef.current.destroy(); } catch {} hlsInstanceRef.current = null; }
+      try { vid.pause(); vid.removeAttribute('src'); vid.load(); } catch {}
     };
   }, []);
 
@@ -380,33 +415,59 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     }
   }, [playbackSpeed]);
 
+  // Universal last-resort watchdog: whenever the spinner is up, give it a hard
+  // deadline. If we're still not playing by then, force a recovery path instead
+  // of spinning forever — this catches the cases the metadata/stall watchdogs
+  // miss (notably HLS, which the others deliberately skip).
   useEffect(() => {
+    if (!loading) return;
     const vid = videoRef.current;
-    if (!vid || !localZap) return;
-
-    const interval = setInterval(() => {
-      if (vid.paused) return;
-
-      const remaining = vid.duration - vid.currentTime;
-      if (remaining < 10) {
-        clearInterval(interval);
-        setLocalZap(false);
+    if (!vid) return;
+    const at = vid.currentTime;
+    const t = setTimeout(() => {
+      if (vid.readyState >= 3 && !vid.paused && vid.currentTime > at + 0.1) { setLoading(false); return; }
+      if (usingHlsRef.current) {
+        const hls = hlsInstanceRef.current;
+        if (hls) { try { hls.startLoad(); } catch {} }
+        else { setUsingHls(false); setLoading(false); }
         return;
       }
+      handleLoadFailure();
+    }, 15000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
-      const minJump = 5;
-      const maxJump = remaining - 5;
-      if (maxJump > minJump) {
-        const jump = minJump + Math.random() * (maxJump - minJump);
-        vid.currentTime = vid.currentTime + jump;
-      } else {
-        clearInterval(interval);
-        setLocalZap(false);
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid || !localZapOn.value) return;
+
+    let timer: any;
+    // Gap before the next skip: a fixed value from the selector, or a random
+    // 8–20s when left on "Random".
+    const nextDelay = () => {
+      const fixed = localZapSeconds.value;
+      const secs = fixed && fixed > 0 ? fixed : 8 + Math.random() * 12;
+      return secs * 1000;
+    };
+    const tick = () => {
+      if (!vid.paused) {
+        const remaining = vid.duration - vid.currentTime;
+        const minJump = 5;
+        const maxJump = remaining - 5;
+        if (!isFinite(vid.duration) || maxJump <= minJump) {
+          // No room left to jump forward — advance to the next video in the
+          // playlist and keep zapping there (the mode persists across remount).
+          onNextRef.current?.();
+          return;
+        }
+        vid.currentTime = vid.currentTime + minJump + Math.random() * (maxJump - minJump);
       }
-    }, 5000);
+      timer = setTimeout(tick, nextDelay());
+    };
+    timer = setTimeout(tick, nextDelay());
 
-    return () => clearInterval(interval);
-  }, [localZap]);
+    return () => clearTimeout(timer);
+  }, [localZapOn.value]);
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -423,10 +484,19 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   };
 
   // ── Fullscreen ──────────────────────────────────────────────────────
+  // Fullscreen the stable outer wrapper (.video-player-wrap) rather than this
+  // per-video container: the wrapper isn't remounted when the video changes, so
+  // fullscreen survives next/prev and auto-advance. Falls back to the container
+  // when there's no such wrapper (e.g. the immersive Zap view).
+  const getFsTarget = (): HTMLElement | null => {
+    const el = containerRef.current;
+    if (!el) return null;
+    return (el.closest('.video-player-wrap') as HTMLElement) || el;
+  };
   useEffect(() => {
     const onFsChange = () => {
       const fsEl = document.fullscreenElement || (document as any).webkitFullscreenElement;
-      setIsFullscreen(fsEl === containerRef.current);
+      setIsFullscreen(!!fsEl && fsEl === getFsTarget());
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
@@ -471,14 +541,14 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   }, [playing]);
 
   const toggleFullscreen = () => {
-    const container = containerRef.current;
-    if (!container) return;
+    const target = getFsTarget();
+    if (!target) return;
     const fsEl = document.fullscreenElement || (document as any).webkitFullscreenElement;
     if (!fsEl) {
-      const request = container.requestFullscreen || (container as any).webkitRequestFullscreen;
+      const request = target.requestFullscreen || (target as any).webkitRequestFullscreen;
       if (!request) { toast('Fullscreen not supported'); return; }
       try {
-        const p = request.call(container);
+        const p = request.call(target);
         if (p && p.catch) p.catch(() => toast('Fullscreen blocked'));
       } catch { toast('Fullscreen blocked'); }
     } else {
@@ -789,7 +859,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         src={usingHls ? undefined : src}
         preload="auto"
         muted={muted}
-        style={{ width: '100%', maxHeight: isFullscreen ? '100vh' : '80vh', display: 'block' }}
+        style={{ width: '100%', maxHeight: isFullscreen ? '100vh' : '85vh', display: 'block' }}
         onClick={togglePlay}
         onDblClick={(e: any) => { e.preventDefault(); toggleFullscreen(); }}
         onError={() => {
@@ -1014,7 +1084,6 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
             {showSkipButtons && (
               <button onClick={() => isTVMode.value ? prevTVChannel() : prevChapter()} title={isTVMode.value ? 'Prev channel (P)' : 'Previous chapter'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
             )}
-            <button onClick={() => setLocalZap(!localZap)} style={{ background: 'none', border: 'none', color: localZap ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '1.2rem' }} title="Local Zap Mode">⚡</button>
             {showSkipButtons && (
               <button onClick={() => isTVMode.value ? nextTVChannel() : nextChapter()} title={isTVMode.value ? 'Next channel (N)' : 'Next chapter'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
             )}
@@ -1299,6 +1368,35 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
                 </div>
               );
             })()}
+
+            {/* Seconds-between-skips selector — only while Local Zap is running */}
+            {localZapOn.value && (
+              <select
+                value={localZapSeconds.value ?? ''}
+                title="Seconds before next skip"
+                onChange={(e: any) => {
+                  const v = e.target.value;
+                  localZapSeconds.value = v === '' ? null : parseInt(v, 10);
+                }}
+                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid var(--ac, #ff4a4a)', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', fontSize: '0.75rem' }}
+              >
+                <option value="" style={{ background: '#222' }}>Random 8–20s</option>
+                <option value="5" style={{ background: '#222' }}>5s</option>
+                <option value="10" style={{ background: '#222' }}>10s</option>
+                <option value="15" style={{ background: '#222' }}>15s</option>
+                <option value="20" style={{ background: '#222' }}>20s</option>
+                <option value="30" style={{ background: '#222' }}>30s</option>
+                <option value="60" style={{ background: '#222' }}>60s</option>
+              </select>
+            )}
+
+            {/* Local Zap — skip randomly forward, then roll into the next video */}
+            <button
+              type="button"
+              onClick={() => { localZapOn.value = !localZapOn.value; }}
+              title="Local Zap Mode — skip forward at random, then next video"
+              style={{ background: 'none', border: 'none', color: localZapOn.value ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '1.2rem' }}
+            >⚡</button>
 
             <button type="button" onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen (f)' : 'Fullscreen (f)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
               {isFullscreen ? '🡼' : '⛶'}

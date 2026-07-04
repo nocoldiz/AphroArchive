@@ -32,16 +32,15 @@ const THEMES = [
 
 const PRESET_COLORS = ['#e8503a', '#3a7be8', '#3abf7a', '#e8a53a', '#9d5cff', '#e83a88', '#3ae8d4', '#8be83a'];
 
-type Step = 'welcome' | 'name' | 'preset' | 'mediaPaths' | 'theme';
-const STEPS: Step[] = ['welcome', 'name', 'preset', 'mediaPaths', 'theme'];
+type Step = 'welcome' | 'preset' | 'mediaPaths' | 'theme';
+const STEPS: Step[] = ['welcome', 'preset', 'mediaPaths', 'theme'];
 const STEP_LABELS: Partial<Record<Step, string>> = {
-  name: 'Profile', preset: 'Preset', mediaPaths: 'Folders', theme: 'Theme',
+  preset: 'Preset', mediaPaths: 'Folders', theme: 'Theme',
 };
 
 export const OnboardingWizard = () => {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<Step>('welcome');
-  const [profileName, setProfileName] = useState('');
   const [presets, setPresets] = useState<Preset[]>([]);
   const [selectedPreset, setSelectedPreset] = useState('');
   const [presetMode, setPresetMode] = useState<'blank' | 'preset' | ''>('');
@@ -60,15 +59,12 @@ export const OnboardingWizard = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('/api/profiles')
+    fetch('/api/presets')
       .then(r => r.json())
       .then(data => {
-        if (!data.hasDbFiles) {
+        if (data.firstRun) {
           setVisible(true);
-          fetch('/api/presets')
-            .then(r => r.json())
-            .then(pdata => setPresets(pdata.profiles || []))
-            .catch(() => {});
+          setPresets(data.profiles || []);
         }
       })
       .catch(() => {});
@@ -124,19 +120,20 @@ export const OnboardingWizard = () => {
   };
 
   const handleCreate = async () => {
-    if (!profileName.trim()) { setError('Please enter a profile name'); return; }
     setCreating(true); setError('');
     try {
-      const r = await fetch('/api/profiles/create', {
+      const selection = presetMode === 'preset' && selectedPreset ? [selectedPreset] : 'blank';
+      const r = await fetch('/api/presets/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: profileName.trim(),
-          preset: selectedPreset || undefined,
-          importLinks: !!selectedPreset && importLinks,
+          selection,
+          merge: false,
+          importLinks: presetMode === 'preset' && importLinks,
+          linkCount: -1,
         }),
       });
-      if (!r.ok) throw new Error('Failed to create profile');
+      if (!r.ok) throw new Error('Failed to apply preset');
       const prefsUpdate: Record<string, any> = { theme: selectedTheme };
       if (mediaPaths.length) prefsUpdate.sourceFolders = mediaPaths;
       await fetch('/api/settings/prefs', {
@@ -255,34 +252,12 @@ export const OnboardingWizard = () => {
               Personal Video Library
             </div>
             <p style={{ margin: '0 auto 32px', fontSize: '0.82rem', color: 'var(--tx3)', lineHeight: 1.75, maxWidth: '280px' }}>
-              Let's take a minute to set up your profile, pick a preset, and make this yours.
+              Let's take a minute to pick a preset and make this yours.
             </p>
-            <button type="button" onClick={() => go('name')}
+            <button type="button" onClick={() => go('preset')}
               style={{ ...accentBtn, padding: '12px 36px', fontSize: '0.95rem', borderRadius: '8px', fontWeight: 700 }}>
               Get Started →
             </button>
-          </div>
-        );
-
-      case 'name':
-        return (
-          <div>
-            <h3 style={stepTitle}>Name your profile</h3>
-            <p style={stepDesc}>Your profile stores your library, categories, and settings. You can create more later.</p>
-            <input
-              type="text" value={profileName}
-              onInput={(e: any) => setProfileName(e.target.value)}
-              placeholder="e.g. My Collection"
-              autoFocus
-              style={inputStyle}
-              onKeyDown={(e: any) => { if (e.key === 'Enter' && profileName.trim()) go('preset'); }}
-            />
-            <div style={stepFooter}>
-              <button type="button" onClick={prevStep} style={backBtn}>← Back</button>
-              <button type="button" onClick={() => go('preset')} disabled={!profileName.trim()} style={nextBtn(!!profileName.trim())}>
-                Next →
-              </button>
-            </div>
           </div>
         );
 

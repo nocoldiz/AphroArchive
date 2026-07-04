@@ -25,7 +25,7 @@ process.on('uncaughtException', (err) => {
 
 const log = require('./server/logger-server');
 const cfg = require('./server/config-server');
-const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
+const { PORT, IS_PKG, MEDIA_DIR, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
   WEBSITES_JSON, CATEGORIES_JSON, LINK_DIR, BM_CACHE_FILE,
   BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE,
   FEED_DIR, VAULT_FEED_DIR } = cfg;
@@ -58,17 +58,14 @@ const screenshots = require('./server/screenshots-server');
 const database = require('./server/database-server');
 const seriesDb = require('./server/series-server');
 const albumsDb = require('./server/albums-server');
-const profiles = require('./server/profiles-server');
+const presets = require('./server/profiles-server');
 const remote = require('./server/remote-server');
 const settings = require('./server/settings-server');
 const search = require('./server/search-server');
 const plugins = require('./server/plugins-server');
 const prompts = require('./server/prompts-server');
-const comments = require('./server/comments-server');
 const vision = require('./server/vision-server');
 const vaultZip = require('./server/vault-zip-server');
-const mediaZip = require('./server/media-zip-mount-server');
-const veracrypt = require('./server/veracrypt-server');
 const pages = require('./server/pages-server');
 const duplicates = require('./server/duplicates-server');
 const corrupted = require('./server/corrupted-server');
@@ -95,14 +92,9 @@ function ensureDirSync(dirPath) {
 }
 
 ensureDirSync(CACHE_DIR);
-ensureDirSync(VIDEOS_DIR);
-ensureDirSync(AUDIO_DIR);
-ensureDirSync(BOOKS_DIR);
-ensureDirSync(PHOTOS_DIR);
+ensureDirSync(MEDIA_DIR);                 // single unified media folder (videos/audio/books/photos/pages/files)
 ensureDirSync(SCREENSHOTS_DIR);
-ensureDirSync(PAGES_DIR);
-ensureDirSync(FILES_DIR);
-ensureDirSync(path.join(VIDEOS_DIR, 'downloads'));
+ensureDirSync(path.join(MEDIA_DIR, 'downloads'));
 ensureDirSync(cfg.LINK_THUMBS_DIR);
 ensureDirSync(path.dirname(BM_CACHE_FILE));
 ensureDirSync(FEED_DIR);
@@ -425,13 +417,6 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/folder/download-zip' && req.method === 'POST') return vaultZip.apiFolderDownloadZip(req, res);
   if (p === '/api/vault/zip-entries' && req.method === 'POST') return vaultZip.apiVaultZipEntries(req, res);
   if (p === '/api/vault/import-zip' && req.method === 'POST') return vaultZip.apiVaultImportZip(req, res);
-  if ((m = p.match(/^\/api\/vault\/zip-stream\/([^/]+)$/)) && req.method === 'GET') return require('./server/vault-zip-mount-server').streamZipEntry(req, res, m[1]);
-  if ((m = p.match(/^\/api\/media-zip-stream\/([^/]+)$/)) && req.method === 'GET') return mediaZip.streamMediaZipEntry(req, res, m[1]);
-  if (p === '/api/media-zip/unlock' && req.method === 'POST') return mediaZip.apiMediaZipUnlock(req, res);
-  if (p === '/api/veracrypt/status' && req.method === 'GET') return veracrypt.apiVeracryptStatus(req, res);
-  if (p === '/api/veracrypt/mount' && req.method === 'POST') return veracrypt.apiVeracryptMount(req, res);
-  if (p === '/api/veracrypt/dismount' && req.method === 'POST') return veracrypt.apiVeracryptDismount(req, res);
-  if (p === '/api/veracrypt/import' && req.method === 'POST') return veracrypt.apiVeracryptImport(req, res);
   if (p === '/api/vault/folders' && req.method === 'POST') return vault.apiVaultCreateFolder(req, res);
   if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)\/rename$/)) && req.method === 'PATCH') return vault.apiVaultRenameFolder(req, res, m[1]);
   if ((m = p.match(/^\/api\/vault\/folders\/([^/]+)\/move$/)) && req.method === 'PATCH') return vault.apiVaultMoveFolder(req, res, m[1]);
@@ -456,22 +441,13 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/link-fav' && req.method === 'POST') return vault.apiVaultLinkFav(req, res);
 
   // ── Presets ──────────────────────────────────────────────────────────
-  if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
-  if (p === '/api/presets/apply' && req.method === 'POST') return profiles.apiApplyPreset(req, res);
-  if (p === '/api/folders/from-preset' && req.method === 'POST') return profiles.apiCreateFoldersFromPreset(req, res);
+  if (p === '/api/presets' && req.method === 'GET') return presets.apiGetPresets(req, res);
+  if (p === '/api/presets/apply' && req.method === 'POST') return presets.apiApplyPreset(req, res);
 
   // ── RSS feeds ────────────────────────────────────────────────────────
   if (p === '/api/rss/feeds' && req.method === 'GET') return rss.apiGetRssFeeds(req, res);
   if (p === '/api/rss/feeds' && req.method === 'POST') return rss.apiSaveRssFeeds(req, res);
   if (p === '/api/rss/refresh' && req.method === 'POST') return rss.apiRefreshRss(req, res);
-
-  // ── Profiles ─────────────────────────────────────────────────────────
-  if (p === '/api/profiles' && req.method === 'GET') return profiles.apiGetProfiles(req, res);
-  if (p === '/api/profiles/switch' && req.method === 'POST') return profiles.apiSwitchProfile(req, res);
-  if (p === '/api/profiles/create' && req.method === 'POST') return profiles.apiCreateProfile(req, res);
-  if (p === '/api/profiles/rename' && req.method === 'POST') return profiles.apiRenameProfile(req, res);
-  if (p === '/api/profiles/delete' && req.method === 'POST') return profiles.apiDeleteProfile(req, res);
-  if (p === '/api/profiles/clone' && req.method === 'POST') return profiles.apiCloneProfile(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
   if (p === '/api/db/folder-tags' && req.method === 'GET') return database.apiGetFolderTags(req, res);
@@ -590,19 +566,6 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/browse-folders-native' && req.method === 'GET') return settings.apiBrowseFoldersNative(req, res);
   if (p === '/api/feed-folders/verify-vault' && req.method === 'POST') return settings.apiVerifyVaultPassword(req, res);
 
-  // ── AI Comments ──────────────────────────────────────────────────────
-  if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);
-  if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
-  if (p === '/api/comments/reply' && req.method === 'POST') return comments.apiReplyToComment(req, res);
-  {
-    const m = p.match(/^\/api\/comments\/([^/]+)\/add$/);
-    if (m && req.method === 'POST') return comments.apiAddComment(req, res, decodeURIComponent(m[1]));
-  }
-  {
-    const m = p.match(/^\/api\/comments\/([^/]+)$/);
-    if (m && req.method === 'GET') return comments.apiGetComments(req, res, decodeURIComponent(m[1]));
-  }
-
   // ── Local IP ─────────────────────────────────────────────────────────
   if (p === '/api/local-ip' && req.method === 'GET') {
     const ips = getLocalIPs();
@@ -655,6 +618,12 @@ const server = http.createServer(async (req, res) => {
   } catch { try { res.destroy(); } catch {} }
  }
 });
+
+// Keep-alive tuning: idle keep-alive sockets are recycled after 65s (with the
+// headers window slightly longer per Node docs), so stale connections don't
+// linger in the browser's 6-per-origin pool while media streams wait.
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
 
 // Malformed HTTP requests emit 'clientError' — destroy the socket instead of
 // letting the default handler bubble it up.

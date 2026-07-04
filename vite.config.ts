@@ -3,16 +3,29 @@ import preact from '@preact/preset-vite';
 import { resolve } from 'node:path';
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   plugins: [preact()],
   root: 'public',
-  // Android/Capacitor loads via file:// and needs relative asset paths.
   // The Node server (server.js) serves nested SPA routes like /video/<id>,
-  // where relative paths resolve incorrectly — those need an absolute base.
-  base: mode === 'android' ? './' : '/',
+  // where relative paths resolve incorrectly — use an absolute base.
+  base: '/',
   build: {
-    outDir: mode === 'android' ? '../android-app/www' : '../dist/public',
+    outDir: '../dist/public',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split the framework out of the app chunk: the vendor chunk is
+        // content-hashed and effectively never changes, so after the first
+        // visit it's served from the immutable browser cache while only the
+        // (much smaller) app chunk re-downloads on updates.
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('preact')) return 'vendor-preact';
+            return 'vendor';
+          }
+        },
+      },
+    },
   },
   server: {
     port: 5173,

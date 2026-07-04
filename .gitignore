@@ -17,6 +17,41 @@ process
 video_downloads/
 .AphroArchive-thumbs
 .AphroArchive-actor-photos
+paths.json
+
+# ── Media file types (images / video / audio) ─
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.bmp
+*.tif
+*.tiff
+*.avif
+*.heic
+*.svg
+*.ico
+*.mp4
+*.mkv
+*.webm
+*.avi
+*.mov
+*.wmv
+*.flv
+*.m4v
+*.mpg
+*.mpeg
+# (*.ts omitted — clashes with TypeScript sources)
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.oga
+*.opus
+*.m4a
+*.aac
+*.wma
 
 # ── Caches ───────────────────────────────────
 cache/
@@ -36,42 +71,38 @@ db/
 build/
 dist/public/*
 
-# ── Android app ──────────────────────────────
-android-app
-android-app/www/assets/*
-android-app/www/*
-android-app/www/index.html
-
-# ── Bulk downloader ──────────────────────────
-bulkdownloader/links_downloaded.txt
-bulkdownloader/links_failed.txt
-bulkdownloader/links_to_download.txt
+# ── Bulk downloader (utils/bulkdownloader.py runtime files) ──
+utils/links_downloaded.txt
+utils/links_failed.txt
+utils/links_to_download.txt
+utils/link_failed.txt
 # Login cookies contain auth tokens — never commit them
-bulkdownloader/cookies.txt
-bulkdownloader/x_cookies.txt
+utils/cookies.txt
+utils/x_cookies.txt
 cookies.txt
 # Runtime/local state — never commit (queue db, build zip)
-bulkdownloader/queue_db.json
-bulkdownloader/db.json
-bulkdownloader/db.json.tmp
-bulkdownloader/*.zip
+utils/queue_db.json
+utils/db.json
+utils/db.json.tmp
+utils/*.zip
 # Persistent X.com browser profile — contains the logged-in session, never commit
-bulkdownloader/x_browser_profile/
+utils/x_browser_profile/
 # Playwright / built-in browser engine + downloaded Chromium
-bulkdownloader/ms-playwright/
+utils/ms-playwright/
 ms-playwright/
 .playwright/
 # Test + tooling caches
 .pytest_cache/
-bulkdownloader/tests/__pycache__/
 
 # ── Binaries ─────────────────────────────────
 yt-dlp.exe
 
 # ── Local fast build script ──────────────────
 build_fast.bat
-bulkdownloader/link_failed.txt
 dist/links_downloaded.txt
 dist/links_to_download.txt
 dist
 
+.aider*
+GEMINI_API_KEY=AIzaSyCefHwYPxvo3HjFibd80aZPGdcpSxP5_kY
+GEMINI_API_KEY=AIzaSyAnbDYetpqScam7btTaQ0SRujp3xGL9k4k

@@ -1,3 +1,31 @@
+/**
+ * Format video titles to readable title case.
+ * Handles formats like "test_like_This_test" or "test-like-This-test"
+ * Converts them to: "Test Like This Test"
+ */
+export function formatVideoTitle(title: string): string {
+  if (!title || typeof title !== 'string') return '';
+  
+  // Handle underscore separated titles
+  if (title.includes('_')) {
+    return title
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  
+  // Handle hyphen separated titles
+  if (title.includes('-')) {
+    return title
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  
+  // Default case - capitalize first letter only
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
 export function extractActorNames(title: string, knownActors: string[] = []): string[] {
   const found = new Set(knownActors);
 

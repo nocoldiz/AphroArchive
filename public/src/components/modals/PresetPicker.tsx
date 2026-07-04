@@ -5,13 +5,11 @@ interface Preset {
   id: string;
   name: string;
   description?: string;
-  hasFolders?: boolean;
   counts: {
     categories?: number;
     actors?: number;
     channels?: number;
     websites?: number;
-    folders?: number;
     links?: number;
   };
 }
@@ -22,7 +20,6 @@ export const PresetPicker = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [createFolders, setCreateFolders] = useState(false);
   const [importLinks, setImportLinks] = useState(true);
   const [linkCount, setLinkCount] = useState(0); // 0 = import all
   const [status, setStatus] = useState('');
@@ -34,7 +31,6 @@ export const PresetPicker = () => {
     setFetchError('');
     setStatus('');
     setSelected(new Set());
-    setCreateFolders(false);
     setImportLinks(true);
     setLinkCount(0);
     fetch('/api/presets')
@@ -55,38 +51,12 @@ export const PresetPicker = () => {
   const handleApply = async (selection: string[] | 'all' | 'blank', merge: boolean = state.mergeMode) => {
     setStatus('Applying…');
     try {
-      if (!state.mergeMode && Array.isArray(selection)) {
-        // Create a profile for each selected preset
-        for (const p of selection) {
-          const meta = presets.find(x => x.id === p);
-          await fetch('/api/profiles/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: p,
-              preset: p,
-              createFolders: createFolders && !!meta?.hasFolders,
-              importLinks: importLinks && !!meta?.counts.links,
-              linkCount: linkCount > 0 ? linkCount : -1,
-            }),
-          });
-        }
-        // Switch to the first selected profile
-        if (selection.length > 0) {
-          await fetch('/api/profiles/switch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profile: selection[0] }),
-          });
-        }
-      } else {
-        const res = await fetch('/api/presets/apply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selection, merge, importLinks, linkCount: linkCount > 0 ? linkCount : -1 }),
-        });
-        if (!res.ok) throw new Error('Server error');
-      }
+      const res = await fetch('/api/presets/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selection, merge, importLinks, linkCount: linkCount > 0 ? linkCount : -1 }),
+      });
+      if (!res.ok) throw new Error('Server error');
 
       presetPickerState.value = { ...state, visible: false };
       window.location.reload();
@@ -170,13 +140,6 @@ export const PresetPicker = () => {
             ))}
           </div>
         </div>
-
-        {!state.mergeMode && Array.from(selected).some(id => presets.find(p => p.id === id)?.hasFolders) && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 12px', fontSize: '0.82rem', color: 'var(--tx2)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={createFolders} onChange={(e: any) => setCreateFolders(e.target.checked)} />
-            Create each preset's folder structure on disk
-          </label>
-        )}
 
         {(() => {
           const totalLinks = Array.from(selected).reduce((n, id) => n + (presets.find(p => p.id === id)?.counts.links || 0), 0);

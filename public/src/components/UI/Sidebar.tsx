@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
-import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
+import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
-import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, FolderOptionsButton, type FoldersFilterControl } from './LibraryFilters';
-import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, setItemPlacement, sortByOrder, setNavOrder, getNavOrder, activeDrag, type NavItem, type NavSection, type NavOrderKey } from './navItems';
+import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, type FoldersFilterControl } from './LibraryFilters';
+import { LoadProgress } from './LoadProgress';
+import { getNavItems, navIcon, placementFor, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, setItemPlacement, sortByOrder, setNavOrder, getNavOrder, activeDrag, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID, type NavItem, type NavSection, type NavOrderKey } from './navItems';
 
 const SectionHeader = ({ label, id, open, style, onClick, action, onContextMenu }: { label: string, id: string, open?: boolean, style?: any, onClick?: () => void, action?: any, onContextMenu?: (e: any) => void }) => (
   <h3 className={`sidebar-heading${open === false ? ' closed' : ''}`} id={id} style={style} onClick={onClick} onContextMenu={onContextMenu}>
@@ -76,6 +77,7 @@ export const Sidebar = () => {
   const [mediaOpen, setMediaOpen] = useState(() => sectionState('media'));
   const [tagsOpen, setTagsOpen] = useState(() => sectionState('tags'));
   const [linksOpen, setLinksOpen] = useState(() => sectionState('links'));
+  const [pluginsOpen, setPluginsOpen] = useState(() => sectionState('plugins'));
   const [catsOpen, setCatsOpen] = useState(() => sectionState('cats'));
   const [folderQuery, setFolderQuery] = useState('');
   const [photoFolders, setPhotoFolders] = useState<{ path: string, name: string }[]>([]);
@@ -87,6 +89,7 @@ export const Sidebar = () => {
   const toggleMedia = makeToggle('media', setMediaOpen);
   const toggleTags = makeToggle('tags', setTagsOpen);
   const toggleLinks = makeToggle('links', setLinksOpen);
+  const togglePlugins = makeToggle('plugins', setPluginsOpen);
   const toggleCats = makeToggle('cats', setCatsOpen);
 
   useEffect(() => {
@@ -100,7 +103,7 @@ export const Sidebar = () => {
       .then(r => r.json())
       .then(setPhotoFolders)
       .catch(() => {});
-  }, [activeProfile.value]);
+  }, []);
 
   const navItems = getNavItems();
   const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
@@ -164,8 +167,16 @@ export const Sidebar = () => {
     { key: 'tools', label: 'Tools', open: manageOpen, toggle: toggleManage, id: 'sh3-manage' },
   ];
 
-  // All plugins whose effective location is sidebar
-  const sidebarPlugins = pluginsList.value.filter(p => pluginLocation(p) === 'sidebar' && isPluginEnabled(p.id));
+  // Plugins the user has explicitly pinned to the sidebar render as their own
+  // draggable entries; un-pinned plugins live in the grouped "Plugins" section.
+  const sidebarPlugins = pluginsList.value.filter(p => placements[p.id] === 'sidebar' && isPluginEnabled(p.id));
+
+  // The grouped Plugins section only appears in the sidebar when the whole group
+  // has been moved here from the topbar.
+  const groupInSidebar = pluginGroupLocation() === 'sidebar';
+  const groupedPlugins = groupInSidebar
+    ? pluginsList.value.filter(p => pluginInGroup(p) && isPluginEnabled(p.id))
+    : [];
 
   // Sorted sidebar plugin order
   const pluginOrderKey: NavOrderKey = 'sidebar_plugins';
@@ -366,10 +377,36 @@ export const Sidebar = () => {
           {dragInsertId === '__end_plugins' && insertLine}
         </>
       )}
+
+      {/* Grouped Plugins section — only when the group has been moved to the sidebar */}
+      {groupedPlugins.length > 0 && (
+        <>
+          <div className="side-sep"></div>
+          <SectionHeader
+            label="Plugins"
+            id="sh3-plugins"
+            open={pluginsOpen}
+            onClick={togglePlugins}
+            onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, PLUGINS_GROUP_ID, 'Plugins', 'sidebar'); }}
+          />
+          <div className="side-section" style={{ display: pluginsOpen ? 'block' : 'none' }}>
+            {groupedPlugins.map(p => (
+              <SidebarItem
+                key={p.id}
+                label={p.name}
+                icon={p.icon ? navIcon(<g dangerouslySetInnerHTML={{ __html: p.icon }} />, 13, iconStyle) : undefined}
+                onClick={() => runPluginAction(p, currentView)}
+                isActive={p.type === 'view' && currentView.value === p.view}
+                onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, p.id, p.name, 'topbar-dropdown'); }}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </>
   );
 
-  const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'sidebar';
+  const showFolders = placementFor(FILTER_IDS.folders, 'topbar') === 'sidebar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'sidebar' && !inVaultMode;
   const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'sidebar' && !inVaultMode;
 
@@ -411,7 +448,6 @@ export const Sidebar = () => {
                     }
                   </svg>
                 </button>
-                <FolderOptionsButton />
               </span>
             }
           />
@@ -440,12 +476,15 @@ export const Sidebar = () => {
             onClick={toggleTags}
             onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.tags, 'Tags', 'sidebar'); }}
             action={
+              <>
+              <LoadProgress size={16} />
               <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               </button>
+              </>
             }
           />
           <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>

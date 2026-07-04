@@ -1,3 +1,38 @@
+
+
+
+
+
+BY default in sidebar there is the folder view and in topbar the tags, this should be inverted so that by default in sidebar there is tags list and folders is on top
+
+
+
+Rework how the app handles all media: instead of having videos photos books pages ecc... folder it should have a single folder called media (that will contain also the hidden folder of vault, so update references)
+Fles in media folder or any subfolders or any remothe media paths will be autosorted in books view, video view, photo view, books view  by their filetype, make sure that the sql handling is updated cc... 
+After the task is done i'll give you some db to migrate. so prepare before also a python script for migration from the current structure
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # AphroArchive — TODO & Roadmap
 
 
@@ -14,8 +49,8 @@ todo entry. Captured here so the roadmap reflects reality, with follow-ups noted
 - [x] **TV Guide** — `GuideView` (`/guide`): programme-guide style view.
 - [x] **Whisper subtitle generation** — `gen-whisper-server.js` (`/api/gen-whisper`, `/api/whisper`): local Whisper model queue that transcribes audio to `.vtt`/`.srt` sidecars with language detection. (Different from the still-open OpenSubtitles auto-search.)
 - [x] **Corrupted-file scanner** — `corrupted-server.js` + `CorruptedView` (`/corrupted`): ffprobe-based integrity scan with SSE progress.
-- [x] **VeraCrypt / TrueCrypt mounting** — `veracrypt-server.js` (`/api/veracrypt`): drives the VeraCrypt CLI to mount `.hc/.tc/.vc` containers, then browse/import into the vault; degrades gracefully when not installed.
-- [x] **ZIP mounting / reading** — `zip-reader-server.js`, `media-zip-mount-server.js`, `vault-zip-mount-server.js`: read media directly out of ZIPs without extraction.
+- [x] ~~VeraCrypt / TrueCrypt mounting~~ — REMOVED (July 2026): `veracrypt-server.js` and its `/api/veracrypt` routes were deleted.
+- [x] ~~ZIP mounting~~ — REMOVED (July 2026): `media-zip-mount-server.js` / `vault-zip-mount-server.js` deleted. `zip-reader-server.js` remains (used by `vault-zip-server.js` ZIP export/import).
 - [x] **Music albums** — `albums-server.js` (`/api/albums`): album objects (artist/year/cover/tracks) layered over the audio library.
 - [x] **Onboarding wizard** — `OnboardingWizard.tsx` first-run setup flow.
 - [x] **Auto-sort / categorizer** — `/api/auto-sort` + `CategorizerView` move beyond the original manual categorizer.
@@ -126,7 +161,7 @@ move dropdown.
 ## Orphaned / Unreachable Views
 
 - [ ] **`ScreenshotsView` has no URL route** — Still rendered in `MainContent` for view `'screenshots'` but `/screenshots` is absent from `router.ts` `directViews`. Add it so the view is deep-linkable.
-- [ ] **`ImageGenView.tsx` is unrouted** — `imagegenInputState` signal feeds it (ContextMenu / PlayerView frame capture) but `ImageGenView` is still never imported in `MainContent.tsx` and has no `/imagegen` route. Wire it up or remove it.
+- [x] **`ImageGenView.tsx` is unrouted** — resolved by removal: ImageGenView, the `imagegen/` Python engine, and the `imagegenInputState` signal were deleted (July 2026).
 - [ ] **`ZapView.tsx` mount path** — `ZapView` is driven by `zap.ts`/`tv-mode.ts` (overlay) rather than `MainContent`; confirm there's a deep-linkable entry or document it as overlay-only.
 
 ## Code Quality & Refactoring
@@ -377,7 +412,7 @@ Cross-cutting improvements that build on subsystems that already exist.
 - [ ] **Batch-whisper from Library Health** — Surface "missing subtitles" as a health issue with a one-click "Generate all" that feeds the whisper queue.
 - [ ] **Quarantine corrupted files** — After the corrupted scan, offer "Move to `_corrupted/`" and, for files with a `linkUrl`, "Re-download from source" via the download queue.
 - [ ] **Channel EPG / scheduling** — Persist a per-channel running order + "now playing / up next" so TV Mode and the Guide share one schedule model.
-- [ ] **Mount VeraCrypt volume as a source folder** — Register a mounted container as a temporary `sourceFolder`/profile so its contents appear in the normal grid until unmounted.
+- [x] ~~Mount VeraCrypt volume as a source folder~~ — dropped: VeraCrypt support was removed entirely (July 2026).
 - [ ] **Tie auto-chapters → skip intro/credits** — Use the first/last detected scene boundaries to auto-propose intro-end / credits-start markers for the existing Skip feature.
 - [ ] **Re-encode uses hardware accel** — Wire the open NVENC/QSV/VAAPI/VideoToolbox detection into `reencode-server.js` (not just HLS) so batch HEVC jobs aren't CPU-bound.
 - [ ] **Album "now playing" queue** — Play a whole album in track order from `AudioView`, reusing the player queue model.

@@ -3,12 +3,13 @@ import { Fragment } from 'preact';
 import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
-import { FilterDropdowns, SectionDropdowns } from './LibraryFilters';
-import { currentView, isMuted, profileModalState, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, activeProfile, loadProfiles, openExternalFolder, appPrefs } from '../../store';
+import { FilterDropdowns, SectionDropdowns, PluginsDropdown } from './LibraryFilters';
+import { LoadProgress } from './LoadProgress';
+import { currentView, isMuted, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, openExternalFolder, appPrefs } from '../../store';
 import { zapOn } from '../../zap';
 import { isTVMode } from '../../tv-mode';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction, type PluginMeta } from '../../plugins';
-import { getNavItems, navIcon, placementFor, pluginLocation, openMoveMenu, sectionPlacementFor, setItemPlacement, setNavOrder, activeDrag, getNavOrder, type NavItem } from './navItems';
+import { getNavItems, navIcon, placementFor, openMoveMenu, sectionPlacementFor, setItemPlacement, setNavOrder, activeDrag, getNavOrder, type NavItem } from './navItems';
 
 type TopbarSlot =
   | { kind: 'search'; id: 'search-bar' }
@@ -24,7 +25,6 @@ export const Topbar = () => {
   const dropInsertRef = useRef<string | null>(null);
 
   useEffect(() => {
-    loadProfiles();
     loadPlugins();
   }, []);
 
@@ -45,8 +45,10 @@ export const Topbar = () => {
     return false;
   });
 
+  // Only plugins the user has explicitly pinned to the topbar render as
+  // standalone icons here; the rest live in the grouped <PluginsDropdown />.
   const topbarPlugins = pluginsList.value
-    .filter(p => pluginLocation(p) === 'topbar' && isPluginEnabled(p.id))
+    .filter(p => placements[p.id] === 'topbar' && isPluginEnabled(p.id))
     .filter(p => !p.contexts || p.contexts.includes(view));
 
   const allSlots: TopbarSlot[] = [
@@ -155,6 +157,7 @@ export const Topbar = () => {
 
       <SectionDropdowns />
       <FilterDropdowns />
+      <PluginsDropdown />
 
       <div
         className="tb-moved"
@@ -272,11 +275,11 @@ export const Topbar = () => {
         {tbDragInsertId === '__end_topbar' && tbInsertLine}
       </div>
 
-      {activeProfile.value === 'Vault' && isVaultUnlocked.value && (
+      {isVaultUnlocked.value && (
         <div
           className="vault-scope-toggle"
           style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '16px', padding: '3px' }}
-          title="Vault-Only shows encrypted files; Global shows every file from all profiles and lets you import them into the Vault"
+          title="Vault-Only shows encrypted files; Global shows every file and lets you import them into the Vault"
         >
           <button
             onClick={() => { vaultGlobalView.value = false; loadVideos(); }}
@@ -302,13 +305,15 @@ export const Topbar = () => {
       )}
 
       <div className="tb-acts">
+        <LoadProgress />
         <button
-          onClick={() => profileModalState.value = { visible: true }}
-          title="Switch Profile"
+          onClick={() => { currentView.value = 'vault'; isSidebarOpen.value = false; }}
+          title="Open Vault"
+          class={currentView.value === 'vault' ? 'on' : ''}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
+            <rect x="3" y="11" width="18" height="10" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
         </button>
 

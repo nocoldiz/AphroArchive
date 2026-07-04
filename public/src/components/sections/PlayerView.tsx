@@ -1,12 +1,13 @@
-﻿import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, appPrefs } from '../../store';
+﻿import { formatVideoTitle } from '../../utils';
+import { currentVideo, currentView, videos, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs } from '../../store';
+import { renameVideo } from '../../api';
 import { zapOn, zapStartTime } from '../../zap';
 import { isTVMode, tvStartTime, nextVideoInChannel } from '../../tv-mode';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
-import { AiComments } from '../UI/AiComments';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 import { VideoCard } from '../UI/VideoGrid';
-import { AdvancedPlayer } from '../UI/AdvancedPlayer';
+import { AdvancedPlayer, localZapOn } from '../UI/AdvancedPlayer';
 import { playerSeries, playerSeason } from '../../series';
 import { getThumbPref, setThumbPref } from '../../thumbPref';
 
@@ -38,12 +39,18 @@ export const PlayerView = () => {
   const [channel, setChannel] = useState<string>('');
   const [rating, setRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
+  const [hoverTitle, setHoverTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const cancelRenameRef = useRef(false);
   const [chapters, setChapters] = useState<any[]>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
   const [subtitles, setSubtitles] = useState<any[]>([]);
   const [language, setLanguage] = useState<string>('');
 
   const [note, setNote] = useState<string>('');
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteDraft, setNoteDraft] = useState<string>('');
   const [subtitleUploading, setSubtitleUploading] = useState(false);
   const [cardThumb, setCardThumb] = useState<number>(() => video ? getThumbPref(video.id) : 0);
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
@@ -198,6 +205,10 @@ export const PlayerView = () => {
       playerHistory.value = [];
     }
   }, [video]);
+
+  // Leaving the player entirely stops Local Zap (it persists across video
+  // changes on purpose, so only a full exit from the player view clears it).
+  useEffect(() => () => { localZapOn.value = false; }, []);
 
   const handleDragStart = (e: any, index: number) => {
     e.dataTransfer.setData('text/plain', index.toString());
@@ -411,6 +422,44 @@ export const PlayerView = () => {
     );
   }
 
+  const commitTitleRename = async () => {
+    const trimmed = titleDraft.trim();
+    setEditingTitle(false);
+    if (cancelRenameRef.current) { cancelRenameRef.current = false; return; }
+    if (!video || !trimmed || trimmed === video.name) return;
+    try {
+      const res = await renameVideo(video.id, trimmed);
+      const list = [...videos.value];
+      const idx = list.findIndex(v => v.id === video.id);
+      if (idx >= 0) { list[idx] = { ...list[idx], id: res.newId, name: trimmed }; videos.value = list; }
+      const allList = [...allVideos.value];
+      const idx2 = allList.findIndex(v => v.id === video.id);
+      if (idx2 >= 0) { allList[idx2] = { ...allList[idx2], id: res.newId, name: trimmed }; allVideos.value = allList; }
+      if (currentVideo.value && currentVideo.value.id === video.id) {
+        currentVideo.value = { ...currentVideo.value, id: res.newId, name: trimmed };
+      }
+      const w = window as any;
+      if (w.toast) w.toast('Renamed successfully');
+    } catch (e: any) {
+      const w = window as any;
+      if (w.toast) w.toast(e.message || 'Failed to rename');
+    }
+  };
+
+  const openTitleSelectionMenu = (e: MouseEvent) => {
+    const sel = window.getSelection()?.toString().trim();
+    if (!sel) return; // no selection → let the browser show its default menu
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: (e as any).clientX,
+      y: (e as any).clientY,
+      type: 'text-selection',
+      data: { text: sel },
+    };
+  };
+
   const updateRating = async (stars: number | null) => {
     if (!video) return;
     const r = await fetch(`/api/videos/${video.id}/meta`, {
@@ -538,12 +587,14 @@ export const PlayerView = () => {
     }
   };
 
-  const saveNote = async () => {
+  const saveNote = async (text: string) => {
     if (!video || video.isVault || video.isLink) return;
+    setNote(text);
+    setShowNoteModal(false);
     await fetch(`/api/videos/${video.id}/meta`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note }),
+      body: JSON.stringify({ note: text }),
     }).catch(() => {});
   };
 
@@ -594,13 +645,6 @@ export const PlayerView = () => {
     const m = Math.floor((secs % 3600) / 60);
     const s = Math.floor(secs % 60);
     return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':').replace(/^00:/, '');
-  };
-
-  const jumpToChapter = (time: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-      videoRef.current.play();
-    }
   };
 
   const goBack = () => {
@@ -719,7 +763,41 @@ export const PlayerView = () => {
 
           <div className="player-info">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <h1 id="player-title" style={{ margin: 0 }}>{video.name}</h1>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}
+                onMouseEnter={() => setHoverTitle(true)}
+                onMouseLeave={() => setHoverTitle(false)}
+              >
+                {editingTitle ? (
+                  <input
+                    type="text"
+                    value={titleDraft}
+                    autoFocus
+                    onInput={(e: any) => setTitleDraft(e.target.value)}
+                    onKeyDown={(e: any) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                      else if (e.key === 'Escape') { cancelRenameRef.current = true; e.currentTarget.blur(); }
+                    }}
+                    onBlur={commitTitleRename}
+                    style={{ flex: 1, fontSize: '1.6rem', fontWeight: 700, padding: '4px 8px', background: 'var(--bg3)', border: '1px solid var(--ac)', color: 'var(--tx)', borderRadius: '4px' }}
+                  />
+                ) : (
+                  <>
+                    <h1 id="player-title" style={{ margin: 0 }} onContextMenu={openTitleSelectionMenu}>{formatVideoTitle(video.name)}</h1>
+                    <button
+                      type="button"
+                      title="Rename"
+                      onClick={() => { setTitleDraft(video.name); setEditingTitle(true); }}
+                      style={{ opacity: hoverTitle ? 1 : 0, transition: 'opacity 0.15s', background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+              </div>
               <div className="player-rating" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '1.4rem' }}>
                 {[1, 2, 3, 4, 5].map(i => (
                   <span key={i} style={{ color: i <= (hoveredRating ?? rating ?? 0) ? 'var(--ac)' : 'var(--brd)', cursor: 'pointer' }}
@@ -1056,20 +1134,6 @@ export const PlayerView = () => {
             </div>
 
             {!video.isLink && !video.isVault && (
-              <div className="player-note-row" style={{ marginBottom: '20px' }}>
-                <span style={{ display: 'block', color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Notes</span>
-                <textarea
-                  value={note}
-                  onInput={(e: any) => setNote(e.target.value)}
-                  onBlur={saveNote}
-                  placeholder="Private note…"
-                  rows={3}
-                  style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 12px', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
-                />
-              </div>
-            )}
-
-            {!video.isLink && !video.isVault && (
               <div className="player-thumb-row" style={{ marginBottom: '20px' }}>
                 <span style={{ display: 'block', color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Card thumbnail</span>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -1091,7 +1155,19 @@ export const PlayerView = () => {
               </div>
             )}
 
-            <AiComments />
+            {!video.isLink && !video.isVault && (
+              <div className="player-note-row" style={{ borderTop: '1px solid var(--brd)', marginTop: '20px', paddingTop: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '1px' }}>Personal Note</span>
+                  <button class="modal-btn" onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}>
+                    {note.trim() ? 'Edit note' : 'Add note'}
+                  </button>
+                </div>
+                {note.trim() && (
+                  <div style={{ marginTop: '10px', fontSize: '0.9rem', color: 'var(--tx2)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note}</div>
+                )}
+              </div>
+            )}
             {relatedVideos.length > 0 && (
               <div style={{ marginTop: '30px' }}>
                 <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Related Videos</h2>
@@ -1134,37 +1210,6 @@ export const PlayerView = () => {
           {/* The chapter list lives in the player's chapter dropdown now, so the
               big side-panel chapter view was removed from the details page. */}
 
-          {/* Auto-detected chapters — only shown when option is enabled */}
-          {appPrefs.value.autoChapterDetection && autoChapters.length > 0 && (
-            <div className="playlist-panel" style={{ marginBottom: '20px' }}>
-              <div className="playlist-header">
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'rgba(80,200,255,0.9)', display: 'inline-block', flexShrink: 0 }} />
-                  Scene Detection
-                </span>
-                <span className="playlist-count">{autoChapters.length}</span>
-              </div>
-              <div className="playlist-list">
-                {autoChapters.map((c: any) => (
-                  <div key={c.id} className="playlist-item" onClick={() => jumpToChapter(c.time)}>
-                    <img src={`/api/thumbs/${video.id}/${Math.min(4, Math.round((c.time / (videoRef.current?.duration || 1)) * 4))}`} className="pl-thumb" alt={c.title} onError={(e: any) => e.target.style.display = 'none'} />
-                    <div className="pl-info">
-                      <div className="pl-name">{c.title}</div>
-                      <div className="pl-meta">{formatDuration(c.time)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isDetectingChapters && (
-            <div style={{ padding: '10px 14px', fontSize: '0.82rem', color: 'var(--tx3)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(80,200,255,0.7)', animation: 'pulse 1.2s ease-in-out infinite' }} />
-              Detecting scenes…
-            </div>
-          )}
-
           <div className="playlist-panel">
             <div className="playlist-header">
               <span>Next Up</span>
@@ -1198,6 +1243,30 @@ export const PlayerView = () => {
           </div>
         </div>
       </div>
+
+      {showNoteModal && (
+        <div className="modal on" style={{ display: 'flex' }} onClick={(e) => { if (e.target === e.currentTarget) setShowNoteModal(false); }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Personal Note</h2>
+            </div>
+            <div className="modal-body">
+              <textarea
+                value={noteDraft}
+                onInput={(e: any) => setNoteDraft(e.target.value)}
+                placeholder="Private note for this video…"
+                rows={8}
+                autoFocus
+                style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 12px', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              />
+            </div>
+            <div className="modal-footer">
+              <button class="modal-btn modal-btn--primary" onClick={() => saveNote(noteDraft)}>Save</button>
+              <button class="modal-btn" onClick={() => setShowNoteModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showEncryptConfirm && (
         <div className="modal on" style={{ display: 'flex' }}>

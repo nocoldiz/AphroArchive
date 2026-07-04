@@ -1,3 +1,4 @@
+import { formatVideoTitle } from '../../utils';
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
@@ -12,6 +13,34 @@ import { getThumbPref } from '../../thumbPref';
 let lastClickedIndex = -1;
 let lastClickedList: Video[] | null = null;
 
+// ── Hover-preview connection hygiene ─────────────────────────────────
+// Each hover preview streams the full file over /api/stream. Browsers cap
+// HTTP/1.1 at ~6 connections per origin, so leaked/paused previews starve the
+// main player stream (the "infinite spinner until page reload" bug). Two
+// rules enforced here:
+//   1. At most ONE preview element exists at a time, app-wide.
+//   2. A preview that goes away is torn down hard (src removed + load()),
+//      which forces the browser to abort the underlying socket.
+let activePreviewTeardown: (() => void) | null = null;
+
+function claimPreviewSlot(teardown: () => void) {
+  if (activePreviewTeardown && activePreviewTeardown !== teardown) {
+    try { activePreviewTeardown(); } catch {}
+  }
+  activePreviewTeardown = teardown;
+}
+
+function releasePreviewSlot(teardown: () => void) {
+  if (activePreviewTeardown === teardown) activePreviewTeardown = null;
+}
+
+// Abort a media element's network activity and release its socket.
+export function releaseMediaElement(v: HTMLMediaElement | null) {
+  if (!v) return;
+  try { v.pause(); } catch {}
+  try { v.removeAttribute('src'); } catch {}
+  try { v.load(); } catch {}
+}
 
 
 const formatDuration = (seconds: number) => {
@@ -229,9 +258,10 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
 
   const handleMouseEnter = () => {
     setIsHovered(true);
+    // 400ms debounce: drive-by hovers over a grid row shouldn't open sockets.
     timerRef.current = setTimeout(() => {
       setShowVideo(true);
-    }, 250);
+    }, 400);
   };
 
   const handleMouseLeave = () => {
@@ -239,6 +269,28 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
     clearTimeout(timerRef.current);
     setShowVideo(false);
   };
+
+  // Hard teardown for this card's preview <video>: abort the stream socket and
+  // hide the preview. Registered as the single app-wide active preview so a
+  // new hover elsewhere force-closes this one even before unmount runs.
+  const previewVidRef = useRef<HTMLVideoElement | null>(null);
+  const teardownPreviewRef = useRef<() => void>(() => {});
+  teardownPreviewRef.current = () => {
+    releaseMediaElement(previewVidRef.current);
+    previewVidRef.current = null;
+    setShowVideo(false);
+  };
+
+  useEffect(() => {
+    if (!showVideo) return;
+    const teardown = () => teardownPreviewRef.current();
+    claimPreviewSlot(teardown);
+    return () => {
+      releasePreviewSlot(teardown);
+      releaseMediaElement(previewVidRef.current);
+      previewVidRef.current = null;
+    };
+  }, [showVideo]);
 
   const toggleFav = async (e: any) => {
     e.stopPropagation();
@@ -363,10 +415,12 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
         )}
         {showVideo && !video.isLink && (
           <video
+            ref={previewVidRef as any}
             src={`/api/stream/${video.id}`}
             autoPlay
             muted
             playsInline
+            preload="metadata"
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
             onLoadedMetadata={(e: any) => {
               const v = e.target;
@@ -480,7 +534,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
         })()}
       </div>
       <div className="card-body">
-        <div className="card-title" title={video.name}>{video.name}</div>
+        <div className="card-title" title={video.name}>{formatVideoTitle(video.name)}</div>
         <div className="card-meta" style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <span className="card-category">{video.category}</span>
         </div>
@@ -535,7 +589,7 @@ const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: 
       }}
     >
       <img className="vl-thumb" src={`/api/thumbs/${video.id}/${thumbIdx}`} loading="lazy" alt="" />
-      <div className="vl-title" title={video.name}>{video.name}</div>
+      <div className="vl-title" title={video.name}>{formatVideoTitle(video.name)}</div>
       <div className="vl-dur">{video.duration > 0 ? formatDuration(video.duration) : '—'}</div>
       <div className="vl-size">{sizeMb}</div>
       <div className="vl-rating">{video.rating ? '★'.repeat(video.rating) : '—'}</div>

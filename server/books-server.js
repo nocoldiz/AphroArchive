@@ -8,12 +8,13 @@ const path  = require('path');
 const http  = require('http');
 const https = require('https');
 const zlib = require('zlib');
-const { BOOKS_DIR, VIDEOS_DIR, CACHE_DIR } = require('./config-server');
-const { json, readBody, formatBytes }       = require('./helpers-server');
-const { loadBooksMeta, saveBooksMeta, loadMediaIndex, loadPrefs } = require('./db-server');
+const { MEDIA_DIR, CACHE_DIR } = require('./config-server');
+const { json, readBody, formatBytes, toId, fromId, isAllowedMediaPath } = require('./helpers-server');
+const { loadBooksMeta, saveBooksMeta, loadMediaIndex } = require('./db-server');
 
-function bookToId(filename) { return Buffer.from(filename).toString('base64url'); }
-function bookFromId(id)     { return Buffer.from(id, 'base64url').toString('utf-8'); }
+function bookToId(p) { return toId(p); }
+function bookFromId(id) { return fromId(id); }
+function _invalidate() { try { require('./videos-server').invalidateScanCache(); } catch {} }
 
 // ── HTML → plain text ────────────────────────────────────────────────
 
@@ -115,34 +116,26 @@ async function scrapeGenericUrl(rawUrl) {
 // ── Books API handlers ────────────────────────────────────────────────
 
 function apiBooksList(req, res) {
-  const meta  = loadBooksMeta();
-  const books = Object.entries(meta)
-    .map(([filename, m]) => ({ id: bookToId(filename), filename, ...m }));
-
-  // Include books discovered in VIDEOS_DIR and sourceFolders by the unified scan
-  try {
-    const prefs = loadPrefs();
-    const available = new Set([VIDEOS_DIR]);
-    for (const sf of (prefs.sourceFolders || [])) {
-      if (fs.existsSync(sf)) available.add(sf);
-    }
-    for (const m of loadMediaIndex('book')) {
-      if (!available.has(m.sourcePath)) continue;
-      books.push({
-        id: bookToId(m.absPath),
-        filename: m.filename,
-        title: m.name,
-        ext: m.ext,
-        size: m.size,
-        sizeF: m.sizeF,
-        date: m.mtime,
-        type: 'scanned',
-      });
-    }
-  } catch (e) {
-    console.error('Failed to load scanned books from media index:', e);
-  }
-
+  // Title / type / url / chapters for uploaded & imported books live in
+  // books_meta keyed by filename; the listing itself comes from media_index.
+  let meta = {};
+  try { meta = loadBooksMeta(); } catch {}
+  const books = loadMediaIndex('book').map(m => {
+    const mm = meta[m.filename] || {};
+    return {
+      id:       m.id,
+      filename: m.filename,
+      title:    m.title || mm.title || m.name,
+      ext:      m.ext,
+      size:     m.size,
+      sizeF:    m.sizeF,
+      date:     m.mtime,
+      folder:   m.catPath || '',
+      type:     mm.type || 'scanned',
+      ...(mm.url ? { url: mm.url } : {}),
+      ...(mm.chapters ? { chapters: mm.chapters } : {}),
+    };
+  });
   books.sort((a, b) => b.date - a.date);
   json(res, books);
 }
@@ -154,21 +147,24 @@ async function apiBooksUpload(req, res) {
   const allowed      = new Set(['.pdf', '.txt', '.doc', '.docx', '.md', '.epub', '.cbz']);
   if (!allowed.has(ext)) return json(res, { error: 'Unsupported file type. Allowed: pdf, txt, doc, docx, md, epub, cbz' }, 400);
 
+  fs.mkdirSync(MEDIA_DIR, { recursive: true });
   let outName = safeFilename, counter = 1;
-  while (fs.existsSync(path.join(BOOKS_DIR, outName))) {
+  while (fs.existsSync(path.join(MEDIA_DIR, outName))) {
     outName = path.basename(safeFilename, ext) + ` (${counter++})` + ext;
   }
 
   const chunks = [];
   await new Promise((resolve, reject) => { req.on('data', c => chunks.push(c)); req.on('end', resolve); req.on('error', reject); });
   const data = Buffer.concat(chunks);
-  fs.writeFileSync(path.join(BOOKS_DIR, outName), data);
+  const absPath = path.join(MEDIA_DIR, outName);
+  fs.writeFileSync(absPath, data);
 
   const meta  = loadBooksMeta();
   const title = path.basename(outName, ext);
   meta[outName] = { title, ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), type: 'upload' };
   saveBooksMeta(meta);
-  json(res, { ok: true, id: bookToId(outName), title });
+  _invalidate();
+  json(res, { ok: true, id: bookToId(absPath), title });
 }
 
 async function apiBooksImportUrl(req, res) {
@@ -187,14 +183,16 @@ async function apiBooksImportUrl(req, res) {
       title = r.title; content = r.content;
     }
 
+    fs.mkdirSync(MEDIA_DIR, { recursive: true });
     let safeTitle = title.replace(/[^a-zA-Z0-9 \-_.()]/g, '_').trim().slice(0, 80) || 'imported';
     let outName   = safeTitle + '.md';
     let counter   = 1;
-    while (fs.existsSync(path.join(BOOKS_DIR, outName))) {
+    while (fs.existsSync(path.join(MEDIA_DIR, outName))) {
       outName = safeTitle + ` (${counter++}).md`;
     }
 
-    fs.writeFileSync(path.join(BOOKS_DIR, outName), content, 'utf-8');
+    const absPath = path.join(MEDIA_DIR, outName);
+    fs.writeFileSync(absPath, content, 'utf-8');
     const meta = loadBooksMeta();
     meta[outName] = {
       title, ext: '.md',
@@ -205,38 +203,20 @@ async function apiBooksImportUrl(req, res) {
       ...(chapters ? { chapters } : {}),
     };
     saveBooksMeta(meta);
-    json(res, { ok: true, id: bookToId(outName), title });
+    _invalidate();
+    json(res, { ok: true, id: bookToId(absPath), title });
   } catch (e) {
     json(res, { error: 'Import failed: ' + e.message }, 500);
   }
 }
 
 function apiBooksRead(req, res, id) {
-  const filename = bookFromId(id);
-  let filePath;
-  if (path.isAbsolute(filename)) {
-    // Book discovered by the unified media scan — validate it's inside an allowed root
-    filePath = filename;
-    const resolved = path.resolve(filePath);
-    let allowed = resolved.startsWith(path.resolve(VIDEOS_DIR) + path.sep);
-    if (!allowed) {
-      try {
-        const prefs = loadPrefs();
-        for (const sf of (prefs.sourceFolders || [])) {
-          if (resolved.startsWith(path.resolve(sf))) { allowed = true; break; }
-        }
-      } catch {}
-    }
-    if (!allowed) return json(res, { error: 'Invalid path' }, 400);
-  } else {
-    filePath = path.join(BOOKS_DIR, path.basename(filename));
-    if (!filePath.startsWith(BOOKS_DIR + path.sep) && filePath !== BOOKS_DIR) {
-      return json(res, { error: 'Invalid path' }, 400);
-    }
-  }
+  const filePath = bookFromId(id);
+  if (!filePath || !isAllowedMediaPath(filePath)) return json(res, { error: 'Invalid path' }, 403);
   if (!fs.existsSync(filePath)) return json(res, { error: 'Not found' }, 404);
 
-  const ext = path.extname(filename).toLowerCase();
+  const filename = path.basename(filePath);
+  const ext = path.extname(filePath).toLowerCase();
   if (ext === '.pdf' || ext === '.epub') {
     const stat = fs.statSync(filePath);
     const mime = ext === '.pdf' ? 'application/pdf' : 'application/epub+zip';
@@ -251,39 +231,35 @@ function apiBooksRead(req, res, id) {
 }
 
 async function apiBooksWrite(req, res, id) {
-  const filename = bookFromId(id);
-  const filePath = path.join(BOOKS_DIR, path.basename(filename));
-  if (!filePath.startsWith(BOOKS_DIR + path.sep) && filePath !== BOOKS_DIR) {
-    return json(res, { error: 'Invalid path' }, 400);
-  }
-  const ext = path.extname(filename).toLowerCase();
+  const filePath = bookFromId(id);
+  if (!filePath || !isAllowedMediaPath(filePath)) return json(res, { error: 'Invalid path' }, 403);
+  const ext = path.extname(filePath).toLowerCase();
   if (ext !== '.txt' && ext !== '.md') return json(res, { error: 'Only txt/md files are editable' }, 400);
   const body = await readBody(req);
   const content = typeof body.content === 'string' ? body.content : '';
   fs.writeFileSync(filePath, content, 'utf-8');
+  const filename = path.basename(filePath);
   const meta = loadBooksMeta();
-  if (meta[filename]) meta[filename].size = Buffer.byteLength(content);
-  saveBooksMeta(meta);
+  if (meta[filename]) { meta[filename].size = Buffer.byteLength(content); saveBooksMeta(meta); }
+  _invalidate();
   json(res, { ok: true });
 }
 
 function apiBooksDelete(req, res, id) {
-  const filename = bookFromId(id);
-  const filePath = path.join(BOOKS_DIR, path.basename(filename));
-  if (!filePath.startsWith(BOOKS_DIR + path.sep) && filePath !== BOOKS_DIR) {
-    return json(res, { error: 'Invalid path' }, 400);
-  }
+  const filePath = bookFromId(id);
+  if (!filePath || !isAllowedMediaPath(filePath)) return json(res, { error: 'Invalid path' }, 403);
   try { fs.unlinkSync(filePath); } catch {}
-  
-  // Clean up CBZ cache if it exists
+
+  // Clean up CBZ cache if it exists (cache dir keyed by the stable id)
   const cacheDir = path.join(CACHE_DIR, 'cbz', id);
   if (fs.existsSync(cacheDir)) {
     try { fs.rmSync(cacheDir, { recursive: true, force: true }); } catch (e) { console.error('Failed to clean CBZ cache:', e); }
   }
 
   const meta = loadBooksMeta();
-  delete meta[filename];
+  delete meta[path.basename(filePath)];
   saveBooksMeta(meta);
+  _invalidate();
   json(res, { ok: true });
 }
 
@@ -374,8 +350,8 @@ function extractCbz(filePath, outDir) {
 }
 
 function apiBooksCbzFiles(req, res, id) {
-  const filename = bookFromId(id);
-  const filePath = path.join(BOOKS_DIR, path.basename(filename));
+  const filePath = bookFromId(id);
+  if (!filePath || !isAllowedMediaPath(filePath)) return json(res, { error: 'Invalid path' }, 403);
   if (!fs.existsSync(filePath)) return json(res, { error: 'Not found' }, 404);
   
   const cacheDir = path.join(CACHE_DIR, 'cbz', id);

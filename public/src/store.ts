@@ -9,11 +9,10 @@ export const videos = signal<Video[]>([]);
 // on load, instead of waiting for the heavy /api/links/cache round-trip in
 // loadVideosInner. loadVideos() replaces this with the full list moments later.
 export const allVideos = signal<Video[]>(readLinksCache().videos); // Full unfiltered list
-// Persist the default profile's folder list so the sidebar can show folder
-// names instantly on next load (while the real /api/folders scan runs), instead
-// of flashing an empty list. Scoped to 'default' to avoid persisting encrypted
-// vault folder names to disk.
-const FOLDERS_CACHE_KEY = 'foldersCache:default';
+// Persist folder list so the sidebar can show folder names instantly on next
+// load (while the real /api/folders scan runs), instead of flashing an empty
+// list.
+const FOLDERS_CACHE_KEY = 'foldersCache';
 function readFoldersCache(): Folder[] {
   try {
     const arr = JSON.parse(localStorage.getItem(FOLDERS_CACHE_KEY) || '[]');
@@ -29,10 +28,9 @@ function writeFoldersCache(list: Folder[]) {
   } catch {}
 }
 
-// Persist the default profile's link videos so the Links dropdown shows links
-// (and their tag counts) immediately on next load. Scoped to 'default' so vault
-// link titles never touch disk. Mirrors the folders cache above.
-const LINKS_CACHE_KEY = 'linksCache:default';
+// Persist link videos so the Links dropdown shows links (and their tag counts)
+// immediately on next load. Mirrors the folders cache above.
+const LINKS_CACHE_KEY = 'linksCache';
 function readLinksCache(): { videos: Video[]; total: number } {
   try {
     const obj = JSON.parse(localStorage.getItem(LINKS_CACHE_KEY) || 'null');
@@ -82,7 +80,7 @@ export function syncLinkCache(rawItems: any[], total: number) {
   linkTotalCount.value = total;
   const locals = allVideos.value.filter(v => !(v as any).isLink);
   allVideos.value = [...locals, ...linkVideos];
-  if (activeProfile.value === 'default' && !vaultGlobalView.value) writeLinksCache(linkVideos, total);
+  if (!vaultGlobalView.value) writeLinksCache(linkVideos, total);
 }
 
 export const folders = signal<Folder[]>(readFoldersCache());
@@ -230,8 +228,6 @@ export const currentTagTerms = signal<string[]>([]);
 export const currentPhotoFolder = signal<string>('');
 export const currentActor = signal<string | null>(null);
 export const currentChannel = signal<string | null>(null);
-// Pending image handed to ImageGenView (set by ContextMenu / PlayerView frame capture).
-export const imagegenInputState = signal<{ imageUrl?: string; imagePath?: string } | null>(null);
 export const linkVidIds = signal<Set<string>>(new Set());
 
 export function rebuildLinkVidIds(items: any[]) {
@@ -371,6 +367,10 @@ if (typeof document !== 'undefined') {
   });
 }
 export const isLoadingVideos = signal<boolean>(false);
+// Load progress (0–100) reflecting how many videos have streamed in relative to
+// the server's reported total. Drives the circular loader in the topbar/sidebar.
+// -1 means "indeterminate" (loading started but total not yet known).
+export const loadProgress = signal<number>(-1);
 export const duplicatesDeleteProgress = signal<{ running: boolean; done: number; total: number }>({ running: false, done: 0, total: 0 });
 export const appReady = signal<boolean>(false);
 export const sortMode = signal<string>(localStorage.getItem('sortMode') || 'date');
@@ -399,70 +399,9 @@ export const selectedVideoIds = signal<Set<string>>(new Set());
 // the grid (no full gallery reload).
 export const encryptingVideoIds = signal<Set<string>>(new Set());
 export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true');
-export const profiles = signal<string[]>(['default']);
-export const activeProfile = signal<string>('default');
-export const profileModalState = signal<{ visible: boolean }>({ visible: false });
 
-// ── Temporary profiles ──────────────────────────────────────────────
-// Ephemeral, in-memory-only profiles that scope the entire library to a
-// single folder or tag. They are never persisted, so they vanish when the
-// app closes. Multiple can exist at once; each is named after its source
-// folder/tag. Activating one hides every folder/video outside its scope.
-export interface TempProfile {
-  name: string;
-  kind: 'folder' | 'tag';
-  value: string;     // folder catPath or tag name
-  terms?: string[];  // tag terms for name-based matching
-}
-export const tempProfiles = signal<TempProfile[]>([]);
-export const activeTempProfile = signal<TempProfile | null>(null);
-
-// True when a video belongs to the given temp profile's scope.
-export function videoInTempProfile(v: any, tp: TempProfile): boolean {
-  if (tp.kind === 'folder') {
-    if (v.isLink) return false;
-    const cl = tp.value.toLowerCase().replace(/\\/g, '/');
-    const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
-    return vp === cl || vp.startsWith(cl + '/') || v.category === tp.value;
-  }
-  const tagLo = tp.value.toLowerCase();
-  if (v.tags && (v.tags as string[]).some((t: string) => t.toLowerCase() === tagLo)) return true;
-  if (tp.terms && tp.terms.length) {
-    const name = (v.name || '').toLowerCase();
-    return tp.terms.some(t =>
-      new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(name)
-    );
-  }
-  return false;
-}
-
-// Create (or reuse) a temp profile for a folder/tag and switch to it.
-export async function createTempProfile(kind: 'folder' | 'tag', value: string, terms: string[] = []) {
-  const name = kind === 'folder' && value.includes('/') ? value.split('/').pop()! : value;
-  const tp: TempProfile = { name, kind, value, terms };
-  const existing = tempProfiles.value.find(p => p.kind === kind && p.value === value);
-  if (existing) {
-    tempProfiles.value = tempProfiles.value.map(p => p === existing ? tp : p);
-  } else {
-    tempProfiles.value = [...tempProfiles.value, tp];
-  }
-  await activateTempProfile(tp);
-}
-
-export async function activateTempProfile(tp: TempProfile) {
-  activeTempProfile.value = tp;
-  profileModalState.value = { visible: false };
-  await reloadAppData();
-}
-
-// Leave temp-profile mode and return to the underlying real profile.
-export async function exitTempProfile() {
-  if (!activeTempProfile.value) return;
-  activeTempProfile.value = null;
-  await reloadAppData();
-}
 export const dbPendingOpen = signal<{ tab: string; action: 'add' } | null>(null);
-export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
+export const vaultUnlockModalState = signal<{ visible: boolean }>({ visible: false });
 
 // Vault topbar toggle: false = Vault-Only view (default), true = Global view
 // (all files from all profiles, allowing import/encryption into the Vault)
@@ -483,7 +422,7 @@ export async function ensureVaultUnlocked(action: () => void) {
       action();
       return;
     }
-    vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: null };
+    vaultUnlockModalState.value = { visible: true };
     const interval = setInterval(async () => {
       const s = await fetch('/api/vault/status').then(r => r.json()).catch(() => null);
       if (s && s.unlocked) {
@@ -500,74 +439,9 @@ export async function ensureVaultUnlocked(action: () => void) {
 }
 export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
-export async function loadProfiles() {
-  const res = await fetch('/api/profiles');
-  const data = await res.json();
-  profiles.value = data.profiles;
-  activeProfile.value = data.current;
-  return data;
-}
-
-// Resets navigation/filter state and reloads data for the active profile,
-// mirroring App.tsx's initial load — used after a profile switch/create so
-// the UI reflects the new profile's database without a full page reload.
-export async function reloadAppData() {
-  currentVideo.value = null;
-  currentView.value = 'hub';
-  currentFolder.value = '';
-  currentTag.value = null;
-  currentTagTerms.value = [];
-  currentActor.value = null;
-  currentChannel.value = null;
-  currentPhotoFolder.value = '';
-  searchQuery.value = '';
-  encryptingVideoIds.value = new Set();
-  vaultGlobalView.value = false;
-  if (location.pathname !== '/') history.pushState(null, '', '/');
-
-  // Clear legacy window vault state so stale data from the previous profile
-  // isn't visible while the new profile loads.
-  const w = window as any;
-  w.vaultFiles = []; w.vaultPl = []; w.vaultPlIdx = 0;
-  w.vaultPhotos = []; w.vaultPhotoIdx = -1;
-  w.vaultFolders = []; w.vaultCurFolder = null;
-  w.vaultSel = new Set();
-
-  // loadVideos() already fetches /api/folders and sets the folders signal, so
-  // loadFolders() would duplicate that heavy request — omit it here.
-  await Promise.all([loadVideos(), loadPrefs()]);
-
-  try {
-    const s = await (await fetch('/api/vault/status')).json();
-    isVaultUnlocked.value = !!s.unlocked;
-  } catch {}
-}
-
-export async function switchProfile(name: string) {
-  const res = await fetch('/api/profiles/switch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile: name })
-  });
-
-  if (res.status === 401) {
-    const data = await res.json();
-    if (data.locked) {
-      profileModalState.value = { visible: false };
-      vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: name };
-      return;
-    }
-  }
-
-  activeTempProfile.value = null;
-  activeProfile.value = name;
-  profileModalState.value = { visible: false };
-  await reloadAppData();
-}
-
 if (typeof document !== 'undefined') {
   folders.subscribe(list => {
-    if (list.length && activeProfile.value === 'default' && !vaultGlobalView.value && !activeTempProfile.value) {
+    if (list.length && !vaultGlobalView.value) {
       writeFoldersCache(list);
     }
   });
@@ -688,7 +562,6 @@ w.linkMatchedUrls = new Set();
 w.collectionsMode = false;
 w.curCollection = null;
 w.settingsMode = false;
-w.aiCommentsEnabled = false;
 w.dbMode = false;
 w.dbTab = 'actors';
 w._dbData = {};
@@ -720,11 +593,23 @@ w._dualTagVids = [];
 // ─── Folder-watch auto-refresh via SSE ───────────────────────────────
 // The server broadcasts scan_changed when fs.watch detects a file change.
 // We debounce so rapid bursts (e.g. bulk copy) coalesce into one reload.
+// Doubles as the app-wide connection indicator: the SSE stream (with its
+// server-side heartbeat) is the single standing connection, replacing the old
+// /api/ping polling loop so no extra socket/requests compete with media
+// streams in the browser's per-origin pool.
+export const serverConnected = signal(true);
+
 if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
   let _scanRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let _sseRetryMs = 5000;
   const _connectScanSse = () => {
     const es = new EventSource('/api/scan/events');
+    es.onopen = () => {
+      _sseRetryMs = 5000; // healthy again — reset the backoff
+      serverConnected.value = true;
+    };
     es.onmessage = () => {
+      serverConnected.value = true;
       // Short debounce: rapid bursts (bulk copy) still coalesce since the timer
       // resets per message, but a single operation refreshes the index and the
       // sidebar counts almost immediately so they never linger on stale data.
@@ -733,7 +618,12 @@ if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
     };
     es.onerror = () => {
       es.close();
-      setTimeout(_connectScanSse, 5000);
+      serverConnected.value = false;
+      // Exponential backoff with jitter (5s → 60s cap): a struggling server
+      // shouldn't be hammered by fixed-interval reconnects from every tab.
+      const delay = _sseRetryMs + Math.random() * 1000;
+      _sseRetryMs = Math.min(_sseRetryMs * 2, 60000);
+      setTimeout(_connectScanSse, delay);
     };
   };
   _connectScanSse();
@@ -941,6 +831,32 @@ export const filteredVideos = computed(() => {
     list = list.filter(v => (v.tags || []).some(t => want.includes(t.toLowerCase())));
   }
 
+  // Hidden folders: exclude their videos from aggregate views (All Videos,
+  // search, tags, favourites). Opening a hidden/pinned folder directly still
+  // shows its contents because currentFolder short-circuits this.
+  const hiddenFolders = appPrefs.value.hiddenFolders || [];
+  if (hiddenFolders.length && !currentFolder.value) {
+    const hidden = hiddenFolders.map(h => h.toLowerCase().replace(/\\/g, '/'));
+    list = list.filter(v => {
+      if (v.isLink) return true;
+      const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+      if (!vp) return true;
+      return !hidden.some(h => vp === h || vp.startsWith(h + '/'));
+    });
+  }
+
+  // Pinned-tags-only mode: exclude videos that don't carry any pinned tag.
+  // Only active when not already browsing a specific folder or tag.
+  if (appPrefs.value.pinnedTagsOnly && !currentFolder.value && !currentTag.value) {
+    const pinned = new Set((appPrefs.value.pinnedTags || []).map((t: string) => t.toLowerCase()));
+    if (pinned.size > 0) {
+      list = list.filter(v => {
+        if (v.isLink) return true;
+        return ((v.tags || []) as string[]).some(t => pinned.has(t.toLowerCase()));
+      });
+    }
+  }
+
   // Apply sorting or shuffle
   if (isShuffle.value) {
     if (shuffleSeed.value !== _shuffleSeedApplied) {
@@ -1044,30 +960,6 @@ export async function openExternalFolder() {
   }
 }
 
-// Prompt for an encrypted ZIP archive's password and, on success, reveal its
-// contents as a normal category. (In the Vault, matching archives auto-mount
-// on unlock, so this is only needed for locked archives outside the vault.)
-export async function unlockZipCategory(path: string, name: string) {
-  const w = window as any;
-  const password = window.prompt(`Enter password for "${name}":`);
-  if (password === null) return; // cancelled
-  try {
-    const res = await fetch('/api/media-zip/unlock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, password }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.error) { w.toastError?.(data.error || 'Could not unlock archive'); return; }
-    await loadVideos();
-    currentView.value = 'browse';
-    currentFolder.value = path;
-    w.toast?.(`Unlocked "${name}"`);
-  } catch {
-    w.toastError?.('Could not unlock archive');
-  }
-}
-
 export async function closeOpenedFolder(openedRoot: string) {
   try {
     await fetch('/api/opened/close', {
@@ -1084,12 +976,14 @@ export async function closeOpenedFolder(openedRoot: string) {
 
 export async function loadVideos() {
   isLoadingVideos.value = true;
+  loadProgress.value = -1; // indeterminate until the first page reports a total
   try {
     await loadVideosInner();
   } catch (e) {
     (window as any).toastError?.('Could not load videos — is the server still running? Check the terminal.');
   } finally {
     isLoadingVideos.value = false;
+    loadProgress.value = 100;
   }
 }
 
@@ -1112,20 +1006,58 @@ export async function refreshLibraryQuietly() {
 }
 
 async function loadVideosInner() {
-  const isVaultGlobal = activeProfile.value === 'Vault' && vaultGlobalView.value;
-  const videosUrl = isVaultGlobal ? '/api/videos?all=1' : '/api/videos';
-  const foldersUrl = isVaultGlobal ? '/api/folders?all=1' : '/api/folders';
-  const [res, bRes, cRes, mcRes] = await Promise.all([
-    fetch(videosUrl),
-    fetch('/api/links/cache?limit=0').catch(() => null),
+  const videosUrl = vaultGlobalView.value ? '/api/videos?all=1' : '/api/videos';
+  const foldersUrl = vaultGlobalView.value ? '/api/folders?all=1' : '/api/folders';
+  const sep = videosUrl.includes('?') ? '&' : '?';
+  const PAGE = 600;
+
+  // Critical path: first page of videos + folder list. Everything else
+  // (remaining pages, links cache, media counts) loads after first paint so
+  // the initial grid render is independent of library size.
+  const [res, cRes] = await Promise.all([
+    fetch(`${videosUrl}${sep}limit=${PAGE}&offset=0`),
     fetch(foldersUrl).catch(() => null),
-    fetch('/api/media-counts').catch(() => null),
   ]);
   if (!res.ok) throw new Error('Failed to fetch videos');
-  const data = await res.json();
+  const firstBody = await res.json();
 
   const cats = cRes ? await cRes.json().catch(() => []) : [];
   if (Array.isArray(cats)) folders.value = cats;
+
+  let data: any[];
+  if (Array.isArray(firstBody)) {
+    // Legacy shape (server without pagination) — behave exactly as before.
+    data = firstBody;
+  } else {
+    data = firstBody.items || [];
+    // Provisional paint: show the first page immediately (only when the grid
+    // is empty — background refreshes shouldn't flash a truncated list).
+    if (videos.value.length === 0 && data.length > 0) {
+      allVideos.value = data;
+      videos.value = data;
+    }
+    // Stream the remaining pages in the background, sequentially so they
+    // never occupy more than one connection.
+    const total = firstBody.total ?? data.length;
+    // Drive the circular loader: percent of the reported total streamed so far.
+    loadProgress.value = total > 0 ? Math.min(100, Math.round((data.length / total) * 100)) : 100;
+    for (let off = PAGE; off < total; off += PAGE) {
+      try {
+        const r = await fetch(`${videosUrl}${sep}limit=${PAGE}&offset=${off}`);
+        if (!r.ok) break;
+        const d = await r.json();
+        data = data.concat(d.items || []);
+        loadProgress.value = Math.min(99, Math.round((data.length / total) * 100));
+      } catch { break; }
+    }
+    loadProgress.value = 100;
+  }
+
+  // Secondary data — off the critical path, fetched after the grid painted.
+  const [bRes, mcRes] = await Promise.all([
+    fetch('/api/links/cache?limit=0').catch(() => null),
+    fetch('/api/media-counts').catch(() => null),
+  ]);
 
   let linksData: any[] = [];
   try {
@@ -1156,9 +1088,7 @@ async function loadVideosInner() {
     .map(linkItemToVideo);
 
   // Refresh the localStorage cache that seeds the Links dropdown on next load.
-  // Skip while a temp profile is active so its scoped subset doesn't poison
-  // the real profile's cached links.
-  if (activeProfile.value === 'default' && !isVaultGlobal && !activeTempProfile.value) {
+  if (!vaultGlobalView.value) {
     writeLinksCache(linkVideos, linkTotalCount.value);
   }
 
@@ -1171,11 +1101,6 @@ async function loadVideosInner() {
     : data;
 
   let combined = [...localVideos, ...linkVideos];
-
-  // A temp profile scopes the whole library to one folder/tag: everything
-  // outside its scope is dropped before the lists/counts are computed.
-  const tp = activeTempProfile.value;
-  if (tp) combined = combined.filter(v => videoInTempProfile(v, tp));
 
   allVideos.value = combined;
   videos.value = combined;
@@ -1204,20 +1129,6 @@ async function loadVideosInner() {
       // so keep the server's authoritative count rather than clobbering it to 0.
       const count = ((c.encrypted || c.partial || c.locked) && local === 0) ? (c.count || 0) : local;
       return { ...c, count };
-    });
-  }
-
-  // Temp profile: hide every folder outside its scope. For a folder profile
-  // keep the folder itself and its descendants; for a tag profile keep only
-  // folders that still contain in-scope videos.
-  if (tp) {
-    folders.value = folders.value.filter((c: any) => {
-      if (tp.kind === 'folder') {
-        const cl = tp.value.toLowerCase();
-        const cp = (c.path || '').toLowerCase();
-        return cp === cl || cp.startsWith(cl + '/');
-      }
-      return (c.count || 0) > 0;
     });
   }
 

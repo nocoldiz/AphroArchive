@@ -37,8 +37,18 @@ const _pathsCfg = _loadPathsCfg();
 // Precedence: CLI arg > env var > paths.json config file > built-in default.
 // This lets paths.json (DATA_DIR/paths.json) configure videosDir and port the
 // same way it already configures cacheDir/dbDir/vaultDir.
-const VIDEOS_DIR = path.resolve(process.argv[2] || process.env.VIDEOS_DIR || _pathsCfg.videosDir || path.join(DATA_DIR, 'videos'));
-const AUDIO_DIR = path.join(DATA_DIR, 'audio');
+// ── Unified media folder ────────────────────────────────────────────
+// All media (videos, audio, books, photos, pages, files) now live under a
+// single `media/` folder; files are auto-sorted into views by extension
+// (see classifyExt). MEDIA_DIR is the primary constant; VIDEOS_DIR and the
+// other per-type dir constants are retained as aliases for back-compat.
+// Precedence: CLI arg > MEDIA_DIR/VIDEOS_DIR env > mediaDir/videosDir paths.json > default.
+const MEDIA_DIR = path.resolve(
+  process.argv[2] || process.env.MEDIA_DIR || process.env.VIDEOS_DIR ||
+  _pathsCfg.mediaDir || _pathsCfg.videosDir || path.join(DATA_DIR, 'media')
+);
+const VIDEOS_DIR = MEDIA_DIR;               // deprecated alias
+const AUDIO_DIR = MEDIA_DIR;                 // deprecated alias
 const PORT = parseInt(process.argv[3] || process.env.PORT || _pathsCfg.port || '3000', 10);
 const DIST_PUBLIC = path.join(ROOT_DIR, 'dist', 'public');
 const PUBLIC_DIR = fs.existsSync(path.join(DIST_PUBLIC, 'index.html'))
@@ -47,7 +57,7 @@ const PUBLIC_DIR = fs.existsSync(path.join(DIST_PUBLIC, 'index.html'))
 
 const DEFAULT_CACHE_DIR = path.join(DATA_DIR, 'cache');
 const DEFAULT_DB_DIR    = path.join(DATA_DIR, 'db');
-const DEFAULT_VAULT_DIR = path.join(VIDEOS_DIR, 'hidden');
+const DEFAULT_VAULT_DIR = path.join(MEDIA_DIR, 'hidden');
 
 const CACHE_DIR = _resolveCustomDir(_pathsCfg.cacheDir, DEFAULT_CACHE_DIR);
 const DB_DIR    = _resolveCustomDir(_pathsCfg.dbDir,    DEFAULT_DB_DIR);
@@ -78,14 +88,14 @@ const WHISPER_MODELS_DIR = _resolveCustomDir(_pathsCfg.whisperModelsDir, path.jo
 const THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-thumbs');
 const ACTOR_PHOTOS_DIR = path.join(CACHE_DIR, '.AphroArchive-actor-photos');
 const PROCESS_DIR = path.join(DATA_DIR, 'process');
-const IGNORED_DIR = path.join(VIDEOS_DIR, 'Z');
-const BOOKS_DIR = path.join(DATA_DIR, 'books');
-const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
+const IGNORED_DIR = path.join(MEDIA_DIR, 'Z');
+const BOOKS_DIR = MEDIA_DIR;                 // deprecated alias → media root
+const PHOTOS_DIR = MEDIA_DIR;                // deprecated alias → media root
 const FEED_DIR = path.join(DATA_DIR, 'feed');
 const VAULT_FEED_DIR = path.join(DATA_DIR, 'vault_feed');
 const SCREENSHOTS_DIR = path.join(DATA_DIR, 'screenshots');
-const PAGES_DIR = path.join(DATA_DIR, 'pages');
-const FILES_DIR = path.join(DATA_DIR, 'files');
+const PAGES_DIR = MEDIA_DIR;                 // deprecated alias → media root
+const FILES_DIR = MEDIA_DIR;                 // deprecated alias → media root
 const LINK_THUMBS_DIR = path.join(CACHE_DIR, '.AphroArchive-bm-thumbs');
 
 const EDGE_BIN = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
@@ -100,9 +110,11 @@ const COLLECTIONS_FILE = path.join(CACHE_DIR, '.AphroArchive-collections.json');
 const RATINGS_FILE = path.join(CACHE_DIR, '.AphroArchive-ratings.json');
 const HIDDEN_FILE = path.join(CACHE_DIR, 'hidden.txt');
 const PREFS_FILE = path.join(CACHE_DIR, '.AphroArchive-prefs.json');
-const VIDEO_META_FILE = path.join(VIDEOS_DIR, '.meta.json');
-const BOOKS_META_FILE = path.join(BOOKS_DIR, '.meta.json');
-const AUDIO_META_FILE = path.join(AUDIO_DIR, '.meta.json');
+// Legacy per-type JSON metadata (read once by the JSON→SQLite migration only).
+// Distinct filenames because all three dirs now collapse onto MEDIA_DIR.
+const VIDEO_META_FILE = path.join(MEDIA_DIR, '.meta.json');
+const BOOKS_META_FILE = path.join(MEDIA_DIR, '.books-meta.json');
+const AUDIO_META_FILE = path.join(MEDIA_DIR, '.audio-meta.json');
 const PRESETS_DIR = path.join(ROOT_DIR, 'presets');   // DB preset templates (checked into git)
 const ACTORS_JSON = path.join(DB_DIR, 'actors.json');
 const CATEGORIES_JSON = path.join(DB_DIR, 'categories.json');
@@ -118,9 +130,25 @@ const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv',
 
 const AUDIO_EXT = new Set(['.mp3', '.flac', '.wav', '.ogg', '.aac', '.m4a', '.wma', '.opus', '.aiff']);
 
-const BOOK_EXT = new Set(['.pdf', '.txt', '.doc', '.docx', '.md', '.epub']);
+const BOOK_EXT = new Set(['.pdf', '.txt', '.doc', '.docx', '.md', '.epub', '.cbz']);
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp', '.heic']);
+
+const PAGE_EXT = new Set(['.html', '.htm', '.xhtml', '.mhtml']);
+
+// Single source of truth for sorting a file into a media view by its extension.
+// Returns 'video' | 'audio' | 'book' | 'page' | 'photo' | 'file', or null for
+// files that should never enter a media view (encrypted/system/db artefacts).
+function classifyExt(ext) {
+  ext = (ext || '').toLowerCase();
+  if (VIDEO_EXT.has(ext)) return 'video';
+  if (AUDIO_EXT.has(ext)) return 'audio';
+  if (BOOK_EXT.has(ext))  return 'book';
+  if (PAGE_EXT.has(ext))  return 'page';
+  if (IMAGE_EXT.has(ext)) return 'photo';
+  if (ext === '.enc' || ext === '.db' || ext === '.log' || ext === '.tmp' || ext === '.json') return null;
+  return 'file';
+}
 
 const MIME = {
   '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo',
@@ -170,7 +198,7 @@ function getLocalIP() {
 module.exports = {
   ROOT_DIR, IS_PKG, DATA_DIR, LINK_DIR,
   FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN, WHISPER_BIN, WHISPER_MODELS_DIR,
-  VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
+  MEDIA_DIR, VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
   THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, PROCESS_DIR, IGNORED_DIR,
   DB_DIR, PRESETS_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, LINK_THUMBS_DIR, EDGE_BIN,
   FEED_DIR, VAULT_FEED_DIR,
@@ -181,6 +209,6 @@ module.exports = {
   VIDEO_META_FILE, BOOKS_META_FILE, AUDIO_META_FILE,
   ACTORS_JSON, CATEGORIES_JSON, CHANNELS_JSON, WEBSITES_JSON,
   BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,
-  VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT, MIME, STATIC_MIME,
+  VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT, PAGE_EXT, classifyExt, MIME, STATIC_MIME,
   getLocalIPs, getLocalIP, PLUGINS_DIR, WIDGETS_DIR,
 };

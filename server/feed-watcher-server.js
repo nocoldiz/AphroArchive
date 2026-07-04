@@ -11,10 +11,8 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  VIDEO_EXT, VIDEOS_DIR,
-  AUDIO_EXT, AUDIO_DIR,
-  BOOK_EXT, BOOKS_DIR,
-  IMAGE_EXT, PHOTOS_DIR,
+  VIDEO_EXT, VIDEOS_DIR, MEDIA_DIR,
+  AUDIO_EXT, BOOK_EXT, IMAGE_EXT, PAGE_EXT,
   FEED_DIR, VAULT_FEED_DIR,
 } = require('./config-server');
 
@@ -24,7 +22,7 @@ let _vaultFeedWatcher = null;
 
 function _isSupported(filePath) {
   const ext = path.extname(filePath).toLowerCase();
-  return VIDEO_EXT.has(ext) || AUDIO_EXT.has(ext) || BOOK_EXT.has(ext) || IMAGE_EXT.has(ext);
+  return VIDEO_EXT.has(ext) || AUDIO_EXT.has(ext) || BOOK_EXT.has(ext) || IMAGE_EXT.has(ext) || PAGE_EXT.has(ext);
 }
 
 async function _waitStable(filePath) {
@@ -54,22 +52,13 @@ async function _processFeedFile(filePath) {
     const ext = path.extname(filePath).toLowerCase();
     const filename = path.basename(filePath);
 
-    if (AUDIO_EXT.has(ext)) {
-      fs.mkdirSync(AUDIO_DIR, { recursive: true });
-      fs.renameSync(filePath, _nonCollidingDest(AUDIO_DIR, filename));
-      console.log(`[feed] ${filename} → audio`);
-      return;
-    }
-    if (BOOK_EXT.has(ext)) {
-      fs.mkdirSync(BOOKS_DIR, { recursive: true });
-      fs.renameSync(filePath, _nonCollidingDest(BOOKS_DIR, filename));
-      console.log(`[feed] ${filename} → books`);
-      return;
-    }
-    if (IMAGE_EXT.has(ext)) {
-      fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-      fs.renameSync(filePath, _nonCollidingDest(PHOTOS_DIR, filename));
-      console.log(`[feed] ${filename} → photos`);
+    // Non-video media: move into the unified media root; the scan
+    // auto-sorts it into the matching view by extension.
+    if (AUDIO_EXT.has(ext) || BOOK_EXT.has(ext) || IMAGE_EXT.has(ext) || PAGE_EXT.has(ext)) {
+      fs.mkdirSync(MEDIA_DIR, { recursive: true });
+      fs.renameSync(filePath, _nonCollidingDest(MEDIA_DIR, filename));
+      console.log(`[feed] ${filename} → media`);
+      try { require('./videos-server').invalidateScanCache(); } catch {}
       return;
     }
 

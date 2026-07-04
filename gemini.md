@@ -15,8 +15,8 @@ VIDEOS_DIR=~/Movies PORT=8080 node server.js
 ```
 
 Start scripts:
-- **Windows**: `start.bat`
-- **Linux/macOS**: `./start.sh`
+- **Windows**: `utils\start.bat`
+- **Linux/macOS**: `./utils/start.sh`
 
 Install dependencies (ffmpeg, yt-dlp):
 - **Windows**: `install.bat`
@@ -42,7 +42,7 @@ Module responsibilities (files are suffixed with `-server.js`):
 - `server/db-server.js` — Low-level SQLite database manager and in-memory caches. Single source of truth for persistence.
 - `server/helpers-server.js` — Shared utilities: `json(res, data)`, `serveStatic`, `toId`/`fromId` (base64url file ID encoding), `readBody`, word-matching helpers.
 - `server/videos-server.js` — Video file scanning (recursive, skips `hidden/` and `Z/` dirs), all video API handlers, category derivation from folder structure.
-- Feature modules: `actors-server.js`, `vault-server.js`, `thumbnails-server.js`, `collections-server.js`, `downloads-server.js`, `links-server.js`, `books-server.js`, `audio-server.js`, `database-server.js`, `remote-server.js`, `settings-server.js`, `comments-server.js`, `duplicates-server.js`, `feed-watcher-server.js`, `gen-thumbs-server.js`, `imagegen-server.js`, `pages-server.js`, `photos-server.js`, `profiles-server.js`, `prompts-server.js`, `scrapeMethods-server.js`, `vault-zip-server.js`, `vision-server.js`, `assistant-server.js`, `background-worker-server.js`.
+- Feature modules: `actors-server.js`, `vault-server.js`, `thumbnails-server.js`, `collections-server.js`, `downloads-server.js`, `links-server.js`, `books-server.js`, `audio-server.js`, `database-server.js`, `remote-server.js`, `settings-server.js`, `comments-server.js`, `duplicates-server.js`, `feed-watcher-server.js`, `gen-thumbs-server.js`, `pages-server.js`, `photos-server.js`, `profiles-server.js`, `prompts-server.js`, `scrapeMethods-server.js`, `vault-zip-server.js`, `vision-server.js`, `assistant-server.js`, `background-worker-server.js`.
 
 **Data storage**: Uses SQLite (`better-sqlite3`) as the primary database, which stores videos, video actors, video tags, websites, categories, favourites, comments, collections, settings, ratings, audio/book metadata, etc. In-memory write-through caches are used for favourites, history, ratings, and actors to reduce database access.
 

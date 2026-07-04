@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { currentFolder, currentTag, currentView, cardSize } from '../../store';
+import { currentFolder, currentTag, currentView, cardSize, appPrefs } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
 interface CategoryOverviewItem {
@@ -49,9 +49,16 @@ export const CategoriesView = () => {
     return () => clearInterval(poll);
   }, []);
 
-  const filteredData = filter.trim()
-    ? data.filter(item => item.name.toLowerCase().includes(filter.toLowerCase()))
-    : data;
+  const hiddenFolderSet = new Set((appPrefs.value.hiddenFolders || []).map(s => s.toLowerCase()));
+  const hiddenTagSet = new Set((appPrefs.value.hiddenTags || []).map(s => s.toLowerCase()));
+
+  const filteredData = data
+    .filter(item =>
+      item.type === 'cat'
+        ? !hiddenFolderSet.has(item.path.toLowerCase())
+        : !hiddenTagSet.has(item.name.toLowerCase())
+    )
+    .filter(item => !filter.trim() || item.name.toLowerCase().includes(filter.toLowerCase()));
 
   const sortedData = [...filteredData];
   if (sort === 'name') {

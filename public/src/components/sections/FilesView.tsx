@@ -104,7 +104,16 @@ export const FilesView = () => {
   };
 
   const moveToFolder = async (fileId: string, folder: string) => {
-    await fetch('/api/files/folders/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: fileId, folder: folder || null }) });
+    try {
+      const r = await fetch('/api/files/folders/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: fileId, folder: folder || null }) });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to move');
+      }
+      if (w.toast) w.toast(folder ? `Moved to ${folder}` : 'Moved to root');
+    } catch (e: any) {
+      if (w.toast) w.toast(e.message || 'Failed to move');
+    }
     setMovingId(null);
     loadAll();
   };

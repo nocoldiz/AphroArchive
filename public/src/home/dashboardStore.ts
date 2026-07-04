@@ -33,11 +33,8 @@ export function makeIid(): string {
 
 export function defaultLayout(): WidgetInstance[] {
   return [
-    { iid: makeIid(), type: 'hero',              w: 4, h: 3 },
+    { iid: makeIid(), type: 'new-additions',     w: 4, h: 2 },
     { iid: makeIid(), type: 'continue-watching', w: 4, h: 2 },
-    { iid: makeIid(), type: 'new-additions',     w: 2, h: 2 },
-    { iid: makeIid(), type: 'recommended',       w: 2, h: 2 },
-    { iid: makeIid(), type: 'recently-watched',  w: 4, h: 2 },
   ];
 }
 

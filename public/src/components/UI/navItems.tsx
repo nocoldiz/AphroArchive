@@ -56,6 +56,23 @@ export function pluginLocation(p: PluginMeta): 'home' | 'topbar' | 'sidebar' {
   return p.location as 'topbar' | 'sidebar';
 }
 
+/**
+ * Effective bar for the grouped Plugins dropdown — the bucket that holds every
+ * plugin the user hasn't individually pinned somewhere. Defaults to the topbar.
+ */
+export function pluginGroupLocation(): BarLocation {
+  return (appPrefs.value.itemPlacements?.[PLUGINS_GROUP_ID] as BarLocation) ?? 'topbar';
+}
+
+/**
+ * Whether a plugin belongs to the grouped Plugins dropdown rather than rendering
+ * standalone. Home-dashboard widgets never group; a per-item placement override
+ * pulls a plugin out of the group into its own icon/entry.
+ */
+export function pluginInGroup(p: PluginMeta): boolean {
+  return p.location !== 'home' && !appPrefs.value.itemPlacements?.[p.id];
+}
+
 export async function setItemPlacement(id: string, loc: BarLocation) {
   const next = { ...(appPrefs.value.itemPlacements || {}) };
   next[id] = loc;

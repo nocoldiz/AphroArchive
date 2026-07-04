@@ -9,9 +9,8 @@ const http            = require('http');
 const https           = require('https');
 const { spawn, execFile } = require('child_process');
 const {
-  VIDEOS_DIR, YT_DLP_BIN, LINK_DIR,
-  AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, FILES_DIR,
-  VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT,
+  VIDEOS_DIR, MEDIA_DIR, YT_DLP_BIN, LINK_DIR,
+  VIDEO_EXT, AUDIO_EXT, BOOK_EXT, IMAGE_EXT, PAGE_EXT,
 } = require('./config-server');
 const { json, readBody, toId, fromId }      = require('./helpers-server');
 const { getDefaultWriteRoot } = require('./db-server');
@@ -147,11 +146,14 @@ async function processDownloadQueue() {
 function classifyUrl(url) {
   let ext = '';
   try { ext = path.extname(new URL(url).pathname).toLowerCase(); } catch {}
+  // Everything non-video downloads straight into the unified media folder;
+  // the scan auto-sorts it into the right view by extension.
   if (!ext || VIDEO_EXT.has(ext)) return { kind: 'video' };
-  if (AUDIO_EXT.has(ext)) return { kind: 'file', mediaType: 'audio', dir: AUDIO_DIR, ext };
-  if (BOOK_EXT.has(ext))  return { kind: 'file', mediaType: 'book',  dir: BOOKS_DIR, ext };
-  if (IMAGE_EXT.has(ext)) return { kind: 'file', mediaType: 'photo', dir: PHOTOS_DIR, ext };
-  return { kind: 'file', mediaType: 'file', dir: FILES_DIR, ext };
+  if (AUDIO_EXT.has(ext)) return { kind: 'file', mediaType: 'audio', dir: MEDIA_DIR, ext };
+  if (BOOK_EXT.has(ext))  return { kind: 'file', mediaType: 'book',  dir: MEDIA_DIR, ext };
+  if (IMAGE_EXT.has(ext)) return { kind: 'file', mediaType: 'photo', dir: MEDIA_DIR, ext };
+  if (PAGE_EXT.has(ext))  return { kind: 'file', mediaType: 'page',  dir: MEDIA_DIR, ext };
+  return { kind: 'file', mediaType: 'file', dir: MEDIA_DIR, ext };
 }
 
 function formatSpeed(bytesPerSec) {
@@ -237,6 +239,8 @@ async function runJob(next) {
       await runDirectFileDownload(next, classified);
       next.status   = 'done';
       next.progress = 100;
+      // Reindex so the new file is auto-sorted into its media view.
+      try { require('./videos-server').invalidateScanCache(); } catch {}
     } catch (e) {
       if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
     } finally {
@@ -311,7 +315,7 @@ function runUniversal(job) {
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const pythonBin  = process.platform === 'win32' ? 'python' : 'python3';
-    const scriptPath = path.join(__dirname, '..', 'Bulkdownloader', 'bulkdownloader.py');
+    const scriptPath = path.join(__dirname, '..', 'utils', 'bulkdownloader.py');
 
     const proc = spawn(pythonBin, [
       '-u', scriptPath,
@@ -634,7 +638,7 @@ async function apiBulkDownloadStart(req, res) {
   bulkStatus = { running: true, log: [], done: 0, total: urls.length, current: '' };
 
   const pythonBin = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = path.join(__dirname, '..', 'Bulkdownloader', 'bulkdownloader.py');
+  const scriptPath = path.join(__dirname, '..', 'utils', 'bulkdownloader.py');
   const projectRoot = path.join(__dirname, '..');
 
   try {
