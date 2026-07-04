@@ -1,8 +1,0 @@
-{
-  "Programming": ["Web Development", "Algorithms", "Languages", "DevOps"],
-  "Science": ["Physics", "Biology", "Chemistry", "Astronomy"],
-  "Mathematics": ["Algebra", "Calculus", "Statistics", "Geometry"],
-  "History": ["Ancient", "Modern", "Wars", "Biographies"],
-  "Philosophy": ["Ethics", "Logic", "Metaphysics", "Political Theory"],
-  "Languages": ["English", "Spanish", "Linguistics"]
-}

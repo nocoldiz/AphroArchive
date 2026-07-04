@@ -1,8 +1,0 @@
-{
-  "Painting": ["Oil", "Watercolour", "Acrylic"],
-  "Drawing": ["Sketching", "Figure", "Inking"],
-  "Digital Art": ["Concept Art", "Illustration", "Pixel Art"],
-  "Art History": ["Movements", "Masterpieces", "Restoration"],
-  "Sculpture": ["Clay", "3D Modelling"],
-  "Crafts": ["DIY", "Printmaking"]
-}

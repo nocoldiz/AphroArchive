@@ -791,7 +791,6 @@ export const FilterDropdowns = () => {
                     }
                   </svg>
                 </button>
-                <FolderOptionsButton />
                 <ShrinkBtn dropdownId="filter-folders" />
               </div>
             </div>

@@ -85,27 +85,31 @@ export const ContextMenu = () => {
     }
   };
 
+  // Hiding a folder is a client-side, per-profile preference: it drops out of the
+  // sidebar and out of aggregate video lists (All Videos / search / tags)
+  // instantly, with no server round-trip or library reload.
   const handleHide = async () => {
-    try {
-      const r = await fetch('/api/folders/hide', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: data.path })
-      });
+    const path = data.path;
+    const hidden = appPrefs.value.hiddenFolders || [];
+    if (!hidden.includes(path)) await updatePrefs({ hiddenFolders: [...hidden, path] });
+    toast(`Folder "${data.name}" hidden`);
+    closeMenu();
+  };
 
-      if (r.ok) {
-        toast(`Folder "${data.name}" hidden`);
-        closeMenu();
-        await loadVideos();
-        const tagRes = await fetch('/api/tags');
-        const tagData = await tagRes.json();
-        (window as any)._sidebarSetTags?.(tagData);
-      } else {
-        toast('Hide failed');
-      }
-    } catch (e: any) {
-      toast('Error hiding folder: ' + e.message);
-    }
+  const handleUnhideAllFolders = async () => {
+    await updatePrefs({ hiddenFolders: [] });
+    toast('All folders unhidden');
+    closeMenu();
+  };
+
+  const handleShowOnlyPinnedFolders = async () => {
+    const pinned = new Set(appPrefs.value.pinnedFolders || []);
+    const toHide = folders.value
+      .map((c: any) => c.path)
+      .filter((p: string) => p && p !== 'uncategorized' && !pinned.has(p));
+    await updatePrefs({ hiddenFolders: toHide });
+    toast('Showing only pinned folders');
+    closeMenu();
   };
 
   const handleOpenFolder = async () => {
@@ -193,6 +197,30 @@ export const ContextMenu = () => {
     await updatePrefs(updates);
     toast(`Tag "${tagName}" hidden`);
     contextMenuState.value = { ...contextMenuState.value, visible: false };
+  };
+
+  const handleUnhideAllTags = async () => {
+    await updatePrefs({ hiddenTags: [] });
+    data.onRefresh?.();
+    toast('All tags unhidden');
+    closeMenu();
+  };
+
+  const handleShowOnlyPinnedTags = async () => {
+    const pinned = new Set(appPrefs.value.pinnedTags || []);
+    try {
+      const r = await fetch('/api/db-tags');
+      const groups = await r.json();
+      const toHide = (Array.isArray(groups) ? groups : [])
+        .map((g: any) => g.displayName)
+        .filter((n: string) => n && !pinned.has(n));
+      await updatePrefs({ hiddenTags: toHide });
+      data.onRefresh?.();
+      toast('Showing only pinned tags');
+    } catch {
+      toast('Failed to update tags');
+    }
+    closeMenu();
   };
 
   const handleRenameTag = async () => {
@@ -430,9 +458,18 @@ export const ContextMenu = () => {
               icon="star"
               onClick={handleTogglePin}
             />
+            <ContextItem label="Show only pinned folders" icon="star" onClick={handleShowOnlyPinnedFolders} />
+            {(appPrefs.value.hiddenFolders || []).length > 0 && (
+              <ContextItem label="Unhide all folders" icon="eye" onClick={handleUnhideAllFolders} />
+            )}
             <ContextItem label="Rename" icon="edit" onClick={handleRename} />
             <ContextItem label="Delete" icon="trash" onClick={handleDelete} />
             <ContextItem label="Hide" icon="eye-off" onClick={handleHide} />
+            <ContextItem
+              label={appPrefs.value.hideEmptyFolders ? 'Show empty folders' : 'Hide empty folders'}
+              icon="eye-off"
+              onClick={() => { updatePrefs({ hideEmptyFolders: !appPrefs.value.hideEmptyFolders }); closeMenu(); }}
+            />
             <ContextItem label="Open folder" icon="folder" onClick={handleOpenFolder} />
             <ContextItem label="Re-encode to H.265" icon="zap" onClick={async () => {
               closeMenu();
@@ -631,6 +668,10 @@ export const ContextMenu = () => {
               icon="star"
               onClick={handleTogglePinTag}
             />
+            <ContextItem label="Show only pinned tags" icon="star" onClick={handleShowOnlyPinnedTags} />
+            {(appPrefs.value.hiddenTags || []).length > 0 && (
+              <ContextItem label="Unhide all tags" icon="eye" onClick={handleUnhideAllTags} />
+            )}
             <ContextItem label="Make Temp Profile" icon="user" onClick={() => {
               closeMenu();
               createTempProfile('tag', data.name, Array.isArray(data.terms) ? data.terms : []);

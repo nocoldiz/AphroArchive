@@ -4,8 +4,6 @@ import { profileModalState, profiles, activeProfile, switchProfile, loadProfiles
 interface Preset {
   id: string;
   name: string;
-  hasFolders?: boolean;
-  counts?: { folders?: number };
 }
 
 export const ProfileModal = () => {
@@ -13,7 +11,6 @@ export const ProfileModal = () => {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [newName, setNewName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('');
-  const [createFolders, setCreateFolders] = useState(false);
   const [cloneSource, setCloneSource] = useState('');
   const [loading, setLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -46,18 +43,14 @@ export const ProfileModal = () => {
         setNewName('');
         setCloneSource('');
       } else {
-        const presetMeta = presets.find(p => p.id === selectedPreset);
-        const wantFolders = !!(selectedPreset && presetMeta?.hasFolders && createFolders);
         const r = await fetch('/api/profiles/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: newName.trim(), preset: selectedPreset || undefined, createFolders: wantFolders }),
+          body: JSON.stringify({ name: newName.trim(), preset: selectedPreset || undefined }),
         });
         if (!r.ok) throw new Error('Server error');
         const d = await r.json();
         activeProfile.value = d.current;
-        const w = window as any;
-        if (wantFolders && d.foldersCreated && w.toast) w.toast(`Created ${d.foldersCreated} folders from preset`);
         await loadProfiles();
         await reloadAppData();
         close();
@@ -258,16 +251,6 @@ export const ProfileModal = () => {
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
-                {(() => {
-                  const meta = presets.find(p => p.id === selectedPreset);
-                  if (!meta?.hasFolders) return null;
-                  return (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '0.8rem', color: 'var(--tx2)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={createFolders} onChange={(e: any) => setCreateFolders(e.target.checked)} />
-                      Create folder structure on disk ({meta.counts?.folders || 0} folders)
-                    </label>
-                  );
-                })()}
               </div>
             )}
 

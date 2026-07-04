@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
 import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
-import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, FolderOptionsButton, type FoldersFilterControl } from './LibraryFilters';
+import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, type FoldersFilterControl } from './LibraryFilters';
 import { getNavItems, navIcon, placementFor, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, setItemPlacement, sortByOrder, setNavOrder, getNavOrder, activeDrag, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID, type NavItem, type NavSection, type NavOrderKey } from './navItems';
 
 const SectionHeader = ({ label, id, open, style, onClick, action, onContextMenu }: { label: string, id: string, open?: boolean, style?: any, onClick?: () => void, action?: any, onContextMenu?: (e: any) => void }) => (
@@ -447,7 +447,6 @@ export const Sidebar = () => {
                     }
                   </svg>
                 </button>
-                <FolderOptionsButton />
               </span>
             }
           />

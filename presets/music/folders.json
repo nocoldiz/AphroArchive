@@ -1,8 +1,0 @@
-{
-  "Pop": ["Synth Pop", "Dance Pop", "Indie Pop"],
-  "Hip Hop": ["Rap", "Trap", "Boom Bap", "Lo-Fi"],
-  "Rock": ["Classic Rock", "Metal", "Punk", "Alternative"],
-  "Electronic": ["House", "Techno", "Drum and Bass", "Ambient"],
-  "Jazz": ["Bebop", "Swing", "Fusion"],
-  "Classical": ["Baroque", "Romantic", "Modern"]
-}

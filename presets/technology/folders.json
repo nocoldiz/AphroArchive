@@ -1,7 +1,0 @@
-{
-  "Reviews": ["Phones", "Laptops", "Gadgets"],
-  "Programming": ["Web Dev", "Tutorials", "Career"],
-  "Science": ["Physics", "Engineering", "Explainers"],
-  "AI": ["Machine Learning", "LLMs", "Research"],
-  "Hardware": ["PC Building", "Retro", "Networking"]
-}

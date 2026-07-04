@@ -18,6 +18,40 @@ video_downloads/
 .AphroArchive-thumbs
 .AphroArchive-actor-photos
 
+# ── Media file types (images / video / audio) ─
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.bmp
+*.tif
+*.tiff
+*.avif
+*.heic
+*.svg
+*.ico
+*.mp4
+*.mkv
+*.webm
+*.avi
+*.mov
+*.wmv
+*.flv
+*.m4v
+*.mpg
+*.mpeg
+# (*.ts omitted — clashes with TypeScript sources)
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.oga
+*.opus
+*.m4a
+*.aac
+*.wma
+
 # ── Caches ───────────────────────────────────
 cache/
 links_cache.json
@@ -35,12 +69,6 @@ db/
 # ── Build output ─────────────────────────────
 build/
 dist/public/*
-
-# ── Android app ──────────────────────────────
-android-app
-android-app/www/assets/*
-android-app/www/*
-android-app/www/index.html
 
 # ── Bulk downloader ──────────────────────────
 bulkdownloader/links_downloaded.txt

@@ -4,7 +4,6 @@ import { zapOn, zapStartTime } from '../../zap';
 import { isTVMode, tvStartTime, nextVideoInChannel } from '../../tv-mode';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
-import { AiComments } from '../UI/AiComments';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 import { VideoCard } from '../UI/VideoGrid';
 import { AdvancedPlayer } from '../UI/AdvancedPlayer';
@@ -45,6 +44,8 @@ export const PlayerView = () => {
   const [language, setLanguage] = useState<string>('');
 
   const [note, setNote] = useState<string>('');
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteDraft, setNoteDraft] = useState<string>('');
   const [subtitleUploading, setSubtitleUploading] = useState(false);
   const [cardThumb, setCardThumb] = useState<number>(() => video ? getThumbPref(video.id) : 0);
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null);
@@ -539,12 +540,14 @@ export const PlayerView = () => {
     }
   };
 
-  const saveNote = async () => {
+  const saveNote = async (text: string) => {
     if (!video || video.isVault || video.isLink) return;
+    setNote(text);
+    setShowNoteModal(false);
     await fetch(`/api/videos/${video.id}/meta`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note }),
+      body: JSON.stringify({ note: text }),
     }).catch(() => {});
   };
 
@@ -1050,20 +1053,6 @@ export const PlayerView = () => {
             </div>
 
             {!video.isLink && !video.isVault && (
-              <div className="player-note-row" style={{ marginBottom: '20px' }}>
-                <span style={{ display: 'block', color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Notes</span>
-                <textarea
-                  value={note}
-                  onInput={(e: any) => setNote(e.target.value)}
-                  onBlur={saveNote}
-                  placeholder="Private note…"
-                  rows={3}
-                  style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 12px', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
-                />
-              </div>
-            )}
-
-            {!video.isLink && !video.isVault && (
               <div className="player-thumb-row" style={{ marginBottom: '20px' }}>
                 <span style={{ display: 'block', color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Card thumbnail</span>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -1085,7 +1074,19 @@ export const PlayerView = () => {
               </div>
             )}
 
-            <AiComments />
+            {!video.isLink && !video.isVault && (
+              <div className="player-note-row" style={{ borderTop: '1px solid var(--brd)', marginTop: '20px', paddingTop: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--tx2)', textTransform: 'uppercase', letterSpacing: '1px' }}>Personal Note</span>
+                  <button class="modal-btn" onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}>
+                    {note.trim() ? 'Edit note' : 'Add note'}
+                  </button>
+                </div>
+                {note.trim() && (
+                  <div style={{ marginTop: '10px', fontSize: '0.9rem', color: 'var(--tx2)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note}</div>
+                )}
+              </div>
+            )}
             {relatedVideos.length > 0 && (
               <div style={{ marginTop: '30px' }}>
                 <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Related Videos</h2>
@@ -1161,6 +1162,30 @@ export const PlayerView = () => {
           </div>
         </div>
       </div>
+
+      {showNoteModal && (
+        <div className="modal on" style={{ display: 'flex' }} onClick={(e) => { if (e.target === e.currentTarget) setShowNoteModal(false); }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Personal Note</h2>
+            </div>
+            <div className="modal-body">
+              <textarea
+                value={noteDraft}
+                onInput={(e: any) => setNoteDraft(e.target.value)}
+                placeholder="Private note for this video…"
+                rows={8}
+                autoFocus
+                style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 12px', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              />
+            </div>
+            <div className="modal-footer">
+              <button class="modal-btn modal-btn--primary" onClick={() => saveNote(noteDraft)}>Save</button>
+              <button class="modal-btn" onClick={() => setShowNoteModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showEncryptConfirm && (
         <div className="modal on" style={{ display: 'flex' }}>

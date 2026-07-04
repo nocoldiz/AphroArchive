@@ -22,8 +22,6 @@ export const RedditView = () => {
   const [vaultUnlocked, setVaultUnlocked] = useState(false);
   
   const [detailVideo, setDetailVideo] = useState<any | null>(null);
-  const [comments, setComments] = useState<any[]>([]);
-  const [loadingComments, setLoadingComments] = useState(false);
 
   const [isNewPostOpen, setIsNewPostOpen] = useState(false);
   const [npTab, setNpTab] = useState<'media' | 'text'>('media');
@@ -140,26 +138,12 @@ export const RedditView = () => {
     return list;
   }, [curSub, curSort, searchQ, vids, vaultItems, photos, books, hotRnd, hiddenTerms]);
 
-  const loadComments = async (videoId: string) => {
-    setLoadingComments(true);
-    try {
-      const r = await fetch(`/api/comments/${encodeURIComponent(videoId)}`);
-      const d = await r.json();
-      setComments(d.comments || []);
-    } catch {
-      setComments([]);
-    }
-    setLoadingComments(false);
-  };
-
   const openDetail = (video: any) => {
     setDetailVideo(video);
-    loadComments(video.id);
   };
 
   const closeDetail = () => {
     setDetailVideo(null);
-    setComments([]);
   };
 
   const handleVote = (id: string, dir: number) => {
@@ -264,22 +248,6 @@ export const RedditView = () => {
                     <img src={`/api/photos/${detailVideo.id}/img`} style={{ width: '100%', borderRadius: '4px' }} alt="" />
                   ) : (
                     <video src={detailVideo._vault ? `/api/vault/stream/${detailVideo.id}` : `/api/stream/${detailVideo.id}`} controls autoPlay style={{ width: '100%', borderRadius: '4px' }} muted={isMuted.value} />
-                  )}
-                </div>
-                
-                <div className="rd-comments-box">
-                  <h4>Comments</h4>
-                  {loadingComments ? (
-                    <div className="rd-spinner">Loading comments...</div>
-                  ) : comments.length === 0 ? (
-                    <div style={{ color: '#818384' }}>No comments yet.</div>
-                  ) : (
-                    comments.map(c => (
-                      <div key={c.id} style={{ borderLeft: '2px solid #343536', paddingLeft: '10px', marginBottom: '10px' }}>
-                        <div style={{ fontSize: '0.8rem', color: '#818384' }}>{c.author || 'Anonymous'}</div>
-                        <div>{c.text}</div>
-                      </div>
-                    ))
                   )}
                 </div>
               </div>

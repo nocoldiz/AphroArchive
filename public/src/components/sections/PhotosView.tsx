@@ -258,16 +258,10 @@ export const PhotosView = () => {
       ) : (
         <div className="ph-grid" id="photosGrid">
           {subfolders.map(sf => (
-            <div
-              key={'dir:' + sf.path}
-              className="ph-card"
-              title={sf.name}
-              onClick={() => goTo(sf.path)}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'var(--bg3)' }}
-            >
+            <div key={'dir:' + sf.path} className="ph-card ph-folder" title={sf.name} onClick={() => goTo(sf.path)}>
               <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              <span style={{ fontSize: '0.82rem', color: 'var(--tx)', maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sf.name}</span>
-              <span style={{ fontSize: '0.7rem', color: 'var(--tx3)' }}>{sf.count} photo{sf.count === 1 ? '' : 's'}</span>
+              <span className="ph-folder-name">{sf.name}</span>
+              <span className="ph-folder-count">{sf.count} photo{sf.count === 1 ? '' : 's'}</span>
             </div>
           ))}
           {files.map((f, i) => (

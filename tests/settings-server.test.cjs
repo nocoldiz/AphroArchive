@@ -201,18 +201,6 @@ describe('apiGetPrefs()', () => {
 // ── apiSavePrefs() ────────────────────────────────────────────────────
 
 describe('apiSavePrefs()', () => {
-  it('saves aiCommentsEnabled', async () => {
-    const res = makeRes();
-    await settings.apiSavePrefs(makeJsonReq('/prefs', { aiCommentsEnabled: true }), res);
-    expect(res.jsonBody.ok).toBe(true);
-    expect(state.prefs.aiCommentsEnabled).toBe(true);
-  });
-
-  it('coerces aiCommentsEnabled to boolean', async () => {
-    await settings.apiSavePrefs(makeJsonReq('/prefs', { aiCommentsEnabled: 1 }), makeRes());
-    expect(typeof state.prefs.aiCommentsEnabled).toBe('boolean');
-  });
-
   it('saves theme', async () => {
     await settings.apiSavePrefs(makeJsonReq('/prefs', { theme: 'light' }), makeRes());
     expect(state.prefs.theme).toBe('light');

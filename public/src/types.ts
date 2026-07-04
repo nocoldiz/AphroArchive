@@ -63,9 +63,6 @@ export interface AppPrefs {
   cardSize: number;
   networkEnabled: boolean;
   chronologyMode: 'keep' | 'delete-on-startup' | 'dont-save';
-  aiCommentMasterPrompt?: string;
-  aiReplyMasterPrompt?: string;
-  aiCommentsEnabled?: boolean;
   anthropicApiKey?: string;
   disableSearchTracking?: boolean;
   vaultSelfDestruct?: boolean;

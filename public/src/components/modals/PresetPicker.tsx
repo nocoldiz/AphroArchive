@@ -5,13 +5,11 @@ interface Preset {
   id: string;
   name: string;
   description?: string;
-  hasFolders?: boolean;
   counts: {
     categories?: number;
     actors?: number;
     channels?: number;
     websites?: number;
-    folders?: number;
     links?: number;
   };
 }
@@ -22,7 +20,6 @@ export const PresetPicker = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [createFolders, setCreateFolders] = useState(false);
   const [importLinks, setImportLinks] = useState(true);
   const [linkCount, setLinkCount] = useState(0); // 0 = import all
   const [status, setStatus] = useState('');
@@ -34,7 +31,6 @@ export const PresetPicker = () => {
     setFetchError('');
     setStatus('');
     setSelected(new Set());
-    setCreateFolders(false);
     setImportLinks(true);
     setLinkCount(0);
     fetch('/api/presets')
@@ -65,7 +61,6 @@ export const PresetPicker = () => {
             body: JSON.stringify({
               name: p,
               preset: p,
-              createFolders: createFolders && !!meta?.hasFolders,
               importLinks: importLinks && !!meta?.counts.links,
               linkCount: linkCount > 0 ? linkCount : -1,
             }),
@@ -170,13 +165,6 @@ export const PresetPicker = () => {
             ))}
           </div>
         </div>
-
-        {!state.mergeMode && Array.from(selected).some(id => presets.find(p => p.id === id)?.hasFolders) && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 12px', fontSize: '0.82rem', color: 'var(--tx2)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={createFolders} onChange={(e: any) => setCreateFolders(e.target.checked)} />
-            Create each preset's folder structure on disk
-          </label>
-        )}
 
         {(() => {
           const totalLinks = Array.from(selected).reduce((n, id) => n + (presets.find(p => p.id === id)?.counts.links || 0), 0);

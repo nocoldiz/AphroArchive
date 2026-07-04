@@ -3,14 +3,13 @@ setlocal EnableDelayedExpansion
 echo.
 
 :: ============================================================
-:: Parse flags: --windows --linux --mac --android --electron
+:: Parse flags: --windows --linux --mac --electron
 :: --publish  publishes the built artifacts to a GitHub release
 :: No platform flags = build all platforms
 :: ============================================================
 set DO_WINDOWS=0
 set DO_LINUX=0
 set DO_MAC=0
-set DO_ANDROID=0
 set DO_ELECTRON=0
 set DO_PUBLISH=0
 set ANY_FLAG=0
@@ -20,7 +19,6 @@ if "%~1"=="" goto :done_args
 if /i "%~1"=="--windows"  ( set DO_WINDOWS=1  & set ANY_FLAG=1 )
 if /i "%~1"=="--linux"    ( set DO_LINUX=1    & set ANY_FLAG=1 )
 if /i "%~1"=="--mac"      ( set DO_MAC=1      & set ANY_FLAG=1 )
-if /i "%~1"=="--android"  ( set DO_ANDROID=1  & set ANY_FLAG=1 )
 if /i "%~1"=="--electron" ( set DO_ELECTRON=1 & set ANY_FLAG=1 )
 if /i "%~1"=="--publish"  ( set DO_PUBLISH=1 )
 shift
@@ -31,14 +29,12 @@ if !ANY_FLAG!==0 (
   set DO_WINDOWS=1
   set DO_LINUX=1
   set DO_MAC=1
-  set DO_ANDROID=1
 )
 
 if !DO_WINDOWS!==1  echo  Target: Windows ^(pkg exe^)
 if !DO_ELECTRON!==1 echo  Target: Windows ^(Electron installer^)
 if !DO_LINUX!==1    echo  Target: Linux
 if !DO_MAC!==1      echo  Target: macOS
-if !DO_ANDROID!==1  echo  Target: Android
 if !DO_PUBLISH!==1  echo  Publish: GitHub Releases
 echo.
 
@@ -148,45 +144,6 @@ if !DO_MAC!==1 (
 :after_mac
 
 :: ============================================================
-:: Android APK
-:: ============================================================
-if !DO_ANDROID!==1 (
-  echo [android] Building Android APK...
-
-  echo   [a] Building Android web assets...
-  call npm run build:android-web
-  if %ERRORLEVEL% NEQ 0 ( echo  FAILED: Android web build & exit /b 1 )
-
-  echo   [b] Syncing to Android project...
-  cd android-app
-  call npx cap sync android 2>&1
-  if %ERRORLEVEL% NEQ 0 ( echo  FAILED: cap sync & cd .. & exit /b 1 )
-
-  echo   [c] Running Gradle ^(assembleRelease^)...
-  cd android
-  call gradlew.bat assembleRelease 2>&1
-  if %ERRORLEVEL% NEQ 0 (
-    echo  Release build failed, trying assembleDebug...
-    call gradlew.bat assembleDebug 2>&1
-    if %ERRORLEVEL% NEQ 0 ( echo  FAILED: Gradle build & cd ..\.. & exit /b 1 )
-    set APK_SRC=app\build\outputs\apk\debug\app-debug.apk
-    set APK_LABEL=debug
-  ) else (
-    set APK_SRC=app\build\outputs\apk\release\app-release-unsigned.apk
-    if not exist "app\build\outputs\apk\release\app-release-unsigned.apk" set APK_SRC=app\build\outputs\apk\release\app-release.apk
-    set APK_LABEL=release
-  )
-
-  cd ..\..
-
-  copy "android-app\android\!APK_SRC!" dist\AphroArchive.apk >nul
-  if %ERRORLEVEL% NEQ 0 ( echo  FAILED: Could not copy APK to dist\ & exit /b 1 )
-
-  echo  done: dist\AphroArchive.apk  ^(!APK_LABEL!^)
-  echo.
-)
-
-:: ============================================================
 :: Firefox Extension
 :: ============================================================
 echo [firefox] Packaging Firefox extension...
@@ -206,7 +163,6 @@ if exist dist\electron\                     echo    electron\                   
 if exist dist\AphroArchive-linux            echo    AphroArchive-linux          Linux x64
 if exist dist\AphroArchive-mac.dmg          echo    AphroArchive-mac.dmg        macOS ^(arm64 + x64, UDF .dmg^)
 if exist dist\AphroArchive-mac.zip          echo    AphroArchive-mac.zip        macOS ^(arm64 + x64, zip fallback^)
-if exist dist\AphroArchive.apk              echo    AphroArchive.apk            Android
 if exist dist\AphroArchive-firefox.xpi      echo    AphroArchive-firefox.xpi    Firefox extension
 echo ============================================================
 echo.
@@ -234,7 +190,6 @@ if !DO_PUBLISH!==1 (
   if exist dist\AphroArchive-linux        set ASSETS=!ASSETS! "dist\AphroArchive-linux"
   if exist dist\AphroArchive-mac.dmg      set ASSETS=!ASSETS! "dist\AphroArchive-mac.dmg"
   if exist dist\AphroArchive-mac.zip      set ASSETS=!ASSETS! "dist\AphroArchive-mac.zip"
-  if exist dist\AphroArchive.apk          set ASSETS=!ASSETS! "dist\AphroArchive.apk"
   if exist dist\AphroArchive-firefox.xpi  set ASSETS=!ASSETS! "dist\AphroArchive-firefox.xpi"
   if exist dist\electron for %%f in (dist\electron\*.exe) do set ASSETS=!ASSETS! "%%f"
 

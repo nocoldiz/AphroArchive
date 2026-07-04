@@ -167,11 +167,6 @@ function ensureSchema(database) {
       hash TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS comments (
-      video_id TEXT PRIMARY KEY,
-      data TEXT
-    );
-
     CREATE TABLE IF NOT EXISTS prompts (
       id TEXT PRIMARY KEY,
       text TEXT,
@@ -481,30 +476,6 @@ function _migrateJsonToSqlite() {
     }
   } catch (e) { console.error('[migrate] prompts:', e.message); }
 
-  // Comments (per-video JSON files in cache/)
-  try {
-    const cCount = db.prepare('SELECT COUNT(*) as c FROM comments').get().c;
-    if (cCount === 0) {
-      const cacheDir = CACHE_DIR;
-      if (fs.existsSync(cacheDir)) {
-        const files = fs.readdirSync(cacheDir).filter(f => f.startsWith('comments_') && f.endsWith('.json'));
-        if (files.length) {
-          txn(() => {
-            const ins = db.prepare('INSERT OR IGNORE INTO comments (video_id, data) VALUES (?, ?)');
-            for (const f of files) {
-              try {
-                const videoId = f.replace(/^comments_/, '').replace(/\.json$/, '');
-                const data = fs.readFileSync(path.join(cacheDir, f), 'utf-8');
-                ins.run(videoId, data);
-              } catch {}
-            }
-          });
-          console.log(`[migrate] ${files.length} comment files → comments table`);
-        }
-      }
-    }
-  } catch (e) { console.error('[migrate] comments:', e.message); }
-
   // Books meta
   try {
     const bCount = db.prepare('SELECT COUNT(*) as c FROM books_meta').get().c;
@@ -701,7 +672,7 @@ function _readVideoMetaFromDb(database) {
 // profile is active the row lives in another profile's DB, so it is deleted
 // there too — encryption must leave no trace in any public database.
 // Remove every trace of a video from a database: its metadata, tags,
-// actors, favourites, history, thumbnail/visual-hash caches, comments,
+// actors, favourites, history, thumbnail/visual-hash caches,
 // the scan index, and any collection it belongs to.
 function _wipeVideoEverywhere(database, id) {
   database.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
@@ -711,7 +682,6 @@ function _wipeVideoEverywhere(database, id) {
   database.prepare('DELETE FROM history WHERE video_id = ?').run(id);
   database.prepare('DELETE FROM thumbs_cache WHERE video_id = ?').run(id);
   database.prepare('DELETE FROM visual_hashes WHERE video_id = ?').run(id);
-  database.prepare('DELETE FROM comments WHERE video_id = ?').run(id);
   database.prepare('DELETE FROM video_index WHERE id = ?').run(id);
 
   const collections = database.prepare('SELECT id, video_ids FROM collections').all();
@@ -1333,30 +1303,6 @@ function saveAudioMeta(m) {
   } catch (e) { console.error('Failed to save audio meta:', e); }
 }
 
-// ── Comments ─────────────────────────────────────────────────────────
-
-function loadComments(videoId) {
-  try {
-    const row = db.prepare('SELECT data FROM comments WHERE video_id = ?').get(videoId);
-    if (!row) return null;
-    const raw = _isVaultEncryptActive() ? _tryDecrypt(row.data) : row.data;
-    return JSON.parse(raw);
-  } catch (e) { console.error('Failed to load comments:', e); return null; }
-}
-
-function saveComments(videoId, arr) {
-  try {
-    const vault = _isVaultEncryptActive();
-    const data = vault ? _encryptString(JSON.stringify(arr), _vaultKey) : JSON.stringify(arr);
-    db.prepare('INSERT INTO comments (video_id, data) VALUES (?, ?) ON CONFLICT(video_id) DO UPDATE SET data=excluded.data')
-      .run(videoId, data);
-  } catch (e) { console.error('Failed to save comments:', e); }
-}
-
-function clearAllComments() {
-  try { db.prepare('DELETE FROM comments').run(); } catch (e) { console.error('Failed to clear comments:', e); }
-}
-
 // ── Visual hashes (duplicate detection) ──────────────────────────────
 
 function loadVisualHashes() {
@@ -1439,7 +1385,7 @@ function updatePrompt(id, fields) {
   } catch (e) { console.error('Failed to update prompt:', e); return false; }
 }
 
-// Re-encrypts all prompts and comments in the current DB from oldKey → newKey.
+// Re-encrypts all prompts in the current DB from oldKey → newKey.
 // Called by vault-server.js during password change.
 function reEncryptVaultSqlite(oldKey, newKey) {
   try {
@@ -1452,16 +1398,6 @@ function reEncryptVaultSqlite(oldKey, newKey) {
       upd.run(_encryptString(text, newKey), _encryptString(sites, newKey), row.id);
     }
   } catch (e) { console.error('[vault] re-encrypt prompts failed:', e); }
-
-  try {
-    const rows = db.prepare('SELECT video_id, data FROM comments').all();
-    const upd  = db.prepare('UPDATE comments SET data = ? WHERE video_id = ?');
-    for (const row of rows) {
-      let data = row.data;
-      try { data = _decryptString(row.data, oldKey); } catch {}
-      upd.run(_encryptString(data, newKey), row.video_id);
-    }
-  } catch (e) { console.error('[vault] re-encrypt comments failed:', e); }
 }
 
 function deletePrompt(id) {
@@ -2272,7 +2208,6 @@ module.exports = {
   loadAudioMeta, saveAudioMeta,
   loadActors, saveActors, loadFolderMappings, saveFolderMappings, loadChannels, saveChannels, invalidateDbTypeCache, upsertChannelEntry,
   loadEnabledFolders, saveEnabledFolders,
-  loadComments, saveComments, clearAllComments,
   loadVisualHashes, setVisualHash, saveVisualHashes,
   loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,

@@ -8,7 +8,6 @@ const formatDuration = (seconds: number) => {
 };
 import { allVideos, appPrefs, currentVideo, currentView, isMuted } from '../../public/src/store';
 import { Video } from '../../public/src/types';
-import { AiComments } from '../../public/src/components/UI/AiComments';
 import './InstagramView.css';
 
 interface VaultFile {
@@ -869,9 +868,6 @@ const IgModal = ({ id, isVault, onClose, vaultFiles, allVideos, vaultUser, timeA
                 {item.tags.map((t: string) => `#${t}`).join(' ')}
               </div>
             )}
-
-            {/* AI Comments Component */}
-            <AiComments />
           </div>
           <div className="ig-modal-actions">
             <button className={`ig-act-btn ${liked ? 'liked' : ''}`} onClick={onLike}>

@@ -47,7 +47,6 @@ async function apiSavePrefs(req, res) {
     if (!CHRON_MODES.has(body.chronologyMode)) return json(res, { error: 'Invalid value' }, 400);
     prefs.chronologyMode = body.chronologyMode;
   }
-  if ('aiCommentsEnabled' in body) prefs.aiCommentsEnabled = !!body.aiCommentsEnabled;
   if ('disableSearchTracking' in body) prefs.disableSearchTracking = !!body.disableSearchTracking;
   if ('vaultSelfDestruct' in body) prefs.vaultSelfDestruct = !!body.vaultSelfDestruct;
   if ('vaultTimeoutMinutes' in body) {
@@ -59,8 +58,6 @@ async function apiSavePrefs(req, res) {
   if ('openrouterApiKey' in body) prefs.openrouterApiKey = String(body.openrouterApiKey || '').trim();
   if ('openrouterModel' in body) prefs.openrouterModel = String(body.openrouterModel || '').trim();
   if ('networkEnabled' in body)   prefs.networkEnabled   = !!body.networkEnabled;
-  if ('aiCommentMasterPrompt' in body) prefs.aiCommentMasterPrompt = String(body.aiCommentMasterPrompt || '').trim();
-  if ('aiReplyMasterPrompt' in body)   prefs.aiReplyMasterPrompt   = String(body.aiReplyMasterPrompt || '').trim();
   if ('sourceFolders' in body) {
     if (Array.isArray(body.sourceFolders)) {
       prefs.sourceFolders = body.sourceFolders.map(p => String(p).trim()).filter(Boolean);

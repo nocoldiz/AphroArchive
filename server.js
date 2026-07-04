@@ -64,7 +64,6 @@ const settings = require('./server/settings-server');
 const search = require('./server/search-server');
 const plugins = require('./server/plugins-server');
 const prompts = require('./server/prompts-server');
-const comments = require('./server/comments-server');
 const vision = require('./server/vision-server');
 const vaultZip = require('./server/vault-zip-server');
 const mediaZip = require('./server/media-zip-mount-server');
@@ -453,7 +452,6 @@ const server = http.createServer(async (req, res) => {
   // ── Presets ──────────────────────────────────────────────────────────
   if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
   if (p === '/api/presets/apply' && req.method === 'POST') return profiles.apiApplyPreset(req, res);
-  if (p === '/api/folders/from-preset' && req.method === 'POST') return profiles.apiCreateFoldersFromPreset(req, res);
 
   // ── RSS feeds ────────────────────────────────────────────────────────
   if (p === '/api/rss/feeds' && req.method === 'GET') return rss.apiGetRssFeeds(req, res);
@@ -584,19 +582,6 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/browse-folders' && req.method === 'GET') return settings.apiBrowseFolders(req, res, params);
   if (p === '/api/browse-folders-native' && req.method === 'GET') return settings.apiBrowseFoldersNative(req, res);
   if (p === '/api/feed-folders/verify-vault' && req.method === 'POST') return settings.apiVerifyVaultPassword(req, res);
-
-  // ── AI Comments ──────────────────────────────────────────────────────
-  if (p === '/api/comments/clear-all' && req.method === 'DELETE') return comments.apiClearAllComments(req, res);
-  if (p === '/api/comments/generate' && req.method === 'POST') return comments.apiGenerateComments(req, res);
-  if (p === '/api/comments/reply' && req.method === 'POST') return comments.apiReplyToComment(req, res);
-  {
-    const m = p.match(/^\/api\/comments\/([^/]+)\/add$/);
-    if (m && req.method === 'POST') return comments.apiAddComment(req, res, decodeURIComponent(m[1]));
-  }
-  {
-    const m = p.match(/^\/api\/comments\/([^/]+)$/);
-    if (m && req.method === 'GET') return comments.apiGetComments(req, res, decodeURIComponent(m[1]));
-  }
 
   // ── Local IP ─────────────────────────────────────────────────────────
   if (p === '/api/local-ip' && req.method === 'GET') {

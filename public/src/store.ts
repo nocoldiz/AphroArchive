@@ -688,7 +688,6 @@ w.linkMatchedUrls = new Set();
 w.collectionsMode = false;
 w.curCollection = null;
 w.settingsMode = false;
-w.aiCommentsEnabled = false;
 w.dbMode = false;
 w.dbTab = 'actors';
 w._dbData = {};

@@ -5,7 +5,6 @@
   "main": "electron-main.js",
   "bin": "server.js",
   "scripts": {
-    "build:android-web": "vite build --mode android",
     "test": "vitest run --config vitest.config.js",
     "test:watch": "vitest --config vitest.config.js",
     "dev": "vite",
@@ -26,7 +25,6 @@
     "files": [
       "**/*",
       "!dist/**",
-      "!android-app/**",
       "!*.bat",
       "!*.sh"
     ],
@@ -56,10 +54,6 @@
     "preact": "^10.29.1"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.3.4",
-    "@capacitor/cli": "^8.3.4",
-    "@capacitor/core": "^8.3.4",
-    "@capacitor/preferences": "^8.0.1",
     "@preact/preset-vite": "^2.10.5",
     "@types/node": "^20.17.10",
     "@types/react": "^19.2.14",
