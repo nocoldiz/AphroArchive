@@ -7853,6 +7853,47 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   border: 1px solid var(--brd)
 }
 
+.ph-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  min-height: 28px
+}
+
+.ph-back {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px
+}
+
+.ph-folder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg3)
+}
+
+.ph-folder:hover {
+  border-color: var(--ac)
+}
+
+.ph-folder-name {
+  font-size: .82rem;
+  color: var(--tx);
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+
+.ph-folder-count {
+  font-size: .7rem;
+  color: var(--tx3)
+}
+
 .ph-card:hover .ph-overlay {
   opacity: 1
 }

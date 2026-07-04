@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, updatePrefs, sidebarSide, sidebarReveal, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, unlockZipCategory, linkTotalCount } from '../../store';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, unlockZipCategory, linkTotalCount } from '../../store';
 import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID } from './navItems';
 import { pluginsList, isPluginEnabled, runPluginAction, type PluginMeta } from '../../plugins';
 import { zapOn } from '../../zap';
@@ -67,97 +67,6 @@ export const SidebarItem = ({ id, label, icon, badge, onClick, onDragOver, onDra
 
 const iconStyle = { verticalAlign: '-2px', marginRight: '5px' };
 
-const gearIcon = (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
-
-export const FolderOptionsButton = () => {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const prefs = appPrefs.value;
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const optLabel: any = { fontSize: '11px', color: 'var(--tx3)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' };
-  const optBtn = (on: boolean): any => ({
-    flex: 1, padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontWeight: 600, fontSize: '12px',
-    background: on ? 'var(--ac)' : 'var(--bg3)', color: on ? '#fff' : 'var(--tx)',
-    border: on ? '1px solid var(--ac)' : '1px solid var(--brd)',
-  });
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        type="button"
-        className="sidebar-heading-add"
-        title="Folder options"
-        onClick={(e: any) => { e.stopPropagation(); setOpen(o => !o); }}
-      >
-        {gearIcon}
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 300,
-          background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '8px',
-          padding: '12px', width: '224px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-        }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--tx)', marginBottom: '12px' }}>
-            <input
-              type="checkbox"
-              checked={!!prefs.hideEmptyFolders}
-              onChange={(e: any) => updatePrefs({ hideEmptyFolders: e.currentTarget.checked })}
-              style={{ width: '14px', height: '14px' }}
-            />
-            Hide folders with 0 videos
-          </label>
-          <div style={{ borderTop: '1px solid var(--brd)', paddingTop: '10px', marginBottom: '10px' }}>
-            <div style={optLabel}>Sidebar position</div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {(['left', 'right'] as const).map(side => (
-                <button key={side} type="button"
-                  onClick={() => { sidebarSide.value = side; updatePrefs({ sidebarSide: side }); }}
-                  style={optBtn((prefs.sidebarSide || 'left') === side)}>
-                  {side === 'left' ? 'Left' : 'Right'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div style={optLabel}>Sidebar visibility</div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {([
-                { id: 'fixed' as const, name: 'Always visible' },
-                { id: 'hover' as const, name: 'Reveal on hover' },
-              ]).map(o => (
-                <button key={o.id} type="button"
-                  onClick={() => { sidebarReveal.value = o.id; updatePrefs({ sidebarReveal: o.id }); }}
-                  style={optBtn((prefs.sidebarReveal || 'fixed') === o.id)}>
-                  {o.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 function useScopedVids(linksOnly: boolean) {
   const vids = allVideos.value;
   return useMemo(() => vids.filter(v => !!(v as any).isLink === linksOnly), [vids, linksOnly]);
@@ -208,9 +117,23 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
       return a.name.localeCompare(b.name);
     }), [folders.value, filteredVids]);
 
+  // A folder is hidden when its path equals, or lives under, any hiddenFolders
+  // entry. Hidden folders vanish from the tree instantly (they still surface via
+  // the pinned section if pinned). Vault mode ignores hiding.
+  const isFolderHidden = useMemo(() => {
+    const hidden = (inVaultMode ? [] : (appPrefs.value.hiddenFolders || []))
+      .map(h => h.toLowerCase().replace(/\\/g, '/'));
+    return (path: string) => {
+      if (!hidden.length) return false;
+      const p = path.toLowerCase().replace(/\\/g, '/');
+      return hidden.some(h => p === h || p.startsWith(h + '/'));
+    };
+  }, [appPrefs.value.hiddenFolders, inVaultMode]);
+
   const categoryTree = useMemo(() => {
     const hideEmpty = !!appPrefs.value.hideEmptyFolders && !isLoadingVideos.value;
-    const list = hideEmpty ? displayFolders.filter(c => c.count > 0) : displayFolders;
+    let list = hideEmpty ? displayFolders.filter(c => c.count > 0) : displayFolders;
+    list = list.filter(c => !isFolderHidden(c.path));
     const byPath = new Map<string, CatTreeNode>();
     const roots: CatTreeNode[] = [];
     for (const c of list) byPath.set(c.path, { cat: c, children: [] });
@@ -221,7 +144,7 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
       else roots.push(node);
     }
     return roots;
-  }, [displayFolders, appPrefs.value.hideEmptyFolders, isLoadingVideos.value]);
+  }, [displayFolders, appPrefs.value.hideEmptyFolders, isLoadingVideos.value, isFolderHidden]);
 
   const expandablePaths = useMemo(() => {
     const paths: string[] = [];
@@ -361,7 +284,7 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
   };
 
   if (fq) {
-    const matches = displayFolders.filter(c => c.name.toLowerCase().includes(fq));
+    const matches = displayFolders.filter(c => c.name.toLowerCase().includes(fq) && !isFolderHidden(c.path));
     return (
       <>
         {inVaultMode && vaultFolders.filter(f => f.name.toLowerCase().includes(fq)).map(f => (

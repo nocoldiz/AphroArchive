@@ -958,6 +958,20 @@ export const filteredVideos = computed(() => {
     list = list.filter(v => (v.tags || []).some(t => want.includes(t.toLowerCase())));
   }
 
+  // Hidden folders: exclude their videos from aggregate views (All Videos,
+  // search, tags, favourites). Opening a hidden/pinned folder directly still
+  // shows its contents because currentFolder short-circuits this.
+  const hiddenFolders = appPrefs.value.hiddenFolders || [];
+  if (hiddenFolders.length && !currentFolder.value) {
+    const hidden = hiddenFolders.map(h => h.toLowerCase().replace(/\\/g, '/'));
+    list = list.filter(v => {
+      if (v.isLink) return true;
+      const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+      if (!vp) return true;
+      return !hidden.some(h => vp === h || vp.startsWith(h + '/'));
+    });
+  }
+
   // Apply sorting or shuffle
   if (isShuffle.value) {
     if (shuffleSeed.value !== _shuffleSeedApplied) {

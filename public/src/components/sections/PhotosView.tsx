@@ -25,20 +25,6 @@ export const PhotosView = () => {
       .then(d => {
         setPhotos(d);
         setLoading(false);
-        if (!currentPhotoFolder.value) {
-          const folderSet = new Set<string>();
-          for (const f of d as PhotoFile[]) {
-            if (!f.folder) continue;
-            const parts = f.folder.split('/');
-            let cur = '';
-            for (const part of parts) {
-              cur = cur ? cur + '/' + part : part;
-              folderSet.add(cur);
-            }
-          }
-          const first = [...folderSet].sort()[0];
-          if (first) currentPhotoFolder.value = first;
-        }
       })
       .catch(() => {
         setPhotos([]);
@@ -48,16 +34,27 @@ export const PhotosView = () => {
 
   const activeFolder = currentPhotoFolder.value;
 
-  const getSortedFilteredPhotos = () => {
-    let files = [...photos];
+  const inSubtree = (folder: string) =>
+    !activeFolder || folder === activeFolder || folder.startsWith(activeFolder + '/');
 
-    if (activeFolder) {
-      const fl = activeFolder.toLowerCase();
-      files = files.filter(f => {
-        const folder = (f.folder || '').toLowerCase();
-        return folder === fl || folder.startsWith(fl + '/');
-      });
+  // Direct subfolders of the active folder, with recursive photo counts.
+  const getSubfolders = () => {
+    const counts = new Map<string, number>();
+    for (const f of photos) {
+      const folder = f.folder || '';
+      if (!inSubtree(folder) || folder === activeFolder) continue;
+      const seg = (activeFolder ? folder.slice(activeFolder.length + 1) : folder).split('/')[0];
+      counts.set(seg, (counts.get(seg) || 0) + 1);
     }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count, path: activeFolder ? activeFolder + '/' + name : name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  const getSortedFilteredPhotos = () => {
+    // Normal browsing shows only the photos directly in this folder;
+    // searching flattens the whole subtree so nested images are findable.
+    let files = photos.filter(f => search ? inSubtree(f.folder || '') : (f.folder || '') === activeFolder);
 
     if (sort === 'name') files.sort((a, b) => a.filename.localeCompare(b.filename));
     else if (sort === 'size') files.sort((a, b) => b.size - a.size);
@@ -75,6 +72,10 @@ export const PhotosView = () => {
   };
 
   const files = getSortedFilteredPhotos();
+  const subfolders = search ? [] : getSubfolders();
+  const crumbs = activeFolder ? activeFolder.split('/') : [];
+  const goTo = (path: string) => { currentPhotoFolder.value = path; setLightboxIdx(null); };
+  const goUp = () => goTo(crumbs.slice(0, -1).join('/'));
 
   // Slideshow effect
   useEffect(() => {
@@ -228,12 +229,47 @@ export const PhotosView = () => {
         </SectionControls>
       </div>
 
+      <div className="ph-crumbs">
+        {activeFolder && (
+          <button className="sort-btn ph-back" title="Back" onClick={goUp}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+        )}
+        <div>
+          <span
+            className={crumbs.length ? 'crumb crumb--link' : 'crumb'}
+            onClick={crumbs.length ? () => goTo('') : undefined}
+          >Photos</span>
+          {crumbs.map((seg, i) => (
+            <span key={i}>
+              <span className="crumb-sep"> / </span>
+              {i === crumbs.length - 1
+                ? <span className="crumb">{seg}</span>
+                : <span className="crumb crumb--link" onClick={() => goTo(crumbs.slice(0, i + 1).join('/'))}>{seg}</span>}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {loading ? (
         <div className="cv-loading">Loading photos…</div>
-      ) : files.length === 0 ? (
+      ) : files.length === 0 && subfolders.length === 0 ? (
         <div className="empty-state">No photos found</div>
       ) : (
         <div className="ph-grid" id="photosGrid">
+          {subfolders.map(sf => (
+            <div
+              key={'dir:' + sf.path}
+              className="ph-card"
+              title={sf.name}
+              onClick={() => goTo(sf.path)}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'var(--bg3)' }}
+            >
+              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span style={{ fontSize: '0.82rem', color: 'var(--tx)', maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sf.name}</span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--tx3)' }}>{sf.count} photo{sf.count === 1 ? '' : 's'}</span>
+            </div>
+          ))}
           {files.map((f, i) => (
             <div key={f.id} className="ph-card" onClick={() => openLightbox(i)} onContextMenu={(e) => openCtx(e, f, i)}>
               <img className="ph-thumb" src={`/api/photos/${f.id}/img`} alt={f.filename} loading="lazy" />

@@ -597,13 +597,6 @@ export const PlayerView = () => {
     return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':').replace(/^00:/, '');
   };
 
-  const jumpToChapter = (time: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-      videoRef.current.play();
-    }
-  };
-
   const goBack = () => {
     if (window.history.length > 1) {
       window.history.back();
@@ -1134,37 +1127,6 @@ export const PlayerView = () => {
 
           {/* The chapter list lives in the player's chapter dropdown now, so the
               big side-panel chapter view was removed from the details page. */}
-
-          {/* Auto-detected chapters — only shown when option is enabled */}
-          {appPrefs.value.autoChapterDetection && autoChapters.length > 0 && (
-            <div className="playlist-panel" style={{ marginBottom: '20px' }}>
-              <div className="playlist-header">
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'rgba(80,200,255,0.9)', display: 'inline-block', flexShrink: 0 }} />
-                  Scene Detection
-                </span>
-                <span className="playlist-count">{autoChapters.length}</span>
-              </div>
-              <div className="playlist-list">
-                {autoChapters.map((c: any) => (
-                  <div key={c.id} className="playlist-item" onClick={() => jumpToChapter(c.time)}>
-                    <img src={`/api/thumbs/${video.id}/${Math.min(4, Math.round((c.time / (videoRef.current?.duration || 1)) * 4))}`} className="pl-thumb" alt={c.title} onError={(e: any) => e.target.style.display = 'none'} />
-                    <div className="pl-info">
-                      <div className="pl-name">{c.title}</div>
-                      <div className="pl-meta">{formatDuration(c.time)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isDetectingChapters && (
-            <div style={{ padding: '10px 14px', fontSize: '0.82rem', color: 'var(--tx3)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(80,200,255,0.7)', animation: 'pulse 1.2s ease-in-out infinite' }} />
-              Detecting scenes…
-            </div>
-          )}
 
           <div className="playlist-panel">
             <div className="playlist-header">

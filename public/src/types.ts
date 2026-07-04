@@ -85,6 +85,7 @@ export interface AppPrefs {
   hideEmptyFolders?: boolean;
   pinnedFolders?: string[];
   pinnedTags?: string[];
+  hiddenFolders?: string[];
   comfyuiUrl?: string;
   comfyuiWorkflowJson?: string;
   comfyuiPositiveNodeId?: string;

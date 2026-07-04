@@ -1240,32 +1240,45 @@ async function apiSetEnabledFolders(req, res) {
 
 async function apiMainFolders(req, res) {
   const result = [{ name: 'Uncategorized', path: '' }];
+  const seen = new Set(['']); // dedupe same category path across roots (case-insensitive)
 
-  async function walk(dir, rel = '') {
+  async function walk(dir, rel, isExternal) {
     if (!fs.existsSync(dir)) return;
     try {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true });
       for (const ent of entries) {
         if (!ent.isDirectory()) continue;
         if (isHiddenFolderName(ent.name)) continue;
-        const subRel = rel ? path.join(rel, ent.name) : ent.name;
-        const full = path.join(VIDEOS_DIR, subRel);
+        const subRel = rel ? rel + '/' + ent.name : ent.name;
+        const full = path.join(dir, ent.name);
         if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-        result.push({ name: subRel.replace(/[\\/]/g, ' / '), path: subRel.replace(/\\/g, '/') });
-        await walk(full, subRel);
+        const key = subRel.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          result.push({ name: subRel.replace(/\//g, ' / '), path: subRel, isExternal });
+        }
+        await walk(full, subRel, isExternal);
       }
     } catch (e) {}
   }
 
-  await walk(VIDEOS_DIR);
+  await walk(VIDEOS_DIR, '', false);
+
+  // Folders living on media source paths are valid move targets too — without
+  // them the Move modal can never target an existing folder on a media path.
+  try {
+    const prefs = loadPrefs();
+    for (const sf of (prefs.sourceFolders || [])) {
+      if (sf && fs.existsSync(sf)) await walk(sf, '', true);
+    }
+  } catch (e) {
+    console.error('[main-folders] source folders error:', e.message);
+  }
 
   // Filter to only enabled folders for current user (consistent with browser folder lists)
   try {
     const dbmod = require('./db-server');
     const enabledPaths = dbmod.loadEnabledFolders();
-    // keep uncat + enabled ones; note main-cats only covers VIDEOS_DIR not sources
-    const before = result.length;
-    // re-filter in place
     for (let i = result.length - 1; i >= 0; i--) {
       if (!isFolderEnabled(result[i].path, enabledPaths)) {
         result.splice(i, 1);
@@ -1821,11 +1834,22 @@ async function apiMove(req, res, id) {
   if (!fp) return json(res, { error: 'Not found' }, 404);
 
   const writeRoot = getDefaultWriteRoot();
-  const resolvedWrite = path.resolve(writeRoot);
 
-  const targetDir = targetCategory ? path.join(writeRoot, targetCategory) : writeRoot;
+  // Valid move-target roots: write root, main library, configured media source folders.
+  const roots = [path.resolve(writeRoot), path.resolve(VIDEOS_DIR)];
+  try {
+    for (const sf of (loadPrefs().sourceFolders || [])) {
+      if (sf && fs.existsSync(sf)) roots.push(path.resolve(sf));
+    }
+  } catch {}
+
+  // Prefer the folder where the category already physically exists — it may live
+  // on a media source path, not under the write root. Only fall back to creating
+  // a new folder under the write root when it exists nowhere.
+  const targetDir = targetCategory ? resolveCategoryPhysicalPath(targetCategory) : writeRoot;
   const resolvedTarget = path.resolve(targetDir);
-  if (!resolvedTarget.startsWith(resolvedWrite)) return json(res, { error: 'Invalid category' }, 400);
+  if (!roots.some(r => resolvedTarget === r || resolvedTarget.startsWith(r + path.sep)))
+    return json(res, { error: 'Invalid category' }, 400);
   if (!fs.existsSync(resolvedTarget)) fs.mkdirSync(resolvedTarget, { recursive: true });
 
   const filename = path.basename(fp);

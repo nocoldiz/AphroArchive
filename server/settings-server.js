@@ -155,6 +155,9 @@ async function apiSavePrefs(req, res) {
   if ('pinnedTags' in body) {
     if (Array.isArray(body.pinnedTags)) prefs.pinnedTags = body.pinnedTags.map(String).filter(Boolean).slice(0, 100);
   }
+  if ('hiddenFolders' in body) {
+    if (Array.isArray(body.hiddenFolders)) prefs.hiddenFolders = body.hiddenFolders.map(String).filter(Boolean).slice(0, 5000);
+  }
   if ('whisperEnabled' in body) prefs.whisperEnabled = !!body.whisperEnabled;
   if ('whisperModel' in body) {
     const valid = new Set(['tiny', 'base', 'small', 'medium', 'large', 'turbo']);
