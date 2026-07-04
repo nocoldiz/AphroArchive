@@ -62,10 +62,8 @@ async function apiVisionDescribe(req, res) {
       imageBuffer = await _extractVideoFrame(result.buffer);
       mimeType    = 'image/jpeg';
     } else if (source === 'photo') {
-      const rel = Buffer.from(id, 'base64url').toString('utf-8');
-      const fp  = path.resolve(path.join(PHOTOS_DIR, rel));
-      if (!fp.startsWith(path.resolve(PHOTOS_DIR) + path.sep)) return json(res, { error: 'Invalid path' }, 400);
-      if (!fs.existsSync(fp)) return json(res, { error: 'File not found' }, 404);
+      const fp = require('./photos-server').getPhotoPath(id);
+      if (!fp) return json(res, { error: 'File not found' }, 404);
       imageBuffer = fs.readFileSync(fp);
       const ext   = path.extname(fp).toLowerCase();
       mimeType    = PHOTO_MIME[ext] || 'image/jpeg';

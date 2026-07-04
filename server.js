@@ -25,7 +25,7 @@ process.on('uncaughtException', (err) => {
 
 const log = require('./server/logger-server');
 const cfg = require('./server/config-server');
-const { PORT, IS_PKG, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
+const { PORT, IS_PKG, MEDIA_DIR, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
   WEBSITES_JSON, CATEGORIES_JSON, LINK_DIR, BM_CACHE_FILE,
   BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE,
   FEED_DIR, VAULT_FEED_DIR } = cfg;
@@ -95,14 +95,9 @@ function ensureDirSync(dirPath) {
 }
 
 ensureDirSync(CACHE_DIR);
-ensureDirSync(VIDEOS_DIR);
-ensureDirSync(AUDIO_DIR);
-ensureDirSync(BOOKS_DIR);
-ensureDirSync(PHOTOS_DIR);
+ensureDirSync(MEDIA_DIR);                 // single unified media folder (videos/audio/books/photos/pages/files)
 ensureDirSync(SCREENSHOTS_DIR);
-ensureDirSync(PAGES_DIR);
-ensureDirSync(FILES_DIR);
-ensureDirSync(path.join(VIDEOS_DIR, 'downloads'));
+ensureDirSync(path.join(MEDIA_DIR, 'downloads'));
 ensureDirSync(cfg.LINK_THUMBS_DIR);
 ensureDirSync(path.dirname(BM_CACHE_FILE));
 ensureDirSync(FEED_DIR);

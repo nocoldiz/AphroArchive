@@ -8,9 +8,9 @@ const path = require('path');
 const { exec, execFile, execFileSync, spawn } = require('child_process');
 const crypto = require('crypto');
 const {
-  VIDEOS_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
+  VIDEOS_DIR, MEDIA_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
   AUDIO_DIR, AUDIO_EXT, BOOKS_DIR, BOOK_EXT,
-  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN, FFPROBE_BIN, FILES_DIR
+  PHOTOS_DIR, IMAGE_EXT, THUMBS_DIR, CACHE_DIR, ROOT_DIR, FFMPEG_BIN, FFPROBE_BIN, FILES_DIR, classifyExt
 } = require('./config-server');
 const { pipeline } = require('stream');
 const { promisify } = require('util');
@@ -587,17 +587,16 @@ async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
             encrypted = true;
           }
         } else if (!VIDEO_EXT.has(ext)) {
-          // Collect non-video media files into the unified media index
+          // Collect ALL non-video media files into the unified media index,
+          // auto-sorted into a view by extension (audio/book/page/photo/file).
           if (mediaOut) {
-            let mediaType = null;
-            if (AUDIO_EXT.has(ext)) mediaType = 'audio';
-            else if (BOOK_EXT.has(ext)) mediaType = 'book';
-            // Photos from sourceFolders only — VIDEOS_DIR photos are already handled by the photos dynamic scan
-            else if (IMAGE_EXT.has(ext) && isExternal) mediaType = 'photo';
-            else if (ext !== '.enc' && ext !== '.db' && ext !== '.log' && ext !== '.tmp') mediaType = 'file';
-            if (mediaType) {
+            const mediaType = classifyExt(ext);
+            if (mediaType && mediaType !== 'video') {
               try {
                 const st = await fs.promises.stat(fp);
+                const mRel = path.relative(base, fp);
+                const mCatDir = path.dirname(mRel);
+                const mCatPath = mCatDir === '.' ? '' : mCatDir.replace(/\\/g, '/');
                 mediaOut.push({
                   id: toId(fp),
                   name: path.basename(ent.name, ext),
@@ -609,6 +608,7 @@ async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
                   size: st.size,
                   sizeF: formatBytes(st.size),
                   mtime: st.mtimeMs,
+                  catPath: mCatPath,
                 });
               } catch {}
             }

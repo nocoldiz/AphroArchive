@@ -163,7 +163,18 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       hls.loadSource(activeHlsSrc);
       hls.attachMedia(vid);
       hls.on(Hls.Events.MANIFEST_PARSED, () => vid.play().catch(() => {}));
-      hls.on(Hls.Events.ERROR, (_: any, data: any) => { if (data.fatal) toast('HLS error: ' + data.details); });
+      hls.on(Hls.Events.ERROR, (_: any, data: any) => {
+        if (!data.fatal) return;
+        // Try hls.js's built-in recovery first; only if that's not applicable do
+        // we tear HLS down and drop back to direct streaming, so a transcode
+        // hiccup never leaves the player stuck forever.
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) { try { hls.recoverMediaError(); return; } catch {} }
+        try { hls.destroy(); } catch {}
+        if (hlsInstanceRef.current === hls) hlsInstanceRef.current = null;
+        toast('HLS error: ' + data.details);
+        setUsingHls(false);
+      });
     };
 
     // Safari supports HLS natively — just point src directly
@@ -370,6 +381,12 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       vid.removeEventListener('stalled', onStalled);
       vid.removeEventListener('playing', onPlaying);
       vid.removeEventListener('canplay', onCanPlay);
+      // Release the media connection NOW. Leaving a detached <video> (or a live
+      // HLS loader) holding an open/stalled stream socket leaks a connection;
+      // after a handful of switches the browser's per-host connection cap is
+      // exhausted and every later video hangs "forever" until a full reload.
+      if (hlsInstanceRef.current) { try { hlsInstanceRef.current.destroy(); } catch {} hlsInstanceRef.current = null; }
+      try { vid.pause(); vid.removeAttribute('src'); vid.load(); } catch {}
     };
   }, []);
 
@@ -379,6 +396,28 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       vid.playbackRate = playbackSpeed;
     }
   }, [playbackSpeed]);
+
+  // Universal last-resort watchdog: whenever the spinner is up, give it a hard
+  // deadline. If we're still not playing by then, force a recovery path instead
+  // of spinning forever — this catches the cases the metadata/stall watchdogs
+  // miss (notably HLS, which the others deliberately skip).
+  useEffect(() => {
+    if (!loading) return;
+    const vid = videoRef.current;
+    if (!vid) return;
+    const at = vid.currentTime;
+    const t = setTimeout(() => {
+      if (vid.readyState >= 3 && !vid.paused && vid.currentTime > at + 0.1) { setLoading(false); return; }
+      if (usingHlsRef.current) {
+        const hls = hlsInstanceRef.current;
+        if (hls) { try { hls.startLoad(); } catch {} }
+        else { setUsingHls(false); setLoading(false); }
+        return;
+      }
+      handleLoadFailure();
+    }, 15000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   useEffect(() => {
     const vid = videoRef.current;

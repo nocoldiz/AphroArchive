@@ -224,7 +224,10 @@ function ensureSchema(database) {
       media_type TEXT,
       size INTEGER,
       size_f TEXT,
-      mtime INTEGER
+      mtime INTEGER,
+      cat_path TEXT,
+      title TEXT,
+      note TEXT
     );
 
     CREATE TABLE IF NOT EXISTS files_meta (
@@ -336,6 +339,9 @@ function ensureSchema(database) {
   try { database.exec('ALTER TABLE links ADD COLUMN vault INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE videos ADD COLUMN language TEXT'); } catch {}
   try { database.exec('ALTER TABLE videos ADD COLUMN reencoded INTEGER DEFAULT 0'); } catch {}
+  try { database.exec('ALTER TABLE media_index ADD COLUMN cat_path TEXT'); } catch {}
+  try { database.exec('ALTER TABLE media_index ADD COLUMN title TEXT'); } catch {}
+  try { database.exec('ALTER TABLE media_index ADD COLUMN note TEXT'); } catch {}
 }
 
 function switchProfile(profileName) {
@@ -1847,6 +1853,9 @@ function loadMediaIndex(type) {
       size: r.size,
       sizeF: r.size_f,
       mtime: r.mtime,
+      catPath: r.cat_path || '',
+      title: r.title || null,
+      note: r.note || null,
     }));
   } catch (e) {
     console.error('Failed to load media index:', e);
@@ -1856,13 +1865,22 @@ function loadMediaIndex(type) {
 
 function saveMediaIndex(items) {
   try {
+    // The scan rebuilds media_index from scratch, but user-set / migrated
+    // title & note must survive a rescan — snapshot and re-apply them by id.
+    const keep = {};
+    try {
+      for (const r of db.prepare('SELECT id, title, note FROM media_index WHERE title IS NOT NULL OR note IS NOT NULL').all()) {
+        keep[r.id] = { title: r.title, note: r.note };
+      }
+    } catch {}
     txn(() => {
       db.prepare('DELETE FROM media_index').run();
       const insert = db.prepare(
-        'INSERT INTO media_index (id, name, filename, abs_path, source_path, ext, media_type, size, size_f, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO media_index (id, name, filename, abs_path, source_path, ext, media_type, size, size_f, mtime, cat_path, title, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       );
       for (const m of items) {
-        insert.run(m.id, m.name, m.filename, m.absPath, m.sourcePath, m.ext, m.mediaType, m.size || 0, m.sizeF || '', m.mtime || 0);
+        const k = keep[m.id] || {};
+        insert.run(m.id, m.name, m.filename, m.absPath, m.sourcePath, m.ext, m.mediaType, m.size || 0, m.sizeF || '', m.mtime || 0, m.catPath || '', m.title ?? k.title ?? null, m.note ?? k.note ?? null);
       }
     });
   } catch (e) {
@@ -2202,21 +2220,22 @@ function renameTagInAllVideos(oldTag, newTag) {
 
 // ── Media counts (sidebar badges) ────────────────────────────────────────
 function getMediaCounts() {
-  const { PAGES_DIR, SCREENSHOTS_DIR } = require('./config-server');
-  const PAGE_EXT = new Set(['.html', '.htm', '.xhtml', '.mhtml']);
+  const { SCREENSHOTS_DIR } = require('./config-server');
   const IMG_EXT  = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp']);
   const dirCount = (dir, extSet) => {
     try { return fs.readdirSync(dir).filter(f => extSet.has(path.extname(f).toLowerCase())).length; } catch { return 0; }
   };
   try {
-    const q = (sql) => { try { return db.prepare(sql).get().c; } catch { return 0; } };
+    const q = (sql, ...a) => { try { return db.prepare(sql).get(...a).c; } catch { return 0; } };
+    // All non-video media now derives from the single media_index (auto-sorted by extension).
+    const byType = t => q('SELECT COUNT(*) as c FROM media_index WHERE media_type = ?', t);
     return {
       links:       q('SELECT COUNT(*) as c FROM links WHERE vault = 0 OR vault IS NULL'),
-      audio:       q('SELECT COUNT(*) as c FROM audio_meta') + q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'audio'"),
-      books:       q('SELECT COUNT(*) as c FROM books_meta') + q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'book'"),
-      photos:      q("SELECT COUNT(*) as c FROM media_index WHERE media_type = 'photo'"),
-      files:       q('SELECT COUNT(*) as c FROM files_meta'),
-      pages:       dirCount(PAGES_DIR, PAGE_EXT),
+      audio:       byType('audio'),
+      books:       byType('book'),
+      photos:      byType('photo'),
+      files:       byType('file'),
+      pages:       byType('page'),
       screenshots: dirCount(SCREENSHOTS_DIR, IMG_EXT),
     };
   } catch (e) {

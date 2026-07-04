@@ -6,8 +6,8 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { FILES_DIR, VIDEOS_DIR, MIME } = require('./config-server');
-const { json, formatBytes, toId, fromId } = require('./helpers-server');
+const { MEDIA_DIR, VIDEOS_DIR, MIME } = require('./config-server');
+const { json, formatBytes, toId, fromId, isAllowedMediaPath: _isAllowedPath } = require('./helpers-server');
 const {
   loadFilesMeta, upsertFileMeta, deleteFileMeta,
   loadFileVirtualFolders, setFileVirtualFolder,
@@ -16,21 +16,7 @@ const {
 } = require('./db-server');
 
 function fileIdFromAbs(absPath) { return toId(absPath); }
-
-// ── Helpers ───────────────────────────────────────────────────────
-
-function _isAllowedPath(fp) {
-  const resolved = path.resolve(fp);
-  if (resolved.startsWith(path.resolve(FILES_DIR) + path.sep)) return true;
-  if (resolved.startsWith(path.resolve(VIDEOS_DIR) + path.sep)) return true;
-  try {
-    const prefs = loadPrefs();
-    for (const sf of (prefs.sourceFolders || [])) {
-      if (resolved.startsWith(path.resolve(sf) + path.sep)) return true;
-    }
-  } catch {}
-  return false;
-}
+function _invalidate() { try { require('./videos-server').invalidateScanCache(); } catch {} }
 
 function _buildFileList() {
   const virtualFolders = loadFileVirtualFolders();
@@ -87,20 +73,20 @@ function apiFileFolders(req, res) {
 }
 
 async function apiFilesUpload(req, res) {
-  fs.mkdirSync(FILES_DIR, { recursive: true });
+  fs.mkdirSync(MEDIA_DIR, { recursive: true });
   const rawName   = decodeURIComponent(req.headers['x-filename'] || 'file');
   const safeName  = path.basename(rawName).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
   const ext       = path.extname(safeName).toLowerCase();
 
   let outName = safeName, counter = 1;
-  while (fs.existsSync(path.join(FILES_DIR, outName))) {
+  while (fs.existsSync(path.join(MEDIA_DIR, outName))) {
     outName = path.basename(safeName, ext) + ` (${counter++})` + ext;
   }
 
   const chunks = [];
   await new Promise((resolve, reject) => { req.on('data', c => chunks.push(c)); req.on('end', resolve); req.on('error', reject); });
   const data = Buffer.concat(chunks);
-  const absPath = path.join(FILES_DIR, outName);
+  const absPath = path.join(MEDIA_DIR, outName);
   fs.writeFileSync(absPath, data);
 
   const item = {
@@ -114,6 +100,7 @@ async function apiFilesUpload(req, res) {
     absPath,
   };
   upsertFileMeta(item);
+  _invalidate();
   json(res, { ok: true, id: item.id });
 }
 
@@ -176,6 +163,7 @@ function apiFileDelete(req, res, id) {
   try { fs.unlinkSync(absPath); } catch {}
   deleteFileMeta(id);
   setFileVirtualFolder(id, null);
+  _invalidate();
   json(res, { ok: true });
 }
 

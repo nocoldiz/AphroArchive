@@ -99,6 +99,31 @@ function safePath(id) {
   return null;
 }
 
+// ── Media path guard ─────────────────────────────────────────────────
+// True if `fp` resolves inside the unified media folder (MEDIA_DIR) or any
+// configured sourceFolder / temporarily-opened root. Shared by every media
+// view (audio/books/photos/pages/files) for serve / read / delete guards.
+function isAllowedMediaPath(fp) {
+  if (!fp) return false;
+  const resolved = path.resolve(fp);
+  const inside = (root) => {
+    const r = path.resolve(root);
+    return resolved === r || resolved.startsWith(r + path.sep);
+  };
+  if (inside(VIDEOS_DIR)) return true;            // VIDEOS_DIR === MEDIA_DIR
+  try {
+    const { loadPrefs } = require('./db-server');
+    for (const sf of (loadPrefs().sourceFolders || [])) {
+      if (fs.existsSync(sf) && inside(sf)) return true;
+    }
+  } catch {}
+  try {
+    const { getOpenedRoots } = require('./opened-folders-server');
+    for (const root of getOpenedRoots()) { if (inside(root)) return true; }
+  } catch {}
+  return false;
+}
+
 // ── String matching ──────────────────────────────────────────────────
 
 const _matchCache = new Map();
@@ -265,7 +290,7 @@ function serveStatic(req, res, filePath) {
 
 module.exports = {
   formatBytes, formatDuration, parseRange,
-  toId, fromId, safePath,
+  toId, fromId, safePath, isAllowedMediaPath,
   wordMatch, wordMatchAny, channelMatchAny, actorMatches, actorMatchesAny,
   json, jsonError, readBody, validateBody, LIMITS,
   serveStatic,
