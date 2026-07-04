@@ -1074,7 +1074,9 @@ async function apiFolders(req, res, params) {
   }).length;
   cats.unshift({ name: 'Uncategorized', path: 'uncategorized', count: uncatCount });
 
-  const enabledPaths = db.loadEnabledFolders();
+  const enabledPaths = loadEnabledFolders();
+  // all=1 (vault unlocked only): bypass the per-profile enabled-categories filter
+  const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
   const filtered = showAll ? cats : cats.filter(c => isFolderEnabled(c.path, enabledPaths));
 
   // Append temporarily opened folders (always visible, regardless of enabled set).

@@ -1122,20 +1122,6 @@ async function loadVideosInner() {
     });
   }
 
-  // Temp profile: hide every folder outside its scope. For a folder profile
-  // keep the folder itself and its descendants; for a tag profile keep only
-  // folders that still contain in-scope videos.
-  if (tp) {
-    folders.value = folders.value.filter((c: any) => {
-      if (tp.kind === 'folder') {
-        const cl = tp.value.toLowerCase();
-        const cp = (c.path || '').toLowerCase();
-        return cp === cl || cp.startsWith(cl + '/');
-      }
-      return (c.count || 0) > 0;
-    });
-  }
-
   // Don't call syncUrlToState here — it races with routeToPath's async
   // retry subscription. The initial page URL has already been resolved by
   // routeToPath (called in setupRouter), and URL sync is handled entirely

@@ -367,7 +367,27 @@ function persistDbToDisk() {
   _clearCaches();
 }
 
+// One-time migration from the old multi-profile layout: promote the previous
+// default profile's DB (aphroarchive_default.db) to the single db.db so existing
+// libraries carry over. Only runs when db.db is absent, so it never clobbers.
+function _migrateLegacyDefaultDb() {
+  if (fs.existsSync(DB_FILE)) return;
+  const legacy = path.join(DB_DIR, 'aphroarchive_default.db');
+  if (!fs.existsSync(legacy)) return;
+  try {
+    fs.renameSync(legacy, DB_FILE);
+    // Carry over the WAL/SHM sidecars if present so no committed pages are lost.
+    for (const ext of ['-wal', '-shm']) {
+      const from = legacy + ext, to = DB_FILE + ext;
+      if (fs.existsSync(from)) { try { fs.renameSync(from, to); } catch {} }
+    }
+  } catch (e) {
+    console.error('[db] legacy default DB migration failed:', e.message);
+  }
+}
+
 {
+  _migrateLegacyDefaultDb();
   if (fs.existsSync(DB_FILE)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
     db = new DatabaseSync(DB_FILE);
