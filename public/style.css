@@ -8788,35 +8788,27 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   }
 }
 
-/* ── ImageGen responsive columns ── */
-.imagegen-cols {
+/* ── Prompts builder responsive columns ── */
+.prompts-builder-2col {
   grid-template-columns: 1fr 1fr;
 }
 
-.imagegen-builder-2col {
-  grid-template-columns: 1fr 1fr;
-}
-
-.imagegen-photo-grid {
+.prompts-photo-grid {
   grid-template-columns: repeat(4, 1fr);
 }
 
 @media(max-width:700px) {
-  .imagegen-cols {
+  .prompts-builder-2col {
     grid-template-columns: 1fr;
   }
 
-  .imagegen-builder-2col {
-    grid-template-columns: 1fr;
-  }
-
-  .imagegen-photo-grid {
+  .prompts-photo-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media(max-width:420px) {
-  .imagegen-photo-grid {
+  .prompts-photo-grid {
     grid-template-columns: 1fr;
   }
 }

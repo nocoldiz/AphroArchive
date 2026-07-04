@@ -230,8 +230,6 @@ export const currentTagTerms = signal<string[]>([]);
 export const currentPhotoFolder = signal<string>('');
 export const currentActor = signal<string | null>(null);
 export const currentChannel = signal<string | null>(null);
-// Pending image handed to ImageGenView (set by ContextMenu / PlayerView frame capture).
-export const imagegenInputState = signal<{ imageUrl?: string; imagePath?: string } | null>(null);
 export const linkVidIds = signal<Set<string>>(new Set());
 
 export function rebuildLinkVidIds(items: any[]) {

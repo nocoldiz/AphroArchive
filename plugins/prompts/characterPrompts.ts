@@ -2,8 +2,8 @@
 // Centralized image/character prompt templates + advanced randomizer.
 // Prompt generator (advanced mode dropdowns + Inspire) now uses HARDCODED_OPTIONS below.
 // This means the generator UI no longer requires manually populating db/wildcards/ folder.
-// (You can still put custom .txt there for __name__ resolution at runtime via imagegen.py,
-// for the Static templates mode, or for manual insertion via the Wildcards panel.)
+// (You can still put custom .txt there for __name__ resolution, for the Static
+// templates mode, or for manual insertion via the Wildcards panel.)
 // The detailed combinatorial full-prompt templates have been removed from db/wildcards/.
 // Builder uses the curated lists here + {combinatorial} where useful.
 //
@@ -20,7 +20,7 @@
 
 // (types defined below; no import needed)
 
-// ── Moved from ImageGenView (original static templates, kept for compatibility) ──
+// ── Original static templates, kept for compatibility ──
 // Static templates use __wildcard__ from db/wildcards/ + model specific prefixes
 export const PROMPT_TEMPLATES: Record<string, { label: string; template: string; desc: string }> = {
   'ponyxl-default': {
@@ -78,7 +78,7 @@ export interface RandGenOptions {
   isNsfw: boolean;
   // If true, attempt to resolve some __wildcards__ client-side for preview (requires cache/fetcher)
   resolveWildcards?: boolean;
-  // Optional cache (same shape as ImageGenView wildcardFullCache)
+  // Optional cache of wildcard name → resolved lines
   wildcardCache?: Map<string, string[]>;
   /** If provided, replaces __subject__ (and similar) with this fixed description built by character editor */
   customSubject?: string;
@@ -259,7 +259,7 @@ export async function generateAdvancedRandomCharacterPrompt(
 
   // Optional client-side __ resolve for nice preview (re-uses same logic pattern)
   if (resolveWildcards && wildcardCache) {
-    // lightweight inline resolve (avoid circular; simple version of the one in ImageGenView)
+    // lightweight inline resolve (avoid circular imports)
     const pattern = /__([a-zA-Z0-9_\/\\-]+)__/g;
     const needed = new Set<string>();
     let m: RegExpExecArray | null;

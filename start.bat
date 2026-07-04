@@ -20,12 +20,12 @@ echo  Choose install mode:
 echo.
 echo    [1] Minimal install (default)
 echo         Installs only runtime dependencies (preact, signals).
-echo         Skips image-gen and all dev/build tools.
+echo         Skips all dev/build tools.
 echo         Fastest option — no native compilation required.
 echo.
 echo    [2] Full install
 echo         Installs ALL dependencies including dev/build tools (vite,
-echo         TypeScript, pkg, etc.) and image-gen Python deps.
+echo         TypeScript, pkg, etc.).
 echo         Needed for development and building executable packages.
 echo.
 
@@ -40,12 +40,12 @@ if errorlevel 2 (
 echo.
 
 :: ── 1. Git pull ──────────────────────────────────────────────────────────────
-echo [1/5] Fetching latest code from GitHub...
+echo [1/4] Fetching latest code from GitHub...
 git pull && echo   OK || echo  [WARN] Git pull failed, continuing anyway...
 echo.
 
 :: ── 2. Node.js ───────────────────────────────────────────────────────────────
-echo [2/5] Checking Node.js...
+echo [2/4] Checking Node.js...
 node --version >nul 2>&1
 if errorlevel 1 (
     echo  Node.js not found. Attempting install via winget...
@@ -84,7 +84,7 @@ echo.
 
 :: ── 3. npm install ───────────────────────────────────────────────────────────
 if "!INSTALL_MODE!"=="1" (
-    echo [3/5] Running npm install ^(minimal — runtime deps only^)...
+    echo [3/4] Running npm install ^(minimal — runtime deps only^)...
     echo  Skips: Vite, TypeScript, pkg
     echo  --------------------------------------------
     call npm install --omit=dev --loglevel verbose && echo  npm install  OK || (
@@ -94,7 +94,7 @@ if "!INSTALL_MODE!"=="1" (
         exit /b 1
     )
 ) else (
-    echo [3/5] Running npm install ^(full — all dependencies^)...
+    echo [3/4] Running npm install ^(full — all dependencies^)...
     echo  --------------------------------------------
     call npm install --loglevel verbose && echo  npm install  OK || (
         echo.
@@ -106,47 +106,8 @@ if "!INSTALL_MODE!"=="1" (
 echo  --------------------------------------------
 echo.
 
-:: ── 4. Image generation (full only) ──────────────────────────────────────────
-if not "!INSTALL_MODE!"=="2" (
-    echo [4/5] Image generation — skipped ^(minimal mode^).
-    goto :skip_imagegen
-)
-
-echo [4/5] Image generation ^(Python / diffusers^)...
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo  [SKIP] Python not found — skipping image generation setup.
-    echo         Install Python 3.10+ and re-run:  pip install -r imagegen\requirements.txt
-    goto :skip_imagegen
-)
-
-echo.
-echo  Choose PyTorch variant for image generation:
-echo.
-echo    [1] NVIDIA GPU  ^(CUDA 12.1 — recommended if you have an NVIDIA card^)
-echo    [2] CPU only    ^(slower, no GPU required^)
-echo    [3] Skip        ^(install later manually^)
-echo.
-
-choice /c 123 /n /m "Enter choice (1, 2, or 3) [Default 3]: " /t 10 /d 3
-if errorlevel 3 ( set TORCH_MODE=3 ) else if errorlevel 2 ( set TORCH_MODE=2 ) else ( set TORCH_MODE=1 )
-echo.
-
-if "!TORCH_MODE!"=="1" (
-    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121 && echo  PyTorch ^(CUDA^)  OK || goto :skip_imagegen
-) else if "!TORCH_MODE!"=="2" (
-    pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && echo  PyTorch ^(CPU^)  OK || goto :skip_imagegen
-) else (
-    echo  Skipping PyTorch — run manually later.
-    goto :skip_imagegen
-)
-pip install -r imagegen\requirements.txt && echo  Image gen deps  OK || echo  [WARN] Some image gen packages failed to install.
-
-:skip_imagegen
-echo.
-
-:: ── 5. ffmpeg + ffprobe ──────────────────────────────────────────────────────
-echo [5/5] Checking ffmpeg...
+:: ── 4. ffmpeg + ffprobe ──────────────────────────────────────────────────────
+echo [4/4] Checking ffmpeg...
 if exist "ffmpeg.exe" if exist "ffprobe.exe" (
     echo  ffmpeg.exe + ffprobe.exe already present  OK
     goto :setup_done

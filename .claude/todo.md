@@ -161,7 +161,7 @@ move dropdown.
 ## Orphaned / Unreachable Views
 
 - [ ] **`ScreenshotsView` has no URL route** — Still rendered in `MainContent` for view `'screenshots'` but `/screenshots` is absent from `router.ts` `directViews`. Add it so the view is deep-linkable.
-- [ ] **`ImageGenView.tsx` is unrouted** — `imagegenInputState` signal feeds it (ContextMenu / PlayerView frame capture) but `ImageGenView` is still never imported in `MainContent.tsx` and has no `/imagegen` route. Wire it up or remove it.
+- [x] **`ImageGenView.tsx` is unrouted** — resolved by removal: ImageGenView, the `imagegen/` Python engine, and the `imagegenInputState` signal were deleted (July 2026).
 - [ ] **`ZapView.tsx` mount path** — `ZapView` is driven by `zap.ts`/`tv-mode.ts` (overlay) rather than `MainContent`; confirm there's a deep-linkable entry or document it as overlay-only.
 
 ## Code Quality & Refactoring

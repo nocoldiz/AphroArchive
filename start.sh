@@ -29,12 +29,12 @@ if [ ! -d "node_modules" ] || [ "$FORCE_INSTALL" = "1" ]; then
     echo ""
     echo "    [1] Minimal install (default)"
     echo "         Installs only runtime dependencies (preact, signals)."
-    echo "         Skips image-gen and all dev/build tools."
+    echo "         Skips all dev/build tools."
     echo "         Fastest option — no native compilation required."
     echo ""
     echo "    [2] Full install"
     echo "         Installs ALL dependencies including dev/build tools"
-    echo "         (vite, TypeScript, pkg, etc.) and image-gen Python deps."
+    echo "         (vite, TypeScript, pkg, etc.)."
     echo "         Needed for development and building executable packages."
     echo ""
     read -r -p "  Enter choice (1 or 2) [1]: " INSTALL_MODE
@@ -129,46 +129,8 @@ if [ ! -d "node_modules" ] || [ "$FORCE_INSTALL" = "1" ]; then
         fi
     fi
 
-    # ── 4. Image generation Python dependencies (full only) ───────────────────
-    sep 4 "Image generation (Python / diffusers)"
-    if [[ "$INSTALL_MODE" != "2" ]]; then
-        ok "Skipped (minimal mode)"
-    elif [[ -z "$PYTHON" ]]; then
-        warn "Python not available — skipping image generation setup."
-        warn "Install Python 3.10+ and run:  pip install -r imagegen/requirements.txt"
-    else
-        $PYTHON -m pip install --upgrade pip --quiet
-
-        echo ""
-        echo "  Choose PyTorch variant for image generation:"
-        echo ""
-        echo "    [1] NVIDIA GPU  (CUDA 12.1 — recommended if you have an NVIDIA card)"
-        echo "    [2] CPU only    (slower, no GPU required)"
-        echo "    [3] Skip        (install later manually)"
-        echo ""
-        read -r -p "  Enter choice (1, 2 or 3) [3]: " TORCH_MODE
-        TORCH_MODE="${TORCH_MODE:-3}"
-        echo ""
-
-        if [[ "$TORCH_MODE" == "1" ]]; then
-            $PYTHON -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-            ok "PyTorch (CUDA) installed"
-        elif [[ "$TORCH_MODE" == "2" ]]; then
-            $PYTHON -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-            ok "PyTorch (CPU) installed"
-        else
-            warn "Skipping PyTorch — run manually later:"
-            warn "  pip install torch --index-url https://download.pytorch.org/whl/cu121"
-        fi
-
-        if [[ "$TORCH_MODE" != "3" ]]; then
-            $PYTHON -m pip install -r imagegen/requirements.txt
-            ok "Image gen deps installed (diffusers, gguf, etc.)"
-        fi
-    fi
-
-    # ── 5. yt-dlp ─────────────────────────────────────────────────────────────
-    sep 5 "Downloading yt-dlp"
+    # ── 4. yt-dlp ─────────────────────────────────────────────────────────────
+    sep 4 "Downloading yt-dlp"
     YT_DLP_URL="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
     if command -v yt-dlp &>/dev/null; then
         ok "yt-dlp already on PATH: $(yt-dlp --version 2>/dev/null || echo 'unknown version')"
@@ -187,8 +149,8 @@ if [ ! -d "node_modules" ] || [ "$FORCE_INSTALL" = "1" ]; then
         fi
     fi
 
-    # ── 6. ffmpeg + ffprobe ───────────────────────────────────────────────────
-    sep 6 "Checking ffmpeg"
+    # ── 5. ffmpeg + ffprobe ───────────────────────────────────────────────────
+    sep 5 "Checking ffmpeg"
     if command -v ffmpeg &>/dev/null; then
         ok "ffmpeg already on PATH"
     elif [[ -f "./ffmpeg" ]]; then

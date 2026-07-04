@@ -315,7 +315,7 @@ function runUniversal(job) {
     try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
 
     const pythonBin  = process.platform === 'win32' ? 'python' : 'python3';
-    const scriptPath = path.join(__dirname, '..', 'Bulkdownloader', 'bulkdownloader.py');
+    const scriptPath = path.join(__dirname, '..', 'utils', 'bulkdownloader.py');
 
     const proc = spawn(pythonBin, [
       '-u', scriptPath,
@@ -638,7 +638,7 @@ async function apiBulkDownloadStart(req, res) {
   bulkStatus = { running: true, log: [], done: 0, total: urls.length, current: '' };
 
   const pythonBin = process.platform === 'win32' ? 'python' : 'python3';
-  const scriptPath = path.join(__dirname, '..', 'Bulkdownloader', 'bulkdownloader.py');
+  const scriptPath = path.join(__dirname, '..', 'utils', 'bulkdownloader.py');
   const projectRoot = path.join(__dirname, '..');
 
   try {

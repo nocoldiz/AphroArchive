@@ -1267,7 +1267,7 @@ def _find_queue_file():
     if env:
         candidates.append(Path(env))
 
-    # 2) same directory as this script (bulkdownloader/)
+    # 2) same directory as this script (utils/)
     candidates.append(script_dir / 'links_to_download.txt')
 
     # 3) DATA_DIR/cache/ (where the server stores LINK_DIR)

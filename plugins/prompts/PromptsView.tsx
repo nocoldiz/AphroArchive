@@ -678,7 +678,7 @@ const PromptBuilderModal = ({ initial, onSave, onClose }: { initial: Prompt | nu
               </div>
 
               {/* Act/Pose + Background — 2 col */}
-              <div className="imagegen-builder-2col" style={{ display: 'grid', gap: '12px' }}>
+              <div className="prompts-builder-2col" style={{ display: 'grid', gap: '12px' }}>
                 <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 12px', background: 'var(--bg3)' }}>
                   <div style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, marginBottom: '8px' }}>{builder.numChars > 0 ? '🔥 Act + Pose' : '🏞️ Scene & Atmosphere'}</div>
                   {(['action','pose'] as const).map(cat => {
@@ -740,7 +740,7 @@ const PromptBuilderModal = ({ initial, onSave, onClose }: { initial: Prompt | nu
               {/* Photography / Lighting / Style / Quality */}
               <div style={{ border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 12px', background: 'var(--bg3)' }}>
                 <div style={{ fontSize: '13px', color: 'var(--tx2)', fontWeight: 600, marginBottom: '8px' }}>📷 Photography / Lighting / Style</div>
-                <div className="imagegen-photo-grid" style={{ display: 'grid', gap: '10px' }}>
+                <div className="prompts-photo-grid" style={{ display: 'grid', gap: '10px' }}>
                   {(['photography','lighting','style','quality'] as const).map(cat => {
                     const val = (builder as any)[cat] || '';
                     const opts = getSafeOptions(cat);
