@@ -720,11 +720,23 @@ w._dualTagVids = [];
 // ─── Folder-watch auto-refresh via SSE ───────────────────────────────
 // The server broadcasts scan_changed when fs.watch detects a file change.
 // We debounce so rapid bursts (e.g. bulk copy) coalesce into one reload.
+// Doubles as the app-wide connection indicator: the SSE stream (with its
+// server-side heartbeat) is the single standing connection, replacing the old
+// /api/ping polling loop so no extra socket/requests compete with media
+// streams in the browser's per-origin pool.
+export const serverConnected = signal(true);
+
 if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
   let _scanRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let _sseRetryMs = 5000;
   const _connectScanSse = () => {
     const es = new EventSource('/api/scan/events');
+    es.onopen = () => {
+      _sseRetryMs = 5000; // healthy again — reset the backoff
+      serverConnected.value = true;
+    };
     es.onmessage = () => {
+      serverConnected.value = true;
       // Short debounce: rapid bursts (bulk copy) still coalesce since the timer
       // resets per message, but a single operation refreshes the index and the
       // sidebar counts almost immediately so they never linger on stale data.
@@ -733,7 +745,12 @@ if (typeof window !== 'undefined' && typeof EventSource !== 'undefined') {
     };
     es.onerror = () => {
       es.close();
-      setTimeout(_connectScanSse, 5000);
+      serverConnected.value = false;
+      // Exponential backoff with jitter (5s → 60s cap): a struggling server
+      // shouldn't be hammered by fixed-interval reconnects from every tab.
+      const delay = _sseRetryMs + Math.random() * 1000;
+      _sseRetryMs = Math.min(_sseRetryMs * 2, 60000);
+      setTimeout(_connectScanSse, delay);
     };
   };
   _connectScanSse();
@@ -1115,17 +1132,52 @@ async function loadVideosInner() {
   const isVaultGlobal = activeProfile.value === 'Vault' && vaultGlobalView.value;
   const videosUrl = isVaultGlobal ? '/api/videos?all=1' : '/api/videos';
   const foldersUrl = isVaultGlobal ? '/api/folders?all=1' : '/api/folders';
-  const [res, bRes, cRes, mcRes] = await Promise.all([
-    fetch(videosUrl),
-    fetch('/api/links/cache?limit=0').catch(() => null),
+  const sep = videosUrl.includes('?') ? '&' : '?';
+  const PAGE = 600;
+
+  // Critical path: first page of videos + folder list. Everything else
+  // (remaining pages, links cache, media counts) loads after first paint so
+  // the initial grid render is independent of library size.
+  const [res, cRes] = await Promise.all([
+    fetch(`${videosUrl}${sep}limit=${PAGE}&offset=0`),
     fetch(foldersUrl).catch(() => null),
-    fetch('/api/media-counts').catch(() => null),
   ]);
   if (!res.ok) throw new Error('Failed to fetch videos');
-  const data = await res.json();
+  const firstBody = await res.json();
 
   const cats = cRes ? await cRes.json().catch(() => []) : [];
   if (Array.isArray(cats)) folders.value = cats;
+
+  let data: any[];
+  if (Array.isArray(firstBody)) {
+    // Legacy shape (server without pagination) — behave exactly as before.
+    data = firstBody;
+  } else {
+    data = firstBody.items || [];
+    // Provisional paint: show the first page immediately (only when the grid
+    // is empty — background refreshes shouldn't flash a truncated list).
+    if (videos.value.length === 0 && data.length > 0) {
+      allVideos.value = data;
+      videos.value = data;
+    }
+    // Stream the remaining pages in the background, sequentially so they
+    // never occupy more than one connection.
+    const total = firstBody.total ?? data.length;
+    for (let off = PAGE; off < total; off += PAGE) {
+      try {
+        const r = await fetch(`${videosUrl}${sep}limit=${PAGE}&offset=${off}`);
+        if (!r.ok) break;
+        const d = await r.json();
+        data = data.concat(d.items || []);
+      } catch { break; }
+    }
+  }
+
+  // Secondary data — off the critical path, fetched after the grid painted.
+  const [bRes, mcRes] = await Promise.all([
+    fetch('/api/links/cache?limit=0').catch(() => null),
+    fetch('/api/media-counts').catch(() => null),
+  ]);
 
   let linksData: any[] = [];
   try {

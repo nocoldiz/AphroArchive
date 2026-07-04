@@ -60,6 +60,16 @@ export const RadioModeView = () => {
 
   useEffect(() => {
     loadStreams();
+    // On unmount, abort any in-flight media connections so the sockets are
+    // returned to the browser's per-origin pool (see VideoGrid preview notes).
+    return () => {
+      for (const el of [audioRef.current, videoRef.current]) {
+        if (!el) continue;
+        try { el.pause(); } catch {}
+        try { el.removeAttribute('src'); } catch {}
+        try { el.load(); } catch {}
+      }
+    };
   }, []);
 
   async function loadStreams() {

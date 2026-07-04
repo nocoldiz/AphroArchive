@@ -5,6 +5,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { VIDEOS_DIR, PUBLIC_DIR, STATIC_MIME, IS_PKG } = require('./config-server');
 
 // ── Formatting ───────────────────────────────────────────────────────
@@ -185,8 +186,34 @@ function actorMatchesAny(videoName, terms) {
 // ── HTTP helpers ─────────────────────────────────────────────────────
 
 function json(res, data, status = 200) {
+  const body = JSON.stringify(data);
+  // Compress large payloads (the full /api/videos list shrinks ~10x): a huge
+  // uncompressed JSON body is one of the main contributors to the long first-
+  // load spinner, especially over LAN/phone. res.req is the paired request.
+  const acceptsGzip = /\bgzip\b/.test((res.req && res.req.headers['accept-encoding']) || '');
+  if (acceptsGzip && body.length > 1024) {
+    zlib.gzip(body, (err, gz) => {
+      if (err || res.writableEnded) {
+        try {
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(body);
+        } catch {}
+        return;
+      }
+      try {
+        res.writeHead(status, {
+          'Content-Type': 'application/json',
+          'Content-Encoding': 'gzip',
+          'Content-Length': gz.length,
+          'Vary': 'Accept-Encoding',
+        });
+        res.end(gz);
+      } catch {}
+    });
+    return;
+  }
   res.writeHead(status, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(data));
+  res.end(body);
 }
 
 // Standard error response: always `{ error: "message" }` with a status code.
@@ -263,29 +290,75 @@ function readBody(req) {
 
 // ── Static file server ───────────────────────────────────────────────
 
+// Extensions worth compressing. Media/images are already compressed formats.
+const COMPRESSIBLE_EXT = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg', '.txt', '.map', '.xml']);
+
+// Vite emits content-hashed filenames under /assets/ (e.g. index-Dk3aX9.js):
+// safe to cache forever. Everything else gets ETag revalidation, which turns
+// repeat page loads into a burst of tiny 304s instead of re-downloading the
+// entire bundle — the single biggest first-load win on this server.
+function _staticHeaders(resolved, stat, ct) {
+  const hashed = /[\\/]assets[\\/][^\\/]+-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/.test(resolved);
+  const etag = `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+  return {
+    'Content-Type': ct,
+    'ETag': etag,
+    'Cache-Control': hashed
+      ? 'public, max-age=31536000, immutable'
+      : 'no-cache',
+  };
+}
+
+function _sendFile(req, res, resolved, stat, ct) {
+  const headers = _staticHeaders(resolved, stat, ct);
+
+  if (req.headers['if-none-match'] === headers.ETag) {
+    res.writeHead(304, { 'ETag': headers.ETag, 'Cache-Control': headers['Cache-Control'] });
+    res.end();
+    return;
+  }
+
+  const ext = path.extname(resolved).toLowerCase();
+  const acceptsGzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+
+  if (acceptsGzip && COMPRESSIBLE_EXT.has(ext) && stat.size > 1024) {
+    res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' });
+    const rs = fs.createReadStream(resolved);
+    const gz = zlib.createGzip();
+    rs.on('error', () => { try { res.destroy(); } catch {} });
+    res.on('close', () => { try { rs.destroy(); } catch {} });
+    rs.pipe(gz).pipe(res);
+    return;
+  }
+
+  res.writeHead(200, { ...headers, 'Content-Length': stat.size });
+  const rs = fs.createReadStream(resolved);
+  rs.on('error', () => { try { res.destroy(); } catch {} });
+  res.on('close', () => { try { rs.destroy(); } catch {} });
+  rs.pipe(res);
+}
+
 function serveStatic(req, res, filePath) {
   const resolved = path.resolve(PUBLIC_DIR, filePath);
   if (!resolved.startsWith(path.resolve(PUBLIC_DIR))) {
     res.writeHead(403); res.end('Forbidden'); return;
   }
-  let isFile = false;
-  try { isFile = fs.statSync(resolved).isFile(); } catch {}
-  if (!isFile) {
+  let stat = null;
+  try { stat = fs.statSync(resolved); } catch {}
+  if (!stat || !stat.isFile()) {
+    // SPA fallback — index.html (revalidated with ETag, never hard-cached).
     const indexPath = path.join(PUBLIC_DIR, 'index.html');
-    try {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(fs.readFileSync(indexPath));
-    } catch { res.writeHead(404); res.end('Not found'); }
+    let iStat = null;
+    try { iStat = fs.statSync(indexPath); } catch {}
+    if (!iStat) { res.writeHead(404); res.end('Not found'); return; }
+    _sendFile(req, res, indexPath, iStat, 'text/html; charset=utf-8');
     return;
   }
   const ext = path.extname(resolved).toLowerCase();
   const ct  = STATIC_MIME[ext] || 'application/octet-stream';
-  res.writeHead(200, { 'Content-Type': ct });
-  if (IS_PKG) {
-    res.end(fs.readFileSync(resolved));
-  } else {
-    fs.createReadStream(resolved).pipe(res);
-  }
+  // Streaming works in pkg snapshots too — readFileSync buffered the whole
+  // file and blocked the event loop per asset request.
+  _sendFile(req, res, resolved, stat, ct);
 }
 
 module.exports = {

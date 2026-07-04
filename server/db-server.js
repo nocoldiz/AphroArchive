@@ -361,7 +361,7 @@ function switchProfile(profileName) {
   // Clear caches
   _favs       = null;
   _history    = null;
-  _videoMeta  = null;
+  _videoMeta  = null; _notifyVideoMetaChanged();
   _thumbs     = null;
   _actors          = null;
   _folderMappings  = null;
@@ -725,7 +725,7 @@ function _wipeVideoEverywhere(database, id) {
 }
 
 function deleteVideoMetaEverywhere(id) {
-  _videoMeta = null;
+  _videoMeta = null; _notifyVideoMetaChanged();
   _favs = null;
   _history = null;
   _thumbs = null;
@@ -778,8 +778,16 @@ function loadVideoMeta() {
   return _videoMeta;
 }
 
+// Cross-module cache invalidation hook: videos-server registers its actor
+// inverted-index invalidator here so ANY meta write (including vault/profile
+// switches that clear _videoMeta) also drops the derived index.
+let _onVideoMetaChanged = null;
+function setOnVideoMetaChanged(fn) { _onVideoMetaChanged = fn; }
+function _notifyVideoMetaChanged() { try { _onVideoMetaChanged && _onVideoMetaChanged(); } catch {} }
+
 function saveVideoMeta(m) {
   _videoMeta = m;
+  _notifyVideoMetaChanged();
   // This is a legacy fallback. In SQLite we should use setVideoMetaFields.
   // But if we must save the whole object, we can do it in a transaction.
   try {
@@ -809,6 +817,7 @@ function saveVideoMeta(m) {
 }
 
 function setVideoMetaFields(id, fields) {
+  _notifyVideoMetaChanged();
   const meta = loadVideoMeta();
   if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], channel: '', rating: null, category: '', note: '', date: '', language: '', reencoded: 0 };
   Object.assign(meta[id], fields);
@@ -996,7 +1005,7 @@ function _vaultMetaEncryptedOnDisk() {
 }
 
 function saveVaultMeta(m) {
-  if (currentProfile === 'Vault') _videoMeta = null; // merged view includes vault meta
+  if (currentProfile === 'Vault') { _videoMeta = null; _notifyVideoMetaChanged(); } // merged view includes vault meta
   const jsonStr = JSON.stringify(m);
   if (!_vaultKey) {
     // Refuse to write plaintext over an encrypted vault meta. loadVaultMeta()
@@ -2209,12 +2218,12 @@ function saveSeries(seriesArray) {
 }
 
 function deleteTagFromAllVideos(tag) {
-  _videoMeta = null;
+  _videoMeta = null; _notifyVideoMetaChanged();
   try { db.prepare('DELETE FROM video_tags WHERE LOWER(tag) = LOWER(?)').run(tag); } catch (e) { console.error(e); }
 }
 
 function renameTagInAllVideos(oldTag, newTag) {
-  _videoMeta = null;
+  _videoMeta = null; _notifyVideoMetaChanged();
   try { db.prepare('UPDATE video_tags SET tag = ? WHERE LOWER(tag) = LOWER(?)').run(newTag, oldTag); } catch (e) { console.error(e); }
 }
 
@@ -2245,6 +2254,7 @@ function getMediaCounts() {
 }
 
 module.exports = {
+  setOnVideoMetaChanged,
   loadFavs, saveFavs,
   loadHistory, saveHistory,
   loadPrefs, savePrefs, getDefaultWriteRoot, resolveCategoryPhysicalPath,

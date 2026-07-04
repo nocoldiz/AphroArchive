@@ -13,6 +13,20 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: mode === 'android' ? '../android-app/www' : '../dist/public',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split the framework out of the app chunk: the vendor chunk is
+        // content-hashed and effectively never changes, so after the first
+        // visit it's served from the immutable browser cache while only the
+        // (much smaller) app chunk re-downloads on updates.
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('preact')) return 'vendor-preact';
+            return 'vendor';
+          }
+        },
+      },
+    },
   },
   server: {
     port: 5173,

@@ -226,6 +226,12 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     if (!vid || usingHlsRef.current) return;
     const resumeAt = vid.currentTime || 0;
     setLoading(true);
+    // Abort the stalled request first: a bare load() would queue a *second*
+    // request behind the hung one inside the browser's connection pool.
+    const currentSrc = vid.getAttribute('src') || src;
+    try { vid.pause(); } catch {}
+    try { vid.removeAttribute('src'); vid.load(); } catch {}
+    if (currentSrc) { try { vid.src = currentSrc; } catch {} }
     try { vid.load(); } catch {}
     const onLoaded = () => {
       vid.removeEventListener('loadedmetadata', onLoaded);

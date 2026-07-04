@@ -436,7 +436,14 @@ function apiScanEvents(req, res) {
   });
   res.write(': connected\n\n');
   _scanSseClients.add(res);
-  req.on('close', () => _scanSseClients.delete(res));
+  // Heartbeat comment every 25s: keeps intermediaries/browsers from silently
+  // dropping the idle stream, and doubles as the client's liveness signal
+  // (the frontend derives its "connection lost" banner from this stream
+  // instead of polling /api/ping).
+  const hb = setInterval(() => {
+    try { res.write(': hb\n\n'); } catch { clearInterval(hb); _scanSseClients.delete(res); }
+  }, 25000);
+  req.on('close', () => { clearInterval(hb); _scanSseClients.delete(res); });
 }
 
 function invalidateScanCache() {
@@ -477,19 +484,28 @@ async function cachedScan() {
       // Validate file existence in the background; if anything was deleted the
       // cache is pruned and clients are notified via SSE to refresh.
       _scanCache = indexed;
-      setImmediate(() => {
+      // Background existence validation, chunked: one existsSync per file is a
+      // blocking syscall — done for the whole library in one tick it freezes
+      // the event loop for seconds on large/slow disks, exactly while the
+      // first page load is fetching /api/videos and thumbnails. Yield every
+      // CHUNK files so those requests interleave.
+      setImmediate(async () => {
         try {
           let prefs;
           try { prefs = loadPrefs(); } catch { prefs = {}; }
           const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
-          const valid = indexed.filter(v => {
+          const CHUNK = 200;
+          const valid = [];
+          for (let i = 0; i < indexed.length; i++) {
+            if (i > 0 && i % CHUNK === 0) await new Promise(r => setImmediate(r));
+            const v = indexed[i];
             const filePath = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
-            if (fs.existsSync(filePath)) return true;
-            if (v.isExternal && v.catPath && v.filename) {
-              return sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)));
+            if (fs.existsSync(filePath)) { valid.push(v); continue; }
+            if (v.isExternal && v.catPath && v.filename &&
+                sourceFolders.some(sf => fs.existsSync(path.join(sf, v.catPath, v.filename)))) {
+              valid.push(v);
             }
-            return false;
-          });
+          }
           if (valid.length !== indexed.length) {
             _scanCache = valid;
             saveVideoIndex(valid);
@@ -764,7 +780,16 @@ async function initVideoMeta() {
     let oldRatings   = {};
     try { oldRatings = loadRatings(); } catch {}
 
-    for (const v of videos) {
+    // Chunked: term-matching every filename against every category/channel/
+    // actor is CPU-heavy on big libraries. This runs right after the first
+    // page load (/api/ready), so yield to the event loop every CHUNK videos —
+    // otherwise the initial /api/videos, thumbnails and stream requests all
+    // stall behind it and the spinner lingers.
+    const CHUNK = 200;
+    const yieldLoop = () => new Promise(r => setImmediate(r));
+    for (let i = 0; i < videos.length; i++) {
+      if (i > 0 && i % CHUNK === 0) await yieldLoop();
+      const v = videos[i];
       if (!meta[v.id]) {
         const detectedTags   = [...new Set(categories.filter(e => wordMatchAny(v.name, e.terms)).map(e => e.displayName))];
         const detectedChannel = channels.find(e => channelMatchAny(v.name, e.terms));
@@ -784,8 +809,9 @@ async function initVideoMeta() {
         changed = true;
       }
     }
+    const liveIds = new Set(videos.map(v => v.id));
     for (const id of Object.keys(meta)) {
-      if (!videos.find(v => v.id === id)) { delete meta[id]; changed = true; }
+      if (!liveIds.has(id)) { delete meta[id]; changed = true; }
     }
     if (changed) saveVideoMeta(meta);
   } catch (e) { console.error('initVideoMeta error:', e.message); }
@@ -795,12 +821,17 @@ async function initVideoMeta() {
 
 async function apiVideos(req, res, params) {
   const favs        = loadFavs();
+  const favSet      = new Set(favs); // O(1) lookups — .includes() per video was O(favs×videos)
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
   const enabledPaths = loadEnabledFolders();
   const prefs       = loadPrefs();
   const historyEnabled = prefs.chronologyMode !== 'dont-save';
   const historySet  = historyEnabled ? new Set(loadHistory()) : null;
+  // Slim mode (?slim=1) drops the heavyweight per-video fields the grid never
+  // renders (chapters, note, actors) — they're refetched per-video by the
+  // player detail endpoint.
+  const slim = params.get('slim') === '1';
   // all=1 (vault unlocked only): bypass the per-profile enabled-categories
   // filter so the Vault's Global view can import files from any profile
   const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
@@ -813,7 +844,7 @@ async function apiVideos(req, res, params) {
       const vMeta    = meta[v.id] || {};
       return {
         ...v,
-        fav: favs.includes(v.id),
+        fav: favSet.has(v.id),
         rating: vMeta.rating ?? null,
         reencoded: !!vMeta.reencoded,
         duration,
@@ -914,7 +945,27 @@ async function apiVideos(req, res, params) {
     });
   }
   else list.sort((a, b) => b.mtime - a.mtime);
-  json(res, list);
+
+  // Paged mode (?offset&limit): responds {total, items} so the client can
+  // paint the first page instantly and stream the rest in the background —
+  // the response is no longer proportional to library size on first load.
+  // Slim mode strips heavyweight per-video fields the grid never renders
+  // (chapters/note/actors — refetched per-video by the player detail call).
+  // No params — legacy full-array response, so existing callers are untouched.
+  const stripSlim = (v) => {
+    if (!slim) return v;
+    const { chapters, note, actors, ...rest } = v;
+    return rest;
+  };
+  const limitRaw  = params.get('limit');
+  const offsetRaw = params.get('offset');
+  if (limitRaw !== null || offsetRaw !== null) {
+    const offset = Math.max(0, parseInt(offsetRaw || '0', 10) || 0);
+    const limit  = Math.min(5000, Math.max(1, parseInt(limitRaw || '500', 10) || 500));
+    json(res, { total: list.length, offset, limit, items: list.slice(offset, offset + limit).map(stripSlim) });
+    return;
+  }
+  json(res, slim ? list.map(stripSlim) : list);
 }
 
 async function apiFolders(req, res, params) {
@@ -1346,6 +1397,32 @@ async function apiFolderMove(req, res) {
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
+// ── Cached actor inverted index ──────────────────────────────────────
+// Rebuilding actorLower → Set<videoId> over the whole meta map on EVERY video
+// click is O(library) work on the hot path (the player detail request).
+// Cache it and invalidate whenever video meta is written.
+let _actorIndexCache = null;
+
+function _getActorIndex(meta) {
+  if (_actorIndexCache) return _actorIndexCache;
+  const idx = new Map(); // actorLower → Set<videoId>
+  for (const [vid, m] of Object.entries(meta)) {
+    for (const a of (m.actors || [])) {
+      const k = a.toLowerCase();
+      let s = idx.get(k);
+      if (!s) { s = new Set(); idx.set(k, s); }
+      s.add(vid);
+    }
+  }
+  _actorIndexCache = idx;
+  return idx;
+}
+
+function invalidateActorIndex() { _actorIndexCache = null; }
+// Any meta write anywhere (tags/actors edits, vault ops, profile switches)
+// drops the cached inverted index.
+try { require('./db-server').setOnVideoMetaChanged(invalidateActorIndex); } catch {}
+
 async function apiVideoDetail(req, res, id) {
   const videos = await allVideos();
   const v      = videos.find(x => x.id === id);
@@ -1371,16 +1448,8 @@ async function apiVideoDetail(req, res, id) {
   const enabledPaths = loadEnabledFolders();
   const visibleVideos = enabledPaths.length ? videos.filter(x => isFolderEnabled(x.catPath, enabledPaths)) : videos;
 
-  // Build actor → [videoId] inverted index from the already-loaded meta map.
-  const actorIndex = new Map(); // actorLower → Set<videoId>
-  for (const [vid, m] of Object.entries(meta)) {
-    for (const a of (m.actors || [])) {
-      const k = a.toLowerCase();
-      let s = actorIndex.get(k);
-      if (!s) { s = new Set(); actorIndex.set(k, s); }
-      s.add(vid);
-    }
-  }
+  // Actor → [videoId] inverted index (cached; see _getActorIndex).
+  const actorIndex = _getActorIndex(meta);
 
   // Collect candidate video IDs that share at least one actor with this video.
   const candidateIds = new Set();
@@ -1404,7 +1473,7 @@ async function apiVideoDetail(req, res, id) {
   ];
 
   const suggested = scored
-    .sort((a, b) => b.score - a.score || Math.random() - 0.5)
+    .sort((a, b) => b.score - a.score || (a.video.id < b.video.id ? -1 : 1))
     .slice(0, 12)
     .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
@@ -1448,15 +1517,7 @@ async function apiVideoDetailFast(req, res, id) {
   const visibleVideos = enabledPaths.length ? allVisible.filter(x => isFolderEnabled(x.catPath, enabledPaths)) : allVisible;
   const allMeta = db.loadVideoMeta();
 
-  const actorIndex = new Map();
-  for (const [vid, m] of Object.entries(allMeta)) {
-    for (const a of (m.actors || [])) {
-      const k = a.toLowerCase();
-      let s = actorIndex.get(k);
-      if (!s) { s = new Set(); actorIndex.set(k, s); }
-      s.add(vid);
-    }
-  }
+  const actorIndex = _getActorIndex(allMeta);
 
   const candidateIds = new Set();
   for (const a of combinedActors) {
@@ -1479,7 +1540,7 @@ async function apiVideoDetailFast(req, res, id) {
   ];
 
   const suggested = scored
-    .sort((a, b) => b.score - a.score || Math.random() - 0.5)
+    .sort((a, b) => b.score - a.score || (a.video.id < b.video.id ? -1 : 1))
     .slice(0, 12)
     .map(item => item.video);
 
@@ -1580,33 +1641,51 @@ async function apiStream(req, res, id) {
         'Cache-Control': 'no-store'
       });
 
+      // AES-GCM has no random access, so decryption must start from byte 0 —
+      // but it must NOT run to EOF: once the requested range has been served
+      // we stop immediately, honour backpressure while serving, and tear
+      // everything down if the client aborts (video seeks abort constantly).
+      // Without these three guards every seek left a full-file decrypt job
+      // running with an occupied connection — the main cause of the
+      // "infinite loading until page reload" hang on encrypted libraries.
       const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
       dec.setAuthTag(tag);
       const src = fs.createReadStream(fp, { start: ivLen, end: size - tagLen - 1 });
 
       let pos = 0;
       let ended = false;
-      
+
+      const finish = () => {
+        if (ended) return;
+        ended = true;
+        try { src.destroy(); } catch {}
+        try { dec.destroy(); } catch {}
+        try { res.end(); } catch {}
+      };
+
       const writeRange = (chunk) => {
         const chunkEnd = pos + chunk.length - 1;
         if (chunkEnd >= start && pos <= end) {
           const sl = Math.max(0, start - pos);
           const se = Math.min(chunk.length, end - pos + 1);
-          res.write(chunk.slice(sl, se));
+          const ok = res.write(chunk.slice(sl, se));
+          // Backpressure: pause the pipeline until the socket drains.
+          if (!ok && !ended) {
+            src.pause();
+            res.once('drain', () => { if (!ended) src.resume(); });
+          }
         }
         pos += chunk.length;
+        // Range fully served — stop decrypting the rest of the file.
+        if (pos > end) finish();
       };
 
       dec.on('data', writeRange);
-      dec.on('end', () => {
-        if (!ended) { ended = true; res.end(); }
-      });
-      dec.on('error', () => {
-        if (!ended) { ended = true; res.end(); }
-      });
-      src.on('error', () => {
-        if (!ended) { ended = true; try { res.end(); } catch {} }
-      });
+      dec.on('end', finish);
+      dec.on('error', finish);
+      src.on('error', finish);
+      // Client hung up (seek, tab close, player teardown) — kill the decrypt.
+      res.on('close', finish);
       src.pipe(dec);
     } else {
       res.writeHead(200, {
@@ -1618,6 +1697,7 @@ async function apiStream(req, res, id) {
       const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
       dec.setAuthTag(tag);
       const src = fs.createReadStream(fp, { start: ivLen, end: size - tagLen - 1 });
+      res.on('close', () => { try { src.destroy(); } catch {} try { dec.destroy(); } catch {} });
       pipeline(src, dec, res, (err) => { if (err) try { res.end(); } catch {} });
     }
     return;
@@ -1636,11 +1716,15 @@ async function apiStream(req, res, id) {
     });
     const rs = fs.createReadStream(fp, { start, end });
     rs.on('error', () => { try { res.destroy(); } catch {} });
+    // Aborted range requests (every seek aborts the previous one) must destroy
+    // the source stream, or file descriptors leak one per seek.
+    res.on('close', () => { try { rs.destroy(); } catch {} });
     rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
     const rs = fs.createReadStream(fp);
     rs.on('error', () => { try { res.destroy(); } catch {} });
+    res.on('close', () => { try { rs.destroy(); } catch {} });
     rs.pipe(res);
   }
 }
@@ -1824,46 +1908,46 @@ async function apiMove(req, res, id) {
 
 async function apiAutoSort(req, res) {
   const systemDirs = new Set([path.basename(VAULT_DIR), path.basename(IGNORED_DIR)]);
-  let folders;
+  // Cheap short-circuit first, then respond immediately: this endpoint fires
+  // on every page load, so the client must never wait on renames. Any moves
+  // surface through invalidateScanCache() → SSE refresh instead.
+  let folders, loose;
   try {
-    folders = (await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true }))
-      .filter(e => e.isDirectory() && !systemDirs.has(e.name))
-      .map(e => e.name);
+    const entries = await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true });
+    folders = entries.filter(e => e.isDirectory() && !systemDirs.has(e.name)).map(e => e.name);
+    loose   = entries.filter(e => e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase())).map(e => e.name);
   } catch { return json(res, { moved: 0 }); }
-  if (!folders.length) return json(res, { moved: 0 });
+  if (!folders.length || !loose.length) return json(res, { moved: 0 });
 
-  let loose;
-  try {
-    loose = (await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true }))
-      .filter(e => e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-      .map(e => e.name);
-  } catch { return json(res, { moved: 0 }); }
-  if (!loose.length) return json(res, { moved: 0 });
+  json(res, { moved: 0, deferred: true });
 
-  const norm = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  let moved = 0;
-  const favs = loadFavs();
-  let favsChanged = false;
-
-  for (const filename of loose) {
-    const nameNoExt = norm(path.basename(filename, path.extname(filename)));
-    const match     = folders.find(folder => nameNoExt.includes(norm(folder)));
-    if (!match) continue;
-    const src = path.join(VIDEOS_DIR, filename);
-    const dst = path.join(VIDEOS_DIR, match, filename);
-    if (fs.existsSync(dst)) continue;
+  setImmediate(async () => {
     try {
-      await fs.promises.rename(src, dst);
-      moved++;
-      const oldId = toId(filename);
-      const newId = toId(path.join(match, filename));
-      const fi    = favs.indexOf(oldId);
-      if (fi !== -1) { favs[fi] = newId; favsChanged = true; }
-    } catch {}
-  }
-  if (favsChanged) saveFavs(favs);
-  if (moved > 0) invalidateScanCache();
-  json(res, { moved });
+      const norm = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      let moved = 0;
+      const favs = loadFavs();
+      let favsChanged = false;
+
+      for (const filename of loose) {
+        const nameNoExt = norm(path.basename(filename, path.extname(filename)));
+        const match     = folders.find(folder => nameNoExt.includes(norm(folder)));
+        if (!match) continue;
+        const src = path.join(VIDEOS_DIR, filename);
+        const dst = path.join(VIDEOS_DIR, match, filename);
+        if (fs.existsSync(dst)) continue;
+        try {
+          await fs.promises.rename(src, dst);
+          moved++;
+          const oldId = toId(filename);
+          const newId = toId(path.join(match, filename));
+          const fi    = favs.indexOf(oldId);
+          if (fi !== -1) { favs[fi] = newId; favsChanged = true; }
+        } catch {}
+      }
+      if (favsChanged) saveFavs(favs);
+      if (moved > 0) invalidateScanCache();
+    } catch (e) { console.error('[auto-sort] deferred error:', e.message); }
+  });
 }
 
 // ── Favourites / History / Ratings ───────────────────────────────────

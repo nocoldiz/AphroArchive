@@ -242,19 +242,40 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     dec.setAuthTag(tag);
     const src = fs.createReadStream(encPath, { start: ivLen, end: total - tagLen - 1 });
 
-    // Decrypt full stream but only pipe the requested byte range to response
+    // GCM forces decrypting from byte 0, but the pipeline stops the moment the
+    // requested range is served, honours socket backpressure, and tears down on
+    // client abort — otherwise every seek leaves a full-file decrypt running
+    // on an occupied connection (the infinite-loading hang).
     let pos = 0;
+    let ended = false;
+    const finish = () => {
+      if (ended) return;
+      ended = true;
+      try { src.destroy(); } catch {}
+      try { dec.destroy(); } catch {}
+      try { res.end(); } catch {}
+    };
     dec.on('data', chunk => {
       const chunkEnd = pos + chunk.length - 1;
-      if (chunkEnd < start || pos > end) { pos += chunk.length; return; }
+      if (chunkEnd < start || pos > end) {
+        pos += chunk.length;
+        if (pos > end) finish();
+        return;
+      }
       const sl = Math.max(0, start - pos);
       const se = Math.min(chunk.length, end - pos + 1);
-      res.write(chunk.slice(sl, se));
+      const ok = res.write(chunk.slice(sl, se));
+      if (!ok && !ended) {
+        src.pause();
+        res.once('drain', () => { if (!ended) src.resume(); });
+      }
       pos += chunk.length;
+      if (pos > end) finish();
     });
-    dec.on('end', () => { try { res.end(); } catch { } });
-    dec.on('error', () => { try { res.end(); } catch { } });
-    src.on('error', () => { try { res.end(); } catch { } });
+    dec.on('end', finish);
+    dec.on('error', finish);
+    src.on('error', finish);
+    res.on('close', finish);
     src.pipe(dec);
   } else {
     res.writeHead(200, {
@@ -267,6 +288,7 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     dec.setAuthTag(tag);
     const src = fs.createReadStream(encPath, { start: ivLen, end: total - tagLen - 1 });
     src.on('error', () => { try { res.end(); } catch { } });
+    res.on('close', () => { try { src.destroy(); } catch {} try { dec.destroy(); } catch {} });
     src.pipe(dec).pipe(res);
     dec.on('error', () => { try { res.end(); } catch { } });
   }

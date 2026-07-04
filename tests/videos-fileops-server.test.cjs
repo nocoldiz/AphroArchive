@@ -479,3 +479,81 @@ describe('apiFolderMove()', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+// ─── apiVideos() pagination / slim mode ───────────────────────────────
+// Regression tests for the first-load fixes: ?offset&limit returns
+// {total, items} (client paints page 1 instantly), ?slim=1 strips the
+// heavyweight per-video fields, and the favs Set refactor keeps the same
+// fav flags as the old favs.includes() path.
+
+describe('apiVideos() pagination and slim mode', () => {
+  const mkParams = (qs) => new URLSearchParams(qs);
+  // The scan derives ids from OS-native relative paths (backslashes on
+  // Windows), so build test ids the same way instead of hardcoding '/'.
+  const scanId = (...parts) => toId(path.join(...parts));
+
+  beforeEach(() => {
+    // Three videos across two categories; invalidate so the scan re-runs.
+    touch('CatA/one.mp4');
+    touch('CatA/two.mp4');
+    touch('CatB/three.mp4');
+    vids.invalidateScanCache();
+  });
+
+  it('returns the legacy full array when no paging params are given', async () => {
+    const res = makeRes();
+    await vids.apiVideos({ headers: {} }, res, mkParams(''));
+    const body = res.jsonBody;
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBe(3);
+    // Full mode keeps the heavyweight fields.
+    expect(body[0]).toHaveProperty('actors');
+    expect(body[0]).toHaveProperty('note');
+    expect(body[0]).toHaveProperty('chapters');
+  });
+
+  it('returns {total, items} with correct slices in paged mode', async () => {
+    const page1 = makeRes();
+    await vids.apiVideos({ headers: {} }, page1, mkParams('limit=2&offset=0'));
+    expect(page1.jsonBody.total).toBe(3);
+    expect(page1.jsonBody.items.length).toBe(2);
+
+    const page2 = makeRes();
+    await vids.apiVideos({ headers: {} }, page2, mkParams('limit=2&offset=2'));
+    expect(page2.jsonBody.total).toBe(3);
+    expect(page2.jsonBody.items.length).toBe(1);
+
+    // Pages don't overlap and cover the whole list.
+    const ids = [...page1.jsonBody.items, ...page2.jsonBody.items].map(v => v.id);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it('strips chapters/note/actors in slim mode but keeps grid fields', async () => {
+    const id = scanId('CatA', 'one.mp4');
+    dbState.meta[id] = { title: 'one', actors: ['A'], tags: ['t'], note: 'n', chapters: [{ id: 1 }], rating: 4 };
+
+    const res = makeRes();
+    await vids.apiVideos({ headers: {} }, res, mkParams('limit=10&slim=1'));
+    const item = res.jsonBody.items.find(v => v.id === id);
+    expect(item).toBeTruthy();
+    expect(item).not.toHaveProperty('actors');
+    expect(item).not.toHaveProperty('note');
+    expect(item).not.toHaveProperty('chapters');
+    // Grid-rendered fields survive.
+    expect(item.rating).toBe(4);
+    expect(item.tags).toEqual(['t']);
+    expect(item).toHaveProperty('fav');
+  });
+
+  it('fav flags via the Set lookup match the favourites list', async () => {
+    const favId = scanId('CatB', 'three.mp4');
+    dbState.favs = [favId];
+
+    const res = makeRes();
+    await vids.apiVideos({ headers: {} }, res, mkParams(''));
+    const flags = Object.fromEntries(res.jsonBody.map(v => [v.id, v.fav]));
+    expect(flags[favId]).toBe(true);
+    expect(flags[scanId('CatA', 'one.mp4')]).toBe(false);
+    expect(flags[scanId('CatA', 'two.mp4')]).toBe(false);
+  });
+});

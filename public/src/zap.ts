@@ -234,6 +234,7 @@ function cleanupZap() {
   const preload = document.getElementById('zap-preload') as HTMLVideoElement;
   if (preload) {
     delete preload.dataset.vid;
+    try { preload.pause(); } catch {}
     preload.removeAttribute('src');
     preload.load();
   }

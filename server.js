@@ -651,6 +651,12 @@ const server = http.createServer(async (req, res) => {
  }
 });
 
+// Keep-alive tuning: idle keep-alive sockets are recycled after 65s (with the
+// headers window slightly longer per Node docs), so stale connections don't
+// linger in the browser's 6-per-origin pool while media streams wait.
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+
 // Malformed HTTP requests emit 'clientError' — destroy the socket instead of
 // letting the default handler bubble it up.
 server.on('clientError', (err, socket) => {

@@ -83,11 +83,13 @@ function apiAudioStream(req, res, id) {
     res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct });
     const rs = fs.createReadStream(fp, { start, end });
     rs.on('error', () => { try { res.destroy(); } catch {} });
+    res.on('close', () => { try { rs.destroy(); } catch {} });
     rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
     const rs = fs.createReadStream(fp);
     rs.on('error', () => { try { res.destroy(); } catch {} });
+    res.on('close', () => { try { rs.destroy(); } catch {} });
     rs.pipe(res);
   }
 }

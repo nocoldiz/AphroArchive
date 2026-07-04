@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { videos, loadVideos, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders, appReady } from './store';
+import { effect } from '@preact/signals';
+import { videos, loadVideos, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders, appReady, serverConnected } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { OnboardingWizard } from './components/modals/OnboardingWizard';
@@ -9,43 +10,46 @@ import { DropOverlay } from './components/UI/DropOverlay';
 export function App() {
   const [connLost, setConnLost] = useState(false);
 
-  // Connection-lost detection: poll /api/ping, show banner if server goes away
+  // Connection-lost detection: derived from the standing scan SSE stream
+  // (server sends a heartbeat every 25s). This replaces the old /api/ping
+  // 5-second polling loop — one standing connection instead of a poll churn
+  // competing with media streams for the browser's per-origin socket pool.
   useEffect(() => {
-    let wasUp = true;
     let panicFired = false;
     // If panic fires, the tab is closing — suppress the lost-connection banner
     const onBeforeUnload = () => { panicFired = true; };
     window.addEventListener('beforeunload', onBeforeUnload);
 
-    const check = async () => {
+    const dispose = effect(() => {
+      const up = serverConnected.value;
       if (panicFired) return;
-      try {
-        const r = await fetch('/api/ping', { cache: 'no-store' });
-        if (r.ok) {
-          wasUp = true;
-          setConnLost(false);
-        } else if (wasUp) {
-          wasUp = false;
-          setConnLost(true);
-        }
-      } catch {
-        if (wasUp) {
-          wasUp = false;
-          setConnLost(true);
-        }
-      }
-    };
+      setConnLost(!up);
+    });
 
-    const id = setInterval(check, 5000);
     return () => {
-      clearInterval(id);
+      dispose();
       window.removeEventListener('beforeunload', onBeforeUnload);
     };
   }, []);
 
   useEffect(() => {
-    // Signal server that the page is loaded — triggers deferred heavy work
-    fetch('/api/ready', { method: 'POST' }).catch(() => {});
+    // Show the shell immediately: skeletons handle every in-flight state, so
+    // first paint must not wait on any network round-trip.
+    appReady.value = true;
+
+    // Non-critical startup work is pushed off the critical path so it doesn't
+    // compete with /api/preload + /api/videos for connections or server CPU:
+    //  - /api/ready triggers deferred heavy work server-side (initVideoMeta,
+    //    background worker) — better started once the first paint is done.
+    //  - /api/auto-sort walks the videos dir looking for loose files.
+    const idle = (cb: () => void) =>
+      ('requestIdleCallback' in window)
+        ? (window as any).requestIdleCallback(cb, { timeout: 3000 })
+        : setTimeout(cb, 3000);
+    idle(() => {
+      fetch('/api/ready', { method: 'POST' }).catch(() => {});
+      fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
+    });
 
     // Kick off preload immediately — fast metadata from DB
     fetch('/api/preload').then(r => r.json()).then(preload => {
@@ -63,10 +67,10 @@ export function App() {
       }
     }).catch(() => {});
 
-    // Show the UI as soon as prefs (theme, cardSize, etc.) are applied — don't
-    // hold the spinner until the full video list arrives. Skeletons handle the
-    // in-flight state; loadVideos populates the grid when it finishes.
-    loadPrefs().then(() => { appReady.value = true; }).catch(() => { appReady.value = true; });
+    // Prefs (theme, cardSize, etc.) apply as they arrive; the shell is already
+    // visible (appReady set above), skeletons cover the in-flight state and
+    // loadVideos populates the grid when it finishes.
+    loadPrefs().catch(() => {});
     loadVideos().catch(() => {});
 
     // Restore vault unlock state and auto-navigate if we're in the Vault profile
@@ -100,8 +104,7 @@ export function App() {
       (window as any).shuf = true; // Compatibility
     }
 
-    // 2. Auto-Sort on Start
-    fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
+    // 2. Auto-Sort on Start — moved into the requestIdleCallback block above.
 
     // 3. Dummy Audio for first interaction
     const startDummyAudio = () => {

@@ -3,14 +3,16 @@ setlocal EnableDelayedExpansion
 echo.
 
 :: ============================================================
-:: Parse flags: --windows --linux --mac --android
-:: No flags = build all platforms
+:: Parse flags: --windows --linux --mac --android --electron
+:: --publish  publishes the built artifacts to a GitHub release
+:: No platform flags = build all platforms
 :: ============================================================
 set DO_WINDOWS=0
 set DO_LINUX=0
 set DO_MAC=0
 set DO_ANDROID=0
 set DO_ELECTRON=0
+set DO_PUBLISH=0
 set ANY_FLAG=0
 
 :parse_args
@@ -20,6 +22,7 @@ if /i "%~1"=="--linux"    ( set DO_LINUX=1    & set ANY_FLAG=1 )
 if /i "%~1"=="--mac"      ( set DO_MAC=1      & set ANY_FLAG=1 )
 if /i "%~1"=="--android"  ( set DO_ANDROID=1  & set ANY_FLAG=1 )
 if /i "%~1"=="--electron" ( set DO_ELECTRON=1 & set ANY_FLAG=1 )
+if /i "%~1"=="--publish"  ( set DO_PUBLISH=1 )
 shift
 goto :parse_args
 :done_args
@@ -36,6 +39,7 @@ if !DO_ELECTRON!==1 echo  Target: Windows ^(Electron installer^)
 if !DO_LINUX!==1    echo  Target: Linux
 if !DO_MAC!==1      echo  Target: macOS
 if !DO_ANDROID!==1  echo  Target: Android
+if !DO_PUBLISH!==1  echo  Publish: GitHub Releases
 echo.
 
 if not exist dist mkdir dist
@@ -206,3 +210,49 @@ if exist dist\AphroArchive.apk              echo    AphroArchive.apk            
 if exist dist\AphroArchive-firefox.xpi      echo    AphroArchive-firefox.xpi    Firefox extension
 echo ============================================================
 echo.
+
+:: ============================================================
+:: Publish to GitHub Releases
+:: ============================================================
+if !DO_PUBLISH!==1 (
+  echo [publish] Publishing to GitHub Releases...
+
+  where gh >nul 2>&1
+  if errorlevel 1 (
+    echo  FAILED: GitHub CLI ^(gh^) not found. Install from https://cli.github.com/ and run 'gh auth login'.
+    exit /b 1
+  )
+
+  set APP_VERSION=
+  for /f "usebackq delims=" %%v in (`node -p "require('./package.json').version"`) do set APP_VERSION=%%v
+  if "!APP_VERSION!"=="" ( echo  FAILED: could not read version from package.json & exit /b 1 )
+  set TAG=v!APP_VERSION!
+  echo   Release tag: !TAG!
+
+  set ASSETS=
+  if exist dist\AphroArchive.exe          set ASSETS=!ASSETS! "dist\AphroArchive.exe"
+  if exist dist\AphroArchive-linux        set ASSETS=!ASSETS! "dist\AphroArchive-linux"
+  if exist dist\AphroArchive-mac.dmg      set ASSETS=!ASSETS! "dist\AphroArchive-mac.dmg"
+  if exist dist\AphroArchive-mac.zip      set ASSETS=!ASSETS! "dist\AphroArchive-mac.zip"
+  if exist dist\AphroArchive.apk          set ASSETS=!ASSETS! "dist\AphroArchive.apk"
+  if exist dist\AphroArchive-firefox.xpi  set ASSETS=!ASSETS! "dist\AphroArchive-firefox.xpi"
+  if exist dist\electron for %%f in (dist\electron\*.exe) do set ASSETS=!ASSETS! "%%f"
+
+  if "!ASSETS!"=="" ( echo  FAILED: no build artifacts found in dist\ & exit /b 1 )
+
+  gh release view !TAG! >nul 2>&1
+  if errorlevel 1 (
+    echo   Creating release !TAG!...
+    call gh release create !TAG! --title "AphroArchive !TAG!" --notes "Automated build of AphroArchive !TAG!"
+    if !ERRORLEVEL! NEQ 0 ( echo  FAILED: could not create release & exit /b 1 )
+  ) else (
+    echo   Release !TAG! already exists; updating assets...
+  )
+
+  echo   Uploading assets...
+  call gh release upload !TAG! !ASSETS! --clobber
+  if !ERRORLEVEL! NEQ 0 ( echo  FAILED: asset upload & exit /b 1 )
+
+  echo  done: published !TAG! to GitHub Releases
+  echo.
+)

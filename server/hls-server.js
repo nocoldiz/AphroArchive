@@ -65,7 +65,31 @@ async function apiHlsPlaylist(req, res, id) {
   res.end(m3u8);
 }
 
-function apiHlsSegment(req, res, id, seg) {
+// Global cap: at most 3 concurrent ffmpeg segment transcodes (mirrors the
+// thumbnail semaphore). hls.js prefetches segments aggressively; without a
+// cap every prefetch spawns its own ffmpeg, saturating the CPU while all six
+// browser connections sit occupied waiting on transcodes.
+const MAX_CONCURRENT_SEGS = 3;
+let _activeSegs = 0;
+const _segWaiters = [];
+
+function _acquireSegSlot() {
+  if (_activeSegs < MAX_CONCURRENT_SEGS) {
+    _activeSegs++;
+    return Promise.resolve();
+  }
+  return new Promise(r => _segWaiters.push(r));
+}
+
+function _releaseSegSlot() {
+  _activeSegs--;
+  if (_segWaiters.length) {
+    _activeSegs++;
+    _segWaiters.shift()();
+  }
+}
+
+async function apiHlsSegment(req, res, id, seg) {
   const filePath = safePath(id);
   if (!filePath) { res.writeHead(404); res.end(); return; }
 
@@ -78,6 +102,10 @@ function apiHlsSegment(req, res, id, seg) {
   const mapArgs = audioTrack > 0
     ? ['-map', '0:v:0', '-map', `0:a:${audioTrack}`]
     : [];
+
+  await _acquireSegSlot();
+  // Client may have given up while queued (seek away) — don't transcode.
+  if (res.writableEnded || res.destroyed) { _releaseSegSlot(); return; }
 
   const proc = spawn(FFMPEG_BIN, [
     '-ss', String(startTime),
@@ -96,9 +124,18 @@ function apiHlsSegment(req, res, id, seg) {
     'Cache-Control': 'public, max-age=3600'
   });
 
+  let released = false;
+  const release = () => { if (!released) { released = true; _releaseSegSlot(); } };
+
   proc.stdout.pipe(res);
-  res.on('close', () => { try { proc.kill('SIGTERM'); } catch {} });
-  proc.on('error', () => { try { res.end(); } catch {} });
+  res.on('close', () => { release(); try { proc.kill('SIGTERM'); } catch {} });
+  proc.on('error', () => { release(); try { res.end(); } catch {} });
+  proc.on('exit', (code) => {
+    release();
+    // Non-zero exit after headers — end the (possibly truncated) response so
+    // the client can retry the segment instead of waiting on a dead pipe.
+    if (code !== 0) { try { res.end(); } catch {} }
+  });
 }
 
 module.exports = { apiHlsPlaylist, apiHlsSegment };

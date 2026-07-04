@@ -133,11 +133,13 @@ function apiFileStream(req, res, id) {
     });
     const rs = fs.createReadStream(absPath, { start, end });
     rs.on('error', () => { try { res.destroy(); } catch {} });
+    res.on('close', () => { try { rs.destroy(); } catch {} });
     rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
     const rs = fs.createReadStream(absPath);
     rs.on('error', () => { try { res.destroy(); } catch {} });
+    res.on('close', () => { try { rs.destroy(); } catch {} });
     rs.pipe(res);
   }
 }
