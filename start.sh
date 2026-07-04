@@ -86,7 +86,7 @@ if [ ! -d "node_modules" ] || [ "$FORCE_INSTALL" = "1" ]; then
     # ── 2. npm install ────────────────────────────────────────────────────────
     sep 2 "Running npm install"
     if [[ "$INSTALL_MODE" == "1" ]]; then
-        echo "  Skips: Capacitor, Vite, TypeScript, pkg"
+        echo "  Skips: Vite, TypeScript, pkg"
         npm install --omit=dev
     else
         npm install

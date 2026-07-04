@@ -85,7 +85,7 @@ echo.
 :: ── 3. npm install ───────────────────────────────────────────────────────────
 if "!INSTALL_MODE!"=="1" (
     echo [3/5] Running npm install ^(minimal — runtime deps only^)...
-    echo  Skips: Capacitor, Vite, TypeScript, pkg
+    echo  Skips: Vite, TypeScript, pkg
     echo  --------------------------------------------
     call npm install --omit=dev --loglevel verbose && echo  npm install  OK || (
         echo.
