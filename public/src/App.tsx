@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
-import { videos, loadVideos, loadPrefs, loadProfiles, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, activeProfile, isVaultUnlocked, folders, appReady, serverConnected } from './store';
+import { videos, loadVideos, loadPrefs, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, isVaultUnlocked, folders, appReady, serverConnected } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { ProfileModal } from './components/modals/ProfileModal';
 import { OnboardingWizard } from './components/modals/OnboardingWizard';
@@ -81,7 +81,6 @@ export function App() {
 
     // The old PresetPicker first-run logic is replaced by OnboardingWizard
     // which is shown when no DB files exist (checked in OnboardingWizard component)
-    loadProfiles();
 
     // Load theme
     const saved = localStorage.getItem('theme') || '';

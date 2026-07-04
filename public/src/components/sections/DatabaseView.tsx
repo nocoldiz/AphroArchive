@@ -1,6 +1,6 @@
 ﻿/** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { presetPickerState, activeProfile, dbPendingOpen, loadVideos } from '../../store';
+import { presetPickerState, dbPendingOpen, loadVideos } from '../../store';
 import { ActorScraperView } from './ActorScraperView';
 import { loadDbSeries, dbSeriesList, DbSeriesEntry, DbEpisode } from '../../series';
 import { Album, AlbumTrack } from '../../types';
@@ -203,15 +203,14 @@ export const DatabaseView = () => {
   };
 
   const handleReset = async () => {
-    const profile = activeProfile.value;
-    if (!confirm(`Reset profile "${profile}" to its initial preset data? This will overwrite categories, channels, and websites!`)) return;
-    
+    if (!confirm(`Reset database to initial preset data? This will overwrite categories, channels, and websites!`)) return;
+
     setLoading(true);
     try {
       const res = await fetch('/api/presets/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selection: [profile], merge: false }),
+        body: JSON.stringify({ selection: 'blank', merge: false }),
       });
       if (!res.ok) throw new Error('Server error');
       

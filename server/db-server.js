@@ -38,7 +38,6 @@ let _ftsDirty = true;
 let _ftsAvailable = null;
 
 let db;
-let currentProfile = 'default';
 let _dbInMemory = false;
 
 // Wraps a synchronous function in a BEGIN/COMMIT/ROLLBACK block
@@ -339,19 +338,23 @@ function ensureSchema(database) {
   try { database.exec('ALTER TABLE media_index ADD COLUMN note TEXT'); } catch {}
 }
 
-function switchProfile(profileName) {
-  currentProfile = profileName;
-  _dbInMemory = false;
-  if (db) {
-    try { db.close(); } catch(e) {}
+// Initialize database; defer disk creation until preset is chosen if needed
+{
+  const dbPath = path.join(DB_DIR, 'db.db');
+  if (fs.existsSync(dbPath)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+    db = new DatabaseSync(dbPath);
+    db.exec('PRAGMA journal_mode=WAL');
+    db.exec('PRAGMA busy_timeout=5000');
+    ensureSchema(db);
+    runMigrations(db);
+    _dbInMemory = false;
+  } else {
+    // First run — no DB on disk yet; stay in memory until the user picks a preset
+    _dbInMemory = true;
+    db = new DatabaseSync(':memory:');
+    ensureSchema(db);
   }
-  const dbPath = path.join(DB_DIR, `aphroarchive_${profileName}.db`);
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  db = new DatabaseSync(dbPath);
-  db.exec('PRAGMA journal_mode=WAL');
-  db.exec('PRAGMA busy_timeout=5000');
-  ensureSchema(db);
-  runMigrations(db);
 
   // Clear caches
   _favs       = null;
@@ -362,29 +365,6 @@ function switchProfile(profileName) {
   _folderMappings  = null;
   _channels         = null;
   _ftsDirty         = true;
-
-  return db;
-}
-
-// Initialize with last active profile (or default); defer disk creation until preset is chosen
-{
-  let startProfile = 'default';
-  try {
-    const _lastFile = path.join(DB_DIR, 'last-profile.txt');
-    const _name = fs.readFileSync(_lastFile, 'utf-8').trim();
-    const _dbPath = path.join(DB_DIR, `aphroarchive_${_name}.db`);
-    if (_name && _name !== 'Vault' && fs.existsSync(_dbPath)) startProfile = _name;
-  } catch {}
-  const _startDbPath = path.join(DB_DIR, `aphroarchive_${startProfile}.db`);
-  if (fs.existsSync(_startDbPath)) {
-    switchProfile(startProfile);
-  } else {
-    // First run — no DB on disk yet; stay in memory until the user picks a preset
-    currentProfile = startProfile;
-    _dbInMemory = true;
-    db = new DatabaseSync(':memory:');
-    ensureSchema(db);
-  }
 }
 
 
@@ -705,38 +685,9 @@ function deleteVideoMetaEverywhere(id) {
   } catch (e) { console.error('Failed to delete video meta:', e); }
   // Always wipe the id from every OTHER profile's DB too — not just from the
   // Vault profile. Each profile keeps its own `video_index` scan cache, and the
-  // fast-path prune only drops entries whose directory vanished, not whose file
-  // did. So a video encrypted (and shredded) under one user would otherwise keep
-  // showing for other users until a full rescan/restart.
-  for (const dbPath of _otherProfileDbPaths()) {
-    let other = null;
-    try {
-      other = new DatabaseSync(dbPath);
-      ensureSchema(other);
-      _wipeVideoEverywhere(other, id);
-    } catch (e) {
-      console.error('[delete] failed to wipe video meta in', path.basename(dbPath), e.message);
-    } finally {
-      if (other) { try { other.close(); } catch {} }
-    }
-  }
 }
 
 function loadVideoMeta() {
-  if (currentProfile === 'Vault') {
-    if (!_videoMeta) {
-      const result = {};
-      // Public meta from every other profile, then private vault meta on top
-      for (const metaMap of _mapOtherProfiles(_readVideoMetaFromDb)) Object.assign(result, metaMap);
-      const meta = loadVaultMeta();
-      for (const [id, item] of Object.entries(meta)) {
-        if (item.videoMeta) result[id] = item.videoMeta;
-      }
-      _videoMeta = result;
-    }
-    return _videoMeta;
-  }
-
   if (!_videoMeta) {
     _videoMeta = {};
     try {
@@ -792,24 +743,6 @@ function setVideoMetaFields(id, fields) {
   if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], channel: '', rating: null, category: '', note: '', date: '', language: '', reencoded: 0 };
   Object.assign(meta[id], fields);
 
-  // In the Vault profile a vault item's canonical metadata lives in
-  // VAULT_META_FILE (item.videoMeta) — that's what loadVideoMeta()/allVideos()
-  // read back. Writing it to the SQLite videos table instead (as below) would
-  // be a lost write: no Vault read path consults that table, so the edit would
-  // vanish on the next reload. Persist vault-item edits to the vault store.
-  if (currentProfile === 'Vault') {
-    try {
-      const vmeta = loadVaultMeta();
-      const item = vmeta[id];
-      if (item && item.type !== 'folder') {
-        item.videoMeta = { ...(item.videoMeta || {}), ...fields };
-        saveVaultMeta(vmeta); // invalidates _videoMeta so the merge picks it up
-        return;
-      }
-    } catch (e) {
-      console.error('Failed to persist vault item meta:', e);
-    }
-  }
 
   try {
     txn(() => {
@@ -910,38 +843,6 @@ function _decryptString(jsonStr, key) {
   return dec;
 }
 
-// ── Vault superuser merge ────────────────────────────────────────────
-// When the Vault profile is active, reads act as a merged view of every
-// other profile's public database plus the Vault's own private rows.
-// Writes always go to the Vault's own DB, so private entries (actors,
-// websites, tags, links…) never leak into public profiles.
-
-function _otherProfileDbPaths() {
-  try {
-    return fs.readdirSync(DB_DIR)
-      .filter(f => /^aphroarchive_.+\.db$/.test(f) && f !== `aphroarchive_${currentProfile}.db` && f !== 'aphroarchive_Vault.db')
-      .map(f => path.join(DB_DIR, f));
-  } catch { return []; }
-}
-
-// Run fn against each other profile's DB (read-only) and collect results.
-// Returns [] unless the Vault profile is active.
-function _mapOtherProfiles(fn) {
-  if (currentProfile !== 'Vault') return [];
-  const out = [];
-  for (const dbPath of _otherProfileDbPaths()) {
-    let other = null;
-    try {
-      other = new DatabaseSync(dbPath, { readOnly: true });
-      out.push(fn(other));
-    } catch (e) {
-      console.error('[vault] merged read failed for', path.basename(dbPath), e.message);
-    } finally {
-      if (other) { try { other.close(); } catch {} }
-    }
-  }
-  return out;
-}
 
 function loadVaultConfig() { try { return JSON.parse(fs.readFileSync(VAULT_CONFIG_FILE, 'utf-8')); } catch { return null; } }
 function saveVaultConfig(c) { fs.writeFileSync(VAULT_CONFIG_FILE, JSON.stringify(c)); }
@@ -975,7 +876,6 @@ function _vaultMetaEncryptedOnDisk() {
 }
 
 function saveVaultMeta(m) {
-  if (currentProfile === 'Vault') { _videoMeta = null; _notifyVideoMetaChanged(); } // merged view includes vault meta
   const jsonStr = JSON.stringify(m);
   if (!_vaultKey) {
     // Refuse to write plaintext over an encrypted vault meta. loadVaultMeta()
@@ -1061,12 +961,7 @@ function _readWebsiteRows(database) {
 
 function loadWebsites() {
   try {
-    const merged = new Map();
-    for (const list of _mapOtherProfiles(_readWebsiteRows)) {
-      for (const s of list) merged.set(s.name.toLowerCase(), s);
-    }
-    for (const s of _readWebsiteRows(db)) merged.set(s.name.toLowerCase(), s); // private rows win
-    return [...merged.values()];
+    return _readWebsiteRows(db);
   } catch (e) {
     console.error('Failed to load websites from SQLite:', e);
     return [];
@@ -1174,12 +1069,7 @@ function loadLinksCache() {
   try {
     const publicLinks = (database) =>
       database.prepare(`SELECT ${_LINK_COLS} FROM links WHERE vault = 0 OR vault IS NULL`).all().map(_rowToLink);
-    const merged = new Map();
-    for (const list of _mapOtherProfiles(publicLinks)) {
-      for (const l of list) merged.set(l.url, l);
-    }
-    for (const l of publicLinks(db)) merged.set(l.url, l); // private rows win
-    return { items: [...merged.values()] };
+    return { items: publicLinks(db) };
   } catch (e) {
     console.error('Failed to load links cache from SQLite:', e);
     return { items: [] };
@@ -1334,7 +1224,7 @@ function saveVisualHashes(hashes) {
 // ── Prompts ───────────────────────────────────────────────────────────
 
 function _isVaultEncryptActive() {
-  return currentProfile === 'Vault' && !!_vaultKey;
+  return !!_vaultKey;
 }
 
 function _tryDecrypt(str) {
@@ -1452,12 +1342,7 @@ function _readActorRows(database) {
 function loadActors() {
   if (!_actors) {
     try {
-      const merged = new Map();
-      for (const list of _mapOtherProfiles(_readActorRows)) {
-        for (const a of list) merged.set(a.name.toLowerCase(), a);
-      }
-      for (const a of _readActorRows(db)) merged.set(a.name.toLowerCase(), a); // private rows win
-      _actors = [...merged.values()];
+      _actors = _readActorRows(db);
     } catch (e) { console.error('Failed to load actors from SQLite:', e); _actors = []; }
   }
   return _actors;
@@ -1495,25 +1380,6 @@ function _readFolderMappingRows(database) {
 }
 
 function loadFolderMappings() {
-  if (currentProfile === 'Vault') {
-    // Superuser view: every profile's categories, the Vault's own private
-    // categories table, plus categories derived from encrypted file metadata.
-    const merged = new Map();
-    for (const list of _mapOtherProfiles(_readFolderMappingRows)) {
-      for (const c of list) merged.set(c.name.toLowerCase(), c);
-    }
-    try {
-      for (const c of _readFolderMappingRows(db)) merged.set(c.name.toLowerCase(), c); // private rows win
-    } catch (e) { console.error('Failed to load vault categories from SQLite:', e); }
-    const meta = loadVaultMeta();
-    for (const item of Object.values(meta)) {
-      if (item.category && !merged.has(item.category.toLowerCase())) {
-        merged.set(item.category.toLowerCase(), { name: item.category, displayName: item.category, terms: [item.category] });
-      }
-    }
-    return [...merged.values()];
-  }
-
   if (!_folderMappings) {
     try {
       _folderMappings = _readFolderMappingRows(db);
@@ -2215,7 +2081,6 @@ module.exports = {
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
   loadFilesMeta, upsertFileMeta, deleteFileMeta,
   loadFileVirtualFolders, setFileVirtualFolder, renameFileVirtualFolder, deleteFileVirtualFolder, listFileVirtualFolderNames,
-  switchProfile, getCurrentProfile: () => currentProfile,
   isDbOnDisk: () => !_dbInMemory,
   closeDb: () => { if (db) { db.close(); db = null; } },
   getMediaCounts,

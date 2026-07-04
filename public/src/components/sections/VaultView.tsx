@@ -1205,8 +1205,6 @@ export const VaultView = () => {
                           {encryptingIds.has(f.id) ? '🔒 Encrypting…' : '🔒 Encrypt'}
                         </button>
                       </div>
-                    ) : isZipMount ? (
-                      <div className="card-actions" />
                     ) : (
                     <div className="card-actions">
                       <select

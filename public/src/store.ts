@@ -9,11 +9,10 @@ export const videos = signal<Video[]>([]);
 // on load, instead of waiting for the heavy /api/links/cache round-trip in
 // loadVideosInner. loadVideos() replaces this with the full list moments later.
 export const allVideos = signal<Video[]>(readLinksCache().videos); // Full unfiltered list
-// Persist the default profile's folder list so the sidebar can show folder
-// names instantly on next load (while the real /api/folders scan runs), instead
-// of flashing an empty list. Scoped to 'default' to avoid persisting encrypted
-// vault folder names to disk.
-const FOLDERS_CACHE_KEY = 'foldersCache:default';
+// Persist folder list so the sidebar can show folder names instantly on next
+// load (while the real /api/folders scan runs), instead of flashing an empty
+// list.
+const FOLDERS_CACHE_KEY = 'foldersCache';
 function readFoldersCache(): Folder[] {
   try {
     const arr = JSON.parse(localStorage.getItem(FOLDERS_CACHE_KEY) || '[]');
@@ -29,10 +28,9 @@ function writeFoldersCache(list: Folder[]) {
   } catch {}
 }
 
-// Persist the default profile's link videos so the Links dropdown shows links
-// (and their tag counts) immediately on next load. Scoped to 'default' so vault
-// link titles never touch disk. Mirrors the folders cache above.
-const LINKS_CACHE_KEY = 'linksCache:default';
+// Persist link videos so the Links dropdown shows links (and their tag counts)
+// immediately on next load. Mirrors the folders cache above.
+const LINKS_CACHE_KEY = 'linksCache';
 function readLinksCache(): { videos: Video[]; total: number } {
   try {
     const obj = JSON.parse(localStorage.getItem(LINKS_CACHE_KEY) || 'null');
@@ -82,7 +80,7 @@ export function syncLinkCache(rawItems: any[], total: number) {
   linkTotalCount.value = total;
   const locals = allVideos.value.filter(v => !(v as any).isLink);
   allVideos.value = [...locals, ...linkVideos];
-  if (activeProfile.value === 'default' && !vaultGlobalView.value) writeLinksCache(linkVideos, total);
+  if (!vaultGlobalView.value) writeLinksCache(linkVideos, total);
 }
 
 export const folders = signal<Folder[]>(readFoldersCache());
@@ -91,6 +89,7 @@ export const mediaCounts = signal<{ links: number; audio: number; books: number;
 export const actors = signal<Actor[]>([]);
 export const channels = signal<Channel[]>([]);
 export const appPrefs = signal<Partial<AppPrefs>>({});
+export const profileModalState = signal<{ visible: boolean }>({ visible: false });
 
 // ─── Navigation & View State ──────────────────────────────────────────
 export const currentView = signal<string>('hub');
@@ -397,9 +396,6 @@ export const selectedVideoIds = signal<Set<string>>(new Set());
 // the grid (no full gallery reload).
 export const encryptingVideoIds = signal<Set<string>>(new Set());
 export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true');
-export const profiles = signal<string[]>(['default']);
-export const activeProfile = signal<string>('default');
-export const profileModalState = signal<{ visible: boolean }>({ visible: false });
 
 // ── Temporary profiles ──────────────────────────────────────────────
 // Ephemeral, in-memory-only profiles that scope the entire library to a
@@ -498,17 +494,8 @@ export async function ensureVaultUnlocked(action: () => void) {
 }
 export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
-export async function loadProfiles() {
-  const res = await fetch('/api/profiles');
-  const data = await res.json();
-  profiles.value = data.profiles;
-  activeProfile.value = data.current;
-  return data;
-}
-
-// Resets navigation/filter state and reloads data for the active profile,
-// mirroring App.tsx's initial load — used after a profile switch/create so
-// the UI reflects the new profile's database without a full page reload.
+// Resets navigation/filter state and reloads data, mirroring App.tsx's initial
+// load — used after vault operations so the UI reflects current state.
 export async function reloadAppData() {
   currentVideo.value = null;
   currentView.value = 'hub';
@@ -541,31 +528,9 @@ export async function reloadAppData() {
   } catch {}
 }
 
-export async function switchProfile(name: string) {
-  const res = await fetch('/api/profiles/switch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile: name })
-  });
-
-  if (res.status === 401) {
-    const data = await res.json();
-    if (data.locked) {
-      profileModalState.value = { visible: false };
-      vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: name };
-      return;
-    }
-  }
-
-  activeTempProfile.value = null;
-  activeProfile.value = name;
-  profileModalState.value = { visible: false };
-  await reloadAppData();
-}
-
 if (typeof document !== 'undefined') {
   folders.subscribe(list => {
-    if (list.length && activeProfile.value === 'default' && !vaultGlobalView.value && !activeTempProfile.value) {
+    if (list.length && !vaultGlobalView.value && !activeTempProfile.value) {
       writeFoldersCache(list);
     }
   });
@@ -1116,9 +1081,8 @@ export async function refreshLibraryQuietly() {
 }
 
 async function loadVideosInner() {
-  const isVaultGlobal = activeProfile.value === 'Vault' && vaultGlobalView.value;
-  const videosUrl = isVaultGlobal ? '/api/videos?all=1' : '/api/videos';
-  const foldersUrl = isVaultGlobal ? '/api/folders?all=1' : '/api/folders';
+  const videosUrl = vaultGlobalView.value ? '/api/videos?all=1' : '/api/videos';
+  const foldersUrl = vaultGlobalView.value ? '/api/folders?all=1' : '/api/folders';
   const sep = videosUrl.includes('?') ? '&' : '?';
   const PAGE = 600;
 
@@ -1196,8 +1160,8 @@ async function loadVideosInner() {
 
   // Refresh the localStorage cache that seeds the Links dropdown on next load.
   // Skip while a temp profile is active so its scoped subset doesn't poison
-  // the real profile's cached links.
-  if (activeProfile.value === 'default' && !isVaultGlobal && !activeTempProfile.value) {
+  // the cache.
+  if (!vaultGlobalView.value && !activeTempProfile.value) {
     writeLinksCache(linkVideos, linkTotalCount.value);
   }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount } from '../../store';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount } from '../../store';
 import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID } from './navItems';
 import { pluginsList, isPluginEnabled, runPluginAction, type PluginMeta } from '../../plugins';
 import { zapOn } from '../../zap';
@@ -408,7 +408,7 @@ export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onN
     reloadTags();
     (window as any)._sidebarReloadTags = reloadTags;
     return () => { delete (window as any)._sidebarReloadTags; };
-  }, [activeProfile.value]);
+  }, []);
 
   const pinnedTagsList = useMemo(() => {
     const pins = appPrefs.value.pinnedTags || [];

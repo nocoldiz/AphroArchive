@@ -4,7 +4,7 @@
 
 import { ComponentChildren } from 'preact';
 import { Video } from '../types';
-import { currentView, currentFolder, allVideos } from '../store';
+import { currentView, currentFolder, allVideos, appPrefs } from '../store';
 import { getThumbPref } from '../thumbPref';
 import { VideoCard } from '../components/UI/VideoGrid';
 
@@ -21,7 +21,20 @@ export const nav = (view: string, path?: string) => {
 // cards and the main grid stay visually consistent.
 export const thumbFor = (v: Video) => v.isLink ? (v.img || '') : `/api/thumbs/${v.id}/${getThumbPref(v.id)}`;
 
-export const localVideos = () => allVideos.value.filter(v => !v.isLink);
+// True when the video does NOT live in a profile-hidden folder. Reading
+// appPrefs keeps callers reactive, so hiding/unhiding a folder repaints every
+// widget that filters through this instantly.
+export const notInHiddenFolder = (v: Video): boolean => {
+  const hidden = (appPrefs.value.hiddenFolders || []).map(h => h.toLowerCase().replace(/\\/g, '/'));
+  if (!hidden.length) return true;
+  const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
+  if (!vp) return true;
+  return !hidden.some(h => vp === h || vp.startsWith(h + '/'));
+};
+
+// Home-dashboard widgets draw from the library minus links and minus any
+// folders the profile has hidden.
+export const localVideos = () => allVideos.value.filter(v => !v.isLink && notInHiddenFolder(v));
 
 export function fmtTime(s: number) {
   if (!isFinite(s) || s <= 0) return '';

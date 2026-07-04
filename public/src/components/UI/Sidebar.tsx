@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
-import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, activeProfile, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
+import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, type FoldersFilterControl } from './LibraryFilters';
 import { getNavItems, navIcon, placementFor, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, setItemPlacement, sortByOrder, setNavOrder, getNavOrder, activeDrag, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID, type NavItem, type NavSection, type NavOrderKey } from './navItems';
@@ -102,7 +102,7 @@ export const Sidebar = () => {
       .then(r => r.json())
       .then(setPhotoFolders)
       .catch(() => {});
-  }, [activeProfile.value]);
+  }, []);
 
   const navItems = getNavItems();
   const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;

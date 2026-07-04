@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { appPrefs, updatePrefs, activeProfile, isVaultUnlocked, currentView } from '../../store';
+import { appPrefs, updatePrefs, isVaultUnlocked, currentView } from '../../store';
 
 interface RssFeed { url: string; name?: string; category?: string; }
 
@@ -15,7 +15,7 @@ const browseNative = async (): Promise<string | null> => {
 export const RssView = () => {
   const prefs = appPrefs.value;
   const feeds: RssFeed[] = prefs.rssFeeds || [];
-  const isVault = activeProfile.value === 'Vault' || isVaultUnlocked.value;
+  const isVault = isVaultUnlocked.value;
 
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');

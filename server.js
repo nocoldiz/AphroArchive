@@ -58,7 +58,7 @@ const screenshots = require('./server/screenshots-server');
 const database = require('./server/database-server');
 const seriesDb = require('./server/series-server');
 const albumsDb = require('./server/albums-server');
-const profiles = require('./server/profiles-server');
+const presets = require('./server/profiles-server');
 const remote = require('./server/remote-server');
 const settings = require('./server/settings-server');
 const search = require('./server/search-server');
@@ -441,21 +441,13 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/vault/link-fav' && req.method === 'POST') return vault.apiVaultLinkFav(req, res);
 
   // ── Presets ──────────────────────────────────────────────────────────
-  if (p === '/api/presets' && req.method === 'GET') return profiles.apiGetPresets(req, res);
-  if (p === '/api/presets/apply' && req.method === 'POST') return profiles.apiApplyPreset(req, res);
+  if (p === '/api/presets' && req.method === 'GET') return presets.apiGetPresets(req, res);
+  if (p === '/api/presets/apply' && req.method === 'POST') return presets.apiApplyPreset(req, res);
 
   // ── RSS feeds ────────────────────────────────────────────────────────
   if (p === '/api/rss/feeds' && req.method === 'GET') return rss.apiGetRssFeeds(req, res);
   if (p === '/api/rss/feeds' && req.method === 'POST') return rss.apiSaveRssFeeds(req, res);
   if (p === '/api/rss/refresh' && req.method === 'POST') return rss.apiRefreshRss(req, res);
-
-  // ── Profiles ─────────────────────────────────────────────────────────
-  if (p === '/api/profiles' && req.method === 'GET') return profiles.apiGetProfiles(req, res);
-  if (p === '/api/profiles/switch' && req.method === 'POST') return profiles.apiSwitchProfile(req, res);
-  if (p === '/api/profiles/create' && req.method === 'POST') return profiles.apiCreateProfile(req, res);
-  if (p === '/api/profiles/rename' && req.method === 'POST') return profiles.apiRenameProfile(req, res);
-  if (p === '/api/profiles/delete' && req.method === 'POST') return profiles.apiDeleteProfile(req, res);
-  if (p === '/api/profiles/clone' && req.method === 'POST') return profiles.apiCloneProfile(req, res);
 
   // ── Database ─────────────────────────────────────────────────────────
   if (p === '/api/db/folder-tags' && req.method === 'GET') return database.apiGetFolderTags(req, res);

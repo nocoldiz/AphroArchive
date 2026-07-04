@@ -1,5 +1,5 @@
 import { useState, useRef } from 'preact/hooks';
-import { importModalState, currentView, currentFolder, isVaultUnlocked, activeProfile } from '../../store';
+import { importModalState, currentView, currentFolder, isVaultUnlocked } from '../../store';
 
 type Tab = 'links' | 'files' | 'folder';
 
@@ -41,7 +41,7 @@ export const ImportModal = () => {
   const view = currentView.value;
   const cat = currentFolder.value;
   const destCategory = VIDEO_VIEWS.has(view) && cat ? cat : '';
-  const inVaultMode = isVaultUnlocked.value && activeProfile.value === 'Vault';
+  const inVaultMode = isVaultUnlocked.value;
   const vaultFolderName = (() => {
     const id = (window as any).vaultCurFolder;
     if (!id) return '';

@@ -1,4 +1,4 @@
-import { contextMenuState, profiles, activeProfile, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds, createTempProfile } from '../../store';
+import { contextMenuState, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds, createTempProfile } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 import { setItemPlacement, setSectionPlacement, PLUGINS_GROUP_ID } from './navItems';
@@ -16,8 +16,6 @@ export const ContextMenu = () => {
   const [physicalFolderRoot, setPhysicalFolderRoot] = useState('');
   const [physicalCurFolder, setPhysicalCurFolder] = useState<string | null>(null);
   const encryptPollRef = useRef<any>(null);
-
-  const [targetProfile, setTargetProfile] = useState('default');
 
   const closeMenu = () => {
     contextMenuState.value = { ...state, visible: false };
@@ -312,17 +310,12 @@ export const ContextMenu = () => {
   const handleEncrypt = async () => {
     ensureVaultUnlocked(() => {
       closeMenu();
-      if (activeProfile.value === 'Vault') {
-        execEncrypt();
-      } else {
-        setShowEncryptConfirm(true);
-      }
+      setShowEncryptConfirm(true);
     });
   };
 
   const handleUnlock = async () => {
     ensureVaultUnlocked(() => {
-      setTargetProfile(activeProfile.value === 'Vault' ? 'default' : activeProfile.value);
       setShowUnlockModal(true);
     });
   };
@@ -415,7 +408,7 @@ export const ContextMenu = () => {
     const r = await fetch('/api/folders/decrypt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: data.path, targetProfile })
+      body: JSON.stringify({ path: data.path })
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
@@ -458,18 +451,19 @@ export const ContextMenu = () => {
               icon="star"
               onClick={handleTogglePin}
             />
+            <ContextItem label="Hide" icon="eye-off" onClick={handleHide} />
             <ContextItem label="Show only pinned folders" icon="star" onClick={handleShowOnlyPinnedFolders} />
             {(appPrefs.value.hiddenFolders || []).length > 0 && (
               <ContextItem label="Unhide all folders" icon="eye" onClick={handleUnhideAllFolders} />
             )}
-            <ContextItem label="Rename" icon="edit" onClick={handleRename} />
-            <ContextItem label="Delete" icon="trash" onClick={handleDelete} />
-            <ContextItem label="Hide" icon="eye-off" onClick={handleHide} />
             <ContextItem
               label={appPrefs.value.hideEmptyFolders ? 'Show empty folders' : 'Hide empty folders'}
               icon="eye-off"
               onClick={() => { updatePrefs({ hideEmptyFolders: !appPrefs.value.hideEmptyFolders }); closeMenu(); }}
             />
+            <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
+            <ContextItem label="Rename" icon="edit" onClick={handleRename} />
+            <ContextItem label="Delete" icon="trash" onClick={handleDelete} />
             <ContextItem label="Open folder" icon="folder" onClick={handleOpenFolder} />
             <ContextItem label="Re-encode to H.265" icon="zap" onClick={async () => {
               closeMenu();
@@ -553,13 +547,8 @@ export const ContextMenu = () => {
             )}
             <ContextItem label="Encrypt" icon="lock" onClick={() => {
               closeMenu();
-              // Normal users must unlock the vault (password prompt) before encrypting
               ensureVaultUnlocked(() => {
-                if (activeProfile.value === 'Vault') {
-                  execEncryptVideo();
-                } else {
-                  setShowEncryptVideoConfirm(true);
-                }
+                setShowEncryptVideoConfirm(true);
               });
             }} />
             <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
@@ -668,16 +657,17 @@ export const ContextMenu = () => {
               icon="star"
               onClick={handleTogglePinTag}
             />
+            <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
             <ContextItem label="Show only pinned tags" icon="star" onClick={handleShowOnlyPinnedTags} />
             {(appPrefs.value.hiddenTags || []).length > 0 && (
               <ContextItem label="Unhide all tags" icon="eye" onClick={handleUnhideAllTags} />
             )}
+            <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
             <ContextItem label="Make Temp Profile" icon="user" onClick={() => {
               closeMenu();
               createTempProfile('tag', data.name, Array.isArray(data.terms) ? data.terms : []);
               toast(`Temp profile "${data.name}" — only this tag is shown`);
             }} />
-            <ContextItem label="Hide Tag" icon="eye-off" onClick={handleHideTag} />
             <ContextItem label="Rename Tag" icon="edit" onClick={handleRenameTag} />
             <ContextItem label="Remove from all videos" icon="trash" color="#ff4a4a" onClick={handleDeleteTag} />
           </>
@@ -712,17 +702,7 @@ export const ContextMenu = () => {
               <h2>Restore Folder</h2>
             </div>
             <div className="modal-body">
-              <p>Choose the target profile to restore this folder to:</p>
-              <select
-                value={targetProfile}
-                onChange={(e: any) => setTargetProfile(e.target.value)}
-                class="premium-input"
-                style={{ width: '100%', padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
-              >
-                {profiles.value.filter(p => p !== 'Vault').map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
+              <p>Restore this folder from the vault to your library?</p>
             </div>
             <div className="modal-footer">
               <button class="modal-btn modal-btn--primary" onClick={execUnlock}>Restore</button>
