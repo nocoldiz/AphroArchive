@@ -1,4 +1,4 @@
-import { contextMenuState, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds, createTempProfile } from '../../store';
+import { contextMenuState, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 import { setItemPlacement, setSectionPlacement, PLUGINS_GROUP_ID } from './navItems';
@@ -105,7 +105,8 @@ export const ContextMenu = () => {
     const toHide = folders.value
       .map((c: any) => c.path)
       .filter((p: string) => p && p !== 'uncategorized' && !pinned.has(p));
-    await updatePrefs({ hiddenFolders: toHide });
+    // Mutually exclusive with "show only pinned tags" — clear that mode first.
+    await updatePrefs({ hiddenFolders: toHide, pinnedTagsOnly: false });
     toast('Showing only pinned folders');
     closeMenu();
   };
@@ -198,7 +199,7 @@ export const ContextMenu = () => {
   };
 
   const handleUnhideAllTags = async () => {
-    await updatePrefs({ hiddenTags: [] });
+    await updatePrefs({ hiddenTags: [], pinnedTagsOnly: false });
     data.onRefresh?.();
     toast('All tags unhidden');
     closeMenu();
@@ -212,7 +213,8 @@ export const ContextMenu = () => {
       const toHide = (Array.isArray(groups) ? groups : [])
         .map((g: any) => g.displayName)
         .filter((n: string) => n && !pinned.has(n));
-      await updatePrefs({ hiddenTags: toHide });
+      // Mutually exclusive with "show only pinned folders" — clear that mode, activate this one.
+      await updatePrefs({ hiddenTags: toHide, hiddenFolders: [], pinnedTagsOnly: true });
       data.onRefresh?.();
       toast('Showing only pinned tags');
     } catch {
@@ -480,11 +482,6 @@ export const ContextMenu = () => {
             <ContextItem label="Compress Videos" icon="download" onClick={handleCompress} />
             <ContextItem label="Download ZIP" icon="download" onClick={handleDownloadZip} />
             <ContextItem label="Manage Subfolders" icon="folder" onClick={handleManageSubfolders} />
-            <ContextItem label="Make Temp Profile" icon="user" onClick={() => {
-              closeMenu();
-              createTempProfile('folder', data.path);
-              toast(`Temp profile "${data.name}" — only this folder is shown`);
-            }} />
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
             {data.encrypted ? (
               <ContextItem label="Restore to Profile" icon="lock" onClick={handleUnlock} />
@@ -663,11 +660,6 @@ export const ContextMenu = () => {
               <ContextItem label="Unhide all tags" icon="eye" onClick={handleUnhideAllTags} />
             )}
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
-            <ContextItem label="Make Temp Profile" icon="user" onClick={() => {
-              closeMenu();
-              createTempProfile('tag', data.name, Array.isArray(data.terms) ? data.terms : []);
-              toast(`Temp profile "${data.name}" — only this tag is shown`);
-            }} />
             <ContextItem label="Rename Tag" icon="edit" onClick={handleRenameTag} />
             <ContextItem label="Remove from all videos" icon="trash" color="#ff4a4a" onClick={handleDeleteTag} />
           </>

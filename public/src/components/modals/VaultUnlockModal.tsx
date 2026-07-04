@@ -46,7 +46,7 @@ export const VaultUnlockModal = () => {
       } else {
         setPassword('');
         isVaultUnlocked.value = true;
-        vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null };
+        vaultUnlockModalState.value = { visible: false };
       }
     } catch (e: any) {
       setError(e.message || 'Failed to unlock');
@@ -86,7 +86,7 @@ export const VaultUnlockModal = () => {
         setConfirmPassword('');
         setSelfDestructPassword('');
         isVaultUnlocked.value = true;
-        vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null };
+        vaultUnlockModalState.value = { visible: false };
       }
     } catch (e: any) {
       setError(e.message || 'Failed to setup');
@@ -201,7 +201,7 @@ export const VaultUnlockModal = () => {
           </button>
           <button
             class="modal-btn"
-            onClick={() => vaultUnlockModalState.value = { visible: false, targetProfileAfterUnlock: null }}
+            onClick={() => vaultUnlockModalState.value = { visible: false }}
           >
             Cancel
           </button>

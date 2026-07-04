@@ -51,37 +51,12 @@ export const PresetPicker = () => {
   const handleApply = async (selection: string[] | 'all' | 'blank', merge: boolean = state.mergeMode) => {
     setStatus('Applying…');
     try {
-      if (!state.mergeMode && Array.isArray(selection)) {
-        // Create a profile for each selected preset
-        for (const p of selection) {
-          const meta = presets.find(x => x.id === p);
-          await fetch('/api/profiles/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: p,
-              preset: p,
-              importLinks: importLinks && !!meta?.counts.links,
-              linkCount: linkCount > 0 ? linkCount : -1,
-            }),
-          });
-        }
-        // Switch to the first selected profile
-        if (selection.length > 0) {
-          await fetch('/api/profiles/switch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profile: selection[0] }),
-          });
-        }
-      } else {
-        const res = await fetch('/api/presets/apply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selection, merge, importLinks, linkCount: linkCount > 0 ? linkCount : -1 }),
-        });
-        if (!res.ok) throw new Error('Server error');
-      }
+      const res = await fetch('/api/presets/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selection, merge, importLinks, linkCount: linkCount > 0 ? linkCount : -1 }),
+      });
+      if (!res.ok) throw new Error('Server error');
 
       presetPickerState.value = { ...state, visible: false };
       window.location.reload();

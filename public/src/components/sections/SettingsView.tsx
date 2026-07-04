@@ -765,7 +765,7 @@ export const SettingsView = () => {
                 <i className="icon-database" /> Storage Paths
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
-                Override where cache, database, and vault files are stored. Applied to all profiles. Requires a server restart to take effect. If the configured folder is deleted, the default path is used.
+                Override where cache, database, and vault files are stored. Requires a server restart to take effect. If the configured folder is deleted, the default path is used.
               </p>
               {storagePaths && (() => {
                 const browse = async (key: 'cacheDir' | 'dbDir' | 'vaultDir') => {
@@ -794,7 +794,7 @@ export const SettingsView = () => {
                 };
                 const rows: { key: 'cacheDir' | 'dbDir' | 'vaultDir'; label: string; hint: string }[] = [
                   { key: 'cacheDir', label: 'Cache Folder', hint: 'Thumbnails, favourites, ratings, history and other cached data.' },
-                  { key: 'dbDir',    label: 'Database Folder', hint: 'SQLite database files for all profiles.' },
+                  { key: 'dbDir',    label: 'Database Folder', hint: 'SQLite database files.' },
                   { key: 'vaultDir', label: 'Vault / Hidden Folder', hint: 'Encrypted vault storage (videos/hidden by default).' },
                 ];
                 return (

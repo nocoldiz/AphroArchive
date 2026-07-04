@@ -37,24 +37,10 @@ let vaultTimer = null;
 // orphaning every already-encrypted file. While this counter is > 0 the
 // auto-lock timer is held off; resumeAutoLock() re-arms it once the job ends.
 let _autoLockHold = 0;
-// Set by scheduleDeferredLock() when a profile switch away from Vault happens
-// while an encryption/decryption job is running. Cleared in lockVault() and
-// when the vault is unlocked again. The lock fires when _autoLockHold returns
-// to 0 inside resumeAutoLock().
-let _deferredLock = false;
 function suspendAutoLock() { _autoLockHold++; if (vaultTimer) { clearTimeout(vaultTimer); vaultTimer = null; } }
 function resumeAutoLock() {
   if (_autoLockHold > 0) _autoLockHold--;
-  if (_autoLockHold === 0) {
-    if (_deferredLock) { _deferredLock = false; lockVault(); return; }
-    resetVaultTimer();
-  }
-}
-// Called by the profile-switch handler instead of lockVault() so that an
-// in-progress batch job can finish before the session key is cleared.
-function scheduleDeferredLock() {
-  if (_autoLockHold > 0) { _deferredLock = true; }
-  else { lockVault(); }
+  if (_autoLockHold === 0) resetVaultTimer();
 }
 
 const NO_CACHE_HEADERS = {
@@ -1887,7 +1873,7 @@ module.exports = {
   apiVaultImportDrop, decryptToBuffer, getFileMeta, apiVaultAiTag, apiVaultRename,
   apiVaultRestoreFile, apiVaultRestoreToOrigin,
   apiVaultGetLinks, apiVaultImportLinks, apiVaultMoveLinks, apiVaultRestoreLink, apiVaultRestoreLinks, apiVaultLinkFav,
-  deriveKeys, NO_CACHE_HEADERS, isUnlocked, lockVault, scheduleDeferredLock, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
+  deriveKeys, NO_CACHE_HEADERS, isUnlocked, lockVault, getVaultKey, encryptLocalFileToVault: _encryptLocalFileToVault,
   encryptBufferToVault, createVaultFolder, suspendAutoLock, resumeAutoLock, reconcileVaultOrphans,
   apiVaultThumb, apiVaultGenThumbs, apiVaultGenThumbsStatus, generateVaultThumb,
   shredFile: _shredFile,

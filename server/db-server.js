@@ -32,8 +32,8 @@ let _thumbs     = null;
 let _actors          = null;
 let _folderMappings  = null;
 let _channels         = null;
-// FTS5 full-text index state (declared here so switchProfile — which runs at
-// module load — can touch it before the helper section below is reached).
+// FTS5 full-text index state (declared here so the DB init block — which runs
+// at module load — can touch it before the helper section below is reached).
 let _ftsDirty = true;
 let _ftsAvailable = null;
 
@@ -339,11 +339,38 @@ function ensureSchema(database) {
 }
 
 // Initialize database; defer disk creation until preset is chosen if needed
+const DB_FILE = path.join(DB_DIR, 'db.db');
+
+function _clearCaches() {
+  _favs       = null;
+  _history    = null;
+  _videoMeta  = null; _notifyVideoMetaChanged();
+  _thumbs     = null;
+  _actors          = null;
+  _folderMappings  = null;
+  _channels         = null;
+  _ftsDirty         = true;
+}
+
+// Promote the first-run in-memory DB to a real file on disk. No-op if the DB is
+// already persisted. Called once the user picks a preset / completes onboarding.
+function persistDbToDisk() {
+  if (!_dbInMemory) return;
+  if (db) { try { db.close(); } catch {} }
+  fs.mkdirSync(DB_DIR, { recursive: true });
+  db = new DatabaseSync(DB_FILE);
+  db.exec('PRAGMA journal_mode=WAL');
+  db.exec('PRAGMA busy_timeout=5000');
+  ensureSchema(db);
+  runMigrations(db);
+  _dbInMemory = false;
+  _clearCaches();
+}
+
 {
-  const dbPath = path.join(DB_DIR, 'db.db');
-  if (fs.existsSync(dbPath)) {
+  if (fs.existsSync(DB_FILE)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
-    db = new DatabaseSync(dbPath);
+    db = new DatabaseSync(DB_FILE);
     db.exec('PRAGMA journal_mode=WAL');
     db.exec('PRAGMA busy_timeout=5000');
     ensureSchema(db);
@@ -355,16 +382,7 @@ function ensureSchema(database) {
     db = new DatabaseSync(':memory:');
     ensureSchema(db);
   }
-
-  // Clear caches
-  _favs       = null;
-  _history    = null;
-  _videoMeta  = null; _notifyVideoMetaChanged();
-  _thumbs     = null;
-  _actors          = null;
-  _folderMappings  = null;
-  _channels         = null;
-  _ftsDirty         = true;
+  _clearCaches();
 }
 
 
@@ -2082,6 +2100,7 @@ module.exports = {
   loadFilesMeta, upsertFileMeta, deleteFileMeta,
   loadFileVirtualFolders, setFileVirtualFolder, renameFileVirtualFolder, deleteFileVirtualFolder, listFileVirtualFolderNames,
   isDbOnDisk: () => !_dbInMemory,
+  persistDbToDisk,
   closeDb: () => { if (db) { db.close(); db = null; } },
   getMediaCounts,
   saveLinksToDb, loadAllVideoTags,

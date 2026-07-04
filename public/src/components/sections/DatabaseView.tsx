@@ -215,7 +215,7 @@ export const DatabaseView = () => {
       if (!res.ok) throw new Error('Server error');
       
       const w = window as any;
-      if (w.toast) w.toast('Profile reset complete');
+      if (w.toast) w.toast('Database reset complete');
       loadTab(activeTab);
     } catch (e: any) {
       alert('Reset failed: ' + e.message);
@@ -699,7 +699,7 @@ export const DatabaseView = () => {
       {activeTab !== 'folders' && activeTab !== 'wildcards' && activeTab !== 'series' && activeTab !== 'albums' && (
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
           <input ref={importFileRef} type="file" accept=".json" title="Import JSON" style={{ display: 'none' }} onChange={handleImportJson} />
-          <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: false }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset as Profile</button>
+          <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: true }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset</button>
           <button className="modal-btn" onClick={handleReset} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Reset to Preset</button>
           {activeTab === 'actors' && (
             <button className="modal-btn" onClick={() => setScraperModalOpen(true)} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Scrape Actor Data</button>

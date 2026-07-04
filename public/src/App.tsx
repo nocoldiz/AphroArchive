@@ -2,7 +2,6 @@ import { useEffect, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
 import { videos, loadVideos, loadPrefs, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, isVaultUnlocked, folders, appReady, serverConnected } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
-import { ProfileModal } from './components/modals/ProfileModal';
 import { OnboardingWizard } from './components/modals/OnboardingWizard';
 import { ConnectModal } from './components/modals/ConnectModal';
 import { DropOverlay } from './components/UI/DropOverlay';
@@ -248,7 +247,6 @@ export function App() {
     <>
       <OnboardingWizard />
       <PresetPicker />
-      <ProfileModal />
       {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}
       <DropOverlay />
       {!appReady.value && (

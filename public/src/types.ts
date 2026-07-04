@@ -79,6 +79,7 @@ export interface AppPrefs {
   pinnedFolders?: string[];
   pinnedTags?: string[];
   hiddenFolders?: string[];
+  pinnedTagsOnly?: boolean;
   comfyuiUrl?: string;
   comfyuiWorkflowJson?: string;
   comfyuiPositiveNodeId?: string;

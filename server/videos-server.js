@@ -318,11 +318,11 @@ async function runEncryptFolder(catPath) {
 }
 
 // Run decryption in background
-async function runDecryptFolder(catPath, targetProfile) {
+async function runDecryptFolder(catPath) {
   if (_encryptionProgress.running) return false;
   _encryptionCancel = false;
   const { isUnlocked, getVaultKey, suspendAutoLock, resumeAutoLock } = require('./vault-server');
-  const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
+  const { loadVaultMeta, saveVaultMeta, setVideoMetaFields } = require('./db-server');
 
   if (!isUnlocked()) {
     updateEncryptionProgress({ error: 'Vault is locked. Unlock it first', running: false });
@@ -349,7 +349,6 @@ async function runDecryptFolder(catPath, targetProfile) {
     const total = itemsToDecrypt.length;
     let doneCount = 0;
     const vaultKey = getVaultKey();
-    const originalProfile = getCurrentProfile();
 
     for (const item of itemsToDecrypt) {
       if (_encryptionCancel) {
@@ -372,9 +371,7 @@ async function runDecryptFolder(catPath, targetProfile) {
       const newId = toId(newRel);
 
       if (item.videoMeta) {
-        switchProfile(targetProfile);
         setVideoMetaFields(newId, item.videoMeta);
-        switchProfile(originalProfile);
       }
 
       const oldThumb = path.join(THUMBS_DIR, item.id);
@@ -655,31 +652,6 @@ async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
 }
 
 async function allVideos(forceAll = false) {
-  const db = require('./db-server');
-  if (db.getCurrentProfile() === 'Vault' && !forceAll) {
-    const { loadVaultMeta } = require('./db-server');
-    const meta = loadVaultMeta();
-    const list = [];
-    for (const [id, item] of Object.entries(meta)) {
-      if (item.type !== 'folder') {
-        list.push({
-          id,
-          name: item.originalName || item.name,
-          rel: id + '.enc',
-          ext: item.ext || '',
-          catPath: item.category || '',
-          encrypted: true,
-          // Mark as a vault item so the player streams via /api/vault/stream/:id
-          // (decrypting on the fly) instead of /api/stream/:id, which 404s.
-          isVault: true,
-          mtime: item.mtime || Date.now(),
-          size: item.size || 0
-        });
-      }
-    }
-    return list;
-  }
-
   const all    = await cachedScan();
   const meta   = loadVideoMeta();
   
@@ -749,13 +721,6 @@ function isUnlocked(catPath) {
 }
 
 function getUnlockKey(catPath) {
-  const db = require('./db-server');
-  const { isUnlocked, getVaultKey } = require('./vault-server');
-  
-  if (db.getCurrentProfile() === 'Vault' && isUnlocked()) {
-    return getVaultKey();
-  }
-
   let p = getCatKey(catPath);
   while (true) {
     if (unlockedFolders.has(p)) return unlockedFolders.get(p);
@@ -953,13 +918,7 @@ async function apiVideos(req, res, params) {
 }
 
 async function apiFolders(req, res, params) {
-  const db = require('./db-server');
-  // all=1 (vault unlocked only): mirrors apiVideos' Global view — use the
-  // disk-scan set bypassing the per-profile enabled-categories filter.
-  const showAll = !!params && params.get('all') === '1' && require('./vault-server').isUnlocked();
-  // Vault Only: build categories from the Vault's own item list (catPath = item.category)
-  const isVaultOnly = db.getCurrentProfile() === 'Vault' && !showAll;
-  const videos = isVaultOnly ? await allVideos(false) : await cachedScan();
+  const videos = await cachedScan();
   const meta = loadVideoMeta();
   const catMap = new Map();
 
@@ -999,9 +958,8 @@ async function apiFolders(req, res, params) {
   }
 
   // Include empty directories from the filesystem so newly created folders appear
-  // (skipped in Vault Only mode — vault categories come purely from vault meta)
   try {
-    if (!isVaultOnly && fs.existsSync(VIDEOS_DIR)) {
+    if (fs.existsSync(VIDEOS_DIR)) {
       // Async (non-blocking) walk: a sync recursive readdir here stalls the
       // single-threaded event loop, delaying the concurrent /api/videos
       // response from flushing even when it's already built.
@@ -1076,9 +1034,8 @@ async function apiFolders(req, res, params) {
 
   const vaultCats = getVaultCategoryPaths();
 
-  // Remove categories whose physical directory no longer exists — vault-only
-  // categories live purely in the Vault's item list, so skip this for them.
-  if (!isVaultOnly) {
+  // Remove categories whose physical directory no longer exists.
+  {
     let sfPrefs;
     try { sfPrefs = loadPrefs(); } catch (e) { sfPrefs = {}; }
     const existingSF = (sfPrefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
@@ -1280,11 +1237,9 @@ async function apiCreateFolder(req, res) {
   catch (e) { json(res, { error: e.message }, 500); }
 }
 
-// ── Physical folder management (non-Vault profiles only) ──────────────
+// ── Physical folder management ────────────────────────────────────────
 
 async function apiFolderCreate(req, res) {
-  const { getCurrentProfile } = require('./db-server');
-  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
   const body = await readBody(req);
   const parentPath = (body.parentPath || '').replace(/[<>:"|?*]/g, '_');
   const name = (body.name || '').trim().replace(/[<>:"|?*]/g, '_');
@@ -1299,8 +1254,6 @@ async function apiFolderCreate(req, res) {
 }
 
 async function apiFolderRename(req, res) {
-  const { getCurrentProfile } = require('./db-server');
-  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
   const body = await readBody(req);
   const oldPath = body.path;
   const newName = (body.newName || '').trim().replace(/[<>:"|?*]/g, '_');
@@ -1317,8 +1270,6 @@ async function apiFolderRename(req, res) {
 }
 
 async function apiFolderDelete(req, res) {
-  const { getCurrentProfile } = require('./db-server');
-  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
   const body = await readBody(req);
   const folderPath = body.path;
   if (!folderPath) return json(res, { error: 'path required' }, 400);
@@ -1348,8 +1299,6 @@ async function apiFolderDelete(req, res) {
 }
 
 async function apiFolderMove(req, res) {
-  const { getCurrentProfile } = require('./db-server');
-  if (getCurrentProfile() === 'Vault') return json(res, { error: 'Use vault folder API in Vault mode' }, 409);
   const body = await readBody(req);
   const fromPath = body.fromPath;
   const toParentPath = body.toParentPath || '';
@@ -3241,22 +3190,21 @@ async function apiUnlockFolder(req, res) {
 }
 
 async function apiDecryptFolder(req, res) {
-  const { isUnlocked, getVaultKey } = require('./vault-server');
-  const { loadVaultMeta, saveVaultMeta, switchProfile, getCurrentProfile, setVideoMetaFields } = require('./db-server');
-  
+  const { isUnlocked } = require('./vault-server');
+
   const body = await readBody(req);
-  const { path: catPath, targetProfile } = body;
-  
-  if (!catPath || !targetProfile) return json(res, { error: 'path and targetProfile required' }, 400);
-  
+  const { path: catPath } = body;
+
+  if (!catPath) return json(res, { error: 'path required' }, 400);
+
   if (!isUnlocked()) {
     return json(res, { error: 'Vault is locked. Unlock it first' }, 401);
   }
-  
+
   // Start background decryption task and return immediately
   try {
     if (_encryptionProgress.running) return json(res, { error: 'Another encryption/decryption is already running' }, 409);
-    runDecryptFolder(catPath, targetProfile).catch(err => console.error('[apiDecryptCategory] background error:', err));
+    runDecryptFolder(catPath).catch(err => console.error('[apiDecryptCategory] background error:', err));
     json(res, { ok: true });
   } catch (e) {
     json(res, { error: e.message }, 500);

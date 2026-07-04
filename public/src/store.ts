@@ -89,7 +89,6 @@ export const mediaCounts = signal<{ links: number; audio: number; books: number;
 export const actors = signal<Actor[]>([]);
 export const channels = signal<Channel[]>([]);
 export const appPrefs = signal<Partial<AppPrefs>>({});
-export const profileModalState = signal<{ visible: boolean }>({ visible: false });
 
 // ─── Navigation & View State ──────────────────────────────────────────
 export const currentView = signal<string>('hub');
@@ -397,66 +396,8 @@ export const selectedVideoIds = signal<Set<string>>(new Set());
 export const encryptingVideoIds = signal<Set<string>>(new Set());
 export const isMuted = signal<boolean>(localStorage.getItem('isMuted') === 'true');
 
-// ── Temporary profiles ──────────────────────────────────────────────
-// Ephemeral, in-memory-only profiles that scope the entire library to a
-// single folder or tag. They are never persisted, so they vanish when the
-// app closes. Multiple can exist at once; each is named after its source
-// folder/tag. Activating one hides every folder/video outside its scope.
-export interface TempProfile {
-  name: string;
-  kind: 'folder' | 'tag';
-  value: string;     // folder catPath or tag name
-  terms?: string[];  // tag terms for name-based matching
-}
-export const tempProfiles = signal<TempProfile[]>([]);
-export const activeTempProfile = signal<TempProfile | null>(null);
-
-// True when a video belongs to the given temp profile's scope.
-export function videoInTempProfile(v: any, tp: TempProfile): boolean {
-  if (tp.kind === 'folder') {
-    if (v.isLink) return false;
-    const cl = tp.value.toLowerCase().replace(/\\/g, '/');
-    const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
-    return vp === cl || vp.startsWith(cl + '/') || v.category === tp.value;
-  }
-  const tagLo = tp.value.toLowerCase();
-  if (v.tags && (v.tags as string[]).some((t: string) => t.toLowerCase() === tagLo)) return true;
-  if (tp.terms && tp.terms.length) {
-    const name = (v.name || '').toLowerCase();
-    return tp.terms.some(t =>
-      new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(name)
-    );
-  }
-  return false;
-}
-
-// Create (or reuse) a temp profile for a folder/tag and switch to it.
-export async function createTempProfile(kind: 'folder' | 'tag', value: string, terms: string[] = []) {
-  const name = kind === 'folder' && value.includes('/') ? value.split('/').pop()! : value;
-  const tp: TempProfile = { name, kind, value, terms };
-  const existing = tempProfiles.value.find(p => p.kind === kind && p.value === value);
-  if (existing) {
-    tempProfiles.value = tempProfiles.value.map(p => p === existing ? tp : p);
-  } else {
-    tempProfiles.value = [...tempProfiles.value, tp];
-  }
-  await activateTempProfile(tp);
-}
-
-export async function activateTempProfile(tp: TempProfile) {
-  activeTempProfile.value = tp;
-  profileModalState.value = { visible: false };
-  await reloadAppData();
-}
-
-// Leave temp-profile mode and return to the underlying real profile.
-export async function exitTempProfile() {
-  if (!activeTempProfile.value) return;
-  activeTempProfile.value = null;
-  await reloadAppData();
-}
 export const dbPendingOpen = signal<{ tab: string; action: 'add' } | null>(null);
-export const vaultUnlockModalState = signal<{ visible: boolean; targetProfileAfterUnlock: string | null }>({ visible: false, targetProfileAfterUnlock: null });
+export const vaultUnlockModalState = signal<{ visible: boolean }>({ visible: false });
 
 // Vault topbar toggle: false = Vault-Only view (default), true = Global view
 // (all files from all profiles, allowing import/encryption into the Vault)
@@ -477,7 +418,7 @@ export async function ensureVaultUnlocked(action: () => void) {
       action();
       return;
     }
-    vaultUnlockModalState.value = { visible: true, targetProfileAfterUnlock: null };
+    vaultUnlockModalState.value = { visible: true };
     const interval = setInterval(async () => {
       const s = await fetch('/api/vault/status').then(r => r.json()).catch(() => null);
       if (s && s.unlocked) {
@@ -494,43 +435,9 @@ export async function ensureVaultUnlocked(action: () => void) {
 }
 export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
-// Resets navigation/filter state and reloads data, mirroring App.tsx's initial
-// load — used after vault operations so the UI reflects current state.
-export async function reloadAppData() {
-  currentVideo.value = null;
-  currentView.value = 'hub';
-  currentFolder.value = '';
-  currentTag.value = null;
-  currentTagTerms.value = [];
-  currentActor.value = null;
-  currentChannel.value = null;
-  currentPhotoFolder.value = '';
-  searchQuery.value = '';
-  encryptingVideoIds.value = new Set();
-  vaultGlobalView.value = false;
-  if (location.pathname !== '/') history.pushState(null, '', '/');
-
-  // Clear legacy window vault state so stale data from the previous profile
-  // isn't visible while the new profile loads.
-  const w = window as any;
-  w.vaultFiles = []; w.vaultPl = []; w.vaultPlIdx = 0;
-  w.vaultPhotos = []; w.vaultPhotoIdx = -1;
-  w.vaultFolders = []; w.vaultCurFolder = null;
-  w.vaultSel = new Set();
-
-  // loadVideos() already fetches /api/folders and sets the folders signal, so
-  // loadFolders() would duplicate that heavy request — omit it here.
-  await Promise.all([loadVideos(), loadPrefs()]);
-
-  try {
-    const s = await (await fetch('/api/vault/status')).json();
-    isVaultUnlocked.value = !!s.unlocked;
-  } catch {}
-}
-
 if (typeof document !== 'undefined') {
   folders.subscribe(list => {
-    if (list.length && !vaultGlobalView.value && !activeTempProfile.value) {
+    if (list.length && !vaultGlobalView.value) {
       writeFoldersCache(list);
     }
   });
@@ -934,6 +841,18 @@ export const filteredVideos = computed(() => {
     });
   }
 
+  // Pinned-tags-only mode: exclude videos that don't carry any pinned tag.
+  // Only active when not already browsing a specific folder or tag.
+  if (appPrefs.value.pinnedTagsOnly && !currentFolder.value && !currentTag.value) {
+    const pinned = new Set((appPrefs.value.pinnedTags || []).map((t: string) => t.toLowerCase()));
+    if (pinned.size > 0) {
+      list = list.filter(v => {
+        if (v.isLink) return true;
+        return ((v.tags || []) as string[]).some(t => pinned.has(t.toLowerCase()));
+      });
+    }
+  }
+
   // Apply sorting or shuffle
   if (isShuffle.value) {
     if (shuffleSeed.value !== _shuffleSeedApplied) {
@@ -1159,9 +1078,7 @@ async function loadVideosInner() {
     .map(linkItemToVideo);
 
   // Refresh the localStorage cache that seeds the Links dropdown on next load.
-  // Skip while a temp profile is active so its scoped subset doesn't poison
-  // the cache.
-  if (!vaultGlobalView.value && !activeTempProfile.value) {
+  if (!vaultGlobalView.value) {
     writeLinksCache(linkVideos, linkTotalCount.value);
   }
 
@@ -1174,11 +1091,6 @@ async function loadVideosInner() {
     : data;
 
   let combined = [...localVideos, ...linkVideos];
-
-  // A temp profile scopes the whole library to one folder/tag: everything
-  // outside its scope is dropped before the lists/counts are computed.
-  const tp = activeTempProfile.value;
-  if (tp) combined = combined.filter(v => videoInTempProfile(v, tp));
 
   allVideos.value = combined;
   videos.value = combined;
