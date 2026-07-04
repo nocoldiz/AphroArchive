@@ -1,12 +1,13 @@
 ﻿import { formatVideoTitle } from '../../utils';
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, appPrefs } from '../../store';
+import { currentVideo, currentView, videos, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs } from '../../store';
+import { renameVideo } from '../../api';
 import { zapOn, zapStartTime } from '../../zap';
 import { isTVMode, tvStartTime, nextVideoInChannel } from '../../tv-mode';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 import { VideoCard } from '../UI/VideoGrid';
-import { AdvancedPlayer } from '../UI/AdvancedPlayer';
+import { AdvancedPlayer, localZapOn } from '../UI/AdvancedPlayer';
 import { playerSeries, playerSeason } from '../../series';
 import { getThumbPref, setThumbPref } from '../../thumbPref';
 
@@ -38,6 +39,10 @@ export const PlayerView = () => {
   const [channel, setChannel] = useState<string>('');
   const [rating, setRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
+  const [hoverTitle, setHoverTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const cancelRenameRef = useRef(false);
   const [chapters, setChapters] = useState<any[]>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
   const [subtitles, setSubtitles] = useState<any[]>([]);
@@ -200,6 +205,10 @@ export const PlayerView = () => {
       playerHistory.value = [];
     }
   }, [video]);
+
+  // Leaving the player entirely stops Local Zap (it persists across video
+  // changes on purpose, so only a full exit from the player view clears it).
+  useEffect(() => () => { localZapOn.value = false; }, []);
 
   const handleDragStart = (e: any, index: number) => {
     e.dataTransfer.setData('text/plain', index.toString());
@@ -412,6 +421,44 @@ export const PlayerView = () => {
       />
     );
   }
+
+  const commitTitleRename = async () => {
+    const trimmed = titleDraft.trim();
+    setEditingTitle(false);
+    if (cancelRenameRef.current) { cancelRenameRef.current = false; return; }
+    if (!video || !trimmed || trimmed === video.name) return;
+    try {
+      const res = await renameVideo(video.id, trimmed);
+      const list = [...videos.value];
+      const idx = list.findIndex(v => v.id === video.id);
+      if (idx >= 0) { list[idx] = { ...list[idx], id: res.newId, name: trimmed }; videos.value = list; }
+      const allList = [...allVideos.value];
+      const idx2 = allList.findIndex(v => v.id === video.id);
+      if (idx2 >= 0) { allList[idx2] = { ...allList[idx2], id: res.newId, name: trimmed }; allVideos.value = allList; }
+      if (currentVideo.value && currentVideo.value.id === video.id) {
+        currentVideo.value = { ...currentVideo.value, id: res.newId, name: trimmed };
+      }
+      const w = window as any;
+      if (w.toast) w.toast('Renamed successfully');
+    } catch (e: any) {
+      const w = window as any;
+      if (w.toast) w.toast(e.message || 'Failed to rename');
+    }
+  };
+
+  const openTitleSelectionMenu = (e: MouseEvent) => {
+    const sel = window.getSelection()?.toString().trim();
+    if (!sel) return; // no selection → let the browser show its default menu
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuState.value = {
+      visible: true,
+      x: (e as any).clientX,
+      y: (e as any).clientY,
+      type: 'text-selection',
+      data: { text: sel },
+    };
+  };
 
   const updateRating = async (stars: number | null) => {
     if (!video) return;
@@ -716,7 +763,41 @@ export const PlayerView = () => {
 
           <div className="player-info">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <h1 id="player-title" style={{ margin: 0 }}>{formatVideoTitle(video.name)}</h1>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}
+                onMouseEnter={() => setHoverTitle(true)}
+                onMouseLeave={() => setHoverTitle(false)}
+              >
+                {editingTitle ? (
+                  <input
+                    type="text"
+                    value={titleDraft}
+                    autoFocus
+                    onInput={(e: any) => setTitleDraft(e.target.value)}
+                    onKeyDown={(e: any) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                      else if (e.key === 'Escape') { cancelRenameRef.current = true; e.currentTarget.blur(); }
+                    }}
+                    onBlur={commitTitleRename}
+                    style={{ flex: 1, fontSize: '1.6rem', fontWeight: 700, padding: '4px 8px', background: 'var(--bg3)', border: '1px solid var(--ac)', color: 'var(--tx)', borderRadius: '4px' }}
+                  />
+                ) : (
+                  <>
+                    <h1 id="player-title" style={{ margin: 0 }} onContextMenu={openTitleSelectionMenu}>{formatVideoTitle(video.name)}</h1>
+                    <button
+                      type="button"
+                      title="Rename"
+                      onClick={() => { setTitleDraft(video.name); setEditingTitle(true); }}
+                      style={{ opacity: hoverTitle ? 1 : 0, transition: 'opacity 0.15s', background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+              </div>
               <div className="player-rating" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '1.4rem' }}>
                 {[1, 2, 3, 4, 5].map(i => (
                   <span key={i} style={{ color: i <= (hoveredRating ?? rating ?? 0) ? 'var(--ac)' : 'var(--brd)', cursor: 'pointer' }}

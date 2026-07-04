@@ -4,6 +4,7 @@ import { Search } from './Search';
 import { DownloadManager } from './DownloadManager';
 import { SyncManager } from './SyncManager';
 import { FilterDropdowns, SectionDropdowns, PluginsDropdown } from './LibraryFilters';
+import { LoadProgress } from './LoadProgress';
 import { currentView, isMuted, isSidebarOpen, importModalState, isVaultUnlocked, vaultGlobalView, loadVideos, sidebarCollapsed, openExternalFolder, appPrefs } from '../../store';
 import { zapOn } from '../../zap';
 import { isTVMode } from '../../tv-mode';
@@ -304,6 +305,7 @@ export const Topbar = () => {
       )}
 
       <div className="tb-acts">
+        <LoadProgress />
         <button
           onClick={() => { currentView.value = 'vault'; isSidebarOpen.value = false; }}
           title="Open Vault"

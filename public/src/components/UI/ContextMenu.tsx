@@ -664,6 +664,25 @@ export const ContextMenu = () => {
             <ContextItem label="Remove from all videos" icon="trash" color="#ff4a4a" onClick={handleDeleteTag} />
           </>
         )}
+        {type === 'text-selection' && (() => {
+          const text = String(data?.text || '').trim();
+          const short = text.length > 30 ? text.slice(0, 30) + '…' : text;
+          const addEntry = async (dbType: 'actors' | 'channels', label: string) => {
+            closeMenu();
+            const r = await fetch(`/api/db/${dbType}/upsert`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: text, data: {} }),
+            });
+            toast(r.ok ? `Added ${label} "${short}"` : `Failed to add ${label}`);
+          };
+          return (
+            <>
+              <ContextItem label={`Add "${short}" as Actor`} icon="user" onClick={() => addEntry('actors', 'actor')} />
+              <ContextItem label={`Add "${short}" as Channel`} icon="link" onClick={() => addEntry('channels', 'channel')} />
+            </>
+          );
+        })()}
         {(type === 'file' || type === 'book' || type === 'audio' || type === 'photo' || type === 'page') && (
           <>
             {data.onOpen && <ContextItem label="Open" icon="folder" onClick={() => {

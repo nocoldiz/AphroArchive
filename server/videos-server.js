@@ -1372,29 +1372,33 @@ async function apiVideoDetail(req, res, id) {
   const enabledPaths = loadEnabledFolders();
   const visibleVideos = enabledPaths.length ? videos.filter(x => isFolderEnabled(x.catPath, enabledPaths)) : videos;
 
-  // Actor → [videoId] inverted index (cached; see _getActorIndex).
-  const actorIndex = _getActorIndex(meta);
+  // Related-video ranking priority: same actor ≫ same studio (channel) ≫
+  // shared tags ≫ same folder. Weighted so a higher tier always outranks any
+  // amount of a lower tier.
+  const actorSet = new Set(combinedActors.map(a => a.toLowerCase()));
+  const vChannel = (vMeta.channel || '').toLowerCase();
+  const vTagSet  = new Set(metaTags.map(t => t.toLowerCase()));
 
-  // Collect candidate video IDs that share at least one actor with this video.
-  const candidateIds = new Set();
-  for (const a of combinedActors) {
-    const s = actorIndex.get(a.toLowerCase());
-    if (s) s.forEach(id => candidateIds.add(id));
+  const scored = [];
+  for (const x of visibleVideos) {
+    if (x.id === v.id) continue;
+    const xm = meta[x.id] || {};
+    let score = 0;
+
+    const sharedActors = (xm.actors || []).filter(a => actorSet.has(a.toLowerCase())).length;
+    score += sharedActors * 1000;
+
+    if (vChannel && (xm.channel || '').toLowerCase() === vChannel) score += 100;
+
+    if (vTagSet.size) {
+      const sharedTags = (xm.tags || []).filter(t => vTagSet.has(t.toLowerCase())).length;
+      score += sharedTags * 10;
+    }
+
+    if (x.category === v.category) score += 1;
+
+    if (score > 0) scored.push({ video: x, score });
   }
-  candidateIds.delete(v.id);
-
-  // Score only candidates (shared actors) plus same-category videos.
-  const sameCat = visibleVideos.filter(x => x.id !== v.id && x.category === v.category && !candidateIds.has(x.id));
-  const candidates = visibleVideos.filter(x => candidateIds.has(x.id));
-
-  const scored = [
-    ...candidates.map(x => {
-      const xActors = meta[x.id]?.actors || [];
-      const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
-      return { video: x, score: shared.length * 100 + (x.category === v.category ? 50 : 0) };
-    }),
-    ...sameCat.map(x => ({ video: x, score: 50 })),
-  ];
 
   const suggested = scored
     .sort((a, b) => b.score - a.score || (a.video.id < b.video.id ? -1 : 1))
@@ -1441,27 +1445,32 @@ async function apiVideoDetailFast(req, res, id) {
   const visibleVideos = enabledPaths.length ? allVisible.filter(x => isFolderEnabled(x.catPath, enabledPaths)) : allVisible;
   const allMeta = db.loadVideoMeta();
 
-  const actorIndex = _getActorIndex(allMeta);
+  // Related-video ranking priority: same actor ≫ same studio (channel) ≫
+  // shared tags ≫ same folder (see apiVideoDetail for the weighting rationale).
+  const actorSet = new Set(combinedActors.map(a => a.toLowerCase()));
+  const vChannel = (vMeta.channel || '').toLowerCase();
+  const vTagSet  = new Set(metaTags.map(t => t.toLowerCase()));
 
-  const candidateIds = new Set();
-  for (const a of combinedActors) {
-    const s = actorIndex.get(a.toLowerCase());
-    if (s) s.forEach(xid => candidateIds.add(xid));
+  const scored = [];
+  for (const x of visibleVideos) {
+    if (x.id === v.id) continue;
+    const xm = allMeta[x.id] || {};
+    let score = 0;
+
+    const sharedActors = (xm.actors || []).filter(a => actorSet.has(a.toLowerCase())).length;
+    score += sharedActors * 1000;
+
+    if (vChannel && (xm.channel || '').toLowerCase() === vChannel) score += 100;
+
+    if (vTagSet.size) {
+      const sharedTags = (xm.tags || []).filter(t => vTagSet.has(t.toLowerCase())).length;
+      score += sharedTags * 10;
+    }
+
+    if (x.category === v.category) score += 1;
+
+    if (score > 0) scored.push({ video: { ...x, fav: favs.includes(x.id), rating: xm.rating ?? null }, score });
   }
-  candidateIds.delete(v.id);
-
-  const sameCat = visibleVideos.filter(x => x.id !== v.id && x.category === v.category && !candidateIds.has(x.id));
-  const candidateVids = visibleVideos.filter(x => candidateIds.has(x.id));
-
-  const scored = [
-    ...candidateVids.map(x => {
-      const xActors = allMeta[x.id]?.actors || [];
-      const shared = combinedActors.filter(a => xActors.some(xa => xa.toLowerCase() === a.toLowerCase()));
-      const score = shared.length * 100 + (x.category === v.category ? 50 : 0);
-      return { video: { ...x, fav: favs.includes(x.id), rating: allMeta[x.id]?.rating ?? null }, score };
-    }),
-    ...sameCat.map(x => ({ video: { ...x, fav: favs.includes(x.id), rating: allMeta[x.id]?.rating ?? null }, score: 50 })),
-  ];
 
   const suggested = scored
     .sort((a, b) => b.score - a.score || (a.video.id < b.video.id ? -1 : 1))

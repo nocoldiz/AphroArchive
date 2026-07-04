@@ -1194,7 +1194,7 @@ input {
 
 .video-player-wrap {
   width: 100%;
-  max-width: 940px;
+  max-width: 1200px;
   margin: 0 auto;
   border-radius: var(--rl);
   overflow: hidden;
@@ -1206,7 +1206,23 @@ input {
 .video-player-wrap video {
   width: 100%;
   display: block;
-  max-height: 70vh
+  max-height: 85vh
+}
+
+/* When the wrapper itself is the fullscreen element (kept stable so fullscreen
+   survives switching to the next/previous video), drop the library layout caps. */
+.video-player-wrap:fullscreen,
+.video-player-wrap:-webkit-full-screen {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  border-radius: 0
+}
+
+.video-player-wrap:fullscreen .advanced-player,
+.video-player-wrap:-webkit-full-screen .advanced-player {
+  width: 100%;
+  height: 100%
 }
 
 .video-subtitle-overlay {
@@ -4208,6 +4224,32 @@ input {
 .sidebar-heading-add:hover {
   color: var(--ac);
   background: var(--ac)18
+}
+
+/* Circular library-load progress ring (topbar + tag list header) */
+.load-progress {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.load-progress-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--tx2);
+  line-height: 1;
+}
+.load-progress-arc {
+  transition: stroke-dashoffset 0.25s ease;
+}
+.load-progress-spin svg {
+  animation: spin 0.9s linear infinite;
 }
 
 .sidebar-heading-actions {

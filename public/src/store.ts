@@ -367,6 +367,10 @@ if (typeof document !== 'undefined') {
   });
 }
 export const isLoadingVideos = signal<boolean>(false);
+// Load progress (0–100) reflecting how many videos have streamed in relative to
+// the server's reported total. Drives the circular loader in the topbar/sidebar.
+// -1 means "indeterminate" (loading started but total not yet known).
+export const loadProgress = signal<number>(-1);
 export const duplicatesDeleteProgress = signal<{ running: boolean; done: number; total: number }>({ running: false, done: 0, total: 0 });
 export const appReady = signal<boolean>(false);
 export const sortMode = signal<string>(localStorage.getItem('sortMode') || 'date');
@@ -972,12 +976,14 @@ export async function closeOpenedFolder(openedRoot: string) {
 
 export async function loadVideos() {
   isLoadingVideos.value = true;
+  loadProgress.value = -1; // indeterminate until the first page reports a total
   try {
     await loadVideosInner();
   } catch (e) {
     (window as any).toastError?.('Could not load videos — is the server still running? Check the terminal.');
   } finally {
     isLoadingVideos.value = false;
+    loadProgress.value = 100;
   }
 }
 
@@ -1033,14 +1039,18 @@ async function loadVideosInner() {
     // Stream the remaining pages in the background, sequentially so they
     // never occupy more than one connection.
     const total = firstBody.total ?? data.length;
+    // Drive the circular loader: percent of the reported total streamed so far.
+    loadProgress.value = total > 0 ? Math.min(100, Math.round((data.length / total) * 100)) : 100;
     for (let off = PAGE; off < total; off += PAGE) {
       try {
         const r = await fetch(`${videosUrl}${sep}limit=${PAGE}&offset=${off}`);
         if (!r.ok) break;
         const d = await r.json();
         data = data.concat(d.items || []);
+        loadProgress.value = Math.min(99, Math.round((data.length / total) * 100));
       } catch { break; }
     }
+    loadProgress.value = 100;
   }
 
   // Secondary data — off the critical path, fetched after the grid painted.

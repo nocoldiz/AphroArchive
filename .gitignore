@@ -103,3 +103,6 @@ dist/links_downloaded.txt
 dist/links_to_download.txt
 dist
 
+.aider*
+GEMINI_API_KEY=AIzaSyCefHwYPxvo3HjFibd80aZPGdcpSxP5_kY
+GEMINI_API_KEY=AIzaSyAnbDYetpqScam7btTaQ0SRujp3xGL9k4k

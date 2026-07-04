@@ -3,6 +3,7 @@ import { createPortal } from 'preact/compat';
 import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, type FoldersFilterControl } from './LibraryFilters';
+import { LoadProgress } from './LoadProgress';
 import { getNavItems, navIcon, placementFor, openMoveMenu, openSectionMoveMenu, sectionPlacementFor, FILTER_IDS, setItemPlacement, sortByOrder, setNavOrder, getNavOrder, activeDrag, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID, type NavItem, type NavSection, type NavOrderKey } from './navItems';
 
 const SectionHeader = ({ label, id, open, style, onClick, action, onContextMenu }: { label: string, id: string, open?: boolean, style?: any, onClick?: () => void, action?: any, onContextMenu?: (e: any) => void }) => (
@@ -475,12 +476,15 @@ export const Sidebar = () => {
             onClick={toggleTags}
             onContextMenu={(e) => { e.preventDefault(); openMoveMenu(e, FILTER_IDS.tags, 'Tags', 'sidebar'); }}
             action={
+              <>
+              <LoadProgress size={16} />
               <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               </button>
+              </>
             }
           />
           <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
