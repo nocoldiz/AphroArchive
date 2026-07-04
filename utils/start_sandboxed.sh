@@ -1,4 +1,5 @@
 #!/bin/sh
+cd "$(dirname "$0")/.."
 
 echo "Starting Node.js server..."
 node server.js &

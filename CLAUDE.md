@@ -18,8 +18,8 @@ VIDEOS_DIR=~/Movies PORT=8080 node server.js
 ```
 
 Start scripts:
-- **Windows**: `start.bat`
-- **Linux/macOS**: `./start.sh`
+- **Windows**: `utils\start.bat`
+- **Linux/macOS**: `./utils/start.sh`
 
 Install dependencies (ffmpeg, yt-dlp):
 - **Windows**: `install.bat`

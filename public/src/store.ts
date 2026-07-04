@@ -1072,30 +1072,6 @@ export async function openExternalFolder() {
   }
 }
 
-// Prompt for an encrypted ZIP archive's password and, on success, reveal its
-// contents as a normal category. (In the Vault, matching archives auto-mount
-// on unlock, so this is only needed for locked archives outside the vault.)
-export async function unlockZipCategory(path: string, name: string) {
-  const w = window as any;
-  const password = window.prompt(`Enter password for "${name}":`);
-  if (password === null) return; // cancelled
-  try {
-    const res = await fetch('/api/media-zip/unlock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, password }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.error) { w.toastError?.(data.error || 'Could not unlock archive'); return; }
-    await loadVideos();
-    currentView.value = 'browse';
-    currentFolder.value = path;
-    w.toast?.(`Unlocked "${name}"`);
-  } catch {
-    w.toastError?.('Could not unlock archive');
-  }
-}
-
 export async function closeOpenedFolder(openedRoot: string) {
   try {
     await fetch('/api/opened/close', {

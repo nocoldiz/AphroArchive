@@ -3,7 +3,7 @@ import { moveModalState, loadVideos, videos, allVideos, selectedVideoIds, videoS
 import { moveVideo } from '../../api';
 import { Video } from '../../types';
 
-interface MainFolder { name: string; path: string; isZipMount?: boolean; isExternal?: boolean }
+interface MainFolder { name: string; path: string; isExternal?: boolean }
 interface VaultFolder { id: string; name: string; parent: string | null }
 
 interface TreeNode {
@@ -12,7 +12,6 @@ interface TreeNode {
   target: string;   // value sent to the move API
   depth: number;
   children: TreeNode[];
-  isZip?: boolean;
   isExternal?: boolean;
 }
 
@@ -37,7 +36,6 @@ const buildMainTree = (cats: MainFolder[]): TreeNode[] => {
   for (const c of cats) {
     if (!c.path) continue;
     const n = ensure(c.path);
-    n.isZip = !!c.isZipMount;
     n.isExternal = !!c.isExternal;
   }
   sortTree(roots);
@@ -94,7 +92,7 @@ export const MoveModal = () => {
       fetch('/api/vault/files')
         .then(r => r.json())
         .then((items: any[]) => setVaultFolders(
-          items.filter(f => f.type === 'folder' && !f.isZipMount)
+          items.filter(f => f.type === 'folder')
             .map(f => ({ id: f.id, name: f.name, parent: f.parent || null }))
         ))
         .catch(() => setError('Failed to load vault folders'));
@@ -141,7 +139,7 @@ export const MoveModal = () => {
     }
     return mainCats
       .filter(c => c.path && (c.name.toLowerCase().includes(q) || c.path.toLowerCase().includes(q)))
-      .map(c => ({ key: c.path, label: c.name, target: c.path, isZip: !!c.isZipMount, isExternal: !!c.isExternal }))
+      .map(c => ({ key: c.path, label: c.name, target: c.path, isExternal: !!c.isExternal }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [filter, state.isVault, mainCats, vaultFolders]);
 
@@ -256,15 +254,14 @@ export const MoveModal = () => {
     <span style={{ marginLeft: 'auto', fontSize: '0.65rem', padding: '1px 6px', borderRadius: '8px', border: '1px solid var(--brd)', color: 'inherit', opacity: 0.75, flexShrink: 0 }}>{text}</span>
   );
 
-  const renderRow = (opts: { key: string; label: string; target: string; depth: number; hasChildren?: boolean; isOpen?: boolean; isZip?: boolean; isExternal?: boolean }) => {
+  const renderRow = (opts: { key: string; label: string; target: string; depth: number; hasChildren?: boolean; isOpen?: boolean; isExternal?: boolean }) => {
     const isCurRow = cur !== null && opts.target === cur;
-    const disabled = isCurRow || !!opts.isZip;
+    const disabled = isCurRow;
     const isSel = selected === opts.target && !disabled;
     return (
       <div
         key={opts.key}
         className="move-item"
-        title={opts.isZip ? 'ZIP archive — virtual folder, cannot move files here' : undefined}
         style={rowStyle(isSel, disabled, opts.depth)}
         onClick={() => !disabled && setSelected(opts.target)}
         onDblClick={() => !disabled && !busy && doMove(opts.target)}
@@ -282,15 +279,15 @@ export const MoveModal = () => {
         )}
         <FolderIcon open={opts.isOpen} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opts.label}</span>
-        {opts.isZip ? <Badge text="ZIP" /> : opts.isExternal ? <Badge text="media" /> : null}
-        {isCurRow && !opts.isZip && <Badge text="current" />}
+        {opts.isExternal ? <Badge text="media" /> : null}
+        {isCurRow && <Badge text="current" />}
       </div>
     );
   };
 
   const renderTree = (nodes: TreeNode[]): any[] => nodes.flatMap(n => {
     const isOpen = expanded.has(n.key);
-    const row = renderRow({ key: n.key, label: n.label, target: n.target, depth: n.depth, hasChildren: n.children.length > 0, isOpen, isZip: n.isZip, isExternal: n.isExternal });
+    const row = renderRow({ key: n.key, label: n.label, target: n.target, depth: n.depth, hasChildren: n.children.length > 0, isOpen, isExternal: n.isExternal });
     return isOpen ? [row, ...renderTree(n.children)] : [row];
   });
 
@@ -325,7 +322,7 @@ export const MoveModal = () => {
         <div className="move-list" style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto', flex: 1, minHeight: '120px', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px', marginBottom: '12px' }}>
           {flatMatches ? (
             <>
-              {flatMatches.map((m: any) => renderRow({ key: m.key, label: m.label, target: m.target, depth: 0, isZip: m.isZip, isExternal: m.isExternal }))}
+              {flatMatches.map((m: any) => renderRow({ key: m.key, label: m.label, target: m.target, depth: 0, isExternal: m.isExternal }))}
               {flatMatches.length === 0 && (
                 <div style={{ color: 'var(--tx2)', padding: '8px', fontSize: '0.85rem' }}>No folders match "{filter}"</div>
               )}

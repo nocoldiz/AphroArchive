@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 title AphroArchive
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 set FORCE_INSTALL=0
 if "%~1"=="--install" set FORCE_INSTALL=1

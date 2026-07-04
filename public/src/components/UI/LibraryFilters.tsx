@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, unlockZipCategory, linkTotalCount } from '../../store';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, activeProfile, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount } from '../../store';
 import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID } from './navItems';
 import { pluginsList, isPluginEnabled, runPluginAction, type PluginMeta } from '../../plugins';
 import { zapOn } from '../../zap';
@@ -206,11 +206,6 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
     const openIcon = c.opened
       ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v3" /><path d="M2 13.5 4 19a2 2 0 0 0 1.9 1.4h12.2A2 2 0 0 0 20 19l2-5.5a1 1 0 0 0-.95-1.5H2.95A1 1 0 0 0 2 13.5z" /></svg>
       : null;
-    const zipIcon = (c as any).locked
-      ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      : (c as any).isZipMount
-        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-        : null;
     const lockIcon = inVaultMode
       ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2.5" style={{ marginRight: '5px', verticalAlign: '-1px' }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       : c.partial
@@ -225,7 +220,7 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
       <div key={c.path}>
         <SidebarItem
           label={label}
-          icon={openIcon || zipIcon || lockIcon}
+          icon={openIcon || lockIcon}
           badge={c.count}
           depth={depth}
           hasChildren={hasChildren}
@@ -241,7 +236,7 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           ) : undefined}
-          onClick={() => (c as any).locked ? unlockZipCategory(c.path, c.name) : selectCategory(c.path)}
+          onClick={() => selectCategory(c.path)}
           onContextMenu={(e) => {
             e.preventDefault();
             if ((window as any).showContextMenu) {

@@ -15,5 +15,5 @@ if errorlevel 1 (
     set PYTHON=python
 )
 
-%PYTHON% "%~dp0utils\categorizer.py" %*
+%PYTHON% "%~dp0categorizer.py" %*
 if errorlevel 1 pause

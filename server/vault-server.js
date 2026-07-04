@@ -93,7 +93,6 @@ function resetVaultTimer() {
     vaultPassword = null;
     vaultTimer = null;
     try { setVaultKey(null); } catch { }
-    try { require('./vault-zip-mount-server').unmountAll(); } catch {}
   }, ms);
 }
 
@@ -961,7 +960,6 @@ async function apiVaultSetup(req, res) {
     json(res, { ok: true });
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on setup failed:', e.message); }
     processHiddenFolder();
-    try { require('./vault-zip-mount-server').scanAndMountZips(pw, decryptToBuffer, loadVaultMeta()); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
   } catch (e) { json(res, { error: e.message }, 500); }
 }
 
@@ -1011,7 +1009,6 @@ async function apiVaultUnlock(req, res) {
     resetVaultTimer();
     json(res, { ok: true });
     try { reconcileVaultOrphans(); } catch (e) { console.error('[vault] reconcile on unlock failed:', e.message); }
-    try { require('./vault-zip-mount-server').scanAndMountZips(pw, decryptToBuffer, loadVaultMeta()); } catch (e) { console.error('[vault] zip mount scan failed:', e.message); }
     processHiddenFolder();
     try { require('./feed-watcher-server').processVaultFeed(); } catch {}
   } catch (e) { json(res, { error: e.message }, 500); }
@@ -1022,7 +1019,6 @@ function apiVaultLock(req, res) {
   vaultKey = null;
   vaultPassword = null;
   setVaultKey(null);
-  try { require('./vault-zip-mount-server').unmountAll(); } catch {}
   json(res, { ok: true });
 }
 
@@ -1031,9 +1027,6 @@ function apiVaultFiles(req, res) {
   resetVaultTimer();
   const meta  = loadVaultMeta();
   const items = Object.entries(meta).map(([id, m]) => ({ id, ...m }));
-  let mounted = [];
-  try { mounted = require('./vault-zip-mount-server').getMountedItems(); } catch {}
-  items.push(...mounted);
   items.sort((a, b) => b.mtime - a.mtime);
   json(res, items);
 }
@@ -1115,16 +1108,6 @@ function apiVaultDownload(req, res, id) {
 function apiVaultDelete(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
 
-  // Virtual ids from a mounted ZIP aren't in meta. A read-only archive can't
-  // have a single entry removed without rewriting it, so reject individual
-  // files/sub-folders with a clear message and let the user delete the whole
-  // archive (its root folder) instead — see apiVaultDeleteFolder.
-  let mount = null;
-  try { mount = require('./vault-zip-mount-server').resolveMount(id); } catch {}
-  if (mount) {
-    return json(res, { error: "Items inside a mounted ZIP can't be deleted individually. Delete the archive instead." }, 400);
-  }
-
   const meta = loadVaultMeta();
   if (!meta[id]) return json(res, { error: 'Not found' }, 404);
   _shredFile(path.join(VAULT_DIR, id + '.enc'));
@@ -1136,9 +1119,6 @@ function apiVaultDelete(req, res, id) {
   if (fs.existsSync(pageDir)) _shredDir(pageDir);
   delete meta[id];
   saveVaultMeta(meta);
-  // If this file was mounted as a ZIP, drop the stale in-memory mount so its
-  // virtual folder/files disappear from the listing right away.
-  try { require('./vault-zip-mount-server').unmountByVaultId(id); } catch {}
   json(res, { ok: true });
 }
 
@@ -1387,17 +1367,6 @@ function createVaultFolder(name, parent = null) {
 
 async function apiVaultDeleteFolder(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
-
-  // A mounted ZIP surfaces as a virtual folder (not in meta). Deleting that
-  // folder means "remove the archive": delete the backing .enc and unmount.
-  // Virtual sub-folders can't be deleted on their own (read-only archive).
-  let mount = null;
-  try { mount = require('./vault-zip-mount-server').resolveMount(id); } catch {}
-  if (mount) {
-    if (!mount.isRoot) return json(res, { error: "Sub-folders inside a mounted ZIP can't be deleted. Delete the archive instead." }, 400);
-    if (!mount.vaultId) return json(res, { error: 'This archive cannot be deleted from here.' }, 400);
-    return apiVaultDelete(req, res, mount.vaultId);
-  }
 
   const meta = loadVaultMeta();
   if (!meta[id] || meta[id].type !== 'folder') return json(res, { error: 'Not found' }, 404);

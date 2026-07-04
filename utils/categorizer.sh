@@ -12,4 +12,4 @@ else
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "$PYTHON" "$SCRIPT_DIR/utils/categorizer.py" "$@"
+exec "$PYTHON" "$SCRIPT_DIR/categorizer.py" "$@"

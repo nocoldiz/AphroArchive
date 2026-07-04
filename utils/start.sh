@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 FORCE_INSTALL=0
 if [[ "$1" == "--install" ]]; then FORCE_INSTALL=1; fi
