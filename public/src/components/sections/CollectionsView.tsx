@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import { confirmDialog } from '../../dialog';
 
 interface Collection {
   name: string;
@@ -46,7 +47,7 @@ export const CollectionsView = () => {
   };
 
   const handleDelete = async (name: string) => {
-    if (!confirm(`Delete playlist "${name}"?`)) return;
+    if (!await confirmDialog(`Delete playlist "${name}"?`)) return;
     const r = await fetch(`/api/collections/${encodeURIComponent(name)}`, { method: 'DELETE' });
     if (r.ok) {
       loadCollections();

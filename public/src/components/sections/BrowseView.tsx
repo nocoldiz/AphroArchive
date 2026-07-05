@@ -2,6 +2,7 @@ import { VideoGrid } from '../UI/VideoGrid';
 import { recentVideos, currentView, currentFolder, currentTag, currentTagTerms } from '../../store';
 import { SearchExtras } from '../UI/SearchExtras';
 import { SectionControls } from '../UI/SectionControls';
+import { confirmDialog } from '../../dialog';
 
 const Breadcrumb = () => {
   const goAll = () => {
@@ -63,7 +64,7 @@ export const BrowseView = () => {
           showSelect
           showClearHistory={currentView.value === 'recent'}
           onClearHistory={async () => {
-            if (confirm('Clear watch history?')) {
+            if (await confirmDialog('Clear watch history?')) {
               await fetch('/api/history', { method: 'DELETE' });
               recentVideos.value = [];
               if ((window as any).toast) (window as any).toast('History cleared');

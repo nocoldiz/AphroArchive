@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { vaultMode, isVaultUnlocked, currentVideo, currentView, contextMenuState, vaultGlobalView } from '../../store';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
 import { FolderTree, type FolderEntry } from '../UI/FolderTree';
+import { confirmDialog, promptDialog, alertDialog } from '../../dialog';
 
 interface VaultFile {
   id: string;
@@ -469,11 +470,11 @@ export const VaultView = () => {
   };
 
   const handleDeleteFile = async (id: string) => {
-    if (!confirm('Permanently delete this encrypted file?')) return;
+    if (!await confirmDialog('Permanently delete this encrypted file?')) return;
     const res = await fetch('/api/vault/files/' + id, { method: 'DELETE' });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || 'Delete failed');
+      await alertDialog(err.error || 'Delete failed');
       return;
     }
     setFiles(files.filter(f => f.id !== id));
@@ -488,7 +489,7 @@ export const VaultView = () => {
       body: JSON.stringify({ folder: folderId })
     });
     if (!res.ok) {
-      alert('Move failed');
+      await alertDialog('Move failed');
       return;
     }
     setFiles(files.map(f => f.id === fileId ? { ...f, folder: folderId } : f));
@@ -521,7 +522,7 @@ export const VaultView = () => {
 
   const handleDeleteFolder = async (id: string, name: string) => {
     const parentId = folders.find(f => f.id === id)?.parent || null;
-    if (!confirm(`Delete folder "${name}"? Contents will move to parent folder.`)) return;
+    if (!await confirmDialog(`Delete folder "${name}"? Contents will move to parent folder.`)) return;
     const res = await fetch('/api/vault/folders/' + id, { method: 'DELETE' });
     if (!res.ok) { const d = await res.json().catch(() => ({})); (window as any).toast?.(d.error || 'Failed to delete folder'); return; }
     setFolders(prev => prev.filter(f => f.id !== id).map(f => f.parent === id ? { ...f, parent: parentId } : f));
@@ -572,7 +573,7 @@ export const VaultView = () => {
       if (w.openBook) {
         w.openBook(f.id, true);
       } else {
-        alert('Book reader not available');
+        alertDialog('Book reader not available');
       }
     }
   };
@@ -606,7 +607,7 @@ export const VaultView = () => {
     // Only vault files can be deleted here — public files in Global view are skipped
     const ids = Array.from(selectedIds).filter(id => files.some(f => f.id === id));
     if (!ids.length) return;
-    if (!confirm(`Delete ${ids.length} selected items?`)) return;
+    if (!await confirmDialog(`Delete ${ids.length} selected items?`)) return;
 
     for (const id of ids) {
       await fetch(`/api/vault/files/${id}`, { method: 'DELETE' });
@@ -623,7 +624,7 @@ export const VaultView = () => {
   const handleDecryptSelected = async () => {
     const ids = Array.from(selectedIds).filter(id => files.some(f => f.id === id));
     if (!ids.length) return;
-    if (!confirm(`Decrypt & restore ${ids.length} selected file${ids.length !== 1 ? 's' : ''}?`)) return;
+    if (!await confirmDialog(`Decrypt & restore ${ids.length} selected file${ids.length !== 1 ? 's' : ''}?`)) return;
 
     let ok = 0;
     for (const id of ids) {
@@ -639,7 +640,7 @@ export const VaultView = () => {
   };
 
   const createNewVaultTextFile = async () => {
-    let name = prompt('Enter text file name:', 'notes.txt');
+    let name = await promptDialog('Enter text file name:', 'notes.txt');
     if (!name) return;
     
     const r = await fetch('/api/vault/create-text', {
@@ -684,16 +685,16 @@ export const VaultView = () => {
       });
       const probeData = await probe.json();
       if (probeData.encrypted) {
-        password = prompt('This archive is password-protected. Enter its password:') || '';
+        password = await promptDialog('This archive is password-protected. Enter its password:') || '';
         if (!password) { if (w.toast) w.toast('Password required'); return; }
       }
 
       // 3. Choose destination. OK = encrypt into vault, Cancel = extract to a folder.
-      const toVault = confirm('Import extracted files INTO the vault?\n\nOK = encrypt into vault\nCancel = extract to a folder on disk');
+      const toVault = await confirmDialog('Import extracted files into the vault?', { confirmLabel: 'Encrypt into vault', cancelLabel: 'Extract to folder' });
       const mode = toVault ? 'vault' : 'extract';
       const body: any = { id: upData.id, password, mode };
       if (mode === 'extract') {
-        const folder = prompt('Folder name to extract into (under your media directory):', file.name.replace(/\.zip$/i, ''));
+        const folder = await promptDialog('Folder name to extract into (under your media directory):', file.name.replace(/\.zip$/i, ''));
         if (folder === null) return;
         body.destFolder = folder;
       } else {
@@ -745,7 +746,7 @@ export const VaultView = () => {
       if (w.toast) w.toast('No duplicates found');
       return;
     }
-    if (!confirm(`Delete ${dupes.length} duplicate file${dupes.length > 1 ? 's' : ''}? (Keeps newest copy of each)`)) return;
+    if (!await confirmDialog(`Delete ${dupes.length} duplicate file${dupes.length > 1 ? 's' : ''}? (Keeps newest copy of each)`)) return;
     for (const f of dupes) {
       await fetch('/api/vault/files/' + f.id, { method: 'DELETE' });
     }

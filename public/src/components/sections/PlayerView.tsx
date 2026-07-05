@@ -1,6 +1,7 @@
 ﻿import { formatVideoTitle } from '../../utils';
-import { currentVideo, currentView, videos, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs, applyVideoIdChange } from '../../store';
 import { renameVideo } from '../../api';
+import { setProgress } from '../../home/progress';
 import { zapOn, zapStartTime } from '../../zap';
 import { isTVMode, tvStartTime, nextVideoInChannel, stopTVMode } from '../../tv-mode';
 import { TVChannelPanel } from '../UI/TVChannelPanel';
@@ -11,6 +12,7 @@ import { VideoCard } from '../UI/VideoGrid';
 import { AdvancedPlayer, localZapOn } from '../UI/AdvancedPlayer';
 import { playerSeries, playerSeason } from '../../series';
 import { getThumbPref, setThumbPref } from '../../thumbPref';
+import { confirmDialog, alertDialog } from '../../dialog';
 
 // BCP-47 codes — fed to SpeechRecognition.lang for live subtitle generation
 const LANGUAGES: { code: string; label: string }[] = [
@@ -34,6 +36,9 @@ const LANGUAGES: { code: string; label: string }[] = [
 export const PlayerView = () => {
   const video = currentVideo.value;
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Expose the live <video> so TV mode can restart a single-video channel
+  // (identical id → no keyed remount) by seeking it back to 0.
+  useEffect(() => { (window as any).__tvVideoEl = videoRef.current; });
 
   const [actors, setActors] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
@@ -121,7 +126,7 @@ export const PlayerView = () => {
             clearInterval(timer);
             setDownloadJobId(null);
             setIsDownloading(false);
-            alert('Download failed: ' + job.error);
+            await alertDialog('Download failed: ' + job.error);
           }
         }
       }, 1000);
@@ -158,7 +163,7 @@ export const PlayerView = () => {
       setDownloadJobId(d.ids[0]);
     } else {
       setIsDownloading(false);
-      alert('Failed to start download');
+      await alertDialog('Failed to start download');
     }
   };
 
@@ -438,15 +443,15 @@ export const PlayerView = () => {
     if (!video || !trimmed || trimmed === video.name) return;
     try {
       const res = await renameVideo(video.id, trimmed);
-      const list = [...videos.value];
-      const idx = list.findIndex(v => v.id === video.id);
-      if (idx >= 0) { list[idx] = { ...list[idx], id: res.newId, name: trimmed }; videos.value = list; }
-      const allList = [...allVideos.value];
-      const idx2 = allList.findIndex(v => v.id === video.id);
-      if (idx2 >= 0) { allList[idx2] = { ...allList[idx2], id: res.newId, name: trimmed }; allVideos.value = allList; }
-      if (currentVideo.value && currentVideo.value.id === video.id) {
-        currentVideo.value = { ...currentVideo.value, id: res.newId, name: trimmed };
+      // Seed the new id's resume position from the live element so the keyed
+      // player remount picks up exactly where we are instead of restarting.
+      const el = videoRef.current;
+      if (el && isFinite(el.currentTime) && el.duration > 0) {
+        setProgress(res.newId, el.currentTime, el.duration);
       }
+      // Instant, no reload: patch lists + current video (also migrates any
+      // saved progress as a fallback).
+      applyVideoIdChange(video.id, res.newId, { name: trimmed });
       const w = window as any;
       if (w.toast) w.toast('Renamed successfully');
     } catch (e: any) {
@@ -465,7 +470,12 @@ export const PlayerView = () => {
       x: (e as any).clientX,
       y: (e as any).clientY,
       type: 'text-selection',
-      data: { text: sel },
+      data: {
+        text: sel,
+        videoId: video.id,
+        // Reflect the new tag in the details pane without a refetch.
+        onAddTag: (tag: string) => setTags(prev => prev.some(t => t.toLowerCase() === tag.toLowerCase()) ? prev : [...prev, tag]),
+      },
     };
   };
 
@@ -942,7 +952,7 @@ export const PlayerView = () => {
               )}
 
               <button onClick={async () => {
-                if (!confirm(`Delete video "${video.name}" from disk?\nThis action cannot be undone.`)) return;
+                if (!await confirmDialog(`Delete video "${video.name}" from disk?\nThis action cannot be undone.`)) return;
                 const r = await fetch(`/api/videos/${video.id}`, { method: 'DELETE' });
                 if (r.ok) {
                   if ((window as any).toast) (window as any).toast('Video deleted');

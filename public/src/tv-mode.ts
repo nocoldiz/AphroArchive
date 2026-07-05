@@ -6,7 +6,7 @@ import { zapOn, stopZapping } from './zap';
 export interface TVChannel {
   id: string;
   name: string;
-  type: 'folder' | 'tag' | 'collection';
+  type: 'all' | 'folder' | 'tag' | 'collection';
   videos: Video[];
 }
 
@@ -74,19 +74,33 @@ export async function initTVMode(): Promise<boolean> {
     }
   }
 
-  // Tag channels — only tags with more than 10 videos
-  const tagMap = new Map<string, Video[]>();
-  for (const v of videos) {
-    if (v.isLink) continue;
-    for (const tag of (v.tags || [])) {
-      const arr = tagMap.get(tag) || [];
-      arr.push(v);
-      tagMap.set(tag, arr);
+  // Tag channels — only "recognized" tags: those defined in the tag database
+  // (/api/db-tags), matched the same way the sidebar tag filter matches them
+  // (by an explicit tag or by title against the tag's terms). Arbitrary
+  // free-form tags on videos never get a channel. Keeps the ≥10-video floor.
+  let tagGroups: { displayName: string; terms: string[] }[] = [];
+  try {
+    const data = await fetch('/api/db-tags').then(r => r.json());
+    if (Array.isArray(data)) {
+      tagGroups = data.map((g: any) => ({ displayName: g.displayName, terms: g.terms || [] }));
     }
-  }
-  for (const [tag, vids] of tagMap) {
+  } catch {}
+
+  for (const g of tagGroups) {
+    if (!g.displayName) continue;
+    const nameLo = g.displayName.toLowerCase();
+    const regexes = (g.terms || []).map(t =>
+      new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])')
+    );
+    const vids = videos.filter(v => {
+      if (v.isLink) return false;
+      const vtags = (v.tags || []) as string[];
+      if (vtags.some(t => t.toLowerCase() === nameLo)) return true;
+      const vname = (v.name || '').toLowerCase();
+      return regexes.some(re => re.test(vname));
+    });
     if (vids.length > 10) {
-      channels.push({ id: `tag:${tag}`, name: `#${tag}`, type: 'tag', videos: shuffle(vids) });
+      channels.push({ id: `tag:${g.displayName}`, name: `#${g.displayName}`, type: 'tag', videos: shuffle(vids) });
     }
   }
 
@@ -106,12 +120,20 @@ export async function initTVMode(): Promise<boolean> {
     }
   } catch {}
 
-  if (channels.length === 0) {
+  // "All Videos" — a single channel spanning the whole (non-link) library,
+  // always pinned first so there's a channel even with no folders/tags/playlists.
+  const allVids = videos.filter(v => !v.isLink);
+
+  if (channels.length === 0 && allVids.length === 0) {
     (window as any).toast?.('No TV channels available — add folders, a playlist, or tag 10+ videos with a common tag');
     return false;
   }
 
-  tvChannels.value = shuffle(channels);
+  const ordered = shuffle(channels);
+  if (allVids.length > 0) {
+    ordered.unshift({ id: 'all', name: 'All Videos', type: 'all', videos: shuffle(allVids) });
+  }
+  tvChannels.value = ordered;
   // Seed the broadcast clock in the past so tuning in — even the very first
   // channel — lands mid-stream, never at a video's start. Modulo in
   // resolveEntry keeps the offset valid for every channel's schedule length.
@@ -167,23 +189,26 @@ export function prevTVChannel() {
   playChannel((tvCurrentChannelIdx.value - 1 + total) % total);
 }
 
-// Called when the current video ends — advance to whatever the broadcast clock
-// now points at (normally the next video from its start). Guards against float
-// drift resolving back to the same slot by forcing the next one.
+// Called when the current video ends — advance to the next video in the
+// channel's schedule, from its start. Deliberately does NOT re-consult the
+// broadcast clock: a video finishes a hair before its scheduled slot ends, so
+// the clock still points at the just-finished video and would replay it. Real
+// TV rolls straight into the next programme, so we step sequentially instead.
 export function nextVideoInChannel() {
   const idx = tvCurrentChannelIdx.value;
   const channel = tvChannels.value[idx];
   if (!channel || channel.videos.length === 0) return;
-  const { videoIdx, seekTo } = resolveEntry(idx);
-  let nextIdx = videoIdx;
-  let seek = seekTo;
-  if (nextIdx === tvCurrentVideoIdx.value) {
-    nextIdx = (tvCurrentVideoIdx.value + 1) % channel.videos.length;
-    seek = 0;
-  }
+  const nextIdx = (tvCurrentVideoIdx.value + 1) % channel.videos.length;
   tvCurrentVideoIdx.value = nextIdx;
-  tvStartTime.value = seek;
-  currentVideo.value = channel.videos[nextIdx];
+  tvStartTime.value = 0;
+  const nextVid = channel.videos[nextIdx];
+  // Single-video channel (or the next slot is the same file): nudge the element
+  // back to the start, since the id-keyed player won't remount on an identical id.
+  if (currentVideo.value && currentVideo.value.id === nextVid.id) {
+    const el = (window as any).__tvVideoEl as HTMLVideoElement | undefined;
+    if (el) { try { el.currentTime = 0; el.play?.(); } catch {} }
+  }
+  currentVideo.value = nextVid;
   currentView.value = 'player';
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { renameModalState, videos, allVideos, currentVideo } from '../../store';
+import { renameModalState, applyVideoIdChange } from '../../store';
 import { renameVideo } from '../../api';
 
 export const RenameModal = () => {
@@ -25,25 +25,9 @@ export const RenameModal = () => {
     try {
       if (state.vidId) {
         const res = await renameVideo(state.vidId, trimmedName);
-
-        // Optimistic update
-        const list = [...videos.value];
-        const idx = list.findIndex(v => v.id === state.vidId);
-        if (idx >= 0) {
-          list[idx] = { ...list[idx], id: res.newId, name: trimmedName };
-          videos.value = list;
-        }
-
-        const allList = [...allVideos.value];
-        const idx2 = allList.findIndex(v => v.id === state.vidId);
-        if (idx2 >= 0) {
-          allList[idx2] = { ...allList[idx2], id: res.newId, name: trimmedName };
-          allVideos.value = allList;
-        }
-
-        if (currentVideo.value && currentVideo.value.id === state.vidId) {
-          currentVideo.value = { ...currentVideo.value, id: res.newId, name: trimmedName };
-        }
+        // Instant, no reload: patch the lists + current video and carry the
+        // resume position to the new id.
+        applyVideoIdChange(state.vidId, res.newId, { name: trimmedName });
 
         const w = window as any;
         if (w.toast) w.toast('Renamed successfully');

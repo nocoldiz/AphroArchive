@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { memo } from 'preact/compat';
 import { rebuildLinkVidIds, currentVideo, currentView, isVaultUnlocked, vaultGlobalView, syncLinkCache } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
+import { confirmDialog, alertDialog } from '../../dialog';
 
 interface LinkItem {
   url: string;
@@ -913,7 +914,7 @@ export const LinksView = () => {
       .split(/[\s,]+/)
       .map(u => u.trim())
       .filter(u => /^https?:\/\//i.test(u));
-    if (!urls.length) { alert('Paste at least one valid http(s) URL'); return; }
+    if (!urls.length) { await alertDialog('Paste at least one valid http(s) URL'); return; }
     setAdding(true);
     try {
       const r = await fetch('/api/links/import-urls', {
@@ -922,7 +923,7 @@ export const LinksView = () => {
         body: JSON.stringify({ urls }),
       });
       const d = await r.json();
-      if (d.error) { alert('Add failed: ' + d.error); return; }
+      if (d.error) { await alertDialog('Add failed: ' + d.error); return; }
       // Apply the chosen category to the freshly-added links
       if (addCategory && d.added > 0) {
         await fetch('/api/links/move', {
@@ -938,7 +939,7 @@ export const LinksView = () => {
       const w = window as any;
       if (w.toast) w.toast(`Added ${d.added} bookmark${d.added !== 1 ? 's' : ''}${d.skipped ? ` · ${d.skipped} skipped` : ''}`);
     } catch (e: any) {
-      alert('Add failed: ' + e.message);
+      await alertDialog('Add failed: ' + e.message);
     } finally {
       setAdding(false);
     }
@@ -968,7 +969,7 @@ export const LinksView = () => {
 
   const clearAll = async () => {
     if (!items.length) return;
-    if (!confirm(`Clear all ${items.length} imported links?`)) return;
+    if (!await confirmDialog(`Clear all ${items.length} imported links?`)) return;
 
     await fetch('/api/links/cache', {
       method: 'POST',
@@ -1000,7 +1001,7 @@ export const LinksView = () => {
       if (w.toast) w.toast('No duplicates found (by link or name)');
       return;
     }
-    if (!confirm(`Remove ${removedUrls.length} duplicate links (same URL or same name)? Keep ${cleaned.length}?`)) return;
+    if (!await confirmDialog(`Remove ${removedUrls.length} duplicate links (same URL or same name)? Keep ${cleaned.length}?`)) return;
     setItems(cleaned);
     updateMatches(cleaned);
     try {
@@ -1012,7 +1013,7 @@ export const LinksView = () => {
       const w = window as any;
       if (w.toast) w.toast(`Removed ${removedUrls.length} duplicates`);
     } catch (e: any) {
-      alert('Error removing duplicates: ' + e.message);
+      await alertDialog('Error removing duplicates: ' + e.message);
     }
   };
 
@@ -1066,7 +1067,7 @@ export const LinksView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls, ...payload }),
     });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); alert('Bulk update failed: ' + (d.error || r.statusText)); await loadLinks(); }
+    if (!r.ok) { const d = await r.json().catch(() => ({})); await alertDialog('Bulk update failed: ' + (d.error || r.statusText)); await loadLinks(); }
     return urls.length;
   };
 
@@ -1105,7 +1106,7 @@ export const LinksView = () => {
   const deleteSelected = async () => {
     const urls = [...selectedUrls];
     if (!urls.length) { toast('Select at least one link'); return; }
-    if (!confirm(`Delete ${urls.length} selected link(s)?`)) return;
+    if (!await confirmDialog(`Delete ${urls.length} selected link(s)?`)) return;
     const urlSet = new Set(urls);
     const next = items.filter(it => !urlSet.has(it.url));
     setItems(next);
@@ -1134,7 +1135,7 @@ export const LinksView = () => {
       if (w.toast) w.toast(`${urls.length} link(s) encrypted to Vault`);
     } else {
       const d = await r.json().catch(() => ({}));
-      alert('Encrypt failed: ' + (d.error || r.statusText));
+      await alertDialog('Encrypt failed: ' + (d.error || r.statusText));
     }
   };
 
@@ -1153,7 +1154,7 @@ export const LinksView = () => {
       if (w.toast) w.toast(`${urls.length} link(s) decrypted to public`);
     } else {
       const d = await r.json().catch(() => ({}));
-      alert('Decrypt failed: ' + (d.error || r.statusText));
+      await alertDialog('Decrypt failed: ' + (d.error || r.statusText));
     }
   };
 
@@ -1184,7 +1185,7 @@ export const LinksView = () => {
   const downloadSelected = async () => {
     const urls = [...selectedUrls];
     if (!urls.length) {
-      alert('Select at least one link');
+      await alertDialog('Select at least one link');
       return;
     }
     const r = await fetch('/api/download', {
@@ -1200,10 +1201,10 @@ export const LinksView = () => {
     }
   };
 
-  const openAllVisible = () => {
+  const openAllVisible = async () => {
     if (!visibleItems.length) return;
     const n = visibleItems.length;
-    if (n > 10 && !confirm(`Open ${n} tabs?`)) return;
+    if (n > 10 && !await confirmDialog(`Open ${n} tabs?`)) return;
     visibleItems.forEach((item, i) => {
       setTimeout(() => {
         window.open(item.url, '_blank');
@@ -1215,7 +1216,7 @@ export const LinksView = () => {
     if (!visibleItems.length) return;
     const text = visibleItems.map(item => item.url).join('\n');
     navigator.clipboard.writeText(text).then(() => {
-      alert(`Copied ${visibleItems.length} URLs`);
+      alertDialog(`Copied ${visibleItems.length} URLs`);
     });
   };
 
@@ -1223,7 +1224,7 @@ export const LinksView = () => {
     if (!items.length) return;
     const text = items.map(item => item.url).join('\n');
     navigator.clipboard.writeText(text).then(() => {
-      alert(`Copied ${items.length} URLs`);
+      alertDialog(`Copied ${items.length} URLs`);
     });
   };
 
@@ -1235,15 +1236,15 @@ export const LinksView = () => {
         const w = window as any;
         if (w.toast) w.toast('Scraping started');
       } else {
-        alert('Failed to start scraping: ' + (d.error || 'Unknown error'));
+        await alertDialog('Failed to start scraping: ' + (d.error || 'Unknown error'));
       }
     } catch (e: any) {
-      alert('Error starting scraping: ' + e.message);
+      await alertDialog('Error starting scraping: ' + e.message);
     }
   };
 
   const rescrapeAll = async () => {
-    if (!confirm('Clear all scraped data and rescrape everything from scratch?')) return;
+    if (!await confirmDialog('Clear all scraped data and rescrape everything from scratch?')) return;
     try {
       const r = await fetch('/api/links/rescrape-all', { method: 'POST' });
       const d = await r.json();
@@ -1252,7 +1253,7 @@ export const LinksView = () => {
         if (w.toast) w.toast('Rescraping all from start');
       }
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      await alertDialog('Error: ' + e.message);
     }
   };
 
@@ -1287,12 +1288,12 @@ export const LinksView = () => {
         body: JSON.stringify(data),
       });
       const d = await r.json();
-      if (d.error) { alert('Import error: ' + d.error); return; }
+      if (d.error) { await alertDialog('Import error: ' + d.error); return; }
       const w = window as any;
       if (w.toast) w.toast(`Imported: +${d.added} new · ${d.skipped} skipped · ${d.total} total`);
       await loadLinks();
     } catch (err: any) {
-      alert('Failed to parse JSON: ' + err.message);
+      await alertDialog('Failed to parse JSON: ' + err.message);
     }
   };
 

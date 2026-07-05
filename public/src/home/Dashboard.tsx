@@ -12,6 +12,7 @@ import {
 import { allWidgetDefs, getWidgetDef, WidgetDef } from './widgets';
 import { appPrefs } from '../store';
 import { pluginsList } from '../plugins';
+import { confirmDialog } from '../dialog';
 
 const GAP = 14;
 
@@ -82,7 +83,7 @@ export const Dashboard = () => {
         <h2 className="dash-welcome">Welcome to AphroArchive</h2>
         <div className="dash-bar-actions">
           {edit && <button className="dash-btn" onClick={() => setPickerOpen(true)}>+ Add widget</button>}
-          {edit && <button className="dash-btn" onClick={() => { if (confirm('Reset the home layout to defaults?')) resetDashboard(); }}>Reset</button>}
+          {edit && <button className="dash-btn" onClick={async () => { if (await confirmDialog('Reset the home layout to defaults?')) resetDashboard(); }}>Reset</button>}
           <button className={'dash-btn' + (edit ? ' on' : '')} onClick={() => { dashEditMode.value = !edit; setPickerOpen(false); }}>
             {edit ? 'Done' : 'Edit home'}
           </button>

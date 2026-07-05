@@ -30,6 +30,7 @@ import { PlayerView } from '../sections/PlayerView';
 import { HomeView } from '../sections/HomeView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
+import { DialogModal } from '../modals/DialogModal';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
 // Heavy/rare views — code-split so the initial bundle stays small
@@ -161,6 +162,7 @@ export const MainContent = () => {
       <VisionModal />
       <VaultUnlockModal />
       <ImportModal />
+      <DialogModal />
       <Suspense fallback={null}>
         <SubtitleEditorModal />
       </Suspense>

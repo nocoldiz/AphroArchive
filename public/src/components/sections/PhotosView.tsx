@@ -4,6 +4,7 @@ import { SectionControls } from '../UI/SectionControls';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
 import { contextMenuState, currentPhotoFolder } from '../../store';
 import { PhotoFile } from '../../types';
+import { confirmDialog } from '../../dialog';
 
 export const PhotosView = () => {
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
@@ -113,7 +114,7 @@ export const PhotosView = () => {
   };
 
   const deletePhoto = async (id: string) => {
-    if (!confirm('Delete this photo?')) return;
+    if (!await confirmDialog('Delete this photo?')) return;
     const w = window as any;
     const r = await fetch(`/api/photos/${id}`, { method: 'DELETE' });
     if (r.ok) {

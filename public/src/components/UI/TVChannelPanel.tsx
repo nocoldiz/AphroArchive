@@ -1,21 +1,53 @@
+import { useState } from 'preact/hooks';
 import { tvChannels, tvCurrentChannelIdx, tvFavChannels, toggleTVFav, playChannel, channelNowPlaying, tvTick } from '../../tv-mode';
 import { formatVideoTitle } from '../../utils';
 
 const TYPE_LABEL: Record<string, string> = {
+  all: 'All',
   folder: 'Folder',
   tag: 'Tag',
   collection: 'Playlist',
 };
 
+type TVTab = 'channels' | 'folders';
+
 // Replaces the "Next Up" playlist while TV mode is on. Lists every live channel
 // and lets you tune in; the channel you're on is highlighted and each row shows
-// what's currently on air (refreshed by tvTick once a second).
+// what's currently on air (refreshed by tvTick once a second). Folder-derived
+// channels get their own "Live Channels" tab, separate from All Videos / tags /
+// playlists, so the two kinds don't crowd each other.
 export const TVChannelPanel = () => {
   // Subscribe to the tick so "now playing" stays current as streams roll on.
   tvTick.value;
   const channels = tvChannels.value;
   const curIdx = tvCurrentChannelIdx.value;
   const favs = tvFavChannels.value;
+  const [tab, setTab] = useState<TVTab>('channels');
+
+  // Keep each channel's real index into tvChannels so tuning in still works
+  // after filtering into tabs.
+  const withIdx = channels.map((ch, i) => ({ ch, i }));
+  const folderRows = withIdx.filter(x => x.ch.type === 'folder');
+  const channelRows = withIdx.filter(x => x.ch.type !== 'folder');
+  const hasFolders = folderRows.length > 0;
+
+  const rows = tab === 'folders' ? folderRows : channelRows;
+
+  const tabBtn = (id: TVTab, label: string, count: number) => (
+    <button
+      type="button"
+      onClick={() => setTab(id)}
+      className={tab === id ? 'tv-tab tv-tab--active' : 'tv-tab'}
+      style={{
+        flex: 1, padding: '8px 6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+        background: 'transparent', border: 'none',
+        color: tab === id ? 'var(--ac)' : 'var(--tx3)',
+        borderBottom: tab === id ? '2px solid var(--ac)' : '2px solid transparent',
+      }}
+    >
+      {label} <span style={{ opacity: 0.7 }}>{count}</span>
+    </button>
+  );
 
   return (
     <div className="playlist-panel tv-channel-panel">
@@ -26,8 +58,14 @@ export const TVChannelPanel = () => {
         </span>
         <span className="playlist-count">{channels.length}</span>
       </div>
+      {hasFolders && (
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--brd)' }}>
+          {tabBtn('channels', 'Channels', channelRows.length)}
+          {tabBtn('folders', 'Live Channels', folderRows.length)}
+        </div>
+      )}
       <div className="playlist-list" style={{ overflowY: 'auto' }}>
-        {channels.map((ch, i) => {
+        {rows.map(({ ch, i }) => {
           const onAir = channelNowPlaying(i);
           const active = i === curIdx;
           const isFav = favs.has(ch.id);
@@ -71,6 +109,11 @@ export const TVChannelPanel = () => {
             </div>
           );
         })}
+        {rows.length === 0 && (
+          <div style={{ padding: '16px 12px', fontSize: '0.8rem', color: 'var(--tx3)' }}>
+            No channels here yet.
+          </div>
+        )}
       </div>
     </div>
   );

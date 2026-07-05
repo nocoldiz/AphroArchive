@@ -1,6 +1,8 @@
 ﻿import { signal, computed } from '@preact/signals';
 import { Video, Folder, Actor, Channel, AppPrefs, ThumbnailGroup } from './types';
 import * as api from './api';
+import { moveProgress } from './home/progress';
+import { confirmDialog, promptDialog } from './dialog';
 
 // ─── Core State ──────────────────────────────────────────────────────
 export const videos = signal<Video[]>([]);
@@ -471,6 +473,27 @@ Object.defineProperty(window, 'curV', { get() { return currentVideo.value; }, se
 Object.defineProperty(window, 'shuf', { get() { return isShuffle.value; }, set(v) { isShuffle.value = v; } });
 Object.defineProperty(window, 'vaultMode', { get() { return vaultMode.value; }, set(v) { vaultMode.value = v; } });
 Object.defineProperty(window, 'videoSelMode', { get() { return videoSelMode.value; }, set(v) { videoSelMode.value = v; } });
+
+// Reflect an id-changing file op (rename / move) across all client state
+// without a reload. Base64url ids are path-derived, so renaming or moving a
+// file mints a new id; this patches the lists and the currently-playing video
+// in place, and carries the playback position to the new id so the player
+// resumes where it was instead of restarting after its keyed remount.
+export function applyVideoIdChange(oldId: string, newId: string, patch: Partial<Video> = {}) {
+  const remap = (arr: Video[]) => {
+    const idx = arr.findIndex(v => v.id === oldId);
+    if (idx < 0) return arr;
+    const next = [...arr];
+    next[idx] = { ...next[idx], ...patch, id: newId };
+    return next;
+  };
+  videos.value = remap(videos.value);
+  allVideos.value = remap(allVideos.value);
+  if (currentVideo.value && currentVideo.value.id === oldId) {
+    currentVideo.value = { ...currentVideo.value, ...patch, id: newId };
+  }
+  if (oldId !== newId) moveProgress(oldId, newId);
+}
 
 (window as any).openRen = (id: string, name: string) => {
   renameModalState.value = { visible: true, vidId: id, linkUrl: null, currentName: name };
@@ -1378,7 +1401,7 @@ w.loadC = async () => {
 };
 
 w.createFolder = async () => {
-  const name = prompt('New folder name:');
+  const name = await promptDialog('New folder name:');
   if (!name || !name.trim()) return;
   try {
     const d = await api.createFolder(name.trim());
@@ -1515,7 +1538,7 @@ w.openVid = (id: string) => {
 };
 
 export async function deleteVideo(id: string, name: string) {
-  if (!confirm(`Delete "${name}"?\nThis cannot be undone.`)) return;
+  if (!await confirmDialog(`Delete "${name}"?\nThis cannot be undone.`)) return;
   const r = await fetch(`/api/videos/${id}`, { method: 'DELETE' }).catch(() => null);
   if (!r || !r.ok) {
     const err = r ? await r.json().catch(() => ({})) : {};

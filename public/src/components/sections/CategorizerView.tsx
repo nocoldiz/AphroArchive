@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'preact/hooks';
 import { allVideos, folders, loadFolders, loadVideos } from '../../store';
 import { Video } from '../../types';
+import { confirmDialog, alertDialog } from '../../dialog';
 
 type Side = 'left' | 'right';
 
@@ -278,7 +279,7 @@ export const CategorizerView = () => {
       vidResults.filter(r => r.ok).map(r => [r.id, r.newId])
     );
     const failCount = vidResults.filter(r => !r.ok).length;
-    if (failCount) alert(`${failCount} move${failCount > 1 ? 's' : ''} failed`);
+    if (failCount) await alertDialog(`${failCount} move${failCount > 1 ? 's' : ''} failed`);
 
     if (movedVidIds.size) {
       allVideos.value = allVideos.value.map(v => {
@@ -333,7 +334,7 @@ export const CategorizerView = () => {
         body: JSON.stringify({ oldPath, newName }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) { alert(d.error || 'Rename failed'); return; }
+      if (!r.ok || d.error) { await alertDialog(d.error || 'Rename failed'); return; }
       // Optimistically update signal so dropdown updates
       const parentParts = oldPath.split('/');
       parentParts[parentParts.length - 1] = newName;
@@ -346,7 +347,7 @@ export const CategorizerView = () => {
       });
       pickCat(side, newPath);
       if ((window as any).loadVideos) (window as any).loadVideos();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { await alertDialog(e.message); }
     setRenameSide(null);
   };
 
@@ -354,7 +355,7 @@ export const CategorizerView = () => {
     const cat = getCat(side);
     if (!cat) return;
     const catDisplay = allCats.find(c => c.path === cat)?.name || cat;
-    if (!confirm(`Delete folder "${catDisplay}"? All its videos will be moved to the default folder.`)) return;
+    if (!await confirmDialog(`Delete folder "${catDisplay}"? All its videos will be moved to the default folder.`)) return;
     try {
       const r = await fetch('/api/folders/delete', {
         method: 'DELETE',
@@ -362,10 +363,10 @@ export const CategorizerView = () => {
         body: JSON.stringify({ path: cat }),
       });
       const d = await r.json();
-      if (!r.ok || d.error) { alert(d.error || 'Delete failed'); return; }
+      if (!r.ok || d.error) { await alertDialog(d.error || 'Delete failed'); return; }
       pickCat(side, '');
       if ((window as any).loadVideos) (window as any).loadVideos();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { await alertDialog(e.message); }
   };
 
   // ── Auto-categorize ───────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMo
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
+import { confirmDialog } from '../../dialog';
 
 // Index of the most recently clicked card — anchor for Shift+click range
 // selection, file-manager style. `lastClickedList` records *which* list the
@@ -338,7 +339,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
 
   const handleEncrypt = async (e: any) => {
     e.stopPropagation();
-    if (!confirm(`Encrypt video "${video.name}" and move to Vault?`)) return;
+    if (!await confirmDialog(`Encrypt video "${video.name}" and move to Vault?`)) return;
 
     const r = await fetch(`/api/videos/${video.id}/encrypt`, { method: 'POST' });
     if (r.ok) {
@@ -728,7 +729,7 @@ export const VideoSelBar = () => {
   };
 
   const deleteSelected = async () => {
-    if (!confirm(`Delete ${count} video${count !== 1 ? 's' : ''} from disk?\nThis action cannot be undone.`)) return;
+    if (!await confirmDialog(`Delete ${count} video${count !== 1 ? 's' : ''} from disk?\nThis action cannot be undone.`)) return;
     const ids = [...selectedVideoIds.value];
     let deleted = 0;
     for (const id of ids) {

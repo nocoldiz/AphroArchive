@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount } from '../../store';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount, applyVideoIdChange } from '../../store';
 import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID } from './navItems';
 import { pluginsList, isPluginEnabled, runPluginAction, type PluginMeta } from '../../plugins';
 import { zapOn } from '../../zap';
@@ -256,20 +256,26 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
             e.currentTarget.classList.remove('drop-over');
             const id = e.dataTransfer.getData('text/plain');
             if (!id) return;
+            // PATCH (the server only exposes PATCH here — POST used to 404 and
+            // silently fail). Patch client state in place off the returned id so
+            // the grid updates instantly, then reconcile in the background.
             fetch(`/api/videos/${id}/move`, {
-              method: 'POST',
+              method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ category: c.path })
             })
             .then(r => r.json())
             .then(data => {
               if (data.ok) {
-                if ((window as any).loadVideos) (window as any).loadVideos();
+                const leaf = c.path ? (c.path.split('/').pop() || '') : '';
+                applyVideoIdChange(id, data.newId || id, { catPath: c.path, category: leaf });
+                (window as any).loadVideos?.();
+                (window as any).toast?.('Moved');
               } else {
-                alert(data.error || 'Move failed');
+                (window as any).toast?.(data.error || 'Move failed');
               }
             })
-            .catch(err => console.error('Move failed', err));
+            .catch(() => (window as any).toast?.('Move failed'));
           } : undefined}
           isActive={currentFolder.value === c.path}
         />

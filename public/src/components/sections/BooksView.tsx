@@ -3,6 +3,7 @@ import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { contextMenuState } from '../../store';
 import { Book } from '../../types';
+import { confirmDialog } from '../../dialog';
 
 export const BooksView = () => {
   const [books, setBooks] = useState<Book[]>([]);
@@ -123,7 +124,7 @@ export const BooksView = () => {
   };
 
   const deleteBook = async (id: string) => {
-    if (!confirm('Delete this book?')) return;
+    if (!await confirmDialog('Delete this book?')) return;
     try {
       const r = await fetch(`/api/books/${id}`, { method: 'DELETE' });
       if (r.ok) {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { confirmDialog } from '../../dialog';
 
 type IssueType = 'missing_file' | 'zero_duration' | 'missing_thumbs' | 'orphaned_meta';
 
@@ -240,8 +241,8 @@ export const LibraryHealthView = () => {
                 <button
                   class="btn-sm btn-danger"
                   disabled={fixing}
-                  onClick={() => {
-                    if (!confirm('Remove selected missing-file entries from the database?')) return;
+                  onClick={async () => {
+                    if (!await confirmDialog('Remove selected missing-file entries from the database?')) return;
                     fix('delete_missing_files', 'missing_file');
                   }}
                 >

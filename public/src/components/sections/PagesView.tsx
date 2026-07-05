@@ -2,6 +2,7 @@ import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { cardSize, contextMenuState } from '../../store';
 import { PageItem } from '../../types';
+import { confirmDialog } from '../../dialog';
 
 export const PagesView = () => {
   const [pagesList, setPagesList] = useState<PageItem[]>([]);
@@ -28,7 +29,7 @@ export const PagesView = () => {
 
   const deletePage = async (id: string, name: string) => {
     const w = window as any;
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!await confirmDialog(`Delete "${name}"?`)) return;
     try {
       const r = await fetch(`/api/pages/${id}`, { method: 'DELETE' });
       if (!r.ok) {

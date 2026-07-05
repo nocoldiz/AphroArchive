@@ -63,3 +63,15 @@ export function clearProgress(id: string) {
     write(m);
   }
 }
+
+// Carry a resume position from one id to another. Used when a file op (rename /
+// move) changes a video's id so the player resumes where it was instead of
+// restarting from the beginning after the remount.
+export function moveProgress(oldId: string, newId: string) {
+  if (!oldId || !newId || oldId === newId) return;
+  const m = read();
+  if (!m[oldId]) return;
+  m[newId] = m[oldId];
+  delete m[oldId];
+  write(m);
+}

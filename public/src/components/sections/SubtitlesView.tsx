@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'preact/hooks';
 import { appPrefs, updatePrefs, subtitleEditorModalState } from '../../store';
+import { confirmDialog } from '../../dialog';
 
 interface SubtitleFile {
   name: string;
@@ -154,7 +155,7 @@ export const SubtitlesView = () => {
   };
 
   const deleteSubtitle = async (id: string, name: string) => {
-    if (!confirm(`Delete subtitle file(s) for "${name}"?`)) return;
+    if (!await confirmDialog(`Delete subtitle file(s) for "${name}"?`)) return;
     await fetch(`/api/subtitles/${id}/delete`, { method: 'POST' });
     (window as any).toast?.('Subtitle deleted');
     loadItems();

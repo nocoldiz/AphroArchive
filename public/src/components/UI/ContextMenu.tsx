@@ -2,6 +2,7 @@ import { contextMenuState, appPrefs, updatePrefs, videos, allVideos, folders, cu
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 import { setItemPlacement, setSectionPlacement, PLUGINS_GROUP_ID } from './navItems';
+import { confirmDialog, promptDialog } from '../../dialog';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -50,7 +51,7 @@ export const ContextMenu = () => {
   };
 
   const handleRename = async () => {
-    const newName = prompt('Rename folder to:', data.name);
+    const newName = await promptDialog('Rename folder to:', data.name);
     if (!newName || newName === data.name) return;
 
     const r = await fetch('/api/folders/relabel', {
@@ -69,7 +70,7 @@ export const ContextMenu = () => {
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete folder "${data.name}"?\nAll videos inside will be moved to the main videos folder.`)) return;
+    if (!await confirmDialog(`Delete folder "${data.name}"?\nAll videos inside will be moved to the main videos folder.`)) return;
 
     const r = await fetch('/api/folders/purge', {
       method: 'DELETE',
@@ -123,7 +124,7 @@ export const ContextMenu = () => {
   };
 
   const handleCompress = async () => {
-    if (!confirm(`Start high-compression for all videos in "${data.name}"?\nThis runs in the background and may take a while.`)) return;
+    if (!await confirmDialog(`Start high-compression for all videos in "${data.name}"?\nThis runs in the background and may take a while.`)) return;
 
     const r = await fetch('/api/folders/compress', {
       method: 'POST',
@@ -139,7 +140,7 @@ export const ContextMenu = () => {
   };
 
   const handleDownloadZip = async () => {
-    const password = prompt('Enter password for ZIP (leave blank for no encryption):');
+    const password = await promptDialog('Enter password for ZIP (leave blank for no encryption):');
     if (password === null) return;
 
     toast('Generating ZIP...');
@@ -227,7 +228,7 @@ export const ContextMenu = () => {
 
   const handleRenameTag = async () => {
     const tagName = data.name;
-    const newName = prompt('Rename tag to:', tagName);
+    const newName = await promptDialog('Rename tag to:', tagName);
     if (!newName || newName === tagName) return;
     closeMenu();
     const r = await fetch(`/api/tags/${encodeURIComponent(tagName)}`, {
@@ -246,7 +247,7 @@ export const ContextMenu = () => {
 
   const handleDeleteTag = async () => {
     const tagName = data.name;
-    if (!confirm(`Remove tag "${tagName}" from all videos?`)) return;
+    if (!await confirmDialog(`Remove tag "${tagName}" from all videos?`)) return;
     closeMenu();
     const r = await fetch(`/api/tags/${encodeURIComponent(tagName)}`, { method: 'DELETE' });
     if (r.ok) {
@@ -298,7 +299,7 @@ export const ContextMenu = () => {
   };
 
   const physicalDeleteFolder = async (id: string, name: string) => {
-    if (!confirm(`Delete subfolder "${name}"? Contents will move to parent.`)) return;
+    if (!await confirmDialog(`Delete subfolder "${name}"? Contents will move to parent.`)) return;
     const parent = physicalFolders.find(f => f.id === id)?.parent || null;
     await fetch('/api/folders/delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: id }) });
     if (physicalCurFolder === id) setPhysicalCurFolder(parent);
@@ -471,7 +472,7 @@ export const ContextMenu = () => {
             <ContextItem label="Open folder" icon="folder" onClick={handleOpenFolder} />
             <ContextItem label="Re-encode to H.265" icon="zap" onClick={async () => {
               closeMenu();
-              if (!confirm(`Re-encode all videos in "${data.name}" to H.265?\nThis runs in the background and may take a while.`)) return;
+              if (!await confirmDialog(`Re-encode all videos in "${data.name}" to H.265?\nThis runs in the background and may take a while.`)) return;
               const r = await fetch('/api/reencode/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -551,7 +552,7 @@ export const ContextMenu = () => {
               });
             }} />
             <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
-              if (!confirm(`Delete video "${data.name}" from disk?\nThis action cannot be undone.`)) return;
+              if (!await confirmDialog(`Delete video "${data.name}" from disk?\nThis action cannot be undone.`)) return;
               const r = await fetch(`/api/videos/${data.id}`, { method: 'DELETE' });
               if (r.ok) {
                 if ((window as any).toast) (window as any).toast('Video deleted');
@@ -678,10 +679,34 @@ export const ContextMenu = () => {
             });
             toast(r.ok ? `Added ${label} "${short}"` : `Failed to add ${label}`);
           };
+          // Tag the current video with the selected text (needs a video id in data).
+          const addTag = async () => {
+            closeMenu();
+            const vid = data?.videoId;
+            if (!vid) return;
+            const cur = await fetch(`/api/videos/${vid}`).then(r => r.json()).catch(() => null);
+            const existing = (cur?.tags || []) as string[];
+            if (existing.some(t => t.toLowerCase() === text.toLowerCase())) {
+              toast(`Already tagged "${short}"`);
+              return;
+            }
+            const r = await fetch(`/api/videos/${vid}/meta`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tags: [...existing, text] }),
+            });
+            if (r.ok) {
+              data?.onAddTag?.(text);
+              toast(`Added tag "${short}"`);
+            } else {
+              toast('Failed to add tag');
+            }
+          };
           return (
             <>
               <ContextItem label={`Add "${short}" as Actor`} icon="user" onClick={() => addEntry('actors', 'actor')} />
               <ContextItem label={`Add "${short}" as Channel`} icon="link" onClick={() => addEntry('channels', 'channel')} />
+              {data?.videoId && <ContextItem label={`Add "${short}" as Tag`} icon="tag" onClick={addTag} />}
             </>
           );
         })()}

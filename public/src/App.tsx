@@ -152,7 +152,12 @@ export function App() {
     const getPanicKeys = (): string[] => {
       try {
         const keys = localStorage.getItem('panicKeys');
-        return keys ? JSON.parse(keys) : [];
+        if (keys !== null) return JSON.parse(keys);
+        // Never configured: fall back to legacy single key, else default to F1
+        const single = localStorage.getItem('panicKey');
+        if (single) return [single];
+        localStorage.setItem('panicKeys', JSON.stringify(['F1']));
+        return ['F1'];
       } catch {
         // Fallback to single key for backward compatibility
         const single = localStorage.getItem('panicKey');

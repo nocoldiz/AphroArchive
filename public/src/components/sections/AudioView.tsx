@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { isMuted, cardSize, contextMenuState } from '../../store';
 import { AudioFile, Album } from '../../types';
+import { confirmDialog } from '../../dialog';
 
 type MusicTab = 'music' | 'albums' | 'artists';
 
@@ -27,7 +28,7 @@ const MusicTab = ({ curAudio, setCurAudio }: { curAudio: string | null; setCurAu
   const handleSetView = (v: 'card' | 'list') => { setView(v); localStorage.setItem('audioView', v); };
 
   const deleteAudio = async (id: string) => {
-    if (!confirm('Delete this audio file?')) return;
+    if (!await confirmDialog('Delete this audio file?')) return;
     const r = await fetch(`/api/audio/${id}`, { method: 'DELETE' });
     if (r.ok) { if (curAudio === id) setCurAudio(null); if (w.toast) w.toast('Deleted'); load(); }
     else if (w.toast) w.toast('Delete failed');

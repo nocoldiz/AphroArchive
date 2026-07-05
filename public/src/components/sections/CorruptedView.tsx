@@ -1,6 +1,7 @@
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { isVaultUnlocked } from '../../store';
+import { confirmDialog } from '../../dialog';
 
 interface CorruptedItem {
   id: string;
@@ -88,7 +89,7 @@ export const CorruptedView = () => {
   useEffect(() => () => { sseRef.current?.close(); }, []);
 
   const handleDelete = async (item: CorruptedItem) => {
-    if (!confirm(`Permanently delete "${item.name}"?`)) return;
+    if (!await confirmDialog(`Permanently delete "${item.name}"?`)) return;
     setDeletingId(item.id);
     try {
       const r = await fetch(deleteUrl(item.id), { method: 'DELETE' });
@@ -107,7 +108,7 @@ export const CorruptedView = () => {
 
   const handleDeleteAll = async () => {
     if (!visible.length) return;
-    if (!confirm(`Permanently delete all ${visible.length} corrupted file${visible.length !== 1 ? 's' : ''}?`)) return;
+    if (!await confirmDialog(`Permanently delete all ${visible.length} corrupted file${visible.length !== 1 ? 's' : ''}?`)) return;
     setDeletingAll(true);
     const newDeleted = new Set(deleted);
     let count = 0;

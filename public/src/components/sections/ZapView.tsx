@@ -129,6 +129,15 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
     }
   }, [chips, filteredList]);
 
+  // Reset to the whole library: drop every filter chip and zap across all
+  // streamable videos, ignoring whatever folder zapping was launched from.
+  const handleAllVideos = useCallback(() => {
+    setChips([]);
+    const all = allVids.filter(v => !v.isLink && !bms.has(v.id));
+    zapFilteredPool.value = all;
+    setZapQueueFromList(all);
+  }, [allVids, bms]);
+
   const handleInputKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Enter' && inputVal.trim()) {
       addChip({ value: inputVal.trim(), type: 'text' });
@@ -248,6 +257,7 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
         {/* Queue header + shuffle */}
         <div className="zap-queue-header">
           <span>Up Next</span>
+          <button type="button" className="zap-shuffle-btn" onClick={handleAllVideos} title="Zap across all videos">📺 All Videos</button>
           <button type="button" className="zap-shuffle-btn" onClick={handleShuffle} title="Shuffle queue with current filter">⇌ Shuffle</button>
         </div>
 

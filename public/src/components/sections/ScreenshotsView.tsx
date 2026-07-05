@@ -4,6 +4,7 @@ import { SectionControls } from '../UI/SectionControls';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
 import { contextMenuState } from '../../store';
 import { ScreenshotFile } from '../../types';
+import { confirmDialog } from '../../dialog';
 
 export const ScreenshotsView = () => {
   const [screenshots, setScreenshots] = useState<ScreenshotFile[]>([]);
@@ -80,7 +81,7 @@ export const ScreenshotsView = () => {
   };
 
   const deleteScreenshot = async (id: string) => {
-    if (!confirm('Delete this screenshot?')) return;
+    if (!await confirmDialog('Delete this screenshot?')) return;
     const w = window as any;
     const r = await fetch(`/api/screenshots/${id}`, { method: 'DELETE' });
     if (r.ok) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { vaultZipModalState } from '../../store';
+import { alertDialog } from '../../dialog';
 
 export const VaultZipModal = () => {
   const state = vaultZipModalState.value;
@@ -30,7 +31,7 @@ export const VaultZipModal = () => {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Download failed');
+        await alertDialog(data.error || 'Download failed');
         setLoading(false);
         return;
       }
@@ -46,7 +47,7 @@ export const VaultZipModal = () => {
       document.body.removeChild(a);
       handleClose();
     } catch (e: any) {
-      alert('Download failed: ' + e.message);
+      await alertDialog('Download failed: ' + e.message);
       setLoading(false);
     }
   };

@@ -4,6 +4,7 @@ import { JSX } from 'preact';
 import { ensureQRCode } from '../../utils';
 import { CategorizeModal, PlanItem, Move } from '../UI/CategorizeModal';
 import { pluginsList, isPluginEnabled, loadPlugins, togglePlugin } from '../../plugins';
+import { confirmDialog, alertDialog } from '../../dialog';
 
 declare global {
   interface Window {
@@ -319,7 +320,7 @@ export const SettingsView = () => {
     })();
   }, [connectUrls, connectIdx]);
 
-  const handleSaveAnthropic = () => { updatePrefs({ anthropicApiKey: anthropicKey }); alert('Anthropic API key saved!'); };
+  const handleSaveAnthropic = () => { updatePrefs({ anthropicApiKey: anthropicKey }); alertDialog('Anthropic API key saved!'); };
 
   const toggleNetwork = async () => { const newVal = !netEnabled; setNetEnabled(newVal); updatePrefs({ networkEnabled: newVal }); };
 
@@ -671,7 +672,7 @@ export const SettingsView = () => {
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input type="text" id="new-source-folder" placeholder="C:\Users\...\Pictures" style={{ ...inp, flex: 1, width: 'auto' }} />
-                <button className="modal-btn modal-btn--secondary" onClick={async () => { try { const r = await fetch('/api/browse-folders-native'); const d = await r.json(); if (d.path) { const i = document.getElementById('new-source-folder') as HTMLInputElement; if (i) i.value = d.path; } else if (d.error) alert(d.error); } catch {} }}>Browse</button>
+                <button className="modal-btn modal-btn--secondary" onClick={async () => { try { const r = await fetch('/api/browse-folders-native'); const d = await r.json(); if (d.path) { const i = document.getElementById('new-source-folder') as HTMLInputElement; if (i) i.value = d.path; } else if (d.error) await alertDialog(d.error); } catch {} }}>Browse</button>
                 <button className="modal-btn modal-btn--primary" onClick={async () => { const input = document.getElementById('new-source-folder') as HTMLInputElement; const val = input.value.trim(); if (val) { const current = prefs.sourceFolders || []; if (!current.includes(val)) { await updatePrefs({ sourceFolders: [...current, val] }); input.value = ''; loadVideos(); } else { if (window.toast) window.toast('Folder already added'); } } }}>Add</button>
               </div>
             </div>
@@ -696,7 +697,7 @@ export const SettingsView = () => {
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input type="text" id="new-feed-folder" placeholder="C:\Users\...\Downloads" style={{ ...inp, flex: 1, width: 'auto' }} />
-                    <button className="modal-btn modal-btn--secondary" onClick={async () => { try { const r = await fetch('/api/browse-folders-native'); const d = await r.json(); if (d.path) (document.getElementById('new-feed-folder') as HTMLInputElement).value = d.path; else if (d.error) alert(d.error); } catch {} }}>Browse</button>
+                    <button className="modal-btn modal-btn--secondary" onClick={async () => { try { const r = await fetch('/api/browse-folders-native'); const d = await r.json(); if (d.path) (document.getElementById('new-feed-folder') as HTMLInputElement).value = d.path; else if (d.error) await alertDialog(d.error); } catch {} }}>Browse</button>
                     <button className="modal-btn modal-btn--primary" onClick={async () => { const input = document.getElementById('new-feed-folder') as HTMLInputElement; const val = input.value.trim(); if (!val) return; const current = prefs.feedFolders || []; if (current.includes(val)) { if (window.toast) window.toast('Folder already added'); return; } await updatePrefs({ feedFolders: [...current, val] }); input.value = ''; }}>Add</button>
                   </div>
                 </div>
@@ -719,7 +720,7 @@ export const SettingsView = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input type="text" id="new-private-feed-folder" placeholder="C:\Users\...\Private" style={{ ...inp, flex: 1, width: 'auto' }} />
-                      <button className="modal-btn modal-btn--secondary" onClick={async () => { try { const r = await fetch('/api/browse-folders-native'); const d = await r.json(); if (d.path) (document.getElementById('new-private-feed-folder') as HTMLInputElement).value = d.path; else if (d.error) alert(d.error); } catch {} }}>Browse</button>
+                      <button className="modal-btn modal-btn--secondary" onClick={async () => { try { const r = await fetch('/api/browse-folders-native'); const d = await r.json(); if (d.path) (document.getElementById('new-private-feed-folder') as HTMLInputElement).value = d.path; else if (d.error) await alertDialog(d.error); } catch {} }}>Browse</button>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input type="password" id="new-private-feed-password" placeholder="Vault password" style={{ ...inp, flex: 1, width: 'auto' }} />
@@ -733,7 +734,7 @@ export const SettingsView = () => {
                         try {
                           const r = await fetch('/api/feed-folders/verify-vault', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
                           const d = await r.json();
-                          if (!d.ok) { if (window.toast) window.toast(d.error || 'Incorrect vault password'); else alert(d.error || 'Incorrect vault password'); return; }
+                          if (!d.ok) { if (window.toast) window.toast(d.error || 'Incorrect vault password'); else await alertDialog(d.error || 'Incorrect vault password'); return; }
                           await updatePrefs({ privateFeedFolders: [...current, folderVal] });
                           folderInput.value = ''; pwInput.value = '';
                         } catch { if (window.toast) window.toast('Error verifying vault password'); }
@@ -758,7 +759,7 @@ export const SettingsView = () => {
                     const r = await fetch('/api/browse-folders-native');
                     const d = await r.json();
                     if (d.path) setPathInputs(prev => ({ ...prev, [key]: d.path }));
-                    else if (d.error) alert(d.error);
+                    else if (d.error) await alertDialog(d.error);
                   } catch {}
                 };
                 const savePath = async (key: 'cacheDir' | 'dbDir' | 'vaultDir') => {
@@ -950,9 +951,9 @@ export const SettingsView = () => {
                 <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Permanently remove cached or stored data. These actions cannot be undone.</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {([
-                    { label: 'All Thumbnails', desc: 'Deletes thumbnail images and cache entries', action: async () => { if (!confirm('Delete all thumbnails?')) return; await fetch('/api/thumbs/clear', { method: 'POST' }); if (window.toast) window.toast('Thumbnails cleared'); } },
-                    { label: 'All Favourites', desc: 'Removes all videos from your favourites list', action: async () => { if (!confirm('Clear all favourites?')) return; await fetch('/api/favourites', { method: 'DELETE' }); if (window.toast) window.toast('Favourites cleared'); } },
-                    { label: 'Recently Watched', desc: 'Clears the watch history', action: async () => { if (!confirm('Clear watch history?')) return; await fetch('/api/history', { method: 'DELETE' }); if (window.toast) window.toast('History cleared'); } },
+                    { label: 'All Thumbnails', desc: 'Deletes thumbnail images and cache entries', action: async () => { if (!await confirmDialog('Delete all thumbnails?')) return; await fetch('/api/thumbs/clear', { method: 'POST' }); if (window.toast) window.toast('Thumbnails cleared'); } },
+                    { label: 'All Favourites', desc: 'Removes all videos from your favourites list', action: async () => { if (!await confirmDialog('Clear all favourites?')) return; await fetch('/api/favourites', { method: 'DELETE' }); if (window.toast) window.toast('Favourites cleared'); } },
+                    { label: 'Recently Watched', desc: 'Clears the watch history', action: async () => { if (!await confirmDialog('Clear watch history?')) return; await fetch('/api/history', { method: 'DELETE' }); if (window.toast) window.toast('History cleared'); } },
                   ] as { label: string; desc: string; action: () => Promise<void> }[]).map(item => (
                     <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', background: 'var(--bg3)', borderRadius: '6px' }}>
                       <div style={{ flex: 1 }}>
@@ -1098,7 +1099,7 @@ export const SettingsView = () => {
                 <div>
                   <label style={label}>Quick Presets</label>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {[{ label: 'Mouse4 (Back)', value: 'Mouse4' }, { label: 'Mouse5 (Forward)', value: 'Mouse5' }, { label: 'Middle Click', value: 'Mouse1' }, { label: 'Ctrl+Shift+Escape', value: 'Ctrl+Shift+Escape' }, { label: 'F12', value: 'F12' }].map(preset => (
+                    {[{ label: 'F1 (default)', value: 'F1' }, { label: 'Mouse4 (Back)', value: 'Mouse4' }, { label: 'Mouse5 (Forward)', value: 'Mouse5' }, { label: 'Middle Click', value: 'Mouse1' }, { label: 'Ctrl+Shift+Escape', value: 'Ctrl+Shift+Escape' }, { label: 'F12', value: 'F12' }].map(preset => (
                       <button key={preset.value} className="modal-btn" style={{ fontSize: '0.82rem', padding: '6px 12px' }}
                         onClick={() => { try { const keys = JSON.parse(localStorage.getItem('panicKeys') || '[]'); if (!keys.includes(preset.value)) { keys.push(preset.value); localStorage.setItem('panicKeys', JSON.stringify(keys)); } window.location.reload(); } catch {} }}>
                         {preset.label}

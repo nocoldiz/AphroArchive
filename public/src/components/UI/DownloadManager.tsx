@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { folders, loadVideos } from '../../store';
+import { confirmDialog, alertDialog } from '../../dialog';
 
 interface DownloadJob {
   id: string;
@@ -120,7 +121,7 @@ export const DownloadManager = () => {
   };
 
   const removeAll = async () => {
-    if (!confirm('Clear the entire download queue? This cancels any active downloads.')) return;
+    if (!await confirmDialog('Clear the entire download queue? This cancels any active downloads.')) return;
     await fetch('/api/download/jobs', { method: 'DELETE' });
     setJobs([]);
   };
@@ -140,7 +141,7 @@ export const DownloadManager = () => {
       setJobs(prev => prev.map(j => j.id === job.id ? { ...j, movedTo: cat } : j));
     } else {
       const d = await r.json().catch(() => ({}));
-      alert(d.error || 'Move failed');
+      await alertDialog(d.error || 'Move failed');
     }
   };
 

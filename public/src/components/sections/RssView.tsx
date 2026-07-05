@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { appPrefs, updatePrefs, isVaultUnlocked, currentView } from '../../store';
+import { alertDialog } from '../../dialog';
 
 interface RssFeed { url: string; name?: string; category?: string; }
 
@@ -7,7 +8,7 @@ const browseNative = async (): Promise<string | null> => {
   try {
     const r = await fetch('/api/browse-folders-native');
     const d = await r.json();
-    if (d.error) { alert(d.error); return null; }
+    if (d.error) { await alertDialog(d.error); return null; }
     return d.path || null;
   } catch { return null; }
 };

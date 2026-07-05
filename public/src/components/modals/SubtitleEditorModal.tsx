@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'preact/hooks';
 import { subtitleEditorModalState } from '../../store';
+import { confirmDialog } from '../../dialog';
 
 interface Cue {
   id: string;
@@ -102,8 +103,8 @@ export const SubtitleEditorModal = () => {
       .catch(() => { setError('Failed to load subtitle file'); setLoading(false); });
   }, [state.visible, state.videoId]);
 
-  const close = () => {
-    if (dirty && !confirm('You have unsaved changes. Close anyway?')) return;
+  const close = async () => {
+    if (dirty && !await confirmDialog('You have unsaved changes. Close anyway?')) return;
     subtitleEditorModalState.value = { visible: false, videoId: '', videoName: '' };
     setCues([]);
     setRawText('');

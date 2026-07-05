@@ -1,6 +1,7 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
+import { confirmDialog } from '../../dialog';
 
 interface FileItem {
   id: string;
@@ -96,7 +97,7 @@ export const FilesView = () => {
   };
 
   const deleteFile = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!await confirmDialog(`Delete "${name}"?`)) return;
     await fetch(`/api/files/${id}`, { method: 'DELETE' });
     if (w.toast) w.toast('Deleted');
     loadAll();
@@ -133,7 +134,7 @@ export const FilesView = () => {
   };
 
   const deleteFolder = async (name: string) => {
-    if (!confirm(`Delete folder "${name}"? Files will move to root.`)) return;
+    if (!await confirmDialog(`Delete folder "${name}"? Files will move to root.`)) return;
     await fetch('/api/files/folders/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
     if (activeFolder === name) setActiveFolder('');
     loadAll();

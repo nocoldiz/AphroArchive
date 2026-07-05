@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
-import { moveModalState, loadVideos, videos, allVideos, selectedVideoIds, videoSelMode } from '../../store';
+import { moveModalState, loadVideos, selectedVideoIds, videoSelMode, applyVideoIdChange } from '../../store';
 import { moveVideo } from '../../api';
-import { Video } from '../../types';
 
 interface MainFolder { name: string; path: string; isExternal?: boolean }
 interface VaultFolder { id: string; name: string; parent: string | null }
@@ -157,6 +156,10 @@ export const MoveModal = () => {
     const moved: string[] = [];
     const skipped: string[] = [];
     const failed: string[] = [];
+    // Records the id the server minted for each moved file (base64url ids are
+    // path-derived, so a move changes the id) — used to patch client state in
+    // place instead of waiting on a full reload.
+    const remaps: { oldId: string; newId: string }[] = [];
 
     // Move one file at a time but never abort the batch on a single failure —
     // "already in this folder" / name clashes are skips, everything else is
@@ -175,7 +178,8 @@ export const MoveModal = () => {
             throw new Error(d.error || 'Failed to move');
           }
         } else {
-          await moveVideo(ids[i], targetCat);
+          const res = await moveVideo(ids[i], targetCat);
+          if (res && res.newId) remaps.push({ oldId: ids[i], newId: res.newId });
         }
         moved.push(ids[i]);
       } catch (e: any) {
@@ -187,20 +191,25 @@ export const MoveModal = () => {
     setBusy('');
 
     if (moved.length && !state.isVault) {
-      // Optimistically reflect the new folder so the grid and sidebar counts
-      // react immediately; loadVideos() then reconciles the authoritative IDs.
-      const movedIds = new Set(moved);
+      // Instantaneous: reflect the new folder AND the new id everywhere the
+      // grid, sidebar counts, and the details/player read from, so no reload is
+      // needed. applyVideoIdChange also carries playback position across the
+      // player's keyed remount so the current video doesn't restart.
       const leaf = targetCat ? (targetCat.split('/').pop() || '') : '';
-      const recat = (arr: Video[]) => arr.map(v =>
-        movedIds.has(v.id) ? { ...v, catPath: targetCat, category: leaf } : v);
-      allVideos.value = recat(allVideos.value);
-      videos.value = recat(videos.value);
-      selectedVideoIds.value = new Set([...selectedVideoIds.value].filter(id => !movedIds.has(id)));
+      const remapById = new Map(remaps.map(r => [r.oldId, r.newId]));
+      for (const oldId of moved) {
+        applyVideoIdChange(oldId, remapById.get(oldId) || oldId, { catPath: targetCat, category: leaf });
+      }
+      selectedVideoIds.value = new Set(
+        [...selectedVideoIds.value].map(id => remapById.get(id) || id).filter(id => !moved.includes(id))
+      );
       videoSelMode.value = selectedVideoIds.value.size > 0;
     }
     if (moved.length) {
       if (state.isVault && w.loadVaultFiles) w.loadVaultFiles();
-      await loadVideos();
+      // Reconcile in the background (folder list / counts) without blocking or
+      // flashing the grid — the optimistic patch above already made it correct.
+      loadVideos();
     }
 
     if (!moved.length && !skipped.length) {

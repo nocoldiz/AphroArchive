@@ -3,6 +3,7 @@ import { formatVideoTitle } from '../../utils';
 /** @jsxImportSource preact */
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { duplicatesDeleteProgress, refreshLibraryQuietly } from '../../store';
+import { confirmDialog } from '../../dialog';
 
 interface VideoItem {
   id: string;
@@ -162,7 +163,7 @@ export const DuplicatesView = () => {
     const needsRename = bestName.id !== bestQuality.id;
     const resLabel = (bestQuality.width && bestQuality.height) ? ` (${bestQuality.width}×${bestQuality.height})` : '';
     const renameNote = needsRename ? `\n\nWill rename to "${bestName.name}" (better-named file).` : '';
-    if (!confirm(`Keep "${bestQuality.name}"${resLabel} and permanently delete the other ${toDelete.length} file${toDelete.length !== 1 ? 's' : ''}?${renameNote}`)) return;
+    if (!await confirmDialog(`Keep "${bestQuality.name}"${resLabel} and permanently delete the other ${toDelete.length} file${toDelete.length !== 1 ? 's' : ''}?${renameNote}`)) return;
     setKeepingGroup(groupIdx);
     if (needsRename) {
       const stem = bestName.name.replace(/\.[^.]+$/, '');
@@ -206,7 +207,7 @@ export const DuplicatesView = () => {
     const renameCount = targets.filter(t => t.needsRename).length;
     if (totalToDelete === 0) return;
     const renameNote = renameCount > 0 ? `\n\n${renameCount} file${renameCount !== 1 ? 's' : ''} will be renamed to a better-named version.` : '';
-    if (!confirm(`Keep the best file in each of the ${targets.length} group${targets.length !== 1 ? 's' : ''} and permanently delete the other ${totalToDelete} file${totalToDelete !== 1 ? 's' : ''}?${renameNote}`)) return;
+    if (!await confirmDialog(`Keep the best file in each of the ${targets.length} group${targets.length !== 1 ? 's' : ''} and permanently delete the other ${totalToDelete} file${totalToDelete !== 1 ? 's' : ''}?${renameNote}`)) return;
     setKeepingAll(true);
     duplicatesDeleteProgress.value = { running: true, done: 0, total: totalToDelete };
     const newDeleted = new Set(deleted);
@@ -242,7 +243,7 @@ export const DuplicatesView = () => {
   };
 
   const handleDelete = async (video: VideoItem) => {
-    if (!confirm(`Delete "${video.name}"?\n\nThis will permanently remove the file.`)) return;
+    if (!await confirmDialog(`Delete "${video.name}"?\n\nThis will permanently remove the file.`)) return;
     setDeletingId(video.id);
     try {
       const r = await fetch(`/api/videos/${video.id}`, { method: 'DELETE' });

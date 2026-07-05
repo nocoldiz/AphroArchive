@@ -4,6 +4,7 @@ import { presetPickerState, dbPendingOpen, loadVideos } from '../../store';
 import { ActorScraperView } from './ActorScraperView';
 import { loadDbSeries, dbSeriesList, DbSeriesEntry, DbEpisode } from '../../series';
 import { Album, AlbumTrack } from '../../types';
+import { confirmDialog, alertDialog } from '../../dialog';
 
 export const DatabaseView = () => {
   const [activeTab, setActiveTab] = useState('folders');
@@ -152,7 +153,7 @@ export const DatabaseView = () => {
   };
 
   const handleDelete = async (name: string) => {
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!await confirmDialog(`Delete "${name}"?`)) return;
     const r = await fetch(`/api/db/${activeTab}/${encodeURIComponent(name)}`, { method: 'DELETE' });
     if (r.ok) {
       loadTab(activeTab);
@@ -174,7 +175,7 @@ export const DatabaseView = () => {
     const name = activeTab === 'websites'
       ? (formData.name?.trim() || editName)
       : (editName || formData.name?.trim());
-    if (!name) { alert('Name is required'); return; }
+    if (!name) { await alertDialog('Name is required'); return; }
 
     const r = await fetch(`/api/db/${activeTab}`, {
       method: 'POST',
@@ -198,7 +199,7 @@ export const DatabaseView = () => {
   };
 
   const handleReset = async () => {
-    if (!confirm(`Reset database to initial preset data? This will overwrite categories, channels, and websites!`)) return;
+    if (!await confirmDialog(`Reset database to initial preset data? This will overwrite categories, channels, and websites!`)) return;
 
     setLoading(true);
     try {
@@ -213,7 +214,7 @@ export const DatabaseView = () => {
       if (w.toast) w.toast('Database reset complete');
       loadTab(activeTab);
     } catch (e: any) {
-      alert('Reset failed: ' + e.message);
+      await alertDialog('Reset failed: ' + e.message);
     } finally {
       setLoading(false);
     }
@@ -232,7 +233,7 @@ export const DatabaseView = () => {
       if (w.toast) w.toast('Folders visibility saved');
       await loadVideos();
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      await alertDialog('Error: ' + e.message);
     }
   };
 
@@ -255,7 +256,7 @@ export const DatabaseView = () => {
       setNewSourceFolder('');
       loadTab('folders');
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      await alertDialog('Error: ' + e.message);
     }
   };
 
@@ -270,7 +271,7 @@ export const DatabaseView = () => {
       if (!res.ok) throw new Error('Server error');
       loadTab('folders');
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      await alertDialog('Error: ' + e.message);
     }
   };
 
@@ -287,7 +288,7 @@ export const DatabaseView = () => {
       const w = window as any;
       if (w.toast) w.toast('Default path updated for downloads/moves');
     } catch (e: any) {
-      alert('Error saving default path: ' + e.message);
+      await alertDialog('Error saving default path: ' + e.message);
     }
   };
 
@@ -295,7 +296,7 @@ export const DatabaseView = () => {
     try {
       const res = await fetch('/api/browse-folders-native');
       const data = await res.json();
-      if (data.error) { alert(data.error); return; }
+      if (data.error) { await alertDialog(data.error); return; }
       if (data.path) setNewSourceFolder(data.path);
     } catch (e) {}
   };
@@ -333,14 +334,14 @@ export const DatabaseView = () => {
     try {
       data = JSON.parse(await file.text());
     } catch {
-      alert('Invalid JSON file');
+      await alertDialog('Invalid JSON file');
       return;
     }
     const knownTabs = ['actors', 'categories', 'channels', 'websites'];
     const toImport = knownTabs.filter(t => data[t]);
     const hasSeries = Array.isArray(data.series) && data.series.length > 0;
     const hasAlbums = Array.isArray(data.albums) && data.albums.length > 0;
-    if (!toImport.length && !hasSeries && !hasAlbums) { alert('No recognizable sections found'); return; }
+    if (!toImport.length && !hasSeries && !hasAlbums) { await alertDialog('No recognizable sections found'); return; }
     const results = await Promise.all([
       ...toImport.map(t => fetch(`/api/db/${t}/import`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data[t]),
@@ -368,7 +369,7 @@ export const DatabaseView = () => {
     try {
       data = JSON.parse(await file.text());
     } catch {
-      alert('Invalid JSON file');
+      await alertDialog('Invalid JSON file');
       return;
     }
     const r = await fetch(`/api/db/${activeTab}/import`, {
@@ -407,7 +408,7 @@ export const DatabaseView = () => {
       setPresetImportOpen(false);
       loadTab(activeTab);
     } catch (e: any) {
-      alert('Import failed: ' + e.message);
+      await alertDialog('Import failed: ' + e.message);
     } finally {
       setPresetImporting(null);
     }
@@ -438,7 +439,7 @@ export const DatabaseView = () => {
   };
 
   const handleWcDelete = async (name: string) => {
-    if (!confirm(`Delete wildcard "${name}"?`)) return;
+    if (!await confirmDialog(`Delete wildcard "${name}"?`)) return;
     await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
     loadTab('wildcards');
     const w = window as any;
@@ -474,7 +475,7 @@ export const DatabaseView = () => {
     if (!file) return;
     e.target.value = '';
     let data: any;
-    try { data = JSON.parse(await file.text()); } catch { alert('Invalid JSON file'); return; }
+    try { data = JSON.parse(await file.text()); } catch { await alertDialog('Invalid JSON file'); return; }
     const r = await fetch('/api/prompts/wildcards-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -511,7 +512,7 @@ export const DatabaseView = () => {
   const handleSeriesSave = async () => {
     const name = seriesForm.name.trim();
     const key = (seriesForm.key.trim() || name.toLowerCase()).toLowerCase();
-    if (!name || !key) { alert('Name is required'); return; }
+    if (!name || !key) { await alertDialog('Name is required'); return; }
     const episodes: DbEpisode[] = seriesForm.episodesText.split('\n').map(line => {
       const m = line.match(/^[Ss](\d+)[Ee](\d+)\s*(.*?)(?:\s*\[(\d+)m\])?\s*$/);
       if (!m) return null;
@@ -530,7 +531,7 @@ export const DatabaseView = () => {
 
   const handleSeriesDelete = async (key: string) => {
     const s = seriesList.find(s => s.key === key);
-    if (!confirm(`Delete series "${s?.name || key}"?`)) return;
+    if (!await confirmDialog(`Delete series "${s?.name || key}"?`)) return;
     await fetch(`/api/db/series/${encodeURIComponent(key)}`, { method: 'DELETE' });
     await loadDbSeries();
     const w = window as any;
@@ -549,8 +550,8 @@ export const DatabaseView = () => {
     if (!file) return;
     e.target.value = '';
     let data: any;
-    try { data = JSON.parse(await file.text()); } catch { alert('Invalid JSON'); return; }
-    if (!Array.isArray(data)) { alert('Expected array'); return; }
+    try { data = JSON.parse(await file.text()); } catch { await alertDialog('Invalid JSON'); return; }
+    if (!Array.isArray(data)) { await alertDialog('Expected array'); return; }
     const r = await fetch('/api/db/series/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -585,7 +586,7 @@ export const DatabaseView = () => {
   const handleAlbumSave = async () => {
     const name = albumForm.name.trim();
     const id = (albumForm.id.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).toLowerCase();
-    if (!name || !id) { alert('Name is required'); return; }
+    if (!name || !id) { await alertDialog('Name is required'); return; }
     const tracks: AlbumTrack[] = albumForm.tracksText.split('\n').map(line => {
       const m = line.match(/^(\d+)\.\s*(.*?)(?:\s*\[(\d+):(\d+)\])?\s*$/);
       if (!m) return null;
@@ -604,7 +605,7 @@ export const DatabaseView = () => {
 
   const handleAlbumDelete = async (id: string) => {
     const a = albumsList.find(a => a.id === id);
-    if (!confirm(`Delete album "${a?.name || id}"?`)) return;
+    if (!await confirmDialog(`Delete album "${a?.name || id}"?`)) return;
     await fetch(`/api/db/albums/${encodeURIComponent(id)}`, { method: 'DELETE' });
     loadTab('albums');
     const w = window as any;
@@ -623,8 +624,8 @@ export const DatabaseView = () => {
     if (!file) return;
     e.target.value = '';
     let data: any;
-    try { data = JSON.parse(await file.text()); } catch { alert('Invalid JSON'); return; }
-    if (!Array.isArray(data)) { alert('Expected array'); return; }
+    try { data = JSON.parse(await file.text()); } catch { await alertDialog('Invalid JSON'); return; }
+    if (!Array.isArray(data)) { await alertDialog('Expected array'); return; }
     const r = await fetch('/api/db/albums/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     const w = window as any;
     if (r.ok) { const d = await r.json(); if (w.toast) w.toast(`Imported ${d.count} albums`); loadTab('albums'); }
