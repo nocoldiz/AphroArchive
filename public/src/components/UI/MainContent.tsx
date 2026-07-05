@@ -1,20 +1,5 @@
 ﻿import { currentView, currentVideo } from '../../store';
-import { SettingsView } from '../sections/SettingsView';
-import { ThumbnailsView } from '../sections/ThumbnailsView';
-import { CategoriesView } from '../sections/CategoriesView';
-import { ActorsView } from '../sections/ActorsView';
-import { ChannelsView } from '../sections/ChannelsView';
-import { PhotosView } from '../sections/PhotosView';
-import { ScreenshotsView } from '../sections/ScreenshotsView';
-import { LinksView } from '../sections/LinksView';
-import { RssView } from '../sections/RssView';
 import { VisionModal } from '../modals/VisionModal';
-import { PagesView } from '../sections/PagesView';
-import { SearchSitesView } from '../sections/SearchSitesView';
-import { AudioView } from '../sections/AudioView';
-import { BooksView } from '../sections/BooksView';
-import { FilesView } from '../sections/FilesView';
-import { CollectionsView } from '../sections/CollectionsView';
 import { TagModal } from '../modals/TagModal';
 import { ActorModal } from '../modals/ActorModal';
 import { ChannelModal } from '../modals/ChannelModal';
@@ -23,17 +8,37 @@ import { LinkIframeModal } from '../modals/LinkIframeModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
-import { VaultView } from '../sections/VaultView';
 import { BrowseView } from '../sections/BrowseView';
 import { SearchResultsView } from '../sections/SearchResultsView';
-import { PlayerView } from '../sections/PlayerView';
 import { HomeView } from '../sections/HomeView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
 import { DialogModal } from '../modals/DialogModal';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
-// Heavy/rare views — code-split so the initial bundle stays small
+// Heavy/rare views — code-split so the initial bundle stays small.
+// Only the startup-critical views (Home, Browse, Player, SearchResults) are
+// eager; everything else loads on first navigation and is warmed by the
+// idle prefetch in App.tsx.
+const SettingsView = lazy(() => import('../sections/SettingsView').then(m => ({ default: m.SettingsView })));
+const ThumbnailsView = lazy(() => import('../sections/ThumbnailsView').then(m => ({ default: m.ThumbnailsView })));
+const CategoriesView = lazy(() => import('../sections/CategoriesView').then(m => ({ default: m.CategoriesView })));
+const ActorsView = lazy(() => import('../sections/ActorsView').then(m => ({ default: m.ActorsView })));
+const ChannelsView = lazy(() => import('../sections/ChannelsView').then(m => ({ default: m.ChannelsView })));
+const PhotosView = lazy(() => import('../sections/PhotosView').then(m => ({ default: m.PhotosView })));
+const ScreenshotsView = lazy(() => import('../sections/ScreenshotsView').then(m => ({ default: m.ScreenshotsView })));
+const LinksView = lazy(() => import('../sections/LinksView').then(m => ({ default: m.LinksView })));
+const RssView = lazy(() => import('../sections/RssView').then(m => ({ default: m.RssView })));
+const PagesView = lazy(() => import('../sections/PagesView').then(m => ({ default: m.PagesView })));
+const SearchSitesView = lazy(() => import('../sections/SearchSitesView').then(m => ({ default: m.SearchSitesView })));
+const AudioView = lazy(() => import('../sections/AudioView').then(m => ({ default: m.AudioView })));
+const BooksView = lazy(() => import('../sections/BooksView').then(m => ({ default: m.BooksView })));
+const FilesView = lazy(() => import('../sections/FilesView').then(m => ({ default: m.FilesView })));
+const CollectionsView = lazy(() => import('../sections/CollectionsView').then(m => ({ default: m.CollectionsView })));
+const VaultView = lazy(() => import('../sections/VaultView').then(m => ({ default: m.VaultView })));
+// The player (incl. AdvancedPlayer + ZapView) is the single largest view; it's
+// split out and warmed by the idle prefetch so click-to-play stays instant.
+const PlayerView = lazy(() => import('../sections/PlayerView').then(m => ({ default: m.PlayerView })));
 const RedditView = lazy(() => import('../../../../plugins/reddit/RedditView').then(m => ({ default: m.RedditView })));
 const InstagramView = lazy(() => import('../../../../plugins/instagram/InstagramView').then(m => ({ default: m.InstagramView })));
 const MosaicView = lazy(() => import('../../../../plugins/mosaic/MosaicView').then(m => ({ default: m.MosaicView })));
@@ -55,6 +60,36 @@ const GuideView = lazy(() => import('../sections/GuideView').then(m => ({ defaul
 const RadioModeView = lazy(() => import('../sections/RadioModeView').then(m => ({ default: m.RadioModeView })));
 
 const ViewLoading = () => <div className="skeleton" style={{ margin: '40px auto', width: '120px', height: '24px' }} />;
+
+// Warm the code-split view chunks after first paint (called from App.tsx on
+// idle) so navigating to any view never waits on a chunk download. Sequential
+// on purpose: one connection at a time, so it never competes with the video
+// pagination stream or thumbnails for the browser's per-origin socket pool.
+export async function prefetchLazyViews() {
+  const loaders: Array<() => Promise<unknown>> = [
+    // Most likely first interaction: opening a video.
+    () => import('../sections/PlayerView'),
+    () => import('../sections/VaultView'),
+    () => import('../sections/LinksView'),
+    () => import('../sections/SettingsView'),
+    () => import('../sections/ActorsView'),
+    () => import('../sections/CollectionsView'),
+    () => import('../sections/CategoriesView'),
+    () => import('../sections/ChannelsView'),
+    () => import('../sections/PhotosView'),
+    () => import('../sections/ScreenshotsView'),
+    () => import('../sections/RssView'),
+    () => import('../sections/PagesView'),
+    () => import('../sections/SearchSitesView'),
+    () => import('../sections/AudioView'),
+    () => import('../sections/BooksView'),
+    () => import('../sections/FilesView'),
+    () => import('../sections/ThumbnailsView'),
+  ];
+  for (const load of loaders) {
+    try { await load(); } catch { /* offline/dev — chunk loads on demand instead */ }
+  }
+}
 
 export const MainContent = () => {
   const view = currentView.value;

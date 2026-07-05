@@ -2058,11 +2058,19 @@ function renameTagInAllVideos(oldTag, newTag) {
 }
 
 // ── Media counts (sidebar badges) ────────────────────────────────────────
+// The screenshots count needs a blocking readdir; memo it briefly so repeated
+// calls (every client load fetches /api/media-counts) don't stall the event
+// loop. 30s staleness on a sidebar badge is invisible.
+let _screenshotCount = { ts: 0, count: 0 };
 function getMediaCounts() {
   const { SCREENSHOTS_DIR } = require('./config-server');
   const IMG_EXT  = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp']);
   const dirCount = (dir, extSet) => {
-    try { return fs.readdirSync(dir).filter(f => extSet.has(path.extname(f).toLowerCase())).length; } catch { return 0; }
+    if (Date.now() - _screenshotCount.ts < 30000) return _screenshotCount.count;
+    let count = 0;
+    try { count = fs.readdirSync(dir).filter(f => extSet.has(path.extname(f).toLowerCase())).length; } catch {}
+    _screenshotCount = { ts: Date.now(), count };
+    return count;
   };
   try {
     const q = (sql, ...a) => { try { return db.prepare(sql).get(...a).c; } catch { return 0; } };

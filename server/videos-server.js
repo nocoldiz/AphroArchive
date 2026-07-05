@@ -129,6 +129,9 @@ function getExistingTopLevelFolders(root) {
 }
 
 let _scanCache = null;
+// Directory paths found by the /api/folders filesystem walk (empty folders
+// aren't in the video index). Cleared with the scan cache.
+let _dirListCache = null;
 let _watchDebounce = null;
 // Short-lived memo of the fully built+sorted /api/videos list, keyed by request
 // signature. The client streams the library in pages (limit/offset) back-to-back;
@@ -455,6 +458,7 @@ function apiScanEvents(req, res) {
 
 function invalidateScanCache() {
   _scanCache = null;
+  _dirListCache = null;
   _videoListGen++;
   _videoListCache.clear();
   clearVideoIndex();
@@ -1002,9 +1006,13 @@ async function apiFolders(req, res, params) {
     }
   }
 
-  // Include empty directories from the filesystem so newly created folders appear
+  // Include empty directories from the filesystem so newly created folders
+  // appear. The walk result is cached (invalidated with the scan cache via
+  // fs.watch) so at startup this doesn't re-walk the library on every call
+  // while it races /api/videos for the event loop and disk.
   try {
-    if (fs.existsSync(VIDEOS_DIR)) {
+    if (!_dirListCache && fs.existsSync(VIDEOS_DIR)) {
+      const keys = [];
       // Async (non-blocking) walk: a sync recursive readdir here stalls the
       // single-threaded event loop, delaying the concurrent /api/videos
       // response from flushing even when it's already built.
@@ -1014,19 +1022,22 @@ async function apiFolders(req, res, params) {
           if (!ent.isDirectory()) continue;
           if (isHiddenFolderName(ent.name)) continue;
           const subRel = rel ? rel + '/' + ent.name : ent.name;
-          const key = subRel.replace(/\\/g, '/');
-          if (!catMap.has(key)) {
-            catMap.set(key, {
-              name: key.replace(/\//g, ' / '),
-              path: key,
-              count: 0,
-              hasUnencrypted: false
-            });
-          }
+          keys.push(subRel.replace(/\\/g, '/'));
           await walkDir(path.join(dir, ent.name), subRel);
         }
       };
       await walkDir(VIDEOS_DIR, '');
+      _dirListCache = keys;
+    }
+    for (const key of _dirListCache || []) {
+      if (!catMap.has(key)) {
+        catMap.set(key, {
+          name: key.replace(/\//g, ' / '),
+          path: key,
+          count: 0,
+          hasUnencrypted: false
+        });
+      }
     }
   } catch (e) {
     console.error('[apiCategories] filesystem walk error:', e.message);

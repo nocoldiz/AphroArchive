@@ -48,6 +48,8 @@ export function App() {
     idle(() => {
       fetch('/api/ready', { method: 'POST' }).catch(() => {});
       fetch('/api/auto-sort', { method: 'POST' }).catch(() => {});
+      // Warm the code-split view chunks so later navigation is instant.
+      import('./components/UI/MainContent').then(m => m.prefetchLazyViews()).catch(() => {});
     });
 
     // Kick off preload immediately — fast metadata from DB
