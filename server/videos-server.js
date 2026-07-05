@@ -31,6 +31,7 @@ const {
   loadLinksCache,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
+  isScanIndexBuilt, setScanIndexBuilt,
   upsertFileMeta,
   loadEnabledFolders, saveEnabledFolders,
   getSingleVideoMeta,
@@ -470,9 +471,13 @@ async function cachedScan() {
   // Fast path: load previously indexed list from DB
   const indexed = loadVideoIndex();
   if (indexed && indexed.length > 0) {
-    // If media_index is empty but video_index has data, a full rescan is needed to
-    // populate media_index (happens on first run after this feature was added).
-    if (loadMediaIndex().length === 0) {
+    // A videos-only library legitimately has an empty media_index, so emptiness
+    // alone must NOT trigger a rescan — that would defeat this fast path on every
+    // startup. Only force the one-time full scan (which populates media_index) for
+    // libraries indexed before media_index existed, i.e. when the sentinel was
+    // never set. Once any full scan has completed, the sentinel is true and the
+    // DB index is served directly.
+    if (loadMediaIndex().length === 0 && !isScanIndexBuilt()) {
       clearVideoIndex();
       // Fall through to full scan below
     } else {
@@ -554,6 +559,9 @@ async function cachedScan() {
 
   saveVideoIndex(all);
   saveMediaIndex(mediaAll);
+  // Mark that a full scan has completed so subsequent startups serve the DB index
+  // directly instead of rescanning when media_index happens to be empty.
+  setScanIndexBuilt(true);
   _scanCache = all;
   console.log(`[scan] Full scan complete — ${all.length} video${all.length !== 1 ? 's' : ''} indexed`);
   return _scanCache;

@@ -57,6 +57,10 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
   const total = zapTotalIv.value;
   const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
   const src = video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`;
+  // Mirror PlayerView: give the player an HLS transcode fallback so videos the
+  // browser can't decode directly (mkv/HEVC/etc.) still play instead of sitting
+  // blank. The vault streams its own decrypted source and has no HLS endpoint.
+  const hlsSrc = video.isVault ? undefined : `/api/hls/${video.id}/index.m3u8`;
 
   const [chips, setChips] = useState<ZapChip[]>([]);
   const [inputVal, setInputVal] = useState('');
@@ -189,6 +193,7 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
           <AdvancedPlayer
             key={video.id}
             src={src}
+            hlsSrc={hlsSrc}
             videoId={video.id}
             subtitles={subtitles}
             chapters={chapters}

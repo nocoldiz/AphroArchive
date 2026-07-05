@@ -833,10 +833,6 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const formatDuration = formatTimecode;
 
   const allChaptersSorted = mergeChapters(chapters, autoChapters);
-  // Skip-to-chapter buttons only make sense when there are chapters; in TV mode
-  // the same buttons step between channels instead.
-  const chaptersAvailable = allChaptersSorted.length > 0;
-  const showSkipButtons = isTVMode.value || chaptersAvailable;
   const loopActive = loopA !== null || loopB !== null;
 
   const getPreviewSrc = (time: number) =>
@@ -1078,14 +1074,16 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         {/* Control Buttons */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {/* Previous video (or previous channel in TV mode) */}
+            {(onPrev || isTVMode.value) && (
+              <button onClick={() => isTVMode.value ? prevTVChannel() : onPrevRef.current?.()} title={isTVMode.value ? 'Prev channel (P)' : 'Previous video (P)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem' }}>⏮</button>
+            )}
             <button onClick={togglePlay} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem' }}>
               {playing ? '⏸' : '▶'}
             </button>
-            {showSkipButtons && (
-              <button onClick={() => isTVMode.value ? prevTVChannel() : prevChapter()} title={isTVMode.value ? 'Prev channel (P)' : 'Previous chapter'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏮</button>
-            )}
-            {showSkipButtons && (
-              <button onClick={() => isTVMode.value ? nextTVChannel() : nextChapter()} title={isTVMode.value ? 'Next channel (N)' : 'Next chapter'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>⏭</button>
+            {/* Next video (or next channel in TV mode) */}
+            {(onNext || isTVMode.value) && (
+              <button onClick={() => isTVMode.value ? nextTVChannel() : onNextRef.current?.()} title={isTVMode.value ? 'Next channel (N)' : 'Next video (N)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem' }}>⏭</button>
             )}
             <span style={{ fontSize: '0.9rem' }}>{formatDuration(currentTime)} / {formatDuration(duration)}</span>
 
@@ -1314,22 +1312,25 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
                 Settings → Playback and engages automatically for formats the
                 browser can't decode natively. */}
 
-            {/* Chapters dropdown */}
+            {/* Chapters — prev arrow, dropdown (labelled with the current chapter), next arrow */}
             {(chapters.length > 0 || autoChapters.length > 0) && (() => {
               const allChaps = [
                 ...chapters.map(c => ({ ...c, isAuto: false })),
                 ...autoChapters.map(c => ({ ...c, isAuto: true })),
               ].sort((a, b) => a.time - b.time);
+              const curChap = chapterAt(allChaps, currentTime);
               return (
-                <div ref={chapterDropdownRef} style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  <button type="button" onClick={prevChapter} title="Previous chapter" style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.3rem', lineHeight: 1, padding: '0 2px' }}>‹</button>
+                  <div ref={chapterDropdownRef} style={{ position: 'relative' }}>
                   <button
                     type="button"
                     onClick={() => setShowChaptersDropdown(v => !v)}
                     title="Chapters"
-                    style={{ background: showChaptersDropdown ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'none', border: showChaptersDropdown ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: showChaptersDropdown ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    style={{ background: showChaptersDropdown ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'none', border: showChaptersDropdown ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: showChaptersDropdown ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '4px', maxWidth: '160px' }}
                   >
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                    {allChaps.length}
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{curChap ? curChap.title : `${allChaps.length}`}</span>
                   </button>
                   {showChaptersDropdown && (
                     <div style={{ position: 'absolute', bottom: '34px', right: 0, background: 'rgba(12,12,12,0.97)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', width: '260px', maxHeight: '400px', overflowY: 'auto', zIndex: 30 }}>
@@ -1365,6 +1366,8 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
                       ))}
                     </div>
                   )}
+                  </div>
+                  <button type="button" onClick={nextChapter} title="Next chapter" style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.3rem', lineHeight: 1, padding: '0 2px' }}>›</button>
                 </div>
               );
             })()}

@@ -5,7 +5,7 @@ import { currentVideo, currentView, allVideos, folders } from './store';
 export interface TVChannel {
   id: string;
   name: string;
-  type: 'folder' | 'tag';
+  type: 'folder' | 'tag' | 'collection';
   videos: Video[];
 }
 
@@ -15,6 +15,8 @@ export const tvCurrentChannelIdx = signal<number>(0);
 export const tvCurrentVideoIdx = signal<number>(0);
 // Seek target for the next video load (consumed once by AdvancedPlayer via startTime prop)
 export const tvStartTime = signal<number>(0);
+// Ticks once per second while on air so the channel list can refresh "now playing".
+export const tvTick = signal<number>(0);
 
 function readTVFavs(): Set<string> {
   try {
@@ -32,9 +34,17 @@ export function toggleTVFav(channelId: string) {
   try { localStorage.setItem('tvFavChannels', JSON.stringify([...next])); } catch {}
 }
 
-// Per-channel time-shift state: stream position in seconds at last pause, and wall clock then.
-// getEffectiveStreamPos(idx) returns current virtual "broadcast clock" position.
-const _channelStates = new Map<number, { streamPos: number; lastTime: number }>();
+// Every channel shares a single broadcast epoch, so they all "transmit" in
+// parallel: channel N's live position is always (now - epoch) into its own
+// looping schedule, whether or not you've ever tuned in. Tuning away and back
+// therefore returns you to a stream that advanced by exactly the wall-clock
+// time you were gone.
+let tvEpoch = 0;
+let tickTimer: any = null;
+
+function getBroadcastClock(): number {
+  return (Date.now() - tvEpoch) / 1000;
+}
 
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
@@ -45,7 +55,12 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-export function initTVMode(): boolean {
+function setBodyTV(on: boolean) {
+  if (typeof document === 'undefined') return;
+  document.body.classList.toggle('tv-active', on);
+}
+
+export async function initTVMode(): Promise<boolean> {
   const folderList = folders.value;
   const videos = allVideos.value;
   const channels: TVChannel[] = [];
@@ -74,34 +89,42 @@ export function initTVMode(): boolean {
     }
   }
 
+  // Playlist (collection) channels — curated order is preserved so the playlist
+  // plays in sequence, just time-shifted like every other channel.
+  try {
+    const cols = await fetch('/api/collections').then(r => r.json());
+    if (Array.isArray(cols)) {
+      for (const col of cols) {
+        const vids = (col.ids || [])
+          .map((id: string) => videos.find(v => v.id === id))
+          .filter((v: Video | undefined): v is Video => !!v && !v.isLink);
+        if (vids.length > 0) {
+          channels.push({ id: `collection:${col.name}`, name: col.name, type: 'collection', videos: vids });
+        }
+      }
+    }
+  } catch {}
+
   if (channels.length === 0) {
-    (window as any).toast?.('No TV channels available — add folders or tag 10+ videos with a common tag');
+    (window as any).toast?.('No TV channels available — add folders, a playlist, or tag 10+ videos with a common tag');
     return false;
   }
 
   tvChannels.value = shuffle(channels);
-  _channelStates.clear();
+  tvEpoch = Date.now();
   return true;
 }
 
-function getEffectiveStreamPos(idx: number): number {
-  const s = _channelStates.get(idx);
-  if (!s) return 0;
-  return s.streamPos + (Date.now() - s.lastTime) / 1000;
-}
-
-// Resolve which video and seek-to position corresponds to the current broadcast clock
+// Resolve which video and seek-to position corresponds to the current broadcast
+// clock for a channel. Pure — depends only on the shared epoch.
 function resolveEntry(idx: number): { videoIdx: number; seekTo: number } {
   const channel = tvChannels.value[idx];
   if (!channel || channel.videos.length === 0) return { videoIdx: 0, seekTo: 0 };
 
-  const streamPos = getEffectiveStreamPos(idx);
-  _channelStates.set(idx, { streamPos, lastTime: Date.now() });
-
   const totalDur = channel.videos.reduce((a, v) => a + (v.duration || 300), 0);
   if (totalDur === 0) return { videoIdx: 0, seekTo: 0 };
 
-  let pos = streamPos % totalDur;
+  let pos = getBroadcastClock() % totalDur;
   for (let i = 0; i < channel.videos.length; i++) {
     const dur = channel.videos[i].duration || 300;
     if (pos < dur) return { videoIdx: i, seekTo: pos };
@@ -110,10 +133,11 @@ function resolveEntry(idx: number): { videoIdx: number; seekTo: number } {
   return { videoIdx: 0, seekTo: 0 };
 }
 
-function snapshotCurrentChannel() {
-  const idx = tvCurrentChannelIdx.value;
-  const pos = getEffectiveStreamPos(idx);
-  _channelStates.set(idx, { streamPos: pos, lastTime: Date.now() });
+// The video currently "on air" for a channel — used by the side channel list.
+export function channelNowPlaying(idx: number): Video | null {
+  const channel = tvChannels.value[idx];
+  if (!channel || channel.videos.length === 0) return null;
+  return channel.videos[resolveEntry(idx).videoIdx] || null;
 }
 
 export function playChannel(idx: number) {
@@ -128,40 +152,46 @@ export function playChannel(idx: number) {
 }
 
 export function nextTVChannel() {
-  snapshotCurrentChannel();
   const total = tvChannels.value.length;
   if (total === 0) return;
   playChannel((tvCurrentChannelIdx.value + 1) % total);
 }
 
 export function prevTVChannel() {
-  snapshotCurrentChannel();
   const total = tvChannels.value.length;
   if (total === 0) return;
   playChannel((tvCurrentChannelIdx.value - 1 + total) % total);
 }
 
-// Called when the current video ends — advance within the same channel
+// Called when the current video ends — advance to whatever the broadcast clock
+// now points at (normally the next video from its start). Guards against float
+// drift resolving back to the same slot by forcing the next one.
 export function nextVideoInChannel() {
   const idx = tvCurrentChannelIdx.value;
   const channel = tvChannels.value[idx];
   if (!channel || channel.videos.length === 0) return;
-  const nextVideoIdx = (tvCurrentVideoIdx.value + 1) % channel.videos.length;
-  tvCurrentVideoIdx.value = nextVideoIdx;
-  tvStartTime.value = 0;
-  currentVideo.value = channel.videos[nextVideoIdx];
+  const { videoIdx, seekTo } = resolveEntry(idx);
+  let nextIdx = videoIdx;
+  let seek = seekTo;
+  if (nextIdx === tvCurrentVideoIdx.value) {
+    nextIdx = (tvCurrentVideoIdx.value + 1) % channel.videos.length;
+    seek = 0;
+  }
+  tvCurrentVideoIdx.value = nextIdx;
+  tvStartTime.value = seek;
+  currentVideo.value = channel.videos[nextIdx];
   currentView.value = 'player';
-  // Keep the clock ticking — don't reset streamPos since we're still "on air"
 }
 
 export function stopTVMode() {
   isTVMode.value = false;
   tvChannels.value = [];
-  _channelStates.clear();
   tvStartTime.value = 0;
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  setBodyTV(false);
 }
 
-export function toggleTVMode() {
+export async function toggleTVMode() {
   if (isTVMode.value) {
     stopTVMode();
     return;
@@ -170,10 +200,13 @@ export function toggleTVMode() {
   const w = window as any;
   if (w.zapOn?.value && w.stopZapping) w.stopZapping();
 
-  const ok = initTVMode();
+  const ok = await initTVMode();
   if (!ok) return;
 
   isTVMode.value = true;
+  setBodyTV(true);
+  if (tickTimer) clearInterval(tickTimer);
+  tickTimer = setInterval(() => { tvTick.value = tvTick.value + 1; }, 1000);
   playChannel(0);
 }
 

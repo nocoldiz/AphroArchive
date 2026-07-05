@@ -2,7 +2,8 @@
 import { currentVideo, currentView, videos, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs } from '../../store';
 import { renameVideo } from '../../api';
 import { zapOn, zapStartTime } from '../../zap';
-import { isTVMode, tvStartTime, nextVideoInChannel } from '../../tv-mode';
+import { isTVMode, tvStartTime, nextVideoInChannel, stopTVMode } from '../../tv-mode';
+import { TVChannelPanel } from '../UI/TVChannelPanel';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
 import { AddToCollectionModal } from '../modals/AddToCollectionModal';
@@ -648,6 +649,7 @@ export const PlayerView = () => {
   };
 
   const goBack = () => {
+    if (isTVMode.value) { stopTVMode(); currentView.value = 'hub'; return; }
     if (window.history.length > 1) {
       window.history.back();
     } else {
@@ -1184,6 +1186,10 @@ export const PlayerView = () => {
         </div>
 
         <div className="pv-side">
+          {isTVMode.value ? (
+            <TVChannelPanel />
+          ) : (
+          <>
           {showTranscript && transcriptCues.length > 0 && (
             <div className="playlist-panel" style={{ marginBottom: '20px' }}>
               <div className="playlist-header">
@@ -1241,6 +1247,8 @@ export const PlayerView = () => {
               ))}
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
 

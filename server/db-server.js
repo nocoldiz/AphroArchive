@@ -1745,6 +1745,27 @@ function clearMediaIndex() {
   }
 }
 
+// Sentinel: has a full filesystem scan ever completed and populated video_index?
+// cachedScan() consults this so an empty media_index — which a videos-only
+// library legitimately has — is not mistaken for "never scanned" and forced to
+// re-scan the whole disk on every startup. Stored per-profile (settings live in
+// the active profile's DB).
+function isScanIndexBuilt() {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('scan_index_built');
+    return row ? JSON.parse(row.value) === true : false;
+  } catch { return false; }
+}
+
+function setScanIndexBuilt(built) {
+  try {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+      .run('scan_index_built', JSON.stringify(!!built));
+  } catch (e) {
+    console.error('Failed to set scan_index_built flag:', e);
+  }
+}
+
 // ── Files meta ────────────────────────────────────────────────────────────
 
 function loadFilesMeta() {
@@ -2117,6 +2138,7 @@ module.exports = {
   readDbFile, writeDbFile,
   loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, getSingleVideoMeta,
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
+  isScanIndexBuilt, setScanIndexBuilt,
   loadFilesMeta, upsertFileMeta, deleteFileMeta,
   loadFileVirtualFolders, setFileVirtualFolder, renameFileVirtualFolder, deleteFileVirtualFolder, listFileVirtualFolderNames,
   isDbOnDisk: () => !_dbInMemory,

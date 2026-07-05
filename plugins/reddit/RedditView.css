@@ -1,4 +1,296 @@
-/* Styles for RedditView */
+/* Reddit Mode — full-screen takeover styled after the Reddit dark redesign.
+   Everything is scoped under .reddit-view so nothing leaks into the app. */
+
 .reddit-view {
-  /* Add styles here */
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  background: #030303;
+  color: #d7dadc;
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
 }
+.reddit-view *, .reddit-view *::before, .reddit-view *::after { box-sizing: border-box; }
+.reddit-view button { font-family: inherit; }
+.reddit-view ::-webkit-scrollbar { width: 8px; height: 8px; }
+.reddit-view ::-webkit-scrollbar-thumb { background: #343536; border-radius: 4px; }
+.reddit-view ::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Top navbar ── */
+.rd-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 20px;
+  background: #1a1a1b;
+  border-bottom: 1px solid #343536;
+  flex-shrink: 0;
+}
+.rd-logo { display: flex; align-items: center; gap: 8px; color: #fff; font-weight: 700; font-size: 15px; white-space: nowrap; cursor: pointer; }
+.rd-search { flex: 1; max-width: 690px; margin: 0 auto; position: relative; }
+.rd-search input {
+  width: 100%;
+  height: 36px;
+  background: #272729;
+  border: 1px solid #343536;
+  border-radius: 18px;
+  padding: 0 16px 0 40px;
+  color: #d7dadc;
+  font-size: 14px;
+  outline: none;
+}
+.rd-search input:hover, .rd-search input:focus { border-color: #d7dadc; background: #030303; }
+.rd-search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #818384; pointer-events: none; }
+.rd-hdr-btn {
+  background: transparent;
+  border: 1px solid #d7dadc;
+  color: #d7dadc;
+  padding: 5px 16px;
+  border-radius: 18px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rd-hdr-btn:hover { background: rgba(215, 218, 220, 0.08); }
+.rd-hdr-btn.solid { background: #d7dadc; color: #1a1a1b; border-color: #d7dadc; }
+.rd-hdr-btn.solid:hover { background: #fff; }
+
+/* ── 3-column layout ── */
+.rd-layout { flex: 1; display: flex; overflow: hidden; justify-content: center; gap: 24px; padding: 0 24px; }
+.rd-main { width: 740px; max-width: 100%; overflow-y: auto; padding: 20px 0 60px; scrollbar-gutter: stable; }
+
+/* ── Left sidebar (communities) ── */
+.rd-left { width: 270px; flex-shrink: 0; overflow-y: auto; padding: 20px 0; }
+.rd-left-section { margin-bottom: 12px; background: #1a1a1b; border: 1px solid #343536; border-radius: 4px; overflow: hidden; }
+.rd-left-title { padding: 10px 12px 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #818384; }
+.rd-left-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #d7dadc;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.rd-left-item:hover { background: #272729; }
+.rd-left-item.active { background: #272729; font-weight: 600; }
+.rd-left-item .rd-comm-icon {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+}
+.rd-left-item .rd-comm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-left-item .rd-comm-count { font-size: 11px; color: #818384; }
+.rd-join-star { background: none; border: none; color: #818384; cursor: pointer; padding: 2px; font-size: 14px; line-height: 1; }
+.rd-join-star.joined { color: #ff4500; }
+.rd-comm-filter { padding: 4px 12px 10px; }
+.rd-comm-filter input {
+  width: 100%; background: #272729; border: 1px solid #343536; border-radius: 4px;
+  padding: 6px 10px; color: #d7dadc; font-size: 12px; outline: none;
+}
+.rd-comm-filter input:focus { border-color: #818384; }
+
+/* ── Sort bar ── */
+.rd-sortbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #1a1a1b;
+  border: 1px solid #343536;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+}
+.rd-sort-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none;
+  color: #818384; font-weight: 700; font-size: 14px;
+  padding: 6px 10px; border-radius: 18px; cursor: pointer;
+}
+.rd-sort-btn:hover { background: #272729; }
+.rd-sort-btn.active { background: #272729; color: #4fbcff; }
+.rd-sortbar-spacer { flex: 1; }
+.rd-viewmode-btn { background: none; border: none; color: #818384; padding: 6px; border-radius: 4px; cursor: pointer; display: flex; }
+.rd-viewmode-btn:hover { background: #272729; }
+.rd-viewmode-btn.active { color: #4fbcff; }
+
+/* ── Post card ── */
+.rd-post {
+  display: flex;
+  background: #1a1a1b;
+  border: 1px solid #343536;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.rd-post:hover { border-color: #818384; }
+.rd-post.compact .rd-post-body { display: flex; gap: 10px; align-items: center; padding: 8px 12px; }
+
+/* Vote rail */
+.rd-vote-col {
+  width: 40px;
+  flex-shrink: 0;
+  background: rgba(26, 26, 27, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  border-radius: 4px 0 0 4px;
+  background: #151516;
+}
+.rd-vote-btn {
+  background: none; border: none; color: #818384; cursor: pointer;
+  padding: 2px; border-radius: 2px; display: flex; font-size: 0;
+}
+.rd-vote-btn:hover { background: #272729; color: #d7dadc; }
+.rd-vote-btn.up.voted { color: #ff4500; }
+.rd-vote-btn.down.voted { color: #7193ff; }
+.rd-score { font-size: 12px; font-weight: 700; margin: 4px 0; color: #d7dadc; }
+.rd-score.up { color: #ff4500; }
+.rd-score.down { color: #7193ff; }
+
+.rd-post-body { flex: 1; min-width: 0; padding: 8px 12px 4px; }
+.rd-post-meta { font-size: 12px; color: #818384; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.rd-post-meta .rd-sub-link { color: #d7dadc; font-weight: 700; }
+.rd-post-meta .rd-sub-link:hover { text-decoration: underline; }
+.rd-post-title { font-size: 18px; font-weight: 500; color: #d7dadc; margin-bottom: 8px; word-break: break-word; }
+.rd-post.compact .rd-post-title { font-size: 14px; margin-bottom: 2px; }
+
+.rd-flairs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.rd-flair {
+  font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 10px;
+  background: #343536; color: #d7dadc; cursor: pointer;
+}
+.rd-flair:hover { background: #46484a; }
+.rd-flair.nsfw { background: transparent; border: 1px solid #ff585b; color: #ff585b; }
+
+/* Media */
+.rd-post-media {
+  position: relative;
+  max-height: 512px;
+  min-height: 80px;
+  overflow: hidden;
+  background: #000;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.rd-post-media img, .rd-post-media video { max-width: 100%; max-height: 512px; display: block; }
+.rd-post-media .rd-media-duration {
+  position: absolute; bottom: 8px; right: 8px;
+  background: rgba(0, 0, 0, 0.75); color: #fff;
+  font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 2px;
+}
+.rd-media-placeholder {
+  width: 100%; padding: 40px 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: #818384; font-size: 13px;
+}
+.rd-compact-thumb {
+  width: 96px; height: 72px; flex-shrink: 0; border-radius: 4px;
+  background: #000; object-fit: cover; display: block;
+}
+.rd-compact-thumb-ph {
+  width: 96px; height: 72px; flex-shrink: 0; border-radius: 4px;
+  background: #272729; display: flex; align-items: center; justify-content: center; color: #555;
+}
+
+/* Action row */
+.rd-post-actions { display: flex; align-items: center; gap: 4px; padding: 0 0 4px; }
+.rd-act-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none; color: #818384;
+  font-size: 12px; font-weight: 700;
+  padding: 6px 8px; border-radius: 2px; cursor: pointer; white-space: nowrap;
+}
+.rd-act-btn:hover { background: #272729; color: #d7dadc; }
+.rd-act-btn.saved { color: #ff4500; }
+
+/* Overflow menu */
+.rd-menu-wrap { position: relative; }
+.rd-menu {
+  position: absolute; top: calc(100% + 2px); left: 0; z-index: 50;
+  background: #1a1a1b; border: 1px solid #343536; border-radius: 4px;
+  min-width: 180px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+.rd-menu-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; font-size: 13px; font-weight: 600;
+  color: #d7dadc; cursor: pointer; white-space: nowrap;
+}
+.rd-menu-item:hover { background: #272729; }
+
+/* ── Detail (post page) ── */
+.rd-back-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: none; color: #818384;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  padding: 6px 0; margin-bottom: 10px;
+}
+.rd-back-btn:hover { color: #d7dadc; }
+.rd-detail-post { cursor: default; }
+.rd-detail-post .rd-post-title { font-size: 22px; }
+.rd-detail-media { background: #000; border-radius: 4px; margin-bottom: 12px; display: flex; justify-content: center; }
+.rd-detail-media video, .rd-detail-media img { max-width: 100%; max-height: 70vh; border-radius: 4px; }
+.rd-detail-info { font-size: 13px; color: #818384; display: flex; gap: 16px; flex-wrap: wrap; padding: 4px 0 10px; }
+.rd-comments-box {
+  background: #1a1a1b; border: 1px solid #343536; border-radius: 4px;
+  padding: 16px; margin-top: 10px;
+}
+.rd-comments-title { font-size: 12px; font-weight: 700; color: #818384; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
+.rd-comment { display: flex; gap: 10px; padding: 8px 0; }
+.rd-comment-avatar {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+}
+.rd-comment-body { flex: 1; min-width: 0; }
+.rd-comment-author { font-size: 12px; font-weight: 700; color: #d7dadc; margin-bottom: 2px; }
+.rd-comment-text { font-size: 14px; color: #d7dadc; word-break: break-word; }
+.rd-more-title { font-size: 12px; font-weight: 700; color: #818384; text-transform: uppercase; letter-spacing: 0.04em; margin: 20px 0 10px; }
+
+/* ── Right sidebar ── */
+.rd-right { width: 312px; flex-shrink: 0; overflow-y: auto; padding: 20px 0; }
+.rd-sb-card { background: #1a1a1b; border: 1px solid #343536; border-radius: 4px; margin-bottom: 16px; overflow: hidden; }
+.rd-sb-banner { height: 34px; background: #ff4500; }
+.rd-sb-body { padding: 12px; }
+.rd-sb-title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; margin-bottom: 10px; }
+.rd-sb-desc { font-size: 14px; color: #d7dadc; margin-bottom: 12px; }
+.rd-sb-stats { display: flex; gap: 24px; padding: 10px 0; border-top: 1px solid #343536; margin-bottom: 12px; }
+.rd-sb-stat { font-size: 12px; color: #818384; }
+.rd-sb-stat strong { display: block; font-size: 16px; color: #d7dadc; }
+.rd-sb-btn {
+  width: 100%; background: #d7dadc; border: none; color: #1a1a1b;
+  padding: 7px; border-radius: 18px; font-weight: 700; font-size: 14px; cursor: pointer;
+}
+.rd-sb-btn:hover { background: #fff; }
+.rd-sb-btn.outline { background: transparent; border: 1px solid #d7dadc; color: #d7dadc; margin-top: 8px; }
+.rd-sb-btn.outline:hover { background: rgba(215, 218, 220, 0.08); }
+.rd-top-comm-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #272729; }
+.rd-top-comm-row:last-child { border-bottom: none; }
+.rd-top-comm-row:hover { background: #272729; }
+.rd-top-comm-rank { font-size: 13px; font-weight: 500; width: 16px; color: #d7dadc; }
+.rd-top-comm-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── States ── */
+.rd-empty { text-align: center; padding: 60px 20px; color: #818384; }
+.rd-spinner {
+  width: 26px; height: 26px; margin: 40px auto;
+  border: 3px solid #343536; border-top-color: #ff4500; border-radius: 50%;
+  animation: rd-spin 0.7s linear infinite;
+}
+@keyframes rd-spin { to { transform: rotate(360deg); } }
+.rd-feed-end { text-align: center; padding: 24px; font-size: 13px; color: #565758; }
+
+/* ── Responsive ── */
+@media (max-width: 1200px) { .rd-right { display: none; } }
+@media (max-width: 960px) { .rd-left { display: none; } .rd-layout { padding: 0 8px; } }
