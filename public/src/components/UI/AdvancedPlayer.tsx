@@ -76,11 +76,13 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const localRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalRef || localRef;
   const containerRef = useRef<HTMLDivElement>(null);
-  // Resume from saved progress when no explicit start time was requested.
-  const startTimeRef = useRef(startTime || (() => {
+  // Live TV tunes in at the broadcast position (even 0) and never resumes from
+  // saved progress. Otherwise, resume from saved progress when no explicit start
+  // time was requested.
+  const startTimeRef = useRef(isTVMode.value ? startTime : (startTime || (() => {
     const p = getProgress(videoId);
     return p && p.t < p.d * 0.97 ? p.t : 0;
-  })());
+  })()));
   const lastSaveRef = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -294,12 +296,12 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     const onPlay = () => setPlaying(true);
     const onPause = () => {
       setPlaying(false);
-      setProgress(videoId, vid.currentTime, vid.duration || 0);
+      if (!isTVMode.value) setProgress(videoId, vid.currentTime, vid.duration || 0);
     };
     const onTimeUpdate = () => {
       setCurrentTime(vid.currentTime);
       const now = Date.now();
-      if (now - lastSaveRef.current > 4000) {
+      if (!isTVMode.value && now - lastSaveRef.current > 4000) {
         lastSaveRef.current = now;
         setProgress(videoId, vid.currentTime, vid.duration || 0);
       }
@@ -525,9 +527,10 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     set('pause', () => vid()?.pause());
     set('previoustrack', onPrevRef.current ? () => onPrevRef.current!() : null);
     set('nexttrack', onNextRef.current ? () => onNextRef.current!() : null);
-    set('seekbackward', (d: any) => { const v = vid(); if (v) v.currentTime = Math.max(0, v.currentTime - (d.seekOffset || 10)); });
-    set('seekforward', (d: any) => { const v = vid(); if (v) v.currentTime = Math.min(v.duration || Infinity, v.currentTime + (d.seekOffset || 10)); });
-    set('seekto', (d: any) => { const v = vid(); if (v && d.seekTime != null) v.currentTime = d.seekTime; });
+    // Live TV can't be scrubbed from OS media controls either.
+    set('seekbackward', (d: any) => { if (isTVMode.value) return; const v = vid(); if (v) v.currentTime = Math.max(0, v.currentTime - (d.seekOffset || 10)); });
+    set('seekforward', (d: any) => { if (isTVMode.value) return; const v = vid(); if (v) v.currentTime = Math.min(v.duration || Infinity, v.currentTime + (d.seekOffset || 10)); });
+    set('seekto', (d: any) => { if (isTVMode.value) return; const v = vid(); if (v && d.seekTime != null) v.currentTime = d.seekTime; });
 
     return () => {
       ['play', 'pause', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'seekto'].forEach(a => set(a, null));
@@ -700,6 +703,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault();
+          if (isTVMode.value) break; // live TV — no seeking
           if (e.shiftKey) {
             const prev = findPrevChapter(mergeChapters(chaptersRef.current, autoChaptersRef.current), vid.currentTime);
             vid.currentTime = prev ? prev.time : 0;
@@ -709,6 +713,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
           break;
         case 'ArrowRight':
           e.preventDefault();
+          if (isTVMode.value) break; // live TV — no seeking
           if (e.shiftKey) {
             const next = findNextChapter(mergeChapters(chaptersRef.current, autoChaptersRef.current), vid.currentTime);
             if (next) vid.currentTime = next.time;
@@ -788,6 +793,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   };
 
   const handleTimebarClick = (e: MouseEvent) => {
+    if (isTVMode.value) return; // live TV — you can't skip ahead of the broadcast
     const vid = videoRef.current;
     if (!vid) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -829,6 +835,8 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     window.addEventListener('mousemove', resetControlsTimeout);
     return () => window.removeEventListener('mousemove', resetControlsTimeout);
   }, [playing]);
+
+  useEffect(() => () => clearTimeout(controlsTimeoutRef.current), []);
 
   const formatDuration = formatTimecode;
 
@@ -984,7 +992,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         {/* Timebar */}
         <div
           className="timebar"
-          style={{ height: '6px', background: 'rgba(255,255,255,0.2)', cursor: 'pointer', position: 'relative', borderRadius: '3px', marginBottom: '10px' }}
+          style={{ height: '6px', background: 'rgba(255,255,255,0.2)', cursor: isTVMode.value ? 'default' : 'pointer', position: 'relative', borderRadius: '3px', marginBottom: '10px' }}
           onClick={handleTimebarClick}
           onMouseMove={handleTimebarMouseMove}
           onMouseLeave={handleTimebarMouseLeave}
@@ -1085,7 +1093,13 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
             {(onNext || isTVMode.value) && (
               <button onClick={() => isTVMode.value ? nextTVChannel() : onNextRef.current?.()} title={isTVMode.value ? 'Next channel (N)' : 'Next video (N)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem' }}>⏭</button>
             )}
-            <span style={{ fontSize: '0.9rem' }}>{formatDuration(currentTime)} / {formatDuration(duration)}</span>
+            {isTVMode.value ? (
+              <span style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ff4a4a', boxShadow: '0 0 6px #ff4a4a' }} />LIVE
+              </span>
+            ) : (
+              <span style={{ fontSize: '0.9rem' }}>{formatDuration(currentTime)} / {formatDuration(duration)}</span>
+            )}
 
             {/* A/B repeat — single loop toggle that reveals the A/B controls */}
             <button

@@ -63,7 +63,8 @@ function apiDbGet(req, res, type) {
 
 async function apiDbUpsert(req, res, type) {
   const body = await readBody(req);
-  const { name, data, oldName } = body;
+  const { name, oldName } = body;
+  const data = body.data || {};
   if (!name || typeof name !== 'string') return jsonError(res, 'Name required');
   if (name.length > LIMITS.name) return jsonError(res, `Name is too long (max ${LIMITS.name} characters)`);
 

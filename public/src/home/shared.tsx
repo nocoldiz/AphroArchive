@@ -24,12 +24,18 @@ export const thumbFor = (v: Video) => v.isLink ? (v.img || '') : `/api/thumbs/${
 // True when the video does NOT live in a profile-hidden folder. Reading
 // appPrefs keeps callers reactive, so hiding/unhiding a folder repaints every
 // widget that filters through this instantly.
+let _hiddenSrc: string[] | undefined;
+let _hiddenNorm: string[] = [];
 export const notInHiddenFolder = (v: Video): boolean => {
-  const hidden = (appPrefs.value.hiddenFolders || []).map(h => h.toLowerCase().replace(/\\/g, '/'));
-  if (!hidden.length) return true;
+  const src = appPrefs.value.hiddenFolders || [];
+  if (src !== _hiddenSrc) {
+    _hiddenSrc = src;
+    _hiddenNorm = src.map(h => h.toLowerCase().replace(/\\/g, '/'));
+  }
+  if (!_hiddenNorm.length) return true;
   const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
   if (!vp) return true;
-  return !hidden.some(h => vp === h || vp.startsWith(h + '/'));
+  return !_hiddenNorm.some(h => vp === h || vp.startsWith(h + '/'));
 };
 
 // Home-dashboard widgets draw from the library minus links and minus any

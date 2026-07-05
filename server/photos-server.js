@@ -21,14 +21,17 @@ function readPngMetadata(filePath) {
   try {
     const fd = fs.openSync(filePath, 'r');
     const header = Buffer.alloc(8);
-    fs.readSync(fd, header, 0, 8, 0);
-    if (!header.equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
-      fs.closeSync(fd);
-      return null; // Not a PNG
-    }
     const buf = Buffer.alloc(8192); // Read 8KB
-    const bytesRead = fs.readSync(fd, buf, 0, 8192, 8);
-    fs.closeSync(fd);
+    let bytesRead;
+    try {
+      fs.readSync(fd, header, 0, 8, 0);
+      if (!header.equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
+        return null; // Not a PNG
+      }
+      bytesRead = fs.readSync(fd, buf, 0, 8192, 8);
+    } finally {
+      fs.closeSync(fd);
+    }
 
     let offset = 0;
     while (offset < bytesRead - 8) {

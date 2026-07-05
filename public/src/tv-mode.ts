@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals';
 import { Video } from './types';
 import { currentVideo, currentView, allVideos, folders } from './store';
+import { zapOn, stopZapping } from './zap';
 
 export interface TVChannel {
   id: string;
@@ -111,7 +112,10 @@ export async function initTVMode(): Promise<boolean> {
   }
 
   tvChannels.value = shuffle(channels);
-  tvEpoch = Date.now();
+  // Seed the broadcast clock in the past so tuning in — even the very first
+  // channel — lands mid-stream, never at a video's start. Modulo in
+  // resolveEntry keeps the offset valid for every channel's schedule length.
+  tvEpoch = Date.now() - Math.floor(Math.random() * 3600) * 1000;
   return true;
 }
 
@@ -197,8 +201,7 @@ export async function toggleTVMode() {
     return;
   }
   // Stop zapping if active
-  const w = window as any;
-  if (w.zapOn?.value && w.stopZapping) w.stopZapping();
+  if (zapOn.value) stopZapping();
 
   const ok = await initTVMode();
   if (!ok) return;

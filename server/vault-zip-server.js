@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const crypto = require('crypto');
-const { json, readBody } = require('./helpers-server');
+const { json, readBody, wordMatchAny } = require('./helpers-server');
 
 // ── CRC-32 ──────────────────────────────────────────────────────────
 const _CRC_TABLE = (() => {
@@ -216,7 +216,7 @@ async function apiFolderDownloadZip(req, res) {
   if (folder === 'uncategorized' || folder === '__uncategorized__' || folder === '') {
     const { loadFolderMappings } = require('./db-server');
     const defined = loadFolderMappings();
-    list = list.filter(v => v.catPath === '' && !defined.some(e => require('./helpers-server').wordMatchAny(v.name, e.terms)));
+    list = list.filter(v => v.catPath === '' && !defined.some(e => wordMatchAny(v.name, e.terms)));
   } else {
     const { loadFolderMappings } = require('./db-server');
     const defined = loadFolderMappings();
@@ -226,7 +226,7 @@ async function apiFolderDownloadZip(req, res) {
     list = list.filter(v => {
       const vp = v.catPath.toLowerCase().replace(/\\/g, '/');
       const isChild = vp === cl || vp.startsWith(cl + '/');
-      return isChild || v.category === folder || (matchingEntry && v.catPath === '' && require('./helpers-server').wordMatchAny(v.name, matchingEntry.terms));
+      return isChild || v.category === folder || (matchingEntry && v.catPath === '' && wordMatchAny(v.name, matchingEntry.terms));
     });
   }
 
@@ -235,9 +235,6 @@ async function apiFolderDownloadZip(req, res) {
 
   let totalSize = 0;
   const files = [];
-  const { VIDEOS_DIR } = require('./config-server');
-  const path = require('path');
-  const fs = require('fs');
 
   for (const v of list) {
     const fp = path.join(VIDEOS_DIR, v.rel);

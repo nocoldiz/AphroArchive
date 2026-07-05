@@ -4,11 +4,30 @@ import * as api from './api';
 
 // ─── Core State ──────────────────────────────────────────────────────
 export const videos = signal<Video[]>([]);
+// Persist link videos so the Links dropdown shows links (and their tag counts)
+// immediately on next load. Mirrors the folders cache below.
+// NOTE: declared before its first use — readLinksCache reads this const, and
+// calling it earlier would hit the temporal dead zone (the try/catch used to
+// swallow that ReferenceError, silently seeding an empty list).
+const LINKS_CACHE_KEY = 'linksCache';
+function readLinksCache(): { videos: Video[]; total: number } {
+  try {
+    const obj = JSON.parse(localStorage.getItem(LINKS_CACHE_KEY) || 'null');
+    if (obj && Array.isArray(obj.videos)) return { videos: obj.videos, total: obj.total ?? obj.videos.length };
+  } catch {}
+  return { videos: [], total: 0 };
+}
+function writeLinksCache(linkVideos: Video[], total: number) {
+  try {
+    localStorage.setItem(LINKS_CACHE_KEY, JSON.stringify({ total, videos: linkVideos }));
+  } catch {}
+}
 // Seed the unfiltered list with cached link videos so the topbar/sidebar Links
 // dropdown (its "All Links" badge + tag counts read from here) renders instantly
 // on load, instead of waiting for the heavy /api/links/cache round-trip in
 // loadVideosInner. loadVideos() replaces this with the full list moments later.
-export const allVideos = signal<Video[]>(readLinksCache().videos); // Full unfiltered list
+const _linksCacheInit = readLinksCache();
+export const allVideos = signal<Video[]>(_linksCacheInit.videos); // Full unfiltered list
 // Persist folder list so the sidebar can show folder names instantly on next
 // load (while the real /api/folders scan runs), instead of flashing an empty
 // list.
@@ -25,22 +44,6 @@ function writeFoldersCache(list: Folder[]) {
     localStorage.setItem(FOLDERS_CACHE_KEY, JSON.stringify(
       list.filter(f => !f.opened).map(f => ({ name: f.name, path: f.path, count: 0, encrypted: f.encrypted, partial: f.partial }))
     ));
-  } catch {}
-}
-
-// Persist link videos so the Links dropdown shows links (and their tag counts)
-// immediately on next load. Mirrors the folders cache above.
-const LINKS_CACHE_KEY = 'linksCache';
-function readLinksCache(): { videos: Video[]; total: number } {
-  try {
-    const obj = JSON.parse(localStorage.getItem(LINKS_CACHE_KEY) || 'null');
-    if (obj && Array.isArray(obj.videos)) return { videos: obj.videos, total: obj.total ?? obj.videos.length };
-  } catch {}
-  return { videos: [], total: 0 };
-}
-function writeLinksCache(linkVideos: Video[], total: number) {
-  try {
-    localStorage.setItem(LINKS_CACHE_KEY, JSON.stringify({ total, videos: linkVideos }));
   } catch {}
 }
 
@@ -84,7 +87,7 @@ export function syncLinkCache(rawItems: any[], total: number) {
 }
 
 export const folders = signal<Folder[]>(readFoldersCache());
-export const linkTotalCount = signal<number>(readLinksCache().total);
+export const linkTotalCount = signal<number>(_linksCacheInit.total);
 export const mediaCounts = signal<{ links: number; audio: number; books: number; photos: number; files: number; pages: number; screenshots: number }>({ links: 0, audio: 0, books: 0, photos: 0, files: 0, pages: 0, screenshots: 0 });
 export const actors = signal<Actor[]>([]);
 export const channels = signal<Channel[]>([]);
@@ -233,13 +236,10 @@ export const linkVidIds = signal<Set<string>>(new Set());
 export function rebuildLinkVidIds(items: any[]) {
   const set = new Set<string>();
   const vids = (window as any).V || []; // Fallback to global V if videos signal is not populated yet
+  const urls = items.map(it => it.url.toLowerCase());
   for (const v of vids) {
     const vname = v.name.toLowerCase().replace(/\.[^.]+$/, '');
-    for (const it of items) {
-      if (it.url.toLowerCase().includes(vname)) {
-        set.add(v.id);
-      }
-    }
+    if (urls.some(u => u.includes(vname))) set.add(v.id);
   }
   linkVidIds.value = set;
 }
@@ -498,11 +498,12 @@ const w = window as any;
 w.favM = false;
 w.favFilter = false;
 w.renId = null;
-w.galleryFilter = '';
+// w.galleryFilter and w.srcFilter are NOT initialized here: galleryFilter is a
+// defineProperty bridge to the signal (assigning '' would wipe the persisted
+// value) and w.srcFilter is kept in sync by the sourceFilter subscriber above.
 w._renderLimit = 60;
 w._allVideos = [];
 w._dbTagTerms = {};
-w.srcFilter = 'both';
 w.recentMode = false;
 w.recentVids = [];
 w.movId = null;
@@ -1132,7 +1133,7 @@ async function loadVideosInner() {
     });
   }
 
-  // Don't call syncUrlToState here — it races with routeToPath's async
+  // Don't sync state from the URL here — it races with routeToPath's async
   // retry subscription. The initial page URL has already been resolved by
   // routeToPath (called in setupRouter), and URL sync is handled entirely
   // by the updateUrl subscriber + popstate listener.
@@ -1271,57 +1272,6 @@ currentView.subscribe(view => {
   }
 });
 
-export function syncUrlToState() {
-  if (typeof window === 'undefined') return;
-  const p = window.location.pathname;
-  if (p === '/' || p === '/hub' || p === '/home') {
-    currentView.value = 'hub';
-    currentVideo.value = null;
-    currentFolder.value = '';
-    currentTag.value = null; currentTagTerms.value = [];
-    return;
-  }
-  
-  let m;
-  if ((m = p.match(/^\/video\/([^/]+)$/))) {
-    const vidId = m[1];
-    const vid = allVideos.value.find(v => v.id === vidId);
-    if (vid) {
-      currentVideo.value = vid;
-      currentView.value = 'player';
-    }
-  } else if ((m = p.match(/^\/folder\/([^/]+)$/)) || (m = p.match(/^\/cat\/([^/]+)$/))) {
-    currentView.value = 'browse';
-    currentFolder.value = decodeURIComponent(m[1]);
-    currentTag.value = null; currentTagTerms.value = [];
-    currentVideo.value = null;
-  } else if ((m = p.match(/^\/tag\/([^/]+)$/))) {
-    currentView.value = 'browse';
-    currentTag.value = decodeURIComponent(m[1]);
-    currentFolder.value = '';
-    currentVideo.value = null;
-  } else if ((m = p.match(/^\/actor\/([^/]+)$/))) {
-    currentView.value = 'actors';
-    currentActor.value = decodeURIComponent(m[1]);
-    currentFolder.value = '';
-    currentTag.value = null; currentTagTerms.value = [];
-    currentVideo.value = null;
-  } else if ((m = p.match(/^\/channel\/([^/]+)$/))) {
-    currentView.value = 'channels';
-    currentChannel.value = decodeURIComponent(m[1]);
-    currentFolder.value = '';
-    currentTag.value = null; currentTagTerms.value = [];
-    currentVideo.value = null;
-  } else {
-    // Other views
-    const view = p.replace(/^\//, '');
-    currentView.value = view;
-    currentVideo.value = null;
-    currentFolder.value = '';
-    currentTag.value = null; currentTagTerms.value = [];
-  }
-}
-
 let _urlSyncEnabled = false;
 export function enableUrlSync() { _urlSyncEnabled = true; }
 
@@ -1402,17 +1352,23 @@ if (typeof window !== 'undefined') {
     return null;
   };
   let prevKey = scrollKey();
-  currentView.subscribe(() => {
+  const onNavChange = () => {
     // Save the outgoing view's scroll before it unmounts.
     if (prevKey) scrollMem.set(prevKey, window.scrollY);
     const nextKey = scrollKey();
+    if (nextKey === prevKey) return;
     prevKey = nextKey;
     if (nextKey != null && scrollMem.has(nextKey)) {
       const y = scrollMem.get(nextKey)!;
       // Wait for the new view to render before restoring.
       requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
     }
-  });
+  };
+  // Folder/tag changes also switch the grid without a view change, so listen
+  // to all three — otherwise the save lands under a stale key.
+  currentView.subscribe(onNavChange);
+  currentFolder.subscribe(onNavChange);
+  currentTag.subscribe(onNavChange);
 }
 
 w.loadC = async () => {

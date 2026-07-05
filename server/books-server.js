@@ -46,7 +46,9 @@ function fetchUrl(rawUrl, redirects = 0) {
     const req  = mod.get(rawUrl, opts, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
-        return resolve(fetchUrl(res.headers.location, redirects + 1));
+        let next;
+        try { next = new URL(res.headers.location, rawUrl).href; } catch { return reject(new Error('Invalid redirect location')); }
+        return resolve(fetchUrl(next, redirects + 1));
       }
       const chunks = [];
       res.on('data', c => chunks.push(c));
@@ -267,86 +269,87 @@ function apiBooksDelete(req, res, id) {
 
 function extractCbz(filePath, outDir) {
   const fd = fs.openSync(filePath, 'r');
-  const stat = fs.fstatSync(fd);
-  const size = stat.size;
-  
-  const bufLen = Math.min(size, 1024);
-  const buf = Buffer.alloc(bufLen);
-  fs.readSync(fd, buf, 0, bufLen, size - bufLen);
-  
-  let eocdOffset = -1;
-  for (let i = bufLen - 22; i >= 0; i--) {
-    if (buf.readUInt32LE(i) === 0x06054b50) {
-      eocdOffset = size - bufLen + i;
-      break;
+  try {
+    const stat = fs.fstatSync(fd);
+    const size = stat.size;
+
+    const bufLen = Math.min(size, 1024);
+    const buf = Buffer.alloc(bufLen);
+    fs.readSync(fd, buf, 0, bufLen, size - bufLen);
+
+    let eocdOffset = -1;
+    for (let i = bufLen - 22; i >= 0; i--) {
+      if (buf.readUInt32LE(i) === 0x06054b50) {
+        eocdOffset = size - bufLen + i;
+        break;
+      }
     }
-  }
-  
-  if (eocdOffset === -1) {
-    fs.closeSync(fd);
-    throw new Error('Not a valid ZIP file (EOCD not found)');
-  }
-  
-  const eocd = Buffer.alloc(22);
-  fs.readSync(fd, eocd, 0, 22, eocdOffset);
-  const cdOffset = eocd.readUInt32LE(16);
-  const cdSize = eocd.readUInt32LE(12);
-  const cdCount = eocd.readUInt16LE(8);
-  
-  const cdBuf = Buffer.alloc(cdSize);
-  fs.readSync(fd, cdBuf, 0, cdSize, cdOffset);
-  
-  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-  
-  let p = 0;
-  const files = [];
-  for (let i = 0; i < cdCount; i++) {
-    if (p + 46 > cdSize) break;
-    if (cdBuf.readUInt32LE(p) !== 0x02014b50) break;
-    
-    const compression = cdBuf.readUInt16LE(p + 10);
-    const compSize = cdBuf.readUInt32LE(p + 20);
-    const uncompSize = cdBuf.readUInt32LE(p + 24);
-    const nameLen = cdBuf.readUInt16LE(p + 28);
-    const extraLen = cdBuf.readUInt16LE(p + 30);
-    const commentLen = cdBuf.readUInt16LE(p + 32);
-    const localOffset = cdBuf.readUInt32LE(p + 42);
-    
-    const filename = cdBuf.toString('utf-8', p + 46, p + 46 + nameLen);
-    p += 46 + nameLen + extraLen + commentLen;
-    
-    if (/\.(jpg|jpeg|png|webp|gif)$/i.test(filename)) {
-      const lh = Buffer.alloc(30);
-      fs.readSync(fd, lh, 0, 30, localOffset);
-      const lhNameLen = lh.readUInt16LE(26);
-      const lhExtraLen = lh.readUInt16LE(28);
-      const dataOffset = localOffset + 30 + lhNameLen + lhExtraLen;
-      
-      const compData = Buffer.alloc(compSize);
-      fs.readSync(fd, compData, 0, compSize, dataOffset);
-      
-      let uncompData;
-      if (compression === 0) {
-        uncompData = compData;
-      } else if (compression === 8) {
-        try {
-          uncompData = zlib.inflateRawSync(compData);
-        } catch (e) {
-          console.error(`Failed to inflate ${filename}: ${e.message}`);
+
+    if (eocdOffset === -1) {
+      throw new Error('Not a valid ZIP file (EOCD not found)');
+    }
+
+    const eocd = Buffer.alloc(22);
+    fs.readSync(fd, eocd, 0, 22, eocdOffset);
+    const cdOffset = eocd.readUInt32LE(16);
+    const cdSize = eocd.readUInt32LE(12);
+    const cdCount = eocd.readUInt16LE(8);
+
+    const cdBuf = Buffer.alloc(cdSize);
+    fs.readSync(fd, cdBuf, 0, cdSize, cdOffset);
+
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+    let p = 0;
+    const files = [];
+    for (let i = 0; i < cdCount; i++) {
+      if (p + 46 > cdSize) break;
+      if (cdBuf.readUInt32LE(p) !== 0x02014b50) break;
+
+      const compression = cdBuf.readUInt16LE(p + 10);
+      const compSize = cdBuf.readUInt32LE(p + 20);
+      const nameLen = cdBuf.readUInt16LE(p + 28);
+      const extraLen = cdBuf.readUInt16LE(p + 30);
+      const commentLen = cdBuf.readUInt16LE(p + 32);
+      const localOffset = cdBuf.readUInt32LE(p + 42);
+
+      const filename = cdBuf.toString('utf-8', p + 46, p + 46 + nameLen);
+      p += 46 + nameLen + extraLen + commentLen;
+
+      if (/\.(jpg|jpeg|png|webp|gif)$/i.test(filename)) {
+        const lh = Buffer.alloc(30);
+        fs.readSync(fd, lh, 0, 30, localOffset);
+        const lhNameLen = lh.readUInt16LE(26);
+        const lhExtraLen = lh.readUInt16LE(28);
+        const dataOffset = localOffset + 30 + lhNameLen + lhExtraLen;
+
+        const compData = Buffer.alloc(compSize);
+        fs.readSync(fd, compData, 0, compSize, dataOffset);
+
+        let uncompData;
+        if (compression === 0) {
+          uncompData = compData;
+        } else if (compression === 8) {
+          try {
+            uncompData = zlib.inflateRawSync(compData);
+          } catch (e) {
+            console.error(`Failed to inflate ${filename}: ${e.message}`);
+            continue;
+          }
+        } else {
           continue;
         }
-      } else {
-        continue;
+
+        const safeName = path.basename(filename);
+        fs.writeFileSync(path.join(outDir, safeName), uncompData);
+        files.push(safeName);
       }
-      
-      const safeName = path.basename(filename);
-      fs.writeFileSync(path.join(outDir, safeName), uncompData);
-      files.push(safeName);
     }
+
+    return files.sort();
+  } finally {
+    fs.closeSync(fd);
   }
-  
-  fs.closeSync(fd);
-  return files.sort();
 }
 
 function apiBooksCbzFiles(req, res, id) {

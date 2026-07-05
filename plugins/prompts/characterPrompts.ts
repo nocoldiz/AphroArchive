@@ -466,7 +466,6 @@ export function buildPromptFromBuilder(state: BuilderState, wildcardCache?: Map<
 
   const c0 = effChars[0] || {};
   const c1 = effChars[1] || {};
-  const c2 = effChars[2] || {};
 
   // Subjects header (pony friendly counts)
   const subjHeader = getNumSubjectsPhrase(numCharsSafe, c0.gender, c1?.gender);

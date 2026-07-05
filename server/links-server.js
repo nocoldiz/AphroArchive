@@ -9,11 +9,9 @@ const path  = require('path');
 const http  = require('http');
 const https = require('https');
 const os    = require('os');
-const url   = require('url');
-const { LINK_DIR, LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
-const { json, readBody, serveStatic, LIMITS }   = require('./helpers-server');
+const { LINK_THUMBS_DIR, EDGE_BIN, YT_DLP_BIN } = require('./config-server');
+const { json, readBody, LIMITS, wordMatchAny, wordMatch } = require('./helpers-server');
 const { loadWebsites, saveWebsites, loadLinksCache, saveLinksCache, upsertLink, deleteLink, deleteLinks, getLink, loadOgThumbCache, saveOgThumbCache, loadFolderMappings, loadEnabledFolders, loadAllVideoTags, upsertChannelEntry } = require('./db-server');
-const { wordMatchAny, wordMatch } = require('./helpers-server');
 const { execFile } = require('child_process');
 const scrapeMethods        = require('./scrapeMethods-server');
 
@@ -37,15 +35,18 @@ function fetchOgImage(targetUrl) {
       };
       const req = lib.request(opts, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return fetchOgImage(res.headers.location).then(resolve).catch(() => resolve(null));
+          let next;
+          try { next = new URL(res.headers.location, targetUrl).href; } catch { return resolve(null); }
+          return fetchOgImage(next).then(resolve).catch(() => resolve(null));
         }
         let data = '';
-        res.on('data', chunk => { data += chunk; if (data.length > 200000) req.destroy(); });
-        res.on('end', () => {
+        const finish = () => {
           const m = data.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
                  || data.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
           resolve(m ? m[1] : null);
-        });
+        };
+        res.on('data', chunk => { data += chunk; if (data.length > 200000) { req.destroy(); finish(); } });
+        res.on('end', finish);
         res.on('error', () => resolve(null));
       });
       req.on('error', () => resolve(null));
@@ -363,11 +364,12 @@ function extractEmbedUrl(pageUrl) {
       };
       const req = lib.request(opts, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return extractEmbedUrl(res.headers.location).then(resolve);
+          let next;
+          try { next = new URL(res.headers.location, pageUrl).href; } catch { return resolve(null); }
+          return extractEmbedUrl(next).then(resolve);
         }
         let data = '';
-        res.on('data', chunk => { data += chunk; if (data.length > 300000) req.destroy(); });
-        res.on('end', () => {
+        const finish = () => {
           const iframeRe = /<iframe[^>]+src=["']([^"']+)["']/gi;
           let match;
           while ((match = iframeRe.exec(data)) !== null) {
@@ -380,7 +382,9 @@ function extractEmbedUrl(pageUrl) {
             } catch {}
           }
           resolve(null);
-        });
+        };
+        res.on('data', chunk => { data += chunk; if (data.length > 300000) { req.destroy(); finish(); } });
+        res.on('end', finish);
         res.on('error', () => resolve(null));
       });
       req.on('error', () => resolve(null));
@@ -565,11 +569,11 @@ function apiGetLinksCache(req, res) {
 
   const enabledPaths = loadEnabledFolders();
   if (enabledPaths.length > 0) {
-    const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
+    const enabledLo = enabledPaths.map(p => p.toLowerCase());
     items = items.filter(item => {
       if (!item.category) return true;
       const catLo = item.category.toLowerCase();
-      return enabledSet.size === 0 || Array.from(enabledSet).some(ep => catLo === ep || catLo.startsWith(ep + '/'));
+      return enabledLo.some(ep => catLo === ep || catLo.startsWith(ep + '/'));
     });
   }
 
@@ -618,8 +622,10 @@ function apiStartScraping(req, res) {
 function apiRescrapeAll(_req, res) {
   if (_scrapeJob && _scrapeJob.running) {
     _scrapeJob.stop = true;
-    // give the loop one tick to notice the stop flag before reset
-    setImmediate(() => { startScrapingWorker({ reset: true }); });
+    // wait for the running loop to notice the stop flag before resetting
+    const wait = setInterval(() => {
+      if (!_scrapeJob || !_scrapeJob.running) { clearInterval(wait); startScrapingWorker({ reset: true }); }
+    }, 500);
   } else {
     startScrapingWorker({ reset: true });
   }

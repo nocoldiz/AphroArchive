@@ -236,7 +236,8 @@ export const Search = () => {
       ghost.innerHTML = '';
       return;
     }
-    ghost.innerHTML = `<span class="ghost-typed">${localQuery}</span><span class="ghost-hint">${hint}</span>`;
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    ghost.innerHTML = `<span class="ghost-typed">${esc(localQuery)}</span><span class="ghost-hint">${esc(hint)}</span>`;
   }, [hint, localQuery]);
 
   const scopes = searchScopes.value;

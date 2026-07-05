@@ -54,7 +54,6 @@ export const Sidebar = () => {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragInsertId, setDragInsertId] = useState<string | null>(null);
   const dropInsertRef = useRef<string | null>(null);
-  const dropSectionRef = useRef<NavSection | null>(null);
 
   useEffect(() => {
     const el = document.getElementById('side');
@@ -69,8 +68,6 @@ export const Sidebar = () => {
     window.addEventListener('dragend', clear);
     return () => window.removeEventListener('dragend', clear);
   }, []);
-
-  if (view === 'reddit') return null;
 
   const [libraryOpen, setLibraryOpen] = useState(() => sectionState('library'));
   const [manageOpen, setManageOpen] = useState(() => sectionState('manage'));
@@ -104,6 +101,8 @@ export const Sidebar = () => {
       .then(setPhotoFolders)
       .catch(() => {});
   }, []);
+
+  if (view === 'reddit') return null;
 
   const navItems = getNavItems();
   const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
@@ -290,7 +289,6 @@ export const Sidebar = () => {
                         const before = e.clientY < r.top + r.height / 2;
                         const insertId = before ? item.id : (sortedIds[idx + 1] ?? endSentinel);
                         dropInsertRef.current = insertId;
-                        dropSectionRef.current = sec.key;
                         setDragInsertId(insertId);
                       }
                     }}

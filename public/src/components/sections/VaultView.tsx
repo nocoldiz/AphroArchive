@@ -55,7 +55,6 @@ export const VaultView = () => {
   const [sortDir, setSortDir] = useState('desc');
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
   const [aiIds, setAiIds] = useState<Set<string>>(new Set());
-  const [showMosaic, setShowMosaic] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [blobUrl, setBlobUrl] = useState('');

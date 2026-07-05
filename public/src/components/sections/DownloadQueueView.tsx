@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { ImportLinksToQueueModal } from '../modals/ImportLinksToQueueModal';
 
 interface LinkItem {
@@ -72,6 +72,7 @@ export const DownloadQueueView = () => {
   const [loading, setLoading] = useState(true);
   const [importOpen, setImportOpen] = useState(false);
   const pollerRef = useRef<any>(null);
+  const doneCountRef = useRef<number | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -89,12 +90,15 @@ export const DownloadQueueView = () => {
   const pollJobs = async () => {
     try {
       const d = await fetch('/api/download/jobs').then(r => r.json());
-      setJobs(d);
-      const active = d.some((j: DownloadJob) => j.status === 'queued' || j.status === 'running');
+      const arr: DownloadJob[] = Array.isArray(d) ? d : [];
+      setJobs(arr);
+      const active = arr.some(j => j.status === 'queued' || j.status === 'running');
       if (!active && pollerRef.current) { clearInterval(pollerRef.current); pollerRef.current = null; }
       // Refresh links when jobs complete
-      const hasNewDone = d.some((j: DownloadJob) => j.status === 'done');
-      if (hasNewDone) loadData();
+      const doneCount = arr.filter(j => j.status === 'done').length;
+      const prevDone = doneCountRef.current;
+      doneCountRef.current = doneCount;
+      if (prevDone !== null && doneCount > prevDone) loadData();
     } catch {}
   };
 
@@ -103,6 +107,12 @@ export const DownloadQueueView = () => {
   };
 
   useEffect(() => { loadData(); pollJobs(); return () => { if (pollerRef.current) clearInterval(pollerRef.current); }; }, []);
+
+  const folderByUrl = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of links) m.set(l.url, resolveTargetFolder(l, categories));
+    return m;
+  }, [links, categories]);
 
   const visible = links.filter(item => {
     if (filter === 'starred' && !item.fav) return false;
@@ -128,10 +138,7 @@ export const DownloadQueueView = () => {
   const selectNone = () => setSelected(new Set());
 
   const downloadSelected = async () => {
-    const items = [...selected].map(url => {
-      const link = links.find(l => l.url === url)!;
-      return { url, category: resolveTargetFolder(link, categories) };
-    });
+    const items = [...selected].map(url => ({ url, category: folderByUrl.get(url) || '' }));
     if (!items.length) return;
     try {
       await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
@@ -141,7 +148,7 @@ export const DownloadQueueView = () => {
   };
 
   const downloadOne = async (link: LinkItem) => {
-    const category = resolveTargetFolder(link, categories);
+    const category = folderByUrl.get(link.url) || '';
     try {
       await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: [{ url: link.url, category }] }) });
       startPolling();
@@ -256,7 +263,7 @@ export const DownloadQueueView = () => {
           {visible.map(item => {
             const job = getJobForUrl(item.url);
             const isSelected = selected.has(item.url);
-            const folder = resolveTargetFolder(item, categories);
+            const folder = folderByUrl.get(item.url) || '';
             const hostname = (() => { try { return new URL(item.url).hostname.replace('www.', ''); } catch { return item.url; } })();
             const tags: string[] = item.tags || [];
 

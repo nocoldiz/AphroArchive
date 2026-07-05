@@ -56,7 +56,7 @@ export const VaultZipModal = () => {
   return (
     <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
       <div className="modal-content" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '360px', maxWidth: '90%' }}>
-        <div style={{ fontCloser: '1rem', fontWeight: 600, color: 'var(--tx)', marginBottom: '10px' }}>Download as ZIP</div>
+        <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--tx)', marginBottom: '10px' }}>Download as ZIP</div>
         <div style={{ fontSize: '0.8rem', color: 'var(--tx3)', marginBottom: '15px' }}>{state.ids.length} files selected</div>
         
         <label style={{ fontSize: '0.82rem', color: 'var(--tx2)', display: 'block', marginBottom: '5px' }}>

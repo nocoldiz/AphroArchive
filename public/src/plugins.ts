@@ -16,7 +16,7 @@ export interface PluginMeta {
   /** SVG innerHTML for the button icon in the sidebar or topbar. */
   icon?: string;
   // When present, the plugin is offered as a home-dashboard widget. The
-  // render code (if any) lives in plugins/<id>/widget.tsx; view/toggle
+  // render code (if any) lives in widgets/<id>/widget.tsx; view/toggle
   // plugins without one render as a shortcut button. `w`/`h` are the
   // default column/row span; min/max constrain resizing.
   homeWidget?: {

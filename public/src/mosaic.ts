@@ -1,5 +1,5 @@
 ﻿import { signal } from '@preact/signals';
-import { allVideos, folders, currentFolder, linkVidIds, currentView, playerNextUp, filteredVideos, isMuted } from './store';
+import { allVideos, folders, currentFolder, currentView, playerNextUp, filteredVideos, isMuted } from './store';
 import { zapOn, stopZapping } from './zap';
 
 // ─── Mosaic State ───
@@ -58,7 +58,6 @@ export function startMosaic() {
   _mosaicPhotoMode = false;
   mosaicQuery.value = '';
   
-  const w = window as any;
   if (zapOn.value) stopZapping();
   
   currentView.value = 'mosaic';
@@ -490,4 +489,12 @@ if (typeof window !== 'undefined') {
   (window as any).setMosLayoutIv = setMosLayoutIv;
   (window as any).setMosRandomizeLayout = setMosRandomizeLayout;
   (window as any).setMosPlayAllAudio = setMosPlayAllAudio;
+  // Legacy code (goHome, zapping) checks window.mosaicOn — bridge it to the
+  // signal, replacing the plain `w.mosaicOn = false` set in store.ts which
+  // never tracked the real state.
+  Object.defineProperty(window, 'mosaicOn', {
+    get: () => mosaicOn.value,
+    set: v => { mosaicOn.value = !!v; },
+    configurable: true,
+  });
 }

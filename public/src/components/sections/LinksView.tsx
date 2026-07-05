@@ -30,7 +30,7 @@ interface LinkCardProps {
 }
 
 const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selected, onToggleSelect, activeCats, onTagClick, onChannelClick }: LinkCardProps & { onVault?: (url: string) => void }) => {
-  const hostname = new URL(item.url).hostname;
+  const hostname = (() => { try { return new URL(item.url).hostname; } catch { return item.url; } })();
   const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(item.title);
@@ -544,9 +544,9 @@ const BookmarkPickerModal = ({ browser, existingUrls, activeCats, onImport, onCl
                     <td colSpan={4} style={{ padding: 0, border: 'none', height: `${topPad}px` }} />
                   </tr>
                 )}
-                {visibleRows.map((b) => {
+                {visibleRows.map((b, ri) => {
                   const isSelected = selected.has(b.url);
-                  const i = bookmarks.indexOf(b);
+                  const i = startIndex + ri;
                   const tag = matchedName(b, tagGroups, activeCats);
                   return (
                     <tr
@@ -884,8 +884,9 @@ export const LinksView = () => {
       try {
         const r = await fetch('/api/download/jobs');
         const d = await r.json();
-        setJobs(d);
-        const active = d.some((j: any) => j.status === 'queued' || j.status === 'running');
+        const arr = Array.isArray(d) ? d : [];
+        setJobs(arr);
+        const active = arr.some((j: any) => j.status === 'queued' || j.status === 'running');
         if (!active && dlPollerRef.current) {
           clearInterval(dlPollerRef.current);
           dlPollerRef.current = null;
@@ -899,7 +900,10 @@ export const LinksView = () => {
     }
 
     return () => {
-      if (dlPollerRef.current) clearInterval(dlPollerRef.current);
+      if (dlPollerRef.current) {
+        clearInterval(dlPollerRef.current);
+        dlPollerRef.current = null;
+      }
     };
   }, [jobs]);
 
@@ -1113,22 +1117,6 @@ export const LinksView = () => {
       body: JSON.stringify({ urls }),
     });
     toast(`Deleted ${urls.length} link(s)`);
-  };
-
-  const moveSelectedToVault = async () => {
-    const urls = [...selectedUrls];
-    if (!urls.length) { alert('Select at least one link'); return; }
-    const r = await fetch('/api/vault/move-links', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls }),
-    });
-    if (r.ok) {
-      setItems(prev => prev.filter(it => !urls.includes(it.url)));
-      setSelectedUrls(new Set());
-      const w = window as any;
-      if (w.toast) w.toast(`${urls.length} link(s) encrypted to Vault`);
-    }
   };
 
   const encryptSelected = async () => {
@@ -1804,7 +1792,7 @@ export const LinksView = () => {
           ) : isVaultUnlocked.value ? (
             <button class="sort-btn" onClick={encryptSelected} title="Encrypt selected links into Vault">🔒 Vault</button>
           ) : (
-            <button class="sort-btn" onClick={moveSelectedToVault} title="Move selected links to Vault">🔒 Vault</button>
+            <button class="sort-btn" onClick={encryptSelected} title="Move selected links to Vault">🔒 Vault</button>
           )}
           <button class="sort-btn" onClick={deleteSelected} style={{ color: '#e53935', borderColor: '#e53935' }} title="Delete all selected links">Delete</button>
         </div>

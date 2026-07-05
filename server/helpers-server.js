@@ -66,7 +66,12 @@ function safePath(id) {
     full = path.resolve(VIDEOS_DIR, rel);
   }
 
-  if (full.startsWith(path.resolve(VIDEOS_DIR))) {
+  const inside = (root) => {
+    const r = path.resolve(root);
+    return full === r || full.startsWith(r + path.sep);
+  };
+
+  if (inside(VIDEOS_DIR)) {
     if (fs.existsSync(full)) return full;
     return null;
   }
@@ -76,7 +81,7 @@ function safePath(id) {
     const prefs = loadPrefs();
     if (prefs.sourceFolders) {
       for (const folder of prefs.sourceFolders) {
-        if (full.startsWith(path.resolve(folder))) {
+        if (inside(folder)) {
           if (fs.existsSync(full)) return full;
         }
       }
@@ -339,8 +344,9 @@ function _sendFile(req, res, resolved, stat, ct) {
 }
 
 function serveStatic(req, res, filePath) {
-  const resolved = path.resolve(PUBLIC_DIR, filePath);
-  if (!resolved.startsWith(path.resolve(PUBLIC_DIR))) {
+  const root = path.resolve(PUBLIC_DIR);
+  const resolved = path.resolve(root, filePath);
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
     res.writeHead(403); res.end('Forbidden'); return;
   }
   let stat = null;

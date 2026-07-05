@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentVideo } from '../../store';
 
 interface Collection {
   name: string;
@@ -17,9 +16,13 @@ export const CollectionsView = () => {
   }, []);
 
   const loadCollections = async () => {
-    const r = await fetch('/api/collections');
-    const data = await r.json();
-    setCollections(data);
+    try {
+      const r = await fetch('/api/collections');
+      const data = await r.json();
+      setCollections(Array.isArray(data) ? data : []);
+    } catch {
+      setCollections([]);
+    }
   };
 
   const handleCreate = async () => {
@@ -57,9 +60,13 @@ export const CollectionsView = () => {
 
   const openDetail = async (name: string) => {
     setCurrentCollection(name);
-    const r = await fetch(`/api/collections/${encodeURIComponent(name)}/videos`);
-    const data = await r.json();
-    setCollectionVideos(data);
+    try {
+      const r = await fetch(`/api/collections/${encodeURIComponent(name)}/videos`);
+      const data = await r.json();
+      setCollectionVideos(Array.isArray(data) ? data : []);
+    } catch {
+      setCollectionVideos([]);
+    }
   };
 
   if (currentCollection) {

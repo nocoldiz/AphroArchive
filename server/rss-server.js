@@ -56,17 +56,18 @@ function fetchText(url, redirects = 0) {
         const loc = res.headers.location;
         if (res.statusCode >= 300 && res.statusCode < 400 && loc) {
           res.resume();
-          const next = loc.startsWith('http') ? loc : new URL(loc, url).toString();
+          let next;
+          try { next = new URL(loc, url).toString(); } catch { return resolve(''); }
           return resolve(fetchText(next, redirects + 1));
         }
         if (res.statusCode !== 200) { res.resume(); return resolve(''); }
         let data = '';
         res.setEncoding('utf8');
-        res.on('data', c => { data += c; if (data.length > 5_000_000) req.destroy(); });
+        res.on('data', c => { data += c; if (data.length > 5_000_000) { req.destroy(); resolve(data); } });
         res.on('end', () => resolve(data));
       });
     } catch { return resolve(''); }
-    req.on('timeout', () => req.destroy());
+    req.on('timeout', () => { req.destroy(); resolve(''); });
     req.on('error', () => resolve(''));
   });
 }

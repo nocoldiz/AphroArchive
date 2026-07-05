@@ -130,6 +130,15 @@ function getExistingTopLevelFolders(root) {
 
 let _scanCache = null;
 let _watchDebounce = null;
+// Short-lived memo of the fully built+sorted /api/videos list, keyed by request
+// signature. The client streams the library in pages (limit/offset) back-to-back;
+// without this every page re-ran the full-library map+filter+sort just to slice a
+// window out of it (O(pages × library)). Served only while `gen` matches the
+// current scan generation and within TTL, so file changes invalidate it at once
+// and fav/history/folder edits fall out via the signature or the short TTL.
+const _videoListCache = new Map(); // sig -> { at, gen, list }
+let _videoListGen = 0;
+const VIDEO_LIST_TTL = 2500;
 const unlockedFolders = new Map(); // catPath -> key (Buffer)
 let masterPassword = null; // Session master password
 
@@ -446,6 +455,8 @@ function apiScanEvents(req, res) {
 
 function invalidateScanCache() {
   _scanCache = null;
+  _videoListGen++;
+  _videoListCache.clear();
   clearVideoIndex();
   clearMediaIndex();
   broadcastScanChange();
@@ -678,13 +689,14 @@ async function allVideos(forceAll = false) {
   }
 
   const bmVideos = links.map(item => {
-    const titleWords = item.title.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3);
+    const title = item.title || item.url;
+    const titleWords = title.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 3);
     const tags = [...new Set(titleWords)];
-    
+
     return {
       id: item.url,
-      name: item.title,
-      filename: item.title,
+      name: title,
+      filename: title,
       ext: '.mp4',
       rel: item.url,
       path: item.scrapedVideoUrl || item.url,
@@ -807,8 +819,27 @@ async function apiVideos(req, res, params) {
   // all=1 (vault unlocked only): bypass the per-profile enabled-categories
   // filter so the Vault's Global view can import files from any profile
   const showAll = params.get('all') === '1' && require('./vault-server').isUnlocked();
+  const q    = params.get('q');
+  const cat  = params.get('category');
+  const sort = params.get('sort') || 'date';
+  const fav  = params.get('fav') === '1' || params.get('fav') === 'true';
+
+  // Serve the built+sorted list from the short-lived memo when a page of the same
+  // query was just built (the client streams pages back-to-back). The signature
+  // folds in the inputs that change list content — favourite/history toggles bump
+  // their counts and miss the cache; `slim` is excluded because it only strips
+  // fields at output time, so slim and full requests can share one entry.
+  const historyLen = historySet ? historySet.size : -1;
+  const sig = JSON.stringify([q, cat, sort, fav, showAll, favSet.size, historyLen, enabledPaths]);
+  const memo = _videoListCache.get(sig);
+  let list;
+  if (memo && memo.gen === _videoListGen && (Date.now() - memo.at) < VIDEO_LIST_TTL) {
+    list = memo.list;
+    return sendVideoList(res, list, params, slim);
+  }
+
   const videos      = await allVideos(showAll);
-  let list = videos
+  list = videos
     .filter(v => showAll || v.isOpened || isFolderEnabled(v.catPath, enabledPaths))
     .map(v => {
       const cached   = thumbsCache[v.id];
@@ -830,10 +861,6 @@ async function apiVideos(req, res, params) {
         ...(historySet ? { watched: historySet.has(v.id) } : {}),
       };
     });
-  const q    = params.get('q');
-  const cat  = params.get('category');
-  const sort = params.get('sort') || 'date';
-  const fav  = params.get('fav') === '1' || params.get('fav') === 'true';
 
   const relevance = new Map();
   if (q) {
@@ -903,12 +930,22 @@ async function apiVideos(req, res, params) {
   }
   else list.sort((a, b) => b.mtime - a.mtime);
 
-  // Paged mode (?offset&limit): responds {total, items} so the client can
-  // paint the first page instantly and stream the rest in the background —
-  // the response is no longer proportional to library size on first load.
-  // Slim mode strips heavyweight per-video fields the grid never renders
-  // (chapters/note/actors — refetched per-video by the player detail call).
-  // No params — legacy full-array response, so existing callers are untouched.
+  // Bound the memo: each entry holds a full-library array, so cap distinct
+  // signatures (searches/categories) and evict the oldest by insertion order.
+  if (_videoListCache.size >= 24) _videoListCache.delete(_videoListCache.keys().next().value);
+  _videoListCache.set(sig, { at: Date.now(), gen: _videoListGen, list });
+  return sendVideoList(res, list, params, slim);
+}
+
+// Serialize a built+sorted video list to the response, honouring pagination and
+// slim mode. Shared by the fresh-build and memo-hit paths of apiVideos.
+//   Paged mode (?offset&limit): responds {total, items} so the client paints the
+//     first page instantly and streams the rest — response is no longer
+//     proportional to library size on first load.
+//   Slim mode strips heavyweight per-video fields the grid never renders
+//     (chapters/note/actors — refetched per-video by the player detail call).
+//   No params: legacy full-array response, so existing callers are untouched.
+function sendVideoList(res, list, params, slim) {
   const stripSlim = (v) => {
     if (!slim) return v;
     const { chapters, note, actors, ...rest } = v;
@@ -1444,7 +1481,7 @@ async function apiVideoDetailFast(req, res, id) {
 
   // Build allCategories set
   const allTagSet = new Set();
-  allTagSet.add(...metaTags);
+  metaTags.forEach(t => allTagSet.add(t));
   cats.forEach(e => allTagSet.add(e.displayName));
 
   // Build suggested using inverted actor index over bulk-loaded meta (avoids N SQLite reads).
@@ -1493,24 +1530,14 @@ async function apiVideoDetailFast(req, res, id) {
 // ── Preload endpoint (fast startup data) ──────────────────────────
 async function apiPreload(req, res) {
   const db = require('./db-server');
-  // Load categories from server (this calls cachedScan which loads index from DB)
-  // But we can do it faster: just count videos from the index
+  // Category counts for the sidebar, aggregated in SQL — no need to materialize
+  // every video_index row into JS just to tally them.
   let totalVideos = 0;
   let catCounts = {};
   try {
-    const index = db.loadVideoIndex();
-    if (index && index.length > 0) {
-      totalVideos = index.length;
-      // Count per category
-      for (const v of index) {
-        const cp = v.catPath || '';
-        if (!cp) continue;
-        catCounts[cp] = (catCounts[cp] || 0) + 1;
-      }
-    }
+    ({ total: totalVideos, catCounts } = db.videoIndexCategoryCounts());
   } catch (e) {
-    // Fallback: just return existing API data
-    console.error('[preload] index load error:', e.message);
+    console.error('[preload] index count error:', e.message);
   }
 
   const enabledPaths = db.loadEnabledFolders();
@@ -1527,19 +1554,20 @@ async function apiStream(req, res, id) {
   const fp = safePath(id);
   if (!fp) { res.writeHead(404); res.end('Not found'); return; }
   
-  // Optimize: Just check if encrypted without loading all videos
+  // Optimize: Just check if encrypted without loading all videos. The
+  // encrypted flag lives on the scan index entry (not in video meta).
   let isEnc = false;
   let key = null;
   try {
-    const meta = loadVideoMeta();
-    if (meta[id]?.encrypted) {
-      isEnc = true;
-      // Get category path for this specific video
+    const { getVideoIndexEntry } = require('./db-server');
+    let entry = getVideoIndexEntry(id);
+    if (!entry) {
       const all = await cachedScan();
-      const v = all.find(v => v.id === id);
-      if (v) {
-        key = isEnc ? getUnlockKey(v.catPath) : null;
-      }
+      entry = all.find(v => v.id === id) || null;
+    }
+    if (entry?.encrypted) {
+      isEnc = true;
+      key = getUnlockKey(entry.catPath);
     }
   } catch {}
   
@@ -1905,9 +1933,9 @@ async function apiAutoSort(req, res) {
 // ── Favourites / History / Ratings ───────────────────────────────────
 
 async function apiFavourites(req, res) {
-  const favs   = loadFavs();
+  const favSet = new Set(loadFavs());
   const videos = await allVideos();
-  json(res, videos.filter(v => favs.includes(v.id)).map(v => ({ ...v, fav: true })));
+  json(res, videos.filter(v => favSet.has(v.id)).map(v => ({ ...v, fav: true })));
 }
 
 function apiToggleFav(req, res, id) {
@@ -1950,8 +1978,10 @@ function apiClearThumbs(req, res) {
   saveThumbsCache({});
   try {
     if (fs.existsSync(THUMBS_DIR)) {
+      // Thumbnails live in per-video subdirectories (THUMBS_DIR/<id>/N.jpg),
+      // so entries must be removed recursively — unlink alone skips them all.
       for (const f of fs.readdirSync(THUMBS_DIR)) {
-        try { fs.unlinkSync(path.join(THUMBS_DIR, f)); } catch {}
+        try { fs.rmSync(path.join(THUMBS_DIR, f), { recursive: true, force: true }); } catch {}
       }
     }
   } catch {}
@@ -2029,14 +2059,14 @@ async function apiDuplicates(req, res) {
     category: m.category || m.mediaType || 'Uncategorized',
   }));
   const all = [...videos, ...media];
-  const favs   = loadFavs();
+  const favSet = new Set(loadFavs());
   const thumbs = db.loadThumbsCache();
   const bySize = new Map();
   for (const v of all) {
     if (!v.size || v.size <= 0) continue;
     if (!bySize.has(v.size)) bySize.set(v.size, []);
     const th = thumbs[v.id] || {};
-    bySize.get(v.size).push({ ...v, fav: favs.includes(v.id), width: th.width || null, height: th.height || null });
+    bySize.get(v.size).push({ ...v, fav: favSet.has(v.id), width: th.width || null, height: th.height || null });
   }
   const groups = [...bySize.values()]
     .filter(g => g.length > 1)
@@ -2081,7 +2111,7 @@ async function apiFoldersOverview(req, res) {
   for (const [key, e] of catMap.entries()) {
     if (key === 'Links') continue;
     const kn = e.path.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    const bmCount = links.filter(it => it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
+    const bmCount = links.filter(it => (it.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().includes(kn)).length;
     e.count += bmCount;
   }
 
@@ -3276,34 +3306,6 @@ async function decryptThumbnailInPlace(filePath, key) {
   
   fs.unlinkSync(filePath);
   fs.renameSync(tmpPath, filePath);
-}
-
-async function decryptFileInPlace(filePath, key) {
-  const outPath = filePath.replace(/\.enc$/, '');
-  const stat = fs.statSync(filePath);
-  const size = stat.size;
-  const ivLen = 12, tagLen = 16;
-  
-  const fd = fs.openSync(filePath, 'r');
-  const iv = Buffer.alloc(ivLen);
-  fs.readSync(fd, iv, 0, ivLen, 0);
-  const tag = Buffer.alloc(tagLen);
-  fs.readSync(fd, tag, 0, tagLen, size - tagLen);
-  fs.closeSync(fd);
-  
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-  decipher.setAuthTag(tag);
-  
-  const out = fs.createWriteStream(outPath);
-  const src = fs.createReadStream(filePath, { start: ivLen, end: size - tagLen - 1 });
-  await pipe(src, decipher, out);
-  
-  fs.unlinkSync(filePath);
-}
-
-function toastServer(msg) {
-  // Mock or console log for now
-  console.log('[cat-enc]', msg);
 }
 
 function getUnlockedFolderKey(catPath) {

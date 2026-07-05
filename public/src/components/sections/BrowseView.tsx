@@ -1,5 +1,5 @@
 import { VideoGrid } from '../UI/VideoGrid';
-import { galleryFilter, sortMode, isShuffle, favFilter, recentVideos, currentView, cardSize, currentFolder, currentTag, currentTagTerms } from '../../store';
+import { recentVideos, currentView, currentFolder, currentTag, currentTagTerms } from '../../store';
 import { SearchExtras } from '../UI/SearchExtras';
 import { SectionControls } from '../UI/SectionControls';
 

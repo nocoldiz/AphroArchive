@@ -19,7 +19,9 @@ function httpGet(rawUrl, opts = {}) {
     }, res => {
       // Follow redirects
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return httpGet(res.headers.location, opts).then(resolve).catch(reject);
+        let next;
+        try { next = new URL(res.headers.location, rawUrl).href; } catch (e) { return reject(e); }
+        return httpGet(next, opts).then(resolve).catch(reject);
       }
       let data = '';
       res.on('data', c => data += c);

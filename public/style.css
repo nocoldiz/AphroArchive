@@ -1412,6 +1412,19 @@ input {
   gap: 16px
 }
 
+/* TV Mode — hide the sidebar; the channel list stands in for the playlist. */
+body.tv-active .side {
+  display: none
+}
+
+.tv-channel-panel .playlist-list {
+  padding: 0
+}
+
+.tv-channel-row:hover {
+  background: var(--bg3) !important
+}
+
 .playlist-panel {
   background: var(--bg2);
   border: 1px solid var(--brd);
@@ -4127,7 +4140,7 @@ input {
 }
 
 .actor-link {
-  color: var(--acc);
+  color: var(--ac);
   text-decoration: none;
   font-size: 0.7rem
 }
@@ -4449,7 +4462,7 @@ input {
   gap: 7px;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--tx1)
+  color: var(--tx)
 }
 
 .bf-or {
@@ -4514,7 +4527,7 @@ input {
   border: 1px solid var(--brd);
   border-radius: var(--r);
   font-size: 0.82rem;
-  color: var(--tx1);
+  color: var(--tx);
   outline: none;
   cursor: pointer
 }
@@ -4553,7 +4566,7 @@ input {
 .bf-title {
   flex: 1;
   font-size: 0.83rem;
-  color: var(--tx1);
+  color: var(--tx);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4636,7 +4649,7 @@ input {
   background: var(--bg2);
   border: 1px solid var(--brd);
   border-radius: var(--r);
-  color: var(--tx1);
+  color: var(--tx);
   outline: none;
   font-family: inherit
 }
@@ -4727,7 +4740,7 @@ input {
 
 .download-job-title {
   font-size: 0.83rem;
-  color: var(--tx1);
+  color: var(--tx);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis
@@ -7429,7 +7442,7 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   display: inline;
   border-radius: 4px;
   padding: 0 3px;
-  font-family: monospace;
+  font-family: var(--m);
   font-size: 0.82em;
   white-space: nowrap
 }
@@ -7563,7 +7576,7 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   width: 100px;
   flex-shrink: 0;
   font-weight: 500;
-  font-family: monospace;
+  font-family: var(--m);
   color: var(--tx);
   padding-top: 8px
 }
@@ -8514,7 +8527,7 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 .premium-input {
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--brd);
   background: var(--bg);
   color: var(--tx);
   font-size: 14px;
@@ -8523,7 +8536,7 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
 }
 
 .premium-input:focus {
-  border-color: var(--accent);
+  border-color: var(--ac);
 }
 
 /* Persistent Thumbnails View */

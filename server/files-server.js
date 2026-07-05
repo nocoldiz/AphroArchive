@@ -7,7 +7,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { MEDIA_DIR, VIDEOS_DIR, MIME } = require('./config-server');
-const { json, formatBytes, toId, fromId, isAllowedMediaPath: _isAllowedPath } = require('./helpers-server');
+const { json, readBody: _readBody, formatBytes, toId, fromId, isAllowedMediaPath: _isAllowedPath } = require('./helpers-server');
 const {
   loadFilesMeta, upsertFileMeta, deleteFileMeta,
   loadFileVirtualFolders, setFileVirtualFolder,
@@ -191,15 +191,6 @@ async function apiFileFolderDelete(req, res) {
   if (!name) return json(res, { error: 'name required' }, 400);
   deleteFileVirtualFolder(name);
   json(res, { ok: true });
-}
-
-function _readBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', c => chunks.push(c));
-    req.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString())); } catch { resolve({}); } });
-    req.on('error', reject);
-  });
 }
 
 module.exports = {

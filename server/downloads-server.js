@@ -244,7 +244,7 @@ async function runJob(next) {
     } catch (e) {
       if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
     } finally {
-      dlActive--;
+      dlActive = Math.max(0, dlActive - 1);
       saveJobs();
       processDownloadQueue();
     }
@@ -294,7 +294,7 @@ async function runJob(next) {
   } catch (e) {
     if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
   } finally {
-    dlActive--;
+    dlActive = Math.max(0, dlActive - 1);
     saveJobs();
     processDownloadQueue();
   }
@@ -476,7 +476,7 @@ function apiDownloadJobs(req, res) {
 function apiDownloadRemove(req, res, id) {
   const job = downloadJobs.get(id);
   if (!job) return json(res, { error: 'Not found' }, 404);
-  if (job.status === 'running' && job._kill) { job._kill(); dlActive = Math.max(0, dlActive - 1); }
+  if (job.status === 'running' && job._kill) job._kill(); // runJob's finally releases the slot
   downloadJobs.delete(id);
   saveJobs();
   json(res, { ok: true });
@@ -651,6 +651,7 @@ async function apiBulkDownloadStart(req, res) {
     return json(res, { error: e.message }, 500);
   }
 
+  bulkProc.stdin.on('error', () => {}); // spawn failure (e.g. Python missing) destroys stdin — don't crash on EPIPE
   bulkProc.stdin.write(urls.join('\n') + '\ndone\n');
   bulkProc.stdin.end();
 

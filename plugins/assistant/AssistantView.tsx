@@ -8,9 +8,7 @@ import {
   MODELS,
   DEFAULT_SYSTEM,
   COMFY_DEFAULT_URL,
-  type SystemPromptKey,
 } from '../../public/src/assistantPrompts';
-import { quickRandomCharacterPrompt } from '../prompts/characterPrompts';
 
 // ── Types ─────────────────────────────────────────────────────────────
 

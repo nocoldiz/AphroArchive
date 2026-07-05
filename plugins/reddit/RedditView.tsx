@@ -450,7 +450,7 @@ export const RedditView = () => {
               onShare={sharePost}
               onOpenSub={goToSub}
               onOpen={openDetail}
-              onNoteSaved={(id, note) => {
+              onNoteSaved={(id: string, note: string) => {
                 setVids(vs => vs.map(v => v.id === id ? { ...v, note } : v));
                 setDetail(d => d && d.id === id ? { ...d, note } : d);
               }}

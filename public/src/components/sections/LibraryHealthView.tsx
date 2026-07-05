@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { currentView } from '../../store';
 
 type IssueType = 'missing_file' | 'zero_duration' | 'missing_thumbs' | 'orphaned_meta';
 
@@ -151,8 +150,6 @@ export const LibraryHealthView = () => {
     }
     toast('Thumbnail generation started');
   };
-
-  const s = { base: { fontFamily: 'inherit', fontSize: '13px' } };
 
   return (
     <div class="section-content" style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>

@@ -37,7 +37,7 @@ async function apiAddPrompt(req, res) {
 async function apiUpdatePrompt(req, res, id) {
   const body = await readBody(req);
   const fields = {};
-  if (body.text !== undefined) fields.text = body.text.trim();
+  if (typeof body.text === 'string') fields.text = body.text.trim();
   if (Array.isArray(body.sites)) fields.sites = body.sites;
   const ok = dbUpdatePrompt(id, fields);
   if (!ok) return json(res, { error: 'not found' }, 404);
@@ -54,9 +54,6 @@ async function apiDeleteAllPrompts(req, res) {
   dbDeleteAllPrompts();
   json(res, { success: true });
 }
-
-// In your main server router (likely where other /api/prompts routes are defined):
-// Example: if (path === '/api/prompts/all' && method === 'DELETE') return apiDeleteAllPrompts(req, res);
 
 // ── ComfyUI: queue a workflow with the prompt text ────────────────────
 

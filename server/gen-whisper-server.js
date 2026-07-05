@@ -223,25 +223,6 @@ async function runBatch() {
 // ── Single-video priority queue ───────────────────────────────────────
 
 const _singleQueue = [];
-let _singleRunning = false;
-
-async function processSingleQueue() {
-  if (_singleRunning) return;
-  _singleRunning = true;
-  while (_singleQueue.length) {
-    const { fp } = _singleQueue.shift();
-    if (hasSubtitle(fp)) continue;
-    const prefs = loadPrefs();
-    const language = prefs.whisperLanguage || 'auto';
-    try {
-      const detectedLang = await runWhisper(fp, prefs.whisperModel || 'base', language);
-      if (!language || language === 'auto') saveDetectedLanguage(fp, detectedLang);
-    } catch (e) {
-      console.error('[whisper] Single-video failed:', fp, e.message);
-    }
-  }
-  _singleRunning = false;
-}
 
 // ── Model download ────────────────────────────────────────────────────
 
@@ -398,19 +379,13 @@ async function apiWhisperEnqueue(_req, res, id) {
   json(res, { ok: true, queued: true });
 }
 
-// Force-enqueue ignores hasSubtitle so it overwrites existing subtitle files
-function forceEnqueue(fp) {
-  if (!_singleQueue.some(q => q.fp === fp)) {
-    _singleQueue.unshift({ fp, force: true });
-  }
-  processSingleQueueForce().catch(console.error);
-}
+let _singleRunning = false;
 
-let _singleRunningForce = false;
-
-async function processSingleQueueForce() {
-  if (_singleRunningForce) return;
-  _singleRunningForce = true;
+// Single runner for the priority queue; items with `force: true` overwrite
+// existing subtitle files, all others are skipped if a subtitle already exists.
+async function processSingleQueue() {
+  if (_singleRunning) return;
+  _singleRunning = true;
   while (_singleQueue.length) {
     const item = _singleQueue.shift();
     if (!item) continue;
@@ -421,10 +396,18 @@ async function processSingleQueueForce() {
       const detectedLang = await runWhisper(item.fp, prefs.whisperModel || 'base', language);
       if (!language || language === 'auto') saveDetectedLanguage(item.fp, detectedLang);
     } catch (e) {
-      console.error('[whisper] Force-enqueue failed:', item.fp, e.message);
+      console.error('[whisper] Single-video failed:', item.fp, e.message);
     }
   }
-  _singleRunningForce = false;
+  _singleRunning = false;
+}
+
+// Force-enqueue ignores hasSubtitle so it overwrites existing subtitle files
+function forceEnqueue(fp) {
+  if (!_singleQueue.some(q => q.fp === fp)) {
+    _singleQueue.unshift({ fp, force: true });
+  }
+  processSingleQueue().catch(console.error);
 }
 
 async function apiWhisperDownloadModel(req, res) {

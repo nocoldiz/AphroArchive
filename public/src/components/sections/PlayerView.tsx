@@ -63,6 +63,7 @@ export const PlayerView = () => {
   const [isDetectingChapters, setIsDetectingChapters] = useState(false);
   const [showPlayerOptions, setShowPlayerOptions] = useState(false);
   const [batchStatus, setBatchStatus] = useState<{ running: boolean; done: number; total: number } | null>(null);
+  const batchEsRef = useRef<EventSource | null>(null);
   const playerOptionsRef = useRef<HTMLDivElement>(null);
   const [showTranscript, setShowTranscript] = useState(false);
   const [transcriptCues, setTranscriptCues] = useState<{ start: number; end: number; text: string }[]>([]);
@@ -104,14 +105,16 @@ export const PlayerView = () => {
             const base64 = btoa(unescape(encodeURIComponent(relPath)));
             const newId = base64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
             
-            currentVideo.value = {
-              ...video,
-              id: newId,
-              isLink: false,
-              path: relPath,
-              category: physicalCat || 'Uncategorized'
-            };
-            
+            if (currentVideo.value?.id === video.id) {
+              currentVideo.value = {
+                ...video,
+                id: newId,
+                isLink: false,
+                path: relPath,
+                category: physicalCat || 'Uncategorized'
+              };
+            }
+
             if ((window as any).toast) (window as any).toast('Video downloaded and loaded!');
             loadVideos();
           } else if (job.status === 'error') {
@@ -335,14 +338,19 @@ export const PlayerView = () => {
     setShowPlayerOptions(false);
     setBatchStatus({ running: true, done: 0, total: 0 });
     await fetch('/api/gen-chapters/start', { method: 'POST' }).catch(() => {});
+    batchEsRef.current?.close();
     const es = new EventSource('/api/gen-chapters/status');
+    batchEsRef.current = es;
     es.onmessage = (e) => {
-      const ev = JSON.parse(e.data);
+      let ev: any;
+      try { ev = JSON.parse(e.data); } catch { return; }
       if (ev.type === 'done') { setBatchStatus({ running: false, done: ev.done, total: ev.total }); es.close(); }
       else if (ev.type === 'progress') setBatchStatus({ running: true, done: ev.done, total: ev.total });
     };
     es.onerror = () => { setBatchStatus(null); es.close(); };
   };
+
+  useEffect(() => () => { batchEsRef.current?.close(); }, []);
 
   // Refetch actors/tags/channel after the tag/actor/channel modal closes for this video
   const anyMetaModalOpen = tagModalState.value.visible || actorModalState.value.visible || channelModalState.value.visible;
@@ -1299,10 +1307,3 @@ export const PlayerView = () => {
     </>
   );
 };
-
-const PlayerAction = ({ label, icon, onClick }: { label: string, icon: string, onClick: () => void }) => (
-  <button onClick={onClick}>
-    <i className={`icon-${icon}`} />
-    <span>{label}</span>
-  </button>
-);

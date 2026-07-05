@@ -1,3 +1,4 @@
+import { Fragment } from 'preact';
 import { useState, useMemo } from 'preact/hooks';
 
 export interface FolderEntry {
@@ -119,14 +120,13 @@ export const FolderTree = ({
           onClick={() => onNavigate(null)}
         >Root</span>
         {breadcrumb.map(f => (
-          <>
+          <Fragment key={f.id}>
             <span style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>/</span>
             <span
-              key={f.id}
               style={{ cursor: 'pointer', color: 'var(--accent)', fontSize: '0.9rem' }}
               onClick={() => onNavigate(f.id)}
             >{f.name}</span>
-          </>
+          </Fragment>
         ))}
       </div>
 

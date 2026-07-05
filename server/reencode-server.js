@@ -7,7 +7,7 @@ const fs   = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const { FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
-const { json, fromId } = require('./helpers-server');
+const { json, readBody, fromId } = require('./helpers-server');
 const { setVideoMetaFields, loadVideoMeta, loadPrefs, loadVideoIndex } = require('./db-server');
 
 const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts']);
@@ -83,16 +83,10 @@ function probeVideo(fp) {
 // ── Batch runner ─────────────────────────────────────────────────────
 
 async function runBatch(ids, category) {
-  const pending = buildCandidates(ids, category);
-
-  // If specific IDs given, probe to check if already H.265 unless forced
-  let alreadyEncoded = 0;
-  let queue = pending;
-
-  if (!ids || ids.length === 0) {
-    // "all" mode: already filtered by reencoded flag in DB
-    alreadyEncoded = 0;
-  }
+  const queue = buildCandidates(ids, category);
+  // Files already in H.265 are detected by the per-file probe below and
+  // counted as skipped; "all" mode is pre-filtered by the reencoded DB flag.
+  const alreadyEncoded = 0;
 
   _job = {
     running: true, stop: false,
@@ -198,16 +192,7 @@ async function runBatch(ids, category) {
 async function apiReencodeStart(req, res) {
   if (_job && _job.running) return json(res, { ok: false, error: 'Already running' });
   console.log('[Sync] Starting Re-encode to H.265');
-  const body = await (async () => {
-    try {
-      return await new Promise((resolve, reject) => {
-        let data = '';
-        req.on('data', c => data += c);
-        req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch { resolve({}); } });
-        req.on('error', reject);
-      });
-    } catch { return {}; }
-  })();
+  const body = await readBody(req);
   const ids      = Array.isArray(body.ids) ? body.ids : null;
   const category = body.category || null;
   runBatch(ids, category).catch(console.error);

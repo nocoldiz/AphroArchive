@@ -52,7 +52,7 @@ const PROMPT_SITES = [
   // ── Local ──
   { id: 'comfyui',    name: 'ComfyUI',      url: 'http://127.0.0.1:8188', local: true },
   { id: 'a1111',      name: 'A1111',        url: 'http://127.0.0.1:7860', local: true },
-  { id: 'lmchannel',   name: 'LM Channel',    url: 'http://localhost:1234',  local: true },
+  { id: 'lmchannel',   name: 'LM Studio',     url: 'http://localhost:1234',  local: true },
 ];
 
 interface Prompt {
@@ -1359,7 +1359,7 @@ export const PromptsView = () => {
       {sendPrompt && (
         <div className="modal on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000 }}>
           <div className="modal-dialog" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '24px', width: '540px', maxWidth: '90%' }}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '16px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>Send Prompt</h3>
               <button className="modal-close" onClick={() => { setSendPrompt(null); setSendResponse(''); }} style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1396,7 +1396,7 @@ export const PromptsView = () => {
       {isMassImportOpen && (
         <div className="modal on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000 }}>
           <div className="modal-dialog" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '24px', width: '600px', maxWidth: '90%' }}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '16px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>Mass Import Prompts</h3>
               <button className="modal-close" onClick={() => setIsMassImportOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1424,7 +1424,7 @@ export const PromptsView = () => {
         return (
           <div className="modal on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000 }}>
             <div className="modal-dialog" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '24px', width: '480px', maxWidth: '90%' }}>
-              <div className="modal-header" style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h3 style={{ margin: 0 }}>Find &amp; Replace</h3>
                 <button className="modal-close" aria-label="Close" onClick={() => setIsFindReplaceOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1466,7 +1466,7 @@ export const PromptsView = () => {
         return (
           <div className="modal on" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000 }}>
             <div className="modal-dialog" style={{ background: 'var(--bg2)', borderRadius: '12px', padding: '24px', width: '640px', maxWidth: '92%' }}>
-              <div className="modal-header" style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h3 style={{ margin: 0 }}>Expand Combinations ({variants.length}{countCombinations(comboPrompt.text) > 200 ? '+' : ''})</h3>
                 <button className="modal-close" aria-label="Close" onClick={() => setComboPrompt(null)} style={{ background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer' }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

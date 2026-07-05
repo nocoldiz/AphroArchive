@@ -120,12 +120,11 @@ async function apiThumbGen(req, res, id) {
   if (altDir) {
     const jpgs = fs.readdirSync(altDir).filter(f => /^\d+\.jpg$/.test(f));
     if (jpgs.length > 0) {
-      const c = loadThumbsCache();
-      const duration = (c[id] && c[id].duration) || null;
-      const width = (c[id] && c[id].width) || null;
-      const height = (c[id] && c[id].height) || null;
-      c[id] = { mtime: stat.mtimeMs, count: jpgs.length, duration, width, height };
-      saveThumbsCache(c);
+      const duration = (cache[id] && cache[id].duration) || null;
+      const width = (cache[id] && cache[id].width) || null;
+      const height = (cache[id] && cache[id].height) || null;
+      cache[id] = { mtime: stat.mtimeMs, count: jpgs.length, duration, width, height };
+      saveThumbsCache(cache);
       return json(res, { count: jpgs.length, duration, width, height });
     }
   }

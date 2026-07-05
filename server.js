@@ -9,7 +9,6 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 const { exec } = require('child_process');
 
 // ── Process-level safety net ─────────────────────────────────────────
@@ -25,13 +24,13 @@ process.on('uncaughtException', (err) => {
 
 const log = require('./server/logger-server');
 const cfg = require('./server/config-server');
-const { PORT, IS_PKG, MEDIA_DIR, VIDEOS_DIR, AUDIO_DIR, BOOKS_DIR, PHOTOS_DIR, SCREENSHOTS_DIR, PAGES_DIR, FILES_DIR, CACHE_DIR,
-  WEBSITES_JSON, CATEGORIES_JSON, LINK_DIR, BM_CACHE_FILE,
-  BROWSER_WHITELIST_FILE, HIDDEN_FILE, RATINGS_FILE,
+const { PORT, IS_PKG, MEDIA_DIR, VIDEOS_DIR, SCREENSHOTS_DIR, CACHE_DIR,
+  WEBSITES_JSON, CATEGORIES_JSON, BM_CACHE_FILE,
+  BROWSER_WHITELIST_FILE,
   FEED_DIR, VAULT_FEED_DIR } = cfg;
 
 const { json, serveStatic, readBody } = require('./server/helpers-server');
-const { loadPrefs, saveHistory, loadWebsites, saveWebsites, loadStarredSites, saveStarredSites, getMediaCounts, loadVaultMeta } = require('./server/db-server');
+const { loadPrefs, saveHistory, loadWebsites, loadStarredSites, saveStarredSites, getMediaCounts, loadVaultMeta } = require('./server/db-server');
 const { initVideoMeta } = require('./server/videos-server');
 const { getLocalIPs, getLocalIP } = require('./server/config-server');
 
@@ -173,7 +172,6 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/categorizer/execute-bg' && req.method === 'POST') return videos.apiCategorizerBgExecute(req, res);
   if (p === '/api/categorizer/poll' && req.method === 'GET') return videos.apiCategorizerPoll(req, res);
   if (p === '/api/categorizer/stop' && req.method === 'POST') return videos.apiCategorizerStop(req, res);
-  if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
   if (p === '/api/search/suggest' && req.method === 'GET') return search.apiSearchSuggest(req, res, params);
   if (p === '/api/search' && req.method === 'GET') return search.apiSearch(req, res, params);
@@ -229,7 +227,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/encryption/import-progress' && req.method === 'POST') return videos.apiVaultImportProgress(req, res);
 
   if (p === '/api/scan/events' && req.method === 'GET') return videos.apiScanEvents(req, res);
-  if (p === '/api/media-counts' && req.method === 'GET') { const { json: j } = require('./server/helpers-server'); return j(res, getMediaCounts()); }
+  if (p === '/api/media-counts' && req.method === 'GET') return json(res, getMediaCounts());
   if (p === '/api/preload' && req.method === 'GET') return videos.apiPreload(req, res);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetailFast(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);

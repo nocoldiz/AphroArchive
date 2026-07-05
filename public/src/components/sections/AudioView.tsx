@@ -116,7 +116,7 @@ const MusicTab = ({ curAudio, setCurAudio }: { curAudio: string | null; setCurAu
 
 // ── Albums tab ───────────────────────────────────────────────────────
 
-const AlbumsTab = ({ onPlayTrack }: { onPlayTrack?: (title: string) => void }) => {
+const AlbumsTab = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');

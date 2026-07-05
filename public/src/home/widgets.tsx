@@ -1,5 +1,5 @@
 // ─── Home dashboard widget registry ──────────────────────────────────
-// Widgets are plugins. Each lives in plugins/<id>/ with a meta.json that
+// Widgets are plugins. Each lives in widgets/<id>/ with a meta.json that
 // declares a `homeWidget` block, and (optionally) a widget.tsx that
 // default-exports its render function. This module bundles every
 // widget.tsx via import.meta.glob and merges it with the plugin metadata

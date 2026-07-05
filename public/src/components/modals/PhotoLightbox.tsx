@@ -46,9 +46,8 @@ export const PhotoLightbox = ({
   isAi,
   aiPrompt
 }: Props) => {
-  if (!isOpen) return null;
-
   useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft' && onPrev) onPrev();
@@ -60,7 +59,9 @@ export const PhotoLightbox = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, onPrev, onNext, onToggleSlideshow]);
+  }, [isOpen, onClose, onPrev, onNext, onToggleSlideshow]);
+
+  if (!isOpen) return null;
 
   return (
     <div id="photosLightbox" className="ph-lightbox on" onClick={(e: any) => { if (e.target.id === 'photosLightbox') onClose(); }} style={{ zIndex: 10000 }}>

@@ -7,7 +7,7 @@ const https  = require('https');
 const fs     = require('fs');
 const path   = require('path');
 const { spawn } = require('child_process');
-const { THUMBS_DIR, PHOTOS_DIR, FFMPEG_BIN } = require('./config-server');
+const { THUMBS_DIR, FFMPEG_BIN } = require('./config-server');
 const { loadPrefs } = require('./db-server');
 const { json, readBody } = require('./helpers-server');
 

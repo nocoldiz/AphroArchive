@@ -8,7 +8,6 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import {
   dashboardLayout, dashEditMode, DASH_ROW_H, loadDashboard,
   removeInstance, updateInstance, moveInstance, addInstance, resetDashboard,
-  WidgetInstance,
 } from './dashboardStore';
 import { allWidgetDefs, getWidgetDef, WidgetDef } from './widgets';
 import { appPrefs } from '../store';

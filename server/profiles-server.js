@@ -178,7 +178,9 @@ function writeDb(merged, mergeWithExisting = false) {
       categories: cats,
       channels: channels,
       websites: websites,
-      actors: merged.actors
+      actors: merged.actors,
+      series: merged.series,
+      albums: merged.albums
     };
   }
   

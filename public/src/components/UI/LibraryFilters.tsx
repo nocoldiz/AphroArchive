@@ -549,12 +549,6 @@ export const SectionDropdowns = () => {
   const [open, setOpen] = useState<NavSection | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  const activeSections = sectionOrder.filter(s => sectionPlacementFor(s) === 'topbar');
-  if (!activeSections.length) return null;
-
-  const navItems = getNavItems();
-  const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
-
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -568,6 +562,12 @@ export const SectionDropdowns = () => {
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  const activeSections = sectionOrder.filter(s => sectionPlacementFor(s) === 'topbar');
+  if (!activeSections.length) return null;
+
+  const navItems = getNavItems();
+  const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
 
   return (
     <div className="filter-dropdowns" ref={ref}>

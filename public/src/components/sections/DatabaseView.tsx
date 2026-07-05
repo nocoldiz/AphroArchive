@@ -5,11 +5,6 @@ import { ActorScraperView } from './ActorScraperView';
 import { loadDbSeries, dbSeriesList, DbSeriesEntry, DbEpisode } from '../../series';
 import { Album, AlbumTrack } from '../../types';
 
-interface DbEntry {
-  name: string;
-  data: any;
-}
-
 export const DatabaseView = () => {
   const [activeTab, setActiveTab] = useState('folders');
   const [entries, setEntries] = useState<[string, any][]>([]);

@@ -277,7 +277,7 @@ export const SearchSitesView = () => {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
             <button className="ss-hist-ctrl-btn" onClick={() => saveHistory([])} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}>Clear all</button>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--tx2)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={trackingDisabled} onChange={(e: any) => { setTrackingDisabled(e.target.checked); if(e.target.checked) saveHistory([]); }} />
+              <input type="checkbox" checked={trackingDisabled} onChange={(e: any) => { const v = e.target.checked; setTrackingDisabled(v); if (v) saveHistory([]); fetch('/api/settings/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disableSearchTracking: v }) }).catch(() => {}); }} />
               Disable tracking
             </label>
           </div>

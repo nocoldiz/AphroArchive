@@ -10,11 +10,12 @@ const { allVideos }                    = require('./videos-server');
 async function apiCollections(req, res) {
   const cols   = loadCollections();
   const videos = await allVideos();
+  const byId   = new Map(videos.map(v => [v.id, v]));
   const result = cols.map(col => ({
     name: col.name,
     ids: col.ids || [],
     count: (col.ids || []).length,
-    thumb: (col.ids || []).map(id => videos.find(v => v.id === id)).find(v => v) || null,
+    thumb: (col.ids || []).map(id => byId.get(id)).find(v => v) || null,
   }));
   json(res, result);
 }
@@ -66,15 +67,16 @@ async function apiCollectionVideos(req, res, name) {
   const col    = cols.find(c => c.name === name);
   if (!col) return json(res, { error: 'Not found' }, 404);
   const videos = await allVideos();
-  const favs   = require('./db-server').loadFavs();
-  
+  const byId   = new Map(videos.map(v => [v.id, v]));
+  const favs   = new Set(require('./db-server').loadFavs());
+
   const parsed = require('url').parse(req.url, true);
   const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
 
   let list = col.ids.map(id => {
-    const v = videos.find(x => x.id === id);
+    const v = byId.get(id);
     if (!v) return null;
-    return { ...v, fav: favs.includes(v.id) };
+    return { ...v, fav: favs.has(v.id) };
   }).filter(Boolean);
 
   if (fav) list = list.filter(v => v.fav);

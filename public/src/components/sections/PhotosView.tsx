@@ -118,7 +118,7 @@ export const PhotosView = () => {
     const r = await fetch(`/api/photos/${id}`, { method: 'DELETE' });
     if (r.ok) {
       if (w.toast) w.toast('Photo deleted');
-      setPhotos(photos.filter(f => f.id !== id));
+      setPhotos(prev => prev.filter(f => f.id !== id));
       if (lightboxIdx !== null) closeLightbox();
     } else {
       if (w.toast) w.toast('Delete failed');

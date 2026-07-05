@@ -686,9 +686,6 @@ function _readVideoMetaFromDb(database) {
   return out;
 }
 
-// Remove a video's metadata row from the public database(s). When the Vault
-// profile is active the row lives in another profile's DB, so it is deleted
-// there too — encryption must leave no trace in any public database.
 // Remove every trace of a video from a database: its metadata, tags,
 // actors, favourites, history, thumbnail/visual-hash caches,
 // the scan index, and any collection it belongs to.
@@ -721,8 +718,6 @@ function deleteVideoMetaEverywhere(id) {
     txn(() => _wipeVideoEverywhere(db, id));
     markVideoFtsDirty();
   } catch (e) { console.error('Failed to delete video meta:', e); }
-  // Always wipe the id from every OTHER profile's DB too — not just from the
-  // Vault profile. Each profile keeps its own `video_index` scan cache, and the
 }
 
 function loadVideoMeta() {
@@ -1348,20 +1343,6 @@ function parseActorAge(dob) {
   return { age: new Date().getFullYear() - birthYear, deceased: false };
 }
 
-function _parseActors(raw) {
-  return Object.keys(raw).map(name => {
-    const entry   = raw[name];
-    const ageInfo = parseActorAge(entry.date_of_birth);
-    return {
-      name, terms: [name],
-      nationality: entry.nationality || null,
-      age: ageInfo ? ageInfo.age : null,
-      deceased: ageInfo ? ageInfo.deceased : false,
-      imdb_page: entry.imdb_page || null,
-    };
-  });
-}
-
 function _readActorRows(database) {
   const rows = database.prepare('SELECT name, date_of_birth, nationality, imdb_page FROM actors').all();
   return rows.map(r => {
@@ -1397,15 +1378,6 @@ function saveActors(raw) {
       }
     });
   } catch (e) { console.error('Failed to save actors to SQLite:', e); }
-}
-
-function _parseFolderMappings(raw) {
-  return Object.keys(raw).map(name => {
-    const entry      = raw[name];
-    const tags       = Array.isArray(entry.tags) ? entry.tags : [];
-    const displayName = entry.displayName || name;
-    return { name, displayName, terms: [name, ...tags] };
-  });
 }
 
 function _readFolderMappingRows(database) {
@@ -1470,26 +1442,6 @@ function saveFolderMappings(cats) {
   } catch (e) {
     console.error('Failed to save categories to SQLite:', e);
   }
-}
-
-function _parseChannels(raw) {
-  return Object.keys(raw).map(name => {
-    const entry = raw[name];
-    return {
-      name, terms: [name],
-      website: entry.website || null,
-      description: entry.short_description || entry.description || null,
-      handle: entry.handle || null,
-      channel_id: entry.channel_id || null,
-      country: entry.country || null,
-      language: entry.language || null,
-      subscribers: entry.subscribers || null,
-      upload_schedule: entry.upload_schedule || null,
-      joined: entry.joined || null,
-      total_views: entry.total_views || null,
-      social_links: entry.social_links ? JSON.stringify(entry.social_links) : null,
-    };
-  });
 }
 
 function loadChannels() {
@@ -1607,6 +1559,21 @@ function loadVideoIndex() {
   }
 }
 
+// Total video count and per-category counts computed in SQL. Used by /api/preload
+// to seed the sidebar without materializing every video_index row into JS.
+function videoIndexCategoryCounts() {
+  try {
+    const total = db.prepare('SELECT COUNT(*) AS c FROM video_index').get().c;
+    const rows = db.prepare("SELECT cat_path AS cp, COUNT(*) AS c FROM video_index WHERE cat_path <> '' GROUP BY cat_path").all();
+    const catCounts = {};
+    for (const r of rows) catCounts[r.cp] = r.c;
+    return { total, catCounts };
+  } catch (e) {
+    console.error('Failed to count video index by category:', e);
+    return { total: 0, catCounts: {} };
+  }
+}
+
 function getVideoIndexEntry(id) {
   try {
     const r = db.prepare('SELECT * FROM video_index WHERE id = ?').get(id);
@@ -1646,6 +1613,7 @@ function getSingleVideoMeta(id) {
       note: row.note || '',
       date: row.date || '',
       language: row.language || '',
+      reencoded: row.reencoded ? 1 : 0,
       actors,
       tags
     };
@@ -1952,14 +1920,15 @@ function saveLinksToDb(items) {
         seenUrls.add(u);
         if (nm) seenNames.add(nm);
         const id = Buffer.from(u).toString('base64url');
+        const title = item.title || u;
         let category = 'Uncategorized';
         for (const cat of cats) {
-          if (wordMatchAny(item.title, cat.terms)) {
+          if (wordMatchAny(title, cat.terms)) {
             category = cat.displayName;
             break;
           }
         }
-        insertVideo.run(id, item.title, category);
+        insertVideo.run(id, title, category);
         inserted++;
       }
     });
@@ -2136,7 +2105,7 @@ module.exports = {
   loadVisualHashes, setVisualHash, saveVisualHashes,
   loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,
-  loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, getSingleVideoMeta,
+  loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, videoIndexCategoryCounts, getSingleVideoMeta,
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
   isScanIndexBuilt, setScanIndexBuilt,
   loadFilesMeta, upsertFileMeta, deleteFileMeta,

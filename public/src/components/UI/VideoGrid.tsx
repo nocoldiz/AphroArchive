@@ -94,6 +94,8 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
   // Refresh the card image when the user picks a different preferred thumbnail.
   useEffect(() => {
     setThumbIdx(getThumbPref(video.id));
@@ -585,6 +587,7 @@ const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: 
       tabIndex={0}
       onContextMenu={(e: any) => {
         e.preventDefault();
+        e.stopPropagation();
         contextMenuState.value = { visible: true, x: e.pageX, y: e.pageY, type: 'video', data: video };
       }}
     >
@@ -1092,13 +1095,15 @@ export const VideoGrid = () => {
 
   // ── Grouped rendering ────────────────────────────────────────────────
   if (groupMode !== 'none') {
-    const groupMap = new Map<string, Video[]>();
-    for (const v of visible) {
+    // Keep each video's index within the full filtered list so Shift+click
+    // range selection works across groups.
+    const groupMap = new Map<string, { v: Video; idx: number }[]>();
+    visible.forEach((v, idx) => {
       const year = new Date(v.mtime * 1000).getFullYear();
       const label = groupMode === 'decade' ? `${Math.floor(year / 10) * 10}s` : String(year);
       if (!groupMap.has(label)) groupMap.set(label, []);
-      groupMap.get(label)!.push(v);
-    }
+      groupMap.get(label)!.push({ v, idx });
+    });
     const groups = [...groupMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 
     return (
@@ -1111,14 +1116,14 @@ export const VideoGrid = () => {
             {viewMode === 'list' ? (
               <div className="video-list-view">
                 {listHeader}
-                {items.map((v, i) => (
-                  <VideoListRow key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
+                {items.map(({ v, idx }) => (
+                  <VideoListRow key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={idx} />
                 ))}
               </div>
             ) : (
               <div className="video-grid" data-thumb-mode={thumbBlurMode.value}>
-                {items.map((v, i) => (
-                  <VideoCard key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={i} />
+                {items.map(({ v, idx }) => (
+                  <VideoCard key={v.id} video={v} isSelected={selectedVideoIds.value.has(v.id)} index={idx} />
                 ))}
               </div>
             )}
@@ -1159,6 +1164,7 @@ export const VideoGrid = () => {
         onContextMenu={(e: any) => {
           if ((e.target as HTMLElement).closest('.video-card')) return;
           e.preventDefault();
+          e.stopPropagation();
           contextMenuState.value = { visible: true, x: e.pageX, y: e.pageY, type: 'grid', data: null };
         }}
       >

@@ -132,9 +132,10 @@ export const CategoriesView = () => {
             };
 
             return (
-              <div 
-                class="cv-card" 
-                onClick={onclick} 
+              <div
+                key={`${item.type}:${item.path || item.name}`}
+                class="cv-card"
+                onClick={onclick}
                 onContextMenu={onContextMenu}
                 style={{ cursor: 'pointer' }}
               >

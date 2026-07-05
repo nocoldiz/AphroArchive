@@ -18,8 +18,9 @@ export async function routeToPath(path: string) {
       return false;
     };
     if (!tryOpen()) {
-      // Videos not loaded yet — retry once they arrive. Unsubscribe on the
-      // first non-empty list either way so the subscription can't leak.
+      // Videos not loaded yet — keep retrying as pages stream in. The list
+      // starts seeded with cached links and grows page by page, so the target
+      // may only appear on a later update; don't give up on the first one.
       setRouteResolving(true);
       let done = false;
       const finish = () => {
@@ -27,10 +28,9 @@ export async function routeToPath(path: string) {
         done = true;
         setRouteResolving(false);
       };
-      const unsub = allVideos.subscribe(vids => {
-        if (done || vids.length === 0) return;
+      const unsub = allVideos.subscribe(() => {
+        if (done || !tryOpen()) return;
         finish();
-        if (!tryOpen()) currentView.value = 'hub';
         Promise.resolve().then(() => unsub());
       });
       // Safety net: if videos never load (empty library, fetch failure),
@@ -69,6 +69,7 @@ export async function routeToPath(path: string) {
     '/settings':       'settings',
     '/photos':         'photos',
     '/links':          'links',
+    '/radio':          'radio',
     '/rss':            'rss',
     '/pages':          'pages',
     '/search':         'search',

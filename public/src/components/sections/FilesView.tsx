@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 
 interface FileItem {
@@ -56,7 +56,6 @@ export const FilesView = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
   const [renameFolderVal, setRenameFolderVal] = useState('');
-  const uploadRef = useRef<HTMLInputElement>(null);
   const w = window as any;
 
   useEffect(() => { loadAll(); }, []);
@@ -192,7 +191,7 @@ export const FilesView = () => {
           <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '999px', background: 'var(--bg3)', border: '1px solid var(--brd)', fontSize: '0.75rem' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Upload
-            <input ref={uploadRef} type="file" multiple style={{ display: 'none' }} onChange={handleUpload} />
+            <input type="file" multiple style={{ display: 'none' }} onChange={handleUpload} />
           </label>
         </SectionControls>
       </div>

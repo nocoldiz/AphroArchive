@@ -85,7 +85,7 @@ export const ScreenshotsView = () => {
     const r = await fetch(`/api/screenshots/${id}`, { method: 'DELETE' });
     if (r.ok) {
       if (w.toast) w.toast('Screenshot deleted');
-      setScreenshots(screenshots.filter(f => f.id !== id));
+      setScreenshots(prev => prev.filter(f => f.id !== id));
       if (lightboxIdx !== null) closeLightbox();
     } else {
       if (w.toast) w.toast('Delete failed');

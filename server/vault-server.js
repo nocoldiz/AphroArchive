@@ -25,6 +25,7 @@ let vaultKey      = null;
 let vaultPassword = null; // raw password string — needed for WinZip AES zip mounts
 let failedAttempts = 0;
 let cooldownUntil = 0;
+let _deferredLock = false;
 
 // Default auto-lock period; overridden per-install by prefs (see getVaultTimeoutMs).
 const DEFAULT_VAULT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -529,25 +530,32 @@ async function _encryptLocalFileToVault(filePath, filename, category = null, vid
   const src = fs.createReadStream(filePath);
 
   // Stream the encryption
-  await new Promise((resolve, reject) => {
-    src.on('data', chunk => {
-      const enc = cipher.update(chunk);
-      if (enc.length && !out.write(enc)) { src.pause(); out.once('drain', () => src.resume()); }
+  try {
+    await new Promise((resolve, reject) => {
+      src.on('data', chunk => {
+        const enc = cipher.update(chunk);
+        if (enc.length && !out.write(enc)) { src.pause(); out.once('drain', () => src.resume()); }
+      });
+      src.on('end', () => {
+        try {
+          const fin = cipher.final();
+          if (fin.length) out.write(fin);
+          out.write(cipher.getAuthTag());
+          out.end(resolve);
+        } catch (e) { reject(e); }
+      });
+      src.on('error', reject);
+      out.on('error', reject);
     });
-    src.on('end', () => {
-      try {
-        const fin = cipher.final();
-        if (fin.length) out.write(fin);
-        out.write(cipher.getAuthTag());
-        out.end(resolve);
-      } catch (e) { reject(e); }
-    });
-    src.on('error', reject);
-    out.on('error', reject);
-  });
+  } catch (e) {
+    try { src.destroy(); } catch { }
+    try { out.destroy(); } catch { }
+    try { fs.unlinkSync(outPath); } catch { }
+    return false;
+  }
 
   // The stream above can take minutes for a large file. If the vault locked
-  // in that window (auto-lock, manual lock), vaultKey/_vaultKey are now gone:
+  // in that window (auto-lock, manual lock), vaultKey is now gone:
   // persisting metadata would write the vault meta back as plaintext and wipe
   // every existing entry, and shredding the source would destroy the original
   // for a file we can no longer index. Bail out, leaving the source intact and
@@ -578,8 +586,6 @@ async function _encryptLocalFileToVault(filePath, filename, category = null, vid
   return id;
 }
 
-// Sweeps the drop directory
-// Sweeps the drop directory
 // Sweeps the drop directory and recursively processes nested folders
 async function processHiddenFolder() {
   if (!vaultKey || _isProcessingDrop) return;
@@ -687,8 +693,9 @@ function reconcileVaultOrphans() {
   try { metaMap = loadVaultMeta(); } catch { return 0; }
   if (!metaMap || typeof metaMap !== 'object') return 0;
   let files;
-  // Only the video/file blobs — never the cached `.thumb.enc` posters.
-  try { files = fs.readdirSync(VAULT_DIR).filter(f => f.endsWith('.enc') && !f.endsWith('.thumb.enc')); } catch { return 0; }
+  // Only the video/file blobs — never the cached `.thumb.enc` posters or the
+  // special `_vault_*.enc` data files (favourites, links).
+  try { files = fs.readdirSync(VAULT_DIR).filter(f => f.endsWith('.enc') && !f.endsWith('.thumb.enc') && !f.startsWith('_')); } catch { return 0; }
 
   const known = new Set(Object.keys(metaMap));
   let recoveredFolderId = null;
@@ -1029,23 +1036,29 @@ async function apiVaultAdd(req, res) {
   const out = fs.createWriteStream(outPath);
   out.write(iv);
   let size = 0;
-  await new Promise((resolve, reject) => {
-    req.on('data', chunk => {
-      size += chunk.length;
-      const enc = cipher.update(chunk);
-      if (enc.length && !out.write(enc)) { req.pause(); out.once('drain', () => req.resume()); }
+  try {
+    await new Promise((resolve, reject) => {
+      req.on('data', chunk => {
+        size += chunk.length;
+        const enc = cipher.update(chunk);
+        if (enc.length && !out.write(enc)) { req.pause(); out.once('drain', () => req.resume()); }
+      });
+      req.on('end', () => {
+        try {
+          const fin = cipher.final();
+          if (fin.length) out.write(fin);
+          out.write(cipher.getAuthTag());
+          out.end(resolve);
+        } catch (e) { reject(e); }
+      });
+      req.on('error', reject);
+      out.on('error', reject);
     });
-    req.on('end', () => {
-      try {
-        const fin = cipher.final();
-        if (fin.length) out.write(fin);
-        out.write(cipher.getAuthTag());
-        out.end(resolve);
-      } catch (e) { reject(e); }
-    });
-    req.on('error', reject);
-    out.on('error', reject);
-  });
+  } catch (e) {
+    try { out.destroy(); } catch { }
+    try { fs.unlinkSync(outPath); } catch { }
+    return json(res, { error: 'Upload failed: ' + e.message }, 500);
+  }
   const ext = path.extname(filename).toLowerCase();
   const folder = req.headers['x-folder'] || null;
   const meta = loadVaultMeta();
@@ -1280,6 +1293,7 @@ async function apiVaultRestoreFile(req, res, id) {
 function _silentWipe() {
   clearVaultTimer();
   vaultKey = null;
+  vaultPassword = null;
   setVaultKey(null);
   failedAttempts = 0;
   cooldownUntil = 0;
@@ -1642,6 +1656,7 @@ function isUnlocked() {
 function lockVault() {
   clearVaultTimer();
   vaultKey = null;
+  vaultPassword = null;
   _autoLockHold = 0;
   _deferredLock = false;
   try { setVaultKey(null); } catch {}
@@ -1658,6 +1673,7 @@ function getVaultKey() {
 function __resetForTest() {
   clearVaultTimer();
   vaultKey = null;
+  vaultPassword = null;
   try { setVaultKey(null); } catch { }
   failedAttempts = 0;
   cooldownUntil = 0;

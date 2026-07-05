@@ -80,7 +80,6 @@ export const SettingsView = () => {
   const [whisperLanguage, setWhisperLanguage] = useState(prefs.whisperLanguage || 'auto');
   const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
   const [availableModels, setAvailableModels] = useState<Set<string>>(new Set());
-  const [hiddenCats, setHiddenCats] = useState<string[]>([]);
   const [barLayoutReset, setBarLayoutReset] = useState(false);
 
   const [connectUrls, setConnectUrls] = useState<ConnectUrl[]>([]);
@@ -117,10 +116,6 @@ export const SettingsView = () => {
   );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiProgress, setAiProgress] = useState('');
-  const [abortAi, setAbortAi] = useState(false);
-  const abortAiRef = useRef(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [currentTheme, setCurrentTheme] = useState(prefs.theme || localStorage.getItem('theme') || 'default');
@@ -297,11 +292,6 @@ export const SettingsView = () => {
   };
 
   useEffect(() => {
-    fetch('/api/settings/lists')
-      .then(r => r.json())
-      .then(data => setHiddenCats(data.hidden ? data.hidden.split('\n').filter((l: string) => l.trim()) : []))
-      .catch(() => {});
-
     if (prefs.networkEnabled) {
       fetch('/api/local-ip').then(r => r.json()).then(data => {
         if (data.url) {
@@ -330,11 +320,6 @@ export const SettingsView = () => {
   }, [connectUrls, connectIdx]);
 
   const handleSaveAnthropic = () => { updatePrefs({ anthropicApiKey: anthropicKey }); alert('Anthropic API key saved!'); };
-
-  const handleSaveHidden = async () => {
-    const r = await fetch('/api/settings/hidden', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hiddenCats.join('\n') }) });
-    if (r.ok) alert('Hidden folders saved!'); else alert('Save failed');
-  };
 
   const toggleNetwork = async () => { const newVal = !netEnabled; setNetEnabled(newVal); updatePrefs({ networkEnabled: newVal }); };
 

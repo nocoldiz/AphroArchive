@@ -35,7 +35,7 @@ export const PagesView = () => {
         if (w.toast) w.toast('Delete failed');
         return;
       }
-      setPagesList(pagesList.filter(p => p.id !== id));
+      setPagesList(prev => prev.filter(p => p.id !== id));
       if (w.toast) w.toast('Page deleted');
     } catch (e) {
       if (w.toast) w.toast('Delete failed');

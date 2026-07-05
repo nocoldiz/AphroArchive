@@ -71,7 +71,7 @@ function scanRootSync(root) {
   };
 
   walk(rootResolved);
-  // Sort: videos first, then by name — a sensible default browse order.
+  // Sort by name — a sensible default browse order.
   items.sort((a, b) => a.name.localeCompare(b.name));
   return { path: rootResolved, name: rootName, items };
 }

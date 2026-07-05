@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { effect } from '@preact/signals';
-import { videos, loadVideos, loadPrefs, currentView, presetPickerState, sortMode, isShuffle, showConnectModal, isVaultUnlocked, folders, appReady, serverConnected } from './store';
+import { loadVideos, loadPrefs, showConnectModal, isVaultUnlocked, folders, appReady, serverConnected } from './store';
 import { PresetPicker } from './components/modals/PresetPicker';
 import { OnboardingWizard } from './components/modals/OnboardingWizard';
 import { ConnectModal } from './components/modals/ConnectModal';
@@ -91,20 +91,7 @@ export function App() {
       b.classList.toggle('active', b.dataset.theme === saved);
     });
 
-    // 1. Filter State Persistence
-    const s = localStorage.getItem('aa_sort');
-    if (s && ['date','name','size','duration'].includes(s)) {
-      sortMode.value = s;
-      (window as any).sort = s; // Compatibility
-    }
-    if (localStorage.getItem('aa_shuf') === '1') {
-      isShuffle.value = true;
-      (window as any).shuf = true; // Compatibility
-    }
-
-    // 2. Auto-Sort on Start — moved into the requestIdleCallback block above.
-
-    // 3. Dummy Audio for first interaction
+    // Dummy Audio for first interaction
     const startDummyAudio = () => {
       const dummy = document.getElementById('dummy-audio') as HTMLAudioElement;
       if (dummy) dummy.play().catch(() => {});
@@ -114,14 +101,14 @@ export function App() {
     document.addEventListener('click', startDummyAudio);
     document.addEventListener('keydown', startDummyAudio);
 
-    // 4. Panoramic Mode startup
+    // Panoramic Mode startup
     if (localStorage.getItem('pan')) {
       document.body.classList.add('pan');
       const btn = document.getElementById('panBtn');
       if (btn) btn.classList.add('on');
     }
 
-    // 5. Sidebar section collapse state
+    // Sidebar section collapse state
     ['library', 'browse', 'media', 'web', 'manage', 'cats', 'tags'].forEach(name => {
       if (localStorage.getItem('sc_' + name)) {
         const sec = document.getElementById(name + 'Section');
@@ -130,7 +117,7 @@ export function App() {
         if (h) h.classList.add('closed');
       }
     });
-    // 6. Panic Key/Mouse listener
+    // Panic Key/Mouse listener
     const triggerPanic = () => {
       // Hide everything and stop all media immediately, then shut down the server.
       try {

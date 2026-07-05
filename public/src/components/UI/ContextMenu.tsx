@@ -18,8 +18,12 @@ export const ContextMenu = () => {
   const encryptPollRef = useRef<any>(null);
 
   const closeMenu = () => {
-    contextMenuState.value = { ...state, visible: false };
+    contextMenuState.value = { ...contextMenuState.value, visible: false };
   };
+
+  useEffect(() => () => {
+    if (encryptPollRef.current) clearInterval(encryptPollRef.current);
+  }, []);
 
   useEffect(() => {
     const handleClick = () => closeMenu();
@@ -34,8 +38,6 @@ export const ContextMenu = () => {
   }, [visible]);
 
   if (!visible && !showEncryptConfirm && !showEncryptVideoConfirm && !showUnlockModal && !showSubfoldersModal) return null;
-
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const refresh = () => {
     const w = window as any;
