@@ -120,11 +120,8 @@ if !DO_MAC!==1 (
   del dist\AphroArchive-macos-arm64
   del dist\AphroArchive-macos-x64
 
-  powershell -NoProfile -Command "$p = '<?xml version=""1.0"" encoding=""UTF-8""?><!DOCTYPE plist PUBLIC ""-//Apple//DTD PLIST 1.0//EN"" ""http://www.apple.com/DTDs/PropertyList-1.0.dtd""><plist version=""1.0""><dict><key>CFBundleExecutable</key><string>launcher</string><key>CFBundleIdentifier</key><string>com.aphroarchive.app</string><key>CFBundleName</key><string>AphroArchive</string><key>CFBundleDisplayName</key><string>AphroArchive</string><key>CFBundleVersion</key><string>1.0.0</string><key>CFBundleShortVersionString</key><string>1.0</string><key>CFBundlePackageType</key><string>APPL</string><key>LSMinimumSystemVersion</key><string>11.0</string><key>NSHighResolutionCapable</key><true/></dict></plist>'; $p | Set-Content -Encoding UTF8 'dist\mac-stage\AphroArchive.app\Contents\Info.plist'"
-
-  powershell -NoProfile -Command "$s = '#!/bin/bash`nset -e`nAPP_DIR=""$(cd ""$(dirname ""$0"")/../../.."" && pwd)""'`n$s += '`nARCH=$(uname -m)`nif [ ""$ARCH"" = ""arm64"" ]; then BIN=""$APP_DIR/AphroArchive-macos-arm64""'`n$s += '`nelse BIN=""$APP_DIR/AphroArchive-macos-x64""; fi`nchmod +x ""$BIN"" 2>/dev/null || true`nexec ""$BIN"" ""$@""'; $s | Set-Content -Encoding UTF8 'dist\mac-stage\AphroArchive.app\Contents\MacOS\launcher'"
-
-  powershell -NoProfile -Command "$s = '#!/bin/bash`ncd ""$(dirname ""$0"")""'`n$s += '`necho Setting permissions...`nchmod +x AphroArchive-macos-arm64 AphroArchive-macos-x64 AphroArchive.app/Contents/MacOS/launcher`necho Done! Double-click AphroArchive.app to launch.`necho If macOS blocks it: System Settings > Privacy & Security > Allow'; $s | Set-Content -Encoding UTF8 'dist\mac-stage\setup.sh'"
+  call powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0stage-mac.ps1" -StageDir "!STAGE!"
+  if !ERRORLEVEL! NEQ 0 ( echo  WARNING: mac staging failed & goto :after_mac )
 
   echo   [mac] Creating .dmg ^(UDF image^)...
   call powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0make-dmg.ps1" -SourceDir "!STAGE!" -VolumeName AphroArchive -Output "dist\AphroArchive-mac.dmg"
