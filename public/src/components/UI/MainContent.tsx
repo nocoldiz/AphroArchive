@@ -41,6 +41,7 @@ const DatabaseView = lazy(() => import('../sections/DatabaseView').then(m => ({ 
 const ActorScraperView = lazy(() => import('../sections/ActorScraperView').then(m => ({ default: m.ActorScraperView })));
 const AssistantView = lazy(() => import('../../../../plugins/assistant/AssistantView').then(m => ({ default: m.AssistantView })));
 const CategorizerView = lazy(() => import('../sections/CategorizerView').then(m => ({ default: m.CategorizerView })));
+const RenamerView = lazy(() => import('../sections/RenamerView').then(m => ({ default: m.RenamerView })));
 const PromptsView = lazy(() => import('../../../../plugins/prompts/PromptsView').then(m => ({ default: m.PromptsView })));
 const DuplicatesView = lazy(() => import('../sections/DuplicatesView').then(m => ({ default: m.DuplicatesView })));
 const CorruptedView = lazy(() => import('../sections/CorruptedView').then(m => ({ default: m.CorruptedView })));
@@ -134,6 +135,7 @@ export const MainContent = () => {
     if (view === 'mosaic')   return <MosaicView />;
     if (view === 'assistant') return <AssistantView />;
     if (view === 'categorizer') return <CategorizerView />;
+    if (view === 'renamer') return <RenamerView />;
     if (view === 'duplicates') return <DuplicatesView />;
     if (view === 'corrupted') return <CorruptedView />;
     if (view === 'library-health') return <LibraryHealthView />;
