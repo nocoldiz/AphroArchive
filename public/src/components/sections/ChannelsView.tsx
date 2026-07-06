@@ -4,6 +4,7 @@ import { VideoCard } from '../UI/VideoGrid';
 import { Video } from '../../types';
 import { currentChannel, cardSize } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
+import { AzRail, azKey } from '../UI/AzRail';
 
 interface Channel {
   name: string;
@@ -83,6 +84,7 @@ export const ChannelsView = () => {
     return (
       <div
         key={s.name}
+        data-az={azKey(s.name)}
         className={`cv-card fade-in ${s.count === 0 ? 'cv-card-unmatched' : ''}`}
         onClick={() => currentChannel.value = s.name}
         style={{ cursor: 'pointer' }}
@@ -170,6 +172,10 @@ export const ChannelsView = () => {
                 {otherChannels.map(renderChannelCard)}
               </div>
             </>
+          )}
+
+          {sort === 'name' && sortedChannels.length > 30 && (
+            <AzRail names={sortedChannels.map(s => s.name)} containerSelector="#channels-view" />
           )}
         </>
       )}

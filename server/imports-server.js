@@ -102,9 +102,12 @@ async function apiImportPlex(req, res) {
     const os = require('os');
     tmp = path.join(os.tmpdir(), 'plex-import-' + process.pid + '.db');
     fs.copyFileSync(dbPath, tmp);
+    // Carry the WAL/SHM sidecars so recent, un-checkpointed writes are visible.
+    // Opened read-write (on the throwaway copy) so SQLite can checkpoint the WAL
+    // itself — read-only opens of a WAL database can fail to attach the log.
     for (const ext of ['-wal', '-shm']) { try { if (fs.existsSync(dbPath + ext)) fs.copyFileSync(dbPath + ext, tmp + ext); } catch {} }
     const { DatabaseSync } = eval("require('node:sqlite')");
-    pdb = new DatabaseSync(tmp, { readOnly: true });
+    pdb = new DatabaseSync(tmp);
 
     const rows = pdb.prepare(`
       SELECT mp.file AS file,
@@ -112,7 +115,7 @@ async function apiImportPlex(req, res) {
              mi.view_count  AS view_count,
              mi.last_viewed_at AS last_viewed_at,
              mi.title AS title,
-             mi.year  AS year,
+             mi.originally_available_at AS available,
              mi.summary AS summary
       FROM media_parts mp
       JOIN media_items    m  ON mp.media_item_id  = m.id
@@ -131,7 +134,7 @@ async function apiImportPlex(req, res) {
       const rec = {
         title: r.title || '',
         note: r.summary || '',
-        date: r.year ? String(r.year) : '',
+        date: r.available ? String(r.available).slice(0, 10) : '',
         rating: r.user_rating != null ? Math.max(1, Math.min(5, Math.round(r.user_rating / 2))) : null,
         watched: r.view_count > 0,
         watchedAt: r.last_viewed_at ? Date.parse(r.last_viewed_at) || 0 : 0,

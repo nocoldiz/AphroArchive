@@ -6,6 +6,11 @@ import { resolve } from 'node:path';
 export default defineConfig(() => ({
   plugins: [preact()],
   root: 'public',
+  // PWA static assets (manifest, service worker, icons) live in <repo>/public-static
+  // and are copied verbatim (unhashed, stable URLs) to the build output root —
+  // exactly what a service worker and web manifest need. Vite also serves this
+  // directory at / during dev.
+  publicDir: '../public-static',
   // The Node server (server.js) serves nested SPA routes like /video/<id>,
   // where relative paths resolve incorrectly — use an absolute base.
   base: '/',

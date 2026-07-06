@@ -414,6 +414,68 @@ if (typeof window !== 'undefined') {
 }
 export const vaultMode = signal<boolean>(false);
 export const isVaultUnlocked = signal<boolean>(false);
+
+// ── App PIN lock ─────────────────────────────────────────────────────
+// A soft lock over the whole library, separate from the vault password.
+// Purely client-side (localStorage) so the gate can render synchronously at
+// first paint before any content is visible. The stored value is a
+// non-cryptographic hash — this is a "keep casual eyes out" lock, consistent
+// with the app's local threat model (panic keys are stored the same way).
+const PIN_HASH_KEY = 'appPinHash';
+const PIN_LEN_KEY = 'appPinLen';
+const PIN_INACTIVITY_KEY = 'appPinInactivityMin';
+
+// FNV-1a 32-bit. Deterministic across contexts (localhost vs LAN, where
+// crypto.subtle is unavailable), so a PIN set on one still verifies on another.
+function pinHash(pin: string): string {
+  let h = 0x811c9dc5;
+  const s = 'aphro:' + String(pin);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
+}
+
+// Locked at startup whenever a PIN is configured.
+export const appPinLocked = signal<boolean>(
+  typeof localStorage !== 'undefined' && !!localStorage.getItem(PIN_HASH_KEY),
+);
+
+export function appPinIsSet(): boolean {
+  return !!localStorage.getItem(PIN_HASH_KEY);
+}
+export function getAppPinLen(): number {
+  const n = parseInt(localStorage.getItem(PIN_LEN_KEY) || '0', 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+export function getAppPinInactivityMin(): number {
+  const n = parseInt(localStorage.getItem(PIN_INACTIVITY_KEY) || '0', 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+export function verifyAppPin(pin: string): boolean {
+  const h = localStorage.getItem(PIN_HASH_KEY);
+  return !!h && h === pinHash(pin);
+}
+export function setAppPin(pin: string, inactivityMin: number): void {
+  localStorage.setItem(PIN_HASH_KEY, pinHash(pin));
+  localStorage.setItem(PIN_LEN_KEY, String(String(pin).length));
+  setAppPinInactivity(inactivityMin);
+}
+export function setAppPinInactivity(min: number): void {
+  const n = Math.max(0, Math.min(24 * 60, Math.round(Number(min) || 0)));
+  localStorage.setItem(PIN_INACTIVITY_KEY, String(n));
+}
+export function clearAppPin(): void {
+  localStorage.removeItem(PIN_HASH_KEY);
+  localStorage.removeItem(PIN_LEN_KEY);
+  localStorage.removeItem(PIN_INACTIVITY_KEY);
+  appPinLocked.value = false;
+}
+// Programmatic "lock now" (only meaningful when a PIN is configured).
+export function lockAppNow(): void {
+  if (appPinIsSet()) appPinLocked.value = true;
+}
 export const videoSelMode = signal<boolean>(false);
 export const selectedVideoIds = signal<Set<string>>(new Set());
 // Ids of library videos currently being encrypted into the Vault — their cards
@@ -461,6 +523,27 @@ export async function ensureVaultUnlocked(action: () => void) {
 }
 export const thumbBlurMode = signal<string>(localStorage.getItem('thumbBlurMode') || 'show');
 
+// ─── Couch mode (10-foot / TV UI) ─────────────────────────────────────
+// Enlarges cards, hides per-card hover controls (unreachable with a remote)
+// and adds prominent focus rings so the library is navigable from the sofa
+// with only arrow keys + Enter/Back. Toggled from Settings → Appearance.
+// The keyboard harness lives in couch.ts; here we just own the state, the
+// body class it keys off, and persistence.
+export const couchMode = signal<boolean>(localStorage.getItem('couchMode') === 'true');
+
+// ─── Theater mode ─────────────────────────────────────────────────────
+// Spotlight the player: dim everything outside the video, hide the sidebar
+// and topbar. Toggled with the T key or the player's Theater button, and
+// exited via the dimmed on-screen button. Session-scoped (not persisted): it
+// only makes sense while a video is open, and PlayerView clears it on exit.
+export const theaterMode = signal<boolean>(false);
+
+if (typeof document !== 'undefined') {
+  theaterMode.subscribe(on => {
+    document.body.classList.toggle('theater-mode', on);
+  });
+}
+
 if (typeof document !== 'undefined') {
   folders.subscribe(list => {
     if (list.length && !vaultGlobalView.value) {
@@ -476,7 +559,18 @@ if (typeof document !== 'undefined') {
       fetch('/api/settings/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isMuted: muted }) }).catch(() => {});
     }
   });
+
+  couchMode.subscribe(on => {
+    document.body.classList.toggle('couch-mode', on);
+    localStorage.setItem('couchMode', on ? 'true' : 'false');
+    if (_prefsLoaded) {
+      fetch('/api/settings/prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ couchMode: on }) }).catch(() => {});
+    }
+  });
 }
+
+(window as any).toggleCouchMode = () => { couchMode.value = !couchMode.value; };
+(window as any).toggleTheaterMode = () => { theaterMode.value = !theaterMode.value; };
 
 (window as any)._foldersSignal = folders;
 (window as any)._videosSignal = videos;
@@ -1211,6 +1305,7 @@ export async function loadPrefs() {
     thumbBlurMode.value = data.thumbBlurMode;
     localStorage.setItem('thumbBlurMode', data.thumbBlurMode);
   }
+  if (data.couchMode !== undefined && !!data.couchMode !== couchMode.value) couchMode.value = !!data.couchMode;
   if (data.sidebarSide && data.sidebarSide !== sidebarSide.value) sidebarSide.value = data.sidebarSide;
   if (data.sidebarReveal && data.sidebarReveal !== sidebarReveal.value) sidebarReveal.value = data.sidebarReveal;
   _prefsLoaded = true;

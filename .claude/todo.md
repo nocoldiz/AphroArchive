@@ -207,12 +207,15 @@ move dropdown.
 - [x] **Tag management from the UI** — `DatabaseView.tsx` with full CRUD via `POST /api/db/:type/upsert` and `DELETE /api/db/:type/:name` for actors, channels, folders, websites.
 - [x] **Folder/category creation** — `POST /api/folders/create` on server; `window.createCategory()` in `store.ts` calls `POST /api/main-folders`.
 - [x] **Content-based duplicate detection** — `duplicates-server.js` `getVisualHash()` builds an 8×8 grayscale perceptual hash via ffmpeg per video (cached in `visual_hashes`); catches renamed duplicates by image similarity, not filename.
-- [ ] **Batch rename with pattern** — Rename multiple files at once using a template like `{actor} - {title}` with live preview.
 - [ ] **Category merge** — Merge two folders into one, moving all files and updating metadata.
 - [ ] **Trash / soft delete** — Instead of permanent deletion, move files to a `trash/` folder; show a recoverable trash view; auto-purge after 30 days.
 - [ ] **Watched folder auto-import** — Poll configurable "drop folders"; when a new file appears, move it to VIDEOS_DIR, generate thumbnail, and add to DB automatically.
 - [x] **Library health check** — `library-health-server.js` + `LibraryHealthView` (`/library-health`) scans for missing files, zero duration, incomplete thumbnail sets, and orphaned `videos`-table meta; reports with fix actions (`deleteVideoMetaEverywhere`).
 - [ ] **Rename rules engine** — User-defined regex → replacement rules applied to filenames at import or on demand (e.g. strip release group tags `[GROUP]`).
+
+## Renamer (`RenamerView.tsx`)
+
+- [ ] **Batch rename with pattern** — Rename multiple files at once using a template like `{actor} - {title}` with live preview.
 
 ## Video Tools (ffmpeg)
 
@@ -236,14 +239,14 @@ move dropdown.
 - [x] **Live captions (CC)** — `AdvancedPlayer.tsx` uses the browser `SpeechRecognition` API to generate live captions from mic input; CC button toggles on/off with overlay display.
 - [x] **Player screenshot** — `takeScreenshot()` in `PlayerView.tsx` draws the current frame to canvas and `POST /api/screenshots/upload`; "Take Screenshot" button is visible in the action bar.
 - [x] **Chapter jump UI** — `PlayerView.tsx` renders a chapter list in the sidebar; `AdvancedPlayer` shows chapter markers on the seekbar; `jumpToChapter(time)` seeks and plays.
-- [ ] **Seekbar scrubber preview** — On hover over the seekbar, show the nearest stored thumbnail (from the 5 existing thumbs) in a small floating preview above the cursor, matching YouTube/Netflix behavior.
-- [ ] **Playerbar auto-hide** — Controls fade out after 3 s of inactivity; reappear on any mousemove/keypress/touch; always visible when paused or in the first 2 s.
-- [ ] **Animated chapter tick crossings** — Chapter markers on the seekbar briefly pulse when the playhead crosses them as a visual cue.
+- [x] **Seekbar scrubber preview** — On hover over the seekbar, show the nearest stored thumbnail (from the 5 existing thumbs) in a small floating preview above the cursor, matching YouTube/Netflix behavior.
+- [x] **Playerbar auto-hide** — Controls fade out after 3 s of inactivity; reappear on any mousemove/keypress/touch; always visible when paused or in the first 2 s.
+- [x] **Animated chapter tick crossings** — Chapter markers on the seekbar briefly pulse when the playhead crosses them as a visual cue.
 - [x] **Subtitle file management** — Upload `.srt`/`.vtt` files per video from the player; list loaded subtitles; switch between tracks or disable; stored as sidecars.
 - [ ] **Subtitle auto-search** — Query OpenSubtitles by filename hash and offer matched files for one-click download and attachment.
 - [x] **Audio track selection** — Switch between multiple audio tracks in multi-language MKV/MP4 files via a player toolbar dropdown.
 - [ ] **Picture-in-Picture** — "PiP" button calls `videoEl.requestPictureInPicture()` so the player floats while browsing the library.
-- [ ] **Theater mode** — Dim everything outside the player; hide sidebar and topbar; toggle with keyboard shortcut T.
+- [x] **Theater mode** — Dim everything outside the player; hide sidebar and topbar; toggle with keyboard shortcut T or the player's Theater button; exit via a dimmed on-screen button.
 - [ ] **Mini-player** — Compact sticky player bar that keeps playback going when navigating away from PlayerView; click to return to full player.
 - [ ] **Frame-by-frame stepping** — While paused, step one frame forward/backward via `requestVideoFrameCallback` or 1/fps seek; bound to , and . keys.
 - [ ] **Skip intro / credits** — Per-video intro-end and credits-start timestamps stored in chapters; show a "Skip" button automatically when playback enters that range.
@@ -318,7 +321,7 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 - [ ] **Remote access mode** — Reverse proxy setup guide + optional basic-auth header check for safe VPN/password-protected access.
 - [ ] **Chromecast / Cast API** — Implement the Google Cast sender SDK in the player; detect available devices and show a cast button.
 - [ ] **AirPlay support** — Add `x-webkit-airplay="allow"` to the `<video>` element; guide users on AirPlay-compatible browsers/devices.
-- [ ] **PWA manifest & service worker** — `manifest.json` + service worker so the app installs as a PWA on desktop/mobile and caches the shell for offline startup.
+- [x] **PWA manifest & service worker** — `manifest.json` + service worker so the app installs as a PWA on desktop/mobile and caches the shell for offline startup.
 - [ ] **WebSocket live updates** — Replace the `/api/ping` poll with a WebSocket channel that pushes `scan_complete`, `download_done`, and `vault_locked` events to all tabs.
 
 ## Download & Acquisition (Expanded)
@@ -370,10 +373,10 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 
 ## Integrations & Import/Export
 
-- [ ] **Plex library import** — Read a Plex SQLite DB and import metadata (ratings, watch history, posters) into AphroArchive.
-- [ ] **Jellyfin library import** — Parse Jellyfin's NFO files and user data JSON to pre-populate the DB without re-scraping.
-- [ ] **Kodi NFO compatibility** — Write and read `.nfo` XML in the Kodi standard on export/import so the library is portable to/from Kodi.
-- [ ] **Full backup / restore** — One-click export: ZIP of SQLite DB + all sidecars + prefs (no binary video files); one-click restore from ZIP on a new machine.
+- [x] **Plex library import** — Read a Plex SQLite DB and import metadata (ratings, watch history, posters) into AphroArchive. *(Settings → Folders → Import Library Metadata. `POST /api/import/plex`; matches by filename.)*
+- [x] **Jellyfin library import** — Parse Jellyfin's NFO files and user data JSON to pre-populate the DB without re-scraping. *(Settings → Folders → Import Library Metadata. `POST /api/import/jellyfin`; reads `.nfo` sidecars.)*
+- [x] **Kodi NFO compatibility** — Write and read `.nfo` XML in the Kodi standard on export/import so the library is portable to/from Kodi. *(Read: `POST /api/import/kodi-nfo`; write: `POST /api/export/kodi-nfo` → sidecars next to each video.)*
+- [x] **Full backup / restore** — One-click export: ZIP of SQLite DB + all sidecars + prefs (no binary video files); one-click restore from ZIP on a new machine. *(Settings → Folders → Backup & Restore. `GET /api/backup/export`, `POST /api/backup/restore` → restarts server.)*
 - [ ] **Webhook on events** — POST to a user-configured URL on: video watched, download complete, vault unlock; JSON payload with event type and data.
 - [ ] **OPDS feed** — Expose books as an OPDS catalogue feed so any e-reader app (Moon+ Reader, KOReader) can browse and download directly.
 
@@ -381,7 +384,7 @@ appear as widgets (see reddit/instagram). Each item below is a widget.
 
 - [ ] **Per-video privacy flag** — Mark individual videos as private; they are hidden from the main grid unless a "show private" toggle is active.
 - [ ] **Stealth mode** — Full-library hide triggered by a keyboard shortcut; replaces all thumbnails with grey boxes and blurs titles until deactivated.
-- [ ] **App PIN lock** — Optional PIN required on startup (or after N minutes of inactivity) before the library is accessible; separate from vault password.
+- [x] **App PIN lock** — Optional PIN required on startup (or after N minutes of inactivity) before the library is accessible; separate from vault password. Set in Settings → Security → App Lock (PIN).
 - [ ] **HTTPS support** — Accept a user-provided cert/key pair and optionally run on HTTPS; needed for Cast API, PWA install on mobile, and AirPlay.
 - [ ] **IP allowlist** — Accept connections only from `127.0.0.1` and user-configured subnets; reject all others with 403 before any route handling.
 - [ ] **Audit log** — Append-only log of vault unlock/lock, profile switch, download events, and panic activations; viewable in Settings; optionally encrypted.
@@ -393,7 +396,7 @@ Concrete, mostly small interface wins discovered while auditing the app.
 
 - [ ] **Rating filter control** — Backend already filters by `ratingFilter` (store.ts:786) but nothing sets it. Add star buttons / a slider in `LibraryFilters` or `SectionControls` so the existing filter is reachable.
 - [ ] **Keyboard shortcut cheat-sheet (press `?`)** — The player already has many shortcuts; add a global `?` overlay listing them per-context (grid, player, vault). Reduces discoverability friction now that the surface is large.
-- [ ] **A–Z jump index on Actors / Channels** — Sticky alphabet rail that scrolls the list to the first entry of a letter; essential once an actor/channel list runs into the hundreds.
+- [x] **A–Z jump index on Actors / Channels** — Sticky alphabet rail that scrolls the list to the first entry of a letter; essential once an actor/channel list runs into the hundreds.
 - [ ] **Empty-state panels** — Friendly empty states (icon + one-line hint + primary action) for empty folders, Collections, Vault, Files, Downloads, and zero-result search — instead of a blank grid.
 - [ ] **Context-menu parity across media views** — Audio, Books, Photos, and Files cards should share the same right-click menu pattern as `VideoCard` (open, fav, move, delete, add-to-collection).
 - [ ] **Breadcrumbs in Channels / Actors / Collections** — `BrowseView` has clickable breadcrumbs; extend the same component to the other detail views for consistent back-navigation.

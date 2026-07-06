@@ -1125,6 +1125,40 @@ input {
   max-width: 65%
 }
 
+/* ══ Couch Mode — 10-foot / TV UI ══════════════════════════════════════
+   Toggled from Settings → Appearance (body.couch-mode). Enlarges cards,
+   drops per-card hover controls a remote can't reach, and paints a bold
+   focus ring so the keyboard/remote user can always see where they are. */
+body.couch-mode .video-grid {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(300px, 22vw, 440px), 1fr));
+  gap: 28px;
+}
+body.couch-mode .card-body { padding: 14px 16px; }
+body.couch-mode .card-title { font-size: 1.15rem; margin-bottom: 5px; }
+body.couch-mode .card-category { font-size: 0.9rem; }
+
+/* Hover-only affordances are unreachable with a remote — hide them. */
+body.couch-mode .thumb-actions { display: none !important; }
+
+/* Focused card: keep it clear of the sticky topbar when scrolled into view. */
+body.couch-mode .video-card,
+body.couch-mode .video-list-row { scroll-margin: 96px; }
+
+body.couch-mode .video-card:focus,
+body.couch-mode .video-card:focus-visible,
+body.couch-mode .video-list-row:focus,
+body.couch-mode .video-list-row:focus-visible {
+  outline: 4px solid var(--ac);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px var(--acg), 0 14px 36px rgba(0, 0, 0, 0.55);
+  z-index: 5;
+}
+body.couch-mode .video-card:focus,
+body.couch-mode .video-card:focus-visible {
+  transform: scale(1.04);
+  position: relative;
+}
+
 .card-actions {
   display: flex;
   gap: 2px
@@ -1410,6 +1444,79 @@ input {
   display: flex;
   flex-direction: column;
   gap: 16px
+}
+
+/* ── Theater mode ───────────────────────────────────────────────────
+   Spotlight the player: hide the topbar/sidebar, black out the page, and
+   dim everything except the video itself. Toggled with T (or the Theater
+   button); left via the dimmed exit button. */
+body.theater-mode {
+  background: #000
+}
+
+body.theater-mode .topbar,
+body.theater-mode .side {
+  display: none !important
+}
+
+body.theater-mode .wrap {
+  margin-top: 0
+}
+
+body.theater-mode .main-content {
+  padding: 12px 0 0
+}
+
+/* Give the player more room and centre it once the chrome is gone. */
+body.theater-mode .pv-layout {
+  grid-template-columns: 1fr;
+  gap: 0
+}
+
+body.theater-mode .video-player-wrap {
+  max-width: min(1600px, 100vw);
+  border-radius: 0;
+  box-shadow: none
+}
+
+/* Dim everything outside the player; reveal a region on hover so the details
+   and playlist stay reachable without leaving the mode. */
+body.theater-mode .back-btn,
+body.theater-mode .player-info,
+body.theater-mode .pv-side {
+  opacity: 0.22;
+  transition: opacity 0.3s ease
+}
+
+body.theater-mode .back-btn:hover,
+body.theater-mode .player-info:hover,
+body.theater-mode .pv-side:hover {
+  opacity: 1
+}
+
+/* Dimmed exit button — pinned top-right, brightens on hover. */
+.theater-exit-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.83rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.25s ease, background 0.25s ease
+}
+
+.theater-exit-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.8)
 }
 
 /* TV Mode — hide the sidebar; the channel list stands in for the playlist. */
@@ -8212,6 +8319,54 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px
+}
+
+.az-rail {
+  position: fixed;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  padding: 4px 2px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg2) 70%, transparent);
+  border: 1px solid var(--brd);
+  backdrop-filter: blur(6px);
+  user-select: none;
+}
+
+.az-rail-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text-muted, var(--tm));
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color var(--tr), background var(--tr);
+}
+
+.az-rail-btn:hover:not(:disabled) {
+  color: #fff;
+  background: var(--ac);
+}
+
+.az-rail-btn:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+@media(max-width:700px) {
+  .az-rail {
+    display: none;
+  }
 }
 
 @media(max-width:700px) {

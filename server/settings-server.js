@@ -92,6 +92,7 @@ async function apiSavePrefs(req, res) {
   if ('cardSize' in body && !isNaN(parseInt(body.cardSize, 10))) prefs.cardSize = parseInt(body.cardSize, 10);
   if ('isMuted' in body) prefs.isMuted = !!body.isMuted;
   if ('thumbBlurMode' in body) prefs.thumbBlurMode = String(body.thumbBlurMode || 'show').trim();
+  if ('couchMode' in body) prefs.couchMode = !!body.couchMode;
   if ('sidebarSide' in body) prefs.sidebarSide = body.sidebarSide === 'right' ? 'right' : 'left';
   if ('sidebarReveal' in body) prefs.sidebarReveal = body.sidebarReveal === 'hover' ? 'hover' : 'fixed';
   if ('comfyuiUrl' in body) prefs.comfyuiUrl = String(body.comfyuiUrl || '').trim();
@@ -150,6 +151,7 @@ async function apiSavePrefs(req, res) {
     }
   }
   if ('autoChapterDetection' in body) prefs.autoChapterDetection = !!body.autoChapterDetection;
+  if ('autoSkipIntroCredits' in body) prefs.autoSkipIntroCredits = !!body.autoSkipIntroCredits;
   if ('hlsTranscode' in body) prefs.hlsTranscode = !!body.hlsTranscode;
   if ('pinnedFolders' in body) {
     if (Array.isArray(body.pinnedFolders)) prefs.pinnedFolders = body.pinnedFolders.map(String).filter(Boolean).slice(0, 100);

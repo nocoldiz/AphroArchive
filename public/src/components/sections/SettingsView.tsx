@@ -1,4 +1,5 @@
-import { appPrefs, updatePrefs, loadVideos } from '../../store';
+import { appPrefs, updatePrefs, loadVideos, couchMode,
+  appPinIsSet, setAppPin, clearAppPin, verifyAppPin, setAppPinInactivity, getAppPinInactivityMin } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { JSX } from 'preact';
 import { ensureQRCode } from '../../utils';
@@ -98,6 +99,13 @@ export const SettingsView = () => {
   const [pathInputs, setPathInputs] = useState({ cacheDir: '', dbDir: '', vaultDir: '' });
   const [pathSaved, setPathSaved] = useState(false);
 
+  // Library import / backup / restore
+  const [plexPath, setPlexPath] = useState('');
+  const [nfoPath, setNfoPath] = useState('');
+  const [importBusy, setImportBusy] = useState('');
+  const [importMsg, setImportMsg] = useState('');
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+
   const [comfyuiUrl, setComfyuiUrl] = useState(prefs.comfyuiUrl || 'http://127.0.0.1:8188');
   const [comfyuiWorkflowJson, setComfyuiWorkflowJson] = useState(prefs.comfyuiWorkflowJson || '');
   const [comfyuiPositiveNodeId, setComfyuiPositiveNodeId] = useState(prefs.comfyuiPositiveNodeId || '');
@@ -117,6 +125,45 @@ export const SettingsView = () => {
   );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // App PIN lock (client-side, separate from the vault password)
+  const [pinSet, setPinSet] = useState(appPinIsSet());
+  const [pinNew, setPinNew] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinCurrent, setPinCurrent] = useState('');
+  const [pinInactivity, setPinInactivity] = useState(getAppPinInactivityMin());
+  const [pinMsg, setPinMsg] = useState('');
+  const [pinErr, setPinErr] = useState('');
+
+  const digitsOnly = (v: string) => v.replace(/\D/g, '').slice(0, 12);
+
+  const handleSetPin = () => {
+    setPinErr(''); setPinMsg('');
+    if (pinNew.length < 4) return setPinErr('PIN must be at least 4 digits.');
+    if (pinNew !== pinConfirm) return setPinErr('PINs do not match.');
+    if (pinSet && !verifyAppPin(pinCurrent)) return setPinErr('Current PIN is incorrect.');
+    setAppPin(pinNew, pinInactivity);
+    setPinSet(true);
+    setPinNew(''); setPinConfirm(''); setPinCurrent('');
+    setPinMsg(pinSet ? 'PIN changed.' : 'PIN lock enabled.');
+    window.toast?.(pinSet ? 'PIN changed' : 'PIN lock enabled');
+  };
+
+  const handleDisablePin = () => {
+    setPinErr(''); setPinMsg('');
+    if (!verifyAppPin(pinCurrent)) return setPinErr('Current PIN is incorrect.');
+    clearAppPin();
+    setPinSet(false);
+    setPinCurrent(''); setPinNew(''); setPinConfirm('');
+    setPinMsg('PIN lock disabled.');
+    window.toast?.('PIN lock disabled');
+  };
+
+  const handleSavePinInactivity = () => {
+    setAppPinInactivity(pinInactivity);
+    setPinMsg('Auto-lock timeout saved.');
+    window.toast?.('Auto-lock timeout saved');
+  };
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [currentTheme, setCurrentTheme] = useState(prefs.theme || localStorage.getItem('theme') || 'default');
@@ -361,6 +408,51 @@ export const SettingsView = () => {
     } catch (e: any) { setError(e.message || 'Failed to delete vault'); } finally { setLoading(false); }
   };
 
+  // ── Library import / backup / restore ─────────────────────────────────
+  const browseNative = async (): Promise<string | null> => {
+    try { const r = await fetch('/api/browse-folders-native'); const d = await r.json(); if (d.error) { await alertDialog(d.error); return null; } return d.path || null; } catch { return null; }
+  };
+
+  const runImport = async (kind: 'plex' | 'jellyfin' | 'kodi', endpoint: string, payload: any) => {
+    setImportBusy(kind); setImportMsg('');
+    try {
+      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const d = await r.json();
+      if (!r.ok || d.error) { setImportMsg('❌ ' + (d.error || 'Import failed')); }
+      else {
+        setImportMsg(`✓ Imported: matched ${d.matched} video${d.matched === 1 ? '' : 's'}${d.ratings != null ? `, ${d.ratings} rating${d.ratings === 1 ? '' : 's'}` : ''}${d.watched != null ? `, ${d.watched} watched` : ''}${d.nfoFiles != null ? ` (from ${d.nfoFiles} .nfo files)` : ''}.`);
+        loadVideos();
+      }
+    } catch (e: any) { setImportMsg('❌ ' + (e.message || 'Import failed')); }
+    finally { setImportBusy(''); }
+  };
+
+  const exportNfo = async () => {
+    setImportBusy('nfo-export'); setImportMsg('');
+    try {
+      const r = await fetch('/api/export/kodi-nfo', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok || d.error) setImportMsg('❌ ' + (d.error || 'Export failed'));
+      else setImportMsg(`✓ Wrote ${d.written} .nfo file${d.written === 1 ? '' : 's'} next to your videos (${d.skipped} skipped).`);
+    } catch (e: any) { setImportMsg('❌ ' + (e.message || 'Export failed')); }
+    finally { setImportBusy(''); }
+  };
+
+  const restoreBackup = async (file: File) => {
+    if (!await confirmDialog('Restore this backup? It overwrites the current database, ratings, history and settings, then restarts the server. This cannot be undone.')) return;
+    setImportBusy('restore'); setImportMsg('');
+    try {
+      const r = await fetch('/api/backup/restore', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: file });
+      const d = await r.json();
+      if (!r.ok || d.error) setImportMsg('❌ ' + (d.error || 'Restore failed'));
+      else {
+        setImportMsg('✓ Backup restored. The server is restarting — reload the page in a few seconds.');
+        if (window.toast) window.toast('Restored — restarting server…');
+      }
+    } catch (e: any) { setImportMsg('❌ ' + (e.message || 'Restore failed')); }
+    finally { setImportBusy(''); }
+  };
+
   // ── Shared styles ──────────────────────────────────────────────────────
   const wrap: JSX.CSSProperties = { background: 'var(--bg2)', borderRadius: '12px', border: '1px solid var(--brd)', overflow: 'hidden' };
   const sec: JSX.CSSProperties = { padding: '20px 24px', borderBottom: '1px solid var(--brd)' };
@@ -414,6 +506,26 @@ export const SettingsView = () => {
                 })}
               </div>
             </div>
+            <div style={sec}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <h3 style={{ margin: 0, color: 'var(--ac)' }}>Couch Mode</h3>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={couchMode.value}
+                    onChange={(e) => { couchMode.value = (e.currentTarget as HTMLInputElement).checked; }}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  Enable
+                </label>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', lineHeight: 1.5, margin: 0 }}>
+                A "10-foot" TV interface for viewing from the sofa: cards grow larger, per-card
+                hover buttons are hidden, and a bold focus ring highlights the current card. Navigate
+                the grid with the arrow keys, press <strong>Enter</strong> to play, and{' '}
+                <strong>Backspace</strong> (or <strong>Escape</strong>) to go back.
+              </p>
+            </div>
             <div style={secLast}>
               <h3 style={{ ...secH, marginBottom: '6px' }}>Bar Layout</h3>
               <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '14px' }}>Right-click any sidebar entry, topbar button, plugin, or the Folders / Tags lists to move it between the sidebar and the topbar. Moved items appear as icons after the search bar. Restoring defaults groups the Library / Media / Tools entries and all plugins into topbar dropdowns and shows the Tags list in the sidebar.</p>
@@ -457,7 +569,7 @@ export const SettingsView = () => {
                 of transcoding. (This replaces the old per-player HLS button.)
               </p>
             </div>
-            <div style={secLast}>
+            <div style={sec}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <h3 style={{ margin: 0, color: 'var(--ac)' }}>Auto-detect Chapters</h3>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
@@ -474,6 +586,25 @@ export const SettingsView = () => {
                 Run scene detection on videos to generate chapter markers automatically. Detected chapters
                 appear on the timeline and in the player's chapter menu, enabling the next / previous
                 chapter skip buttons.
+              </p>
+            </div>
+            <div style={secLast}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, color: 'var(--ac)' }}>Always skip intro &amp; credits</h3>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!prefs.autoSkipIntroCredits}
+                    onChange={(e) => updatePrefs({ autoSkipIntroCredits: (e.currentTarget as HTMLInputElement).checked })}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  Enable
+                </label>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', lineHeight: 1.5, margin: 0 }}>
+                Uses the first and last auto-detected scene boundaries to jump past the intro and roll on to
+                the next video when the credits start. When off, a "Skip Intro / Skip Credits" button appears
+                in the bottom-right of the player instead. Requires auto-detected chapters.
               </p>
             </div>
           </div>
@@ -746,7 +877,7 @@ export const SettingsView = () => {
             </div>
 
             {/* Storage Paths */}
-            <div style={secLast}>
+            <div style={sec}>
               <h3 style={{ ...secH, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <i className="icon-database" /> Storage Paths
               </h3>
@@ -827,6 +958,74 @@ export const SettingsView = () => {
                   </div>
                 );
               })()}
+            </div>
+
+            {/* Import from other players */}
+            <div style={sec}>
+              <h3 style={{ ...secH, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="icon-download" /> Import Library Metadata
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
+                Pull ratings, watch history, titles, tags, actors and plots from another media library. Records are matched to your videos by filename — media files are never moved or copied. Existing metadata is preserved; only empty fields are filled.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+
+                {/* Plex */}
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tx)', marginBottom: '4px' }}>Plex</div>
+                  <p style={{ fontSize: '12px', color: 'var(--tx3)', margin: '0 0 6px' }}>Point at Plex's <code>com.plexapp.plugins.library.db</code> to import ratings and watch state.</p>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input value={plexPath} onInput={(e: any) => setPlexPath(e.target.value)} placeholder="…\Plug-in Support\Databases\com.plexapp.plugins.library.db" style={{ ...inp, flex: 1, width: 'auto', fontSize: '13px' }} />
+                    <button className="modal-btn modal-btn--primary" disabled={!plexPath.trim() || !!importBusy}
+                      onClick={() => runImport('plex', '/api/import/plex', { dbPath: plexPath.trim() })}>
+                      {importBusy === 'plex' ? 'Importing…' : 'Import'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Jellyfin / Kodi NFO */}
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tx)', marginBottom: '4px' }}>Jellyfin / Kodi (.nfo)</div>
+                  <p style={{ fontSize: '12px', color: 'var(--tx3)', margin: '0 0 6px' }}>Point at a media folder containing <code>.nfo</code> sidecars (Kodi standard, also written by Jellyfin's NFO metadata saver). Subfolders are scanned.</p>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input value={nfoPath} onInput={(e: any) => setNfoPath(e.target.value)} placeholder="C:\Media\Movies" style={{ ...inp, flex: 1, width: 'auto', fontSize: '13px' }} />
+                    <button className="modal-btn modal-btn--secondary" onClick={async () => { const p = await browseNative(); if (p) setNfoPath(p); }}>Browse…</button>
+                    <button className="modal-btn modal-btn--primary" disabled={!nfoPath.trim() || !!importBusy}
+                      onClick={() => runImport('jellyfin', '/api/import/jellyfin', { path: nfoPath.trim() })}>
+                      {(importBusy === 'jellyfin' || importBusy === 'kodi') ? 'Importing…' : 'Import'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Backup & Restore */}
+            <div style={secLast}>
+              <h3 style={{ ...secH, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="icon-database" /> Backup &amp; Restore
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
+                Export a portable ZIP of your database, ratings, watch history, collections, links, prompts and settings — everything except the binary media files. Restore it on a new machine to recreate the library (media files are matched back by filename).
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                <a className="modal-btn modal-btn--primary" href="/api/backup/export" style={{ textDecoration: 'none' }} download>
+                  Export backup (.zip)
+                </a>
+                <button className="modal-btn modal-btn--secondary" disabled={!!importBusy} onClick={() => restoreInputRef.current?.click()}>
+                  {importBusy === 'restore' ? 'Restoring…' : 'Restore from backup…'}
+                </button>
+                <input ref={restoreInputRef} type="file" accept=".zip,application/zip" title="Restore backup archive" aria-label="Restore backup archive" style={{ display: 'none' }}
+                  onChange={(e: any) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) restoreBackup(f); }} />
+                <button className="modal-btn modal-btn--secondary" disabled={!!importBusy} onClick={exportNfo}>
+                  {importBusy === 'nfo-export' ? 'Writing…' : 'Export Kodi .nfo sidecars'}
+                </button>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--tx3)', margin: '10px 0 0' }}>
+                <strong>Export Kodi .nfo</strong> writes a <code>.nfo</code> file next to each video that has metadata, so the library is portable to Kodi, Jellyfin or Plex. Restoring a backup restarts the server.
+              </p>
+              {importMsg && (
+                <p style={{ fontSize: '13px', color: importMsg.startsWith('❌') ? '#e05' : 'var(--ac)', margin: '12px 0 0' }}>{importMsg}</p>
+              )}
             </div>
 
           </div>
@@ -972,6 +1171,56 @@ export const SettingsView = () => {
         {/* ══ Security ════════════════════════════════════════════════ */}
         {activeTab === 'security' && (
           <div style={wrap}>
+
+            {/* App PIN lock */}
+            <div style={sec}>
+              <h3 style={secH}>App Lock (PIN)</h3>
+              <p style={{ fontSize: '13px', color: 'var(--tx3)', margin: '0 0 16px' }}>
+                Require a PIN to open the app{pinInactivity > 0 ? ' and after a period of inactivity' : ''}. This is separate from the vault password and is stored only on this device.
+              </p>
+
+              <div style={fieldRow}>
+                {pinSet && (
+                  <>
+                    <label style={label}>Current PIN</label>
+                    <input type="password" inputMode="numeric" placeholder="Current PIN" value={pinCurrent}
+                      onInput={(e) => setPinCurrent(digitsOnly((e.target as HTMLInputElement).value))}
+                      style={{ ...inp, marginBottom: '8px' }} />
+                  </>
+                )}
+                <label style={label}>{pinSet ? 'New PIN' : 'PIN'}</label>
+                <input type="password" inputMode="numeric" placeholder={pinSet ? 'New PIN (min 4 digits)' : 'PIN (min 4 digits)'} value={pinNew}
+                  onInput={(e) => setPinNew(digitsOnly((e.target as HTMLInputElement).value))}
+                  style={{ ...inp, marginBottom: '8px' }} />
+                <input type="password" inputMode="numeric" placeholder="Confirm PIN" value={pinConfirm}
+                  onInput={(e) => setPinConfirm(digitsOnly((e.target as HTMLInputElement).value))}
+                  style={{ ...inp, marginBottom: '10px' }} />
+
+                <label style={label}>Auto-lock after inactivity</label>
+                <p style={{ fontSize: '12px', color: 'var(--tx3)', margin: '0 0 8px' }}>Minutes of inactivity before the app re-locks. Set to 0 to lock only on startup.</p>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+                  <input type="number" min={0} max={1440} value={pinInactivity} title="Auto-lock timeout in minutes" placeholder="0"
+                    onInput={(e) => setPinInactivity(parseInt((e.target as HTMLInputElement).value, 10) || 0)}
+                    style={{ ...inp, maxWidth: '120px' }} />
+                  <span style={{ color: 'var(--tx3)', fontSize: '13px' }}>min</span>
+                  {pinSet && <button class="modal-btn" onClick={handleSavePinInactivity}>Save timeout</button>}
+                </div>
+
+                {pinErr && <div style={{ color: '#e84040', fontSize: '0.85rem', marginBottom: '8px' }}>{pinErr}</div>}
+                {pinMsg && <div style={{ color: '#4ade80', fontSize: '0.85rem', marginBottom: '8px' }}>{pinMsg}</div>}
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button class="modal-btn modal-btn--primary" onClick={handleSetPin} style={{ flex: 1 }}>
+                    {pinSet ? 'Change PIN' : 'Enable PIN Lock'}
+                  </button>
+                  {pinSet && (
+                    <button class="modal-btn" onClick={handleDisablePin} style={{ flex: 1, borderColor: '#e84040', color: '#e84040' }}>
+                      Disable
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {/* Vault */}
             <div style={sec}>

@@ -13,6 +13,8 @@ import {
   pickPreviewThumb,
   chapterAt,
   clampPreviewX,
+  deriveSkipMarkers,
+  activeSkip,
   COARSE_FRACTIONS,
   type Chapter,
 } from '../public/src/player/playerLogic';
@@ -168,5 +170,68 @@ describe('clampPreviewX', () => {
 
   it('centres when the track is narrower than the box', () => {
     expect(clampPreviewX(10, 140, 100)).toBe(50);
+  });
+});
+
+describe('deriveSkipMarkers', () => {
+  it('picks the first early boundary as intro-end and the last late one as credits-start', () => {
+    const auto = [chap('a1', 12), chap('a2', 300), chap('a3', 600), chap('a4', 1150)];
+    const m = deriveSkipMarkers(auto, 1200);
+    expect(m.introEnd).toBe(12);      // first boundary inside the 0–25% window
+    expect(m.creditsStart).toBe(1150); // last boundary inside the final 25%
+  });
+
+  it('returns null intro when the first boundary is too early or too late', () => {
+    expect(deriveSkipMarkers([chap('a', 3)], 1200).introEnd).toBeNull();   // < 5s
+    expect(deriveSkipMarkers([chap('a', 400)], 1200).introEnd).toBeNull(); // past 25% (300s)
+  });
+
+  it('caps the intro window at 240s even for long videos', () => {
+    // 25% of 4000s = 1000s, but the absolute cap is 240s.
+    expect(deriveSkipMarkers([chap('a', 300)], 4000).introEnd).toBeNull();
+    expect(deriveSkipMarkers([chap('a', 200)], 4000).introEnd).toBe(200);
+  });
+
+  it('returns null credits when no boundary is in the final stretch or too close to the end', () => {
+    expect(deriveSkipMarkers([chap('a', 500)], 1200).creditsStart).toBeNull();  // before 75%
+    expect(deriveSkipMarkers([chap('a', 1198)], 1200).creditsStart).toBeNull(); // < 5s tail
+  });
+
+  it('is empty for no chapters or a zero / non-finite duration', () => {
+    expect(deriveSkipMarkers([], 1200)).toEqual({ introEnd: null, creditsStart: null });
+    expect(deriveSkipMarkers([chap('a', 12)], 0)).toEqual({ introEnd: null, creditsStart: null });
+    expect(deriveSkipMarkers([chap('a', 12)], NaN)).toEqual({ introEnd: null, creditsStart: null });
+  });
+
+  it('ignores boundaries at or beyond the duration', () => {
+    expect(deriveSkipMarkers([chap('a', 1200), chap('b', 1300)], 1200).creditsStart).toBeNull();
+  });
+});
+
+describe('activeSkip', () => {
+  const markers = { introEnd: 30, creditsStart: 1150 };
+
+  it('shows the intro skip before the intro-end marker', () => {
+    expect(activeSkip(markers, 0, 1200)).toEqual({ kind: 'intro', seekTo: 30 });
+    expect(activeSkip(markers, 29, 1200)).toEqual({ kind: 'intro', seekTo: 30 });
+  });
+
+  it('hides the intro skip once at/past the marker (with a small dead-zone)', () => {
+    expect(activeSkip(markers, 29.8, 1200)).toBeNull();
+    expect(activeSkip(markers, 30, 1200)).toBeNull();
+  });
+
+  it('shows the credits skip from the credits-start marker to the end', () => {
+    expect(activeSkip(markers, 1150, 1200)).toEqual({ kind: 'credits', seekTo: 1200 });
+    expect(activeSkip(markers, 1180, 1200)).toEqual({ kind: 'credits', seekTo: 1200 });
+  });
+
+  it('shows nothing in the middle of the video', () => {
+    expect(activeSkip(markers, 600, 1200)).toBeNull();
+  });
+
+  it('handles a missing intro or credits marker', () => {
+    expect(activeSkip({ introEnd: null, creditsStart: 1150 }, 5, 1200)).toBeNull();
+    expect(activeSkip({ introEnd: 30, creditsStart: null }, 1180, 1200)).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import { VideoCard } from '../UI/VideoGrid';
 import { Video } from '../../types';
 import { currentActor, cardSize } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
+import { AzRail, azKey } from '../UI/AzRail';
 
 interface Actor {
   name: string;
@@ -103,6 +104,7 @@ export const ActorsView = () => {
     return (
       <div
         key={a.name}
+        data-az={azKey(a.name)}
         class={`cv-card fade-in ${a.count === 0 ? 'cv-card-unmatched' : ''}`}
         onClick={() => currentActor.value = a.name}
         style={{ cursor: 'pointer' }}
@@ -192,6 +194,10 @@ export const ActorsView = () => {
                 {otherActors.map(renderActorCard)}
               </div>
             </>
+          )}
+
+          {sort === 'name' && sortedActors.length > 30 && (
+            <AzRail names={sortedActors.map(a => a.name)} containerSelector="#actors-view" />
           )}
         </>
       )}

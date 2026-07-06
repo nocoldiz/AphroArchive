@@ -75,6 +75,8 @@ export interface AppPrefs {
   openrouterModel?: string;
   isMuted?: boolean;
   thumbBlurMode?: string;
+  /** 10-foot / TV UI: enlarged cards, hidden hover controls, remote-friendly focus. */
+  couchMode?: boolean;
   hideEmptyFolders?: boolean;
   pinnedFolders?: string[];
   pinnedTags?: string[];
@@ -89,6 +91,12 @@ export interface AppPrefs {
   whisperModel?: 'tiny' | 'base' | 'small' | 'medium' | 'large' | 'turbo';
   whisperLanguage?: string;
   autoChapterDetection?: boolean;
+  /**
+   * Auto-skip detected intro and credits regions during playback (derived from
+   * auto-chapter scene boundaries). When off, a manual "Skip Intro/Credits"
+   * button appears in the player instead.
+   */
+  autoSkipIntroCredits?: boolean;
   /**
    * Allow the player to transcode unsupported formats (e.g. mkv/HEVC) to HLS
    * on the fly via ffmpeg. When false the player only ever direct-streams the

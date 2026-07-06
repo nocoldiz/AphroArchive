@@ -90,6 +90,13 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  // Intro-end / credits-start markers derived from auto-detected scene
+  // boundaries. Held in a ref too so the []-deps timeupdate handler can read the
+  // latest values without re-subscribing. `autoSkipCreditsDoneRef` guards the
+  // "always skip" auto-advance so onNext fires only once per credits region.
+  const [skipMarkers, setSkipMarkers] = useState<SkipMarkers>({ introEnd: null, creditsStart: null });
+  const skipMarkersRef = useRef<SkipMarkers>(skipMarkers);
+  const autoSkipCreditsDoneRef = useRef(false);
   const [volume, setVolume] = useState(() => loadSavedVolume(videoId));
   const [muted, setMuted] = useState(isMuted);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -102,6 +109,13 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   });
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState(0);
+  // Chapter ticks that are briefly pulsing because the playhead just crossed
+  // them (id → true). `prevTimeRef` remembers the last playhead position so a
+  // crossing can be detected on each timeupdate; per-tick removal timers live in
+  // `pulseTimersRef` so they aren't torn down by the frequent currentTime effect.
+  const [pulsingChapters, setPulsingChapters] = useState<Set<string>>(new Set());
+  const prevTimeRef = useRef(0);
+  const pulseTimersRef = useRef<Record<string, any>>({});
   const [buffered, setBuffered] = useState<{ start: number; end: number }[]>([]);
   const [loading, setLoading] = useState(false);
   // Auto-recovery: transient load failures (404 race on a fresh stream, network
@@ -310,6 +324,19 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       }
       const wrapTo = loopWrapTarget(vid.currentTime, loopARef.current, loopBRef.current);
       if (wrapTo !== null) vid.currentTime = wrapTo;
+
+      // "Always skip intro & credits": jump past the intro on sight, and roll on
+      // to the next video once the credits start. The manual button (rendered
+      // from `skipMarkers`) covers the same regions when the pref is off.
+      if (appPrefs.value?.autoSkipIntroCredits && !isTVMode.value) {
+        const skip = activeSkip(skipMarkersRef.current, vid.currentTime, vid.duration || 0);
+        if (skip?.kind === 'intro') {
+          vid.currentTime = skip.seekTo;
+        } else if (skip?.kind === 'credits' && !autoSkipCreditsDoneRef.current) {
+          autoSkipCreditsDoneRef.current = true;
+          if (onNextRef.current) onNextRef.current();
+        }
+      }
     };
     const onDurationChange = () => setDuration(vid.duration);
     const onLoadedMetadata = () => {
@@ -419,6 +446,16 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       vid.playbackRate = playbackSpeed;
     }
   }, [playbackSpeed]);
+
+  // Recompute skip markers whenever the auto-chapters or duration change (a new
+  // video, or scene detection finishing mid-playback). Reset the credits guard
+  // so the fresh markers can auto-advance again.
+  useEffect(() => {
+    const m = deriveSkipMarkers(autoChapters, duration);
+    setSkipMarkers(m);
+    skipMarkersRef.current = m;
+    autoSkipCreditsDoneRef.current = false;
+  }, [autoChapters, duration]);
 
   // Universal last-resort watchdog: whenever the spinner is up, give it a hard
   // deadline. If we're still not playing by then, force a recovery path instead
@@ -834,9 +871,30 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     }, 3000);
   };
 
+  // Any pointer, key or touch activity brings the controls back and re-arms the
+  // 3s auto-hide. While paused the controls stay pinned open (the hide timer is
+  // a no-op unless `playing`).
   useEffect(() => {
     window.addEventListener('mousemove', resetControlsTimeout);
-    return () => window.removeEventListener('mousemove', resetControlsTimeout);
+    window.addEventListener('keydown', resetControlsTimeout);
+    window.addEventListener('touchstart', resetControlsTimeout);
+    return () => {
+      window.removeEventListener('mousemove', resetControlsTimeout);
+      window.removeEventListener('keydown', resetControlsTimeout);
+      window.removeEventListener('touchstart', resetControlsTimeout);
+    };
+  }, [playing]);
+
+  // Pausing reveals the controls immediately; starting playback arms the hide
+  // timer so they linger for the first few seconds before fading.
+  useEffect(() => {
+    if (!playing) {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      showControlsRef.current = true;
+      setShowControls(true);
+    } else {
+      resetControlsTimeout();
+    }
   }, [playing]);
 
   useEffect(() => () => clearTimeout(controlsTimeoutRef.current), []);
@@ -845,6 +903,52 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
 
   const allChaptersSorted = mergeChapters(chapters, autoChapters);
   const loopActive = loopA !== null || loopB !== null;
+
+  // Pulse a chapter tick when the playhead crosses it during normal playback.
+  // Only small forward steps count — a seek or a backward jump (delta ≤ 0 or a
+  // big skip) shouldn't fire the cue. Each crossed tick flashes for 700ms.
+  useEffect(() => {
+    const prev = prevTimeRef.current;
+    prevTimeRef.current = currentTime;
+    const delta = currentTime - prev;
+    if (delta <= 0 || delta > 2 || duration <= 0) return;
+    const crossed = allChaptersSorted.filter(c => c.time > prev && c.time <= currentTime);
+    if (!crossed.length) return;
+    setPulsingChapters(prevSet => {
+      const next = new Set(prevSet);
+      crossed.forEach(c => next.add(c.id));
+      return next;
+    });
+    crossed.forEach(c => {
+      if (pulseTimersRef.current[c.id]) clearTimeout(pulseTimersRef.current[c.id]);
+      pulseTimersRef.current[c.id] = setTimeout(() => {
+        delete pulseTimersRef.current[c.id];
+        setPulsingChapters(prevSet => {
+          const next = new Set(prevSet);
+          next.delete(c.id);
+          return next;
+        });
+      }, 700);
+    });
+  }, [currentTime]);
+
+  useEffect(() => () => {
+    Object.values(pulseTimersRef.current).forEach(t => clearTimeout(t));
+  }, []);
+
+  // Netflix-style skip button: shown in the bottom-right only while the playhead
+  // sits inside the detected intro or credits window. Hidden when "always skip"
+  // is on, since the player auto-skips those regions itself.
+  const autoSkipEnabled = !!appPrefs.value?.autoSkipIntroCredits;
+  const skipTarget = (isTVMode.value || autoSkipEnabled)
+    ? null
+    : activeSkip(skipMarkers, currentTime, duration);
+  const doSkip = () => {
+    const vid = videoRef.current;
+    if (!vid || !skipTarget) return;
+    if (skipTarget.kind === 'credits' && onNextRef.current) onNextRef.current();
+    else vid.currentTime = skipTarget.seekTo;
+  };
 
   const getPreviewSrc = (time: number) =>
     pickPreviewThumb(videoId, time, duration, allChaptersSorted);
@@ -980,6 +1084,31 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         </div>
       )}
 
+      {/* Skip intro / credits button — bottom-right, only inside the window */}
+      {skipTarget && (
+        <button
+          type="button"
+          onClick={doSkip}
+          style={{
+            position: 'absolute',
+            right: '18px',
+            bottom: showControls ? '90px' : '24px',
+            zIndex: 6,
+            background: 'rgba(0,0,0,0.72)',
+            border: '1px solid rgba(255,255,255,0.55)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            fontWeight: 700,
+            padding: '9px 18px',
+            borderRadius: '6px',
+            transition: 'bottom 0.3s'
+          }}
+        >
+          {skipTarget.kind === 'intro' ? 'Skip Intro ⏭' : 'Skip Credits ⏭'}
+        </button>
+      )}
+
       {/* Controls Overlay */}
       <div style={{
         position: 'absolute',
@@ -1049,30 +1178,49 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
             </div>
           )}
 
+          {/* Pulse animation for a chapter tick as the playhead crosses it */}
+          <style>{`
+            @keyframes chapterTickPulse {
+              0%   { transform: scaleX(1) scaleY(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+              35%  { transform: scaleX(2.6) scaleY(1.9); box-shadow: 0 0 9px 2px rgba(255,255,255,0.9); }
+              100% { transform: scaleX(1) scaleY(1); box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+            }
+          `}</style>
+
           {/* User chapter markers — always visible */}
-          {chapters.map(c => (
-            <div key={c.id} style={{
-              position: 'absolute',
-              left: `${(c.time / duration) * 100}%`,
-              top: 0,
-              width: '2px',
-              height: '100%',
-              background: 'rgba(255,255,255,0.85)',
-              zIndex: 3
-            }} title={c.title} />
-          ))}
+          {chapters.map(c => {
+            const pulsing = pulsingChapters.has(c.id);
+            return (
+              <div key={c.id} style={{
+                position: 'absolute',
+                left: `${(c.time / duration) * 100}%`,
+                top: 0,
+                width: '2px',
+                height: '100%',
+                background: 'rgba(255,255,255,0.85)',
+                transformOrigin: 'center',
+                zIndex: pulsing ? 5 : 3,
+                animation: pulsing ? 'chapterTickPulse 0.7s ease-out' : 'none'
+              }} title={c.title} />
+            );
+          })}
           {/* Auto-detected chapter markers — distinct cyan colour */}
-          {autoChapters.map(c => (
-            <div key={c.id} style={{
-              position: 'absolute',
-              left: `${(c.time / duration) * 100}%`,
-              top: '15%',
-              width: '2px',
-              height: '70%',
-              background: 'rgba(80,200,255,0.7)',
-              zIndex: 2
-            }} title={`Auto: ${c.title}`} />
-          ))}
+          {autoChapters.map(c => {
+            const pulsing = pulsingChapters.has(c.id);
+            return (
+              <div key={c.id} style={{
+                position: 'absolute',
+                left: `${(c.time / duration) * 100}%`,
+                top: '15%',
+                width: '2px',
+                height: '70%',
+                background: 'rgba(80,200,255,0.7)',
+                transformOrigin: 'center',
+                zIndex: pulsing ? 5 : 2,
+                animation: pulsing ? 'chapterTickPulse 0.7s ease-out' : 'none'
+              }} title={`Auto: ${c.title}`} />
+            );
+          })}
           {/* A/B loop markers */}
           {loopA !== null && duration > 0 && (
             <div style={{ position: 'absolute', left: `${(loopA / duration) * 100}%`, top: 0, width: '3px', height: '100%', background: '#4ade80', zIndex: 4 }} title={`A: ${formatDuration(loopA)}`} />

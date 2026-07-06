@@ -5,6 +5,7 @@ import { PresetPicker } from './components/modals/PresetPicker';
 import { OnboardingWizard } from './components/modals/OnboardingWizard';
 import { ConnectModal } from './components/modals/ConnectModal';
 import { DropOverlay } from './components/UI/DropOverlay';
+import { AppPinLock } from './components/UI/AppPinLock';
 
 export function App() {
   const [connLost, setConnLost] = useState(false);
@@ -239,6 +240,7 @@ export function App() {
 
   return (
     <>
+      <AppPinLock />
       <OnboardingWizard />
       <PresetPicker />
       {showConnectModal.value && <ConnectModal onClose={() => showConnectModal.value = false} />}

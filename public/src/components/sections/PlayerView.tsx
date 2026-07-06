@@ -1,5 +1,5 @@
 ﻿import { formatVideoTitle } from '../../utils';
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs, applyVideoIdChange } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs, applyVideoIdChange, theaterMode } from '../../store';
 import { renameVideo } from '../../api';
 import { setProgress } from '../../home/progress';
 import { zapOn, zapStartTime } from '../../zap';
@@ -415,12 +415,19 @@ export const PlayerView = () => {
         case 'v': case 'V':
           toggleFav();
           break;
+        case 't': case 'T':
+          theaterMode.value = !theaterMode.value;
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [video, toggleFav]);
+
+  // Theater mode only makes sense on the player — always leave it behind when
+  // the player view unmounts, so the dimmed chrome never lingers elsewhere.
+  useEffect(() => () => { theaterMode.value = false; }, []);
 
   if (!video) return null;
 
@@ -687,6 +694,19 @@ export const PlayerView = () => {
   return (
     <>
       {showAddToCollectionModal.value && <AddToCollectionModal onClose={() => showAddToCollectionModal.value = false} />}
+      {theaterMode.value && (
+        <button
+          type="button"
+          className="theater-exit-btn"
+          title="Exit theater mode (T)"
+          onClick={() => theaterMode.value = false}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+          <span>Exit theater</span>
+        </button>
+      )}
       <button className="back-btn" onClick={goBack}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="m15 18-6-6 6-6" />
@@ -860,6 +880,14 @@ export const PlayerView = () => {
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
                 <span>Fav</span>
+              </button>
+
+              <button onClick={() => theaterMode.value = !theaterMode.value} className={theaterMode.value ? 'st' : ''} title="Theater mode — dim everything but the player (T)" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: theaterMode.value ? '1px solid var(--ac)' : '1px solid var(--brd)', background: theaterMode.value ? 'rgba(var(--ac-rgb,255,74,74),0.1)' : 'var(--bg2)', color: theaterMode.value ? 'var(--ac)' : 'var(--tx)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="2" y="4" width="20" height="14" rx="2" />
+                  <line x1="2" y1="20" x2="22" y2="20" />
+                </svg>
+                <span>Theater</span>
               </button>
 
               {subtitles.length > 0 && (

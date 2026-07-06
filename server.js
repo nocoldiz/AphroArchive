@@ -566,6 +566,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/browse-folders-native' && req.method === 'GET') return settings.apiBrowseFoldersNative(req, res);
   if (p === '/api/feed-folders/verify-vault' && req.method === 'POST') return settings.apiVerifyVaultPassword(req, res);
 
+  // ── Library import / backup / restore ─────────────────────────────────
+  if (p === '/api/import/plex' && req.method === 'POST') return imports.apiImportPlex(req, res);
+  if (p === '/api/import/jellyfin' && req.method === 'POST') return imports.apiImportJellyfin(req, res);
+  if (p === '/api/import/kodi-nfo' && req.method === 'POST') return imports.apiImportKodiNfo(req, res);
+  if (p === '/api/export/kodi-nfo' && req.method === 'POST') return imports.apiExportNfo(req, res);
+  if (p === '/api/backup/export' && req.method === 'GET') return backup.apiBackupExport(req, res);
+  if (p === '/api/backup/restore' && req.method === 'POST') return backup.apiBackupRestore(req, res);
+
   // ── Local IP ─────────────────────────────────────────────────────────
   if (p === '/api/local-ip' && req.method === 'GET') {
     const ips = getLocalIPs();
