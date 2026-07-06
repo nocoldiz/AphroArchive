@@ -26,6 +26,9 @@ export default defineConfig(() => ({
         manualChunks(id: string) {
           if (id.includes('node_modules')) {
             if (id.includes('preact')) return 'vendor-preact';
+            // hls.js is only reached via dynamic import when a video needs the
+            // transcode fallback — leave it out of the eager vendor chunk.
+            if (id.includes('hls.js')) return;
             return 'vendor';
           }
         },

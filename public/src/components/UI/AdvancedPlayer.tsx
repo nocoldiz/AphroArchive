@@ -41,16 +41,13 @@ interface AdvancedPlayerProps {
   title?: string;
 }
 
+// The bundled hls.js library (code-split by Vite). Never load this from the
+// /hls.js URL — the server serves browser-extension/hls.js there, which is an
+// unrelated HLS *downloader* that doesn't define window.Hls, so the fallback
+// silently broke on every browser that needed it (e.g. Linux builds without
+// H.264/HEVC decoders).
 function loadHlsJs(): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const w = window as any;
-    if (w.Hls) return resolve(w.Hls);
-    const script = document.createElement('script');
-    script.src = '/hls.js';
-    script.onload = () => resolve(w.Hls);
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
+  return import('hls.js').then(mod => mod.default);
 }
 
 const clampVol = (v: number) => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
@@ -198,13 +195,20 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       hls.loadSource(activeHlsSrc);
       hls.attachMedia(vid);
       hls.on(Hls.Events.MANIFEST_PARSED, () => vid.play().catch(() => {}));
+      // Recovery must be bounded: if the server can't transcode at all (ffmpeg
+      // missing, playlist 500s), unbounded startLoad() retries spin the loading
+      // overlay forever — especially in zap mode, which remounts the player on
+      // every switch and never surfaces the failure.
+      let recoveries = 0;
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
         if (!data.fatal) return;
         // Try hls.js's built-in recovery first; only if that's not applicable do
         // we tear HLS down and drop back to direct streaming, so a transcode
         // hiccup never leaves the player stuck forever.
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
-        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) { try { hls.recoverMediaError(); return; } catch {} }
+        if (recoveries++ < 3) {
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
+          else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) { try { hls.recoverMediaError(); return; } catch {} }
+        }
         try { hls.destroy(); } catch {}
         if (hlsInstanceRef.current === hls) hlsInstanceRef.current = null;
         toast('HLS error: ' + data.details);

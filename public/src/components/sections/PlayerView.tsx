@@ -801,6 +801,75 @@ export const PlayerView = () => {
             )}
           </div>
 
+          <div className="pv-side">
+            {isTVMode.value ? (
+              <TVChannelPanel />
+            ) : (
+              <>
+                {showTranscript && transcriptCues.length > 0 && (
+                  <div className="playlist-panel" style={{ marginBottom: '20px' }}>
+                    <div className="playlist-header">
+                      <span>Transcript</span>
+                      <button type="button" onClick={() => setShowTranscript(false)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.8rem', padding: '0 4px' }}>✕</button>
+                    </div>
+                    <div className="playlist-list" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                      {transcriptCues.map((cue, i) => (
+                        <div
+                          key={i}
+                          onClick={() => { if (videoRef.current) { videoRef.current.currentTime = cue.start; videoRef.current.play(); } }}
+                          style={{ display: 'flex', gap: '10px', padding: '7px 12px', cursor: 'pointer', borderBottom: '1px solid var(--brd)' }}
+                          onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--bg2)'}
+                          onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                        >
+                          <span style={{ flexShrink: 0, fontSize: '0.75rem', color: 'var(--ac)', fontVariantNumeric: 'tabular-nums', minWidth: '42px' }}>{formatDuration(cue.start)}</span>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--tx2)', lineHeight: 1.45 }}>{cue.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* The chapter list lives in the player's chapter dropdown now, so the
+                    big side-panel chapter view was removed from the details page. */}
+
+                <div className="playlist-panel pv-nextup">
+                  <div className="playlist-header">
+                    <span>Next Up</span>
+                    <span className="playlist-count">
+                      {playerNextUp.value.length}
+                    </span>
+                  </div>
+                  <div className="playlist-list">
+                    {playerNextUp.value.map((v, index) => (
+                      <div
+                        key={v.id}
+                        className="pv-nextup-item"
+                        draggable={true}
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, index)}
+                        style={{ cursor: 'grab', position: 'relative' }}
+                      >
+                        <VideoCard video={v} isSelected={false} index={index} />
+                        <button
+                          type="button"
+                          className="pl-remove-btn"
+                          title="Remove from Next Up"
+                          onClick={(e) => { e.stopPropagation(); removeVideo(v.id); }}
+                          style={{ position: 'absolute', top: '5px', left: '5px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', cursor: 'pointer', padding: '5px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4 }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 6L6 18M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="player-info">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <div
@@ -1229,72 +1298,6 @@ export const PlayerView = () => {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="pv-side">
-          {isTVMode.value ? (
-            <TVChannelPanel />
-          ) : (
-          <>
-          {showTranscript && transcriptCues.length > 0 && (
-            <div className="playlist-panel" style={{ marginBottom: '20px' }}>
-              <div className="playlist-header">
-                <span>Transcript</span>
-                <button type="button" onClick={() => setShowTranscript(false)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.8rem', padding: '0 4px' }}>✕</button>
-              </div>
-              <div className="playlist-list" style={{ maxHeight: '360px', overflowY: 'auto' }}>
-                {transcriptCues.map((cue, i) => (
-                  <div
-                    key={i}
-                    onClick={() => { if (videoRef.current) { videoRef.current.currentTime = cue.start; videoRef.current.play(); } }}
-                    style={{ display: 'flex', gap: '10px', padding: '7px 12px', cursor: 'pointer', borderBottom: '1px solid var(--brd)' }}
-                    onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--bg2)'}
-                    onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                  >
-                    <span style={{ flexShrink: 0, fontSize: '0.75rem', color: 'var(--ac)', fontVariantNumeric: 'tabular-nums', minWidth: '42px' }}>{formatDuration(cue.start)}</span>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--tx2)', lineHeight: 1.45 }}>{cue.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* The chapter list lives in the player's chapter dropdown now, so the
-              big side-panel chapter view was removed from the details page. */}
-
-          <div className="playlist-panel">
-            <div className="playlist-header">
-              <span>Next Up</span>
-              <span className="playlist-count">
-                {playerNextUp.value.length}
-              </span>
-            </div>
-            <div className="playlist-list">
-              {playerNextUp.value.map((v, index) => (
-                <div 
-                  key={v.id} 
-                  draggable={true}
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, index)}
-                  style={{ cursor: 'grab', position: 'relative', marginBottom: '10px' }}
-                >
-                  <VideoCard video={v} isSelected={false} index={index} />
-                  <button 
-                    className="pl-remove-btn" 
-                    onClick={(e) => { e.stopPropagation(); removeVideo(v.id); }}
-                    style={{ position: 'absolute', top: '5px', left: '5px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', cursor: 'pointer', padding: '5px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4 }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-          </>
-          )}
         </div>
       </div>
 

@@ -1228,7 +1228,7 @@ body.couch-mode .video-card:focus-visible {
 
 .video-player-wrap {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
   border-radius: var(--rl);
   overflow: hidden;
@@ -1320,11 +1320,10 @@ body.couch-mode .video-card:focus-visible {
   color: var(--tx)
 }
 
+/* Single column: the player spans the full width and the Next Up playlist
+   sits directly below it as a horizontal strip (see .pv-side / .pv-nextup). */
 .pv-layout {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 20px;
-  align-items: start
+  display: block
 }
 
 .pv-main {
@@ -1438,12 +1437,26 @@ body.couch-mode .video-card:focus-visible {
 }
 
 .pv-side {
-  position: sticky;
-  top: 70px;
-  max-height: calc(100vh - 90px);
+  max-width: 1600px;
+  margin: 14px auto 0;
   display: flex;
   flex-direction: column;
   gap: 16px
+}
+
+/* Next Up under the player: one horizontally scrollable row of cards. */
+.pv-nextup .playlist-list {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px 12px
+}
+
+.pv-nextup-item {
+  flex: 0 0 230px;
+  min-width: 0
 }
 
 /* ── Theater mode ───────────────────────────────────────────────────
@@ -1525,7 +1538,10 @@ body.tv-active .side {
 }
 
 .tv-channel-panel .playlist-list {
-  padding: 0
+  padding: 0;
+  /* The panel no longer lives in a height-capped sticky column, so cap the
+     channel list itself to keep it scrollable below the player. */
+  max-height: 420px
 }
 
 .tv-channel-row:hover {
