@@ -6,7 +6,17 @@
       "poop",
       "sentence mixing",
       "stutter loop",
-      "classic"
+      "classic",
+      "mezcla de frases",
+      "Satzmixing",
+      "センテンスミキシング",
+      "bucle tartamudo",
+      "Stotter-Loop",
+      "どもりループ",
+      "classico",
+      "clásico",
+      "Klassiker",
+      "クラシック"
     ]
   },
   "YTPMV": {
@@ -15,7 +25,12 @@
       "ytpmv",
       "music",
       "remix",
-      "sus"
+      "sus",
+      "リミックス",
+      "musica",
+      "música",
+      "Musik",
+      "音楽"
     ]
   },
   "Collabs": {
@@ -24,7 +39,17 @@
       "collab",
       "joint",
       "tennis",
-      "community"
+      "community",
+      "collaborazione",
+      "colaboración",
+      "Kollaboration",
+      "コラボ",
+      "comunità",
+      "comunidad",
+      "Gemeinschaft",
+      "コミュニティ",
+      "tenis",
+      "テニス"
     ]
   },
   "Source Material": {
@@ -33,7 +58,19 @@
       "source",
       "base",
       "raw",
-      "clips"
+      "clips",
+      "fonte",
+      "fuente",
+      "Quelle",
+      "素材",
+      "Basis",
+      "ベース",
+      "grezzo",
+      "en bruto",
+      "roh",
+      "生素材",
+      "clip",
+      "クリップ"
     ]
   },
   "Poop": {
@@ -41,7 +78,14 @@
     "tags": [
       "ytp",
       "sentence mixing",
-      "classic"
+      "classic",
+      "mezcla de frases",
+      "Satzmixing",
+      "センテンスミキシング",
+      "classico",
+      "clásico",
+      "Klassiker",
+      "クラシック"
     ]
   },
   "Tennis": {
@@ -49,7 +93,17 @@
     "tags": [
       "tennis",
       "collab",
-      "back and forth"
+      "back and forth",
+      "collaborazione",
+      "colaboración",
+      "Kollaboration",
+      "コラボ",
+      "botta e risposta",
+      "ida y vuelta",
+      "Hin und Her",
+      "応酬",
+      "tenis",
+      "テニス"
     ]
   },
   "Editing Tutorials": {
@@ -57,7 +111,12 @@
     "tags": [
       "tutorial",
       "vegas",
-      "editing"
+      "editing",
+      "チュートリアル",
+      "montaggio",
+      "edición",
+      "Schnitt",
+      "編集"
     ]
   },
   "Surreal": {
@@ -65,7 +124,18 @@
     "tags": [
       "surreal",
       "abstract",
-      "weird"
+      "weird",
+      "surreale",
+      "surrealista",
+      "シュール",
+      "astratto",
+      "abstracto",
+      "abstrakt",
+      "抽象",
+      "strano",
+      "extraño",
+      "seltsam",
+      "奇妙"
     ]
   }
 }

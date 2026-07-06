@@ -7,7 +7,23 @@
       "narrative",
       "weekly",
       "host",
-      "interview"
+      "interview",
+      "ポッドキャスト",
+      "オーディオ",
+      "narrativa",
+      "Erzählung",
+      "ナラティブ",
+      "settimanale",
+      "semanal",
+      "wöchentlich",
+      "週刊",
+      "conduttore",
+      "presentador",
+      "Moderator",
+      "司会",
+      "intervista",
+      "entrevista",
+      "インタビュー"
     ]
   },
   "Documentaries": {
@@ -17,7 +33,25 @@
       "series",
       "investigation",
       "feature",
-      "archive"
+      "archive",
+      "documentario",
+      "documental",
+      "Dokumentation",
+      "ドキュメンタリー",
+      "serie",
+      "シリーズ",
+      "indagine",
+      "investigación",
+      "Ermittlung",
+      "捜査",
+      "lungometraggio",
+      "largometraje",
+      "Spielfilm",
+      "長編",
+      "archivio",
+      "archivo",
+      "Archiv",
+      "アーカイブ"
     ]
   },
   "Cold Cases": {
@@ -28,7 +62,31 @@
       "missing",
       "mystery",
       "reopened",
-      "evidence"
+      "evidence",
+      "irrisolto",
+      "sin resolver",
+      "ungelöst",
+      "未解決",
+      "caso irrisolto",
+      "caso sin resolver",
+      "ungelöster Fall",
+      "未解決事件",
+      "scomparso",
+      "desaparecido",
+      "vermisst",
+      "行方不明",
+      "mistero",
+      "misterio",
+      "Mysterium",
+      "ミステリー",
+      "riaperto",
+      "reabierto",
+      "wieder aufgerollt",
+      "再捜査",
+      "prove",
+      "pruebas",
+      "Beweise",
+      "証拠"
     ]
   },
   "Forensics": {
@@ -39,7 +97,25 @@
       "analysis",
       "behaviour",
       "dna",
-      "autopsy"
+      "autopsy",
+      "forense",
+      "forensisch",
+      "法医学",
+      "psicologia criminale",
+      "psicología criminal",
+      "Kriminalpsychologie",
+      "犯罪心理学",
+      "analisi",
+      "análisis",
+      "Analyse",
+      "分析",
+      "comportamento",
+      "comportamiento",
+      "Verhalten",
+      "行動",
+      "autopsia",
+      "Autopsie",
+      "検死"
     ]
   },
   "Court Cases": {
@@ -49,7 +125,27 @@
       "court",
       "verdict",
       "testimony",
-      "law"
+      "law",
+      "processo",
+      "juicio",
+      "Prozess",
+      "裁判",
+      "tribunale",
+      "tribunal",
+      "Gericht",
+      "法廷",
+      "verdetto",
+      "veredicto",
+      "Urteil",
+      "評決",
+      "testimonianza",
+      "testimonio",
+      "Zeugenaussage",
+      "証言",
+      "legge",
+      "ley",
+      "Recht",
+      "法律"
     ]
   },
   "Serial": {
@@ -57,7 +153,18 @@
     "tags": [
       "serial killer",
       "profile",
-      "psychology"
+      "psychology",
+      "asesino en serie",
+      "Serienmörder",
+      "連続殺人犯",
+      "profilo",
+      "perfil",
+      "Profil",
+      "プロファイル",
+      "psicologia",
+      "psicología",
+      "Psychologie",
+      "心理学"
     ]
   },
   "Heists": {
@@ -65,7 +172,18 @@
     "tags": [
       "heist",
       "robbery",
-      "fraud"
+      "fraud",
+      "colpo",
+      "atraco",
+      "Raubüberfall",
+      "強盗",
+      "rapina",
+      "robo",
+      "Raub",
+      "frode",
+      "fraude",
+      "Betrug",
+      "詐欺"
     ]
   },
   "Disappearances": {
@@ -73,7 +191,19 @@
     "tags": [
       "missing",
       "unsolved",
-      "investigation"
+      "investigation",
+      "scomparso",
+      "desaparecido",
+      "vermisst",
+      "行方不明",
+      "irrisolto",
+      "sin resolver",
+      "ungelöst",
+      "未解決",
+      "indagine",
+      "investigación",
+      "Ermittlung",
+      "捜査"
     ]
   },
   "Scams": {
@@ -81,7 +211,18 @@
     "tags": [
       "scam",
       "fraud",
-      "conman"
+      "conman",
+      "truffa",
+      "estafa",
+      "Betrugsmasche",
+      "詐欺",
+      "frode",
+      "fraude",
+      "Betrug",
+      "truffatore",
+      "estafador",
+      "Betrüger",
+      "詐欺師"
     ]
   },
   "Mafia": {
@@ -89,7 +230,15 @@
     "tags": [
       "mafia",
       "cartel",
-      "gang"
+      "gang",
+      "マフィア",
+      "cartello",
+      "cártel",
+      "Kartell",
+      "カルテル",
+      "banda",
+      "Bande",
+      "ギャング"
     ]
   }
 }

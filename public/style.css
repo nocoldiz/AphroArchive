@@ -6863,7 +6863,14 @@ body.tv-active .side {
   flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
 }
 .dash-welcome { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.4px; }
-.dash-bar-actions { display: flex; gap: 8px; }
+.dash-bar-actions { display: flex; gap: 8px; align-items: center; }
+.dash-size {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg2); border: 1px solid var(--brd); border-radius: var(--r);
+  padding: 4px 10px; color: var(--tx3);
+}
+.dash-size-ico { font-size: 0.8rem; line-height: 1; }
+.dash-size input[type=range] { width: 90px; accent-color: var(--ac); cursor: pointer; }
 .dash-btn {
   background: var(--bg2); border: 1px solid var(--brd); color: var(--tx2);
   padding: 6px 12px; border-radius: var(--r); cursor: pointer; font-size: 0.82rem;
@@ -6916,7 +6923,7 @@ body.tv-active .side {
 
 /* video grid — cards wrap and reflow with the widget size */
 .dw-row {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--dw-card-min, 190px), 1fr));
   gap: 10px; align-content: start;
   height: 100%; overflow-y: auto; padding-bottom: 6px;
 }

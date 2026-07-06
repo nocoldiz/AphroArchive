@@ -95,3 +95,65 @@ export const clampPreviewX = (x: number, boxWidth: number, trackWidth: number): 
   if (trackWidth <= boxWidth) return trackWidth / 2;
   return Math.max(half, Math.min(trackWidth - half, x));
 };
+
+// ── Skip intro / credits ──────────────────────────────────────────────
+// An intro-end marker must sit at least this far in, and no later than the
+// intro cutoff (a fraction of the video, capped in absolute seconds).
+const MIN_INTRO_SECONDS = 5;
+const MAX_INTRO_SECONDS = 240;
+// A credits-start marker must fall in the final stretch and leave at least this
+// much runway before the end.
+const MIN_CREDITS_TAIL = 5;
+
+export interface SkipMarkers {
+  introEnd: number | null;
+  creditsStart: number | null;
+}
+
+// Derive intro-end / credits-start skip markers from auto-detected scene
+// boundaries. The earliest boundary that lands inside the opening window marks
+// the end of the intro; the latest boundary inside the closing window marks the
+// start of the credits. Either is null when no boundary fits its window.
+export const deriveSkipMarkers = (autoChapters: Chapter[], duration: number): SkipMarkers => {
+  const empty: SkipMarkers = { introEnd: null, creditsStart: null };
+  if (!Number.isFinite(duration) || duration <= 0 || !autoChapters.length) return empty;
+  const times = autoChapters
+    .map(c => c.time)
+    .filter(t => Number.isFinite(t) && t > 0 && t < duration)
+    .sort((a, b) => a - b);
+  if (!times.length) return empty;
+
+  const introCutoff = Math.min(duration * 0.25, MAX_INTRO_SECONDS);
+  const introEnd = times.find(t => t >= MIN_INTRO_SECONDS && t <= introCutoff) ?? null;
+
+  let creditsStart: number | null = null;
+  const creditsFloor = duration * 0.75;
+  for (let i = times.length - 1; i >= 0; i--) {
+    if (times[i] >= creditsFloor && times[i] <= duration - MIN_CREDITS_TAIL) {
+      creditsStart = times[i];
+      break;
+    }
+  }
+  return { introEnd, creditsStart };
+};
+
+export type SkipKind = 'intro' | 'credits';
+export interface SkipTarget {
+  kind: SkipKind;
+  seekTo: number;
+}
+
+// Which skip button, if any, applies at `current`. The intro button shows from
+// the start until the intro-end marker; the credits button shows once the
+// playhead reaches the credits-start marker. `seekTo` is where an intro skip
+// lands; a credits skip advances to the video's end (handled by the caller,
+// which may roll on to the next video instead).
+export const activeSkip = (markers: SkipMarkers, current: number, duration: number): SkipTarget | null => {
+  if (markers.introEnd != null && current < markers.introEnd - 0.3) {
+    return { kind: 'intro', seekTo: markers.introEnd };
+  }
+  if (markers.creditsStart != null && current >= markers.creditsStart) {
+    return { kind: 'credits', seekTo: duration };
+  }
+  return null;
+};

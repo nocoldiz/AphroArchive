@@ -8,7 +8,25 @@
       "laptop",
       "gadget",
       "smartphone",
-      "first impressions"
+      "first impressions",
+      "recensione",
+      "reseña",
+      "Testbericht",
+      "レビュー",
+      "telefono",
+      "teléfono",
+      "Handy",
+      "電話",
+      "portatile",
+      "portátil",
+      "ノートパソコン",
+      "dispositivo",
+      "ガジェット",
+      "prime impressioni",
+      "primeras impresiones",
+      "erste Eindrücke",
+      "第一印象",
+      "開封"
     ]
   },
   "Programming": {
@@ -21,7 +39,20 @@
       "developer",
       "python",
       "rust",
-      "systems"
+      "systems",
+      "codice",
+      "código",
+      "コード",
+      "チュートリアル",
+      "ソフトウェア",
+      "sviluppatore",
+      "desarrollador",
+      "Entwickler",
+      "開発者",
+      "sistemi",
+      "sistemas",
+      "Systeme",
+      "システム"
     ]
   },
   "Science": {
@@ -30,7 +61,23 @@
       "physics",
       "engineering",
       "explainer",
-      "education"
+      "education",
+      "fisica",
+      "física",
+      "Physik",
+      "物理学",
+      "ingegneria",
+      "ingeniería",
+      "Ingenieurwesen",
+      "工学",
+      "spiegazione",
+      "explicación",
+      "Erklärvideo",
+      "解説",
+      "istruzione",
+      "educación",
+      "Bildung",
+      "教育"
     ]
   },
   "AI": {
@@ -41,7 +88,22 @@
       "llm",
       "research",
       "neural",
-      "neural networks"
+      "neural networks",
+      "apprendimento automatico",
+      "aprendizaje automático",
+      "maschinelles Lernen",
+      "機械学習",
+      "ricerca",
+      "investigación",
+      "Forschung",
+      "研究",
+      "neurale",
+      "neuronal",
+      "ニューラル",
+      "reti neurali",
+      "redes neuronales",
+      "neuronale Netze",
+      "ニューラルネットワーク"
     ]
   },
   "Hardware": {
@@ -54,7 +116,20 @@
       "cpu",
       "gpu",
       "benchmarks",
-      "pc build"
+      "pc build",
+      "retrò",
+      "レトロ",
+      "reti",
+      "redes",
+      "Netzwerke",
+      "ネットワーク",
+      "componenti",
+      "componentes",
+      "Komponenten",
+      "部品",
+      "benchmark",
+      "pruebas de rendimiento",
+      "ベンチマーク"
     ]
   },
   "Cybersecurity": {
@@ -62,7 +137,13 @@
     "tags": [
       "security",
       "hacking",
-      "infosec"
+      "infosec",
+      "sicurezza",
+      "seguridad",
+      "Sicherheit",
+      "セキュリティ",
+      "hackeo",
+      "ハッキング"
     ]
   },
   "Web Development": {
@@ -78,7 +159,15 @@
     "tags": [
       "gadgets",
       "unboxing",
-      "review"
+      "review",
+      "gadget",
+      "dispositivos",
+      "ガジェット",
+      "recensione",
+      "reseña",
+      "Testbericht",
+      "レビュー",
+      "開封"
     ]
   },
   "Data Science": {
@@ -86,7 +175,15 @@
     "tags": [
       "data",
       "ml",
-      "analytics"
+      "analytics",
+      "dati",
+      "datos",
+      "Daten",
+      "データ",
+      "analitica",
+      "analítica",
+      "Analytik",
+      "分析"
     ]
   },
   "Retrotech": {
@@ -94,7 +191,14 @@
     "tags": [
       "retro",
       "vintage",
-      "restoration"
+      "restoration",
+      "retrò",
+      "レトロ",
+      "ビンテージ",
+      "restauro",
+      "restauración",
+      "Restaurierung",
+      "修復"
     ]
   },
   "Robotics": {
@@ -102,7 +206,18 @@
     "tags": [
       "robots",
       "automation",
-      "diy"
+      "diy",
+      "robot",
+      "Roboter",
+      "ロボット",
+      "automazione",
+      "automatización",
+      "Automatisierung",
+      "自動化",
+      "fai da te",
+      "hágalo usted mismo",
+      "Selbermachen",
+      "日曜大工"
     ]
   }
 }

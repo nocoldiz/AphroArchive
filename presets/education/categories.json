@@ -9,7 +9,20 @@
       "tutorial",
       "python",
       "javascript",
-      "webdev"
+      "webdev",
+      "codice",
+      "código",
+      "コード",
+      "sviluppo",
+      "desarrollo",
+      "Entwicklung",
+      "開発",
+      "ウェブ",
+      "algoritmi",
+      "algoritmos",
+      "Algorithmen",
+      "アルゴリズム",
+      "チュートリアル"
     ]
   },
   "Science": {
@@ -21,7 +34,34 @@
       "chemistry",
       "astronomy",
       "experiment",
-      "research"
+      "research",
+      "scienza",
+      "ciencia",
+      "Wissenschaft",
+      "科学",
+      "fisica",
+      "física",
+      "Physik",
+      "物理学",
+      "biologia",
+      "biología",
+      "Biologie",
+      "生物学",
+      "chimica",
+      "química",
+      "Chemie",
+      "化学",
+      "astronomia",
+      "astronomía",
+      "Astronomie",
+      "天文学",
+      "esperimento",
+      "experimento",
+      "実験",
+      "ricerca",
+      "investigación",
+      "Forschung",
+      "研究"
     ]
   },
   "Mathematics": {
@@ -32,7 +72,29 @@
       "calculus",
       "statistics",
       "geometry",
-      "proofs"
+      "proofs",
+      "matematica",
+      "matemáticas",
+      "Mathe",
+      "数学",
+      "álgebra",
+      "代数",
+      "calcolo",
+      "cálculo",
+      "Analysis",
+      "微積分",
+      "statistica",
+      "estadística",
+      "Statistik",
+      "統計",
+      "geometria",
+      "geometría",
+      "Geometrie",
+      "幾何学",
+      "dimostrazioni",
+      "demostraciones",
+      "Beweise",
+      "証明"
     ]
   },
   "History": {
@@ -44,7 +106,33 @@
       "wars",
       "biography",
       "world war",
-      "civilization"
+      "civilization",
+      "storia",
+      "historia",
+      "Geschichte",
+      "歴史",
+      "antico",
+      "antiguo",
+      "Antike",
+      "古代",
+      "moderno",
+      "近代",
+      "guerre",
+      "guerras",
+      "Kriege",
+      "戦争",
+      "biografia",
+      "biografía",
+      "Biografie",
+      "伝記",
+      "guerra mondiale",
+      "guerra mundial",
+      "Weltkrieg",
+      "世界大戦",
+      "civiltà",
+      "civilización",
+      "Zivilisation",
+      "文明"
     ]
   },
   "Philosophy": {
@@ -54,7 +142,27 @@
       "ethics",
       "logic",
       "metaphysics",
-      "thinking"
+      "thinking",
+      "filosofia",
+      "filosofía",
+      "Philosophie",
+      "哲学",
+      "etica",
+      "ética",
+      "Ethik",
+      "倫理学",
+      "logica",
+      "lógica",
+      "Logik",
+      "論理学",
+      "metafisica",
+      "metafísica",
+      "Metaphysik",
+      "形而上学",
+      "pensiero",
+      "pensamiento",
+      "Denken",
+      "思考"
     ]
   },
   "Languages": {
@@ -66,7 +174,35 @@
       "spanish",
       "learning",
       "grammar",
-      "vocabulary"
+      "vocabulary",
+      "lingua",
+      "idioma",
+      "Sprache",
+      "言語",
+      "linguistica",
+      "lingüística",
+      "Linguistik",
+      "言語学",
+      "inglese",
+      "inglés",
+      "Englisch",
+      "英語",
+      "spagnolo",
+      "español",
+      "Spanisch",
+      "スペイン語",
+      "apprendimento",
+      "aprendizaje",
+      "Lernen",
+      "学習",
+      "grammatica",
+      "gramática",
+      "Grammatik",
+      "文法",
+      "vocabolario",
+      "vocabulario",
+      "Wortschatz",
+      "語彙"
     ]
   },
   "Economics": {
@@ -74,7 +210,19 @@
     "tags": [
       "economy",
       "finance",
-      "markets"
+      "markets",
+      "economia",
+      "economía",
+      "Wirtschaft",
+      "経済",
+      "finanza",
+      "finanzas",
+      "Finanzen",
+      "金融",
+      "mercati",
+      "mercados",
+      "Märkte",
+      "市場"
     ]
   },
   "Psychology": {
@@ -82,7 +230,18 @@
     "tags": [
       "mind",
       "behavior",
-      "cognition"
+      "cognition",
+      "mente",
+      "Geist",
+      "心",
+      "comportamento",
+      "comportamiento",
+      "Verhalten",
+      "行動",
+      "cognizione",
+      "cognición",
+      "Kognition",
+      "認知"
     ]
   },
   "Engineering": {
@@ -90,7 +249,18 @@
     "tags": [
       "mechanical",
       "civil",
-      "electrical"
+      "electrical",
+      "meccanica",
+      "mecánica",
+      "Maschinenbau",
+      "機械",
+      "civile",
+      "Bauwesen",
+      "土木",
+      "elettrica",
+      "eléctrica",
+      "Elektrotechnik",
+      "電気"
     ]
   },
   "Biology": {
@@ -98,7 +268,18 @@
     "tags": [
       "cells",
       "evolution",
-      "genetics"
+      "genetics",
+      "cellule",
+      "células",
+      "Zellen",
+      "細胞",
+      "evoluzione",
+      "evolución",
+      "進化",
+      "genetica",
+      "genética",
+      "Genetik",
+      "遺伝学"
     ]
   },
   "Astronomy": {
@@ -106,7 +287,18 @@
     "tags": [
       "space",
       "cosmos",
-      "planets"
+      "planets",
+      "spazio",
+      "espacio",
+      "Weltraum",
+      "宇宙",
+      "cosmo",
+      "Kosmos",
+      "コスモス",
+      "pianeti",
+      "planetas",
+      "Planeten",
+      "惑星"
     ]
   },
   "Chemistry": {
@@ -114,7 +306,18 @@
     "tags": [
       "reactions",
       "elements",
-      "lab"
+      "lab",
+      "reazioni",
+      "reacciones",
+      "Reaktionen",
+      "反応",
+      "elementi",
+      "elementos",
+      "Elemente",
+      "元素",
+      "laboratorio",
+      "Labor",
+      "実験室"
     ]
   }
 }

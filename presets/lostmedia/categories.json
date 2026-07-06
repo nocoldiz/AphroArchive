@@ -7,7 +7,27 @@
       "lost episode",
       "missing",
       "banned episode",
-      "pilot"
+      "pilot",
+      "animazione",
+      "animación",
+      "アニメーション",
+      "テレビ",
+      "episodio perduto",
+      "episodio perdido",
+      "verschollene Folge",
+      "幻の回",
+      "scomparso",
+      "desaparecido",
+      "vermisst",
+      "行方不明",
+      "episodio vietato",
+      "episodio prohibido",
+      "verbotene Folge",
+      "放送禁止回",
+      "episodio pilota",
+      "piloto",
+      "Pilotfolge",
+      "パイロット版"
     ]
   },
   "Lost Films": {
@@ -17,7 +37,26 @@
       "unreleased",
       "missing",
       "archive",
-      "cut footage"
+      "cut footage",
+      "cine",
+      "Kino",
+      "映画",
+      "inedito",
+      "inédito",
+      "unveröffentlicht",
+      "未公開",
+      "scomparso",
+      "desaparecido",
+      "vermisst",
+      "行方不明",
+      "archivio",
+      "archivo",
+      "Archiv",
+      "アーカイブ",
+      "scene tagliate",
+      "metraje cortado",
+      "herausgeschnittenes Material",
+      "未使用映像"
     ]
   },
   "Internet Mysteries": {
@@ -29,7 +68,17 @@
       "unsolved",
       "creepy",
       "cicada",
-      "deep web"
+      "deep web",
+      "irrisolto",
+      "sin resolver",
+      "ungelöst",
+      "未解決",
+      "inquietante",
+      "espeluznante",
+      "gruselig",
+      "不気味",
+      "web profunda",
+      "ディープウェブ"
     ]
   },
   "Found Footage": {
@@ -38,7 +87,15 @@
       "recovered",
       "analog horror",
       "vhs",
-      "tape"
+      "tape",
+      "recuperato",
+      "recuperado",
+      "wiederhergestellt",
+      "復元",
+      "nastro",
+      "cinta",
+      "Kassette",
+      "テープ"
     ]
   },
   "Video Games": {
@@ -47,7 +104,19 @@
       "beta",
       "cancelled",
       "prototype",
-      "unreleased"
+      "unreleased",
+      "ベータ",
+      "cancellato",
+      "cancelado",
+      "abgesagt",
+      "中止",
+      "prototipo",
+      "Prototyp",
+      "試作",
+      "inedito",
+      "inédito",
+      "unveröffentlicht",
+      "未公開"
     ]
   },
   "Lost TV": {
@@ -55,7 +124,19 @@
     "tags": [
       "television",
       "broadcast",
-      "lost episode"
+      "lost episode",
+      "televisione",
+      "televisión",
+      "Fernsehen",
+      "テレビ",
+      "trasmissione",
+      "emisión",
+      "Sendung",
+      "放送",
+      "episodio perduto",
+      "episodio perdido",
+      "verschollene Folge",
+      "幻の回"
     ]
   },
   "Creepypasta": {
@@ -63,7 +144,9 @@
     "tags": [
       "creepypasta",
       "horror",
-      "analog"
+      "analog",
+      "terror",
+      "ホラー"
     ]
   },
   "Analog Horror": {
@@ -71,7 +154,9 @@
     "tags": [
       "analog",
       "vhs",
-      "horror"
+      "horror",
+      "terror",
+      "ホラー"
     ]
   },
   "Iceberg": {
@@ -79,7 +164,15 @@
     "tags": [
       "iceberg",
       "mystery",
-      "deep dive"
+      "deep dive",
+      "mistero",
+      "misterio",
+      "Mysterium",
+      "ミステリー",
+      "analisi approfondita",
+      "análisis profundo",
+      "Tiefenanalyse",
+      "徹底解説"
     ]
   },
   "Unsolved": {
@@ -87,7 +180,19 @@
     "tags": [
       "unsolved",
       "mystery",
-      "investigation"
+      "investigation",
+      "irrisolto",
+      "sin resolver",
+      "ungelöst",
+      "未解決",
+      "mistero",
+      "misterio",
+      "Mysterium",
+      "ミステリー",
+      "indagine",
+      "investigación",
+      "Ermittlung",
+      "捜査"
     ]
   }
 }

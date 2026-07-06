@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import {
   dashboardLayout, dashEditMode, DASH_ROW_H, loadDashboard,
   removeInstance, updateInstance, moveInstance, addInstance, resetDashboard,
+  dashCardSize, setCardSize, DASH_CARD_MIN, DASH_CARD_MAX,
 } from './dashboardStore';
 import { allWidgetDefs, getWidgetDef, WidgetDef } from './widgets';
 import { appPrefs } from '../store';
@@ -82,6 +83,19 @@ export const Dashboard = () => {
       <div className="dash-bar">
         <h2 className="dash-welcome">Welcome to AphroArchive</h2>
         <div className="dash-bar-actions">
+          {edit && (
+            <label className="dash-size" title="Video size">
+              <span className="dash-size-ico">▦</span>
+              <input
+                type="range"
+                min={DASH_CARD_MIN}
+                max={DASH_CARD_MAX}
+                step={10}
+                value={dashCardSize.value}
+                onInput={(e) => setCardSize(Number((e.target as HTMLInputElement).value))}
+              />
+            </label>
+          )}
           {edit && <button className="dash-btn" onClick={() => setPickerOpen(true)}>+ Add widget</button>}
           {edit && <button className="dash-btn" onClick={async () => { if (await confirmDialog('Reset the home layout to defaults?')) resetDashboard(); }}>Reset</button>}
           <button className={'dash-btn' + (edit ? ' on' : '')} onClick={() => { dashEditMode.value = !edit; setPickerOpen(false); }}>
@@ -93,7 +107,7 @@ export const Dashboard = () => {
       <div
         ref={gridRef}
         className={'dash-grid' + (edit ? ' editing' : '')}
-        style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: DASH_ROW_H + 'px', gap: GAP + 'px' }}
+        style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: DASH_ROW_H + 'px', gap: GAP + 'px', ['--dw-card-min' as any]: dashCardSize.value + 'px' }}
       >
         {dashboardLayout.value.map((inst, idx) => {
           const def = getWidgetDef(inst.type);

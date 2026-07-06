@@ -13,6 +13,9 @@ import {
   pickPreviewThumb,
   chapterAt,
   clampPreviewX,
+  deriveSkipMarkers,
+  activeSkip,
+  SkipMarkers,
 } from '../../player/playerLogic';
 
 interface Subtitle {

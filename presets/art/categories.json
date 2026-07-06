@@ -9,7 +9,35 @@
       "brush",
       "watercolor",
       "plein air",
-      "portrait"
+      "portrait",
+      "olio",
+      "óleo",
+      "Öl",
+      "油彩",
+      "acquerello",
+      "acuarela",
+      "Aquarell",
+      "水彩",
+      "acrilico",
+      "acrílico",
+      "Acryl",
+      "アクリル",
+      "tela",
+      "lienzo",
+      "Leinwand",
+      "キャンバス",
+      "pennello",
+      "pincel",
+      "Pinsel",
+      "筆",
+      "en plein air",
+      "al aire libre",
+      "Freilichtmalerei",
+      "屋外制作",
+      "ritratto",
+      "retrato",
+      "Porträt",
+      "肖像画"
     ]
   },
   "Drawing": {
@@ -21,7 +49,33 @@
       "ink",
       "charcoal",
       "sketch",
-      "graphite"
+      "graphite",
+      "matita",
+      "lápiz",
+      "Bleistift",
+      "鉛筆",
+      "figura",
+      "Figur",
+      "人物",
+      "gesto",
+      "Gestik",
+      "ジェスチャー",
+      "inchiostro",
+      "tinta",
+      "Tinte",
+      "インク",
+      "carboncino",
+      "carboncillo",
+      "Kohle",
+      "木炭",
+      "schizzo",
+      "boceto",
+      "Skizze",
+      "スケッチ",
+      "grafite",
+      "grafito",
+      "Grafit",
+      "グラファイト"
     ]
   },
   "Digital Art": {
@@ -33,7 +87,17 @@
       "procreate",
       "pixel",
       "krita",
-      "speedpaint"
+      "speedpaint",
+      "arte conceptual",
+      "Concept-Art",
+      "コンセプトアート",
+      "illustrazione",
+      "ilustración",
+      "イラスト",
+      "píxel",
+      "ピクセル",
+      "pintura rápida",
+      "スピードペイント"
     ]
   },
   "Art History": {
@@ -46,7 +110,35 @@
       "restoration",
       "renaissance",
       "baroque",
-      "modernism"
+      "modernism",
+      "movimento",
+      "movimiento",
+      "Bewegung",
+      "ムーブメント",
+      "capolavoro",
+      "obra maestra",
+      "Meisterwerk",
+      "傑作",
+      "museo",
+      "美術館",
+      "analisi",
+      "análisis",
+      "Analyse",
+      "分析",
+      "restauro",
+      "restauración",
+      "Restaurierung",
+      "修復",
+      "rinascimento",
+      "renacimiento",
+      "ルネサンス",
+      "barocco",
+      "barroco",
+      "Barock",
+      "バロック",
+      "modernismo",
+      "Moderne",
+      "モダニズム"
     ]
   },
   "Sculpture": {
@@ -57,7 +149,24 @@
       "modelling",
       "form",
       "bronze",
-      "carving"
+      "carving",
+      "argilla",
+      "arcilla",
+      "Ton",
+      "粘土",
+      "modellazione",
+      "modelado",
+      "Modellierung",
+      "モデリング",
+      "forma",
+      "造形",
+      "bronzo",
+      "bronce",
+      "ブロンズ",
+      "intaglio",
+      "tallado",
+      "Schnitzen",
+      "彫刻"
     ]
   },
   "Crafts": {
@@ -67,7 +176,27 @@
       "diy",
       "handmade",
       "mixed media",
-      "ceramics"
+      "ceramics",
+      "stampa d'arte",
+      "grabado",
+      "Druckgrafik",
+      "版画",
+      "fai da te",
+      "hágalo usted mismo",
+      "Selbermachen",
+      "日曜大工",
+      "fatto a mano",
+      "hecho a mano",
+      "handgemacht",
+      "手作り",
+      "tecnica mista",
+      "técnica mixta",
+      "Mischtechnik",
+      "ミクストメディア",
+      "ceramica",
+      "cerámica",
+      "Keramik",
+      "陶芸"
     ]
   },
   "Animation": {
@@ -76,7 +205,14 @@
       "animation",
       "2d",
       "3d",
-      "motion"
+      "motion",
+      "animazione",
+      "animación",
+      "アニメーション",
+      "movimento",
+      "movimiento",
+      "Bewegung",
+      "モーション"
     ]
   },
   "Photography": {
@@ -84,7 +220,17 @@
     "tags": [
       "photo",
       "camera",
-      "composition"
+      "composition",
+      "foto",
+      "写真",
+      "fotocamera",
+      "cámara",
+      "Kamera",
+      "カメラ",
+      "composizione",
+      "composición",
+      "Komposition",
+      "構図"
     ]
   },
   "Concept Art": {
@@ -92,7 +238,17 @@
     "tags": [
       "concept",
       "design",
-      "environment"
+      "environment",
+      "concetto",
+      "concepto",
+      "Konzept",
+      "コンセプト",
+      "diseño",
+      "デザイン",
+      "ambiente",
+      "entorno",
+      "Umgebung",
+      "環境"
     ]
   },
   "Printmaking": {
@@ -100,7 +256,19 @@
     "tags": [
       "print",
       "linocut",
-      "screenprint"
+      "screenprint",
+      "stampa",
+      "impresión",
+      "Druck",
+      "プリント",
+      "linoleografia",
+      "linograbado",
+      "Linolschnitt",
+      "リノカット",
+      "serigrafia",
+      "serigrafía",
+      "Siebdruck",
+      "シルクスクリーン"
     ]
   },
   "Calligraphy": {
@@ -108,7 +276,17 @@
     "tags": [
       "lettering",
       "typography",
-      "ink"
+      "ink",
+      "rotulación",
+      "レタリング",
+      "tipografia",
+      "tipografía",
+      "Typografie",
+      "タイポグラフィ",
+      "inchiostro",
+      "tinta",
+      "Tinte",
+      "インク"
     ]
   },
   "Street Art": {
@@ -116,7 +294,14 @@
     "tags": [
       "graffiti",
       "mural",
-      "urban"
+      "urban",
+      "grafiti",
+      "グラフィティ",
+      "murale",
+      "Wandbild",
+      "壁画",
+      "urbano",
+      "アーバン"
     ]
   }
 }

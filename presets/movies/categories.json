@@ -10,7 +10,31 @@
       "Psychological",
       "found footage",
       "folk horror",
-      "zombie"
+      "zombie",
+      "sangue",
+      "sangre",
+      "Blut",
+      "血",
+      "spaventoso",
+      "aterrador",
+      "gruselig",
+      "怖い",
+      "soprannaturale",
+      "sobrenatural",
+      "übernatürlich",
+      "超自然",
+      "スラッシャー",
+      "psicologico",
+      "psicológico",
+      "psychologisch",
+      "心理的",
+      "metraje encontrado",
+      "ファウンドフッテージ",
+      "terror folclórico",
+      "Folk-Horror",
+      "フォークホラー",
+      "zombi",
+      "ゾンビ"
     ]
   },
   "Sci-Fi": {
@@ -21,7 +45,23 @@
       "Robot",
       "AI",
       "Time Travel",
-      "Alien"
+      "Alien",
+      "spazio",
+      "espacio",
+      "Weltraum",
+      "宇宙",
+      "futuro",
+      "Zukunft",
+      "未来",
+      "Roboter",
+      "ロボット",
+      "viaggio nel tempo",
+      "viaje en el tiempo",
+      "Zeitreise",
+      "タイムトラベル",
+      "alieno",
+      "alienígena",
+      "エイリアン"
     ]
   },
   "Action": {
@@ -35,7 +75,40 @@
       "Adrenaline",
       "martial arts",
       "heist",
-      "spy"
+      "spy",
+      "esplosione",
+      "explosión",
+      "爆発",
+      "inseguimento",
+      "persecución",
+      "Verfolgungsjagd",
+      "カーチェイス",
+      "combattimento",
+      "pelea",
+      "Kampf",
+      "格闘",
+      "eroe",
+      "héroe",
+      "Held",
+      "ヒーロー",
+      "acrobazia",
+      "acrobacia",
+      "スタント",
+      "adrenalina",
+      "Adrenalin",
+      "アドレナリン",
+      "arti marziali",
+      "artes marciales",
+      "Kampfsport",
+      "格闘技",
+      "colpo",
+      "atraco",
+      "Raubüberfall",
+      "強盗",
+      "spia",
+      "espía",
+      "Spion",
+      "スパイ"
     ]
   },
   "Comedy": {
@@ -47,7 +120,29 @@
       "Parody",
       "Laughter",
       "Sitcom",
-      "rom-com"
+      "rom-com",
+      "divertente",
+      "gracioso",
+      "lustig",
+      "面白い",
+      "satira",
+      "sátira",
+      "風刺",
+      "payasada",
+      "ドタバタ",
+      "parodia",
+      "Parodie",
+      "パロディ",
+      "risate",
+      "risa",
+      "Gelächter",
+      "笑い",
+      "comedia de situación",
+      "シットコム",
+      "commedia romantica",
+      "comedia romántica",
+      "Romantikkomödie",
+      "ラブコメ"
     ]
   },
   "Drama": {
@@ -60,7 +155,35 @@
       "Character Study",
       "Tragedy",
       "coming of age",
-      "biopic"
+      "biopic",
+      "emozione",
+      "emoción",
+      "感情",
+      "conflitto",
+      "conflicto",
+      "Konflikt",
+      "対立",
+      "famiglia",
+      "familia",
+      "Familie",
+      "家族",
+      "storico",
+      "histórico",
+      "historisch",
+      "歴史的",
+      "studio del personaggio",
+      "estudio de personaje",
+      "Charakterstudie",
+      "人物描写",
+      "tragedia",
+      "Tragödie",
+      "悲劇",
+      "romanzo di formazione",
+      "iniciación",
+      "Coming-of-Age",
+      "成長物語",
+      "película biográfica",
+      "伝記映画"
     ]
   },
   "Fantasy": {
@@ -71,7 +194,29 @@
       "Quest",
       "Mythology",
       "Sword",
-      "Sorcery"
+      "Sorcery",
+      "magia",
+      "Magie",
+      "魔法",
+      "drago",
+      "dragón",
+      "Drache",
+      "ドラゴン",
+      "ricerca",
+      "búsqueda",
+      "冒険",
+      "mitologia",
+      "mitología",
+      "Mythologie",
+      "神話",
+      "spada",
+      "espada",
+      "Schwert",
+      "剣",
+      "stregoneria",
+      "hechicería",
+      "Zauberei",
+      "魔術"
     ]
   },
   "Thriller": {
@@ -83,7 +228,33 @@
       "Twist",
       "Intrigue",
       "Danger",
-      "psychological"
+      "psychological",
+      "Spannung",
+      "サスペンス",
+      "mistero",
+      "misterio",
+      "Mysterium",
+      "ミステリー",
+      "crimine",
+      "crimen",
+      "Krimi",
+      "犯罪",
+      "colpo di scena",
+      "giro argumental",
+      "Wendung",
+      "どんでん返し",
+      "intrigo",
+      "intriga",
+      "Intrige",
+      "陰謀",
+      "pericolo",
+      "peligro",
+      "Gefahr",
+      "危険",
+      "psicologico",
+      "psicológico",
+      "psychologisch",
+      "心理的"
     ]
   },
   "Western": {
@@ -94,7 +265,26 @@
       "Outlaw",
       "Saloon",
       "Gunslinger",
-      "Desert"
+      "Desert",
+      "vaquero",
+      "カウボーイ",
+      "frontiera",
+      "frontera",
+      "Grenzland",
+      "辺境",
+      "fuorilegge",
+      "forajido",
+      "Gesetzloser",
+      "無法者",
+      "cantina",
+      "酒場",
+      "pistolero",
+      "Revolverheld",
+      "ガンマン",
+      "deserto",
+      "desierto",
+      "Wüste",
+      "砂漠"
     ]
   },
   "RealityTV": {
@@ -105,7 +295,24 @@
       "Lifestyle",
       "Drama",
       "Game Show",
-      "Fly-on-the-wall"
+      "Fly-on-the-wall",
+      "non copione",
+      "sin guion",
+      "ungeskriptet",
+      "台本なし",
+      "competizione",
+      "competencia",
+      "Wettbewerb",
+      "競争",
+      "stile di vita",
+      "estilo de vida",
+      "ライフスタイル",
+      "dramma",
+      "ドラマ",
+      "gioco a premi",
+      "concurso",
+      "Spielshow",
+      "クイズ番組"
     ]
   },
   "Docuseries": {
@@ -116,7 +323,27 @@
       "History",
       "Nature",
       "Biography",
-      "Educational"
+      "Educational",
+      "crimen real",
+      "実録犯罪",
+      "investigativo",
+      "investigativ",
+      "調査",
+      "storia",
+      "historia",
+      "Geschichte",
+      "歴史",
+      "natura",
+      "naturaleza",
+      "Natur",
+      "自然",
+      "biografia",
+      "biografía",
+      "Biografie",
+      "伝記",
+      "educativo",
+      "lehrreich",
+      "教育的"
     ]
   },
   "WebSeries": {
@@ -127,7 +354,19 @@
       "Indie",
       "Vlog",
       "Streaming",
-      "Independent"
+      "Independent",
+      "インターネット",
+      "formato breve",
+      "formato corto",
+      "Kurzformat",
+      "ショート",
+      "インディー",
+      "ブログ動画",
+      "ストリーミング",
+      "indipendente",
+      "independiente",
+      "unabhängig",
+      "インディペンデント"
     ]
   },
   "Mockumentary": {
@@ -138,7 +377,28 @@
       "Deadpan",
       "Cringe Comedy",
       "Handheld",
-      "Interview"
+      "Interview",
+      "finto documentario",
+      "falso documental",
+      "Pseudo-Doku",
+      "偽ドキュメンタリー",
+      "satira",
+      "sátira",
+      "風刺",
+      "impassibile",
+      "inexpresivo",
+      "trocken",
+      "無表情",
+      "comedia incómoda",
+      "Fremdscham-Komödie",
+      "痛いコメディ",
+      "camera a mano",
+      "cámara en mano",
+      "Handkamera",
+      "手持ち撮影",
+      "intervista",
+      "entrevista",
+      "インタビュー"
     ]
   },
   "Cyberpunk": {
@@ -149,7 +409,25 @@
       "Neon",
       "Megacorporation",
       "Cybernetics",
-      "Underground"
+      "Underground",
+      "distopia",
+      "distopía",
+      "Dystopie",
+      "ディストピア",
+      "ハッカー",
+      "neón",
+      "ネオン",
+      "megacorporazione",
+      "megacorporación",
+      "Megakonzern",
+      "巨大企業",
+      "cibernetica",
+      "cibernética",
+      "Kybernetik",
+      "サイバネティクス",
+      "subterráneo",
+      "Untergrund",
+      "アンダーグラウンド"
     ]
   },
   "Anime": {
@@ -160,7 +438,17 @@
       "Shounen",
       "Shoujo",
       "Mecha",
-      "Isekai"
+      "Isekai",
+      "animazione",
+      "animación",
+      "アニメーション",
+      "漫画",
+      "Shōnen",
+      "少年",
+      "Shōjo",
+      "少女",
+      "メカ",
+      "異世界"
     ]
   },
   "SoapOpera": {
@@ -171,7 +459,21 @@
       "Daytime",
       "Romance",
       "Betrayal",
-      "Ensemble"
+      "Ensemble",
+      "melodramma",
+      "Melodram",
+      "メロドラマ",
+      "Serie",
+      "連続もの",
+      "romanticismo",
+      "Romanze",
+      "ロマンス",
+      "tradimento",
+      "traición",
+      "Verrat",
+      "裏切り",
+      "reparto coral",
+      "群像"
     ]
   },
   "Interactive": {
@@ -182,7 +484,23 @@
       "FMV",
       "Viewer Choice",
       "Multiple Endings",
-      "Immersive"
+      "Immersive",
+      "narrazione ramificata",
+      "narrativa ramificada",
+      "verzweigte Handlung",
+      "分岐ストーリー",
+      "scelta dello spettatore",
+      "elección del espectador",
+      "Zuschauerwahl",
+      "視聴者選択",
+      "finali multipli",
+      "finales múltiples",
+      "mehrere Enden",
+      "マルチエンディング",
+      "immersivo",
+      "inmersivo",
+      "immersiv",
+      "没入型"
     ]
   },
   "Anthology": {
@@ -193,7 +511,27 @@
       "Collection",
       "Episodic",
       "Short Story",
-      "Diverse"
+      "Diverse",
+      "autonomo",
+      "independiente",
+      "eigenständig",
+      "独立作品",
+      "tematico",
+      "temático",
+      "thematisch",
+      "テーマ別",
+      "collezione",
+      "colección",
+      "Sammlung",
+      "コレクション",
+      "episodico",
+      "episódico",
+      "episodisch",
+      "エピソード形式",
+      "racconto",
+      "cuento",
+      "Kurzgeschichte",
+      "短編"
     ]
   },
   "Tokusatsu": {
@@ -204,7 +542,19 @@
       "Special Effects",
       "Monster",
       "Hero Team",
-      "Giant Robot"
+      "Giant Robot",
+      "effetti speciali",
+      "efectos especiales",
+      "Spezialeffekte",
+      "特殊効果",
+      "mostro",
+      "monstruo",
+      "怪物",
+      "robot gigante",
+      "Riesenroboter",
+      "巨大ロボット",
+      "怪獣",
+      "変身"
     ]
   },
   "SliceOfLife": {
@@ -215,7 +565,31 @@
       "Realistic",
       "Character-driven",
       "Low Stakes",
-      "Relatable"
+      "Relatable",
+      "quotidiano",
+      "cotidiano",
+      "Alltag",
+      "日常",
+      "banale",
+      "mundano",
+      "banal",
+      "平凡",
+      "realistico",
+      "realista",
+      "realistisch",
+      "リアル",
+      "guidato dai personaggi",
+      "centrado en personajes",
+      "charaktergetrieben",
+      "キャラクター重視",
+      "bassa posta",
+      "poco en juego",
+      "geringer Einsatz",
+      "低リスク",
+      "riconoscibile",
+      "identificable",
+      "nachvollziehbar",
+      "共感できる"
     ]
   },
   "NeoNoir": {
@@ -226,7 +600,25 @@
       "Shadows",
       "Morally Ambiguous",
       "Urban",
-      "Gritty"
+      "Gritty",
+      "cinico",
+      "cínico",
+      "zynisch",
+      "皮肉",
+      "Detektiv",
+      "探偵",
+      "ombre",
+      "sombras",
+      "Schatten",
+      "影",
+      "moralmente ambiguo",
+      "moralisch ambivalent",
+      "道徳的に曖昧",
+      "urbano",
+      "アーバン",
+      "crudo",
+      "schonungslos",
+      "ざらついた"
     ]
   },
   "Documentary": {
@@ -234,7 +626,19 @@
     "tags": [
       "documentary",
       "nonfiction",
-      "true story"
+      "true story",
+      "documentario",
+      "documental",
+      "Dokumentation",
+      "ドキュメンタリー",
+      "saggistica",
+      "no ficción",
+      "Sachbuch",
+      "ノンフィクション",
+      "storia vera",
+      "historia real",
+      "wahre Geschichte",
+      "実話"
     ]
   },
   "Musical": {
@@ -242,7 +646,12 @@
     "tags": [
       "musical",
       "song",
-      "broadway"
+      "broadway",
+      "ミュージカル",
+      "canzone",
+      "canción",
+      "Lied",
+      "歌"
     ]
   },
   "Romance": {
@@ -250,7 +659,16 @@
     "tags": [
       "romance",
       "love",
-      "drama"
+      "drama",
+      "romanticismo",
+      "Romanze",
+      "ロマンス",
+      "amore",
+      "amor",
+      "Liebe",
+      "恋愛",
+      "dramma",
+      "ドラマ"
     ]
   },
   "Crime": {
@@ -258,7 +676,17 @@
     "tags": [
       "crime",
       "heist",
-      "gangster"
+      "gangster",
+      "crimine",
+      "crimen",
+      "Krimi",
+      "犯罪",
+      "colpo",
+      "atraco",
+      "Raubüberfall",
+      "強盗",
+      "gánster",
+      "ギャング"
     ]
   },
   "War": {
@@ -266,7 +694,18 @@
     "tags": [
       "war",
       "military",
-      "historical"
+      "historical",
+      "guerra",
+      "Krieg",
+      "戦争",
+      "militare",
+      "militar",
+      "Militär",
+      "軍事",
+      "storico",
+      "histórico",
+      "historisch",
+      "歴史的"
     ]
   },
   "Adventure": {
@@ -274,7 +713,17 @@
     "tags": [
       "adventure",
       "quest",
-      "epic"
+      "epic",
+      "avventura",
+      "aventura",
+      "Abenteuer",
+      "冒険",
+      "ricerca",
+      "búsqueda",
+      "epico",
+      "épico",
+      "episch",
+      "叙事詩"
     ]
   }
 }

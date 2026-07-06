@@ -6,7 +6,21 @@
       "playthrough",
       "commentary",
       "funny",
-      "co-op"
+      "co-op",
+      "jugabilidad",
+      "ゲームプレイ",
+      "partita completa",
+      "partida completa",
+      "Durchspielen",
+      "プレイスルー",
+      "commento",
+      "comentario",
+      "Kommentar",
+      "実況",
+      "divertente",
+      "gracioso",
+      "lustig",
+      "面白い"
     ]
   },
   "Speedruns": {
@@ -16,7 +30,18 @@
       "fast",
       "glitches",
       "world record",
-      "any%"
+      "any%",
+      "veloce",
+      "rápido",
+      "schnell",
+      "高速",
+      "glitch",
+      "fallos",
+      "バグ",
+      "record mondiale",
+      "récord mundial",
+      "Weltrekord",
+      "世界記録"
     ]
   },
   "Walkthroughs": {
@@ -26,7 +51,18 @@
       "tutorial",
       "100%",
       "collectibles",
-      "boss"
+      "boss",
+      "guida",
+      "guía",
+      "Anleitung",
+      "ガイド",
+      "チュートリアル",
+      "collezionabili",
+      "coleccionables",
+      "Sammelobjekte",
+      "収集要素",
+      "jefe",
+      "ボス"
     ]
   },
   "Reviews": {
@@ -35,7 +71,23 @@
       "review",
       "critique",
       "first impressions",
-      "recommendation"
+      "recommendation",
+      "recensione",
+      "reseña",
+      "Testbericht",
+      "レビュー",
+      "critica",
+      "crítica",
+      "Kritik",
+      "批評",
+      "prime impressioni",
+      "primeras impresiones",
+      "erste Eindrücke",
+      "第一印象",
+      "raccomandazione",
+      "recomendación",
+      "Empfehlung",
+      "おすすめ"
     ]
   },
   "Esports": {
@@ -43,7 +95,17 @@
     "tags": [
       "competitive",
       "tournament",
-      "pro"
+      "pro",
+      "competitivo",
+      "kompetitiv",
+      "競技",
+      "torneo",
+      "Turnier",
+      "トーナメント",
+      "professionista",
+      "profesional",
+      "Profi",
+      "プロ"
     ]
   },
   "Indie": {
@@ -51,7 +113,11 @@
     "tags": [
       "indie",
       "pixel",
-      "roguelike"
+      "roguelike",
+      "インディー",
+      "píxel",
+      "ピクセル",
+      "ローグライク"
     ]
   },
   "Retro": {
@@ -59,7 +125,16 @@
     "tags": [
       "retro",
       "classic",
-      "emulation"
+      "emulation",
+      "retrò",
+      "レトロ",
+      "classico",
+      "clásico",
+      "Klassiker",
+      "クラシック",
+      "emulazione",
+      "emulación",
+      "エミュレーション"
     ]
   },
   "Game Design": {
@@ -67,7 +142,17 @@
     "tags": [
       "design",
       "gamedev",
-      "analysis"
+      "analysis",
+      "diseño",
+      "デザイン",
+      "sviluppo giochi",
+      "desarrollo de juegos",
+      "Spieleentwicklung",
+      "ゲーム開発",
+      "analisi",
+      "análisis",
+      "Analyse",
+      "分析"
     ]
   },
   "Horror": {
@@ -75,7 +160,16 @@
     "tags": [
       "horror",
       "survival",
-      "scary"
+      "scary",
+      "terror",
+      "ホラー",
+      "sopravvivenza",
+      "supervivencia",
+      "サバイバル",
+      "spaventoso",
+      "aterrador",
+      "gruselig",
+      "怖い"
     ]
   },
   "MMO": {
@@ -83,7 +177,11 @@
     "tags": [
       "mmorpg",
       "online",
-      "raid"
+      "raid",
+      "en línea",
+      "オンライン",
+      "incursión",
+      "レイド"
     ]
   }
 }

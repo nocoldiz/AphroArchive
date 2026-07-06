@@ -8,7 +8,23 @@
       "USA Network",
       "Weekly",
       "monday night",
-      "flagship"
+      "flagship",
+      "grezzo",
+      "en bruto",
+      "roh",
+      "生素材",
+      "settimanale",
+      "semanal",
+      "wöchentlich",
+      "週刊",
+      "lunedì",
+      "lunes",
+      "Montag",
+      "月曜日",
+      "lunedì sera",
+      "noche del lunes",
+      "Montagabend",
+      "月曜夜"
     ]
   },
   "SmackDown": {
@@ -20,7 +36,19 @@
       "Fox",
       "Weekly",
       "friday night",
-      "blue brand"
+      "blue brand",
+      "settimanale",
+      "semanal",
+      "wöchentlich",
+      "週刊",
+      "venerdì",
+      "viernes",
+      "Freitag",
+      "金曜日",
+      "venerdì sera",
+      "noche del viernes",
+      "Freitagabend",
+      "金曜夜"
     ]
   },
   "NXT": {
@@ -29,7 +57,15 @@
       "WWE",
       "NXT",
       "Developmental",
-      "Tuesday"
+      "Tuesday",
+      "vivaio",
+      "desarrollo",
+      "Nachwuchsliga",
+      "育成",
+      "martedì",
+      "martes",
+      "Dienstag",
+      "火曜日"
     ]
   },
   "NXT Europe": {
@@ -39,7 +75,17 @@
       "NXT",
       "UK",
       "Europe",
-      "Developmental"
+      "Developmental",
+      "vivaio",
+      "desarrollo",
+      "Nachwuchsliga",
+      "育成",
+      "Regno Unito",
+      "Reino Unido",
+      "Vereinigtes Königreich",
+      "イギリス",
+      "Europa",
+      "ヨーロッパ"
     ]
   },
   "AEW Dynamite": {
@@ -50,7 +96,15 @@
       "Wednesday",
       "TNT",
       "TBS",
-      "Weekly"
+      "Weekly",
+      "settimanale",
+      "semanal",
+      "wöchentlich",
+      "週刊",
+      "mercoledì",
+      "miércoles",
+      "Mittwoch",
+      "水曜日"
     ]
   },
   "AEW Collision": {
@@ -60,7 +114,15 @@
       "Collision",
       "Saturday",
       "TNT",
-      "Weekly"
+      "Weekly",
+      "settimanale",
+      "semanal",
+      "wöchentlich",
+      "週刊",
+      "sabato",
+      "sábado",
+      "Samstag",
+      "土曜日"
     ]
   },
   "AEW Rampage": {
@@ -70,7 +132,15 @@
       "Rampage",
       "Friday",
       "TNT",
-      "Weekly"
+      "Weekly",
+      "settimanale",
+      "semanal",
+      "wöchentlich",
+      "週刊",
+      "venerdì",
+      "viernes",
+      "Freitag",
+      "金曜日"
     ]
   },
   "Impact Wrestling": {
@@ -99,7 +169,12 @@
       "Strong Style",
       "G1 Climax",
       "Wrestle Kingdom",
-      "Japan"
+      "Japan",
+      "estilo fuerte",
+      "ストロングスタイル",
+      "Giappone",
+      "Japón",
+      "日本"
     ]
   },
   "STARDOM": {
@@ -109,7 +184,14 @@
       "Women",
       "Japan",
       "5STAR Grand Prix",
-      "Cinderella"
+      "Cinderella",
+      "donne",
+      "mujeres",
+      "Frauen",
+      "女子",
+      "Giappone",
+      "Japón",
+      "日本"
     ]
   },
   "CMLL": {
@@ -119,7 +201,16 @@
       "Lucha Libre",
       "Mexico",
       "Arena Mexico",
-      "Friday"
+      "Friday",
+      "ルチャリブレ",
+      "Messico",
+      "México",
+      "Mexiko",
+      "メキシコ",
+      "venerdì",
+      "viernes",
+      "Freitag",
+      "金曜日"
     ]
   },
   "AAA": {
@@ -129,7 +220,12 @@
       "Lucha Libre",
       "Mexico",
       "TripleMania",
-      "Vikingo"
+      "Vikingo",
+      "ルチャリブレ",
+      "Messico",
+      "México",
+      "Mexiko",
+      "メキシコ"
     ]
   },
   "Pay-Per-View": {
@@ -143,7 +239,10 @@
       "Double or Nothing",
       "Forbidden Door",
       "premium live event",
-      "main event"
+      "main event",
+      "evento principal",
+      "Hauptkampf",
+      "メインイベント"
     ]
   },
   "Independent": {
@@ -154,7 +253,12 @@
       "PWG",
       "MLW",
       "NWA",
-      "Independent"
+      "Independent",
+      "インディー",
+      "indipendente",
+      "independiente",
+      "unabhängig",
+      "インディペンデント"
     ]
   },
   "Japanese Wrestling": {
@@ -168,7 +272,13 @@
       "BJW",
       "puroresu",
       "strong style",
-      "g1"
+      "g1",
+      "Giappone",
+      "Japón",
+      "日本",
+      "プロレス",
+      "estilo fuerte",
+      "ストロングスタイル"
     ]
   },
   "Lucha Libre": {
@@ -179,7 +289,20 @@
       "Masks",
       "High-Flying",
       "The Crash",
-      "Zona 23"
+      "Zona 23",
+      "maschere",
+      "máscaras",
+      "Masken",
+      "マスク",
+      "acrobatico",
+      "de alto vuelo",
+      "fliegend",
+      "空中殺法",
+      "ルチャ",
+      "Messico",
+      "México",
+      "Mexiko",
+      "メキシコ"
     ]
   },
   "British Wrestling": {
@@ -191,7 +314,19 @@
       "ICW",
       "British",
       "wXw",
-      "OTT"
+      "OTT",
+      "Regno Unito",
+      "Reino Unido",
+      "Vereinigtes Königreich",
+      "イギリス",
+      "progresso",
+      "progreso",
+      "Fortschritt",
+      "進歩",
+      "britannico",
+      "británico",
+      "britisch",
+      "イギリスの"
     ]
   },
   "Women's Wrestling": {
@@ -204,7 +339,21 @@
       "Joshi",
       "WWE Women's",
       "division",
-      "title"
+      "title",
+      "donne",
+      "mujeres",
+      "Frauen",
+      "女子",
+      "divisione",
+      "división",
+      "部門",
+      "titolo",
+      "título",
+      "Titel",
+      "タイトル",
+      "rivoluzione",
+      "revolución",
+      "革命"
     ]
   },
   "Classic": {
@@ -216,7 +365,8 @@
       "AWA",
       "Attitude Era",
       "Golden Age",
-      "Vintage"
+      "Vintage",
+      "ビンテージ"
     ]
   },
   "Documentaries": {
@@ -226,7 +376,23 @@
       "Interview",
       "Behind the Scenes",
       "Biography",
-      "Podcast"
+      "Podcast",
+      "documentario",
+      "documental",
+      "Dokumentation",
+      "ドキュメンタリー",
+      "intervista",
+      "entrevista",
+      "インタビュー",
+      "dietro le quinte",
+      "tras bambalinas",
+      "hinter den Kulissen",
+      "舞台裏",
+      "biografia",
+      "biografía",
+      "Biografie",
+      "伝記",
+      "ポッドキャスト"
     ]
   },
   "Promos & Mic Work": {
@@ -234,7 +400,14 @@
     "tags": [
       "promo",
       "mic",
-      "segment"
+      "segment",
+      "プロモ",
+      "microfono",
+      "micrófono",
+      "Mikrofon",
+      "マイク",
+      "segmento",
+      "セグメント"
     ]
   },
   "Tag Team": {
@@ -242,7 +415,15 @@
     "tags": [
       "tag",
       "team",
-      "division"
+      "division",
+      "en parejas",
+      "タッグ",
+      "squadra",
+      "equipo",
+      "チーム",
+      "divisione",
+      "división",
+      "部門"
     ]
   },
   "Hardcore / Deathmatch": {
@@ -250,7 +431,14 @@
     "tags": [
       "hardcore",
       "deathmatch",
-      "extreme"
+      "extreme",
+      "ハードコア",
+      "combate a muerte",
+      "デスマッチ",
+      "estremo",
+      "extremo",
+      "extrem",
+      "エクストリーム"
     ]
   },
   "Royal Rumble": {
@@ -258,7 +446,13 @@
     "tags": [
       "rumble",
       "battle royal",
-      "elimination"
+      "elimination",
+      "batalla real",
+      "バトルロイヤル",
+      "eliminazione",
+      "eliminación",
+      "Eliminierung",
+      "脱落"
     ]
   },
   "Podcasts": {
@@ -266,7 +460,12 @@
     "tags": [
       "podcast",
       "shoot",
-      "interview"
+      "interview",
+      "ポッドキャスト",
+      "シュート",
+      "intervista",
+      "entrevista",
+      "インタビュー"
     ]
   }
 }

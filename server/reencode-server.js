@@ -9,6 +9,7 @@ const { execFile } = require('child_process');
 const { FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
 const { json, readBody, fromId } = require('./helpers-server');
 const { setVideoMetaFields, loadVideoMeta, loadPrefs, loadVideoIndex } = require('./db-server');
+const { detectHevcEncoder, CPU_HEVC } = require('./hwaccel-server');
 
 const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts']);
 
@@ -88,13 +89,24 @@ async function runBatch(ids, category) {
   // counted as skipped; "all" mode is pre-filtered by the reencoded DB flag.
   const alreadyEncoded = 0;
 
+  // Pick a hardware HEVC encoder (NVENC/QSV/AMF/VAAPI/VideoToolbox) once for
+  // the whole batch so jobs aren't CPU-bound; falls back to libx265. Users can
+  // force the CPU path (better compression) via the `reencodeHwAccel` pref.
+  let enc = CPU_HEVC;
+  try {
+    const hwDisabled = loadPrefs().reencodeHwAccel === false;
+    enc = hwDisabled ? CPU_HEVC : await detectHevcEncoder();
+  } catch (e) {
+    console.error('[reencode] encoder detection failed, using CPU:', e.message);
+  }
+
   _job = {
     running: true, stop: false,
     total: queue.length, done: 0, failed: 0, skipped: alreadyEncoded,
-    current: '', savedBytes: 0,
+    current: '', savedBytes: 0, encoder: enc.name,
   };
-  console.log(`[Sync] Re-encode H.265: ${queue.length} pending, ${alreadyEncoded} already encoded`);
-  broadcast({ type: 'start', total: queue.length, skipped: alreadyEncoded });
+  console.log(`[Sync] Re-encode H.265: ${queue.length} pending, ${alreadyEncoded} already encoded, encoder=${enc.name}`);
+  broadcast({ type: 'start', total: queue.length, skipped: alreadyEncoded, encoder: enc.name });
 
   if (!queue.length) {
     _job.running = false;
@@ -135,10 +147,9 @@ async function runBatch(ids, category) {
       // Build ffmpeg args depending on container
       const isMp4 = ext === '.mp4' || ext === '.m4v';
       const ffArgs = [
+        ...enc.inputArgs,
         '-i', item.fp,
-        '-c:v', 'libx265',
-        '-crf', '28',
-        '-preset', 'medium',
+        ...enc.codecArgs,
         '-c:a', 'copy',
         '-c:s', 'copy',
         ...(isMp4 ? ['-tag:v', 'hvc1', '-movflags', '+faststart'] : []),
@@ -166,10 +177,17 @@ async function runBatch(ids, category) {
         _job.failed++;
       } else {
         const newSize = fs.statSync(tmpFp).size;
-        // Replace original with re-encoded version
-        fs.renameSync(tmpFp, item.fp);
         const saved = origSize - newSize;
-        if (saved > 0) _job.savedBytes += saved;
+        // Hardware encoders (and x265 on already-efficient sources) can produce
+        // a *larger* file — keep the original in that case. Either way mark it
+        // reencoded so "all" mode doesn't retry it every run.
+        if (saved > 0) {
+          fs.renameSync(tmpFp, item.fp);
+          _job.savedBytes += saved;
+        } else {
+          try { fs.unlinkSync(tmpFp); } catch {}
+          _job.skipped++;
+        }
         setVideoMetaFields(item.id, { reencoded: 1 });
       }
     } catch (e) {
@@ -243,6 +261,7 @@ function apiReencodePoll(req, res) {
       skipped: _job.skipped || 0,
       current: _job.current || '',
       savedBytes: _job.savedBytes || 0,
+      encoder: _job.encoder || '',
     });
   } else {
     json(res, { running: false });

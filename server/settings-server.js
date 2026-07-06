@@ -127,6 +127,11 @@ async function apiSavePrefs(req, res) {
   if ('homeDashboard' in body) {
     prefs.homeDashboard = Array.isArray(body.homeDashboard) ? body.homeDashboard : [];
   }
+  // Home dashboard video-card min width in px (controls how large widget videos render).
+  if ('homeCardSize' in body) {
+    const n = Number(body.homeCardSize);
+    if (Number.isFinite(n)) prefs.homeCardSize = Math.max(120, Math.min(360, Math.round(n)));
+  }
   // Nav item ordering within each bar section ({ sidebar_library: [...ids], topbar: [...ids], ... }).
   if ('collapsedDropdowns' in body) {
     if (Array.isArray(body.collapsedDropdowns)) prefs.collapsedDropdowns = body.collapsedDropdowns.map(String).filter(Boolean).slice(0, 50);

@@ -10,7 +10,29 @@
       "Radio",
       "synthpop",
       "indie pop",
-      "k-pop"
+      "k-pop",
+      "orecchiabile",
+      "pegadizo",
+      "eingängig",
+      "キャッチー",
+      "successo in classifica",
+      "número uno",
+      "Chartstürmer",
+      "ヒット曲",
+      "allegro",
+      "animado",
+      "beschwingt",
+      "アップテンポ",
+      "vocale",
+      "Gesang",
+      "ボーカル",
+      "sintetizzatore",
+      "sintetizador",
+      "シンセサイザー",
+      "ラジオ",
+      "シンセポップ",
+      "Indie-Pop",
+      "インディーポップ"
     ]
   },
   "Hip Hop": {
@@ -25,7 +47,25 @@
       "rap",
       "trap",
       "boom bap",
-      "drill"
+      "drill",
+      "beat",
+      "ritmos",
+      "ビート",
+      "rime",
+      "rimas",
+      "Reime",
+      "ライム",
+      "フロー",
+      "urbano",
+      "アーバン",
+      "campionato",
+      "sampleado",
+      "gesampelt",
+      "サンプリング",
+      "ラップ",
+      "トラップ",
+      "ブームバップ",
+      "ドリル"
     ]
   },
   "Rock": {
@@ -40,7 +80,33 @@
       "indie",
       "punk",
       "alternative",
-      "classic rock"
+      "classic rock",
+      "chitarra",
+      "guitarra",
+      "Gitarre",
+      "ギター",
+      "batteria",
+      "batería",
+      "Schlagzeug",
+      "ドラム",
+      "banda",
+      "バンド",
+      "assolo",
+      "ソロ",
+      "distorsione",
+      "distorsión",
+      "Verzerrung",
+      "ディストーション",
+      "inno",
+      "himno",
+      "Hymne",
+      "アンセム",
+      "インディー",
+      "alternativo",
+      "オルタナティブ",
+      "rock clásico",
+      "クラシックロック",
+      "パンク"
     ]
   },
   "Electronic": {
@@ -53,7 +119,21 @@
       "House",
       "Techno",
       "dnb",
-      "ambient"
+      "ambient",
+      "basso",
+      "bajo",
+      "ベース",
+      "クラブ",
+      "sintetizzatore",
+      "sintetizador",
+      "シンセサイザー",
+      "ハウス",
+      "ディージェイ",
+      "tecno",
+      "テクノ",
+      "ドラムンベース",
+      "ambiental",
+      "アンビエント"
     ]
   },
   "Jazz": {
@@ -61,7 +141,10 @@
     "tags": [
       "jazz",
       "bebop",
-      "swing"
+      "swing",
+      "ジャズ",
+      "ビバップ",
+      "スイング"
     ]
   },
   "Classical": {
@@ -69,7 +152,18 @@
     "tags": [
       "classical",
       "orchestra",
-      "symphony"
+      "symphony",
+      "orquesta",
+      "Orchester",
+      "オーケストラ",
+      "sinfonia",
+      "sinfonía",
+      "Sinfonie",
+      "交響曲",
+      "classica",
+      "clásica",
+      "Klassik",
+      "クラシック"
     ]
   },
   "Metal": {
@@ -77,7 +171,10 @@
     "tags": [
       "metal",
       "heavy",
-      "thrash"
+      "thrash",
+      "pesado",
+      "ヘヴィ",
+      "メタル"
     ]
   },
   "R&B / Soul": {
@@ -85,7 +182,11 @@
     "tags": [
       "rnb",
       "soul",
-      "funk"
+      "funk",
+      "ソウル",
+      "ファンク",
+      "r&b",
+      "アールアンドビー"
     ]
   },
   "Country": {
@@ -93,7 +194,10 @@
     "tags": [
       "country",
       "folk",
-      "americana"
+      "americana",
+      "フォーク",
+      "カントリー",
+      "アメリカーナ"
     ]
   },
   "Lo-Fi": {
@@ -101,7 +205,15 @@
     "tags": [
       "lofi",
       "chill",
-      "study"
+      "study",
+      "relajado",
+      "entspannt",
+      "チル",
+      "studio",
+      "estudio",
+      "Lernen",
+      "勉強",
+      "ローファイ"
     ]
   },
   "Reggae": {
@@ -109,7 +221,10 @@
     "tags": [
       "reggae",
       "dub",
-      "ska"
+      "ska",
+      "ダブ",
+      "レゲエ",
+      "スカ"
     ]
   }
 }

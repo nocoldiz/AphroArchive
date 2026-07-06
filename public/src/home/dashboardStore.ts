@@ -23,9 +23,18 @@ export interface WidgetInstance {
 export const dashboardLayout = signal<WidgetInstance[]>([]);
 export const dashEditMode = signal<boolean>(false);
 
+// Min width (px) of a video card inside widgets. Larger → fewer, bigger videos
+// per row. Persisted alongside the layout (localStorage + server prefs).
+export const DASH_CARD_MIN = 120;
+export const DASH_CARD_MAX = 360;
+export const DASH_CARD_DEFAULT = 190;
+export const dashCardSize = signal<number>(DASH_CARD_DEFAULT);
+let _appliedCardSize = false;
+
 let _appliedAny = false;     // have we put *any* layout on screen yet?
 let _appliedServer = false;  // have we applied the server-saved layout yet?
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+let _cardSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function makeIid(): string {
   return 'w_' + Math.random().toString(36).slice(2, 9);
@@ -42,6 +51,17 @@ export function defaultLayout(): WidgetInstance[] {
 // server-saved layout wins and is applied once it arrives; until then we
 // show the localStorage / default layout. Never clobbers in-progress edits.
 export function loadDashboard() {
+  // Card size: server pref wins once it arrives; fall back to localStorage.
+  if (!_appliedCardSize) {
+    const srv = Number((appPrefs.value as any).homeCardSize);
+    if (Number.isFinite(srv) && srv > 0) {
+      dashCardSize.value = clampCardSize(srv);
+      _appliedCardSize = true;
+    } else {
+      const ls = Number(localStorage.getItem('homeCardSize'));
+      if (Number.isFinite(ls) && ls > 0) dashCardSize.value = clampCardSize(ls);
+    }
+  }
   const saved = (appPrefs.value as any).homeDashboard;
   if (Array.isArray(saved) && saved.length) {
     if (_appliedServer) return;
@@ -69,6 +89,21 @@ export function saveDashboard() {
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
     updatePrefs({ homeDashboard: layout } as any).catch(() => {});
+  }, 600);
+}
+
+export function clampCardSize(n: number): number {
+  return Math.max(DASH_CARD_MIN, Math.min(DASH_CARD_MAX, Math.round(n)));
+}
+
+export function setCardSize(n: number) {
+  const v = clampCardSize(n);
+  dashCardSize.value = v;
+  _appliedCardSize = true;
+  try { localStorage.setItem('homeCardSize', String(v)); } catch {}
+  if (_cardSaveTimer) clearTimeout(_cardSaveTimer);
+  _cardSaveTimer = setTimeout(() => {
+    updatePrefs({ homeCardSize: v } as any).catch(() => {});
   }, 600);
 }
 

@@ -367,6 +367,30 @@ function persistDbToDisk() {
   _clearCaches();
 }
 
+// ── Backup / restore (whole-DB) ──────────────────────────────────────
+// Return a clean, self-contained copy of the SQLite database as a Buffer.
+// Checkpoints the WAL first so the copy includes every committed page.
+// Returns null when the DB is still in-memory (fresh install, never persisted).
+function backupDbToBuffer() {
+  if (_dbInMemory) return null;
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
+  try { return fs.readFileSync(DB_FILE); } catch (e) { console.error('[backup] read db failed:', e.message); return null; }
+}
+
+// Replace the on-disk database with the given bytes. Closes the live handle
+// and drops the stale WAL/SHM sidecars so nothing re-applies over the restore.
+// The caller MUST restart the process afterwards — the handle is not reopened.
+function restoreDbFromBuffer(buf) {
+  try { if (db) db.close(); } catch {}
+  db = null;
+  fs.mkdirSync(DB_DIR, { recursive: true });
+  for (const ext of ['-wal', '-shm']) { try { fs.rmSync(DB_FILE + ext, { force: true }); } catch {} }
+  fs.writeFileSync(DB_FILE, buf);
+  _dbInMemory = false;
+}
+
+function getDbFilePath() { return DB_FILE; }
+
 // One-time migration from the old multi-profile layout: promote the previous
 // default profile's DB (aphroarchive_default.db) to the single db.db so existing
 // libraries carry over. Only runs when db.db is absent, so it never clobbers.
@@ -2120,6 +2144,7 @@ module.exports = {
   loadFileVirtualFolders, setFileVirtualFolder, renameFileVirtualFolder, deleteFileVirtualFolder, listFileVirtualFolderNames,
   isDbOnDisk: () => !_dbInMemory,
   persistDbToDisk,
+  backupDbToBuffer, restoreDbFromBuffer, getDbFilePath,
   closeDb: () => { if (db) { db.close(); db = null; } },
   getMediaCounts,
   saveLinksToDb, loadAllVideoTags,

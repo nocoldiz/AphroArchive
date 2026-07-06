@@ -6,7 +6,27 @@
       "historical",
       "contemporary",
       "novel",
-      "short story"
+      "short story",
+      "letterario",
+      "literario",
+      "literarisch",
+      "文学的",
+      "storico",
+      "histórico",
+      "historisch",
+      "歴史的",
+      "contemporaneo",
+      "contemporáneo",
+      "zeitgenössisch",
+      "現代",
+      "romanzo",
+      "novela",
+      "Roman",
+      "小説",
+      "racconto",
+      "cuento",
+      "Kurzgeschichte",
+      "短編"
     ]
   },
   "Sci-Fi": {
@@ -16,7 +36,20 @@
       "cyberpunk",
       "dystopian",
       "future",
-      "dystopia"
+      "dystopia",
+      "ópera espacial",
+      "スペースオペラ",
+      "サイバーパンク",
+      "distopico",
+      "distópico",
+      "dystopisch",
+      "ディストピア",
+      "futuro",
+      "Zukunft",
+      "未来",
+      "distopia",
+      "distopía",
+      "Dystopie"
     ]
   },
   "Fantasy": {
@@ -28,7 +61,29 @@
       "magic",
       "epic",
       "grimdark",
-      "worldbuilding"
+      "worldbuilding",
+      "fantasy epico",
+      "fantasía épica",
+      "epische Fantasy",
+      "エピックファンタジー",
+      "fantasy urbano",
+      "fantasía urbana",
+      "アーバンファンタジー",
+      "mitologia",
+      "mitología",
+      "Mythologie",
+      "神話",
+      "magia",
+      "Magie",
+      "魔法",
+      "epico",
+      "épico",
+      "episch",
+      "叙事詩",
+      "グリムダーク",
+      "construcción de mundos",
+      "Weltenbau",
+      "世界観構築"
     ]
   },
   "Horror": {
@@ -39,7 +94,23 @@
       "psychological",
       "scary",
       "lovecraft",
-      "thriller"
+      "thriller",
+      "gotico",
+      "gótico",
+      "ゴシック",
+      "soprannaturale",
+      "sobrenatural",
+      "übernatürlich",
+      "超自然",
+      "psicologico",
+      "psicológico",
+      "psychologisch",
+      "心理的",
+      "spaventoso",
+      "aterrador",
+      "gruselig",
+      "怖い",
+      "スリラー"
     ]
   },
   "Mystery": {
@@ -49,7 +120,19 @@
       "crime",
       "thriller",
       "whodunit",
-      "noir"
+      "noir",
+      "Detektiv",
+      "探偵",
+      "crimine",
+      "crimen",
+      "Krimi",
+      "犯罪",
+      "スリラー",
+      "giallo",
+      "novela policíaca",
+      "Krimirätsel",
+      "推理もの",
+      "ノワール"
     ]
   },
   "Non-Fiction": {
@@ -59,7 +142,26 @@
       "history",
       "science",
       "philosophy",
-      "memoir"
+      "memoir",
+      "biografia",
+      "biografía",
+      "Biografie",
+      "伝記",
+      "storia",
+      "historia",
+      "Geschichte",
+      "歴史",
+      "scienza",
+      "ciencia",
+      "Wissenschaft",
+      "科学",
+      "filosofia",
+      "filosofía",
+      "Philosophie",
+      "哲学",
+      "memorias",
+      "Memoiren",
+      "回想録"
     ]
   },
   "Poetry": {
@@ -70,7 +172,27 @@
       "verse",
       "anthology",
       "sonnet",
-      "spoken word"
+      "spoken word",
+      "classico",
+      "clásico",
+      "Klassiker",
+      "クラシック",
+      "moderno",
+      "近代",
+      "versi",
+      "verso",
+      "Vers",
+      "詩句",
+      "antologia",
+      "antología",
+      "Anthologie",
+      "アンソロジー",
+      "sonetto",
+      "soneto",
+      "Sonett",
+      "ソネット",
+      "poesía hablada",
+      "スポークンワード"
     ]
   },
   "Romance": {
@@ -78,7 +200,19 @@
     "tags": [
       "historical",
       "contemporary",
-      "love"
+      "love",
+      "storico",
+      "histórico",
+      "historisch",
+      "歴史的",
+      "contemporaneo",
+      "contemporáneo",
+      "zeitgenössisch",
+      "現代",
+      "amore",
+      "amor",
+      "Liebe",
+      "恋愛"
     ]
   },
   "Classics": {
@@ -86,7 +220,18 @@
     "tags": [
       "classic",
       "canon",
-      "literature"
+      "literature",
+      "classico",
+      "clásico",
+      "Klassiker",
+      "クラシック",
+      "canone",
+      "Kanon",
+      "正典",
+      "letteratura",
+      "literatura",
+      "Literatur",
+      "文学"
     ]
   },
   "Book Reviews": {
@@ -94,7 +239,19 @@
     "tags": [
       "review",
       "recommendation",
-      "critique"
+      "critique",
+      "recensione",
+      "reseña",
+      "Testbericht",
+      "レビュー",
+      "raccomandazione",
+      "recomendación",
+      "Empfehlung",
+      "おすすめ",
+      "critica",
+      "crítica",
+      "Kritik",
+      "批評"
     ]
   },
   "Writing Craft": {
@@ -102,7 +259,19 @@
     "tags": [
       "writing",
       "craft",
-      "authorship"
+      "authorship",
+      "scrittura",
+      "escritura",
+      "Schreiben",
+      "執筆",
+      "mestiere",
+      "oficio",
+      "Handwerk",
+      "技法",
+      "paternità letteraria",
+      "autoría",
+      "Autorschaft",
+      "著作"
     ]
   },
   "Manga": {
@@ -110,7 +279,12 @@
     "tags": [
       "manga",
       "comics",
-      "graphic novel"
+      "graphic novel",
+      "fumetti",
+      "cómics",
+      "漫画",
+      "novela gráfica",
+      "グラフィックノベル"
     ]
   },
   "Literary Analysis": {
@@ -118,7 +292,17 @@
     "tags": [
       "analysis",
       "theme",
-      "essay"
+      "essay",
+      "analisi",
+      "análisis",
+      "Analyse",
+      "分析",
+      "tema",
+      "Thema",
+      "テーマ",
+      "saggio",
+      "ensayo",
+      "エッセイ"
     ]
   }
 }
