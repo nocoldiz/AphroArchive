@@ -1,11 +1,13 @@
 ﻿import { useState, useEffect, useRef } from 'preact/hooks';
 import { tagModalState } from '../../store';
+import { saveTagToDb, splitKeywords } from '../../tags';
 
 export const TagModal = () => {
   const state = tagModalState.value;
   const [tags, setTags] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [query, setQuery] = useState('');
+  const [newKeywords, setNewKeywords] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -36,9 +38,10 @@ export const TagModal = () => {
   const handleClose = () => {
     tagModalState.value = { visible: false, vidId: null, linkUrl: null };
     setQuery('');
+    setNewKeywords('');
   };
 
-  const handleAddTag = async (tag: string) => {
+  const handleAddTag = async (tag: string, keywords: string[] = []) => {
     tag = tag.trim();
     if (!tag || tags.some(t => t.toLowerCase() === tag.toLowerCase())) return;
 
@@ -53,7 +56,15 @@ export const TagModal = () => {
       });
     }
 
+    // Every tag lives in the DB too, so it shows up in the sidebar/dropdown
+    // tag list and in future suggestions.
+    if (keywords.length || !suggestions.some(s => s.toLowerCase() === tag.toLowerCase())) {
+      await saveTagToDb(tag, keywords);
+      loadSuggestions();
+    }
+
     setQuery('');
+    setNewKeywords('');
   };
 
   const handleRemoveTag = async (tag: string) => {
@@ -108,7 +119,7 @@ export const TagModal = () => {
             onInput={(e: any) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && query.trim()) {
-                handleAddTag(query.trim());
+                handleAddTag(query.trim(), splitKeywords(newKeywords));
               } else if (e.key === 'Escape') {
                 handleClose();
               }
@@ -130,16 +141,34 @@ export const TagModal = () => {
               {s}
             </span>
           ))}
-          {query && !suggestions.some(s => s.toLowerCase() === query.toLowerCase()) && (
-            <span
-              className="p-tag-picker-item"
-              onClick={() => handleAddTag(query)}
-              style={{ background: 'var(--ac)', color: '#fff', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
-            >
-              Add "{query}"
-            </span>
-          )}
         </div>
+
+        {/* Create new tag (saved to DB → listed in sidebar/dropdown) */}
+        {query.trim() && !suggestions.some(s => s.toLowerCase() === query.trim().toLowerCase()) && (
+          <div style={{ marginTop: '15px', paddingTop: '12px', borderTop: '1px solid var(--brd)' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--tx3)', marginBottom: '6px' }}>New tag "{query.trim()}"</div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="text"
+                value={newKeywords}
+                onInput={(e: any) => setNewKeywords(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddTag(query.trim(), splitKeywords(newKeywords));
+                  else if (e.key === 'Escape') handleClose();
+                }}
+                placeholder="Related keywords (comma-separated, optional)"
+                style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }}
+              />
+              <button
+                type="button"
+                onClick={() => handleAddTag(query.trim(), splitKeywords(newKeywords))}
+                style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 14px', cursor: 'pointer', fontSize: '0.8rem' }}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

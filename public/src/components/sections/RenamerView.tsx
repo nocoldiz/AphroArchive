@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { signal } from '@preact/signals';
-import { allVideos, loadVideos, applyVideoIdChange } from '../../store';
+import { allVideos, loadVideos, applyVideoIdChange, videoPreviewModalState } from '../../store';
 import { Video } from '../../types';
 import { renameVideo } from '../../api';
 import { alertDialog } from '../../dialog';
@@ -26,6 +26,18 @@ const GENERIC = new Set([
 ]);
 
 const stripExt = (name: string) => name.replace(/\.[^.]+$/, '').trim();
+
+const openPreview = (id: string, title: string) => {
+  videoPreviewModalState.value = { visible: true, vidId: id, title };
+};
+
+const PreviewButton = ({ id, title }: { id: string; title: string }) => (
+  <button type="button" onClick={() => openPreview(id, title)} title="Play video in a preview modal"
+    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+    Preview
+  </button>
+);
 
 // Returns a short reason string when the name is unclear, or null when it's fine.
 function unclearReason(rawName: string, knownWords: Set<string>, knownPhrases: string[]): string | null {
@@ -341,6 +353,7 @@ export const RenamerView = () => {
                             {reason}
                           </span>
                           {video.category && <span style={{ fontSize: '10px', color: 'var(--tx3)' }}>📁 {video.category}</span>}
+                          <PreviewButton id={video.id} title={video.name} />
                         </div>
                         <RenameCell
                           video={video}
@@ -390,7 +403,12 @@ export const RenamerView = () => {
                       onError={(e: any) => { e.target.style.display = 'none'; }} />
                   </td>
                   <td style={{ padding: '10px 8px', fontSize: '12px', color: 'var(--tx3)', textDecoration: 'line-through' }}>{r.oldName}</td>
-                  <td style={{ padding: '10px 8px', fontSize: '13px', color: 'var(--tx)', fontWeight: 500 }}>{r.newName}</td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px', color: 'var(--tx)', fontWeight: 500 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {r.newName}
+                      <PreviewButton id={r.id} title={r.newName} />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

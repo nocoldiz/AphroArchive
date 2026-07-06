@@ -1,12 +1,14 @@
 ﻿import { currentView, currentVideo } from '../../store';
 import { VisionModal } from '../modals/VisionModal';
 import { TagModal } from '../modals/TagModal';
+import { CreateTagModal } from '../modals/CreateTagModal';
 import { ActorModal } from '../modals/ActorModal';
 import { ChannelModal } from '../modals/ChannelModal';
 import { VaultZipModal } from '../modals/VaultZipModal';
 import { LinkIframeModal } from '../modals/LinkIframeModal';
 import { ContextMenu } from './ContextMenu';
 import { RenameModal } from '../modals/RenameModal';
+import { VideoPreviewModal } from '../modals/VideoPreviewModal';
 import { MoveModal } from '../modals/MoveModal';
 import { BrowseView } from '../sections/BrowseView';
 import { SearchResultsView } from '../sections/SearchResultsView';
@@ -190,11 +192,13 @@ export const MainContent = () => {
       </Suspense>
       <ContextMenu />
       <TagModal />
+      <CreateTagModal />
       <ActorModal />
       <ChannelModal />
       <VaultZipModal />
       <LinkIframeModal />
       <RenameModal />
+      <VideoPreviewModal />
       <MoveModal />
       <VisionModal />
       <VaultUnlockModal />

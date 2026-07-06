@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
-import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, isLoadingVideos, dbPendingOpen, appPrefs } from '../../store';
+import { currentView, currentPhotoFolder, isSidebarOpen, isVaultUnlocked, isLoadingVideos, createTagModalState, appPrefs } from '../../store';
 import { pluginsList, isPluginEnabled, loadPlugins, runPluginAction } from '../../plugins';
 import { SidebarItem, FoldersFilter, TagsFilter, LinksFilter, type FoldersFilterControl } from './LibraryFilters';
 import { LoadProgress } from './LoadProgress';
@@ -476,7 +476,7 @@ export const Sidebar = () => {
             action={
               <>
               <LoadProgress size={16} />
-              <button type="button" className="sidebar-heading-add" title="New tag group" onClick={(e) => { e.stopPropagation(); currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; }}>
+              <button type="button" className="sidebar-heading-add" title="New tag" onClick={(e) => { e.stopPropagation(); createTagModalState.value = { visible: true, name: '', keywords: [] }; }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />

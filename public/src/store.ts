@@ -148,6 +148,16 @@ export const tagModalState = signal<{
   linkUrl: null
 });
 
+export const createTagModalState = signal<{
+  visible: boolean;
+  name: string;
+  keywords: string[];
+}>({
+  visible: false,
+  name: '',
+  keywords: []
+});
+
 export const actorModalState = signal<{
   visible: boolean;
   vidId: string | null;
@@ -192,6 +202,16 @@ export const renameModalState = signal<{
   vidId: null,
   linkUrl: null,
   currentName: ''
+});
+
+export const videoPreviewModalState = signal<{
+  visible: boolean;
+  vidId: string | null;
+  title: string;
+}>({
+  visible: false,
+  vidId: null,
+  title: ''
 });
 
 export const moveModalState = signal<{

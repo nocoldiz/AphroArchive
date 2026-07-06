@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
-import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, dbPendingOpen, isSidebarOpen, closeOpenedFolder, linkTotalCount, applyVideoIdChange } from '../../store';
+import { currentView, currentFolder, folders, currentTag, currentTagTerms, appPrefs, sourceFilter, allVideos, isVaultUnlocked, searchQuery, isLoadingVideos, createTagModalState, isSidebarOpen, closeOpenedFolder, linkTotalCount, applyVideoIdChange } from '../../store';
 import { placementFor, openMoveMenu, FILTER_IDS, sectionPlacementFor, openSectionMoveMenu, getNavItems, navIcon, type NavSection, isDropdownShrunken, toggleDropdownShrunken, pluginGroupLocation, pluginInGroup, PLUGINS_GROUP_ID } from './navItems';
 import { pluginsList, isPluginEnabled, runPluginAction, type PluginMeta } from '../../plugins';
 import { zapOn } from '../../zap';
@@ -821,7 +821,7 @@ export const FilterDropdowns = () => {
               <div className="filter-dropdown-head">
                 <span>Tags</span>
                 <div style={{ display: 'flex', gap: '4px' }}>
-                  {addBtn(() => { currentView.value = 'database'; dbPendingOpen.value = { tab: 'folders', action: 'add' }; close(); }, 'New tag group')}
+                  {addBtn(() => { createTagModalState.value = { visible: true, name: '', keywords: [] }; close(); }, 'New tag')}
                   <ShrinkBtn dropdownId="filter-tags" />
                 </div>
               </div>
