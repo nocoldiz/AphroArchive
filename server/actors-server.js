@@ -7,7 +7,6 @@ const fs    = require('fs');
 const path  = require('path');
 const http  = require('http');
 const https = require('https');
-const url   = require('url');
 const { ACTOR_PHOTOS_DIR } = require('./config-server');
 const { json, actorMatchesAny, toId } = require('./helpers-server');
 const { loadActors, saveActors, loadVideoMeta, loadFavs, invalidateDbTypeCache } = require('./db-server');
@@ -108,8 +107,8 @@ async function apiActorVideos(req, res, actorName) {
   const favs     = loadFavs();
   const actorLo  = entry.name.toLowerCase();
 
-  const parsed = require('url').parse(req.url, true);
-  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+  const q   = new URL(req.url, 'http://localhost').searchParams;
+  const fav = (q.get('fav') === '1' || q.get('fav') === 'true');
 
   let list = videos
     .filter(v => {

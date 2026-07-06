@@ -3,12 +3,17 @@ set -e
 
 # ============================================================
 # Parse flags: --windows --linux --mac
+# --desktop  ALSO build the standalone "AphroArchive Desktop" app
+#            (Electron, runs in its own window — NOT the browser)
+#            for the selected platforms, in addition to the pkg server.
 # --publish  publishes the built artifacts to a GitHub release
-# No platform flags = build all platforms
+# No flags = build BOTH the pkg server AND the desktop app for every
+#            platform this host can produce (macOS only when on a Mac).
 # ============================================================
 DO_WINDOWS=0
 DO_LINUX=0
 DO_MAC=0
+DO_DESKTOP=0
 DO_PUBLISH=0
 ANY_FLAG=0
 
@@ -17,18 +22,28 @@ for arg in "$@"; do
     --windows) DO_WINDOWS=1; ANY_FLAG=1 ;;
     --linux)   DO_LINUX=1;   ANY_FLAG=1 ;;
     --mac)     DO_MAC=1;     ANY_FLAG=1 ;;
+    --desktop) DO_DESKTOP=1 ;;
     --publish) DO_PUBLISH=1 ;;
     *) echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac
 done
 
+# Detect host OS — macOS binaries can only be produced on a Mac.
+IS_MAC=0
+[ "$(uname -s)" = "Darwin" ] && IS_MAC=1
+
+# No flags = build the standalone AphroArchive Desktop app for every
+# platform this host can produce (macOS only when running on a Mac).
 if [ "$ANY_FLAG" -eq 0 ]; then
-  DO_WINDOWS=1; DO_LINUX=1; DO_MAC=1
+  DO_DESKTOP=1
+  DO_WINDOWS=1; DO_LINUX=1
+  [ "$IS_MAC" -eq 1 ] && DO_MAC=1
 fi
 
 [ "$DO_WINDOWS" -eq 1 ] && echo " Target: Windows"
 [ "$DO_LINUX"   -eq 1 ] && echo " Target: Linux"
 [ "$DO_MAC"     -eq 1 ] && echo " Target: macOS"
+[ "$DO_DESKTOP" -eq 1 ] && echo " Build:  AphroArchive Desktop (standalone Electron app)"
 [ "$DO_PUBLISH" -eq 1 ] && echo " Publish: GitHub Releases"
 echo
 
@@ -136,6 +151,24 @@ SETUP
 fi
 
 # ============================================================
+# AphroArchive Desktop  (standalone Electron app — own window)
+# ============================================================
+if [ "$DO_DESKTOP" -eq 1 ]; then
+  echo "[desktop] Building AphroArchive Desktop (Electron standalone app)..."
+  EB_TARGETS=""
+  [ "$DO_WINDOWS" -eq 1 ] && EB_TARGETS="$EB_TARGETS --win"
+  [ "$DO_LINUX"   -eq 1 ] && EB_TARGETS="$EB_TARGETS --linux"
+  [ "$DO_MAC"     -eq 1 ] && EB_TARGETS="$EB_TARGETS --mac"
+
+  if npx electron-builder $EB_TARGETS; then
+    echo " done: dist/electron/"
+  else
+    echo " WARNING: Electron build failed (mac requires macOS; some linux/win targets may need extra tooling)"
+  fi
+  echo
+fi
+
+# ============================================================
 # Firefox Extension
 # ============================================================
 echo "[firefox] Packaging Firefox extension..."
@@ -150,9 +183,10 @@ echo
 echo "============================================================"
 echo " Build complete. Outputs in dist/:"
 echo
-[ -f dist/AphroArchive.exe          ] && echo "   AphroArchive.exe            Windows x64"
-[ -f dist/AphroArchive-linux        ] && echo "   AphroArchive-linux          Linux x64"
-[ -f dist/AphroArchive-mac.zip          ] && echo "   AphroArchive-mac.zip            macOS (arm64 + x64)"
+[ -f dist/AphroArchive.exe          ] && echo "   AphroArchive.exe            Windows x64 (browser/server)"
+[ -f dist/AphroArchive-linux        ] && echo "   AphroArchive-linux          Linux x64 (browser/server)"
+[ -f dist/AphroArchive-mac.zip          ] && echo "   AphroArchive-mac.zip            macOS (arm64 + x64, browser/server)"
+[ -d dist/electron                      ] && echo "   electron/                       AphroArchive Desktop (standalone app)"
 [ -f dist/AphroArchive-firefox.xpi      ] && echo "   AphroArchive-firefox.xpi        Firefox extension"
 echo "============================================================"
 echo
@@ -182,7 +216,7 @@ if [ "$DO_PUBLISH" -eq 1 ]; then
     dist/AphroArchive-firefox.xpi; do
     [ -f "$f" ] && ASSETS+=("$f")
   done
-  for f in dist/electron/*.exe; do
+  for f in dist/electron/*.exe dist/electron/*.AppImage dist/electron/*.dmg; do
     [ -f "$f" ] && ASSETS+=("$f")
   done
 

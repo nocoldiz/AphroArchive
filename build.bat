@@ -3,14 +3,19 @@ setlocal EnableDelayedExpansion
 echo.
 
 :: ============================================================
-:: Parse flags: --windows --linux --mac --electron
+:: Parse flags: --windows --linux --electron --desktop
+:: --desktop  ALSO build the standalone "AphroArchive Desktop" app
+::            (Electron, runs in its own window — NOT the browser)
+::            for the selected platforms, in addition to the pkg server.
+:: --electron builds only the Windows Electron installer (legacy).
 :: --publish  publishes the built artifacts to a GitHub release
-:: No platform flags = build all platforms
+:: No flags = build BOTH the pkg server AND the desktop app for
+::            Windows + Linux. macOS is Mac-only, so it is not built here.
 :: ============================================================
 set DO_WINDOWS=0
 set DO_LINUX=0
-set DO_MAC=0
 set DO_ELECTRON=0
+set DO_DESKTOP=0
 set DO_PUBLISH=0
 set ANY_FLAG=0
 
@@ -18,36 +23,38 @@ set ANY_FLAG=0
 if "%~1"=="" goto :done_args
 if /i "%~1"=="--windows"  ( set DO_WINDOWS=1  & set ANY_FLAG=1 )
 if /i "%~1"=="--linux"    ( set DO_LINUX=1    & set ANY_FLAG=1 )
-if /i "%~1"=="--mac"      ( set DO_MAC=1      & set ANY_FLAG=1 )
 if /i "%~1"=="--electron" ( set DO_ELECTRON=1 & set ANY_FLAG=1 )
+if /i "%~1"=="--desktop"  ( set DO_DESKTOP=1 )
 if /i "%~1"=="--publish"  ( set DO_PUBLISH=1 )
 shift
 goto :parse_args
 :done_args
 
+:: No flags = build everything this host can produce (Windows + Linux),
+:: both the pkg server and the standalone desktop app.
 if !ANY_FLAG!==0 (
   set DO_WINDOWS=1
   set DO_LINUX=1
-  set DO_MAC=1
+  set DO_DESKTOP=1
 )
 
-if !DO_WINDOWS!==1  echo  Target: Windows ^(pkg exe^)
+if !DO_DESKTOP!==1  echo  Build:  AphroArchive Desktop ^(standalone Electron app^)
+if !DO_WINDOWS!==1  echo  Target: Windows
 if !DO_ELECTRON!==1 echo  Target: Windows ^(Electron installer^)
 if !DO_LINUX!==1    echo  Target: Linux
-if !DO_MAC!==1      echo  Target: macOS
 if !DO_PUBLISH!==1  echo  Publish: GitHub Releases
 echo.
 
 if not exist dist mkdir dist
 
 :: ============================================================
-:: Frontend build — desktop (needed for Windows / Linux / Mac)
+:: Frontend build — desktop (needed for Windows / Linux)
 :: ============================================================
 set NEED_DESKTOP=0
 if !DO_WINDOWS!==1  set NEED_DESKTOP=1
 if !DO_LINUX!==1    set NEED_DESKTOP=1
-if !DO_MAC!==1      set NEED_DESKTOP=1
 if !DO_ELECTRON!==1 set NEED_DESKTOP=1
+if !DO_DESKTOP!==1  set NEED_DESKTOP=1
 
 if !NEED_DESKTOP!==1 (
   echo [build] Building frontend ^(desktop^)...
@@ -91,54 +98,22 @@ if !DO_LINUX!==1 (
 )
 
 :: ============================================================
-:: macOS (arm64 + x64 universal zip)
+:: AphroArchive Desktop  (standalone Electron app — own window)
+:: macOS is not built here — a .dmg can only be produced on a Mac.
 :: ============================================================
-if !DO_MAC!==1 (
-  echo [mac] Packaging macOS...
-
-  call npx pkg . --targets node24-macos-arm64 --output dist\AphroArchive-macos-arm64 --compress GZip
-  if %ERRORLEVEL% NEQ 0 (
-    echo  WARNING: macOS arm64 build failed ^(cross-compilation from Windows is unsupported^)
-    echo  Skipping macOS package. Build on macOS or use CI to produce mac binaries.
-    goto :after_mac
-  )
-
-  call npx pkg . --targets node24-macos-x64 --output dist\AphroArchive-macos-x64 --compress GZip
-  if %ERRORLEVEL% NEQ 0 (
-    echo  WARNING: macOS x64 build failed
-    goto :after_mac
-  )
-
-  set STAGE=dist\mac-stage
-  if exist "!STAGE!" rmdir /s /q "!STAGE!"
-  mkdir "!STAGE!"
-  mkdir "!STAGE!\AphroArchive.app\Contents\MacOS"
-  mkdir "!STAGE!\AphroArchive.app\Contents\Resources"
-
-  copy dist\AphroArchive-macos-arm64 "!STAGE!\AphroArchive-macos-arm64" >nul
-  copy dist\AphroArchive-macos-x64   "!STAGE!\AphroArchive-macos-x64"   >nul
-  del dist\AphroArchive-macos-arm64
-  del dist\AphroArchive-macos-x64
-
-  call powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0stage-mac.ps1" -StageDir "!STAGE!"
-  if !ERRORLEVEL! NEQ 0 ( echo  WARNING: mac staging failed & goto :after_mac )
-
-  echo   [mac] Creating .dmg ^(UDF image^)...
-  call powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0make-dmg.ps1" -SourceDir "!STAGE!" -VolumeName AphroArchive -Output "dist\AphroArchive-mac.dmg"
+if !DO_DESKTOP!==1 (
+  echo [desktop] Building AphroArchive Desktop ^(Electron standalone app^)...
+  set EB_TARGETS=
+  if !DO_WINDOWS!==1  set EB_TARGETS=!EB_TARGETS! --win
+  if !DO_LINUX!==1    set EB_TARGETS=!EB_TARGETS! --linux
+  call npx electron-builder !EB_TARGETS!
   if !ERRORLEVEL! NEQ 0 (
-    if exist dist\AphroArchive-mac.dmg del dist\AphroArchive-mac.dmg
-    echo  WARNING: .dmg creation failed; the .zip below is the usable artifact
+    echo  WARNING: Electron build failed ^(linux AppImage from Windows may need extra tooling^)
+  ) else (
+    echo  done: dist\electron\
   )
-
-  if exist dist\AphroArchive-mac.zip del dist\AphroArchive-mac.zip
-  powershell -NoProfile -Command "Compress-Archive -Path 'dist\mac-stage\*' -DestinationPath 'dist\AphroArchive-mac.zip' -Force"
-  rmdir /s /q "!STAGE!"
-
-  if exist dist\AphroArchive-mac.dmg echo  done: dist\AphroArchive-mac.dmg
-  echo  done: dist\AphroArchive-mac.zip
   echo.
 )
-:after_mac
 
 :: ============================================================
 :: Firefox Extension
@@ -155,12 +130,10 @@ echo.
 echo ============================================================
 echo  Build complete. Outputs in dist\:
 echo.
-if exist dist\AphroArchive.exe              echo    AphroArchive.exe            Windows x64 ^(pkg^)
-if exist dist\electron\                     echo    electron\                   Windows Electron installer
-if exist dist\AphroArchive-linux            echo    AphroArchive-linux          Linux x64
-if exist dist\AphroArchive-mac.dmg          echo    AphroArchive-mac.dmg        macOS ^(arm64 + x64, UDF .dmg^)
-if exist dist\AphroArchive-mac.zip          echo    AphroArchive-mac.zip        macOS ^(arm64 + x64, zip fallback^)
-if exist dist\AphroArchive-firefox.xpi      echo    AphroArchive-firefox.xpi    Firefox extension
+if exist dist\AphroArchive.exe              echo    AphroArchive.exe                  Windows x64 ^(pkg, browser/server^)
+if exist dist\AphroArchive-linux            echo    AphroArchive-linux                Linux x64 ^(pkg, browser/server^)
+if exist dist\electron\                     echo    electron\AphroArchive-Desktop-*   AphroArchive Desktop ^(standalone app^)
+if exist dist\AphroArchive-firefox.xpi      echo    AphroArchive-firefox.xpi          Firefox extension
 echo ============================================================
 echo.
 
@@ -185,10 +158,8 @@ if !DO_PUBLISH!==1 (
   set ASSETS=
   if exist dist\AphroArchive.exe          set ASSETS=!ASSETS! "dist\AphroArchive.exe"
   if exist dist\AphroArchive-linux        set ASSETS=!ASSETS! "dist\AphroArchive-linux"
-  if exist dist\AphroArchive-mac.dmg      set ASSETS=!ASSETS! "dist\AphroArchive-mac.dmg"
-  if exist dist\AphroArchive-mac.zip      set ASSETS=!ASSETS! "dist\AphroArchive-mac.zip"
   if exist dist\AphroArchive-firefox.xpi  set ASSETS=!ASSETS! "dist\AphroArchive-firefox.xpi"
-  if exist dist\electron for %%f in (dist\electron\*.exe) do set ASSETS=!ASSETS! "%%f"
+  if exist dist\electron for %%f in (dist\electron\*.exe dist\electron\*.AppImage dist\electron\*.dmg) do set ASSETS=!ASSETS! "%%f"
 
   if "!ASSETS!"=="" ( echo  FAILED: no build artifacts found in dist\ & exit /b 1 )
 

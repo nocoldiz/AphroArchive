@@ -426,3 +426,36 @@ Cross-cutting improvements that build on subsystems that already exist.
 ---
 
 > Highest priority: **command palette**, **transcript search**, **video joiner**, **multi-filter**, **episode progress tracking**
+
+---
+
+## UI test pass — packaged exe E:\AphroArchive\AphroArchive.exe (2026-07-06)
+
+Full click-through of every topbar menu, view, settings tab and plugin mode in headless Edge against the running exe (2221 videos indexed). Everything not listed below rendered and behaved correctly with zero console errors: home dashboard (+ Edit mode), Favourites, Recently Watched, Actors, Series, Chapters, Download Queue, Database (all 8 tabs), Guide, Videos/Photos/Screenshots/Audio/Books/Files/Pages, RSS, Web Search (Sites/Scrape/History), AI Prompts, Subtitles, Categorizer, Renamer, Duplicates (30 groups / 4.6 GB found), Corrupted, Assistant, Links, all four sorts, Starred Only, Filters panel, Shuffle, Select-all bulk bar, right-click context menu, folder + tag navigation, topbar search → results, player + all controls, actor page, Instagram/Reddit/Radio/TV/Zapping modes, Panoramic mode, all 7 Settings tabs, Sync & Downloads popups, vault-locked modal.
+
+### Broken — all fixed 2026-07-06 (needs `npm run build:win` to reach the exe)
+
+- [x] **Playlist view is completely blank** — legacy `style.css` had `.collections-view { display: none }` gated on an `.on` class the Preact view never adds; the view was fully rendered but invisible. Removed the gate.
+- [x] **Connect modal: QR code never renders** — `qrcode.min.js` lived in `public/` (the Vite *root*), not `public-static/` (the `publicDir`), so builds never shipped it and the SPA fallback served index.html as JS (`Unexpected token '<'`). Moved to `public-static/`; verified present in `dist/public` after build.
+- [x] **Connect modal ignores Escape** — added a keydown handler in ConnectModal.
+- [x] **"By year" grouping produces garbage buckets** — root cause: the scan stores `mtime` in **ms** (`st.mtimeMs`) while VideoGrid multiplied by 1000 again, so *every* video landed in a ~58xxx bucket (also broke the "Added" date in list view). Added `mtimeToMs()` normaliser + an "Unknown" bucket for out-of-range years.
+- [x] **Folders menu lists "Cosplay" twice** — pinned folders weren't excluded from the folder tree (pinned tags already were). Pinned paths are now filtered from the tree; children of a pinned folder are promoted to root so they stay reachable.
+
+### Console/log noise & performance — all fixed 2026-07-06
+
+- [x] **Missing thumbnails spam 404s** — `/api/thumbs/:id/:idx` now serves a quiet dark SVG placeholder (200, `no-store`) instead of 404 when no thumb exists; applies everywhere with zero client changes.
+- [x] **ffmpeg retries corrupted files forever** — `apiThumbGen` now short-circuits on a cached `count: 0` entry with matching mtime (`{ failed: true }`) instead of re-spawning ffmpeg per card view. `?force=1` and Generate All still retry.
+- [x] **`/api/thumbnails` takes ~18 s (1.2 MB)** — now answered from the SQLite `thumbs_cache` (0.2 s in dev) with the fs walk kept only as a fallback for a cold/empty cache.
+- [x] **Database → Actors tab shows bare "Loading…" for ~8 s** — `/api/db/actors` itself is an in-memory read; the slowness was event-loop starvation from the ffmpeg retry storm above. No separate fix; re-check after rebuild.
+- [x] **`/api/vault/favs` 401 while vault locked** — InstagramView now only fetches vault favs when `/api/vault/status` reports unlocked (RedditView already did).
+- [x] **Node DeprecationWarning DEP0169** — replaced the five `require('url').parse(req.url, true)` sites (videos/actors/collections servers) with WHATWG `new URL()`.
+
+### Polish / questionable states — fixed 2026-07-06 unless noted
+
+- [x] **Zero-byte videos rendered as playable cards** — cards for 0-byte files now show a red "⚠ empty file" badge (kept visible so the Corrupted finder can still surface them).
+- [x] **Folders menu shows empty folders** — the synthetic `Uncategorized 0` entry is now hidden when empty. Real empty folders (`decrypted 0`) remain governed by the existing `hideEmptyFolders` pref (Settings), unchanged by design.
+- [x] **Links menu contains a dead "All Videos 0" entry** — hidden until there are link videos to browse.
+- [x] **Continue Watching is a huge empty box when idle** — any widget showing only its `.dw-empty` state now collapses to one grid row (CSS `:has()`, skipped in edit mode).
+- [x] **Home grid leaves a dead right column** — not reproducible in current code: `.dash` is full-width and the default layout spans all 4 columns (verified dash width == main width in dev). The exe screenshot likely reflects an older saved layout — use Edit home → Reset if it persists after rebuild.
+- [x] **Mosaic Mode enabled but not reachable** — plugin `contexts` use `'home'` but the dashboard view is named `'hub'`, so the context filter never matched. Both the Plugins dropdown and pinned topbar icons now map `home → hub`; Mosaic shows in the Plugins menu on the dashboard.
+- [x] **Books view lists utility text files** — added a persisted file-type `<select>` (All types / PDF / EPUB / TXT / …) to the Books header, shown when more than one extension is present.

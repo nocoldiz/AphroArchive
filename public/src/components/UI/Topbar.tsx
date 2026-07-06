@@ -49,7 +49,8 @@ export const Topbar = () => {
   // standalone icons here; the rest live in the grouped <PluginsDropdown />.
   const topbarPlugins = pluginsList.value
     .filter(p => placements[p.id] === 'topbar' && isPluginEnabled(p.id))
-    .filter(p => !p.contexts || p.contexts.includes(view));
+    // Plugin metas use 'home' for the dashboard, whose view name is 'hub'.
+    .filter(p => !p.contexts || p.contexts.includes(view) || (view === 'hub' && p.contexts.includes('home')));
 
   const allSlots: TopbarSlot[] = [
     { kind: 'search', id: 'search-bar' },

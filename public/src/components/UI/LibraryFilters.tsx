@@ -134,6 +134,13 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
     const hideEmpty = !!appPrefs.value.hideEmptyFolders && !isLoadingVideos.value;
     let list = hideEmpty ? displayFolders.filter(c => c.count > 0) : displayFolders;
     list = list.filter(c => !isFolderHidden(c.path));
+    // The synthetic Uncategorized entry is noise when nothing is uncategorized.
+    list = list.filter(c => c.path !== 'uncategorized' || c.count > 0);
+    // Pinned folders already render in the pinned section above the tree
+    // (same dedupe the tags list does); children of a pinned folder are
+    // promoted to root level so they stay reachable.
+    const pins = new Set(appPrefs.value.pinnedFolders || []);
+    if (pins.size) list = list.filter(c => !pins.has(c.path));
     const byPath = new Map<string, CatTreeNode>();
     const roots: CatTreeNode[] = [];
     for (const c of list) byPath.set(c.path, { cat: c, children: [] });
@@ -445,6 +452,9 @@ export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onN
 
   return (
     <>
+      {/* In the Links dropdown a zero-count "All Videos" entry is dead weight —
+          only show it once there are link videos to browse. */}
+      {(!linksOnly || filteredVids.length > 0) && (
       <SidebarItem
         label="All Videos"
         badge={filteredVids.length}
@@ -458,6 +468,7 @@ export const TagsFilter = ({ onNavigate, linksOnly = false, filter = '' }: { onN
         }}
         isActive={!currentFolder.value && !currentTag.value && sourceFilter.value !== (linksOnly ? 'local' : 'remote')}
       />
+      )}
       {pinnedTagsList.filter(t => matchName(t.name)).map(t => (
         <SidebarItem
           key={`pintag-${t.name}`}
@@ -645,8 +656,11 @@ export const PluginsDropdown = () => {
 
   if (pluginGroupLocation() !== 'topbar') return null;
 
+  // Plugin metas use 'home' for the dashboard, whose view name is 'hub'.
+  const matchesContext = (p: PluginMeta) =>
+    !p.contexts || p.contexts.includes(view) || (view === 'hub' && p.contexts.includes('home'));
   const plugins = pluginsList.value.filter(p =>
-    pluginInGroup(p) && isPluginEnabled(p.id) && (!p.contexts || p.contexts.includes(view))
+    pluginInGroup(p) && isPluginEnabled(p.id) && matchesContext(p)
   );
   if (!plugins.length) return null;
 

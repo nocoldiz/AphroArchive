@@ -1,4 +1,4 @@
-import { formatVideoTitle } from '../../utils';
+import { formatVideoTitle, mtimeToMs } from '../../utils';
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
 import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
@@ -510,6 +510,11 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
         </div>
 
         <div style={{ position: 'absolute', bottom: '5px', left: '5px', right: '5px', display: 'flex', justifyContent: 'space-between', zIndex: 2 }}>
+          {!video.isLink && video.size === 0 && (
+            <div title="File is empty (0 bytes) — likely a broken download" style={{ background: 'rgba(160,40,40,0.85)', color: 'white', padding: '2px 5px', borderRadius: '3px', fontSize: '0.75rem' }}>
+              ⚠ empty file
+            </div>
+          )}
           {video.size > 0 && (
             <div style={{ background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 5px', borderRadius: '3px', fontSize: '0.75rem' }}>
               {(video.size / 1024 / 1024).toFixed(1)} MB
@@ -578,7 +583,7 @@ const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: 
     if (i !== -1) { list[i] = { ...list[i], fav: d.fav }; videos.value = list; }
   };
 
-  const date = new Date(video.mtime * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const date = new Date(mtimeToMs(video.mtime)).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const sizeMb = video.size > 0 ? `${(video.size / 1_048_576).toFixed(1)} MB` : '—';
 
   return (
@@ -1100,8 +1105,9 @@ export const VideoGrid = () => {
     // range selection works across groups.
     const groupMap = new Map<string, { v: Video; idx: number }[]>();
     visible.forEach((v, idx) => {
-      const year = new Date(v.mtime * 1000).getFullYear();
-      const label = groupMode === 'decade' ? `${Math.floor(year / 10) * 10}s` : String(year);
+      const year = new Date(mtimeToMs(v.mtime)).getFullYear();
+      const valid = year >= 1970 && year <= new Date().getFullYear() + 1;
+      const label = !valid ? 'Unknown' : groupMode === 'decade' ? `${Math.floor(year / 10) * 10}s` : String(year);
       if (!groupMap.has(label)) groupMap.set(label, []);
       groupMap.get(label)!.push({ v, idx });
     });

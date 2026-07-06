@@ -70,8 +70,8 @@ async function apiCollectionVideos(req, res, name) {
   const byId   = new Map(videos.map(v => [v.id, v]));
   const favs   = new Set(require('./db-server').loadFavs());
 
-  const parsed = require('url').parse(req.url, true);
-  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+  const q   = new URL(req.url, 'http://localhost').searchParams;
+  const fav = (q.get('fav') === '1' || q.get('fav') === 'true');
 
   let list = col.ids.map(id => {
     const v = byId.get(id);

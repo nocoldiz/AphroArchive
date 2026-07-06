@@ -2254,8 +2254,8 @@ async function apiTagVideos(req, res, tagName) {
   const favs   = loadFavs();
   const tagLo  = tagName.toLowerCase();
 
-  const parsed = require('url').parse(req.url, true);
-  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+  const q   = new URL(req.url, 'http://localhost').searchParams;
+  const fav = (q.get('fav') === '1' || q.get('fav') === 'true');
 
   let list = videos
     .filter(v => (meta[v.id]?.tags || []).some(t => t.toLowerCase() === tagLo))
@@ -2308,8 +2308,8 @@ async function apiDbTagVideos(req, res, name) {
   const favs    = loadFavs();
   const termsLo = cat.terms.map(t => t.toLowerCase());
 
-  const parsed = require('url').parse(req.url, true);
-  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+  const q   = new URL(req.url, 'http://localhost').searchParams;
+  const fav = (q.get('fav') === '1' || q.get('fav') === 'true');
 
   let list = videos
     .filter(v => {
@@ -2400,8 +2400,8 @@ async function apiChannelVideos(req, res, channelName) {
   const favs     = loadFavs();
   const channelLo = entry.name.toLowerCase();
 
-  const parsed = require('url').parse(req.url, true);
-  const fav    = (parsed.query.fav === '1' || parsed.query.fav === 'true');
+  const q   = new URL(req.url, 'http://localhost').searchParams;
+  const fav = (q.get('fav') === '1' || q.get('fav') === 'true');
 
   let list = videos
     .filter(v => {

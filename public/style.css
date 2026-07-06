@@ -5240,10 +5240,6 @@ body.tv-active .side {
 
 /* ── Collections View ── */
 .collections-view {
-  display: none
-}
-
-.collections-view.on {
   display: block
 }
 
@@ -7027,6 +7023,12 @@ body.tv-active .side {
   color: var(--tx3); font-size: 0.85rem; height: 100%;
   display: flex; align-items: center; padding: 4px 0;
 }
+
+/* A widget showing only its empty state collapses to a single grid row
+   instead of holding its full span as dead space. !important is needed to
+   beat the inline grid-row span the dashboard sets per instance; edit mode
+   keeps the real span so resizing stays predictable. */
+.dash-grid:not(.editing) .dw-wrap:has(.dw-empty) { grid-row: span 1 !important; }
 
 /* video grid — cards wrap and reflow with the widget size */
 .dw-row {

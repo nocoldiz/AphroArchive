@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 import { setItemPlacement, setSectionPlacement, PLUGINS_GROUP_ID } from './navItems';
 import { confirmDialog, promptDialog } from '../../dialog';
+import { moveVideo } from '../../api';
 
 export const ContextMenu = () => {
   const state = contextMenuState.value;
@@ -257,6 +258,43 @@ export const ContextMenu = () => {
     } else {
       toast('Delete failed');
     }
+  };
+
+  const handleTagToFolder = async () => {
+    const tagName = data.name as string;
+    // Folder name must mirror the server's filename sanitisation so create + move agree.
+    const folderName = tagName.trim().replace(/[<>:"|?*/\\]/g, '_');
+    if (!folderName) { toast('Invalid tag name'); return; }
+    if (!await confirmDialog(`Create folder "${folderName}" and move all videos tagged "${tagName}" into it?`)) return;
+    closeMenu();
+
+    // Fetch the authoritative set of videos matching this tag.
+    const vr = await fetch(`/api/db-tags/${encodeURIComponent(tagName)}`);
+    const vd = await vr.json().catch(() => ({}));
+    const vids: any[] = vr.ok ? (vd.videos || []) : [];
+    if (!vids.length) { toast('No videos match this tag'); return; }
+
+    // Create the folder (409 = already exists is fine — we still move into it).
+    const cr = await fetch('/api/folders/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: folderName })
+    });
+    if (!cr.ok && cr.status !== 409) {
+      const cd = await cr.json().catch(() => ({}));
+      toast(cd.error || 'Failed to create folder');
+      return;
+    }
+
+    toast(`Moving ${vids.length} video${vids.length === 1 ? '' : 's'} to "${folderName}"…`);
+    let moved = 0;
+    for (const v of vids) {
+      try { await moveVideo(v.id, folderName); moved++; }
+      catch { /* keep going; some files may be locked or already there */ }
+    }
+    toast(`Moved ${moved} of ${vids.length} video${vids.length === 1 ? '' : 's'} to "${folderName}"`);
+    data.onRefresh?.();
+    refresh();
   };
 
   const toFolderEntries = (cats: any[], rootPath: string): FolderEntry[] =>
@@ -663,6 +701,7 @@ export const ContextMenu = () => {
               <ContextItem label="Unhide all tags" icon="eye" onClick={handleUnhideAllTags} />
             )}
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
+            <ContextItem label="Turn tag into a folder" icon="folder" onClick={handleTagToFolder} />
             <ContextItem label="Rename Tag" icon="edit" onClick={handleRenameTag} />
             <ContextItem label="Remove from all videos" icon="trash" color="#ff4a4a" onClick={handleDeleteTag} />
           </>

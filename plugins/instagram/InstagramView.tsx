@@ -126,11 +126,12 @@ export const InstagramView = () => {
         const s = await (await fetch('/api/vault/status')).json();
         setVaultUnlocked(!!s.unlocked);
         setVaultConfigured(!!s.configured);
-        if (s.unlocked) await loadVaultFiles();
-      } catch {}
-      try {
-        const ids = await (await fetch('/api/vault/favs')).json();
-        if (Array.isArray(ids)) setLikedIds(prev => new Set([...prev, ...ids]));
+        if (s.unlocked) {
+          await loadVaultFiles();
+          // Vault favs are only readable while unlocked — asking earlier just 401s.
+          const ids = await (await fetch('/api/vault/favs')).json();
+          if (Array.isArray(ids)) setLikedIds(prev => new Set([...prev, ...ids]));
+        }
       } catch {}
       try {
         const data = await (await fetch('/api/settings/lists')).json();

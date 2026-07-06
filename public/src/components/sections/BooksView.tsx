@@ -9,6 +9,7 @@ export const BooksView = () => {
   const [books, setBooks] = useState<Book[]>([]);
   const [sort, setSort] = useState<'date' | 'name' | 'size'>('date');
   const [query, setQuery] = useState('');
+  const [extFilter, setExtFilter] = useState<string>(() => localStorage.getItem('booksExtFilter') || 'all');
   const [loading, setLoading] = useState(true);
   const [readingBook, setReadingBook] = useState<any | null>(null);
   const [editContent, setEditContent] = useState('');
@@ -208,7 +209,14 @@ export const BooksView = () => {
       }).join('\n');
   };
 
-  const sortedBooks = [...books];
+  // File-type filter, so real books (PDF/EPUB/CBZ) can be viewed without the
+  // stray .txt/.md notes and tool logs that share the folder.
+  const presentExts = [...new Set(books.map(b => (b.ext || '').toLowerCase()).filter(Boolean))].sort();
+  const setExt = (v: string) => { setExtFilter(v); localStorage.setItem('booksExtFilter', v); };
+
+  const sortedBooks = extFilter === 'all' || !presentExts.includes(extFilter)
+    ? [...books]
+    : books.filter(b => (b.ext || '').toLowerCase() === extFilter);
   if (sort === 'name') sortedBooks.sort((a, b) => (a.title || a.filename).localeCompare(b.title || b.filename));
   else if (sort === 'size') sortedBooks.sort((a, b) => (b.size || 0) - (a.size || 0));
   else sortedBooks.sort((a, b) => (b.date || 0) - (a.date || 0));
@@ -237,6 +245,22 @@ export const BooksView = () => {
             { value: 'size', label: 'Size' }
           ]}
         >
+          {presentExts.length > 1 && (
+            <>
+              <span className="sg-sep"></span>
+              <select
+                title="Filter by file type"
+                value={presentExts.includes(extFilter) ? extFilter : 'all'}
+                onChange={(e: any) => setExt(e.target.value)}
+                style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '5px', cursor: 'pointer' }}
+              >
+                <option value="all">All types</option>
+                {presentExts.map(ext => (
+                  <option key={ext} value={ext}>{ext.replace('.', '').toUpperCase()}</option>
+                ))}
+              </select>
+            </>
+          )}
           <span className="sg-sep"></span>
           <label className="vault-add-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '999px', background: 'var(--bg3)', border: '1px solid var(--brd)', fontSize: '0.75rem' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

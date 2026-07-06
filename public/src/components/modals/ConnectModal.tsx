@@ -34,6 +34,12 @@ export const ConnectModal = ({ onClose }: Props) => {
   }, []);
 
   useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
     (async () => {
       if (!localUrl || !qrRef.current) return;
       try {

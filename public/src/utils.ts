@@ -114,6 +114,13 @@ export function fmtBytes(b: number): string {
   return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
 }
 
+/** Normalise a video mtime to epoch milliseconds — some sources (link
+ *  entries, imports) store milliseconds while the file scan stores seconds. */
+export function mtimeToMs(mtime: number | undefined | null): number {
+  if (!mtime) return 0;
+  return mtime > 1e12 ? mtime : mtime * 1000;
+}
+
 export function formatDuration(s: number | undefined | null): string {
   if (s === undefined || s === null) return '';
   const h = Math.floor(s / 3600);
