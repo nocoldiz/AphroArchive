@@ -1,5 +1,6 @@
 import { signal } from '@preact/signals';
 import { allVideos, currentFolder, linkVidIds, currentView, currentVideo } from './store';
+import { isTVMode, stopTVMode } from './tv-mode';
 
 // When non-null, refillZapQueue picks from this pool instead of using currentFolder.
 export const zapFilteredPool = signal<any[] | null>(null);
@@ -11,8 +12,15 @@ export interface ZapQueueItem {
 
 export const zapOn = signal(false);
 export const zapLock = signal(false);
-export const zapMinIv = signal(parseInt(localStorage.getItem('zapMinIv') || '5', 10));
-export const zapMaxIv = signal(parseInt(localStorage.getItem('zapMaxIv') || '20', 10));
+// A non-finite interval (e.g. a stored 'NaN' from a bad write) turns every
+// zap timer into setTimeout(..., NaN), which fires instantly in a loop and
+// the mode never settles on a video — validate whatever localStorage holds.
+const readIv = (key: string, fallback: number) => {
+  const v = parseInt(localStorage.getItem(key) || '', 10);
+  return Number.isFinite(v) && v >= 1 ? v : fallback;
+};
+export const zapMinIv = signal(readIv('zapMinIv', 5));
+export const zapMaxIv = signal(readIv('zapMaxIv', 20));
 export const zapStartTime = signal(0);
 export const zapRemaining = signal(0);
 export const zapTotalIv = signal(0);
@@ -203,6 +211,9 @@ export function toggleZapping() {
 
   const w = window as any;
   if (w.mosaicOn && w.stopMosaic) w.stopMosaic();
+  // TV mode already stops zapping when it starts; mirror that here, otherwise
+  // its tick timer and tv-active body styling keep running under the zap view.
+  if (isTVMode.value) stopTVMode();
 
   const firstVid = getRandomVidForZapping();
   if (!firstVid) {
@@ -251,6 +262,7 @@ export function openAndStopZapping() {
 }
 
 export function setZapMinIv(val: number) {
+  if (!Number.isFinite(val)) return; // NaN would be clamped to NaN and persisted
   const v = Math.max(1, Math.min(120, Math.round(val)));
   zapMinIv.value = v;
   if (zapMaxIv.value < v) zapMaxIv.value = v;
@@ -260,6 +272,7 @@ export function setZapMinIv(val: number) {
 }
 
 export function setZapMaxIv(val: number) {
+  if (!Number.isFinite(val)) return; // NaN would be clamped to NaN and persisted
   const v = Math.max(1, Math.min(180, Math.round(val)));
   zapMaxIv.value = v;
   if (zapMinIv.value > v) zapMinIv.value = v;

@@ -18,6 +18,7 @@ video_downloads/
 .AphroArchive-thumbs
 .AphroArchive-actor-photos
 paths.json
+media
 
 # ── Media file types (images / video / audio) ─
 *.jpg
@@ -26,6 +27,7 @@ paths.json
 *.gif
 *.webp
 *.bmp
+*.vtt
 *.tif
 *.tiff
 *.avif

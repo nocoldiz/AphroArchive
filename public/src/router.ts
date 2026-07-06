@@ -91,6 +91,7 @@ export async function routeToPath(path: string) {
     '/guide':          'guide',
     '/browse':         'browse',
     '/instagram':      'instagram',
+    '/tiktok':         'tiktok',
     '/reddit':         'reddit',
     '/mosaic':         'mosaic',
     '/favourites':     'favourites',

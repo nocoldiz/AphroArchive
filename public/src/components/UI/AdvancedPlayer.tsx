@@ -86,6 +86,10 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     const p = getProgress(videoId);
     return p && p.t < p.d * 0.97 ? p.t : 0;
   })()));
+  // Whether this playback began as a TV broadcast — TV never writes resume
+  // progress, including the final save on unmount (by which time TV mode may
+  // already have been switched off).
+  const tvPlaybackRef = useRef(isTVMode.value);
   const lastSaveRef = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -343,7 +347,17 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       clearFirstLoad();
       setDuration(vid.duration);
       if (startTimeRef.current > 0) {
-        vid.currentTime = startTimeRef.current;
+        let t = startTimeRef.current;
+        // The TV schedule counts unknown-duration videos as 300s, so its
+        // tune-in offset can overshoot the real runtime. Seeking past the end
+        // clamps there and fires 'ended', which rolls to the next programme
+        // from 0 — wrap into the real duration so tune-in lands mid-stream.
+        const dur = vid.duration;
+        if (Number.isFinite(dur) && dur > 0 && t >= dur - 1) {
+          t = t % dur;
+          if (t >= dur - 1) t = 0;
+        }
+        vid.currentTime = t;
         startTimeRef.current = 0;
       }
     };
@@ -415,7 +429,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
 
     return () => {
       // Persist final position when navigating away mid-playback.
-      setProgress(videoId, vid.currentTime, vid.duration || 0);
+      if (!tvPlaybackRef.current && !isTVMode.value) setProgress(videoId, vid.currentTime, vid.duration || 0);
       clearStall();
       clearFirstLoad();
       if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
@@ -1121,10 +1135,11 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
         transition: 'opacity 0.3s',
         pointerEvents: showControls ? 'auto' : 'none'
       }}>
-        {/* Timebar */}
+        {/* Timebar — hidden on live TV: a broadcast has no scrubbing */}
+        {!isTVMode.value && (
         <div
           className="timebar"
-          style={{ height: '6px', background: 'rgba(255,255,255,0.2)', cursor: isTVMode.value ? 'default' : 'pointer', position: 'relative', borderRadius: '3px', marginBottom: '10px' }}
+          style={{ height: '6px', background: 'rgba(255,255,255,0.2)', cursor: 'pointer', position: 'relative', borderRadius: '3px', marginBottom: '10px' }}
           onClick={handleTimebarClick}
           onMouseMove={handleTimebarMouseMove}
           onMouseLeave={handleTimebarMouseLeave}
@@ -1229,20 +1244,21 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
             <div style={{ position: 'absolute', left: `${(loopB / duration) * 100}%`, top: 0, width: '3px', height: '100%', background: '#f87171', zIndex: 4 }} title={`B: ${formatDuration(loopB)}`} />
           )}
         </div>
+        )}
 
         {/* Control Buttons */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {/* Previous video (or previous channel in TV mode) */}
-            {(onPrev || isTVMode.value) && (
-              <button onClick={() => isTVMode.value ? prevTVChannel() : onPrevRef.current?.()} title={isTVMode.value ? 'Prev channel (P)' : 'Previous video (P)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem' }}>⏮</button>
+            {/* Previous / next video — hidden on live TV; channel switching
+                lives in the channel panel, picker and N/P keys instead */}
+            {!isTVMode.value && onPrev && (
+              <button onClick={() => onPrevRef.current?.()} title="Previous video (P)" style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem' }}>⏮</button>
             )}
             <button onClick={togglePlay} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem' }}>
               {playing ? '⏸' : '▶'}
             </button>
-            {/* Next video (or next channel in TV mode) */}
-            {(onNext || isTVMode.value) && (
-              <button onClick={() => isTVMode.value ? nextTVChannel() : onNextRef.current?.()} title={isTVMode.value ? 'Next channel (N)' : 'Next video (N)'} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem' }}>⏭</button>
+            {!isTVMode.value && onNext && (
+              <button onClick={() => onNextRef.current?.()} title="Next video (N)" style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.1rem' }}>⏭</button>
             )}
             {isTVMode.value ? (
               <span style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, letterSpacing: '0.5px' }}>

@@ -43,6 +43,7 @@ const VaultView = lazy(() => import('../sections/VaultView').then(m => ({ defaul
 const PlayerView = lazy(() => import('../sections/PlayerView').then(m => ({ default: m.PlayerView })));
 const RedditView = lazy(() => import('../../../../plugins/reddit/RedditView').then(m => ({ default: m.RedditView })));
 const InstagramView = lazy(() => import('../../../../plugins/instagram/InstagramView').then(m => ({ default: m.InstagramView })));
+const TikTokView = lazy(() => import('../../../../plugins/tiktok/TikTokView').then(m => ({ default: m.TikTokView })));
 const MosaicView = lazy(() => import('../../../../plugins/mosaic/MosaicView').then(m => ({ default: m.MosaicView })));
 const DatabaseView = lazy(() => import('../sections/DatabaseView').then(m => ({ default: m.DatabaseView })));
 const ActorScraperView = lazy(() => import('../sections/ActorScraperView').then(m => ({ default: m.ActorScraperView })));
@@ -160,6 +161,7 @@ export const MainContent = () => {
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;
     if (view === 'instagram') return <InstagramView />;
+    if (view === 'tiktok') return <TikTokView />;
     if (view === 'reddit') return <RedditView />;
     if (view === 'pages') return <PagesView />;
     if (view === 'search') return <SearchSitesView />;
