@@ -1,7 +1,7 @@
 import { formatVideoTitle, mtimeToMs } from '../../utils';
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, thumbBlurMode, contextMenuState, playerNextUp, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, addToCollectionVideo, thumbBlurMode, contextMenuState, playerNextUp, playerQueueList, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
@@ -200,6 +200,10 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
   }, [video.id]);
 
   const play = () => {
+    // Remember the exact list (and thus order) this card was opened from so the
+    // player queue mirrors what the user clicked: cards before it become
+    // Previous, cards after it become Next Up.
+    if (!isRelated) playerQueueList.value = selectionList ?? filteredVideos.value;
     currentVideo.value = video;
     currentView.value = 'player';
     if ((window as any).playVideo) (window as any).playVideo(video.id);
@@ -323,7 +327,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
 
   const handlePlaylist = (e: any) => {
     e.stopPropagation();
-    currentVideo.value = video;
+    addToCollectionVideo.value = video;
     showAddToCollectionModal.value = true;
   };
 
@@ -555,6 +559,8 @@ const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: 
   const [thumbIdx] = useState(() => getThumbPref(video.id));
 
   const play = () => {
+    // Open the queue in the same order as the list rows the user is browsing.
+    playerQueueList.value = filteredVideos.value;
     currentVideo.value = video;
     currentView.value = 'player';
   };

@@ -1,4 +1,4 @@
-﻿import { currentView, currentVideo } from '../../store';
+﻿import { currentView, currentVideo, showAddToCollectionModal, addToCollectionVideo } from '../../store';
 import { VisionModal } from '../modals/VisionModal';
 import { TagModal } from '../modals/TagModal';
 import { CreateTagModal } from '../modals/CreateTagModal';
@@ -16,6 +16,7 @@ import { HomeView } from '../sections/HomeView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
 import { DialogModal } from '../modals/DialogModal';
+import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
 // Heavy/rare views — code-split so the initial bundle stays small.
@@ -206,6 +207,9 @@ export const MainContent = () => {
       <VaultUnlockModal />
       <ImportModal />
       <DialogModal />
+      {showAddToCollectionModal.value && (
+        <AddToCollectionModal onClose={() => { showAddToCollectionModal.value = false; addToCollectionVideo.value = null; }} />
+      )}
       <Suspense fallback={null}>
         <SubtitleEditorModal />
       </Suspense>

@@ -46,6 +46,19 @@ export const CollectionsView = () => {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (collections.length === 0) return;
+    if (!await confirmDialog(`Delete all ${collections.length} playlists? This cannot be undone.`)) return;
+    const r = await fetch('/api/collections', { method: 'DELETE' });
+    const w = window as any;
+    if (r.ok) {
+      loadCollections();
+      if (w.toast) w.toast('All playlists deleted');
+    } else if (w.toast) {
+      w.toast('Delete failed');
+    }
+  };
+
   const handleDelete = async (name: string) => {
     if (!await confirmDialog(`Delete playlist "${name}"?`)) return;
     const r = await fetch(`/api/collections/${encodeURIComponent(name)}`, { method: 'DELETE' });
@@ -105,7 +118,12 @@ export const CollectionsView = () => {
 
   return (
     <div className="collections-view" style={{ padding: '24px' }}>
-      <h2 style={{ marginBottom: '24px', color: 'var(--ac)' }}>Playlists</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', gap: '10px' }}>
+        <h2 style={{ margin: 0, color: 'var(--ac)' }}>Playlists</h2>
+        {collections.length > 0 && (
+          <button type="button" class="modal-btn" onClick={handleDeleteAll}>Delete All</button>
+        )}
+      </div>
 
       {/* New Collection Row */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
@@ -114,9 +132,10 @@ export const CollectionsView = () => {
           value={newCollectionName}
           onInput={(e: any) => setNewCollectionName(e.target.value)}
           placeholder="New playlist name..."
+          onKeyDown={(e: any) => e.key === 'Enter' && handleCreate()}
           style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }}
         />
-        <button class="modal-btn modal-btn--primary" onClick={handleCreate}>Create</button>
+        <button type="button" class="modal-btn modal-btn--primary" onClick={handleCreate}>Create</button>
       </div>
 
       {collections.length === 0 ? (

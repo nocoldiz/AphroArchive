@@ -1,4 +1,4 @@
-import { contextMenuState, appPrefs, updatePrefs, videos, allVideos, folders, currentVideo, showAddToCollectionModal, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds } from '../../store';
+import { contextMenuState, appPrefs, updatePrefs, videos, allVideos, folders, showAddToCollectionModal, addToCollectionVideo, tagModalState, actorModalState, loadVideos, ensureVaultUnlocked, filteredVideos, selectedVideoIds, videoSelMode, encryptingVideoIds } from '../../store';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { FolderTree, type FolderEntry } from './FolderTree';
 import { setItemPlacement, setSectionPlacement, PLUGINS_GROUP_ID } from './navItems';
@@ -558,7 +558,7 @@ export const ContextMenu = () => {
             <ContextItem label="Rename" icon="edit" onClick={() => (window as any).openRen && (window as any).openRen(data.id, data.name)} />
             <ContextItem label="Move to Folder" icon="folder" onClick={() => (window as any).openMov && (window as any).openMov(data.id, data.name, data.catPath || '', !!(data as any).isVault)} />
             <ContextItem label="Add to Playlist" icon="list" onClick={() => {
-              currentVideo.value = data;
+              addToCollectionVideo.value = data;
               showAddToCollectionModal.value = true;
             }} />
             <ContextItem label="Tags" icon="tag" onClick={() => {

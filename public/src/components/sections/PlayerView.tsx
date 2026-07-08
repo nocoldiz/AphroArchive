@@ -1,5 +1,5 @@
 ﻿import { formatVideoTitle } from '../../utils';
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, isMuted, filteredVideos, playerNextUp, playerHistory, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs, applyVideoIdChange, theaterMode } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToCollectionModal, addToCollectionVideo, isMuted, filteredVideos, playerNextUp, playerHistory, playerQueueList, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs, applyVideoIdChange, theaterMode } from '../../store';
 import { renameVideo } from '../../api';
 import { setProgress } from '../../home/progress';
 import { zapOn, zapStartTime } from '../../zap';
@@ -7,7 +7,6 @@ import { isTVMode, tvStartTime, nextVideoInChannel, stopTVMode } from '../../tv-
 import { TVChannelPanel } from '../UI/TVChannelPanel';
 import { ZapView } from './ZapView';
 import { useEffect, useRef, useState, useMemo } from 'preact/hooks';
-import { AddToCollectionModal } from '../modals/AddToCollectionModal';
 import { VideoCard } from '../UI/VideoGrid';
 import { AdvancedPlayer, localZapOn } from '../UI/AdvancedPlayer';
 import { playerSeries, playerSeason } from '../../series';
@@ -169,6 +168,11 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (video) {
+      // Consume the click-time list on every run so a stale value from one open
+      // can never leak into a later one.
+      const queueList = playerQueueList.value;
+      playerQueueList.value = null;
+
       if (isTVMode.value) {
         playerNextUp.value = [];
         return;
@@ -196,22 +200,28 @@ export const PlayerView = () => {
         playerSeason.value = null;
       }
 
-      // Local videos queue local videos; links queue links.
+      // Prefer the exact ordered list the video was opened from so the queue
+      // mirrors the results the user clicked; otherwise fall back to the current
+      // filtered grid. Local videos queue local videos; links queue links.
       const wantLink = !!(video as any).isLink;
-      const allVis = filteredVideos.value.filter(v => !!(v as any).isLink === wantLink);
+      const source = (queueList && queueList.some(v => v.id === video.id))
+        ? queueList
+        : filteredVideos.value;
+      const allVis = source.filter(v => !!(v as any).isLink === wantLink);
       const idx = allVis.findIndex(v => v.id === video.id);
 
       if (idx !== -1) {
-        const after = allVis.slice(idx + 1);
-        const before = allVis.slice(0, idx);
-        playerNextUp.value = [...after, ...before];
+        // Cards after the clicked one are Next Up; cards before it become the
+        // history (Previous), in their original order.
+        playerNextUp.value = allVis.slice(idx + 1);
+        playerHistory.value = allVis.slice(0, idx);
       } else {
         const list = allVideos.value
           .filter(v => !!(v as any).isLink === wantLink && v.category === video.category && v.id !== video.id)
           .slice(0, 10);
         playerNextUp.value = list;
+        playerHistory.value = [];
       }
-      playerHistory.value = [];
     }
   }, [video]);
 
@@ -238,6 +248,41 @@ export const PlayerView = () => {
 
   const removeVideo = (id: string) => {
     playerNextUp.value = playerNextUp.value.filter(v => v.id !== id);
+  };
+
+  // Advance to the next queued video: the current one drops into history and the
+  // head of Next Up becomes current. `skipNextUpUpdate` keeps the effect from
+  // rebuilding the queue so the exact order the user opened is preserved.
+  const goNext = () => {
+    if (playerNextUp.value.length === 0 || !video) return;
+    const [nextV, ...rest] = playerNextUp.value;
+    skipNextUpUpdate.value = true;
+    playerHistory.value = [...playerHistory.value, video];
+    playerNextUp.value = rest;
+    currentVideo.value = nextV;
+  };
+
+  // Step back to the previously played video: pop history, and push the current
+  // one back to the front of Next Up.
+  const goPrev = () => {
+    const hist = playerHistory.value;
+    if (hist.length === 0 || !video) return;
+    const prev = hist[hist.length - 1];
+    skipNextUpUpdate.value = true;
+    playerHistory.value = hist.slice(0, -1);
+    playerNextUp.value = [video, ...playerNextUp.value];
+    currentVideo.value = prev;
+  };
+
+  // Jump straight to a queued video: everything before it (plus the current
+  // video) moves into history, everything after stays queued.
+  const jumpTo = (index: number) => {
+    const q = playerNextUp.value;
+    if (index < 0 || index >= q.length || !video) return;
+    skipNextUpUpdate.value = true;
+    playerHistory.value = [...playerHistory.value, video, ...q.slice(0, index)];
+    playerNextUp.value = q.slice(index + 1);
+    currentVideo.value = q[index];
   };
 
   useEffect(() => {
@@ -693,7 +738,6 @@ export const PlayerView = () => {
 
   return (
     <>
-      {showAddToCollectionModal.value && <AddToCollectionModal onClose={() => showAddToCollectionModal.value = false} />}
       {theaterMode.value && (
         <button
           type="button"
@@ -1021,7 +1065,7 @@ export const PlayerView = () => {
                 <span>Move</span>
               </button>
 
-              <button onClick={() => showAddToCollectionModal.value = true} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => { addToCollectionVideo.value = currentVideo.value; showAddToCollectionModal.value = true; }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="8" y1="6" x2="21" y2="6" />
                   <line x1="8" y1="12" x2="21" y2="12" />

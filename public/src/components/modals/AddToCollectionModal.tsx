@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
-import { currentVideo } from '../../store';
+import { addToCollectionVideo, currentVideo } from '../../store';
 
 interface Props {
   onClose: () => void;
@@ -13,7 +13,7 @@ interface Collection {
 export const AddToCollectionModal = ({ onClose }: Props) => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [newName, setNewName] = useState('');
-  const video = currentVideo.value;
+  const video = addToCollectionVideo.value || currentVideo.value;
 
   useEffect(() => {
     loadCollections();

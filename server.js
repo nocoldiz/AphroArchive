@@ -327,6 +327,7 @@ const server = http.createServer(async (req, res) => {
   // ── Collections ──────────────────────────────────────────────────────
   if (p === '/api/collections' && req.method === 'GET') return collections.apiCollections(req, res);
   if (p === '/api/collections' && req.method === 'POST') return collections.apiCollectionCreate(req, res);
+  if (p === '/api/collections' && req.method === 'DELETE') return collections.apiCollectionDeleteAll(req, res);
   if ((m = p.match(/^\/api\/collections\/([^/]+)$/)) && req.method === 'DELETE') return collections.apiCollectionDelete(req, res, decodeURIComponent(m[1]));
   if ((m = p.match(/^\/api\/collections\/([^/]+)\/videos$/)) && req.method === 'GET') return collections.apiCollectionVideos(req, res, decodeURIComponent(m[1]));
   if ((m = p.match(/^\/api\/collections\/([^/]+)\/videos$/)) && req.method === 'POST') return collections.apiCollectionAddVideo(req, res, decodeURIComponent(m[1]));

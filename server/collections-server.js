@@ -41,6 +41,12 @@ async function apiCollectionDelete(req, res, name) {
   json(res, { ok: true });
 }
 
+async function apiCollectionDeleteAll(req, res) {
+  const count = loadCollections().length;
+  saveCollections([]);
+  json(res, { ok: true, deleted: count });
+}
+
 async function apiCollectionAddVideo(req, res, name) {
   const data = await readBody(req);
   const id = (data.id || '').trim();
@@ -85,6 +91,6 @@ async function apiCollectionVideos(req, res, name) {
 }
 
 module.exports = {
-  apiCollections, apiCollectionCreate, apiCollectionDelete,
+  apiCollections, apiCollectionCreate, apiCollectionDelete, apiCollectionDeleteAll,
   apiCollectionAddVideo, apiCollectionRemoveVideo, apiCollectionVideos,
 };

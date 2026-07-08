@@ -101,6 +101,12 @@ export const currentVideo = signal<Video | null>(null);
 export const playerNextUp = signal<Video[]>([]);
 export const playerHistory = signal<Video[]>([]);
 export const skipNextUpUpdate = signal<boolean>(false);
+// The exact ordered list a video was opened from (search results, a folder, a
+// tag grid …). PlayerView splits it around the clicked video so the queue
+// mirrors what the user saw: cards before become history (Previous), cards
+// after become Next Up. Null → opened outside a grid; fall back to the filtered
+// grid order.
+export const playerQueueList = signal<Video[] | null>(null);
 export const isSidebarOpen = signal<boolean>(false);
 // Desktop: collapse the sidebar to a narrow icon-only rail.
 export const sidebarCollapsed = signal<boolean>(localStorage.getItem('sidebarCollapsed') === 'true');
@@ -314,6 +320,7 @@ export function isScopeOn(key: string): boolean {
 
 export const visionModalText = signal<string | null>(null);
 export const showAddToCollectionModal = signal<boolean>(false);
+export const addToCollectionVideo = signal<Video | null>(null);
 export const showConnectModal = signal<boolean>(false);
 export const galleryFilter = signal<string>(localStorage.getItem('galleryFilter') || '');
 export const sourceFilter = signal<string>(localStorage.getItem('sourceFilter') || 'both');
