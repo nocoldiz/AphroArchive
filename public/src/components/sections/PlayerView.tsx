@@ -45,6 +45,9 @@ export const PlayerView = () => {
   const [rating, setRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [hoverTitle, setHoverTitle] = useState(false);
+  // Next Up starts collapsed — a single "up next" card with prev/next controls;
+  // expanding it reveals the full queue.
+  const [nextUpOpen, setNextUpOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const cancelRenameRef = useRef(false);
@@ -794,22 +797,8 @@ export const PlayerView = () => {
                 videoRef={videoRef}
                 isMuted={isMuted.value}
                 startTime={isTVMode.value ? tvStartTime.value : zapStartTime.value}
-                onNext={isTVMode.value ? nextVideoInChannel : () => {
-                  if (playerNextUp.value.length > 0) {
-                    playerHistory.value = [...playerHistory.value, video];
-                    currentVideo.value = playerNextUp.value[0];
-                  }
-                }}
-                onPrev={() => {
-                  const hist = playerHistory.value;
-                  if (hist.length > 0) {
-                    const prev = hist[hist.length - 1];
-                    playerHistory.value = hist.slice(0, -1);
-                    skipNextUpUpdate.value = true;
-                    playerNextUp.value = [video, ...playerNextUp.value];
-                    currentVideo.value = prev;
-                  }
-                }}
+                onNext={isTVMode.value ? nextVideoInChannel : goNext}
+                onPrev={goPrev}
               />
             ) : (
               <AdvancedPlayer
@@ -825,22 +814,8 @@ export const PlayerView = () => {
                 videoRef={videoRef}
                 isMuted={isMuted.value}
                 startTime={isTVMode.value ? tvStartTime.value : zapStartTime.value}
-                onNext={isTVMode.value ? nextVideoInChannel : () => {
-                  if (playerNextUp.value.length > 0) {
-                    playerHistory.value = [...playerHistory.value, video];
-                    currentVideo.value = playerNextUp.value[0];
-                  }
-                }}
-                onPrev={() => {
-                  const hist = playerHistory.value;
-                  if (hist.length > 0) {
-                    const prev = hist[hist.length - 1];
-                    playerHistory.value = hist.slice(0, -1);
-                    skipNextUpUpdate.value = true;
-                    playerNextUp.value = [video, ...playerNextUp.value];
-                    currentVideo.value = prev;
-                  }
-                }}
+                onNext={isTVMode.value ? nextVideoInChannel : goNext}
+                onPrev={goPrev}
               />
             )}
           </div>
@@ -876,19 +851,63 @@ export const PlayerView = () => {
                 {/* The chapter list lives in the player's chapter dropdown now, so the
                     big side-panel chapter view was removed from the details page. */}
 
-                <div className="playlist-panel pv-nextup">
-                  <div className="playlist-header">
+                <div className={`playlist-panel pv-nextup${nextUpOpen ? ' open' : ''}`}>
+                  <button
+                    type="button"
+                    className="playlist-header pv-nextup-head"
+                    onClick={() => setNextUpOpen(o => !o)}
+                    aria-expanded={nextUpOpen ? 'true' : 'false'}
+                  >
                     <span>Next Up</span>
-                    <span className="playlist-count">
-                      {playerNextUp.value.length}
-                    </span>
+                    <span className="playlist-count">{playerNextUp.value.length}</span>
+                    <svg className="pv-nextup-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+
+                  {/* Collapsed: prev/next controls + just the next-up card. */}
+                  <div className="pv-nextup-collapsed">
+                    <div className="pv-nextup-nav">
+                      <button
+                        type="button"
+                        onClick={goPrev}
+                        disabled={playerHistory.value.length === 0}
+                        title="Previous video"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+                        <span>Prev</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={goNext}
+                        disabled={playerNextUp.value.length === 0}
+                        title="Next video"
+                      >
+                        <span>Next</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+                      </button>
+                    </div>
+                    {playerNextUp.value.length > 0 ? (
+                      <div
+                        className="pv-nextup-item"
+                        onClickCapture={(e) => { e.stopPropagation(); e.preventDefault(); goNext(); }}
+                        style={{ position: 'relative', cursor: 'pointer' }}
+                      >
+                        <VideoCard video={playerNextUp.value[0]} isSelected={false} index={0} />
+                      </div>
+                    ) : (
+                      <div className="pv-nextup-empty">Nothing queued</div>
+                    )}
                   </div>
+
+                  {/* Expanded: the whole queue, vertically, draggable to reorder. */}
                   <div className="playlist-list">
                     {playerNextUp.value.map((v, index) => (
                       <div
                         key={v.id}
                         className="pv-nextup-item"
                         draggable={true}
+                        onClickCapture={(e) => { e.stopPropagation(); e.preventDefault(); jumpTo(index); }}
                         onDragStart={(e) => handleDragStart(e, index)}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDrop(e, index)}
