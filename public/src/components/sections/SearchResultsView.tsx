@@ -2,21 +2,24 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { ComponentChildren } from 'preact';
 import {
   searchQuery, searchScopes, searchAllVideos, currentView, thumbBlurMode, selectedVideoIds,
+  sortMode, isShuffle, favFilter, galleryFilter, shuffleSeed,
 } from '../../store';
+import { Video } from '../../types';
 import { VideoCard, VideoSelBar } from '../UI/VideoGrid';
+import { SectionControls } from '../UI/SectionControls';
 
 // Each macro category the universal search can surface. The async ones are
 // fetched once per session (full list) then filtered client-side.
 const SCOPE_LABELS: Record<string, string> = {
   videos: 'Videos', links: 'Links', actors: 'Actors', channels: 'Channels',
   websites: 'Websites', books: 'Books', audio: 'Audio', photos: 'Photos',
-  pages: 'Pages', prompts: 'Prompts', collections: 'Playlists',
+  pages: 'Pages', prompts: 'Prompts', playlists: 'Playlists',
 };
 
 const ASYNC_URLS: Record<string, string> = {
   actors: '/api/actors', channels: '/api/channels', websites: '/api/websites',
   books: '/api/books', audio: '/api/audio', photos: '/api/photos',
-  pages: '/api/pages', prompts: '/api/prompts', collections: '/api/collections',
+  pages: '/api/pages', prompts: '/api/prompts', playlists: '/api/playlists',
 };
 
 // Session cache so re-opening / re-typing doesn't re-fetch each list.
@@ -89,7 +92,7 @@ const ICONS: Record<string, string> = {
   audio: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   pages: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
   prompts: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
-  collections: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  playlists: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
   actors: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
 };
 
@@ -104,8 +107,44 @@ export const SearchResultsView = () => {
 
   // Media (videos + links) come straight from the in-memory library list.
   const mediaMatches = useMemo(() => (q ? searchAllVideos(q) : []), [q]);
-  const videoMatches = useMemo(() => mediaMatches.filter(v => !v.isLink), [mediaMatches]);
-  const linkMatches = useMemo(() => mediaMatches.filter(v => v.isLink), [mediaMatches]);
+
+  // The SectionControls bar mutates these signals; reading them here subscribes
+  // the view so results re-order/re-filter live. applyControls mirrors the
+  // starred/gallery-filter/sort/shuffle logic that `filteredVideos` runs.
+  const sMode = sortMode.value;
+  const shuf = isShuffle.value;
+  const onlyFav = favFilter.value;
+  const gFilter = galleryFilter.value.trim().toLowerCase();
+  const seed = shuffleSeed.value;
+
+  const applyControls = (list: Video[]): Video[] => {
+    let out = list;
+    if (onlyFav) out = out.filter(v => v.starred || v.fav);
+    if (gFilter) {
+      out = out.filter(v =>
+        v.name.toLowerCase().includes(gFilter) ||
+        (v.category && v.category.toLowerCase().includes(gFilter)) ||
+        (v.tags && v.tags.some(t => t.toLowerCase().includes(gFilter)))
+      );
+    }
+    out = [...out];
+    if (shuf) {
+      const hash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
+      out.sort((a, b) => hash(a.id + seed) - hash(b.id + seed));
+    } else if (sMode === 'name') {
+      out.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sMode === 'size') {
+      out.sort((a, b) => (b.size || 0) - (a.size || 0));
+    } else if (sMode === 'duration') {
+      out.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+    } else {
+      out.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+    }
+    return out;
+  };
+
+  const videoMatches = applyControls(mediaMatches.filter(v => !v.isLink));
+  const linkMatches = applyControls(mediaMatches.filter(v => v.isLink));
 
   // Async scopes — fetch full lists (once) for whichever scopes are enabled.
   const [data, setData] = useState<Record<string, any[]>>({});
@@ -134,10 +173,10 @@ export const SearchResultsView = () => {
   const photos = on('photos') ? filt('photos', p => `${p.filename || ''} ${p.folder || ''} ${p.aiPrompt || ''}`) : [];
   const pages = on('pages') ? filt('pages', p => p.name) : [];
   const prompts = on('prompts') ? filt('prompts', p => p.text || '') : [];
-  const collections = on('collections') ? filt('collections', c => c.name) : [];
+  const playlistMatches = on('playlists') ? filt('playlists', c => c.name) : [];
 
   const total = videoMatches.length + linkMatches.length + actors.length + channels.length +
-    websites.length + books.length + audio.length + photos.length + pages.length + prompts.length + collections.length;
+    websites.length + books.length + audio.length + photos.length + pages.length + prompts.length + playlistMatches.length;
 
   const goto = (view: string) => () => { currentView.value = view; };
 
@@ -147,6 +186,16 @@ export const SearchResultsView = () => {
       <div style={{ color: 'var(--tx3)', fontSize: '0.85rem', marginBottom: '16px' }}>
         {total} result{total !== 1 ? 's' : ''} for “{q}”
       </div>
+
+      {(on('videos') || on('links')) && mediaMatches.length > 0 && (
+        <div className="section-header">
+          <SectionControls
+            showViewMode={false}
+            showGroupBy={false}
+            showSelect
+          />
+        </div>
+      )}
 
       {total === 0 && (
         <div className="empty-state"><h3>No matches</h3><p>Nothing found in the selected categories. Try widening the search scope from the filter next to the search box.</p></div>
@@ -275,14 +324,14 @@ export const SearchResultsView = () => {
         </Section>
       )}
 
-      {collections.length > 0 && (
-        <Section title={SCOPE_LABELS.collections} count={collections.length}>
+      {playlistMatches.length > 0 && (
+        <Section title={SCOPE_LABELS.playlists} count={playlistMatches.length}>
           <div style={cardGridStyle}>
-            {collections.slice(0, OTHER_CAP).map(c => (
+            {playlistMatches.slice(0, OTHER_CAP).map(c => (
               <ResultCard key={c.name}
-                thumb={c.thumb ? `/api/thumbs/${c.thumb.id}/0` : undefined} fallback={icon(ICONS.collections)}
+                thumb={c.thumb ? `/api/thumbs/${c.thumb.id}/0` : undefined} fallback={icon(ICONS.playlists)}
                 title={c.name} sub={`${c.count || 0} item${c.count === 1 ? '' : 's'}`}
-                onClick={() => { if (w.openCollectionDetail) w.openCollectionDetail(c.name); else currentView.value = 'collections'; }} />
+                onClick={() => { if (w.openPlaylistDetail) w.openPlaylistDetail(c.name); else currentView.value = 'playlists'; }} />
             ))}
           </div>
         </Section>

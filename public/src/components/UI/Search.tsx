@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 const SCOPE_LABELS: Record<string, string> = {
   videos: 'Videos', links: 'Links', actors: 'Actors', channels: 'Channels',
   websites: 'Websites', books: 'Books', audio: 'Audio', photos: 'Photos',
-  pages: 'Pages', prompts: 'Prompts', collections: 'Playlists',
+  pages: 'Pages', prompts: 'Prompts', playlists: 'Playlists',
 };
 
 const SEARCH_DEBOUNCE_MS = 200;

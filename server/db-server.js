@@ -10,7 +10,7 @@ const {
   FAVOURITES_FILE, HISTORY_FILE, PREFS_FILE, RATINGS_FILE,
   VIDEO_META_FILE, THUMBS_CACHE_FILE,
   VAULT_CONFIG_FILE, VAULT_META_FILE,
-  COLLECTIONS_FILE,
+  PLAYLISTS_FILE,
   HIDDEN_FILE,
   WEBSITES_JSON,
   ACTORS_JSON, CATEGORIES_JSON, CHANNELS_JSON,
@@ -69,6 +69,35 @@ function runMigrations(database) {
       try { database.exec(`ALTER TABLE channels ADD COLUMN ${col} ${type}`); } catch {}
     }
   }
+
+  // collections → playlists rename + de-dup (July 2026). Legacy rows were saved
+  // with NULL ids, which SQLite lets duplicate freely in a TEXT PRIMARY KEY. That
+  // produced dozens of phantom copies and, worse, made every later save collide on
+  // a regenerated id and silently roll back — so adds never persisted. Merge the
+  // old rows by name (union of video ids) into the new playlists table.
+  try {
+    const hasColl = database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='collections'").get();
+    if (hasColl) {
+      const rows = database.prepare('SELECT id, name, video_ids FROM collections').all();
+      const byName = new Map();
+      for (const r of rows) {
+        let ids = []; try { ids = JSON.parse(r.video_ids || '[]'); } catch {}
+        if (!Array.isArray(ids)) ids = [];
+        const cur = byName.get(r.name) || [];
+        for (const id of ids) if (!cur.includes(id)) cur.push(id);
+        byName.set(r.name, cur);
+      }
+      const insert = database.prepare('INSERT OR REPLACE INTO playlists (id, name, video_ids) VALUES (?, ?, ?)');
+      const used = new Set();
+      for (const [name, ids] of byName) {
+        const base = 'pl_' + String(name || '').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+        let id = base, n = 1; while (used.has(id)) id = base + '_' + (n++);
+        used.add(id);
+        insert.run(id, name, JSON.stringify(ids));
+      }
+      database.exec('DROP TABLE collections');
+    }
+  } catch (e) { console.error('[db] collections→playlists migration failed:', e.message); }
 }
 
 function ensureSchema(database) {
@@ -106,7 +135,7 @@ function ensureSchema(database) {
       timestamp INTEGER
     );
 
-    CREATE TABLE IF NOT EXISTS collections (
+    CREATE TABLE IF NOT EXISTS playlists (
       id TEXT PRIMARY KEY,
       name TEXT,
       video_ids TEXT -- JSON array
@@ -712,7 +741,7 @@ function _readVideoMetaFromDb(database) {
 
 // Remove every trace of a video from a database: its metadata, tags,
 // actors, favourites, history, thumbnail/visual-hash caches,
-// the scan index, and any collection it belongs to.
+// the scan index, and any playlist it belongs to.
 function _wipeVideoEverywhere(database, id) {
   database.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
   database.prepare('DELETE FROM video_tags WHERE video_id = ?').run(id);
@@ -723,9 +752,9 @@ function _wipeVideoEverywhere(database, id) {
   database.prepare('DELETE FROM visual_hashes WHERE video_id = ?').run(id);
   database.prepare('DELETE FROM video_index WHERE id = ?').run(id);
 
-  const collections = database.prepare('SELECT id, video_ids FROM collections').all();
-  const updateColl = database.prepare('UPDATE collections SET video_ids = ? WHERE id = ?');
-  for (const row of collections) {
+  const playlists = database.prepare('SELECT id, video_ids FROM playlists').all();
+  const updateColl = database.prepare('UPDATE playlists SET video_ids = ? WHERE id = ?');
+  for (const row of playlists) {
     let ids;
     try { ids = JSON.parse(row.video_ids || '[]'); } catch { continue; }
     if (!Array.isArray(ids) || !ids.includes(id)) continue;
@@ -950,34 +979,43 @@ function saveVaultMeta(m) {
   fs.writeFileSync(VAULT_META_FILE, encrypted);
 }
 
-// ── Collections ──────────────────────────────────────────────────────
+// ── Playlists ────────────────────────────────────────────────────────
 
-function loadCollections() {
+function loadPlaylists() {
   try {
-    const rows = db.prepare('SELECT * FROM collections').all();
+    const rows = db.prepare('SELECT * FROM playlists').all();
     return rows.map(row => ({
       id: row.id,
       name: row.name,
       ids: JSON.parse(row.video_ids || '[]')
     }));
   } catch (e) {
-    console.error('Failed to load collections from SQLite:', e);
+    console.error('Failed to load playlists from SQLite:', e);
     return [];
   }
 }
 
-function saveCollections(c) {
+function savePlaylists(c) {
   try {
     txn(() => {
-      db.prepare('DELETE FROM collections').run();
-      const insert = db.prepare('INSERT INTO collections (id, name, video_ids) VALUES (?, ?, ?)');
-      for (const coll of c) {
-        const id = coll.id || `col_${String(coll.name || '').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`;
-        insert.run(id, coll.name, JSON.stringify(coll.ids || coll.video_ids || []));
+      db.prepare('DELETE FROM playlists').run();
+      const insert = db.prepare('INSERT INTO playlists (id, name, video_ids) VALUES (?, ?, ?)');
+      // Guarantee a unique, non-null id per row. Null/duplicate ids used to
+      // collide on the PRIMARY KEY and roll the whole save back.
+      const used = new Set();
+      for (const pl of c) {
+        let id = pl.id;
+        if (!id || used.has(id)) {
+          const base = `pl_${String(pl.name || '').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`;
+          id = base; let n = 1;
+          while (!id || used.has(id)) id = `${base}_${n++}`;
+        }
+        used.add(id);
+        insert.run(id, pl.name, JSON.stringify(pl.ids || pl.video_ids || []));
       }
     });
   } catch (e) {
-    console.error('Failed to save collections to SQLite:', e);
+    console.error('Failed to save playlists to SQLite:', e);
   }
 }
 
@@ -2125,7 +2163,7 @@ module.exports = {
   loadVideoMeta, saveVideoMeta, setVideoMetaFields, deleteVideoMetaEverywhere,
   loadThumbsCache, saveThumbsCache, setThumbCacheEntry,
   loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, setVaultKey,
-  loadCollections, saveCollections,
+  loadPlaylists, savePlaylists,
   loadHidden, saveHidden,
   loadWebsites, saveWebsites,
   loadStarredSites, saveStarredSites,

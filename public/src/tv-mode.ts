@@ -6,7 +6,7 @@ import { zapOn, stopZapping } from './zap';
 export interface TVChannel {
   id: string;
   name: string;
-  type: 'all' | 'folder' | 'tag' | 'collection';
+  type: 'all' | 'folder' | 'tag' | 'playlist';
   videos: Video[];
 }
 
@@ -104,17 +104,17 @@ export async function initTVMode(): Promise<boolean> {
     }
   }
 
-  // Playlist (collection) channels — curated order is preserved so the playlist
+  // Playlist channels — curated order is preserved so the playlist
   // plays in sequence, just time-shifted like every other channel.
   try {
-    const cols = await fetch('/api/collections').then(r => r.json());
-    if (Array.isArray(cols)) {
-      for (const col of cols) {
-        const vids = (col.ids || [])
+    const pls = await fetch('/api/playlists').then(r => r.json());
+    if (Array.isArray(pls)) {
+      for (const pl of pls) {
+        const vids = (pl.ids || [])
           .map((id: string) => videos.find(v => v.id === id))
           .filter((v: Video | undefined): v is Video => !!v && !v.isLink);
         if (vids.length > 0) {
-          channels.push({ id: `collection:${col.name}`, name: col.name, type: 'collection', videos: vids });
+          channels.push({ id: `playlist:${pl.name}`, name: pl.name, type: 'playlist', videos: vids });
         }
       }
     }

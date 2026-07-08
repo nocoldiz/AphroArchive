@@ -1343,36 +1343,86 @@ body.couch-mode .video-card:focus-visible {
 .player-info-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 14px
+  gap: 8px;
+  margin: 16px 0 24px
 }
 
-.player-info-actions button {
-  display: flex;
+/* One consistent pill for every action button. Active state = .on (accent),
+   favourite = .st (star), destructive = .danger (red). No per-button inline
+   styles — variants are toggled by className. */
+.player-info-actions button,
+.player-info-actions .pv-act {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
+  gap: 6px;
+  padding: 8px 16px;
   border-radius: 999px;
-  font-size: 0.82rem;
+  font-size: 0.83rem;
+  font-weight: 500;
   border: 1px solid var(--brd);
-  transition: all var(--tr);
-  font-weight: 500
+  background: var(--bg2);
+  color: var(--tx);
+  cursor: pointer;
+  transition: all var(--tr)
 }
 
-.player-info-actions button:hover {
+.player-info-actions button:hover,
+.player-info-actions .pv-act:hover {
   background: var(--bg3);
   border-color: var(--tx3)
 }
 
-.player-info-actions button.st {
+.player-info-actions .on {
+  border-color: var(--ac);
+  color: var(--ac);
+  background: var(--acg)
+}
+
+.player-info-actions .st {
   border-color: var(--star);
   color: var(--star)
 }
 
-.player-info-actions button#pinBtn.on {
-  border-color: var(--ac);
-  color: var(--ac);
-  background: var(--acg)
+.player-info-actions .danger {
+  color: #ff4a4a
+}
+
+.player-info-actions .danger:hover {
+  border-color: #ff4a4a;
+  background: rgba(255, 74, 74, 0.08)
+}
+
+/* Metadata line under the title (category · size · duration). */
+.player-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: var(--tx3);
+  font-size: 0.9rem;
+  margin-bottom: 18px
+}
+
+/* Aligned uppercase label for the Channel / Actors / Tags / Language rows so
+   their values line up in a tidy column. */
+.pv-flabel {
+  flex-shrink: 0;
+  min-width: 74px;
+  margin-right: 10px;
+  color: var(--tx3);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px
+}
+
+/* Uniform spacing for the metadata field rows. */
+.player-channel-row,
+.player-actors-row,
+.player-tags-row,
+.player-language-row {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  margin-bottom: 14px
 }
 
 .player-rating span {
@@ -5385,19 +5435,19 @@ body.tv-active .side {
   white-space: nowrap
 }
 
-/* ── Collections View ── */
-.collections-view {
+/* ── Playlists View ── */
+.playlists-view {
   display: block
 }
 
-.collection-grid {
+.playlist-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 14px;
   margin-top: 4px
 }
 
-.collection-card {
+.playlist-card {
   background: var(--bg2);
   border: 1px solid var(--brd);
   border-radius: var(--r);
@@ -5407,25 +5457,25 @@ body.tv-active .side {
   position: relative
 }
 
-.collection-card:hover {
+.playlist-card:hover {
   background: var(--bg3);
   border-color: var(--tx3)
 }
 
-.collection-card-name {
+.playlist-card-name {
   font-weight: 600;
   font-size: 0.92rem;
   margin-bottom: 4px;
   padding-right: 26px
 }
 
-.collection-card-count {
+.playlist-card-count {
   font-size: 0.75rem;
   color: var(--tx3);
   font-family: var(--m)
 }
 
-.collection-delete {
+.playlist-delete {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -5440,25 +5490,25 @@ body.tv-active .side {
   transition: all var(--tr)
 }
 
-.collection-delete:hover {
+.playlist-delete:hover {
   background: rgba(232, 64, 64, 0.15);
   color: var(--ac)
 }
 
-.collection-empty {
+.playlist-empty {
   font-size: 0.85rem;
   color: var(--tx3);
   padding: 40px 0;
   text-align: center
 }
 
-.collection-new-row {
+.playlist-new-row {
   display: flex;
   gap: 8px;
   margin-bottom: 20px
 }
 
-.collection-new-row input {
+.playlist-new-row input {
   flex: 1;
   padding: 8px 12px;
   background: var(--bg2);
@@ -5469,12 +5519,12 @@ body.tv-active .side {
   transition: border var(--tr)
 }
 
-.collection-new-row input:focus {
+.playlist-new-row input:focus {
   border-color: var(--ac)
 }
 
-/* Add-to-collection modal */
-.collection-modal {
+/* Add-to-playlist modal */
+.playlist-modal {
   display: none;
   position: fixed;
   inset: 0;
@@ -5484,11 +5534,11 @@ body.tv-active .side {
   justify-content: center
 }
 
-.collection-modal.on {
+.playlist-modal.on {
   display: flex
 }
 
-.collection-modal-box {
+.playlist-modal-box {
   background: var(--bg2);
   border: 1px solid var(--brd);
   border-radius: var(--rl);
@@ -5498,12 +5548,12 @@ body.tv-active .side {
   box-shadow: var(--sh)
 }
 
-.collection-modal-box h3 {
+.playlist-modal-box h3 {
   font-size: 1rem;
   margin-bottom: 16px
 }
 
-.collection-option {
+.playlist-option {
   padding: 9px 14px;
   border-radius: var(--r);
   background: var(--bg3);
@@ -5515,28 +5565,28 @@ body.tv-active .side {
   transition: all var(--tr)
 }
 
-.collection-option:hover {
+.playlist-option:hover {
   background: var(--bg4);
   border-color: var(--tx3)
 }
 
-.collection-option.collection-option-new {
+.playlist-option.playlist-option-new {
   color: var(--ac);
   border-style: dashed
 }
 
-.collection-modal-new {
+.playlist-modal-new {
   display: none;
   flex-direction: column;
   gap: 8px;
   margin-top: 4px
 }
 
-.collection-modal-new.on {
+.playlist-modal-new.on {
   display: flex
 }
 
-.collection-modal-new input {
+.playlist-modal-new input {
   padding: 8px 12px;
   background: var(--bg3);
   border: 1px solid var(--brd);
@@ -5547,18 +5597,18 @@ body.tv-active .side {
   transition: border var(--tr)
 }
 
-.collection-modal-new input:focus {
+.playlist-modal-new input:focus {
   border-color: var(--ac)
 }
 
-.collection-modal-actions {
+.playlist-modal-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
   margin-top: 16px
 }
 
-.collection-cancel {
+.playlist-cancel {
   padding: 7px 16px;
   border-radius: var(--r);
   font-size: 0.82rem;
@@ -5568,7 +5618,7 @@ body.tv-active .side {
   transition: all var(--tr)
 }
 
-.collection-cancel:hover {
+.playlist-cancel:hover {
   background: var(--bg3)
 }
 

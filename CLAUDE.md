@@ -45,7 +45,7 @@ Module responsibilities (files are suffixed with `-server.js`):
 - `server/db-server.js` — SQLite manager using `node:sqlite` DatabaseSync with write-through in-memory caches. Single source of truth for all persistence. See schema below.
 - `server/helpers-server.js` — Shared utilities: `json(res, data, status)`, `serveStatic`, `toId`/`fromId` (base64url file ID encoding), `readBody` (JSON parser), `formatBytes`, `formatDuration`, `safePath` (validates against VIDEOS_DIR), `wordMatch`/`wordMatchAny`/`studioMatchAny`/`actorMatches`.
 - `server/videos-server.js` — Video file scanning (`cachedScan`, `allVideos`), all video API handlers, category derivation, streaming with range support, per-category AES-256-GCM encryption/decryption, suggested video scoring.
-- Feature modules: `actors-server.js`, `vault-server.js`, `thumbnails-server.js`, `collections-server.js`, `downloads-server.js`, `links-server.js`, `books-server.js`, `audio-server.js`, `database-server.js`, `remote-server.js`, `settings-server.js`, `duplicates-server.js`, `feed-watcher-server.js`, `gen-thumbs-server.js`, `pages-server.js`, `photos-server.js`, `profiles-server.js`, `prompts-server.js`, `scrapeMethods-server.js`, `vault-zip-server.js`, `vision-server.js`, `assistant-server.js`, `background-worker-server.js`, `plugins-server.js`.
+- Feature modules: `actors-server.js`, `vault-server.js`, `thumbnails-server.js`, `playlists-server.js`, `downloads-server.js`, `links-server.js`, `books-server.js`, `audio-server.js`, `database-server.js`, `remote-server.js`, `settings-server.js`, `duplicates-server.js`, `feed-watcher-server.js`, `gen-thumbs-server.js`, `pages-server.js`, `photos-server.js`, `profiles-server.js`, `prompts-server.js`, `scrapeMethods-server.js`, `vault-zip-server.js`, `vision-server.js`, `assistant-server.js`, `background-worker-server.js`, `plugins-server.js`.
 
 **Data storage**: Uses SQLite (`node:sqlite` DatabaseSync) as the primary database. In-memory write-through caches for favourites, history, ratings, and actors reduce database access.
 
@@ -75,7 +75,7 @@ Module responsibilities (files are suffixed with `-server.js`):
 - `enabled_categories` — `path PK`
 
 **User data**:
-- `collections` — `id PK, name, video_ids (JSON array)`
+- `playlists` — `id PK, name, video_ids (JSON array)`
 - `favourites` — `video_id PK`
 - `history` — `video_id PK, timestamp INT`
 - `prompts` — `id PK, text (encrypted if vault), sites (JSON, encrypted if vault), created_at INT`
@@ -154,13 +154,13 @@ Module responsibilities (files are suffixed with `-server.js`):
 - Link CRUD: `/api/links/import`, `/export-json`, `/import-json`, `/move`, `/update-item`, `/delete-item`, `/delete-items`
 - Smart thumbnail: tries yt-dlp first, then Edge headless screenshot with banner removal
 
-**`collections-server.js`**:
-- `GET /api/collections` — all collections with cover video
-- `POST /api/collections/create` — `{name}`
-- `DELETE /api/collections/:name`
-- `POST /api/collections/:name/add` — `{id}`
-- `DELETE /api/collections/:name/:id`
-- `GET /api/collections/:name/videos`
+**`playlists-server.js`**:
+- `GET /api/playlists` — all playlists with cover video
+- `POST /api/playlists` — `{name}`
+- `DELETE /api/playlists/:name`
+- `POST /api/playlists/:name/videos` — `{id}`
+- `DELETE /api/playlists/:name/videos/:id`
+- `GET /api/playlists/:name/videos`
 
 **`settings-server.js`**:
 - `GET /api/settings/lists` — `hidden`, `categories`, `actors`, `studios` as newline-separated text
@@ -239,7 +239,7 @@ Uses Preact and TSX. Components are located in `public/src/components/`.
 
 - `src/main.tsx` — Entry point. Mounts `<Sidebar />` → `#side`, `<Topbar />` → `#topbar-root`, `<MainContent />` → `#main-root`, `<App />` → a new `#preact-root` div appended to body.
 - `src/store.ts` — All shared state via Preact signals. Also exposes signals as `window.*` properties (`window.V`, `window.cats`, `window.q`, `window.sort`, `window.cat`, `window.shuf`, `window.vaultMode`, etc.) for legacy JS compatibility.
-- `src/router.ts` — `setupRouter()` wires `popstate` and routes the initial URL. `routeToPath(path)` sets `currentView` / `currentVideo` / `currentCategory` etc. from URL. Supported URL paths: `/video/:id`, `/cat/:path`, `/tag/:name`, `/actor/:name`, `/studio/:name`, `/collection/:name`, and direct views: `/vault`, `/collections`, `/settings`, `/actors`, `/studios`, `/links`, `/database`, `/photos`, `/books`, `/audio`, `/thumbnails`, `/categories`, `/chapters`, `/download-queue`, `/prompts`, `/assistant`, `/categorizer`, `/duplicates`, `/browse`, `/instagram`, `/reddit`, `/mosaic`, `/favourites`, `/recent`, `/search`, `/pages`, `/scraper`.
+- `src/router.ts` — `setupRouter()` wires `popstate` and routes the initial URL. `routeToPath(path)` sets `currentView` / `currentVideo` / `currentCategory` etc. from URL. Supported URL paths: `/video/:id`, `/cat/:path`, `/tag/:name`, `/actor/:name`, `/studio/:name`, `/playlist/:name`, and direct views: `/vault`, `/playlists`, `/settings`, `/actors`, `/studios`, `/links`, `/database`, `/photos`, `/books`, `/audio`, `/thumbnails`, `/categories`, `/chapters`, `/download-queue`, `/prompts`, `/assistant`, `/categorizer`, `/duplicates`, `/browse`, `/instagram`, `/reddit`, `/mosaic`, `/favourites`, `/recent`, `/search`, `/pages`, `/scraper`.
 - `src/components/UI/MainContent.tsx` — Renders the active view based on `currentView.value`. Heavy/rarely used views are code-split with `lazy()`: `RedditView`, `InstagramView`, `DatabaseView`, `ActorScraperView`, `AssistantView`, `CategorizerView`, `PromptsView`, `DuplicatesView`. All global modals rendered here: `ContextMenu`, `TagModal`, `ActorModal`, `StudioModal`, `VaultZipModal`, `LinkIframeModal`, `RenameModal`, `MoveModal`, `VisionModal`, `VaultUnlockModal`, `ImportModal`.
 - Views in `public/src/components/sections/`. Modals in `public/src/components/modals/`. Shared UI (`VideoGrid`, `Sidebar`, `Topbar`, `Search`, etc.) in `public/src/components/UI/`.
 

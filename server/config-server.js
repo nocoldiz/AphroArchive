@@ -106,7 +106,7 @@ const THUMBS_CACHE_FILE = path.join(CACHE_DIR, '.AphroArchive-thumbcache.json');
 const VAULT_CONFIG_FILE = path.join(CACHE_DIR, '.vault-config.json');
 const VAULT_META_FILE = path.join(CACHE_DIR, '.vault-meta.json');
 const BROWSER_WHITELIST_FILE = path.join(CACHE_DIR, 'whitelist.txt');
-const COLLECTIONS_FILE = path.join(CACHE_DIR, '.AphroArchive-collections.json');
+const PLAYLISTS_FILE = path.join(CACHE_DIR, '.AphroArchive-playlists.json');
 const RATINGS_FILE = path.join(CACHE_DIR, '.AphroArchive-ratings.json');
 const HIDDEN_FILE = path.join(CACHE_DIR, 'hidden.txt');
 const PREFS_FILE = path.join(CACHE_DIR, '.AphroArchive-prefs.json');
@@ -205,7 +205,7 @@ module.exports = {
   PATHS_FILE, DEFAULT_CACHE_DIR, DEFAULT_DB_DIR, DEFAULT_VAULT_DIR,
   FAVOURITES_FILE, HISTORY_FILE, THUMBS_CACHE_FILE,
   VAULT_CONFIG_FILE, VAULT_META_FILE, BROWSER_WHITELIST_FILE,
-  COLLECTIONS_FILE, RATINGS_FILE, HIDDEN_FILE, PREFS_FILE,
+  PLAYLISTS_FILE, RATINGS_FILE, HIDDEN_FILE, PREFS_FILE,
   VIDEO_META_FILE, BOOKS_META_FILE, AUDIO_META_FILE,
   ACTORS_JSON, CATEGORIES_JSON, CHANNELS_JSON, WEBSITES_JSON,
   BM_CACHE_FILE, OG_THUMB_CACHE_FILE, STARRED_SITES_FILE, PROMPTS_FILE,

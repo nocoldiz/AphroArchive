@@ -4,7 +4,7 @@
 //
 //  Export bundles everything needed to recreate the library on a new
 //  machine EXCEPT the binary media files themselves: the SQLite database
-//  (videos meta, ratings, history, favourites, collections, links,
+//  (videos meta, ratings, history, favourites, playlists, links,
 //  prompts, prefs, actors/channels/websites) plus the DB_DIR JSON
 //  reference files, paths.json and the vault config/meta sidecars.
 //

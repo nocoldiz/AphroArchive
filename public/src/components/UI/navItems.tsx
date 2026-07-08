@@ -171,9 +171,9 @@ export function getNavItems(): NavItem[] {
       onClick: () => setView('recent', 'showRecent'), isActive: view === 'recent',
     },
     {
-      id: 'collections-sidebar', label: 'Playlist', section: 'library', defaultLoc: 'sidebar',
+      id: 'playlists-sidebar', label: 'Playlist', section: 'library', defaultLoc: 'sidebar',
       paths: <><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></>,
-      onClick: () => setView('collections', 'showCollections'), isActive: view === 'collections',
+      onClick: () => setView('playlists', 'showPlaylists'), isActive: view === 'playlists',
     },
     {
       id: 'actor-sidebar', label: 'Actors', section: 'library', defaultLoc: 'sidebar',

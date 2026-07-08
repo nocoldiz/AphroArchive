@@ -1,5 +1,5 @@
 ﻿import { formatVideoTitle } from '../../utils';
-import { currentVideo, currentView, allVideos, showAddToCollectionModal, addToCollectionVideo, isMuted, filteredVideos, playerNextUp, playerHistory, playerQueueList, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs, applyVideoIdChange, theaterMode } from '../../store';
+import { currentVideo, currentView, allVideos, showAddToPlaylistModal, addToPlaylistVideo, isMuted, filteredVideos, playerNextUp, playerHistory, playerQueueList, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs, applyVideoIdChange, theaterMode } from '../../store';
 import { renameVideo } from '../../api';
 import { setProgress } from '../../home/progress';
 import { zapOn, zapStartTime } from '../../zap';
@@ -989,7 +989,7 @@ export const PlayerView = () => {
               </div>
             </div>
 
-            <div className="player-meta" style={{ display: 'flex', gap: '15px', color: 'var(--tx3)', fontSize: '0.9rem', marginBottom: '20px' }}>
+            <div className="player-meta">
               <span>{video.category}</span>
               <span>{((video.size || 0) / 1024 / 1024).toFixed(1)} MB</span>
               <span>{video.duration ? (video.duration / 60).toFixed(1) + 'm' : '—'}</span>
@@ -1013,15 +1013,15 @@ export const PlayerView = () => {
               </div>
             )}
 
-            <div className="player-info-actions" style={{ display: 'flex', gap: '10px', marginBottom: '25px', flexWrap: 'wrap' }}>
-              <button onClick={() => toggleFav()} className={video.fav ? 'st' : ''} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+            <div className="player-info-actions">
+              <button onClick={() => toggleFav()} className={video.fav ? 'st' : ''}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill={video.fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
                 <span>Fav</span>
               </button>
 
-              <button onClick={() => theaterMode.value = !theaterMode.value} className={theaterMode.value ? 'st' : ''} title="Theater mode — dim everything but the player (T)" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: theaterMode.value ? '1px solid var(--ac)' : '1px solid var(--brd)', background: theaterMode.value ? 'rgba(var(--ac-rgb,255,74,74),0.1)' : 'var(--bg2)', color: theaterMode.value ? 'var(--ac)' : 'var(--tx)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => theaterMode.value = !theaterMode.value} className={theaterMode.value ? 'on' : ''} title="Theater mode — dim everything but the player (T)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="2" y="4" width="20" height="14" rx="2" />
                   <line x1="2" y1="20" x2="22" y2="20" />
@@ -1030,7 +1030,7 @@ export const PlayerView = () => {
               </button>
 
               {subtitles.length > 0 && (
-                <button onClick={openTranscript} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: showTranscript ? '1px solid var(--ac)' : '1px solid var(--brd)', background: showTranscript ? 'rgba(var(--ac-rgb,255,74,74),0.1)' : 'var(--bg2)', color: showTranscript ? 'var(--ac)' : 'var(--tx)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <button onClick={openTranscript} className={showTranscript ? 'on' : ''}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="18" height="18" rx="2" />
                     <line x1="7" y1="8" x2="17" y2="8" />
@@ -1047,7 +1047,7 @@ export const PlayerView = () => {
                 if (!pool.length) { if ((window as any).toast) (window as any).toast('No other videos'); return; }
                 const pick = pool[Math.floor(Math.random() * pool.length)];
                 (window as any).openVid(pick.id);
-              }} title="Open a random video" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              }} title="Open a random video">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="3" width="18" height="18" rx="2" />
                   <circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" stroke="none" />
@@ -1067,7 +1067,7 @@ export const PlayerView = () => {
                   } catch {
                     if ((window as any).toast) (window as any).toast('Copy failed');
                   }
-                }} title="Copy the associated link URL" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                }} title="Copy the associated link URL">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -1076,7 +1076,7 @@ export const PlayerView = () => {
                 </button>
               )}
 
-              <button onClick={() => renameModalState.value = { visible: true, vidId: video.id, linkUrl: null, currentName: video.name }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => renameModalState.value = { visible: true, vidId: video.id, linkUrl: null, currentName: video.name }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -1084,14 +1084,14 @@ export const PlayerView = () => {
                 <span>Rename</span>
               </button>
 
-              <button onClick={() => moveModalState.value = { visible: true, vidIds: [video.id], linkUrl: null, currentFolder: video.catPath || '', isVault: !!(video as any).isVault }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => moveModalState.value = { visible: true, vidIds: [video.id], linkUrl: null, currentFolder: video.catPath || '', isVault: !!(video as any).isVault }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
                 <span>Move</span>
               </button>
 
-              <button onClick={() => { addToCollectionVideo.value = currentVideo.value; showAddToCollectionModal.value = true; }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => { addToPlaylistVideo.value = currentVideo.value; showAddToPlaylistModal.value = true; }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="8" y1="6" x2="21" y2="6" />
                   <line x1="8" y1="12" x2="21" y2="12" />
@@ -1103,14 +1103,14 @@ export const PlayerView = () => {
                 <span>Playlist</span>
               </button>
 
-              <button onClick={() => setShowEncryptConfirm(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <button onClick={() => setShowEncryptConfirm(true)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 <span>Encrypt</span>
               </button>
 
 
               {!video.isLink && (
-                <button onClick={takeScreenshot} title="Save current frame to Screenshots" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <button onClick={takeScreenshot} title="Save current frame to Screenshots">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
                   </svg>
@@ -1129,7 +1129,7 @@ export const PlayerView = () => {
                   const err = await r.json();
                   if ((window as any).toast) (window as any).toast('Delete failed: ' + (err.error || 'Unknown error'));
                 }
-              }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: '#ff4a4a' }}>
+              }} className="danger">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
                 </svg>
@@ -1144,7 +1144,7 @@ export const PlayerView = () => {
                     body: JSON.stringify({ id: video.id })
                   });
                   if (!r.ok && (window as any).toast) (window as any).toast('Failed to open folder');
-                }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                   </svg>
@@ -1154,7 +1154,7 @@ export const PlayerView = () => {
               
               {video.isLink && (
                 <>
-                  <button onClick={() => video.linkUrl && window.open(video.linkUrl, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--tx)' }}>
+                  <button onClick={() => video.linkUrl && window.open(video.linkUrl, '_blank')}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                       <polyline points="15 3 21 3 21 9"></polyline>
@@ -1162,7 +1162,7 @@ export const PlayerView = () => {
                     </svg>
                     <span>Open Link</span>
                   </button>
-                  <button onClick={() => startDownload()} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <button onClick={() => startDownload()}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                       <polyline points="7 10 12 15 17 10" />
@@ -1179,7 +1179,7 @@ export const PlayerView = () => {
                   <button
                     onClick={() => setShowPlayerOptions(v => !v)}
                     title="Player options"
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: showPlayerOptions ? '1px solid var(--ac)' : '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: showPlayerOptions ? 'var(--ac)' : 'var(--tx)' }}
+                    className={`pv-act${showPlayerOptions ? ' on' : ''}`}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -1230,8 +1230,52 @@ export const PlayerView = () => {
               </div>
             )}
 
-            <div className="player-language-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
-              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Language</span>
+            <div className="player-channel-row">
+              <span className="pv-flabel">Channel</span>
+              {channel ? (
+                <span style={{ color: 'var(--ac)', cursor: 'pointer', fontWeight: 500 }} onClick={() => (window as any).openChannel(channel)}>{channel}</span>
+              ) : (
+                <span style={{ color: 'var(--tx3)', fontSize: '0.85rem' }}>None</span>
+              )}
+              <button className="p-tag-add-btn" onClick={() => (window as any).openChannelModal(video.id)} style={{ marginLeft: '10px', width: '22px', height: '22px', fontSize: '0.75rem' }}>
+                ✎
+              </button>
+            </div>
+
+            <div className="player-actors-row">
+              <span className="pv-flabel">Actors</span>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {actors.map(a => (
+                  <button key={a} className="p-actor-tag" onClick={() => (window as any).openActor(a)}>
+                    <img className="p-actor-ph" src={`/api/actor-photos/${encodeURIComponent(a)}/img`} alt="" onError={(e: any) => e.target.style.display = 'none'} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                    {a}
+                  </button>
+                ))}
+                <button className="p-tag-add-btn" onClick={() => (window as any).openActorModal(video.id)} style={{ width: '24px', height: '24px' }}>
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="player-tags-row">
+              <span className="pv-flabel">Tags</span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {tags.map(t => (
+                  <span key={t} className="p-tag" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {t}
+                    <button onClick={() => removeTag(t)} title="Remove tag" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', opacity: 0.6 }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                    </button>
+                  </span>
+                ))}
+                <button className="p-tag-add-btn" onClick={() => (window as any).openTagModal(video.id)} style={{ width: '24px', height: '24px' }}>
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="player-language-row">
+              <span className="pv-flabel">Language</span>
               <select
                 value={language}
                 title="Video language — used for live subtitle generation"
@@ -1248,7 +1292,7 @@ export const PlayerView = () => {
             {!video.isLink && !video.isVault && (
               <div className="player-subtitle-row" style={{ marginBottom: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: subtitles.filter(s => s.filename).length > 0 ? '6px' : '0' }}>
-                  <span style={{ color: 'var(--tx3)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Subtitles</span>
+                  <span className="pv-flabel" style={{ minWidth: 'auto' }}>Subtitles</span>
                   <label style={{ cursor: subtitleUploading ? 'default' : 'pointer', opacity: subtitleUploading ? 0.5 : 1 }}>
                     <input
                       type="file"
@@ -1275,50 +1319,6 @@ export const PlayerView = () => {
                 ))}
               </div>
             )}
-
-            <div className="player-channel-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
-              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Channel</span>
-              {channel ? (
-                <span style={{ color: 'var(--ac)', cursor: 'pointer', fontWeight: 500 }} onClick={() => (window as any).openChannel(channel)}>{channel}</span>
-              ) : (
-                <span style={{ color: 'var(--tx3)', fontSize: '0.85rem' }}>None</span>
-              )}
-              <button className="p-tag-add-btn" onClick={() => (window as any).openChannelModal(video.id)} style={{ marginLeft: '10px', width: '22px', height: '22px', fontSize: '0.75rem' }}>
-                ✎
-              </button>
-            </div>
-
-            <div className="player-actors-row" style={{ marginBottom: '15px', display: 'flex', alignItems: 'center' }}>
-              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Actors</span>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {actors.map(a => (
-                  <button key={a} className="p-actor-tag" onClick={() => (window as any).openActor(a)}>
-                    <img className="p-actor-ph" src={`/api/actor-photos/${encodeURIComponent(a)}/img`} alt="" onError={(e: any) => e.target.style.display = 'none'} style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
-                    {a}
-                  </button>
-                ))}
-                <button className="p-tag-add-btn" onClick={() => (window as any).openActorModal(video.id)} style={{ width: '24px', height: '24px' }}>
-                  +
-                </button>
-              </div>
-            </div>
-
-            <div className="player-tags-row" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center' }}>
-              <span style={{ color: 'var(--tx3)', marginRight: '10px', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tags</span>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {tags.map(t => (
-                  <span key={t} className="p-tag" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    {t}
-                    <button onClick={() => removeTag(t)} title="Remove tag" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', opacity: 0.6 }}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
-                    </button>
-                  </span>
-                ))}
-                <button className="p-tag-add-btn" onClick={() => (window as any).openTagModal(video.id)} style={{ width: '24px', height: '24px' }}>
-                  +
-                </button>
-              </div>
-            </div>
 
             {!video.isLink && !video.isVault && (
               <div className="player-thumb-row" style={{ marginBottom: '20px' }}>

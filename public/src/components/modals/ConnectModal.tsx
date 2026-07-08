@@ -117,8 +117,8 @@ export const ConnectModal = ({ onClose }: Props) => {
   }, [localUrl, networkEnabled]);
 
   return (
-    <div class="collection-modal" id="connectModal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={(e: any) => e.target.id === 'connectModal' && onClose()}>
-      <div class="collection-modal-box" style={{ textAlign: 'center', width: '360px', maxWidth: '95vw' }}>
+    <div class="playlist-modal" id="connectModal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={(e: any) => e.target.id === 'connectModal' && onClose()}>
+      <div class="playlist-modal-box" style={{ textAlign: 'center', width: '360px', maxWidth: '95vw' }}>
         <h3 style={{ marginBottom: '12px' }}>Connect from another device</h3>
         
         {/* Network access toggle */}

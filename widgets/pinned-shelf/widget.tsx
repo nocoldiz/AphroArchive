@@ -40,11 +40,11 @@ function PinnedShelfConfig({ instance, onDone }: { instance: WidgetInstance; onD
           <option value="category">Folder</option>
           <option value="tag">Tag</option>
           <option value="actor">Actor</option>
-          <option value="collection">Playlist</option>
+          <option value="playlist">Playlist</option>
         </select>
       </label>
-      <label>{kind === 'collection' ? 'Playlist name' : 'Value'}
-        {kind === 'collection'
+      <label>{kind === 'playlist' ? 'Playlist name' : 'Value'}
+        {kind === 'playlist'
           ? <input value={value} onInput={(e: any) => setValue(e.target.value)} placeholder="Playlist name" />
           : <select value={value} onChange={(e: any) => setValue(e.target.value)}>
               <option value="">— choose —</option>
@@ -65,15 +65,16 @@ export default function PinnedShelfWidget(instance: WidgetInstance) {
   const [collItems, setCollItems] = useState<Video[] | null>(null);
 
   useEffect(() => {
-    if (cfg.kind === 'collection' && cfg.value) {
-      fetch(`/api/collections/${encodeURIComponent(cfg.value)}/videos`)
+    // Accept the legacy 'collection' kind from shelves saved before the rename.
+    if ((cfg.kind === 'playlist' || cfg.kind === 'collection') && cfg.value) {
+      fetch(`/api/playlists/${encodeURIComponent(cfg.value)}/videos`)
         .then(r => r.json()).then(d => setCollItems(Array.isArray(d) ? d : [])).catch(() => setCollItems([]));
     }
   }, [cfg.kind, cfg.value]);
 
   const items = useMemo(() => {
     if (!cfg.value) return [];
-    if (cfg.kind === 'collection') return collItems || [];
+    if (cfg.kind === 'playlist' || cfg.kind === 'collection') return collItems || [];
     const lo = String(cfg.value).toLowerCase();
     return allVideos.value.filter(v => {
       if (cfg.kind === 'category') {

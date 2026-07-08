@@ -284,7 +284,7 @@ export const searchQuery = signal<string>('');
 // search that silently returns nothing.
 export const SEARCH_SCOPE_KEYS = [
   'videos', 'links', 'actors', 'channels', 'websites',
-  'books', 'audio', 'photos', 'pages', 'prompts', 'collections',
+  'books', 'audio', 'photos', 'pages', 'prompts', 'playlists',
 ] as const;
 export type SearchScope = typeof SEARCH_SCOPE_KEYS[number];
 
@@ -319,13 +319,14 @@ export function isScopeOn(key: string): boolean {
 }
 
 export const visionModalText = signal<string | null>(null);
-export const showAddToCollectionModal = signal<boolean>(false);
-export const addToCollectionVideo = signal<Video | null>(null);
+export const showAddToPlaylistModal = signal<boolean>(false);
+export const addToPlaylistVideo = signal<Video | null>(null);
 export const showConnectModal = signal<boolean>(false);
 export const galleryFilter = signal<string>(localStorage.getItem('galleryFilter') || '');
 export const sourceFilter = signal<string>(localStorage.getItem('sourceFilter') || 'both');
 export const ratingFilter = signal<number>(parseInt(localStorage.getItem('ratingFilter') || '0', 10));
 export const resolutionFilter = signal<string>(localStorage.getItem('resolutionFilter') || '');
+export const portraitFilter = signal<boolean>(localStorage.getItem('portraitFilter') === 'true');
 export const notWatchedFilter = signal<boolean>(localStorage.getItem('notWatchedFilter') === 'true');
 
 // Duration bucket: '' (any) | 'short' (<5min) | 'medium' (5–30min) | 'long' (>30min)
@@ -343,7 +344,7 @@ export const filterTags = signal<string[]>([]);
 /** True when any of the optional refinement filters are active. */
 export const hasActiveFilters = computed(() =>
   !!durationFilter.value || !!dateFromFilter.value || !!dateToFilter.value ||
-  ratingFilter.value > 0 || !!resolutionFilter.value || notWatchedFilter.value ||
+  ratingFilter.value > 0 || !!resolutionFilter.value || portraitFilter.value || notWatchedFilter.value ||
   filterActors.value.length > 0 || filterChannels.value.length > 0 || filterTags.value.length > 0
 );
 
@@ -354,6 +355,7 @@ export function clearAllFilters() {
   dateToFilter.value = '';
   ratingFilter.value = 0;
   resolutionFilter.value = '';
+  portraitFilter.value = false;
   notWatchedFilter.value = false;
   filterActors.value = [];
   filterChannels.value = [];
@@ -366,6 +368,7 @@ if (typeof window !== 'undefined') {
   sourceFilter.subscribe(val => localStorage.setItem('sourceFilter', val));
   ratingFilter.subscribe(val => localStorage.setItem('ratingFilter', String(val)));
   resolutionFilter.subscribe(val => localStorage.setItem('resolutionFilter', val));
+  portraitFilter.subscribe(val => localStorage.setItem('portraitFilter', val ? 'true' : 'false'));
   notWatchedFilter.subscribe(val => localStorage.setItem('notWatchedFilter', val ? 'true' : 'false'));
   durationFilter.subscribe(val => localStorage.setItem('durationFilter', val));
   dateFromFilter.subscribe(val => localStorage.setItem('dateFromFilter', val));
@@ -704,8 +707,8 @@ Object.defineProperty(w, 'linkVidIds', {
 });
 
 w.linkMatchedUrls = new Set();
-w.collectionsMode = false;
-w.curCollection = null;
+w.playlistsMode = false;
+w.curPlaylist = null;
 w.settingsMode = false;
 w.dbMode = false;
 w.dbTab = 'actors';
@@ -829,13 +832,17 @@ export function searchAllVideos(query: string): Video[] {
   return res;
 }
 
-function _resolveResolutionTier(v: Video): string {
-  const w = v.width, h = v.height;
-  if (!w && !h) return '';
-  if ((w && w >= 3840) || (h && h >= 2160)) return '4k';
-  if ((w && w >= 1920) || (h && h >= 1080)) return '1080p';
-  if ((w && w >= 1280) || (h && h >= 720)) return '720p';
-  return 'sd';
+// Minimum vertical-resolution thresholds for the "720+ / 1080+ / …" filter.
+// Resolution is judged by the shorter dimension so portrait clips are graded
+// the same as landscape (a 1080×1920 clip counts as 1080+).
+const RES_MIN_PX: Record<string, number> = {
+  '720': 720, '1080': 1080, '2k': 1440, '4k': 2160, '8k': 4320,
+};
+
+function _verticalRes(v: Video): number {
+  const w = v.width || 0, h = v.height || 0;
+  if (!w && !h) return 0;
+  return Math.min(w || h, h || w);
 }
 
 export const filteredVideos = computed(() => {
@@ -919,13 +926,23 @@ export const filteredVideos = computed(() => {
     list = list.filter(v => v.rating != null && v.rating >= minRating);
   }
 
-  // Resolution filter
+  // Resolution filter — minimum vertical resolution (720+, 1080+, 2k+, …)
   const resFlt = resolutionFilter.value;
-  if (resFlt) {
+  if (resFlt && RES_MIN_PX[resFlt]) {
+    const min = RES_MIN_PX[resFlt];
     list = list.filter(v => {
-      const tier = _resolveResolutionTier(v);
-      if (!tier) return true; // unknown resolution passes through
-      return tier === resFlt;
+      const vr = _verticalRes(v);
+      if (!vr) return true; // unknown resolution passes through
+      return vr >= min;
+    });
+  }
+
+  // Portrait-only filter (taller than wide)
+  if (portraitFilter.value) {
+    list = list.filter(v => {
+      const w = v.width || 0, h = v.height || 0;
+      if (!w || !h) return false; // unknown dimensions can't be portrait-verified
+      return h > w;
     });
   }
 
@@ -1391,7 +1408,7 @@ currentView.subscribe(view => {
       .catch(() => {});
   }
   const legacyViews = [
-    'home-view', 'vault-view', 'scraper-view', 'collections-view',
+    'home-view', 'vault-view', 'scraper-view', 'playlists-view',
     'books-view', 'audio-view', 'photos-view', 'thumbnails-view', 'pages-view',
     'prompts-view', 'search-sites-view', 'settings-view', 'database-view',
     'folders-view', 'chapters-view'

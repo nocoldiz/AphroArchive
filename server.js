@@ -46,7 +46,7 @@ const genWhisper = require('./server/gen-whisper-server');
 const subtitles = require('./server/subtitles-server');
 const reencode = require('./server/reencode-server');
 const libraryHealth = require('./server/library-health-server');
-const collections = require('./server/collections-server');
+const playlists = require('./server/playlists-server');
 const downloads = require('./server/downloads-server');
 const links = require('./server/links-server');
 const books = require('./server/books-server');
@@ -324,14 +324,14 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/library/health/results' && req.method === 'GET') return libraryHealth.apiHealthResults(req, res);
   if (p === '/api/library/health/fix' && req.method === 'POST') return libraryHealth.apiHealthFix(req, res);
 
-  // ── Collections ──────────────────────────────────────────────────────
-  if (p === '/api/collections' && req.method === 'GET') return collections.apiCollections(req, res);
-  if (p === '/api/collections' && req.method === 'POST') return collections.apiCollectionCreate(req, res);
-  if (p === '/api/collections' && req.method === 'DELETE') return collections.apiCollectionDeleteAll(req, res);
-  if ((m = p.match(/^\/api\/collections\/([^/]+)$/)) && req.method === 'DELETE') return collections.apiCollectionDelete(req, res, decodeURIComponent(m[1]));
-  if ((m = p.match(/^\/api\/collections\/([^/]+)\/videos$/)) && req.method === 'GET') return collections.apiCollectionVideos(req, res, decodeURIComponent(m[1]));
-  if ((m = p.match(/^\/api\/collections\/([^/]+)\/videos$/)) && req.method === 'POST') return collections.apiCollectionAddVideo(req, res, decodeURIComponent(m[1]));
-  if ((m = p.match(/^\/api\/collections\/([^/]+)\/videos\/([^/]+)$/)) && req.method === 'DELETE') return collections.apiCollectionRemoveVideo(req, res, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
+  // ── Playlists ────────────────────────────────────────────────────────
+  if (p === '/api/playlists' && req.method === 'GET') return playlists.apiPlaylists(req, res);
+  if (p === '/api/playlists' && req.method === 'POST') return playlists.apiPlaylistCreate(req, res);
+  if (p === '/api/playlists' && req.method === 'DELETE') return playlists.apiPlaylistDeleteAll(req, res);
+  if ((m = p.match(/^\/api\/playlists\/([^/]+)$/)) && req.method === 'DELETE') return playlists.apiPlaylistDelete(req, res, decodeURIComponent(m[1]));
+  if ((m = p.match(/^\/api\/playlists\/([^/]+)\/videos$/)) && req.method === 'GET') return playlists.apiPlaylistVideos(req, res, decodeURIComponent(m[1]));
+  if ((m = p.match(/^\/api\/playlists\/([^/]+)\/videos$/)) && req.method === 'POST') return playlists.apiPlaylistAddVideo(req, res, decodeURIComponent(m[1]));
+  if ((m = p.match(/^\/api\/playlists\/([^/]+)\/videos\/([^/]+)$/)) && req.method === 'DELETE') return playlists.apiPlaylistRemoveVideo(req, res, decodeURIComponent(m[1]), decodeURIComponent(m[2]));
 
   // ── Downloads ────────────────────────────────────────────────────────
   if (p === '/api/download' && req.method === 'POST') return downloads.apiDownloadAdd(req, res);
@@ -616,7 +616,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── Static / SPA ─────────────────────────────────────────────────────
   const filePath = p === '/' ? 'index.html' : p.replace(/^\//, '');
-  const spaRoutes = /^\/(thumbnails|links|duplicates|corrupted|vault|recent|collections|scraper|settings|database|actors|channels|books|audio|photos|screenshots|pages|search|favourites|folders|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|tiktok|reddit|mosaic|video\/|tag\/|folder\/|cat\/|actor\/|channel\/|collection\/)/;
+  const spaRoutes = /^\/(thumbnails|links|duplicates|corrupted|vault|recent|playlists|scraper|settings|database|actors|channels|books|audio|photos|screenshots|pages|search|favourites|folders|chapters|download-queue|prompts|assistant|categorizer|browse|home|instagram|tiktok|reddit|mosaic|video\/|tag\/|folder\/|cat\/|actor\/|channel\/|playlist\/)/;
   if (spaRoutes.test(p)) return serveStatic(req, res, 'index.html');
   serveStatic(req, res, filePath);
  } catch (err) {

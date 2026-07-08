@@ -6,7 +6,7 @@ const TYPE_LABEL: Record<string, string> = {
   all: 'All',
   folder: 'Folder',
   tag: 'Tag',
-  collection: 'Playlist',
+  playlist: 'Playlist',
 };
 
 type TVTab = 'channels' | 'folders';

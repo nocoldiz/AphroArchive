@@ -1,4 +1,4 @@
-﻿import { currentView, currentVideo, showAddToCollectionModal, addToCollectionVideo } from '../../store';
+﻿import { currentView, currentVideo, showAddToPlaylistModal, addToPlaylistVideo } from '../../store';
 import { VisionModal } from '../modals/VisionModal';
 import { TagModal } from '../modals/TagModal';
 import { CreateTagModal } from '../modals/CreateTagModal';
@@ -16,7 +16,7 @@ import { HomeView } from '../sections/HomeView';
 import { VaultUnlockModal } from '../modals/VaultUnlockModal';
 import { ImportModal } from '../modals/ImportModal';
 import { DialogModal } from '../modals/DialogModal';
-import { AddToCollectionModal } from '../modals/AddToCollectionModal';
+import { AddToPlaylistModal } from '../modals/AddToPlaylistModal';
 import { useEffect, Suspense, lazy } from 'preact/compat';
 
 // Heavy/rare views — code-split so the initial bundle stays small.
@@ -37,7 +37,7 @@ const SearchSitesView = lazy(() => import('../sections/SearchSitesView').then(m 
 const AudioView = lazy(() => import('../sections/AudioView').then(m => ({ default: m.AudioView })));
 const BooksView = lazy(() => import('../sections/BooksView').then(m => ({ default: m.BooksView })));
 const FilesView = lazy(() => import('../sections/FilesView').then(m => ({ default: m.FilesView })));
-const CollectionsView = lazy(() => import('../sections/CollectionsView').then(m => ({ default: m.CollectionsView })));
+const PlaylistsView = lazy(() => import('../sections/PlaylistsView').then(m => ({ default: m.PlaylistsView })));
 const VaultView = lazy(() => import('../sections/VaultView').then(m => ({ default: m.VaultView })));
 // The player (incl. AdvancedPlayer + ZapView) is the single largest view; it's
 // split out and warmed by the idle prefetch so click-to-play stays instant.
@@ -77,7 +77,7 @@ export async function prefetchLazyViews() {
     () => import('../sections/LinksView'),
     () => import('../sections/SettingsView'),
     () => import('../sections/ActorsView'),
-    () => import('../sections/CollectionsView'),
+    () => import('../sections/PlaylistsView'),
     () => import('../sections/CategoriesView'),
     () => import('../sections/ChannelsView'),
     () => import('../sections/PhotosView'),
@@ -158,7 +158,7 @@ export const MainContent = () => {
     if (view === 'links') return <LinksView />;
     if (view === 'rss') return <RssView />;
     if (view === 'download-queue') return <DownloadQueueView />;
-    if (view === 'collections') return <CollectionsView />;
+    if (view === 'playlists') return <PlaylistsView />;
     if (view === 'database') return <DatabaseView />;
     if (view === 'thumbnails') return <ThumbnailsView />;
     if (view === 'instagram') return <InstagramView />;
@@ -207,8 +207,8 @@ export const MainContent = () => {
       <VaultUnlockModal />
       <ImportModal />
       <DialogModal />
-      {showAddToCollectionModal.value && (
-        <AddToCollectionModal onClose={() => { showAddToCollectionModal.value = false; addToCollectionVideo.value = null; }} />
+      {showAddToPlaylistModal.value && (
+        <AddToPlaylistModal onClose={() => { showAddToPlaylistModal.value = false; addToPlaylistVideo.value = null; }} />
       )}
       <Suspense fallback={null}>
         <SubtitleEditorModal />

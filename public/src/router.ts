@@ -60,7 +60,7 @@ export async function routeToPath(path: string) {
   // Simple signal-based views
   const directViews: Record<string, string> = {
     '/vault':          'vault',
-    '/collections':    'collections',
+    '/playlists':      'playlists',
     '/scraper':        'scraper',
     '/books':          'books',
     '/audio':          'audio',
@@ -145,9 +145,9 @@ export async function routeToPath(path: string) {
     return;
   }
 
-  if ((m = path.match(/^\/collection\/(.+)$/))) {
-    currentView.value = 'collections';
-    if (w.openCollectionDetail) setTimeout(() => w.openCollectionDetail(decodeURIComponent(m![1])), 50);
+  if ((m = path.match(/^\/playlist\/(.+)$/))) {
+    currentView.value = 'playlists';
+    if (w.openPlaylistDetail) setTimeout(() => w.openPlaylistDetail(decodeURIComponent(m![1])), 50);
     return;
   }
 

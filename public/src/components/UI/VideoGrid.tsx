@@ -1,7 +1,7 @@
 import { formatVideoTitle, mtimeToMs } from '../../utils';
 import { useRef, useState, useEffect, useCallback } from 'preact/hooks';
 import { Video } from '../../types';
-import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToCollectionModal, addToCollectionVideo, thumbBlurMode, contextMenuState, playerNextUp, playerQueueList, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
+import { filteredVideos, currentVideo, currentView, selectedVideoIds, videoSelMode, isLoadingVideos, videos, tagModalState, actorModalState, showAddToPlaylistModal, addToPlaylistVideo, thumbBlurMode, contextMenuState, playerNextUp, playerQueueList, allVideos, folders, matchLinkFolder, loadVideos, ensureVaultUnlocked, moveModalState, gridViewMode, groupByYear, encryptingVideoIds, skeletonCount } from '../../store';
 import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
@@ -327,8 +327,8 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
 
   const handlePlaylist = (e: any) => {
     e.stopPropagation();
-    addToCollectionVideo.value = video;
-    showAddToCollectionModal.value = true;
+    addToPlaylistVideo.value = video;
+    showAddToPlaylistModal.value = true;
   };
 
   const handleTag = (e: any) => {
@@ -623,9 +623,9 @@ const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: 
 
 export const VideoSelBar = () => {
   const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
-  const [activePanel, setActivePanel] = useState<null | 'tag' | 'actor' | 'collection'>(null);
+  const [activePanel, setActivePanel] = useState<null | 'tag' | 'actor' | 'playlist'>(null);
   const [bulkInput, setBulkInput] = useState('');
-  const [colList, setColList] = useState<{ name: string; count: number }[]>([]);
+  const [plList, setPlList] = useState<{ name: string; count: number }[]>([]);
   const count = selectedVideoIds.value.size;
   if (count === 0) return null;
 
@@ -634,11 +634,11 @@ export const VideoSelBar = () => {
   const hasLinks = linkVids.length > 0;
   const localVids = selectedVids.filter(v => !v.isLink);
 
-  const togglePanel = (panel: 'tag' | 'actor' | 'collection') => {
+  const togglePanel = (panel: 'tag' | 'actor' | 'playlist') => {
     if (activePanel === panel) { setActivePanel(null); return; }
     setBulkInput('');
-    if (panel === 'collection') {
-      fetch('/api/collections').then(r => r.json()).then(d => setColList(d || [])).catch(() => {});
+    if (panel === 'playlist') {
+      fetch('/api/playlists').then(r => r.json()).then(d => setPlList(Array.isArray(d) ? d : [])).catch(() => {});
     }
     setActivePanel(panel);
   };
@@ -677,17 +677,17 @@ export const VideoSelBar = () => {
     setActivePanel(null);
   };
 
-  const applyBulkCollection = async (colName: string) => {
+  const applyBulkPlaylist = async (plName: string) => {
     let added = 0;
     for (const v of selectedVids) {
-      const r = await fetch(`/api/collections/${encodeURIComponent(colName)}/videos`, {
+      const r = await fetch(`/api/playlists/${encodeURIComponent(plName)}/videos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: v.id }),
       }).catch(() => null);
       if (r?.ok) added++;
     }
-    (window as any).toast?.(`Added ${added} video${added !== 1 ? 's' : ''} to "${colName}"`);
+    (window as any).toast?.(`Added ${added} video${added !== 1 ? 's' : ''} to "${plName}"`);
     setActivePanel(null);
   };
 
@@ -878,8 +878,8 @@ export const VideoSelBar = () => {
         </button>
       )}
       <button
-        onClick={() => togglePanel('collection')}
-        style={{ background: activePanel === 'collection' ? 'var(--ac)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        onClick={() => togglePanel('playlist')}
+        style={{ background: activePanel === 'playlist' ? 'var(--ac)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         Playlist
@@ -930,21 +930,21 @@ export const VideoSelBar = () => {
         <button onClick={applyBulkActor} style={{ background: 'var(--ac)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 600 }}>Add</button>
       </div>
     )}
-    {activePanel === 'collection' && (
+    {activePanel === 'playlist' && (
       <div style={{ position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(20,20,20,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '14px 16px', zIndex: 1001, minWidth: '240px', maxHeight: '220px', overflowY: 'auto' }}>
         <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>Add {count} video{count !== 1 ? 's' : ''} to playlist</div>
-        {colList.length === 0 ? (
+        {plList.length === 0 ? (
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem' }}>No playlists yet</div>
-        ) : colList.map(col => (
+        ) : plList.map(pl => (
           <div
-            key={col.name}
-            onClick={() => applyBulkCollection(col.name)}
+            key={pl.name}
+            onClick={() => applyBulkPlaylist(pl.name)}
             style={{ padding: '8px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '0.87rem', color: '#fff', display: 'flex', justifyContent: 'space-between' }}
             onMouseOver={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
             onMouseOut={(e: any) => e.currentTarget.style.background = 'none'}
           >
-            <span>{col.name}</span>
-            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.78rem' }}>{col.count}</span>
+            <span>{pl.name}</span>
+            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.78rem' }}>{pl.count}</span>
           </div>
         ))}
       </div>

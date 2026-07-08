@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'preact/hooks';
-import { currentVideo, currentView, tagModalState, actorModalState, showAddToCollectionModal, isMuted } from '../../public/src/store';
+import { currentVideo, currentView, tagModalState, actorModalState, showAddToPlaylistModal, isMuted } from '../../public/src/store';
 import './RedditView.css';
 
 // ─── helpers ─────────────────────────────────────────────────────────
@@ -684,7 +684,7 @@ const PostMenu = ({ item }: any) => {
   const entries: [string, string, () => void][] = [
     ['Add tags', 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z', () => { tagModalState.value = { visible: true, vidId: item.id, linkUrl: null }; }],
     ['Edit actors', 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8z', () => { actorModalState.value = { visible: true, vidId: item.id }; }],
-    ['Add to collection', 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01', () => { currentVideo.value = item; showAddToCollectionModal.value = true; }],
+    ['Add to playlist', 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01', () => { currentVideo.value = item; showAddToPlaylistModal.value = true; }],
     ['Rename', 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z', () => { if (w.openRen) w.openRen(item.id, item.name); }],
     ['Move to community', 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z', () => { if (w.openMov) w.openMov(item.id, item.name, item.catPath || ''); }]
   ];

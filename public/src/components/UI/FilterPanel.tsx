@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'preact/hooks';
 import {
   durationFilter, dateFromFilter, dateToFilter, ratingFilter, resolutionFilter,
-  notWatchedFilter, filterActors, filterChannels, filterTags,
+  portraitFilter, notWatchedFilter, filterActors, filterChannels, filterTags,
   hasActiveFilters, clearAllFilters, actors, channels, allVideos,
 } from '../../store';
 
@@ -14,10 +14,11 @@ const DURATIONS = [
 
 const RESOLUTIONS = [
   { value: '', label: 'Any' },
-  { value: '4k', label: '4K' },
-  { value: '1080p', label: '1080p' },
-  { value: '720p', label: '720p' },
-  { value: 'sd', label: 'SD' },
+  { value: '720', label: '720+' },
+  { value: '1080', label: '1080+' },
+  { value: '2k', label: '2K+' },
+  { value: '4k', label: '4K+' },
+  { value: '8k', label: '8K+' },
 ];
 
 // A single faceted multi-select: free-text entry backed by a <datalist> of the
@@ -89,7 +90,8 @@ export const FilterPanel = () => {
   const active = hasActiveFilters.value;
   const count =
     (durationFilter.value ? 1 : 0) + ((dateFromFilter.value || dateToFilter.value) ? 1 : 0) +
-    (ratingFilter.value > 0 ? 1 : 0) + (resolutionFilter.value ? 1 : 0) + (notWatchedFilter.value ? 1 : 0) +
+    (ratingFilter.value > 0 ? 1 : 0) + (resolutionFilter.value ? 1 : 0) +
+    (portraitFilter.value ? 1 : 0) + (notWatchedFilter.value ? 1 : 0) +
     filterActors.value.length + filterChannels.value.length + filterTags.value.length;
 
   return (
@@ -125,6 +127,11 @@ export const FilterPanel = () => {
                 onClick={() => resolutionFilter.value = r.value}>{r.label}</button>
             ))}
           </div>
+
+          <label className="filter-toggle">
+            <input type="checkbox" checked={portraitFilter.value} onChange={(e: any) => portraitFilter.value = e.target.checked} />
+            <span>Portrait only</span>
+          </label>
 
           <div className="filter-row-label">Minimum rating</div>
           <div className="filter-btn-row">

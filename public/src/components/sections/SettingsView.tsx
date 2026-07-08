@@ -1005,7 +1005,7 @@ export const SettingsView = () => {
                 <i className="icon-database" /> Backup &amp; Restore
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '16px' }}>
-                Export a portable ZIP of your database, ratings, watch history, collections, links, prompts and settings — everything except the binary media files. Restore it on a new machine to recreate the library (media files are matched back by filename).
+                Export a portable ZIP of your database, ratings, watch history, playlists, links, prompts and settings — everything except the binary media files. Restore it on a new machine to recreate the library (media files are matched back by filename).
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                 <a className="modal-btn modal-btn--primary" href="/api/backup/export" style={{ textDecoration: 'none' }} download>

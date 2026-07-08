@@ -14,7 +14,7 @@ export default function QuickLinksWidget() {
     <WidgetShell title="Quick Links">
       <div className="dw-ql-grid">
         <Card label="Favourites" desc="Your starred videos" onClick={() => { favFilter.value = true; nav('browse'); }} />
-        <Card label="Playlists" desc="Saved video groups" onClick={() => nav('collections', '/collections')} />
+        <Card label="Playlists" desc="Saved video groups" onClick={() => nav('playlists', '/playlists')} />
         <Card label="Vault" desc="Encrypted storage" onClick={() => nav('vault', '/vault')} />
         <Card label="Folders" desc="Browse by folder" onClick={() => nav('categories', '/categories')} />
         <Card label="Actors" desc="Actor database" onClick={() => nav('actors', '/actors')} />
