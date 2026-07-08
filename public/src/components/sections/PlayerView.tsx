@@ -45,9 +45,15 @@ export const PlayerView = () => {
   const [rating, setRating] = useState<number | null>(null);
   const [hoveredRating, setHoveredRating] = useState<number | null>(null);
   const [hoverTitle, setHoverTitle] = useState(false);
-  // Next Up starts collapsed — a single "up next" card with prev/next controls;
-  // expanding it reveals the full queue.
-  const [nextUpOpen, setNextUpOpen] = useState(false);
+  // Next Up defaults to expanded (the full queue). The collapsed state — a single
+  // "up next" card with prev/next controls — is remembered per-user in localStorage.
+  const [nextUpOpen, setNextUpOpen] = useState(() => {
+    const stored = localStorage.getItem('pvNextUpOpen');
+    return stored === null ? true : stored === '1';
+  });
+  useEffect(() => {
+    localStorage.setItem('pvNextUpOpen', nextUpOpen ? '1' : '0');
+  }, [nextUpOpen]);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const cancelRenameRef = useRef(false);
@@ -820,6 +826,7 @@ export const PlayerView = () => {
             )}
           </div>
 
+          <div className="pv-details">
           <div className="pv-side">
             {isTVMode.value ? (
               <TVChannelPanel />
@@ -1360,6 +1367,7 @@ export const PlayerView = () => {
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>

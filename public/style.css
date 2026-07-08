@@ -1436,6 +1436,52 @@ body.couch-mode .video-card:focus-visible {
   background: var(--acg);
 }
 
+/* Below the player: a two-column row — player details + related videos on the
+   left, the Next Up queue as a sticky column on the right. */
+.pv-details {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  max-width: 1600px;
+  margin: 14px auto 0
+}
+
+.pv-details .player-info {
+  order: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0
+}
+
+.pv-details .pv-side {
+  order: 2;
+  flex: 0 0 380px;
+  width: 380px;
+  max-width: 380px;
+  margin: 0;
+  position: sticky;
+  top: 14px
+}
+
+.pv-details .pv-nextup {
+  max-width: 100%
+}
+
+/* Narrow screens: stack the columns, Next Up back above the details. */
+@media (max-width: 1000px) {
+  .pv-details {
+    flex-direction: column
+  }
+
+  .pv-details .pv-side {
+    order: -1;
+    flex-basis: auto;
+    width: 100%;
+    max-width: 100%;
+    position: static
+  }
+}
+
 .pv-side {
   max-width: 1600px;
   margin: 14px auto 0;

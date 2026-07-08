@@ -958,7 +958,7 @@ function loadCollections() {
     return rows.map(row => ({
       id: row.id,
       name: row.name,
-      video_ids: JSON.parse(row.video_ids || '[]')
+      ids: JSON.parse(row.video_ids || '[]')
     }));
   } catch (e) {
     console.error('Failed to load collections from SQLite:', e);
@@ -972,7 +972,8 @@ function saveCollections(c) {
       db.prepare('DELETE FROM collections').run();
       const insert = db.prepare('INSERT INTO collections (id, name, video_ids) VALUES (?, ?, ?)');
       for (const coll of c) {
-        insert.run(coll.id, coll.name, JSON.stringify(coll.video_ids || []));
+        const id = coll.id || `col_${String(coll.name || '').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`;
+        insert.run(id, coll.name, JSON.stringify(coll.ids || coll.video_ids || []));
       }
     });
   } catch (e) {

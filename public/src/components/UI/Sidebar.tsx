@@ -77,6 +77,7 @@ export const Sidebar = () => {
   const [pluginsOpen, setPluginsOpen] = useState(() => sectionState('plugins'));
   const [catsOpen, setCatsOpen] = useState(() => sectionState('cats'));
   const [folderQuery, setFolderQuery] = useState('');
+  const [tagQuery, setTagQuery] = useState('');
   const [photoFolders, setPhotoFolders] = useState<{ path: string, name: string }[]>([]);
   const folderCtrlRef = useRef<FoldersFilterControl | null>(null);
   const [, folderForceUpdate] = useState(0);
@@ -404,7 +405,7 @@ export const Sidebar = () => {
     </>
   );
 
-  const showFolders = placementFor(FILTER_IDS.folders, 'topbar') === 'sidebar';
+  const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'sidebar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'sidebar' && !inVaultMode;
   const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'sidebar' && !inVaultMode;
 
@@ -486,7 +487,16 @@ export const Sidebar = () => {
             }
           />
           <div className="side-section" id="tagList" style={{ display: tagsOpen ? 'block' : 'none' }}>
-            <TagsFilter />
+            <div className="filter-dropdown-search sidebar-search">
+              <input
+                type="text"
+                placeholder="Search tags…"
+                value={tagQuery}
+                onInput={(e: any) => setTagQuery(e.currentTarget.value)}
+                onClick={(e: any) => e.stopPropagation()}
+              />
+            </div>
+            <TagsFilter filter={tagQuery} />
           </div>
         </>
       )}

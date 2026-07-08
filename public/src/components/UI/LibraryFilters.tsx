@@ -725,7 +725,7 @@ export const FilterDropdowns = () => {
   const folderCtrlRef = useRef<FoldersFilterControl | null>(null);
   const [, folderForceUpdate] = useState(0);
 
-  const showFolders = placementFor(FILTER_IDS.folders, 'topbar') === 'topbar';
+  const showFolders = placementFor(FILTER_IDS.folders, 'sidebar') === 'topbar';
   const showTags = placementFor(FILTER_IDS.tags, 'sidebar') === 'topbar' && !inVaultMode;
   const showLinks = placementFor(FILTER_IDS.links, 'topbar') === 'topbar' && !inVaultMode;
 
