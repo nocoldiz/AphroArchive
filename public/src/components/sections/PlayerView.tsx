@@ -58,7 +58,6 @@ export const PlayerView = () => {
   const [titleDraft, setTitleDraft] = useState('');
   const cancelRenameRef = useRef(false);
   const [chapters, setChapters] = useState<any[]>([]);
-  const [suggested, setSuggested] = useState<any[]>([]);
   const [subtitles, setSubtitles] = useState<any[]>([]);
   const [language, setLanguage] = useState<string>('');
 
@@ -323,7 +322,6 @@ export const PlayerView = () => {
       setNote(d.video?.note || '');
       setLanguage(d.video?.language || '');
       setChapters(d.video?.chapters || []);
-      setSuggested(d.suggested || []);
       setSubtitles(tracks);
       // Enqueue whisper if enabled and no file-based subtitle exists yet
       const hasFileSub = tracks.some((t: any) => t.filename);
@@ -431,9 +429,9 @@ export const PlayerView = () => {
   const relatedVideos = useMemo(() => {
     if (!video) return [];
     const nextUpIds = new Set(playerNextUp.value.map(v => v.id));
-    
-    const titleWords = video.name.toLowerCase().split(/\s+/).filter(w => w.length > 3);
     const wantLink = !!(video as any).isLink;
+    const studio = (video as any).studio || '';
+    const titleWords = video.name.toLowerCase().split(/\s+/).filter(w => w.length > 3);
 
     return allVideos.value.filter(v => {
       if (v.id === video.id) return false;
@@ -441,15 +439,15 @@ export const PlayerView = () => {
       // Local videos suggest local videos; links suggest links.
       if (!!(v as any).isLink !== wantLink) return false;
 
-      const sameActors = actors.length > 0 && v.actors && v.actors.some(a => actors.includes(a));
       const sameTags = tags.length > 0 && v.tags && v.tags.some(t => tags.includes(t));
-      
+      const sameActors = actors.length > 0 && v.actors && v.actors.some(a => actors.includes(a));
+      const sameStudio = !!studio && (v as any).studio === studio;
       const vTitleWords = v.name.toLowerCase().split(/\s+/);
       const sameTitle = titleWords.some(w => vTitleWords.includes(w));
-      
-      return sameActors || sameTags || sameTitle;
+
+      return sameTags || sameActors || sameStudio || sameTitle;
     }).slice(0, 8);
-  }, [video, playerNextUp.value, actors, tags, allVideos.value]);
+  }, [video, playerNextUp.value, tags, actors, allVideos.value]);
 
   const toggleFav = async () => {
     if (!video) return;
@@ -1353,18 +1351,6 @@ export const PlayerView = () => {
                 {note.trim() && (
                   <div style={{ marginTop: '10px', fontSize: '0.9rem', color: 'var(--tx2)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note}</div>
                 )}
-              </div>
-            )}
-            {!video.isLink && !video.isVault && suggested.length > 0 && (
-              <div style={{ marginTop: '30px' }}>
-                <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Suggested</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-                  {suggested.map(v => (
-                    <div key={v.id} onClickCapture={() => { skipNextUpUpdate.value = true; }}>
-                      <VideoCard video={v} isSelected={false} isRelated={true} />
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
             {relatedVideos.length > 0 && (

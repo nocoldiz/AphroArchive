@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0.."
+cd /d "%~dp0"
 echo Fetching latest code from GitHub...
 git pull
 if %ERRORLEVEL% neq 0 (
