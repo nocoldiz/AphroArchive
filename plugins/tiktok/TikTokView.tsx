@@ -15,7 +15,9 @@ const hashId = (s: string) => {
 
 const strColor = (s: string) => COLORS[hashId(s) % COLORS.length];
 const initial = (s: string) => (s || '?').charAt(0).toUpperCase();
-const isVertical = (v: any) => !!(v.width && v.height && v.height > v.width);
+// Any non-landscape clip counts — portrait 9:16, 4:5, 3:4, and square 1:1
+// alike — so the feed isn't limited to strict phone-shot 9:16 videos.
+const isVertical = (v: any) => !!(v.width && v.height && v.height >= v.width);
 const streamOf = (v: any) => v.isVault ? `/api/vault/stream/${v.id}` : `/api/stream/${v.id}`;
 
 const HeartIcon = ({ size = 30 }: { size?: number }) => (

@@ -1355,6 +1355,18 @@ export const PlayerView = () => {
                 )}
               </div>
             )}
+            {!video.isLink && !video.isVault && suggested.length > 0 && (
+              <div style={{ marginTop: '30px' }}>
+                <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Suggested</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+                  {suggested.map(v => (
+                    <div key={v.id} onClickCapture={() => { skipNextUpUpdate.value = true; }}>
+                      <VideoCard video={v} isSelected={false} isRelated={true} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {relatedVideos.length > 0 && (
               <div style={{ marginTop: '30px' }}>
                 <h2 style={{ fontSize: '1.2rem', marginBottom: '15px' }}>Related Videos</h2>
