@@ -1,6 +1,6 @@
 ﻿import { formatVideoTitle } from '../../utils';
 import { currentVideo, currentView, allVideos, showAddToPlaylistModal, addToPlaylistVideo, isMuted, filteredVideos, playerNextUp, playerHistory, playerQueueList, skipNextUpUpdate, folders, loadVideos, matchLinkFolder, renameModalState, moveModalState, tagModalState, actorModalState, channelModalState, contextMenuState, appPrefs, applyVideoIdChange, theaterMode } from '../../store';
-import { renameVideo } from '../../api';
+import { renameVideo, regenerateVideoMetadata } from '../../api';
 import { setProgress } from '../../home/progress';
 import { zapOn, zapStartTime } from '../../zap';
 import { isTVMode, tvStartTime, nextVideoInChannel, stopTVMode } from '../../tv-mode';
@@ -73,6 +73,8 @@ export const PlayerView = () => {
 
   const [autoChapters, setAutoChapters] = useState<any[]>([]);
   const [isDetectingChapters, setIsDetectingChapters] = useState(false);
+  const [isUpdatingMeta, setIsUpdatingMeta] = useState(false);
+  const [thumbBust, setThumbBust] = useState(0);
   const [showPlayerOptions, setShowPlayerOptions] = useState(false);
   const [batchStatus, setBatchStatus] = useState<{ running: boolean; done: number; total: number } | null>(null);
   const batchEsRef = useRef<EventSource | null>(null);
@@ -378,6 +380,31 @@ export const PlayerView = () => {
       (window as any).toast?.(`Found ${d.chapters?.length ?? 0} scene(s)`);
     } catch { (window as any).toast?.('Detection failed'); }
     finally { setIsDetectingChapters(false); }
+  };
+
+  const updateMetadataNow = async () => {
+    if (!video || video.isLink || video.isVault || isUpdatingMeta) return;
+    setIsUpdatingMeta(true);
+    setShowPlayerOptions(false);
+    (window as any).toast?.('Regenerating metadata…');
+    try {
+      const r = await regenerateVideoMetadata(video.id);
+      setThumbBust(Date.now());
+      reloadSubtitles();
+      // Re-pull freshly-detected scene chapters so the player reflects them
+      if (appPrefs.value.autoChapterDetection) {
+        fetch(`/api/auto-chapters/${video.id}`).then(res => res.json()).then(d => { if (d.chapters) setAutoChapters(d.chapters); }).catch(() => {});
+      }
+      const parts: string[] = [];
+      if (r.thumbs) parts.push('thumbnails');
+      if (r.chapters != null) parts.push(`${r.chapters} scene(s)`);
+      if (r.subtitles) parts.push('subtitles queued');
+      (window as any).toast?.(parts.length ? `Metadata updated: ${parts.join(', ')}` : 'Metadata update finished');
+    } catch {
+      (window as any).toast?.('Metadata update failed');
+    } finally {
+      setIsUpdatingMeta(false);
+    }
   };
 
   const toggleAutoChapterDetection = async () => {
@@ -1186,6 +1213,16 @@ export const PlayerView = () => {
                   </button>
                   {showPlayerOptions && (
                     <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px', minWidth: '240px', zIndex: 50, padding: '8px 0', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+                      <div style={{ padding: '6px 14px 4px', fontSize: '0.7rem', color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Metadata</div>
+                      <button
+                        onClick={updateMetadataNow}
+                        disabled={isUpdatingMeta}
+                        title="Regenerate thumbnails, scene chapters and subtitles for this video"
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 14px', background: 'none', border: 'none', color: isUpdatingMeta ? 'var(--tx3)' : 'var(--tx)', cursor: isUpdatingMeta ? 'default' : 'pointer', fontSize: '0.85rem', textAlign: 'left' }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        {isUpdatingMeta ? 'Updating…' : 'Update metadata'}
+                      </button>
                       <div style={{ padding: '6px 14px 4px', fontSize: '0.7rem', color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Chapters</div>
                       <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '8px 14px', cursor: 'pointer', fontSize: '0.85rem' }}>
                         <span>Auto-detect chapters</span>
@@ -1325,7 +1362,7 @@ export const PlayerView = () => {
                   {[0, 1, 2, 3, 4].map(i => (
                     <img
                       key={i}
-                      src={`/api/thumbs/${video.id}/${i}`}
+                      src={`/api/thumbs/${video.id}/${i}${thumbBust ? `?v=${thumbBust}` : ''}`}
                       alt={`Thumbnail ${i + 1}`}
                       onClick={() => { setThumbPref(video.id, i); setCardThumb(i); (window as any).toast?.('Card thumbnail updated'); }}
                       onError={(e: any) => e.target.style.display = 'none'}

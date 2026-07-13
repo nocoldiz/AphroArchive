@@ -6,6 +6,7 @@ import { useVideoSelection } from '../../hooks/useVideoSelection';
 import { getProgress } from '../../home/progress';
 import { getThumbPref } from '../../thumbPref';
 import { confirmDialog } from '../../dialog';
+import { regenerateVideoMetadata } from '../../api';
 
 // Index of the most recently clicked card — anchor for Shift+click range
 // selection, file-manager style. `lastClickedList` records *which* list the
@@ -626,6 +627,7 @@ export const VideoSelBar = () => {
   const [activePanel, setActivePanel] = useState<null | 'tag' | 'actor' | 'playlist'>(null);
   const [bulkInput, setBulkInput] = useState('');
   const [plList, setPlList] = useState<{ name: string; count: number }[]>([]);
+  const [metaProgress, setMetaProgress] = useState<{ done: number; total: number } | null>(null);
   const count = selectedVideoIds.value.size;
   if (count === 0) return null;
 
@@ -737,6 +739,19 @@ export const VideoSelBar = () => {
       const intervalId = setInterval(poll, 700);
       poll();
     });
+  };
+
+  const updateMetadataSelected = async () => {
+    if (!localVids.length || metaProgress) return;
+    setMetaProgress({ done: 0, total: localVids.length });
+    let done = 0;
+    for (const v of localVids) {
+      try { await regenerateVideoMetadata(v.id); } catch {}
+      done++;
+      setMetaProgress({ done, total: localVids.length });
+    }
+    setMetaProgress(null);
+    (window as any).toast?.(`Metadata regenerated for ${localVids.length} video${localVids.length !== 1 ? 's' : ''}`);
   };
 
   const deleteSelected = async () => {
@@ -884,6 +899,17 @@ export const VideoSelBar = () => {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         Playlist
       </button>
+      {localVids.length > 0 && (
+        <button
+          onClick={updateMetadataSelected}
+          disabled={!!metaProgress}
+          title="Regenerate thumbnails, scene chapters and subtitles for the selected videos"
+          style={{ background: metaProgress ? 'rgba(255,255,255,0.1)' : '#0f9d58', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: metaProgress ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          {metaProgress ? `Updating… ${metaProgress.done}/${metaProgress.total}` : `Update metadata (${localVids.length})`}
+        </button>
+      )}
       <button
         onClick={() => {
           selectedVideoIds.value = new Set(filteredVideos.value.map(v => v.id));

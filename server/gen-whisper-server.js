@@ -371,11 +371,16 @@ async function apiWhisperEnqueue(_req, res, id) {
   if (!(prefs.whisperEnabled ?? true)) return json(res, { ok: false, skipped: 'disabled' });
   const fp = safePath(id);
   if (!fp) return json(res, { ok: false, error: 'Not found' }, 404);
-  if (hasSubtitle(fp)) return json(res, { ok: true, skipped: 'has_subtitle' });
-  if (!_singleQueue.some(q => q.fp === fp)) {
-    _singleQueue.unshift({ fp });
+  // `?force=1` re-transcribes even when a subtitle file already exists
+  // (used by "Update Metadata"), overwriting the previous subtitles.
+  const force = /[?&]force=1(?:&|$)/.test(_req.url || '');
+  if (!force && hasSubtitle(fp)) return json(res, { ok: true, skipped: 'has_subtitle' });
+  if (force) {
+    forceEnqueue(fp);
+  } else {
+    if (!_singleQueue.some(q => q.fp === fp)) _singleQueue.unshift({ fp });
+    processSingleQueue().catch(console.error);
   }
-  processSingleQueue().catch(console.error);
   json(res, { ok: true, queued: true });
 }
 

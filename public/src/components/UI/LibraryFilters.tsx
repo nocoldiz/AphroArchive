@@ -136,11 +136,11 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
     list = list.filter(c => !isFolderHidden(c.path));
     // The synthetic Uncategorized entry is noise when nothing is uncategorized.
     list = list.filter(c => c.path !== 'uncategorized' || c.count > 0);
-    // Pinned folders already render in the pinned section above the tree
-    // (same dedupe the tags list does); children of a pinned folder are
-    // promoted to root level so they stay reachable.
-    const pins = new Set(appPrefs.value.pinnedFolders || []);
-    if (pins.size) list = list.filter(c => !pins.has(c.path));
+    // Pinned folders render as expandable subtrees in the pinned section
+    // above; drop each pin AND its whole subtree here so subfolders don't
+    // leak into the main tree as promoted roots.
+    const pins = appPrefs.value.pinnedFolders || [];
+    if (pins.length) list = list.filter(c => !pins.some(p => c.path === p || c.path.startsWith(p + '/')));
     const byPath = new Map<string, CatTreeNode>();
     const roots: CatTreeNode[] = [];
     for (const c of list) byPath.set(c.path, { cat: c, children: [] });
@@ -153,14 +153,35 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
     return roots;
   }, [displayFolders, appPrefs.value.hideEmptyFolders, isLoadingVideos.value, isFolderHidden]);
 
+  // Each pinned folder becomes a subtree rooted at the pin, carrying all of its
+  // descendants nested underneath (so it can be expanded/collapsed in place).
+  const pinnedTrees = useMemo(() => {
+    const pins = appPrefs.value.pinnedFolders || [];
+    if (!pins.length) return [] as CatTreeNode[];
+    const pinSet = new Set(pins);
+    const hideEmpty = !!appPrefs.value.hideEmptyFolders && !isLoadingVideos.value;
+    let list = displayFolders.filter(c => !isFolderHidden(c.path));
+    // Always keep a pinned folder itself visible even when empty.
+    if (hideEmpty) list = list.filter(c => c.count > 0 || pinSet.has(c.path));
+    const byPath = new Map<string, CatTreeNode>();
+    for (const c of list) byPath.set(c.path, { cat: c, children: [] });
+    for (const node of byPath.values()) {
+      const slash = node.cat.path.lastIndexOf('/');
+      const parent = slash === -1 ? undefined : byPath.get(node.cat.path.slice(0, slash));
+      if (parent) parent.children.push(node);
+    }
+    return pins.map(p => byPath.get(p)).filter(Boolean) as CatTreeNode[];
+  }, [displayFolders, appPrefs.value.pinnedFolders, appPrefs.value.hideEmptyFolders, isLoadingVideos.value, isFolderHidden]);
+
   const expandablePaths = useMemo(() => {
     const paths: string[] = [];
     const collect = (nodes: CatTreeNode[]) => {
       for (const n of nodes) { if (n.children.length > 0) { paths.push(n.cat.path); collect(n.children); } }
     };
+    collect(pinnedTrees);
     collect(categoryTree);
     return paths;
-  }, [categoryTree]);
+  }, [categoryTree, pinnedTrees]);
 
   if (controlRef) {
     controlRef.current = {
@@ -176,13 +197,6 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
       isAllExpanded: () => expandablePaths.length > 0 && expandablePaths.every(p => expandedFolders.has(p)),
     };
   }
-
-  const pinnedCats = useMemo(() => {
-    const pins = appPrefs.value.pinnedFolders || [];
-    if (!pins.length) return [] as typeof displayFolders;
-    const byPath = new Map(displayFolders.map(c => [c.path, c]));
-    return pins.map(p => byPath.get(p)).filter(Boolean) as typeof displayFolders;
-  }, [appPrefs.value.pinnedFolders, displayFolders]);
 
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
     try { return new Set<string>(JSON.parse(localStorage.getItem('sidebarFolderExpanded') || '[]')); } catch { return new Set<string>(); }
@@ -208,8 +222,11 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
     onNavigate?.();
   };
 
-  const renderCategoryNode = (node: CatTreeNode, depth: number): any => {
+  const renderCategoryNode = (node: CatTreeNode, depth: number, isPinnedRoot = false): any => {
     const c = node.cat;
+    const pinIcon = isPinnedRoot
+      ? <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none" style={{ marginRight: '5px', verticalAlign: '-1px', color: 'var(--ac)' }}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      : null;
     const openIcon = c.opened
       ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2" style={{ marginRight: '5px', verticalAlign: '-1px' }}><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v3" /><path d="M2 13.5 4 19a2 2 0 0 0 1.9 1.4h12.2A2 2 0 0 0 20 19l2-5.5a1 1 0 0 0-.95-1.5H2.95A1 1 0 0 0 2 13.5z" /></svg>
       : null;
@@ -227,7 +244,7 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
       <div key={c.path}>
         <SidebarItem
           label={label}
-          icon={openIcon || lockIcon}
+          icon={pinIcon || openIcon || lockIcon}
           badge={c.count}
           depth={depth}
           hasChildren={hasChildren}
@@ -336,22 +353,7 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
         }}
         isActive={!currentFolder.value && !currentTag.value && sourceFilter.value !== 'remote'}
       />
-      {pinnedCats.map(c => (
-        <SidebarItem
-          key={`pin-${c.path}`}
-          label={c.name}
-          badge={c.count}
-          icon={<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none" style={{ ...iconStyle, color: 'var(--ac)' }}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
-          onClick={() => selectCategory(c.path)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            if ((window as any).showContextMenu) {
-              (window as any).showContextMenu(e, 'folder', { path: c.path, name: c.name, encrypted: !!c.encrypted, partial: !!c.partial });
-            }
-          }}
-          isActive={currentFolder.value === c.path}
-        />
-      ))}
+      {pinnedTrees.map(node => renderCategoryNode(node, 0, true))}
       {categoryTree.map(node => renderCategoryNode(node, 0))}
       {inVaultMode && displayFolders.length === 0 && (
         <div style={{ padding: '6px 16px', fontSize: '0.8rem', color: 'var(--tx3)' }}>No encrypted folders</div>
