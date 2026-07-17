@@ -670,16 +670,23 @@ function savePrefs(p) {
 }
 
 function getDefaultWriteRoot() {
+  const { VIDEOS_DIR } = require('./config-server');
   try {
     const prefs = loadPrefs();
     const candidate = (prefs.defaultRoot || prefs.defaultPath || prefs.defaultWriteRoot || '').toString().trim();
     if (candidate) {
-      return path.resolve(candidate);
+      const resolved = path.resolve(candidate);
+      // A previously-chosen source folder can vanish (drive unplugged, folder
+      // removed from Settings) while the stale pref lingers — mkdir-ing into a
+      // dead path throws and, uncaught by callers, left imports/moves/uploads
+      // hanging forever with no response ever sent to the client. Fall back to
+      // the main videos folder instead of trusting an unreachable path.
+      if (fs.existsSync(resolved)) return resolved;
+      console.warn(`[write-root] '${resolved}' not found, falling back to main videos folder`);
     }
   } catch (e) {
     console.error('getDefaultWriteRoot error:', e.message);
   }
-  const { VIDEOS_DIR } = require('./config-server');
   return VIDEOS_DIR;
 }
 

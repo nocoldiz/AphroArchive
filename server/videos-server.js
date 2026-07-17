@@ -2621,69 +2621,76 @@ function apiSubtitleEmbedded(req, res, id, streamIndexStr) {
 // ── Global import (video / audio / book by extension) ─────────────────
 
 async function apiImport(req, res) {
-  const filename     = decodeURIComponent(req.headers['x-filename'] || 'file');
-  const categoryHdr  = (req.headers['x-category'] || '').trim();
-  const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
-  const ext          = path.extname(safeFilename).toLowerCase();
+  // Everything below can throw synchronously (bad/dead write-root drive,
+  // permissions, disk full) or reject via the upload pipeline. Uncaught, that
+  // left the request promise rejected with nothing ever written to `res` —
+  // the client's fetch() never resolves, so the Import modal sits "stuck" on
+  // that file forever instead of surfacing an error and moving on.
+  try {
+    const filename     = decodeURIComponent(req.headers['x-filename'] || 'file');
+    const categoryHdr  = (req.headers['x-category'] || '').trim();
+    const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
+    const ext          = path.extname(safeFilename).toLowerCase();
 
-  let destDir, kind;
-  const writeRoot = getDefaultWriteRoot();
-  if (VIDEO_EXT.has(ext)) {
-    // Preserve nested folder paths ("Parent/Child") by sanitising each segment
-    // independently and re-joining with "/" so subfolders can be created.
-    const safeCat = categoryHdr
-      ? categoryHdr.split('/').map(s => s.replace(/[^a-zA-Z0-9 \-_]/g, '').trim()).filter(Boolean).join('/')
-      : '';
-    destDir = safeCat ? path.join(writeRoot, safeCat) : writeRoot;
-    kind = 'video';
-  }
-  else if (AUDIO_EXT.has(ext)) { destDir = AUDIO_DIR;  kind = 'audio'; }
-  else if (BOOK_EXT.has(ext))  { destDir = BOOKS_DIR;  kind = 'book';  }
-  else if (IMAGE_EXT.has(ext)) { destDir = PHOTOS_DIR; kind = 'photo'; }
-  else { destDir = FILES_DIR; kind = 'file'; }
+    let destDir, kind;
+    const writeRoot = getDefaultWriteRoot();
+    if (VIDEO_EXT.has(ext)) {
+      // Preserve nested folder paths ("Parent/Child") by sanitising each segment
+      // independently and re-joining with "/" so subfolders can be created.
+      const safeCat = categoryHdr
+        ? categoryHdr.split('/').map(s => s.replace(/[^a-zA-Z0-9 \-_]/g, '').trim()).filter(Boolean).join('/')
+        : '';
+      destDir = safeCat ? path.join(writeRoot, safeCat) : writeRoot;
+      kind = 'video';
+    }
+    else if (AUDIO_EXT.has(ext)) { destDir = AUDIO_DIR;  kind = 'audio'; }
+    else if (BOOK_EXT.has(ext))  { destDir = BOOKS_DIR;  kind = 'book';  }
+    else if (IMAGE_EXT.has(ext)) { destDir = PHOTOS_DIR; kind = 'photo'; }
+    else { destDir = FILES_DIR; kind = 'file'; }
 
-  if (kind === 'video' && !path.resolve(destDir).startsWith(path.resolve(writeRoot)))
-    return json(res, { error: 'Invalid category' }, 400);
+    if (kind === 'video' && !path.resolve(destDir).startsWith(path.resolve(writeRoot)))
+      return json(res, { error: 'Invalid category' }, 400);
 
-  fs.mkdirSync(destDir, { recursive: true });
+    fs.mkdirSync(destDir, { recursive: true });
 
-  let outName = safeFilename, counter = 1;
-  while (fs.existsSync(path.join(destDir, outName))) {
-    outName = path.basename(safeFilename, ext) + ` (${counter++})` + ext;
-  }
+    let outName = safeFilename, counter = 1;
+    while (fs.existsSync(path.join(destDir, outName))) {
+      outName = path.basename(safeFilename, ext) + ` (${counter++})` + ext;
+    }
 
-  const chunks = [];
-  await new Promise((resolve, reject) => {
-    req.on('data', c => chunks.push(c));
-    req.on('end', resolve);
-    req.on('error', reject);
-  });
-  const data = Buffer.concat(chunks);
-  fs.writeFileSync(path.join(destDir, outName), data);
-
-  let videoId = null;
-  if (kind === 'video') {
-    invalidateScanCache();
     const outFile = path.join(destDir, outName);
-    const oRes = path.resolve(outFile);
-    videoId = oRes.startsWith(path.resolve(VIDEOS_DIR))
-      ? toId( path.relative(VIDEOS_DIR, outFile).replace(/\\/g, '/') )
-      : toId(outFile);
-  }
+    // Stream straight to disk instead of buffering the whole upload into a
+    // Buffer first — for a multi-GB video that buffering was slow and memory-
+    // heavy enough on its own to look "stuck" well before any write-root bug.
+    await pipe(req, fs.createWriteStream(outFile));
+    const size = fs.statSync(outFile).size;
 
-  if (kind === 'audio') {
-    const meta = loadAudioMeta();
-    meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now() };
-    saveAudioMeta(meta);
-  } else if (kind === 'book') {
-    const meta = loadBooksMeta();
-    meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), type: 'upload' };
-    saveBooksMeta(meta);
-  } else if (kind === 'file') {
-    const absPath = path.join(FILES_DIR, outName);
-    upsertFileMeta({ id: toId(absPath), filename: outName, title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), absPath });
+    let videoId = null;
+    if (kind === 'video') {
+      invalidateScanCache();
+      const oRes = path.resolve(outFile);
+      videoId = oRes.startsWith(path.resolve(VIDEOS_DIR))
+        ? toId( path.relative(VIDEOS_DIR, outFile).replace(/\\/g, '/') )
+        : toId(outFile);
+    }
+
+    if (kind === 'audio') {
+      const meta = loadAudioMeta();
+      meta[outName] = { title: path.basename(outName, ext), ext, size, sizeF: formatBytes(size), date: Date.now() };
+      saveAudioMeta(meta);
+    } else if (kind === 'book') {
+      const meta = loadBooksMeta();
+      meta[outName] = { title: path.basename(outName, ext), ext, size, sizeF: formatBytes(size), date: Date.now(), type: 'upload' };
+      saveBooksMeta(meta);
+    } else if (kind === 'file') {
+      const absPath = path.join(FILES_DIR, outName);
+      upsertFileMeta({ id: toId(absPath), filename: outName, title: path.basename(outName, ext), ext, size, sizeF: formatBytes(size), date: Date.now(), absPath });
+    }
+    json(res, { ok: true, kind, name: outName, id: videoId });
+  } catch (e) {
+    console.error('[import] error:', e.message);
+    try { if (!res.headersSent) json(res, { error: e.message || 'Import failed' }, 500); } catch {}
   }
-  json(res, { ok: true, kind, name: outName, id: videoId });
 }
 
 async function apiAddChapter(req, res, id) {

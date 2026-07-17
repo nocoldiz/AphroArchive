@@ -61,6 +61,13 @@ async function apiSavePrefs(req, res) {
   if ('sourceFolders' in body) {
     if (Array.isArray(body.sourceFolders)) {
       prefs.sourceFolders = body.sourceFolders.map(p => String(p).trim()).filter(Boolean);
+      // The "default write root" picker only ever offers sourceFolders as
+      // options — if the one it points at was just removed, drop the pref too
+      // so writes fall back to the main videos folder instead of a dangling
+      // path the Settings UI no longer shows as selected.
+      if (prefs.defaultRoot && !prefs.sourceFolders.includes(prefs.defaultRoot)) {
+        prefs.defaultRoot = '';
+      }
       try {
         const { invalidateScanCache } = require('./videos-server');
         invalidateScanCache();
