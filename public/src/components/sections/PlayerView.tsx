@@ -1163,6 +1163,22 @@ export const PlayerView = () => {
 
               {!video.isLink && !video.isVault && (
                 <button onClick={async () => {
+                  const r = await fetch('/api/open-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: video.id })
+                  });
+                  if (!r.ok && (window as any).toast) (window as any).toast('Failed to open file');
+                }} title="Open the video file in its default player">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                  <span>Open File</span>
+                </button>
+              )}
+
+              {!video.isLink && !video.isVault && (
+                <button onClick={async () => {
                   const r = await fetch('/api/open-folder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

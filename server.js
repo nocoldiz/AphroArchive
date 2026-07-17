@@ -186,6 +186,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/opened/open' && req.method === 'POST') return openedFolders.apiOpenedOpen(req, res);
   if (p === '/api/opened/list' && req.method === 'GET') return openedFolders.apiOpenedList(req, res);
   if (p === '/api/opened/close' && req.method === 'POST') return openedFolders.apiOpenedClose(req, res);
+  if (p === '/api/open-file' && req.method === 'POST') return videos.apiOpenFile(req, res);
   if (p === '/api/open-folder' && req.method === 'POST') return videos.apiOpenFolder(req, res);
   if (p === '/api/open-folder-in-explorer' && req.method === 'POST') return videos.apiOpenFolderInExplorer(req, res);
   if (p === '/api/favourites' && req.method === 'GET') return videos.apiFavourites(req, res);

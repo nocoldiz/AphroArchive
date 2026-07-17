@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
-import { moveModalState, loadVideos, selectedVideoIds, videoSelMode, applyVideoIdChange } from '../../store';
+import { moveModalState, loadVideos, selectedVideoIds, videoSelMode, applyVideoIdChange, folders } from '../../store';
 import { moveVideo } from '../../api';
 
 interface MainFolder { name: string; path: string; isExternal?: boolean }
@@ -66,7 +66,14 @@ const FolderIcon = ({ open }: { open?: boolean }) => (
 
 export const MoveModal = () => {
   const state = moveModalState.value;
-  const [mainCats, setMainCats] = useState<MainFolder[]>([]);
+  // Seed from the already-loaded sidebar category list so the tree renders
+  // instantly on first open instead of sitting blank until /api/main-folders
+  // (a live filesystem walk) resolves. That endpoint also surfaces empty
+  // folders and external source-folder paths the sidebar data lacks, so it
+  // still runs in the background below and replaces this seed once it lands.
+  const [mainCats, setMainCats] = useState<MainFolder[]>(() =>
+    folders.value.filter(f => f.path).map(f => ({ name: f.name, path: f.path }))
+  );
   const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<string | null>(null); // '' = root, null = nothing selected

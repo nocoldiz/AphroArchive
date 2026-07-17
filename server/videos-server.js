@@ -2029,6 +2029,18 @@ async function apiUpdateVideoMeta(req, res, id) {
   json(res, { ok: true });
 }
 
+async function apiOpenFile(req, res) {
+  const body = await readBody(req);
+  const id   = body.id || '';
+  const fp   = safePath(id);
+  if (!fp) return json(res, { error: 'Not found' }, 404);
+  const cmd = process.platform === 'win32' ? `start "" "${fp}"`
+    : process.platform === 'darwin' ? `open "${fp}"`
+    : `xdg-open "${fp}"`;
+  exec(cmd, () => {});
+  json(res, { ok: true });
+}
+
 async function apiOpenFolder(req, res) {
   const body = await readBody(req);
   const id   = body.id || '';
@@ -3809,7 +3821,7 @@ module.exports = {
   apiFavourites, apiToggleFav,
   apiAddHistory, apiGetHistory, apiClearHistory, apiClearFavourites, apiClearThumbs,
   apiSetRating, apiDeleteRating,
-  apiUpdateVideoMeta, apiOpenFolder, apiOpenFolderInExplorer, apiDuplicates,
+  apiUpdateVideoMeta, apiOpenFile, apiOpenFolder, apiOpenFolderInExplorer, apiDuplicates,
   apiTags, apiTagVideos, apiVideoTags, apiTagSuggestions,
   apiDeleteTag, apiRenameTag,
   apiDbTags, apiDbTagVideos,

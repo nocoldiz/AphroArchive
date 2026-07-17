@@ -479,21 +479,31 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
   // deadline. If we're still not playing by then, force a recovery path instead
   // of spinning forever — this catches the cases the metadata/stall watchdogs
   // miss (notably HLS, which the others deliberately skip).
+  // This re-arms itself rather than relying on `loading` changing value:
+  // handleLoadFailure() calls setLoading(true) while it's already true, which
+  // is a no-op re-render, so an effect keyed only on [loading] would never
+  // re-fire for it. Without the self-scheduling loop, a reload attempt that
+  // hangs with zero media events (dead connection, no error/waiting/stalled)
+  // went unwatched and the spinner spun forever.
   useEffect(() => {
     if (!loading) return;
     const vid = videoRef.current;
     if (!vid) return;
-    const at = vid.currentTime;
-    const t = setTimeout(() => {
-      if (vid.readyState >= 3 && !vid.paused && vid.currentTime > at + 0.1) { setLoading(false); return; }
-      if (usingHlsRef.current) {
-        const hls = hlsInstanceRef.current;
-        if (hls) { try { hls.startLoad(); } catch {} }
-        else { setUsingHls(false); setLoading(false); }
-        return;
-      }
-      handleLoadFailure();
-    }, 15000);
+    let t: any;
+    const check = (at: number) => {
+      t = setTimeout(() => {
+        if (vid.readyState >= 3 && !vid.paused && vid.currentTime > at + 0.1) { setLoading(false); return; }
+        if (usingHlsRef.current) {
+          const hls = hlsInstanceRef.current;
+          if (hls) { try { hls.startLoad(); } catch {} }
+          else { setUsingHls(false); setLoading(false); }
+          return;
+        }
+        handleLoadFailure();
+        if (retryCountRef.current < MAX_RELOAD_RETRIES) check(vid.currentTime);
+      }, 15000);
+    };
+    check(vid.currentTime);
     return () => clearTimeout(t);
   }, [loading]);
 
