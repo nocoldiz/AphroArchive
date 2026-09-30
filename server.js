@@ -170,6 +170,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos/categorize-plan' && req.method === 'POST') return videos.apiCategorizePlan(req, res);
   if (p === '/api/videos/categorize-execute' && req.method === 'POST') return videos.apiCategorizeExecute(req, res);
+  if (p === '/api/categorizer/plan' && req.method === 'POST') return videos.apiCategorizerPlan(req, res);
   if (p === '/api/categorizer/execute-bg' && req.method === 'POST') return videos.apiCategorizerBgExecute(req, res);
   if (p === '/api/categorizer/poll' && req.method === 'GET') return videos.apiCategorizerPoll(req, res);
   if (p === '/api/categorizer/stop' && req.method === 'POST') return videos.apiCategorizerStop(req, res);

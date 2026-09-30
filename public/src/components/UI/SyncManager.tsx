@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { loadVideos, appPrefs, refreshLibraryQuietly, isLoadingVideos, duplicatesDeleteProgress } from '../../store';
+import { loadVideos, appPrefs, refreshLibraryQuietly, isLoadingVideos, duplicatesDeleteProgress, currentView } from '../../store';
 
 interface ScraperStatus {
   running: boolean;
@@ -120,7 +120,25 @@ export const SyncManager = () => {
   const prevEncRunning = useRef(false);
   const prevCatRunning = useRef(false);
 
+  const busyRef = useRef(false);
+  const openRef = useRef(false);
+  openRef.current = open;
+
   useEffect(() => {
+    let stopped = false;
+    let timer: any = null;
+    let lastScrapers = '', lastWorker = '', lastEnc = '';
+    // 9 parallel requests fill all of the browser's ~6 per-origin connections,
+    // so polling every 2s forever made seeks and thumbnails queue behind it.
+    // Poll fast only while something runs or the panel is open; back off when
+    // idle, while watching a video, or when the tab is hidden.
+    const nextDelay = () => {
+      if (document.hidden) return 30000;
+      if (busyRef.current || openRef.current) return 2000;
+      return currentView.value === 'player' ? 20000 : 10000;
+    };
+    const schedule = () => { if (!stopped) timer = setTimeout(async () => { await poll(); schedule(); }, nextDelay()); };
+    const onVisible = () => { if (!document.hidden) { clearTimeout(timer); poll().then(schedule); } };
     const poll = async () => {
       try {
         const [vtRes, bmMetaRes, bmThRes, encRes, reencRes, whisperRes, sceneRes, workerRes, catRes] = await Promise.all([
@@ -141,8 +159,15 @@ export const SyncManager = () => {
         const wh   = whisperRes.ok ? await whisperRes.json() : { running: false, enabled: true };
         const scene = sceneRes.ok ? await sceneRes.json() : { running: false };
         const cat  = catRes.ok ? await catRes.json() : { running: false };
-        setScrapers({ videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh, sceneDetect: scene, categorizerJob: cat });
-        setWorker(workerRes.ok ? await workerRes.json() : { active: false, task: '', detail: '' });
+        // Only set state when something changed — fresh objects every poll
+        // re-rendered the whole topbar each time.
+        const nextScrapers = { videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh, sceneDetect: scene, categorizerJob: cat };
+        const sj = JSON.stringify(nextScrapers);
+        if (sj !== lastScrapers) { lastScrapers = sj; setScrapers(nextScrapers); }
+        const w = workerRes.ok ? await workerRes.json() : { active: false, task: '', detail: '' };
+        const wj = JSON.stringify(w);
+        if (wj !== lastWorker) { lastWorker = wj; setWorker(w); }
+        busyRef.current = !!(vt.running || bm.running || bt.running || reenc.running || wh.running || scene.running || cat.running || w.active);
         if (prevCatRunning.current && !cat.running) refreshLibraryQuietly();
         prevCatRunning.current = cat.running;
         if (encRes.ok) {
@@ -163,13 +188,15 @@ export const SyncManager = () => {
             }
           }
           prevEncRunning.current = enc.running;
-          setEncProgress(enc);
+          if (enc.running) busyRef.current = true;
+          const ej = JSON.stringify(enc);
+          if (ej !== lastEnc) { lastEnc = ej; setEncProgress(enc); }
         }
       } catch {}
     };
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
+    poll().then(schedule);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { stopped = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
   useEffect(() => {

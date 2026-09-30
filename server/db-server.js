@@ -28,6 +28,10 @@ const { DatabaseSync } = eval("require('node:sqlite')");
 let _favs       = null;
 let _history    = null;
 let _videoMeta  = null;
+// Bumped on every links write so derived caches (allVideos) know when to rebuild.
+// Declared up here: db init calls _notifyVideoMetaChanged() before later code runs.
+let _linksVersion = 0;
+function linksVersion() { return _linksVersion; }
 let _thumbs     = null;
 let _actors          = null;
 let _folderMappings  = null;
@@ -742,7 +746,7 @@ function loadVideoMeta() {
 // switches that clear _videoMeta) also drops the derived index.
 let _onVideoMetaChanged = null;
 function setOnVideoMetaChanged(fn) { _onVideoMetaChanged = fn; }
-function _notifyVideoMetaChanged() { try { _onVideoMetaChanged && _onVideoMetaChanged(); } catch {} }
+function _notifyVideoMetaChanged() { _linksVersion++; try { _onVideoMetaChanged && _onVideoMetaChanged(); } catch {} }
 
 function saveVideoMeta(m) {
   _videoMeta = m;
@@ -1103,6 +1107,7 @@ function _linkParams(it) {
 const _LINK_COLS = 'url, title, category, img, scraped_video_url, has_video, embed_url, has_embed, added_at, tags, downloaded, local_video_id, fav, vault';
 const _LINK_PLACEHOLDERS = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
 
+
 function loadLinksCache() {
   try {
     const publicLinks = (database) =>
@@ -1127,6 +1132,7 @@ function loadVaultLinks() {
 // Upsert a single link into the current user's DB.
 function upsertLink(it) {
   if (!it || !it.url) return;
+  _linksVersion++;
   try {
     db.prepare(`INSERT OR REPLACE INTO links (${_LINK_COLS}) VALUES (${_LINK_PLACEHOLDERS})`).run(..._linkParams(it));
   } catch (e) { console.error('Failed to upsert link:', e); }
@@ -1135,6 +1141,7 @@ function upsertLink(it) {
 // Delete a single link by URL from the current user's DB.
 function deleteLink(url) {
   if (!url) return;
+  _linksVersion++;
   try {
     db.prepare('DELETE FROM links WHERE url = ?').run(url);
   } catch (e) { console.error('Failed to delete link:', e); }
@@ -1143,6 +1150,7 @@ function deleteLink(url) {
 // Delete many links by URL in a single transaction.
 function deleteLinks(urls) {
   if (!Array.isArray(urls) || !urls.length) return 0;
+  _linksVersion++;
   try {
     const stmt = db.prepare('DELETE FROM links WHERE url = ?');
     let count = 0;
@@ -1176,6 +1184,7 @@ function saveLinksCache(data) {
     if (nm) seenNames.add(nm);
     items.push(it);
   }
+  _linksVersion++;
   try {
     txn(() => {
       db.prepare('DELETE FROM links').run();
@@ -2094,6 +2103,7 @@ function getMediaCounts() {
 }
 
 module.exports = {
+  linksVersion,
   setOnVideoMetaChanged,
   loadFavs, saveFavs,
   loadHistory, saveHistory,

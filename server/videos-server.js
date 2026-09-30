@@ -5,7 +5,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { exec, execFile, execFileSync, spawn } = require('child_process');
+const { exec, execFile, spawn } = require('child_process');
 const crypto = require('crypto');
 const {
   VIDEOS_DIR, MEDIA_DIR, VAULT_DIR, IGNORED_DIR, VIDEO_EXT, MIME,
@@ -28,13 +28,14 @@ const {
   loadAudioMeta, saveAudioMeta,
   loadBooksMeta, saveBooksMeta,
   loadRatings,
-  loadLinksCache,
+  loadLinksCache, linksVersion,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
   loadMediaIndex, saveMediaIndex, clearMediaIndex,
   upsertFileMeta,
   loadEnabledFolders, saveEnabledFolders,
   getSingleVideoMeta,
 } = require('./db-server');
+const categorizer = require('./categorizer-server');
 
 // ── Video scan cache ─────────────────────────────────────────────────
 function getCatKey(p) {
@@ -115,19 +116,11 @@ async function collectAllFolderPaths() {
   return out;
 }
 
-function getExistingTopLevelFolders(root) {
-  try {
-    return new Set(
-      fs.readdirSync(root, { withFileTypes: true })
-        .filter(e => e.isDirectory() && !isHiddenFolderName(e.name))
-        .map(e => e.name)
-    );
-  } catch {
-    return new Set();
-  }
-}
-
 let _scanCache = null;
+let _scanPromise = null;   // in-flight scan shared by concurrent callers
+let _scanGen = 0;          // bumped on invalidation; stale scans don't write back
+let _lastScanSig = null;   // last library signature seen by the fs watcher
+let _allVideosMemo = null; // see allVideos()
 let _watchDebounce = null;
 const unlockedFolders = new Map(); // catPath -> key (Buffer)
 let masterPassword = null; // Session master password
@@ -149,48 +142,89 @@ let _encryptionCancel = false;
 let _categorizerJob = null;
 let _categorizerCancel = false;
 
+// Move a scanned video into `folder` (relative, may be nested; '' = root),
+// reusing the physical folder when it already exists on any library root.
+// Carries subtitle sidecars, favourites and metadata over. Returns the new id.
+function moveVideoToFolder(id, folder) {
+  const fp = safePath(id);
+  if (!fp || !fs.existsSync(fp)) throw new Error('not found');
+  const roots = [getDefaultWriteRoot(), VIDEOS_DIR, ...(loadPrefs().sourceFolders || [])]
+    .filter(Boolean).map(r => path.resolve(r));
+  const targetDir = path.resolve(folder ? resolveCategoryPhysicalPath(folder) : getDefaultWriteRoot());
+  if (!roots.some(r => targetDir === r || targetDir.startsWith(r + path.sep))) throw new Error('invalid folder');
+  fs.mkdirSync(targetDir, { recursive: true });
+
+  const ext  = path.extname(fp);
+  const stem = path.basename(fp, ext);
+  let dest = path.join(targetDir, path.basename(fp));
+  if (path.resolve(dest) === path.resolve(fp)) return id;
+  for (let n = 1; fs.existsSync(dest); n++) dest = path.join(targetDir, `${stem}_${n}${ext}`);
+  const mv = (from, to) => {
+    try { fs.renameSync(from, to); }
+    catch (e) { if (e.code !== 'EXDEV') throw e; fs.copyFileSync(from, to); fs.unlinkSync(from); }
+  };
+  mv(fp, dest);
+
+  const newStem = path.basename(dest, ext);
+  try {
+    for (const ent of fs.readdirSync(path.dirname(fp), { withFileTypes: true })) {
+      const subExt = path.extname(ent.name).toLowerCase();
+      if (!ent.isFile() || !SUBTITLE_EXT.has(subExt)) continue;
+      const base = ent.name.slice(0, -subExt.length);
+      if (base !== stem && !base.startsWith(stem + '.')) continue;
+      const to = path.join(targetDir, newStem + ent.name.slice(stem.length));
+      if (!fs.existsSync(to)) { try { mv(path.join(path.dirname(fp), ent.name), to); } catch {} }
+    }
+  } catch {}
+
+  const resolved = path.resolve(dest);
+  const newId = resolved.startsWith(path.resolve(VIDEOS_DIR) + path.sep)
+    ? toId(path.relative(VIDEOS_DIR, dest).replace(/\\/g, '/'))
+    : toId(dest);
+  try {
+    const favs = loadFavs(); const fi = favs.indexOf(id);
+    if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
+    const meta = loadVideoMeta();
+    if (meta[id]) { meta[newId] = meta[id]; delete meta[id]; saveVideoMeta(meta); }
+  } catch {}
+  return newId;
+}
+
 async function runCategorizerBg(moves) {
   _categorizerCancel = false;
   _categorizerJob = { running: true, done: 0, total: moves.length, current: '', failed: 0 };
   console.log(`[categorizer] Moving ${moves.length} video${moves.length !== 1 ? 's' : ''}`);
-  const writeRoot = getDefaultWriteRoot();
-  const resolvedWrite = path.resolve(writeRoot);
 
   for (const { id, category: targetCategory } of moves) {
     if (_categorizerCancel) break;
     _categorizerJob.current = id;
-    try {
-      const fp = safePath(id);
-      if (!fp) { _categorizerJob.failed++; } else {
-        const targetDir = targetCategory ? path.join(writeRoot, targetCategory) : writeRoot;
-        const resolvedTarget = path.resolve(targetDir);
-        if (!resolvedTarget.startsWith(resolvedWrite)) {
-          _categorizerJob.failed++;
-        } else {
-          if (!fs.existsSync(resolvedTarget)) fs.mkdirSync(resolvedTarget, { recursive: true });
-          const filename = path.basename(fp);
-          const newPath = path.join(resolvedTarget, filename);
-          if (path.resolve(newPath) !== path.resolve(fp) && !fs.existsSync(newPath)) {
-            fs.renameSync(fp, newPath);
-            try {
-              const newRel = path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/');
-              const newId = newRel.startsWith('..') ? toId(newPath) : toId(newRel);
-              const favs = loadFavs(); const fi = favs.indexOf(id);
-              if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
-              const meta = loadVideoMeta();
-              if (meta[id]) { meta[newId] = meta[id]; delete meta[id]; saveVideoMeta(meta); }
-            } catch {}
-          }
-        }
-      }
-    } catch { _categorizerJob.failed++; }
+    try { moveVideoToFolder(id, targetCategory || ''); }
+    catch (e) { _categorizerJob.failed++; console.error('[categorizer]', e.message); }
     _categorizerJob.done++;
+    // Yield so polls and streams keep flowing during long batches.
+    if (_categorizerJob.done % 25 === 0) await new Promise(r => setImmediate(r));
   }
 
   invalidateScanCache();
   _categorizerJob.running = false;
   _categorizerJob.current = '';
-  console.log(`[categorizer] Done — ${_categorizerJob.done} moved, ${_categorizerJob.failed} failed`);
+  console.log(`[categorizer] Done — ${_categorizerJob.done - _categorizerJob.failed} moved, ${_categorizerJob.failed} failed`);
+}
+
+// Categorizer view: preview of where uncategorized ('auto') or already filed
+// ('recat', optionally limited to the top-level folders in `scope`) videos
+// would go. Nothing is moved until the client posts to execute-bg.
+async function apiCategorizerPlan(req, res) {
+  const body = await readBody(req);
+  const mode = body.mode === 'recat' || body.mode === 'all' ? 'all' : 'uncategorized';
+  try {
+    const vids = (await cachedScan()).filter(v => VIDEO_EXT.has(String(v.ext || '').toLowerCase()) || v.encrypted);
+    const { moves, folders } = categorizer.buildPlan(vids, mode, { scope: Array.isArray(body.scope) ? body.scope : null });
+    json(res, { ok: true, moves, folders });
+  } catch (e) {
+    console.error('[categorizer] plan:', e.message);
+    json(res, { ok: false, error: e.message }, 500);
+  }
 }
 
 async function apiCategorizerBgExecute(req, res) {
@@ -443,19 +477,73 @@ function apiScanEvents(req, res) {
   req.on('close', () => { clearInterval(hb); _scanSseClients.delete(res); });
 }
 
-function invalidateScanCache() {
+function invalidateScanCache({ broadcast = true } = {}) {
+  _scanGen++;
   _scanCache = null;
+  _scanPromise = null;
+  _allVideosMemo = null;
   clearVideoIndex();
   clearMediaIndex();
-  broadcastScanChange();
+  if (broadcast) { _lastScanSig = null; broadcastScanChange(); }
 }
 
-function _onVideoDirChange() {
+// Files that churn while downloads / transcription / vault work run but never
+// change the library: reacting to them rescanned everything every ~300ms and
+// made every client reload the gallery.
+const WATCH_IGNORE_EXT = new Set([
+  '.part', '.ytdl', '.tmp', '.temp', '.crdownload', '.download', '.lock', '.log',
+  '.vtt', '.srt', '.ass', '.ssa', '.sub', '.smi', '.json', '.db', '.db-wal', '.db-shm',
+]);
+const _vaultRel   = path.relative(VIDEOS_DIR, VAULT_DIR).replace(/\\/g, '/').toLowerCase();
+const _ignoredRel = path.relative(VIDEOS_DIR, IGNORED_DIR).replace(/\\/g, '/').toLowerCase();
+
+function _isIgnorableWatchPath(filename) {
+  if (!filename) return false;
+  const rel = String(filename).replace(/\\/g, '/').toLowerCase();
+  if (rel.split('/').some(isHiddenFolderName)) return true;
+  for (const d of [_vaultRel, _ignoredRel]) {
+    if (d && !d.startsWith('..') && (rel === d || rel.startsWith(d + '/'))) return true;
+  }
+  const base = rel.slice(rel.lastIndexOf('/') + 1);
+  if (base.startsWith('.') && base !== '.cat-enc-config.json') return true;
+  // yt-dlp fragments: name.f137.mp4.part-Frag12, name.temp.mp4, ...
+  if (/\.part(-frag\d+)?$/.test(base) || base.includes('.temp.')) return true;
+  if (base === '.cat-enc-config.json') return false;
+  return WATCH_IGNORE_EXT.has(path.extname(base));
+}
+
+function _scanSignature(list, media) {
+  let sig = `${list.length}/${media.length}`;
+  // Whole ms: the index stores mtime in an INTEGER column, a fresh scan has fractions
+  for (const v of list) sig += `|${v.id}@${v.size}@${Math.floor(v.mtime || 0)}`;
+  for (const m of media) sig += `|${m.id}@${m.size}`;
+  return sig;
+}
+
+function _onVideoDirChange(event, filename) {
+  if (_isIgnorableWatchPath(filename)) return;
+  // Windows also reports a 'change' on the parent folder whenever anything
+  // inside it is written (e.g. every .part chunk). Adds/removes/renames arrive
+  // as their own 'rename' events, so a folder 'change' carries no information.
+  if (event === 'change' && filename) {
+    try { if (fs.statSync(path.join(VIDEOS_DIR, String(filename))).isDirectory()) return; } catch {}
+  }
   if (_watchDebounce) clearTimeout(_watchDebounce);
-  _watchDebounce = setTimeout(() => {
+  _watchDebounce = setTimeout(async () => {
     console.log('[scan] Filesystem change detected in videos directory — refreshing index');
-    invalidateScanCache();
-  }, 300);
+    // Rescan quietly and only tell clients to reload when the library actually
+    // changed — touching a file or writing metadata no longer reloads every tab.
+    // No baseline means an explicit invalidation already notified clients.
+    if (_lastScanSig === null && _scanCache) _lastScanSig = _scanSignature(_scanCache, loadMediaIndex());
+    const hadBaseline = _lastScanSig !== null;
+    invalidateScanCache({ broadcast: false });
+    try {
+      const list = await cachedScan();
+      const sig = _scanSignature(list, loadMediaIndex());
+      if (hadBaseline && sig !== _lastScanSig) broadcastScanChange();
+      _lastScanSig = sig;
+    } catch { broadcastScanChange(); }
+  }, 1000);
 }
 
 try {
@@ -464,7 +552,17 @@ try {
   // fs.watch unavailable in this environment; cache is invalidated by explicit calls only
 }
 
-async function cachedScan() {
+// Concurrent callers share one in-flight scan instead of each walking the tree.
+function cachedScan() {
+  if (_scanCache) return Promise.resolve(_scanCache);
+  if (_scanPromise) return _scanPromise;
+  const gen = _scanGen;
+  const p = _cachedScanInner(gen).finally(() => { if (_scanPromise === p) _scanPromise = null; });
+  _scanPromise = p;
+  return p;
+}
+
+async function _cachedScanInner(gen) {
   if (_scanCache) return _scanCache;
 
   // Fast path: load previously indexed list from DB
@@ -502,8 +600,9 @@ async function cachedScan() {
               valid.push(v);
             }
           }
-          if (valid.length !== indexed.length) {
+          if (valid.length !== indexed.length && gen === _scanGen) {
             _scanCache = valid;
+            _allVideosMemo = null;
             saveVideoIndex(valid);
             if (_scanSseClients.size > 0) broadcastScanChange();
           }
@@ -552,6 +651,8 @@ async function cachedScan() {
     console.error('Failed to auto-categorize external files:', e);
   }
 
+  // Invalidated while we were walking the tree — a newer scan owns the cache
+  if (gen !== _scanGen) return all;
   saveVideoIndex(all);
   saveMediaIndex(mediaAll);
   _scanCache = all;
@@ -651,8 +752,36 @@ async function scan(dir, base = dir, isExternal = false, mediaOut = null) {
   return out;
 }
 
+// Memo of the merged scan+links list. Every thumbnail <img>, video open and
+// history write used to rebuild it (copy every video, SELECT every link) —
+// dozens of synchronous rebuilds per grid page. Invalidated by scan changes,
+// meta writes (via setOnVideoMetaChanged), link writes and folder unlocks.
+
+function _unlockKey() { return [...unlockedFolders.keys()].join('|'); }
+
 async function allVideos(forceAll = false) {
-  const all    = await cachedScan();
+  const all = await cachedScan();
+  const lv  = linksVersion();
+  const uk  = _unlockKey();
+  let base;
+  const m = _allVideosMemo;
+  if (m && m.scan === all && m.links === lv && m.unlock === uk) {
+    base = m.list;
+  } else {
+    base = _buildAllVideos(all);
+    _allVideosMemo = { scan: all, links: lv, unlock: uk, list: base };
+  }
+  // Fresh array per call so callers can filter/sort freely; opened-folder
+  // items are cheap and change independently, so they're never memoized.
+  const list = base.slice();
+  try {
+    const { getOpenedItems } = require('./opened-folders-server');
+    list.push(...getOpenedItems());
+  } catch (e) {}
+  return list;
+}
+
+function _buildAllVideos(all) {
   const meta   = loadVideoMeta();
   
   let list = all.map(v => {
@@ -699,12 +828,6 @@ async function allVideos(forceAll = false) {
     if (v.encrypted && !isUnlocked(v.catPath)) return false;
     return true;
   });
-
-  // Append files from temporarily opened folders (not persisted to the DB).
-  try {
-    const { getOpenedItems } = require('./opened-folders-server');
-    list.push(...getOpenedItems());
-  } catch (e) {}
 
   return list;
 }
@@ -1342,7 +1465,7 @@ function _getActorIndex(meta) {
   return idx;
 }
 
-function invalidateActorIndex() { _actorIndexCache = null; }
+function invalidateActorIndex() { _actorIndexCache = null; _allVideosMemo = null; }
 // Any meta write anywhere (tags/actors edits, vault ops, profile switches)
 // drops the cached inverted index.
 try { require('./db-server').setOnVideoMetaChanged(invalidateActorIndex); } catch {}
@@ -1858,38 +1981,27 @@ async function apiAutoSort(req, res) {
   let folders, loose;
   try {
     const entries = await fs.promises.readdir(VIDEOS_DIR, { withFileTypes: true });
-    folders = entries.filter(e => e.isDirectory() && !systemDirs.has(e.name)).map(e => e.name);
-    loose   = entries.filter(e => e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase())).map(e => e.name);
+    folders = entries.filter(e => e.isDirectory() && !systemDirs.has(e.name));
+    loose   = entries.filter(e => e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()));
   } catch { return json(res, { moved: 0 }); }
   if (!folders.length || !loose.length) return json(res, { moved: 0 });
 
   json(res, { moved: 0, deferred: true });
 
-  setImmediate(async () => {
+  setImmediate(() => {
     try {
-      const norm = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      // Unattended: only high-confidence matches into existing folders/subfolders.
+      const matcher = categorizer.createMatcher();
       let moved = 0;
-      const favs = loadFavs();
-      let favsChanged = false;
-
-      for (const filename of loose) {
-        const nameNoExt = norm(path.basename(filename, path.extname(filename)));
-        const match     = folders.find(folder => nameNoExt.includes(norm(folder)));
-        if (!match) continue;
-        const src = path.join(VIDEOS_DIR, filename);
-        const dst = path.join(VIDEOS_DIR, match, filename);
-        if (fs.existsSync(dst)) continue;
-        try {
-          await fs.promises.rename(src, dst);
-          moved++;
-          const oldId = toId(filename);
-          const newId = toId(path.join(match, filename));
-          const fi    = favs.indexOf(oldId);
-          if (fi !== -1) { favs[fi] = newId; favsChanged = true; }
-        } catch {}
+      for (const ent of loose) {
+        const hit = matcher.match(path.basename(ent.name, path.extname(ent.name)), toId(ent.name));
+        if (!hit || hit.confidence !== 'high') continue;
+        try { moveVideoToFolder(toId(ent.name), hit.path); moved++; } catch {}
       }
-      if (favsChanged) saveFavs(favs);
-      if (moved > 0) invalidateScanCache();
+      if (moved > 0) {
+        console.log(`[auto-sort] Filed ${moved} loose video${moved !== 1 ? 's' : ''}`);
+        invalidateScanCache();
+      }
     } catch (e) { console.error('[auto-sort] deferred error:', e.message); }
   });
 }
@@ -2395,7 +2507,42 @@ function apiAudioTracks(req, res, id) {
   );
 }
 
-function apiSubtitles(req, res, id) {
+// Embedded-stream probe results keyed by path+mtime — ffprobe is only re-run
+// when the file changes, so reopening a video answers instantly.
+const _embeddedSubsCache = new Map();
+
+function probeEmbeddedSubs(fp, mtime) {
+  const key = fp + '|' + mtime;
+  if (_embeddedSubsCache.has(key)) return Promise.resolve(_embeddedSubsCache.get(key));
+  return new Promise(resolve => {
+    // Async execFile: a sync probe here froze every stream/API call on each video open
+    execFile(FFPROBE_BIN,
+      ['-v', 'quiet', '-print_format', 'json', '-show_streams', '-select_streams', 's', fp],
+      { timeout: 5000 },
+      (err, out) => {
+        let subs = [];
+        if (!err) {
+          try {
+            const streams = JSON.parse(out).streams || [];
+            subs = streams.map((s, i) => {
+              const lang = (s.tags && s.tags.language) || '';
+              const title = (s.tags && s.tags.title) || '';
+              const label = title
+                ? `${title}${lang ? ` (${lang})` : ''}`
+                : (lang || `Embedded ${i + 1}`);
+              return { filename: null, label, type: 'embedded', streamIndex: i };
+            });
+          } catch {}
+        }
+        if (_embeddedSubsCache.size > 500) _embeddedSubsCache.clear();
+        _embeddedSubsCache.set(key, subs);
+        resolve(subs);
+      }
+    );
+  });
+}
+
+async function apiSubtitles(req, res, id) {
   const fp = safePath(id);
   if (!fp) return json(res, []);
   const dir  = path.dirname(fp);
@@ -2404,7 +2551,7 @@ function apiSubtitles(req, res, id) {
 
   // File-based subtitles
   try {
-    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    for (const ent of await fs.promises.readdir(dir, { withFileTypes: true })) {
       if (!ent.isFile()) continue;
       const ext = path.extname(ent.name).toLowerCase();
       if (!SUBTITLE_EXT.has(ext)) continue;
@@ -2419,20 +2566,9 @@ function apiSubtitles(req, res, id) {
 
   // Embedded subtitle streams (detected via ffprobe)
   try {
-    const out = execFileSync(FFPROBE_BIN,
-      ['-v', 'quiet', '-print_format', 'json', '-show_streams', '-select_streams', 's', fp],
-      { timeout: 5000 }
-    ).toString();
-    const streams = JSON.parse(out).streams || [];
-    for (let i = 0; i < streams.length; i++) {
-      const s = streams[i];
-      const lang = (s.tags && s.tags.language) || '';
-      const title = (s.tags && s.tags.title) || '';
-      const label = title
-        ? `${title}${lang ? ` (${lang})` : ''}`
-        : (lang || `Embedded ${i + 1}`);
-      found.unshift({ filename: null, label, type: 'embedded', streamIndex: i });
-    }
+    const st = await fs.promises.stat(fp);
+    const embedded = await probeEmbeddedSubs(fp, st.mtimeMs);
+    found.unshift(...[...embedded].reverse());
   } catch {}
 
   json(res, found);
@@ -2548,14 +2684,32 @@ function apiSubtitleEmbedded(req, res, id, streamIndexStr) {
   if (!fp) { res.writeHead(404); res.end('Not found'); return; }
   const si = parseInt(streamIndexStr, 10);
   if (!Number.isFinite(si) || si < 0) { res.writeHead(400); res.end('Bad stream index'); return; }
+  let mtime = 0;
+  try { mtime = fs.statSync(fp).mtimeMs; } catch {}
+  const key = `${fp}|${mtime}|${si}`;
   res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8' });
+  // Extraction reads the whole file — serve repeat opens from memory
+  const cached = _embeddedVttCache.get(key);
+  if (cached) { res.end(cached); return; }
   const child = spawn(FFMPEG_BIN,
     ['-i', fp, '-map', `0:s:${si}`, '-f', 'webvtt', '-'],
     { stdio: ['ignore', 'pipe', 'ignore'] }
   );
-  child.stdout.pipe(res);
+  const chunks = [];
+  child.stdout.on('data', c => { chunks.push(c); try { res.write(c); } catch {} });
+  child.on('close', code => {
+    if (code === 0) {
+      if (_embeddedVttCache.size > 50) _embeddedVttCache.clear();
+      _embeddedVttCache.set(key, Buffer.concat(chunks));
+    }
+    try { res.end(); } catch {}
+  });
   child.on('error', () => { try { res.end('WEBVTT\n'); } catch {} });
+  // Leaving the video must not leave a full-file ffmpeg pass running
+  res.on('close', () => { if (child.exitCode === null) child.kill(); });
 }
+
+const _embeddedVttCache = new Map();
 
 // ── Global import (video / audio / book by extension) ─────────────────
 
@@ -3328,359 +3482,116 @@ async function apiRescan(req, res) {
   json(res, { ok: true });
 }
 
-// Auto-categorize uncategorized videos (and links) by matching filename against category terms.
-// Videos are moved within their own root (VIDEOS_DIR or external source folder).
-async function apiAutoCategorizeUncategorized(req, res) {
-  const cats = loadFolderMappings();
-  const prefs = loadPrefs();
-  const sourceFolders = (prefs.sourceFolders || []).filter(sf => fs.existsSync(sf));
-  const roots = [VIDEOS_DIR, ...sourceFolders];
+// ── Auto-categorize (matching lives in categorizer-server.js) ────────
 
-  let movedVideos = 0;
-  const errors = [];
+const _LINK_VIRTUAL_CATS = new Set(['', 'links', 'uncategorized']);
 
-  for (const root of roots) {
-    let entries;
-    try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
-    const existing = getExistingTopLevelFolders(root);
-
-    for (const ent of entries) {
-      if (!ent.isFile()) continue;
-      const ext = path.extname(ent.name).toLowerCase();
-      if (!VIDEO_EXT.has(ext)) continue;
-
-      const stem = path.basename(ent.name, ext);
-      let matched = null;
-      for (const cat of cats) {
-        if (wordMatchAny(stem, cat.terms)) { matched = cat; break; }
-      }
-      if (!matched) continue;
-
-      const destFolder = matched.displayName || matched.name;
-      if (!existing.has(destFolder)) continue;
-
-      const src = path.join(root, ent.name);
-      const destDir = path.join(root, destFolder);
-      try {
-        // never create new folders for auto-tagging; only move into existing ones
-        if (!fs.existsSync(destDir)) continue;
-        // Generate unique dest name
-        let dest = path.join(destDir, ent.name);
-        if (fs.existsSync(dest)) {
-          let n = 1;
-          do { dest = path.join(destDir, `${stem}_${n}${ext}`); n++; } while (fs.existsSync(dest));
-        }
-        fs.renameSync(src, dest);
-        movedVideos++;
-      } catch (e) {
-        errors.push(`${ent.name}: ${e.message}`);
-      }
-    }
-  }
-
-  // Also auto-categorize uncategorized links
-  let categorizedLinks = 0;
-  try {
-    const { loadLinksCache, upsertLink } = require('./db-server');
-    const items = loadLinksCache().items || [];
-    const VIRTUAL = new Set(['', 'links', 'uncategorized']);
-    for (const item of items) {
-      if (item.category && !VIRTUAL.has(item.category.toLowerCase())) continue;
-      const text = (item.title || '') + ' ' + (item.url || '');
-      for (const cat of cats) {
-        if (wordMatchAny(text, cat.terms)) {
-          item.category = cat.displayName || cat.name;
-          upsertLink(item);
-          categorizedLinks++;
-          break;
-        }
-      }
-    }
-  } catch (e) {
-    errors.push('links: ' + e.message);
-  }
-
-  invalidateScanCache();
-  json(res, { ok: true, movedVideos, categorizedLinks, errors });
+// Links are filed by flat category name, not by folder path.
+function _linkMatcher() {
+  const names = loadFolderMappings().map(c => c.displayName || c.name).filter(Boolean);
+  return categorizer.createMatcher({ folders: [...new Set(names)] });
 }
 
-async function apiRecategorizeAll(req, res) {
-  const cats = loadFolderMappings();
-  const prefs = loadPrefs();
-  const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
+// Unattended: file videos + links using matches of at least `minConfidence`.
+async function _autoFile(mode, minConfidence) {
+  const ok = c => c === 'high' || (minConfidence === 'medium' && c === 'medium');
+  const vids = (await cachedScan()).filter(v => VIDEO_EXT.has(String(v.ext || '').toLowerCase()));
+  const { moves } = categorizer.buildPlan(vids, mode);
   let movedVideos = 0;
   const errors = [];
-
-  for (const root of roots) {
-    const files = [];
-    const collect = (dir) => {
-      let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-      for (const e of ents) {
-        if (e.isDirectory() && !isHiddenFolderName(e.name)) collect(path.join(dir, e.name));
-        else if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-          files.push(path.join(dir, e.name));
-      }
-    };
-    collect(root);
-    const existing = getExistingTopLevelFolders(root);
-
-    for (const src of files) {
-      const ext = path.extname(src).toLowerCase();
-      const stem = path.basename(src, ext);
-      let matched = null;
-      for (const cat of cats) { if (wordMatchAny(stem, cat.terms)) { matched = cat; break; } }
-      if (!matched) continue;
-      const destFolder = matched.displayName || matched.name;
-      const destDir = path.join(root, destFolder);
-      if (path.resolve(path.dirname(src)) === path.resolve(destDir)) continue;
-      if (!existing.has(destFolder)) continue;
-      try {
-        // never create new folders for auto-tagging; only move into existing ones
-        if (!fs.existsSync(destDir)) continue;
-        let dest = path.join(destDir, path.basename(src));
-        if (fs.existsSync(dest)) {
-          let n = 1;
-          do { dest = path.join(destDir, `${stem}_${n}${ext}`); n++; } while (fs.existsSync(dest));
-        }
-        fs.renameSync(src, dest);
-        movedVideos++;
-      } catch (e) { errors.push(`${path.basename(src)}: ${e.message}`); }
-    }
+  for (const m of moves) {
+    if (!ok(m.confidence)) continue;
+    try { moveVideoToFolder(m.id, m.toPath); movedVideos++; }
+    catch (e) { errors.push(`${m.name}: ${e.message}`); }
   }
 
   let categorizedLinks = 0;
   try {
-    const { loadLinksCache, upsertLink } = require('./db-server');
-    const items = loadLinksCache().items || [];
-    for (const item of items) {
-      const text = (item.title || '') + ' ' + (item.url || '');
-      for (const cat of cats) {
-        if (wordMatchAny(text, cat.terms)) {
-          const newCat = cat.displayName || cat.name;
-          if (item.category !== newCat) { item.category = newCat; upsertLink(item); categorizedLinks++; }
-          break;
-        }
-      }
+    const { upsertLink } = require('./db-server');
+    const matcher = _linkMatcher();
+    for (const item of loadLinksCache().items || []) {
+      if (mode !== 'all' && item.category && !_LINK_VIRTUAL_CATS.has(item.category.toLowerCase())) continue;
+      const hit = matcher.match(`${item.title || ''} ${item.url || ''}`);
+      if (!hit || !ok(hit.confidence) || hit.path === item.category) continue;
+      item.category = hit.path;
+      upsertLink(item);
+      categorizedLinks++;
     }
   } catch (e) { errors.push('links: ' + e.message); }
 
   invalidateScanCache();
-  json(res, { ok: true, movedVideos, categorizedLinks, errors });
+  return { ok: true, movedVideos, categorizedLinks, errors };
 }
 
-// ── Scoring / fuzzy matching ──────────────────────────────────────────
-// Normalize separators (_, -, .) to space for cross-format matching
-function normSeps(s) {
-  return s.toLowerCase().replace(/[\s\-_.]+/g, ' ').trim();
+async function apiAutoCategorizeUncategorized(req, res) {
+  json(res, await _autoFile('uncategorized', 'medium'));
 }
 
-function computeScore(text, cat) {
-  let best = 0;
-  const normText = normSeps(text);
-
-  // Folder display name in filename → highest-confidence match
-  const dn = cat.displayName || cat.name;
-  if (wordMatch(text, dn)) return 100;
-  const normDn = normSeps(dn);
-  if (normDn.length >= 3 && normText.includes(normDn)) best = 90;
-
-  for (const term of cat.terms) {
-    if (best >= 100) break;
-    if (wordMatch(text, term)) return 100;
-    const tl = term.toLowerCase(), xl = text.toLowerCase();
-    if (xl.includes(tl)) { best = Math.max(best, 60); continue; }
-    // Normalized separator match: "My_Category" matches "My Category"
-    const normTerm = normSeps(term);
-    if (normTerm.length >= 3 && normText.includes(normTerm)) { best = Math.max(best, 60); continue; }
-    // Loose prefix-overlap fuzzy match: only for top-level categories (depth 0),
-    // where terms come from user-configured tags. Nested folder names (e.g. actor
-    // or series subfolders) require an exact/substring match to avoid noisy moves.
-    if ((cat.depth || 0) === 0) {
-      const words = xl.split(/\W+/).filter(w => w.length >= 3);
-      for (const w of words) {
-        if (tl.startsWith(w.slice(0, 3)) || w.startsWith(tl.slice(0, 3))) {
-          best = Math.max(best, 30); break;
-        }
-      }
-    }
-  }
-  return best;
+async function apiRecategorizeAll(req, res) {
+  json(res, await _autoFile('all', 'high'));
 }
 
-function bestCatMatch(text, cats) {
-  let best = null, bs = 0;
-  for (const c of cats) {
-    const s = computeScore(text, c);
-    if (s <= 0) continue;
-    // Prefer deeper (more specific) folders on a tie, e.g. an existing
-    // "Performers/Jane Doe" subfolder beats the top-level "Performers" category.
-    if (s > bs || (s === bs && (!best || (c.depth || 0) > (best.depth || 0)))) { bs = s; best = c; }
-  }
-  return { cat: best, score: bs };
-}
-
-// Recursively collect all existing subfolders under `root` as destination candidates
-// for categorization, including nested subfolders (e.g. "Performers/Jane Doe").
-// Top-level folders that correspond to a configured category inherit its tag terms;
-// nested folders are matched on their own name only.
-function collectDestinationCandidates(root, cats) {
-  const catByName = new Map();
-  for (const c of cats) {
-    catByName.set((c.displayName || c.name).toLowerCase(), c);
-    catByName.set(c.name.toLowerCase(), c);
-  }
-  const candidates = [];
-  const walk = (dir, rel) => {
-    let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of ents) {
-      if (!e.isDirectory() || isHiddenFolderName(e.name)) continue;
-      const full = path.join(dir, e.name);
-      if (path.resolve(full) === path.resolve(VAULT_DIR) || path.resolve(full) === path.resolve(IGNORED_DIR)) continue;
-      const relPath = rel ? rel + '/' + e.name : e.name;
-      const depth = rel ? rel.split('/').length : 0;
-      const dbCat = depth === 0 ? catByName.get(e.name.toLowerCase()) : null;
-      candidates.push({ relPath, name: e.name, displayName: e.name, terms: dbCat ? dbCat.terms : [e.name], depth });
-      walk(full, relPath);
-    }
-  };
-  walk(root, '');
-  return candidates;
-}
-
-// Pick the best matching category folder for a given filename using the same
-// scoring algorithm as the categorizer modal. Returns the relative folder path
-// (e.g. "Performers/Jane Doe") or null if nothing scores above zero.
+// Best existing folder for a new download / feed file, or null. Only
+// confident matches, since nobody reviews these moves.
 function autoCategorize(filename) {
-  try {
-    const prefs = loadPrefs();
-    const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
-    const cats = loadFolderMappings();
-    const ext = path.extname(filename).toLowerCase();
-    const stem = path.basename(filename, ext);
-    for (const root of roots) {
-      const candidates = collectDestinationCandidates(root, cats);
-      const { cat, score } = bestCatMatch(stem, candidates);
-      if (cat && score > 0) return cat.relPath;
-    }
-  } catch (err) {
-    console.error('[autoCategorize] error:', err.message);
-  }
-  return null;
+  return categorizer.bestFolderFor(filename, { minConfidence: 'medium' });
 }
 
+// Settings → categorize modal: every video/link with a suggested destination.
 async function apiCategorizePlan(req, res) {
   const body = await readBody(req);
   const mode = body.mode === 'all' ? 'all' : 'uncategorized';
-  const cats = loadFolderMappings();
-  const prefs = loadPrefs();
-  const roots = [VIDEOS_DIR, ...(prefs.sourceFolders || []).filter(sf => fs.existsSync(sf))];
-
-  // Map folder name → category for quick lookup (used for link matching below)
-  const catByFolder = new Map();
-  for (const c of cats) {
-    catByFolder.set((c.displayName || c.name).toLowerCase(), c);
-    catByFolder.set(c.name.toLowerCase(), c);
-  }
-
-  // Per-root list of every existing folder (any depth) as a possible move target,
-  // so videos can be suggested into existing subfolders, not just top-level categories.
-  const candidatesByRoot = new Map();
-  for (const root of roots) candidatesByRoot.set(path.resolve(root), collectDestinationCandidates(root, cats));
-
+  const roots = categorizer.libraryRoots().map(r => path.resolve(r));
+  const folders = categorizer.listFolders();
   const uncategorized = [];
   const categorized = [];
 
   // ── Videos ───────────────────────────────────────────────────────────
-  for (const root of roots) {
-    const files = [];
-    if (mode === 'all') {
-      const collect = (dir) => {
-        let ents; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const e of ents) {
-          if (e.isDirectory() && !isHiddenFolderName(e.name)) collect(path.join(dir, e.name));
-          else if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-            files.push(path.join(dir, e.name));
-        }
-      };
-      collect(root);
+  const vids = (await cachedScan()).filter(v => VIDEO_EXT.has(String(v.ext || '').toLowerCase()));
+  const matcher = categorizer.createMatcher({ folders, videos: vids });
+  for (const v of vids) {
+    const from = v.catPath || '';
+    if (mode !== 'all' && from) continue;
+    const srcPath = safePath(v.id);
+    if (!srcPath) continue;
+    const abs = path.resolve(srcPath);
+    const root = roots.find(r => abs.startsWith(r + path.sep)) || roots[0];
+    const ranked = matcher.rank(v.name, v.id);
+    const hit = matcher.pick(ranked);
+    const base = { type: 'video', id: v.id, name: v.filename || v.name, currentFolder: from };
+    const fit = matcher.fitIn(ranked, from);
+    const better = hit && hit.path !== from && (!from || hit.path.startsWith(from + '/') || (fit < categorizer.MIN_SCORE && hit.confidence === 'high'));
+    if (better) {
+      uncategorized.push({ ...base, suggestedCategory: hit.path, score: hit.score, srcPath, root });
+    } else if (from) {
+      categorized.push({ ...base, matchedCategory: from.replace(/\//g, ' / '), score: fit });
     } else {
-      let ents; try { ents = fs.readdirSync(root, { withFileTypes: true }); } catch { continue; }
-      for (const e of ents)
-        if (e.isFile() && VIDEO_EXT.has(path.extname(e.name).toLowerCase()))
-          files.push(path.join(root, e.name));
-    }
-
-    const candidates = candidatesByRoot.get(path.resolve(root)) || [];
-
-    for (const src of files) {
-      const ext = path.extname(src).toLowerCase();
-      const stem = path.basename(src, ext);
-      const currentFolder = path.relative(root, path.dirname(src)).replace(/\\/g, '/') || '';
-      const id = Buffer.from(src).toString('base64url');
-
-      const { cat: suggested, score } = bestCatMatch(stem, candidates);
-
-      if (suggested && suggested.relPath !== currentFolder) {
-        // Either uncategorized (no current folder) or a better-matching existing
-        // folder/subfolder exists than where this file currently lives — propose a move.
-        uncategorized.push({
-          type: 'video', id, name: path.basename(src),
-          currentFolder, suggestedCategory: suggested.relPath,
-          score, srcPath: src, root,
-        });
-      } else if (suggested) {
-        // Already filed in its best-matching existing folder.
-        categorized.push({
-          type: 'video', id, name: path.basename(src),
-          currentFolder, matchedCategory: currentFolder.replace(/\//g, ' / '),
-          score,
-        });
-      } else {
-        uncategorized.push({
-          type: 'video', id, name: path.basename(src),
-          currentFolder, suggestedCategory: '',
-          score: 0, srcPath: src, root,
-        });
-      }
+      uncategorized.push({ ...base, suggestedCategory: '', score: 0, srcPath, root });
     }
   }
 
   // ── Links ─────────────────────────────────────────────────────────────
   try {
-    const { loadLinksCache } = require('./db-server');
-    const VIRTUAL = new Set(['', 'links', 'uncategorized']);
-    const items = loadLinksCache().items || [];
-    for (const item of items) {
-      const text = (item.title || '') + ' ' + (item.url || '');
+    const linkMatcher = _linkMatcher();
+    for (const item of loadLinksCache().items || []) {
+      const text = `${item.title || ''} ${item.url || ''}`;
       const curCat = item.category || '';
-      const catObj = !VIRTUAL.has(curCat.toLowerCase()) ? catByFolder.get(curCat.toLowerCase()) : null;
-      const id = Buffer.from(item.url).toString('base64url');
-      const name = item.title || item.url;
-
-      if (catObj && computeScore(text, catObj) > 0) {
-        categorized.push({
-          type: 'link', id, name, url: item.url,
-          currentFolder: curCat, matchedCategory: curCat,
-          score: computeScore(text, catObj),
-        });
+      const virtual = _LINK_VIRTUAL_CATS.has(curCat.toLowerCase());
+      const ranked = linkMatcher.rank(text);
+      const fit = virtual ? 0 : linkMatcher.fitIn(ranked, curCat);
+      const base = { type: 'link', id: Buffer.from(item.url).toString('base64url'), name: item.title || item.url, url: item.url };
+      if (fit > 0) {
+        categorized.push({ ...base, currentFolder: curCat, matchedCategory: curCat, score: fit });
       } else {
-        const { cat: suggested, score } = bestCatMatch(text, cats);
-        uncategorized.push({
-          type: 'link', id, name, url: item.url,
-          currentFolder: VIRTUAL.has(curCat.toLowerCase()) ? '' : curCat,
-          suggestedCategory: suggested ? (suggested.displayName || suggested.name) : '',
-          score,
-        });
+        const hit = linkMatcher.pick(ranked);
+        uncategorized.push({ ...base, currentFolder: virtual ? '' : curCat, suggestedCategory: hit ? hit.path : '', score: hit ? hit.score : 0 });
       }
     }
   } catch (e) { console.error('[apiCategorizePlan] links error:', e.message); }
 
-  const allDestPaths = new Set();
-  for (const list of candidatesByRoot.values()) for (const c of list) allDestPaths.add(c.relPath);
-  const categories = Array.from(allDestPaths).sort();
   uncategorized.sort((a, b) => b.score - a.score);
   categorized.sort((a, b) => b.score - a.score);
-  json(res, { uncategorized, categorized, categories });
+  json(res, { uncategorized, categorized, categories: [...folders].sort() });
 }
 
 async function apiCategorizeExecute(req, res) {
@@ -3802,7 +3713,7 @@ module.exports = {
   apiAutoCategorizeUncategorized, apiRecategorizeAll,
   autoCategorize,
   apiCategorizePlan, apiCategorizeExecute,
-  apiCategorizerBgExecute, apiCategorizerPoll, apiCategorizerStop,
+  apiCategorizerPlan, apiCategorizerBgExecute, apiCategorizerPoll, apiCategorizerStop,
   apiEncryptionStatus, apiEncryptionStop, getEncryptionProgress, apiVaultImportProgress,
   apiScanEvents, broadcastScanChange,
 };

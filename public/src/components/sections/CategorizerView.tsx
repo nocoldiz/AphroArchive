@@ -30,57 +30,22 @@ function matchScore(target: string, query: string): number {
   return score;
 }
 
-// ── Fuzzy folder matching ─────────────────────────────────────────────────
-// Levenshtein edit distance (single-row) — powers fuzzy term matching so a
-// folder named "Comedy" still catches "comdey" / "comedi" in a filename.
-function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
-  if (!m) return n;
-  if (!n) return m;
-  const row = new Array(n + 1);
-  for (let j = 0; j <= n; j++) row[j] = j;
-  for (let i = 1; i <= m; i++) {
-    let diag = row[0];
-    row[0] = i;
-    for (let j = 1; j <= n; j++) {
-      const tmp = row[j];
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, diag + cost);
-      diag = tmp;
-    }
-  }
-  return row[n];
-}
+// One proposed move from /api/categorizer/plan (matching runs server-side in
+// categorizer-server.js so downloads / auto-sort file videos the same way).
+type Move = {
+  id: string; name: string; fromPath: string; toPath: string;
+  score: number; term: string; how: 'name' | 'metadata' | 'learned';
+};
 
-// Lowercase, drop separators/punctuation, collapse whitespace into words.
-function normalizeText(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[._\-/\\]+/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+// 'auto'  → file videos sitting in the media root into the best nested folder.
+// 'recat' → re-sort videos already in folders (all, or chosen main folders).
+type PlanMode = 'auto' | 'recat';
+type Plan = { mode: PlanMode; stage: 'scope' | 'loading' | 'preview' | 'error'; moves: Move[]; error?: string };
 
-// Score a single folder term against a filename's words. 0 = no match.
-// Exact word > substring > fuzzy. Multi-word terms match as a phrase.
-function termMatchScore(words: string[], joined: string, term: string): number {
-  if (!term) return 0;
-  if (term.includes(' ')) return joined.includes(term) ? 100 : 0;
-  let best = 0;
-  for (const w of words) {
-    if (w === term) return 100;
-    if (term.length >= 3 && w.includes(term)) best = Math.max(best, 78);
-    else if (w.length >= 4 && term.includes(w)) best = Math.max(best, 58);
-    else if (term.length >= 4 && w.length >= 4) {
-      const ratio = 1 - levenshtein(w, term) / Math.max(w.length, term.length);
-      if (ratio >= 0.8) best = Math.max(best, Math.round(ratio * 68)); // fuzzy
-    }
-  }
-  return best;
-}
+const HOW_LABEL: Record<Move['how'], string> = {
+  name: 'name match', metadata: 'metadata match', learned: 'learned from folder',
+};
 
-type Move = { id: string; name: string; fromPath: string; toPath: string; toName: string; matched: string };
 
 // ── component ─────────────────────────────────────────────────────────────
 
@@ -105,12 +70,11 @@ export const CategorizerView = () => {
   const [renameSide, setRenameSide] = useState<Side | null>(null);
   const [renameName, setRenameName] = useState('');
   const [extraCats, setExtraCats] = useState<{ name: string; path: string; count?: number }[]>([]);
-  // Folder → registered tags map (from /api/db/categories), used so a video
-  // whose name contains a folder's tag still lands in that folder.
-  const [catTags, setCatTags] = useState<Map<string, string[]>>(new Map());
   // Auto-categorize / Recategorize preview + apply state.
-  const [plan, setPlan] = useState<null | { mode: 'auto' | 'recat'; moves: Move[] }>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
   const [planSel, setPlanSel] = useState<Set<string>>(new Set());
+  // Recategorize scope: main folders to re-sort (empty = all).
+  const [scope, setScope] = useState<Set<string>>(new Set());
   const [folderDropId, setFolderDropId] = useState<string | null>(null);
 
   const dragRef      = useRef<{ ids: string[]; from: Side }>({ ids: [], from: 'left' });
@@ -123,16 +87,6 @@ export const CategorizerView = () => {
   useEffect(() => {
     if (folders.value.length === 0) loadFolders();
     if (allVideos.value.length === 0) loadVideos();
-    fetch('/api/db/categories')
-      .then(r => r.json())
-      .then((d: any) => {
-        const m = new Map<string, string[]>();
-        for (const [name, info] of Object.entries<any>(d || {})) {
-          m.set(name.toLowerCase(), Array.isArray(info?.tags) ? info.tags : []);
-        }
-        setCatTags(m);
-      })
-      .catch(() => {});
   }, []);
 
   const allCats = [...cats, ...extraCats.filter(ec => !cats.some(c => c.path === ec.path))];
@@ -178,7 +132,8 @@ export const CategorizerView = () => {
         .map(x => x.v);
     }
     const cat = getCat(s);
-    if (!cat) return [];
+    // Source panel with no folder picked = videos sitting in the media root.
+    if (!cat) return s === 'left' ? localVids.filter(v => !v.catPath) : [];
     return localVids.filter(v => (v.catPath || '') === cat);
   };
 
@@ -370,56 +325,32 @@ export const CategorizerView = () => {
 
   // ── Auto-categorize ───────────────────────────────────────────────────
 
-  // Precompute the matching terms (folder leaf name + registered tags) for
-  // every known folder.
-  const folderTerms = (): { path: string; depth: number; terms: string[] }[] =>
-    cats.map(c => {
-      const leaf  = c.path.split('/').pop() || c.path;
-      const tags  = catTags.get(leaf.toLowerCase()) || catTags.get(c.path.toLowerCase()) || [];
-      const terms = [normalizeText(leaf), ...tags.map(normalizeText)].filter(Boolean);
-      return { path: c.path, depth: c.path.split('/').length, terms };
-    });
+  const topFolders = cats.filter(c => !c.path.includes('/')).sort((a, b) => a.path.localeCompare(b.path));
 
-  // Find the best-fitting folder for a filename. Deeper (more specific)
-  // subfolders win on near-ties; only when no subfolder matches does a
-  // shallower parent folder get picked.
-  const bestFolder = (fts: ReturnType<typeof folderTerms>, name: string): { path: string; matched: string } | null => {
-    const joined = normalizeText(name.replace(/\.[^.]+$/, ''));
-    const words  = joined.split(' ').filter(Boolean);
-    if (!words.length) return null;
-    let bestPath = '', bestTotal = 0, bestTerm = '';
-    for (const f of fts) {
-      let fScore = 0, fTerm = '';
-      for (const term of f.terms) {
-        const s = termMatchScore(words, joined, term);
-        if (s > fScore) { fScore = s; fTerm = term; }
-      }
-      if (!fScore) continue;
-      const total = fScore + f.depth * 4; // depth bias → prefer subfolders
-      if (total > bestTotal) { bestTotal = total; bestPath = f.path; bestTerm = fTerm; }
+  const fetchPlan = async (mode: PlanMode, scopeList: string[]) => {
+    setPlan({ mode, stage: 'loading', moves: [] });
+    try {
+      const r = await fetch('/api/categorizer/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, scope: scopeList }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      // Respect the global filter: only videos passing it are eligible.
+      const allowed = globalFilter.trim() ? new Set(applyGlobal(localVids).map(v => v.id)) : null;
+      const moves: Move[] = (d.moves || []).filter((m: Move) => !allowed || allowed.has(m.id));
+      setPlan({ mode, stage: 'preview', moves });
+      setPlanSel(new Set(moves.map(m => m.id)));
+    } catch (e: any) {
+      setPlan({ mode, stage: 'error', moves: [], error: e.message || 'Failed to build plan' });
     }
-    return bestPath ? { path: bestPath, matched: bestTerm } : null;
   };
 
-  // mode 'auto' → only uncategorized videos; 'recat' → re-sort everything.
-  const openPlan = (mode: 'auto' | 'recat') => {
-    const fts        = folderTerms();
-    const candidates = localVids.filter(v => mode === 'auto' ? !(v.catPath || '') : true);
-    const moves: Move[] = [];
-    for (const v of candidates) {
-      const hit = bestFolder(fts, v.name);
-      if (hit && hit.path !== (v.catPath || '')) {
-        moves.push({
-          id: v.id, name: v.name,
-          fromPath: v.catPath || '',
-          toPath: hit.path,
-          toName: cats.find(c => c.path === hit.path)?.name || hit.path,
-          matched: hit.matched,
-        });
-      }
-    }
-    setPlan({ mode, moves });
-    setPlanSel(new Set(moves.map(m => m.id)));
+  // Auto goes straight to the preview; Recategorize first asks which folders.
+  const openPlan = (mode: PlanMode) => {
+    if (mode === 'auto') fetchPlan('auto', []);
+    else setPlan({ mode, stage: 'scope', moves: [] });
   };
 
   const applyPlan = async () => {
@@ -558,7 +489,7 @@ export const CategorizerView = () => {
                   onChange={(e: any) => pickCat(side, e.target.value)}
                   style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '4px 7px', fontSize: '13px' }}
                 >
-                  <option value="">— Uncategorized —</option>
+                  <option value="">— Uncategorized ({localVids.filter(v => !v.catPath).length}) —</option>
                   {folderOptions(side)}
                 </select>
               )}
@@ -667,7 +598,7 @@ export const CategorizerView = () => {
                 }
               </svg>
               <span>
-                {isOver ? 'Drop here' : searching ? 'No matches' : cat ? 'Empty folder' : 'Select a folder above'}
+                {isOver ? 'Drop here' : searching ? 'No matches' : cat ? 'Empty folder' : side === 'left' ? 'No uncategorized videos' : 'Select a folder above'}
               </span>
             </div>
           ) : (
@@ -1062,13 +993,13 @@ export const CategorizerView = () => {
         {globalFilter.trim() && (
           <span style={{ fontSize: '11px', color: 'var(--tx3)', flexShrink: 0 }}>Only matching videos are categorized</span>
         )}
-        <button type="button" onClick={() => openPlan('auto')} title="Move uncategorized videos into matching folders automatically"
+        <button type="button" onClick={() => openPlan('auto')} title="File videos in the media root into the best matching nested folder; unrecognised ones stay in the root"
           style={{ background: 'var(--ac)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 600, borderRadius: '5px', padding: '5px 11px', flexShrink: 0, whiteSpace: 'nowrap' }}>
           ✨ Auto-categorize
         </button>
-        <button type="button" onClick={() => openPlan('recat')} title="Re-sort every video into the best-matching folder"
+        <button type="button" onClick={() => openPlan('recat')} title="Re-sort videos already in folders (all or chosen main folders); videos without a better match stay where they are"
           style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', cursor: 'pointer', fontSize: '12px', fontWeight: 600, borderRadius: '5px', padding: '5px 11px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          ⟳ Recategorize all
+          ⟳ Recategorize
         </button>
       </div>
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -1076,79 +1007,135 @@ export const CategorizerView = () => {
         {renderRightPanel()}
       </div>
 
-      {/* ── Auto-categorize preview modal ── */}
-      {plan && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={() => setPlan(null)}>
-          <div onClick={(e: any) => e.stopPropagation()}
-            style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px', width: 'min(680px, 92vw)', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
-            {/* header */}
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--tx)' }}>
-                {plan.mode === 'auto' ? 'Auto-categorize uncategorized videos' : 'Recategorize all videos'}
-              </span>
-              <span style={{ fontSize: '12px', color: 'var(--tx3)', marginLeft: 'auto' }}>
-                {planSel.size} of {plan.moves.length} selected
-              </span>
-            </div>
+      {/* ── Auto-categorize / Recategorize modal ── */}
+      {plan && (() => {
+        const groups = Object.entries(plan.moves.reduce((acc, m) => {
+          (acc[m.toPath] ||= []).push(m); return acc;
+        }, {} as Record<string, Move[]>));
+        const toggleGroup = (ms: Move[]) => setPlanSel(prev => {
+          const n = new Set(prev);
+          const all = ms.every(m => n.has(m.id));
+          for (const m of ms) all ? n.delete(m.id) : n.add(m.id);
+          return n;
+        });
+        const toggleScope = (p: string) =>
+          setScope(prev => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n; });
+        const folderName = (p: string) => p ? p.replace(/\//g, ' / ') : 'media root';
+        const btn = (primary: boolean, disabled = false) => ({
+          fontSize: '12px', fontWeight: primary ? 600 : 400, padding: '6px 14px', borderRadius: '5px',
+          cursor: disabled ? 'default' : 'pointer',
+          background: primary ? (disabled ? 'var(--bg3)' : 'var(--ac)') : 'none',
+          border: primary ? 'none' : '1px solid var(--brd)',
+          color: primary ? (disabled ? 'var(--tx3)' : '#fff') : 'var(--tx2)',
+        });
 
-            {/* body */}
-            <div style={{ flex: 1, overflow: 'auto', padding: plan.moves.length ? '8px 0' : '40px 18px' }}>
-              {plan.moves.length === 0 ? (
-                <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
-                  No videos matched a folder name or tag.
-                </div>
-              ) : (
-                Object.entries(plan.moves.reduce((acc, m) => {
-                  (acc[m.toPath] ||= []).push(m); return acc;
-                }, {} as Record<string, Move[]>)).map(([toPath, ms]) => (
-                  <div key={toPath} style={{ marginBottom: '6px' }}>
-                    <div style={{ padding: '6px 18px', fontSize: '11px', fontWeight: 700, color: 'var(--ac)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <span>→ {cats.find(c => c.path === toPath)?.name || toPath}</span>
-                      <span style={{ color: 'var(--tx3)', fontWeight: 400 }}>{ms.length}</span>
-                    </div>
-                    {ms.map(m => {
-                      const sel = planSel.has(m.id);
-                      return (
-                        <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 18px', cursor: 'pointer', opacity: sel ? 1 : 0.45 }}>
-                          <input type="checkbox" checked={sel} onChange={() => toggleMove(m.id)} />
-                          <span style={{ flex: 1, fontSize: '12px', color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: '80px' }} title={m.name}>
-                            {m.name.replace(/\.[^.]+$/, '')}
-                          </span>
-                          <span style={{ fontSize: '10px', color: 'var(--tx3)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }} title={`matched “${m.matched}”`}>
-                            <span style={{ padding: '1px 5px', background: 'var(--bg3)', borderRadius: '3px' }}>
-                              {m.fromPath ? (cats.find(c => c.path === m.fromPath)?.name || m.fromPath) : 'Uncategorized'}
-                            </span>
-                            <span style={{ color: 'var(--ac)', fontWeight: 700 }}>→</span>
-                            <span style={{ padding: '1px 5px', background: 'var(--bg3)', borderRadius: '3px', color: 'var(--tx2)' }}>
-                              {m.toName}
-                            </span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                ))
+        const renderRow = (m: Move) => {
+          const sel = planSel.has(m.id);
+          return (
+            <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 18px 3px 40px', opacity: sel ? 1 : 0.5, cursor: 'pointer' }}>
+              <input type="checkbox" checked={sel} onChange={() => toggleMove(m.id)} />
+              <span style={{ flex: 1, fontSize: '12px', color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={m.name}>
+                {m.name.replace(/\.[^.]+$/, '')}
+              </span>
+              {plan.mode === 'recat' && (
+                <span style={{ fontSize: '10px', color: 'var(--tx3)', flexShrink: 0, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`from ${folderName(m.fromPath)}`}>
+                  from {folderName(m.fromPath)}
+                </span>
               )}
-            </div>
+              <span title={`${HOW_LABEL[m.how] || m.how} · score ${m.score}`}
+                style={{ fontSize: '10px', color: 'var(--tx3)', flexShrink: 0, maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
+                “{m.term}”
+              </span>
+            </label>
+          );
+        };
 
-            {/* footer */}
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button type="button" onClick={() => setPlanSel(new Set(plan.moves.map(m => m.id)))}
-                style={{ fontSize: '11px', padding: '4px 9px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>All</button>
-              <button type="button" onClick={() => setPlanSel(new Set())}
-                style={{ fontSize: '11px', padding: '4px 9px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx2)' }}>None</button>
-              <div style={{ flex: 1 }} />
-              <button type="button" onClick={() => setPlan(null)}
-                style={{ fontSize: '12px', padding: '6px 14px', background: 'none', border: '1px solid var(--brd)', borderRadius: '5px', cursor: 'pointer', color: 'var(--tx2)' }}>Cancel</button>
-              <button type="button" disabled={planSel.size === 0} onClick={applyPlan}
-                style={{ fontSize: '12px', fontWeight: 600, padding: '6px 16px', background: planSel.size ? 'var(--ac)' : 'var(--bg3)', border: 'none', borderRadius: '5px', cursor: planSel.size ? 'pointer' : 'default', color: planSel.size ? '#fff' : 'var(--tx3)' }}>
-                Move {planSel.size || ''}
-              </button>
+        const title = plan.mode === 'auto' ? 'Categorize uncategorized videos' : 'Recategorize videos';
+        const subtitle = plan.mode === 'auto'
+          ? 'Videos in the media root go into the best matching nested folder. Unrecognised videos stay in the media root.'
+          : 'Videos move only when another folder matches their title clearly better. Everything else stays where it is.';
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+            onClick={() => setPlan(null)}>
+            <div onClick={(e: any) => e.stopPropagation()}
+              style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '10px', width: 'min(760px, 94vw)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
+              {/* header */}
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--brd)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--tx)' }}>{title}</span>
+                  {plan.stage === 'preview' && plan.moves.length > 0 && (
+                    <span style={{ fontSize: '12px', color: 'var(--tx3)', marginLeft: 'auto' }}>{planSel.size} of {plan.moves.length} selected</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--tx3)', marginTop: '4px' }}>{subtitle}</div>
+              </div>
+
+              {/* body */}
+              <div style={{ flex: 1, overflow: 'auto', padding: plan.stage === 'preview' && plan.moves.length ? '8px 0' : '20px 18px' }}>
+                {plan.stage === 'scope' ? (
+                  <>
+                    <div style={{ fontSize: '12px', color: 'var(--tx2)', marginBottom: '10px' }}>
+                      Main folders to recategorize. Leave all unchecked to recategorize every video.
+                    </div>
+                    {topFolders.length === 0 ? (
+                      <div style={{ fontSize: '12px', color: 'var(--tx3)' }}>No folders in the media library yet.</div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '4px 12px' }}>
+                        {topFolders.map(f => (
+                          <label key={f.path} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--tx)', cursor: 'pointer', minWidth: 0 }}>
+                            <input type="checkbox" checked={scope.has(f.path)} onChange={() => toggleScope(f.path)} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.path}>{f.name || f.path}</span>
+                            {f.count ? <span style={{ color: 'var(--tx3)', flexShrink: 0 }}>{f.count}</span> : null}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : plan.stage === 'loading' ? (
+                  <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>Matching video titles against folders…</div>
+                ) : plan.stage === 'error' ? (
+                  <div style={{ textAlign: 'center', color: '#c44', fontSize: '13px' }}>{plan.error}</div>
+                ) : plan.moves.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
+                    {plan.mode === 'auto' ? 'No uncategorized video matched a folder.' : 'Every video is already in its best matching folder.'}
+                  </div>
+                ) : groups.map(([p, ms]) => (
+                  <div key={p} style={{ marginBottom: '6px' }}>
+                    <label style={{ padding: '6px 18px', fontSize: '12px', fontWeight: 700, color: 'var(--ac)', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={ms.every(m => planSel.has(m.id))} onChange={() => toggleGroup(ms)} />
+                      <span>→ {folderName(p)}</span>
+                      <span style={{ color: 'var(--tx3)', fontWeight: 400 }}>{ms.length}</span>
+                    </label>
+                    {ms.map(renderRow)}
+                  </div>
+                ))}
+              </div>
+
+              {/* footer */}
+              <div style={{ padding: '12px 18px', borderTop: '1px solid var(--brd)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {plan.stage === 'preview' && plan.moves.length > 0 && (
+                  <>
+                    <button type="button" style={btn(false)} onClick={() => setPlanSel(new Set(plan.moves.map(m => m.id)))}>All</button>
+                    <button type="button" style={btn(false)} onClick={() => setPlanSel(new Set())}>None</button>
+                  </>
+                )}
+                <div style={{ flex: 1 }} />
+                <button type="button" style={btn(false)} onClick={() => setPlan(null)}>Cancel</button>
+                {plan.stage === 'scope' ? (
+                  <button type="button" style={btn(true)} onClick={() => fetchPlan('recat', [...scope])}>
+                    {scope.size ? `Preview ${scope.size} folder${scope.size > 1 ? 's' : ''}` : 'Preview all'}
+                  </button>
+                ) : (
+                  <button type="button" disabled={planSel.size === 0} style={btn(true, planSel.size === 0)} onClick={applyPlan}>
+                    Move {planSel.size || ''}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

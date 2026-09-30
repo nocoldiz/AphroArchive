@@ -50,27 +50,16 @@ const formatDuration = (seconds: number) => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
-// Shared IntersectionObserver for thumbnail generation — avoids one observer
-// per card when the grid renders hundreds of videos.
-let sharedThumbObserver: IntersectionObserver | null = null;
-const thumbObserverIds = new WeakMap<Element, string>();
+// Thumbnails are generated only when a card's image actually fails to load
+// (instead of a POST for every visible card). The server generates in the
+// background and answers at once, and the card retries its image with backoff.
+const THUMB_RETRY_DELAYS = [1500, 4000, 10000];
+const thumbGenRequested = new Set<string>();
 
-function getThumbObserver() {
-  if (!sharedThumbObserver) {
-    sharedThumbObserver = new IntersectionObserver(entries => {
-      for (const e of entries) {
-        if (e.isIntersecting) {
-          const id = thumbObserverIds.get(e.target);
-          if (id) {
-            fetch(`/api/thumbs/${id}/generate`, { method: 'POST' }).catch(() => {});
-            sharedThumbObserver!.unobserve(e.target);
-            thumbObserverIds.delete(e.target);
-          }
-        }
-      }
-    }, { rootMargin: '300px' });
-  }
-  return sharedThumbObserver;
+function requestThumbGen(id: string) {
+  if (thumbGenRequested.has(id)) return;
+  thumbGenRequested.add(id);
+  fetch(`/api/thumbs/${id}/generate?async=1`, { method: 'POST' }).catch(() => {});
 }
 
 interface VideoCardProps {
@@ -93,6 +82,24 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
   const [linkThumb, setLinkThumb] = useState('');
   const timerRef = useRef<any>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [thumbBust, setThumbBust] = useState(0);
+  const thumbRetryRef = useRef(0);
+  const thumbRetryTimer = useRef<any>(null);
+
+  useEffect(() => {
+    thumbRetryRef.current = 0;
+    setThumbBust(0);
+    return () => clearTimeout(thumbRetryTimer.current);
+  }, [video.id, thumbIdx]);
+
+  const onThumbError = () => {
+    if (video.isLink) return;
+    const n = thumbRetryRef.current++;
+    if (n >= THUMB_RETRY_DELAYS.length) return;
+    requestThumbGen(video.id);
+    thumbRetryTimer.current = setTimeout(() => setThumbBust(Date.now()), THUMB_RETRY_DELAYS[n]);
+  };
+  const thumbSrc = `/api/thumbs/${video.id}/${thumbIdx}${thumbBust ? `?r=${thumbBust}` : ''}`;
 
   // Refresh the card image when the user picks a different preferred thumbnail.
   useEffect(() => {
@@ -128,6 +135,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, category: cat }),
       });
+      window.dispatchEvent(new Event('downloads-changed'));
       if ((window as any).toast) (window as any).toast('Download queued');
     } catch {
       setDlQueued(false);
@@ -157,18 +165,6 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
     playerNextUp.value = [...playerNextUp.value, video];
     if ((window as any).toast) (window as any).toast('Added to end of queue');
   };
-
-  useEffect(() => {
-    if (!cardRef.current || video.isLink) return;
-    const el = cardRef.current;
-    const observer = getThumbObserver();
-    thumbObserverIds.set(el, video.id);
-    observer.observe(el);
-    return () => {
-      observer.unobserve(el);
-      thumbObserverIds.delete(el);
-    };
-  }, [video.id]);
 
   // Bookmark links often have no cached thumbnail (`img` is null until the
   // background scraper fills it). When such a link card scrolls into view —
@@ -405,8 +401,10 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
           </div>
         ) : (
           <img
-            src={video.isLink ? (video.img || linkThumb) : `/api/thumbs/${video.id}/${thumbIdx}`}
+            src={video.isLink ? (video.img || linkThumb) : thumbSrc}
             loading="lazy"
+            decoding="async"
+            onError={onThumbError}
             className="video-thumb"
             id={`img-${video.id}`}
             alt=""
@@ -416,13 +414,17 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
         {showVideo && !video.isLink && (
           <video
             ref={previewVidRef as any}
-            src={`/api/stream/${video.id}`}
+            // Known duration → #t= fragment makes the browser fetch from the
+            // midpoint straight away instead of loading 0s and then seeking.
+            src={`/api/stream/${video.id}${video.duration > 0 ? `#t=${Math.floor(video.duration / 2)}` : ''}`}
+            poster={thumbSrc}
             autoPlay
             muted
             playsInline
             preload="metadata"
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
             onLoadedMetadata={(e: any) => {
+              if (video.duration > 0) return;
               const v = e.target;
               v.currentTime = v.duration > 0 ? v.duration / 2 : 0;
             }}
@@ -588,7 +590,7 @@ const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: 
         contextMenuState.value = { visible: true, x: e.pageX, y: e.pageY, type: 'video', data: video };
       }}
     >
-      <img className="vl-thumb" src={`/api/thumbs/${video.id}/${thumbIdx}`} loading="lazy" alt="" />
+      <img className="vl-thumb" src={`/api/thumbs/${video.id}/${thumbIdx}`} loading="lazy" decoding="async" alt="" />
       <div className="vl-title" title={video.name}>{formatVideoTitle(video.name)}</div>
       <div className="vl-dur">{video.duration > 0 ? formatDuration(video.duration) : '—'}</div>
       <div className="vl-size">{sizeMb}</div>
@@ -763,6 +765,7 @@ export const VideoSelBar = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: v.linkUrl || v.relPath, category: targetCat })
         });
+        window.dispatchEvent(new Event('downloads-changed'));
         const d = await r.json();
         if (d.ok) successCount++;
       } catch (e) {}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { folders, loadVideos } from '../../store';
+import { folders, loadVideos, currentView } from '../../store';
 
 interface DownloadJob {
   id: string;
@@ -51,34 +51,58 @@ export const DownloadManager = () => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const prevJobStatuses = useRef<Record<string, string>>({});
 
+  const busyRef = useRef(false);
+  const openRef = useRef(false);
+  openRef.current = open;
+
   useEffect(() => {
+    let stopped = false;
+    let timer: any = null;
+    let lastJobs = '', lastModels = '';
+    // Fast polling only while downloads are active or the panel is open.
+    // Finished downloads already push a library refresh over the scan SSE
+    // stream (invalidateScanCache), so no extra loadVideos() here.
+    const nextDelay = () => {
+      if (document.hidden) return 30000;
+      if (busyRef.current || openRef.current) return 2000;
+      return currentView.value === 'player' ? 20000 : 10000;
+    };
+    const schedule = () => { if (!stopped) timer = setTimeout(async () => { await poll(); schedule(); }, nextDelay()); };
+    const onVisible = () => { if (!document.hidden) { clearTimeout(timer); poll().then(schedule); } };
     const poll = async () => {
+      let busy = false;
       try {
         const dlRes = await fetch('/api/download/jobs');
         if (dlRes.ok) {
           const newJobs: DownloadJob[] = await dlRes.json();
-          // Detect transitions to 'done' and reload the video list
-          let anyNewlyDone = false;
-          for (const job of newJobs) {
-            const prev = prevJobStatuses.current[job.id];
-            if (job.status === 'done' && prev && prev !== 'done') anyNewlyDone = true;
-            prevJobStatuses.current[job.id] = job.status;
-          }
-          setJobs(newJobs);
-          if (anyNewlyDone) loadVideos();
+          for (const job of newJobs) prevJobStatuses.current[job.id] = job.status;
+          busy = newJobs.some(j => j.status === 'queued' || j.status === 'running');
+          const jj = JSON.stringify(newJobs);
+          if (jj !== lastJobs) { lastJobs = jj; setJobs(newJobs); }
         }
       } catch {}
       try {
         const mRes = await fetch('/api/whisper/downloading-models');
         if (mRes.ok) {
           const d = await mRes.json();
-          setModels(Array.isArray(d.models) ? d.models : []);
+          const models = Array.isArray(d.models) ? d.models : [];
+          if (models.some((m: any) => m.status === 'downloading')) busy = true;
+          const mj = JSON.stringify(models);
+          if (mj !== lastModels) { lastModels = mj; setModels(models); }
         }
       } catch {}
+      busyRef.current = busy;
     };
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
+    // Adding a download elsewhere (link cards, player) should switch to fast polling
+    const onKick = () => { clearTimeout(timer); poll().then(schedule); };
+    window.addEventListener('downloads-changed', onKick);
+    poll().then(schedule);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stopped = true; clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('downloads-changed', onKick);
+    };
   }, []);
 
   // Close on outside click
@@ -172,6 +196,7 @@ export const DownloadManager = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
     });
+    window.dispatchEvent(new Event('downloads-changed'));
     if (r.ok) setNewUrls('');
   };
 

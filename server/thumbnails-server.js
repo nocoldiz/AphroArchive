@@ -8,7 +8,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
 const { json, safePath, fromId } = require('./helpers-server');
-const { loadThumbsCache, saveThumbsCache, loadPrefs, loadVideoIndex, loadEnabledFolders } = require('./db-server');
+const { loadThumbsCache, setThumbCacheEntry, loadPrefs, loadVideoIndex, loadEnabledFolders } = require('./db-server');
 const crypto = require('crypto');
 
 // ── ffprobe helper ───────────────────────────────────────────────────
@@ -79,9 +79,15 @@ function _releaseGenSlot() {
   _activeGens--;
   if (_genWaiters.length) {
     _activeGens++;
-    _genWaiters.shift()();
+    // Newest first: while scrolling, the cards now on screen asked most
+    // recently — serve them before ones that already scrolled away.
+    _genWaiters.pop()();
   }
 }
+
+// Frames per job extracted at most 2 at a time: 3 jobs × 5 parallel frames
+// meant up to 15 ffmpeg processes starving playback of CPU and disk.
+const FRAMES_PARALLEL = 2;
 
 async function genThumbs(id, fp) {
   await _acquireGenSlot();
@@ -92,13 +98,16 @@ async function genThumbs(id, fp) {
     if (!dur) return { count: 0, duration: null, width: null, height: null };
     const times = [0.1, 0.25, 0.5, 0.75, 0.9].map(p => (dur * p).toFixed(2));
     let n = 0;
-    await Promise.all(times.map((t, i) => new Promise(resolve => {
+    const extract = (t, i) => new Promise(resolve => {
       try {
         execFile(FFMPEG_BIN, ['-ss', t, '-i', fp, '-vframes', '1', '-vf', 'scale=480:-1', '-q:v', '3', '-y', path.join(dir, `${i}.jpg`)],
           { timeout: 30000 },
           err => { if (err) console.warn('[ffmpeg] thumb failed', fp, i, '—', err.message); else n++; resolve(); });
       } catch (e) { console.warn('[ffmpeg] spawn failed —', e.message); resolve(); }
-    })));
+    });
+    let next = 0;
+    const worker = async () => { while (next < times.length) { const i = next++; await extract(times[i], i); } };
+    await Promise.all(Array.from({ length: FRAMES_PARALLEL }, worker));
     return { count: n, duration: dur, width, height };
   } finally {
     _releaseGenSlot();
@@ -110,8 +119,12 @@ async function genThumbs(id, fp) {
 async function apiThumbGen(req, res, id) {
   const fp = safePath(id);
   if (!fp) return json(res, { error: 'Not found' }, 404);
+  // ?async=1 (grid): answer immediately and generate in the background, so
+  // queued jobs don't each hold one of the browser's ~6 connections open.
+  const background = /[?&]async=1/.test(req.url || '');
   const cache = loadThumbsCache();
-  const stat = fs.statSync(fp);
+  let stat;
+  try { stat = await fs.promises.stat(fp); } catch { return json(res, { error: 'Not found' }, 404); }
   if (cache[id] && cache[id].mtime === stat.mtimeMs && cache[id].count > 0)
     return json(res, { count: cache[id].count, duration: cache[id].duration || null, width: cache[id].width || null, height: cache[id].height || null });
   if (genLock.has(id)) return json(res, { count: 0, busy: true });
@@ -124,20 +137,23 @@ async function apiThumbGen(req, res, id) {
       const duration = (c[id] && c[id].duration) || null;
       const width = (c[id] && c[id].width) || null;
       const height = (c[id] && c[id].height) || null;
-      c[id] = { mtime: stat.mtimeMs, count: jpgs.length, duration, width, height };
-      saveThumbsCache(c);
+      setThumbCacheEntry(id, { mtime: stat.mtimeMs, count: jpgs.length, duration, width, height });
       return json(res, { count: jpgs.length, duration, width, height });
     }
   }
 
   genLock.add(id);
+  const job = genThumbs(id, fp)
+    .then(r => { setThumbCacheEntry(id, { mtime: stat.mtimeMs, ...r }); return r; })
+    .finally(() => genLock.delete(id));
+  if (background) {
+    job.catch(() => {});
+    return json(res, { count: 0, queued: true }, 202);
+  }
   try {
-    const { count, duration, width, height } = await genThumbs(id, fp);
-    const c = loadThumbsCache();
-    c[id] = { mtime: stat.mtimeMs, count, duration, width, height };
-    saveThumbsCache(c);
+    const { count, duration, width, height } = await job;
     json(res, { count, duration, width, height });
-  } catch { json(res, { count: 0 }); } finally { genLock.delete(id); }
+  } catch { json(res, { count: 0 }); }
 }
 
 async function genChapterThumb(id, fp, time, chapterId) {
@@ -153,12 +169,14 @@ async function genChapterThumb(id, fp, time, chapterId) {
 
 async function apiThumbImg(req, res, id, idx) {
   const { allVideos, getUnlockedFolderKey } = require('./videos-server');
-  const v = (await allVideos()).find(v => v.id === id);
   let fp = path.resolve(path.join(THUMBS_DIR, id, `${idx}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
 
   const encFp = fp + '.enc';
-  if (v && v.encrypted && fs.existsSync(encFp)) {
+  // Only encrypted thumbs need the video record — plain ones skip the
+  // library lookup entirely (this runs once per <img> in the grid).
+  const v = fs.existsSync(encFp) ? (await allVideos()).find(v => v.id === id) : null;
+  if (v && v.encrypted) {
     const key = getUnlockedFolderKey(v.catPath);
     if (!key) { res.writeHead(401); res.end(); return; }
     try {
@@ -197,12 +215,14 @@ function decryptBuffer(raw, key) {
 
 async function apiChapterThumbImg(req, res, id, chapterId) {
   const { allVideos, getUnlockedFolderKey } = require('./videos-server');
-  const v = (await allVideos()).find(v => v.id === id);
   let fp = path.resolve(path.join(THUMBS_DIR, id, 'chapters', `${chapterId}.jpg`));
   if (!fp.startsWith(path.resolve(THUMBS_DIR))) { res.writeHead(403); res.end(); return; }
 
   const encFp = fp + '.enc';
-  if (v && v.encrypted && fs.existsSync(encFp)) {
+  // Only encrypted thumbs need the video record — plain ones skip the
+  // library lookup entirely (this runs once per <img> in the grid).
+  const v = fs.existsSync(encFp) ? (await allVideos()).find(v => v.id === id) : null;
+  if (v && v.encrypted) {
     const key = getUnlockedFolderKey(v.catPath);
     if (!key) { res.writeHead(401); res.end(); return; }
     try {

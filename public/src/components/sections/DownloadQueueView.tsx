@@ -135,6 +135,7 @@ export const DownloadQueueView = () => {
     if (!items.length) return;
     try {
       await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
+      window.dispatchEvent(new Event('downloads-changed'));
       startPolling();
       pollJobs();
     } catch (e) { console.error(e); }
@@ -144,6 +145,7 @@ export const DownloadQueueView = () => {
     const category = resolveTargetFolder(link, categories);
     try {
       await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: [{ url: link.url, category }] }) });
+      window.dispatchEvent(new Event('downloads-changed'));
       startPolling();
       pollJobs();
     } catch {}
@@ -155,6 +157,7 @@ export const DownloadQueueView = () => {
     const items = picked.map(p => ({ url: p.url, category: p.category, pendingCategory: p.category }));
     try {
       await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
+      window.dispatchEvent(new Event('downloads-changed'));
       const w = window as any;
       if (w.toast) w.toast(`Added ${picked.length} link(s) to Download Queue`);
       startPolling();

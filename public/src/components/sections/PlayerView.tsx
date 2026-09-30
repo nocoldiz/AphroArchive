@@ -30,6 +30,8 @@ const LANGUAGES: { code: string; label: string }[] = [
   { code: 'tr-TR', label: 'Türkçe' },
 ];
 
+const NEXT_UP_PAGE = 30;
+
 export const PlayerView = () => {
   const video = currentVideo.value;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -59,6 +61,12 @@ export const PlayerView = () => {
   const [showEncryptConfirm, setShowEncryptConfirm] = useState(false);
 
   const [autoChapters, setAutoChapters] = useState<any[]>([]);
+
+  // Next Up renders full cards; the queue can be the whole library, so draw
+
+  // it in pages instead of mounting thousands of cards next to the player.
+
+  const [nextUpLimit, setNextUpLimit] = useState(NEXT_UP_PAGE);
   const [isDetectingChapters, setIsDetectingChapters] = useState(false);
   const [showPlayerOptions, setShowPlayerOptions] = useState(false);
   const [batchStatus, setBatchStatus] = useState<{ running: boolean; done: number; total: number } | null>(null);
@@ -149,6 +157,7 @@ export const PlayerView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: downloadUrl, category: targetCat })
     });
+    window.dispatchEvent(new Event('downloads-changed'));
     const d = await r.json();
     if (d.ok && d.ids && d.ids.length > 0) {
       setDownloadJobId(d.ids[0]);
@@ -204,7 +213,9 @@ export const PlayerView = () => {
       }
       playerHistory.value = [];
     }
-  }, [video]);
+    // Keyed on id: toggling fav/rating replaces the video object and used to
+    // rebuild (and reset any reordering of) the whole Next Up queue.
+  }, [video?.id]);
 
   // Leaving the player entirely stops Local Zap (it persists across video
   // changes on purpose, so only a full exit from the player view clears it).
@@ -233,6 +244,7 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (video) setCardThumb(getThumbPref(video.id));
+    setNextUpLimit(NEXT_UP_PAGE);
     // Opening a video should always start at the top — reset both the window
     // (normal layout) and the .main-content pane (dual mode) scroll positions.
     window.scrollTo({ top: 0 });
@@ -248,6 +260,8 @@ export const PlayerView = () => {
 
   useEffect(() => {
     if (!video || video.isVault) return;
+    let cancelled = false;
+    let whisperTimer: any = null;
     fetch(`/api/history/${video.id}`, { method: 'POST' }).catch(() => {});
     Promise.all([
       fetch(`/api/videos/${video.id}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
@@ -262,36 +276,49 @@ export const PlayerView = () => {
       setChapters(d.video?.chapters || []);
       setSuggested(d.suggested || []);
       setSubtitles(tracks);
-      // Enqueue whisper if enabled and no file-based subtitle exists yet
+      // Enqueue whisper if enabled and no file-based subtitle exists yet —
+      // but only once the video has been open a while, so transcription
+      // doesn't fight the stream for disk/CPU during startup or while skimming.
       const hasFileSub = tracks.some((t: any) => t.filename);
-      if (!hasFileSub && !video.isLink) {
-        fetch(`/api/whisper/enqueue/${video.id}`, { method: 'POST' }).catch(() => {});
+      if (!hasFileSub && !video.isLink && !cancelled) {
+        whisperTimer = setTimeout(() => {
+          fetch(`/api/whisper/enqueue/${video.id}`, { method: 'POST' }).catch(() => {});
+        }, 60000);
       }
     }).catch(() => {});
-  }, [video]);
+    return () => { cancelled = true; clearTimeout(whisperTimer); };
+  }, [video?.id]);
 
   // Auto-chapter detection: load cache on video change, trigger background detect if enabled
   useEffect(() => {
     if (!video || video.isLink || video.isVault) { setAutoChapters([]); return; }
     const autoEnabled = !!appPrefs.value.autoChapterDetection;
+    let cancelled = false;
+    let detectTimer: any = null;
     fetch(`/api/auto-chapters/${video.id}`)
       .then(r => r.json())
       .then(d => {
+        if (cancelled) return;
         if (d.chapters && d.chapters.length > 0) {
           setAutoChapters(d.chapters);
         } else if (autoEnabled && d.chapters === null) {
-          // Not yet detected — trigger background detection
-          setIsDetectingChapters(true);
-          fetch(`/api/auto-chapters/${video.id}/detect`, { method: 'POST' })
-            .then(r => r.json())
-            .then(d2 => { if (d2.chapters) setAutoChapters(d2.chapters); })
-            .catch(() => {})
-            .finally(() => setIsDetectingChapters(false));
+          setAutoChapters([]);
+          // Not yet detected — detection decodes the whole file, so wait until
+          // playback has settled (and skip it entirely when just skimming).
+          detectTimer = setTimeout(() => {
+            setIsDetectingChapters(true);
+            fetch(`/api/auto-chapters/${video.id}/detect`, { method: 'POST' })
+              .then(r => r.json())
+              .then(d2 => { if (!cancelled && d2.chapters) setAutoChapters(d2.chapters); })
+              .catch(() => {})
+              .finally(() => { if (!cancelled) setIsDetectingChapters(false); });
+          }, 30000);
         } else {
           setAutoChapters([]);
         }
       })
-      .catch(() => setAutoChapters([]));
+      .catch(() => { if (!cancelled) setAutoChapters([]); });
+    return () => { cancelled = true; clearTimeout(detectTimer); setIsDetectingChapters(false); };
   }, [video?.id]);
 
   // Close options dropdown on outside click
@@ -1218,7 +1245,7 @@ export const PlayerView = () => {
               </span>
             </div>
             <div className="playlist-list">
-              {playerNextUp.value.map((v, index) => (
+              {playerNextUp.value.slice(0, nextUpLimit).map((v, index) => (
                 <div 
                   key={v.id} 
                   draggable={true}
@@ -1239,6 +1266,15 @@ export const PlayerView = () => {
                   </button>
                 </div>
               ))}
+              {playerNextUp.value.length > nextUpLimit && (
+                <button
+                  className="btn"
+                  style={{ width: '100%', marginTop: '4px' }}
+                  onClick={() => setNextUpLimit(l => l + NEXT_UP_PAGE)}
+                >
+                  Show more ({playerNextUp.value.length - nextUpLimit})
+                </button>
+              )}
             </div>
           </div>
         </div>

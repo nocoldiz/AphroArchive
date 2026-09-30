@@ -1204,6 +1204,7 @@ export const LinksView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls, category: '' })
     });
+    window.dispatchEvent(new Event('downloads-changed'));
     if (r.ok) {
       // Start poller
       const jobsRes = await fetch('/api/download/jobs');
