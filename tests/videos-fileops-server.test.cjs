@@ -77,8 +77,23 @@ const dbImpl = {
   getDefaultWriteRoot: () => MOCK_VIDEOS_DIR,
   resolveCategoryPhysicalPath: (p) => (p ? path.join(MOCK_VIDEOS_DIR, p) : MOCK_VIDEOS_DIR),
   getCurrentProfile: () => 'default',
-  loadPrefs: () => ({}),
-  deleteVideoMetaEverywhere: (id) => { delete dbState.meta[id]; },
+  loadPrefs: () => ({ sourceFolders: [] }),
+  deleteVideoMetaEverywhere: (id) => {
+    delete dbState.meta[id];
+    delete dbState.thumbs[id];
+    dbState.favs = dbState.favs.filter(f => f !== id);
+  },
+  moveVideoMeta: (oldId, newId, newFields = {}) => {
+    const existing = dbState.meta[oldId] || {};
+    delete dbState.meta[oldId];
+    dbState.meta[newId] = { ...existing, ...newFields };
+    dbState.favs = dbState.favs.map(f => f === oldId ? newId : f);
+    if (dbState.thumbs[oldId]) {
+      dbState.thumbs[newId] = dbState.thumbs[oldId];
+      delete dbState.thumbs[oldId];
+    }
+  },
+  moveStashId: () => {},
 };
 injectMock('../server/db-server', new Proxy(dbImpl, {
   get(target, prop) {

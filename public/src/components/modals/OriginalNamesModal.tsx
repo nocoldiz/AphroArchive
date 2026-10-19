@@ -11,9 +11,10 @@ interface Scene {
   studio: string;
   parentStudio: string;
   performers: string[];
+  tags?: string[];
   url: string;
   image: string;
-  matchedBy: 'oshash' | 'md5' | 'phash';
+  matchedBy: 'oshash' | 'md5' | 'phash' | 'web-scraper';
   distance: number;
   durationDiff: number | null;
 }
@@ -65,7 +66,7 @@ function buildName(tpl: string, s: Scene): string {
 }
 
 const matchLabel = (s: Scene) =>
-  s.matchedBy === 'phash' ? `phash · ${s.distance} bit${s.distance === 1 ? '' : 's'}` : `exact ${s.matchedBy}`;
+  s.matchedBy === 'web-scraper' ? 'web scraper' : s.matchedBy === 'phash' ? `phash · ${s.distance} bit${s.distance === 1 ? '' : 's'}` : `exact ${s.matchedBy}`;
 
 export const OriginalNamesModal = () => {
   const [items, setItems] = useState<Item[]>([]);
@@ -98,11 +99,10 @@ export const OriginalNamesModal = () => {
       const list: Item[] = data.items || [];
       setItems(list);
       setHasKey(!!data.config?.hasKey);
-      if (!data.config?.hasKey) setShowSettings(true);
       if (!endpoint) setEndpoint(data.config?.endpoint || '');
-      // Pre-select confident matches (exact hash, or phash within 4 bits).
+      // Pre-select confident matches (web-scraper, exact hash, or phash within 4 bits).
       setSelected(new Set(list
-        .filter(i => i.status === 'matched' && i.scenes[0] && (i.scenes[0].matchedBy !== 'phash' || i.scenes[0].distance <= 4))
+        .filter(i => i.status === 'matched' && i.scenes[0] && (i.scenes[0].matchedBy === 'web-scraper' || i.scenes[0].matchedBy !== 'phash' || i.scenes[0].distance <= 4))
         .map(i => i.id)));
     } catch { }
     setLoading(false);
@@ -222,8 +222,9 @@ export const OriginalNamesModal = () => {
         </div>
 
         <p style={{ fontSize: '0.8rem', color: 'var(--tx3)', margin: '0 0 12px' }}>
-          Videos are recognised by their content fingerprint (oshash + perceptual hash, the same method Stash uses) and looked up on a stash-box database such as StashDB.
-          Fingerprinting reads 25 frames per video, so the first run takes a while.
+          {hasKey
+            ? 'Videos are recognised by content fingerprint (oshash + perceptual hash) via your configured StashDB endpoint.'
+            : 'No Stash-box API key configured — using Web Scraper fallback to search online platforms (Eporner, XVideos, SpankBang, Archive.org) for title, actors, and tags.'}
         </p>
 
         {showSettings && (
@@ -241,7 +242,7 @@ export const OriginalNamesModal = () => {
               Also send MD5 (reads every file in full; slow on large libraries)
             </label>
             <div style={{ fontSize: '0.75rem', color: 'var(--tx3)' }}>
-              StashDB requires a free account: register at stashdb.org, then copy the API key from your user page.
+              StashDB requires a free account: register at stashdb.org, then copy the API key from your user page. Without an API key, AphroArchive uses the Web Scraper fallback automatically.
             </div>
             <div><button type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={saveSettings}>Save</button></div>
           </div>
@@ -252,16 +253,20 @@ export const OriginalNamesModal = () => {
             <button type="button" className="ui-btn ui-btn--sm" onClick={() => fetch('/api/identify/stop', { method: 'POST' })}>Stop</button>
           ) : (
             <>
-              <button type="button" className="ui-btn ui-btn--primary ui-btn--sm" disabled={!hasKey} onClick={() => startJob(false)}
-                title="Look up videos that were not checked yet">Identify new videos</button>
-              <button type="button" className="ui-btn ui-btn--sm" disabled={!hasKey} onClick={() => startJob(true)}
-                title="Look every video up again (fingerprints are cached)">Re-check all</button>
+              <button type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={() => startJob(false)}
+                title={hasKey ? "Look up videos that were not checked yet via StashDB" : "Search online videos via Web Scraper"}>
+                {hasKey ? 'Identify new videos' : 'Identify new videos (Web Scraper)'}
+              </button>
+              <button type="button" className="ui-btn ui-btn--sm" onClick={() => startJob(true)}
+                title={hasKey ? "Look every video up again" : "Re-search all videos via Web Scraper"}>
+                Re-check all
+              </button>
             </>
           )}
           <span style={{ fontSize: '0.78rem', color: 'var(--tx3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {job.running
               ? `${job.done || 0}/${job.total || '…'} (${pct}%) · ${job.matched || 0} matched${job.current ? ' · ' + job.current : ''}`
-              : `${matchedCount} matched of ${items.length} checked`}
+              : `${matchedCount} matched of ${items.length} checked${!hasKey ? ' · Web Scraper mode' : ''}`}
           </span>
         </div>
         {job.error && <div className="modal-error" style={{ display: 'block', marginBottom: '8px' }}>{job.error}</div>}

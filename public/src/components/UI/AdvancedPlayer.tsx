@@ -240,11 +240,13 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     setLoading(true);
     // Abort the stalled request first: a bare load() would queue a *second*
     // request behind the hung one inside the browser's connection pool.
-    const currentSrc = vid.getAttribute('src') || src;
+    const targetSrc = src || vid.getAttribute('src') || '';
+    if (!targetSrc) return;
     try { vid.pause(); } catch {}
-    try { vid.removeAttribute('src'); vid.load(); } catch {}
-    if (currentSrc) { try { vid.src = currentSrc; } catch {} }
-    try { vid.load(); } catch {}
+    try {
+      vid.src = targetSrc;
+      vid.load();
+    } catch {}
     const onLoaded = () => {
       vid.removeEventListener('loadedmetadata', onLoaded);
       if (resumeAt > 0.5) { try { vid.currentTime = resumeAt; } catch {} }
@@ -858,6 +860,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
       onMouseMove={resetControlsTimeout}
     >
       <video
+        key={videoId}
         ref={videoRef}
         src={usingHls ? undefined : src}
         preload="auto"

@@ -25,6 +25,7 @@ let vaultKey      = null;
 let vaultPassword = null; // raw password string — needed for WinZip AES zip mounts
 let failedAttempts = 0;
 let cooldownUntil = 0;
+let _deferredLock = false;
 
 // Default auto-lock period; overridden per-install by prefs (see getVaultTimeoutMs).
 const DEFAULT_VAULT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -215,6 +216,8 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
       res.writeHead(416, { 'Content-Range': `bytes */${contentSize}` });
       return res.end();
     }
+    const MAX_CHUNK = 8 * 1024 * 1024; // 8MB
+    if (end - start + 1 > MAX_CHUNK) end = start + MAX_CHUNK - 1;
     const chunkSz = end - start + 1;
 
     res.writeHead(206, {
@@ -241,6 +244,7 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
       try { src.destroy(); } catch {}
       try { dec.destroy(); } catch {}
       try { res.end(); } catch {}
+      try { res.destroy(); } catch {}
     };
     dec.on('data', chunk => {
       const chunkEnd = pos + chunk.length - 1;
@@ -263,6 +267,11 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     dec.on('error', finish);
     src.on('error', finish);
     res.on('close', finish);
+    res.on('error', finish);
+    if (req && typeof req.on === 'function') {
+      req.on('close', finish);
+      req.on('aborted', finish);
+    }
     src.pipe(dec);
   } else {
     res.writeHead(200, {

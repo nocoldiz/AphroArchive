@@ -105,7 +105,7 @@ async function apiHlsSegment(req, res, id, seg) {
 
   await _acquireSegSlot();
   // Client may have given up while queued (seek away) — don't transcode.
-  if (res.writableEnded || res.destroyed) { _releaseSegSlot(); return; }
+  if (res.writableEnded || res.destroyed || req.destroyed) { _releaseSegSlot(); return; }
 
   const proc = spawn(FFMPEG_BIN, [
     '-ss', String(startTime),
@@ -126,9 +126,17 @@ async function apiHlsSegment(req, res, id, seg) {
 
   let released = false;
   const release = () => { if (!released) { released = true; _releaseSegSlot(); } };
+  const abort = () => {
+    release();
+    try { proc.kill('SIGTERM'); } catch {}
+    try { res.destroy(); } catch {}
+  };
 
   proc.stdout.pipe(res);
-  res.on('close', () => { release(); try { proc.kill('SIGTERM'); } catch {} });
+  res.on('close', abort);
+  res.on('error', abort);
+  req.on('close', abort);
+  req.on('aborted', abort);
   proc.on('error', () => { release(); try { res.end(); } catch {} });
   proc.on('exit', (code) => {
     release();

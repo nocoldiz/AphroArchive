@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  db.js — All load/save functions for persistent data
 // ═══════════════════════════════════════════════════════════════════
@@ -1855,6 +1855,7 @@ function saveMediaIndex(items) {
         insert.run(m.id, m.name, m.filename, m.absPath, m.sourcePath, m.ext, m.mediaType, m.size || 0, m.sizeF || '', m.mtime || 0, m.catPath || '', m.title ?? k.title ?? null, m.note ?? k.note ?? null);
       }
     });
+    setMediaIndexMigrated();
   } catch (e) {
     console.error('Failed to save media index:', e);
   }
@@ -1865,6 +1866,23 @@ function clearMediaIndex() {
     db.prepare('DELETE FROM media_index').run();
   } catch (e) {
     console.error('Failed to clear media index:', e);
+  }
+}
+
+function isMediaIndexMigrated() {
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'media_index_migrated'").get();
+    return !!(row && row.value === '1');
+  } catch (e) {
+    return false;
+  }
+}
+
+function setMediaIndexMigrated() {
+  try {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('media_index_migrated', '1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
+  } catch (e) {
+    console.error('Failed to set media_index_migrated:', e);
   }
 }
 
@@ -2241,7 +2259,7 @@ module.exports = {
   loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,
   loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, getSingleVideoMeta,
-  loadMediaIndex, saveMediaIndex, clearMediaIndex,
+  loadMediaIndex, saveMediaIndex, clearMediaIndex, isMediaIndexMigrated, setMediaIndexMigrated,
   loadFilesMeta, upsertFileMeta, deleteFileMeta,
   loadFileVirtualFolders, setFileVirtualFolder, renameFileVirtualFolder, deleteFileVirtualFolder, listFileVirtualFolderNames,
   isDbOnDisk: () => !_dbInMemory,

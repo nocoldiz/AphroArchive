@@ -70,9 +70,29 @@ Last updated: 2026-10-19. Work is **paused** at the user's request. Pick up from
   - Routes check: no errors, same as the previous build.
   - Rebuilt to `dist/`. **Not yet copied**: the user's `D:\AphroArchive\AphroArchive.exe` was running and locked.
 
+### 6. Video Freeze / Black Screen Fix & Online Video Scraper Fallback (Oct 19 2026)
+- **Black Screen / Socket Exhaustion Root Cause & Solution:**
+  - *Server-side:* Unbounded HTTP range streaming (`bytes=0-`) without chunk caps previously attempted to stream multi-gigabyte files in single requests, backpressuring the socket when paused by the browser. Aborted video requests/seeks were not bound to `req.on('close')`/`aborted`, leaving sockets open and consuming the browser's 6-connection per-origin pool until subsequent streams queued indefinitely (black screen on all videos).
+  - *Fix:* Clamped range chunk sizes to 8MB in `videos-server.js` (`apiStream`), `vault-server.js` (`_streamDecrypt`), `audio-server.js` (`apiAudioStream`), and added thorough request abort teardown (`req.on('close')`, `req.on('aborted')`, `res.on('close')`, `res.on('error')`).
+  - *HLS concurrency:* Guarded slot release in `hls-server.js` (`apiHlsSegment`) on client disconnects and killed orphaned ffmpeg transcode processes immediately.
+  - *Client-side:* Added `key={videoId}` to `<video>` in `AdvancedPlayer.tsx` to force clean DOM node re-creation across video switches, guarded unmount teardown, and fixed `reloadStream()` so it doesn't strip `src` and call an empty `load()`.
+- **Online Video Scraper Fallback (`server/video-scraper-server.js`):**
+  - Title cleaner normalizes messy video filenames by stripping extensions, bracketed tags, quality markers (`1080p`, `4k`, `720p`, `2160p`), codecs (`hevc`, `x265`, `x264`), rips (`webrip`, `bluray`), and release group tags.
+  - Scraper providers built into Node.js (with zero python overhead): Eporner (REST API with actors + tags), XVideos, SpankBang, Archive.org, and optional yt-dlp metadata probe fallback.
+  - Formats results into StashDB-compatible `Scene` candidates with title, channel/studio, actors/performers, tags, date, duration, and thumbnail.
+  - In `server/identify-server.js`: When no StashDB API key is configured, `runJob` automatically runs in Web Scraper mode instead of erroring.
+  - In `OriginalNamesModal.tsx`: Unblocked "Identify new videos" and "Re-check all" when no API key is entered, clearly displaying `(Web Scraper mode)` badge and supporting `tags` write-back to video metadata.
+- **Startup Rescan Bug Fix:**
+  - Added `isMediaIndexMigrated()` / `setMediaIndexMigrated()` settings tracking in `server/db-server.js` so libraries with only videos (and 0 non-video media files) do not clear `video_index` and trigger a full disk rescan on every boot.
+- **Test Suite Resolution:**
+  - Fixed mock DB in `tests/videos-fileops-server.test.cjs` (`moveVideoMeta`, `deleteVideoMetaEverywhere`, `loadPrefs`).
+  - Fixed `_deferredLock` missing declaration in `server/vault-server.js`.
+  - Added `tests/video-scraper-server.test.cjs`.
+  - Result: **11 test files passed, 291/291 tests passed (0 failures)**.
+
 ## Baseline facts
-- `npx tsc --noEmit -p tsconfig.json` → 0 errors before and after.
-- `npx vitest run --config vitest.config.js` → 5 failures in `tests/vault-server.test.cjs`. These were already failing before the rework (setup/unlock return undefined), and a cause hasn't been looked for yet.
+- `npx tsc --noEmit -p tsconfig.json` → 0 errors.
+- `npx vitest run` → 11 test files passed, 291 tests passed, 0 failures.
 
 ## Next steps (not started)
 1. **Fast startup:** show videos as soon as the first batch is available, instead of waiting for the full scan/list. Look at `loadVideos` in `public/src/store.ts`, `/api/preload`, paged `/api/videos`, and `cachedScan`/`video_index` in `server/videos-server.js`.

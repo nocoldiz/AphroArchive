@@ -19,6 +19,7 @@ const { execFile } = require('child_process');
 const { FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
 const { json, readBody, fromId } = require('./helpers-server');
 const { loadPrefs, loadStashIds, setStashId, loadVideoMeta, setVideoMetaFields } = require('./db-server');
+const { searchOnlineVideoMetadata } = require('./video-scraper-server');
 
 const DEFAULT_ENDPOINT = 'https://stashdb.org/graphql';
 const QUERY_BATCH = 40;   // Stash sends at most 40 scenes per request
@@ -374,21 +375,68 @@ async function fingerprint(v, prev, cfg) {
   return out;
 }
 
-async function runJob({ ids, force }) {
+async function runJob({ ids, force, useScraper }) {
   const cfg = stashboxConfig();
-  _job = { running: true, stop: false, total: 0, done: 0, failed: 0, matched: 0, current: '', error: '' };
-  if (!cfg.apiKey) {
-    _job.running = false;
-    _job.error = 'Set a stash-box API key first (Rename from original data → Settings).';
-    return;
-  }
+  const isScraperMode = !cfg.apiKey || !!useScraper;
+  _job = {
+    running: true,
+    stop: false,
+    total: 0,
+    done: 0,
+    failed: 0,
+    matched: 0,
+    current: '',
+    error: '',
+    mode: isScraperMode ? 'scraper' : 'stashbox'
+  };
+
   const { cachedScan } = require('./videos-server');
   const stored = loadStashIds();
   let list = (await cachedScan()).filter(v => !v.encrypted && !v.isLink);
   if (ids && ids.length) { const want = new Set(ids); list = list.filter(v => want.has(v.id)); }
   else if (!force) list = list.filter(v => !stored[v.id] || stored[v.id].status === 'error');
   _job.total = list.length;
-  console.log(`[identify] ${list.length} videos to look up on ${cfg.endpoint}`);
+  console.log(`[identify] ${list.length} videos to look up in ${isScraperMode ? 'Web Scraper' : 'StashDB'} mode`);
+
+  if (isScraperMode) {
+    const SCRAPER_PARALLEL = 3;
+    const queue = [...list];
+    const worker = async () => {
+      while (queue.length && !_job.stop) {
+        const v = queue.shift();
+        _job.current = v.name || v.filename || '';
+        try {
+          const rawTitle = v.name || v.filename || '';
+          let duration = null;
+          try {
+            const fp = videoPath(v.id);
+            duration = await probeDuration(fp);
+          } catch {}
+          const scenes = await searchOnlineVideoMetadata(rawTitle, duration);
+          setStashId(v.id, {
+            status: scenes.length ? 'matched' : 'nomatch',
+            scenes,
+            checkedAt: Date.now(),
+            error: '',
+            matchedBy: 'web-scraper'
+          });
+          if (scenes.length) _job.matched++;
+        } catch (e) {
+          if (!_job.stop) {
+            console.warn('[identify-scraper] search failed for', _job.current, '—', e.message);
+            setStashId(v.id, { status: 'error', scenes: [], error: e.message, checkedAt: Date.now() });
+            _job.failed++;
+          }
+        }
+        _job.done++;
+      }
+    };
+    await Promise.all(Array.from({ length: SCRAPER_PARALLEL }, worker));
+    _job.running = false;
+    _job.current = '';
+    console.log(`[identify-scraper] done: ${_job.matched} matched, ${_job.failed} failed of ${_job.done}`);
+    return;
+  }
 
   const queue = [...list];
   let pending = []; // fingerprinted, awaiting a stash-box query
@@ -446,8 +494,11 @@ async function runJob({ ids, force }) {
 async function apiIdentifyStart(req, res) {
   if (_job && _job.running) return json(res, { ok: false, error: 'Already running' });
   const body = await readBody(req).catch(() => ({}));
-  runJob({ ids: Array.isArray(body && body.ids) ? body.ids : null, force: !!(body && body.force) })
-    .catch(e => { console.error('[identify]', e); if (_job) { _job.running = false; _job.error = e.message; } });
+  runJob({
+    ids: Array.isArray(body && body.ids) ? body.ids : null,
+    force: !!(body && body.force),
+    useScraper: !!(body && body.useScraper),
+  }).catch(e => { console.error('[identify]', e); if (_job) { _job.running = false; _job.error = e.message; } });
   json(res, { ok: true });
 }
 
@@ -458,8 +509,8 @@ function apiIdentifyStop(req, res) {
 
 function apiIdentifyPoll(req, res) {
   if (!_job) return json(res, { running: false });
-  const { running, total, done, failed, matched, current, error } = _job;
-  json(res, { running, total, done, failed, matched, current, error });
+  const { running, total, done, failed, matched, current, error, mode } = _job;
+  json(res, { running, total, done, failed, matched, current, error, mode });
 }
 
 // Every looked-up video still in the library, with its current file name.
@@ -475,11 +526,18 @@ async function apiIdentifyResults(req, res) {
       status: s.status, error: s.error || '', scenes: s.scenes || [], checkedAt: s.checkedAt,
     });
   }
-  json(res, { items: out, config: { endpoint: stashboxConfig().endpoint, hasKey: !!stashboxConfig().apiKey } });
+  json(res, {
+    items: out,
+    config: {
+      endpoint: stashboxConfig().endpoint,
+      hasKey: !!stashboxConfig().apiKey,
+      scraperAvailable: true,
+    }
+  });
 }
 
 // Optional metadata write-back: studio → channel, performers → actors,
-// release date. Existing values are only replaced when the scene has one.
+// tags → tags, release date. Existing values are only replaced when the scene has one.
 function applySceneMeta(id, scene) {
   const meta = loadVideoMeta()[id] || {};
   const fields = {};
@@ -487,6 +545,9 @@ function applySceneMeta(id, scene) {
   if (scene.date) fields.date = scene.date;
   if (scene.performers && scene.performers.length) {
     fields.actors = [...new Set([...(meta.actors || []), ...scene.performers])];
+  }
+  if (scene.tags && scene.tags.length) {
+    fields.tags = [...new Set([...(meta.tags || []), ...scene.tags])];
   }
   if (Object.keys(fields).length) setVideoMetaFields(id, fields);
 }

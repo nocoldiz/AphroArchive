@@ -76,17 +76,38 @@ function apiAudioStream(req, res, id) {
     return res.end();
   }
   if (range) {
-    const { start, end } = range;
-    res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct });
+    const MAX_CHUNK = 4 * 1024 * 1024; // 4MB
+    let { start, end } = range;
+    if (end - start + 1 > MAX_CHUNK) end = start + MAX_CHUNK - 1;
+    const chunkSz = end - start + 1;
+    res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': chunkSz, 'Content-Type': ct });
     const rs = fs.createReadStream(fp, { start, end });
-    rs.on('error', () => { try { res.destroy(); } catch {} });
-    res.on('close', () => { try { rs.destroy(); } catch {} });
+    const cleanup = () => {
+      try { rs.destroy(); } catch {}
+      try { res.destroy(); } catch {}
+    };
+    rs.on('error', cleanup);
+    res.on('close', cleanup);
+    res.on('error', cleanup);
+    if (req && typeof req.on === 'function') {
+      req.on('close', cleanup);
+      req.on('aborted', cleanup);
+    }
     rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
     const rs = fs.createReadStream(fp);
-    rs.on('error', () => { try { res.destroy(); } catch {} });
-    res.on('close', () => { try { rs.destroy(); } catch {} });
+    const cleanup = () => {
+      try { rs.destroy(); } catch {}
+      try { res.destroy(); } catch {}
+    };
+    rs.on('error', cleanup);
+    res.on('close', cleanup);
+    res.on('error', cleanup);
+    if (req && typeof req.on === 'function') {
+      req.on('close', cleanup);
+      req.on('aborted', cleanup);
+    }
     rs.pipe(res);
   }
 }

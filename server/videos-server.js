@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // ═══════════════════════════════════════════════════════════════════
 //  videos.js — Video scanning, listing, and all video API handlers
 // ═══════════════════════════════════════════════════════════════════
@@ -30,7 +30,7 @@ const {
   loadRatings,
   loadLinksCache, linksVersion,
   loadVideoIndex, saveVideoIndex, clearVideoIndex,
-  loadMediaIndex, saveMediaIndex, clearMediaIndex,
+  loadMediaIndex, saveMediaIndex, clearMediaIndex, isMediaIndexMigrated,
   upsertFileMeta,
   loadEnabledFolders, saveEnabledFolders,
   getSingleVideoMeta,
@@ -156,7 +156,7 @@ function _idForPath(fp) {
 // VIDEOS_DIR or a configured source folder) — guards folder ops against
 // '..' segments in client-supplied category paths.
 function _isInsideLibrary(p) {
-  return [getDefaultWriteRoot(), VIDEOS_DIR, ...(loadPrefs().sourceFolders || [])]
+  return [getDefaultWriteRoot(), VIDEOS_DIR, ...((loadPrefs() || {}).sourceFolders || [])]
     .filter(Boolean).some(root => isInside(p, root, true));
 }
 
@@ -583,9 +583,9 @@ async function _cachedScanInner(gen) {
   // Fast path: load previously indexed list from DB
   const indexed = loadVideoIndex();
   if (indexed && indexed.length > 0) {
-    // If media_index is empty but video_index has data, a full rescan is needed to
-    // populate media_index (happens on first run after this feature was added).
-    if (loadMediaIndex().length === 0) {
+    // If media_index is empty and migration has not run yet, a full rescan is needed to
+    // populate media_index (happens only once on first run after this feature was added).
+    if (!isMediaIndexMigrated() && loadMediaIndex().length === 0) {
       clearVideoIndex();
       // Fall through to full scan below
     } else {
@@ -927,7 +927,7 @@ async function apiVideos(req, res, params) {
   const meta        = loadVideoMeta();
   const thumbsCache = loadThumbsCache();
   const enabledPaths = loadEnabledFolders();
-  const prefs       = loadPrefs();
+  const prefs       = loadPrefs() || {};
   const historyEnabled = prefs.chronologyMode !== 'dont-save';
   const historySet  = historyEnabled ? new Set(loadHistory()) : null;
   // Slim mode (?slim=1) drops the heavyweight per-video fields the grid never
@@ -1708,7 +1708,9 @@ async function apiStream(req, res, id) {
         res.writeHead(416, { 'Content-Range': `bytes */${contentSize}` });
         return res.end();
       }
-      const { start, end } = r;
+      const MAX_CHUNK = 8 * 1024 * 1024; // 8MB
+      let { start, end } = r;
+      if (end - start + 1 > MAX_CHUNK) end = start + MAX_CHUNK - 1;
       const chunkSz = end - start + 1;
 
       res.writeHead(206, {
@@ -1723,7 +1725,7 @@ async function apiStream(req, res, id) {
       // but it must NOT run to EOF: once the requested range has been served
       // we stop immediately, honour backpressure while serving, and tear
       // everything down if the client aborts (video seeks abort constantly).
-      // Without these three guards every seek left a full-file decrypt job
+      // Without these guards every seek left a full-file decrypt job
       // running with an occupied connection — the main cause of the
       // "infinite loading until page reload" hang on encrypted libraries.
       const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
@@ -1739,6 +1741,7 @@ async function apiStream(req, res, id) {
         try { src.destroy(); } catch {}
         try { dec.destroy(); } catch {}
         try { res.end(); } catch {}
+        try { res.destroy(); } catch {}
       };
 
       const writeRange = (chunk) => {
@@ -1762,8 +1765,13 @@ async function apiStream(req, res, id) {
       dec.on('end', finish);
       dec.on('error', finish);
       src.on('error', finish);
-      // Client hung up (seek, tab close, player teardown) — kill the decrypt.
+      // Client hung up (seek, tab close, player teardown) — kill the decrypt immediately.
       res.on('close', finish);
+      res.on('error', finish);
+      if (req && typeof req.on === 'function') {
+        req.on('close', finish);
+        req.on('aborted', finish);
+      }
       src.pipe(dec);
     } else {
       res.writeHead(200, {
@@ -1775,8 +1783,18 @@ async function apiStream(req, res, id) {
       const dec = crypto.createDecipheriv('aes-256-gcm', key, iv);
       dec.setAuthTag(tag);
       const src = fs.createReadStream(fp, { start: ivLen, end: size - tagLen - 1 });
-      res.on('close', () => { try { src.destroy(); } catch {} try { dec.destroy(); } catch {} });
-      pipeline(src, dec, res, (err) => { if (err) try { res.end(); } catch {} });
+      const cleanup = () => {
+        try { src.destroy(); } catch {}
+        try { dec.destroy(); } catch {}
+        try { res.destroy(); } catch {}
+      };
+      res.on('close', cleanup);
+      res.on('error', cleanup);
+      if (req && typeof req.on === 'function') {
+        req.on('close', cleanup);
+        req.on('aborted', cleanup);
+      }
+      pipeline(src, dec, res, (err) => { if (err) cleanup(); });
     }
     return;
   }
@@ -1787,22 +1805,45 @@ async function apiStream(req, res, id) {
       res.writeHead(416, { 'Content-Range': `bytes */${size}` });
       return res.end();
     }
-    const { start, end } = r;
+    const MAX_CHUNK = 8 * 1024 * 1024; // 8MB: prevent open-ended range socket stagnation
+    let { start, end } = r;
+    if (end - start + 1 > MAX_CHUNK) {
+      end = start + MAX_CHUNK - 1;
+    }
+    const chunkSz = end - start + 1;
     res.writeHead(206, {
       'Content-Range': `bytes ${start}-${end}/${size}`,
-      'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunkSz,
+      'Content-Type': ct,
     });
     const rs = fs.createReadStream(fp, { start, end });
-    rs.on('error', () => { try { res.destroy(); } catch {} });
-    // Aborted range requests (every seek aborts the previous one) must destroy
-    // the source stream, or file descriptors leak one per seek.
-    res.on('close', () => { try { rs.destroy(); } catch {} });
+    const cleanup = () => {
+      try { rs.destroy(); } catch {}
+      try { res.destroy(); } catch {}
+    };
+    rs.on('error', cleanup);
+    res.on('close', cleanup);
+    res.on('error', cleanup);
+    if (req && typeof req.on === 'function') {
+      req.on('close', cleanup);
+      req.on('aborted', cleanup);
+    }
     rs.pipe(res);
   } else {
     res.writeHead(200, { 'Content-Length': size, 'Content-Type': ct, 'Accept-Ranges': 'bytes' });
     const rs = fs.createReadStream(fp);
-    rs.on('error', () => { try { res.destroy(); } catch {} });
-    res.on('close', () => { try { rs.destroy(); } catch {} });
+    const cleanup = () => {
+      try { rs.destroy(); } catch {}
+      try { res.destroy(); } catch {}
+    };
+    rs.on('error', cleanup);
+    res.on('close', cleanup);
+    res.on('error', cleanup);
+    if (req && typeof req.on === 'function') {
+      req.on('close', cleanup);
+      req.on('aborted', cleanup);
+    }
     rs.pipe(res);
   }
 }
