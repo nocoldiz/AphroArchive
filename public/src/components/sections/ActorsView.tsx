@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useMemo } from 'preact/hooks';
 import { VideoCard } from '../UI/VideoGrid';
 import { Video } from '../../types';
 import { currentActor, cardSize } from '../../store';
@@ -41,7 +41,7 @@ export const ActorsView = () => {
       fetch('/api/actors')
         .then(r => r.json())
         .then(d => {
-          setActors(d);
+          setActors(Array.isArray(d) ? d : []);
           setLoading(false);
         })
         .catch(() => {
@@ -52,36 +52,42 @@ export const ActorsView = () => {
   }, [activeActorName]);
 
   useEffect(() => {
-    if (activeActorName) {
-      setLoadingVideos(true);
-      fetch(`/api/actors/${encodeURIComponent(activeActorName)}`)
-        .then(r => r.json())
-        .then(d => {
-          setActorVideos(d.videos || []);
-          setLoadingVideos(false);
-        })
-        .catch(() => {
-          setActorVideos([]);
-          setLoadingVideos(false);
-        });
-    }
+    if (!activeActorName) return;
+    // Ignore a stale response when the user switches actor before it lands
+    let stale = false;
+    setLoadingVideos(true);
+    fetch(`/api/actors/${encodeURIComponent(activeActorName)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (stale) return;
+        setActorVideos(d.videos || []);
+        setLoadingVideos(false);
+      })
+      .catch(() => {
+        if (stale) return;
+        setActorVideos([]);
+        setLoadingVideos(false);
+      });
+    return () => { stale = true; };
   }, [activeActorName]);
 
-  const filteredActors = search.trim()
-    ? actors.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
-    : actors;
-
-  const sortedActors = [...filteredActors];
-  if (sort === 'name') {
-    sortedActors.sort((a, b) => a.name.localeCompare(b.name));
-  } else if (sort === 'count-desc') {
-    sortedActors.sort((a, b) => b.count - a.count);
-  } else if (sort === 'duration-desc') {
-    sortedActors.sort((a, b) => ((b as any).duration || 0) - ((a as any).duration || 0));
-  }
-
-  const activeActors = sortedActors.filter(a => a.count > 0);
-  const otherActors = sortedActors.filter(a => a.count === 0);
+  const { filteredActors, activeActors, otherActors } = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filteredActors = q ? actors.filter(a => a.name.toLowerCase().includes(q)) : actors;
+    const sortedActors = [...filteredActors];
+    if (sort === 'name') {
+      sortedActors.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sort === 'count-desc') {
+      sortedActors.sort((a, b) => b.count - a.count);
+    } else if (sort === 'duration-desc') {
+      sortedActors.sort((a, b) => ((b as any).duration || 0) - ((a as any).duration || 0));
+    }
+    return {
+      filteredActors,
+      activeActors: sortedActors.filter(a => a.count > 0),
+      otherActors: sortedActors.filter(a => a.count === 0),
+    };
+  }, [actors, search, sort]);
 
   const colors = ['#e84040', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
   const getColor = (name: string) => {
@@ -130,11 +136,11 @@ export const ActorsView = () => {
   if (activeActorName) {
     return (
       <div id="actor-detail-view" class="actor-detail-view on" style={{ padding: '20px' }}>
-        <div class="view-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-          <button class="btn" onClick={() => currentActor.value = null} style={{ marginRight: '15px' }}>
+        <div class="ui-toolbar">
+          <button class="ui-btn" onClick={() => currentActor.value = null}>
             ← Back
           </button>
-          <h1 style={{ margin: 0 }}>{activeActorName}</h1>
+          <h1 class="ui-title">{activeActorName}</h1>
         </div>
 
         {loadingVideos ? (
@@ -152,8 +158,9 @@ export const ActorsView = () => {
 
   return (
     <div id="actors-view" class="actors-view on" style={{ padding: '20px' }}>
-      <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ margin: 0 }}>Actors</h1>
+      <div class="ui-toolbar">
+        <h1 class="ui-title">Actors</h1>
+        <div class="ui-toolbar__actions">
         <SectionControls
           showStarred={false}
           showShuffle={false}
@@ -169,6 +176,7 @@ export const ActorsView = () => {
           currentFilter={search}
           onFilterChange={setSearch}
         />
+        </div>
       </div>
 
       {loading ? (
@@ -185,8 +193,8 @@ export const ActorsView = () => {
 
           {otherActors.length > 0 && (
             <>
-              <div class="actor-section-sep" style={{ margin: '20px 0', borderBottom: '1px solid var(--border)', paddingBottom: '5px' }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Other Actors</span>
+              <div class="actor-section-sep" style={{ margin: '20px 0', borderBottom: '1px solid var(--brd)', paddingBottom: '5px' }}>
+                <span style={{ fontWeight: 600, color: 'var(--tx2)' }}>Other Actors</span>
               </div>
               <div class="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
                 {otherActors.map(renderActorCard)}

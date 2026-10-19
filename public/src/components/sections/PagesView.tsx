@@ -17,7 +17,7 @@ export const PagesView = () => {
     try {
       const res = await fetch('/api/pages');
       const data = await res.json();
-      setPagesList(data);
+      setPagesList(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
       setPagesList([]);
@@ -35,7 +35,7 @@ export const PagesView = () => {
         if (w.toast) w.toast('Delete failed');
         return;
       }
-      setPagesList(pagesList.filter(p => p.id !== id));
+      setPagesList(prev => prev.filter(p => p.id !== id));
       if (w.toast) w.toast('Page deleted');
     } catch (e) {
       if (w.toast) w.toast('Delete failed');
@@ -77,17 +77,24 @@ export const PagesView = () => {
     if (!files.length) return;
     
     const w = window as any;
+    let ok = 0;
     for (const file of files) {
-      const buf = await file.arrayBuffer();
-      await fetch('/api/pages/upload', {
-        method: 'POST',
-        headers: { 'X-Filename': file.name, 'Content-Type': 'application/octet-stream' },
-        body: buf,
-      });
+      try {
+        const buf = await file.arrayBuffer();
+        const r = await fetch('/api/pages/upload', {
+          method: 'POST',
+          headers: { 'X-Filename': file.name, 'Content-Type': 'application/octet-stream' },
+          body: buf,
+        });
+        if (r.ok) ok++;
+      } catch (err) { console.error(err); }
     }
     input.value = '';
     await loadPages();
-    if (w.toast) w.toast(files.length === 1 ? `"${files[0].name}" added` : `${files.length} pages added`);
+    if (w.toast) {
+      if (ok === files.length) w.toast(files.length === 1 ? `"${files[0].name}" added` : `${files.length} pages added`);
+      else w.toast(`${ok} of ${files.length} pages added`);
+    }
   };
 
   const filteredPages = query

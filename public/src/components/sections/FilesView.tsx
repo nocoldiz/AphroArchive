@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 
 interface FileItem {
@@ -65,8 +65,9 @@ export const FilesView = () => {
     setLoading(true);
     try {
       const [fRes, flRes] = await Promise.all([fetch('/api/files'), fetch('/api/files/folders')]);
-      setFiles(await fRes.json());
-      setFolders(await flRes.json());
+      const [fData, flData] = await Promise.all([fRes.json(), flRes.json()]);
+      setFiles(Array.isArray(fData) ? fData : []);
+      setFolders(Array.isArray(flData) ? flData : []);
     } catch {}
     setLoading(false);
   };
@@ -98,8 +99,8 @@ export const FilesView = () => {
 
   const deleteFile = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}"?`)) return;
-    await fetch(`/api/files/${id}`, { method: 'DELETE' });
-    if (w.toast) w.toast('Deleted');
+    const r = await fetch(`/api/files/${id}`, { method: 'DELETE' }).catch(() => null);
+    if (w.toast) w.toast(r?.ok ? 'Deleted' : 'Delete failed');
     loadAll();
   };
 
@@ -143,10 +144,19 @@ export const FilesView = () => {
   const setDisplayMode = (m: 'grid' | 'table') => { setDisplay(m); localStorage.setItem(DISPLAY_KEY, m); };
   const setSize = (s: number) => { setIconSize(s); localStorage.setItem(ICON_SIZE_KEY, String(s)); };
 
-  const filtered = files
-    .filter(f => !activeFolder ? true : f.folder === activeFolder)
-    .filter(f => !query || f.filename.toLowerCase().includes(query.toLowerCase()) || f.title.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => sort === 'name' ? a.filename.localeCompare(b.filename) : sort === 'size' ? b.size - a.size : b.date - a.date);
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return files
+      .filter(f => !activeFolder ? true : f.folder === activeFolder)
+      .filter(f => !q || f.filename.toLowerCase().includes(q) || (f.title || '').toLowerCase().includes(q))
+      .sort((a, b) => sort === 'name' ? a.filename.localeCompare(b.filename) : sort === 'size' ? b.size - a.size : b.date - a.date);
+  }, [files, activeFolder, query, sort]);
+
+  const folderCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of files) if (f.folder) m.set(f.folder, (m.get(f.folder) || 0) + 1);
+    return m;
+  }, [files]);
 
   const sidebarStyle: any = {
     width: '180px', flexShrink: 0, borderRight: '1px solid var(--brd)',
@@ -218,7 +228,7 @@ export const FilesView = () => {
               ) : (
                 <button style={folderBtnStyle(activeFolder === f)} onClick={() => setActiveFolder(f)}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{f}</span>
-                  <span style={{ fontSize: '0.7rem', opacity: 0.7, flexShrink: 0 }}>{files.filter(x => x.folder === f).length}</span>
+                  <span style={{ fontSize: '0.7rem', opacity: 0.7, flexShrink: 0 }}>{folderCounts.get(f) || 0}</span>
                 </button>
               )}
               {renamingFolder !== f && (

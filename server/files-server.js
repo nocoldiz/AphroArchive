@@ -7,7 +7,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { MEDIA_DIR, VIDEOS_DIR, MIME } = require('./config-server');
-const { json, formatBytes, toId, fromId, isAllowedMediaPath: _isAllowedPath } = require('./helpers-server');
+const { json, formatBytes, toId, fromId, readBody, parseRange, isAllowedMediaPath: _isAllowedPath } = require('./helpers-server');
 const {
   loadFilesMeta, upsertFileMeta, deleteFileMeta,
   loadFileVirtualFolders, setFileVirtualFolder,
@@ -74,7 +74,8 @@ function apiFileFolders(req, res) {
 
 async function apiFilesUpload(req, res) {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
-  const rawName   = decodeURIComponent(req.headers['x-filename'] || 'file');
+  let rawName = req.headers['x-filename'] || 'file';
+  try { rawName = decodeURIComponent(rawName); } catch {}
   const safeName  = path.basename(rawName).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
   const ext       = path.extname(safeName).toLowerCase();
 
@@ -113,18 +114,14 @@ function apiFileStream(req, res, id) {
   const size  = stat.size;
   const ext   = path.extname(absPath).toLowerCase();
   const ct    = MIME[ext] || 'application/octet-stream';
-  const range = req.headers.range;
+  const range = parseRange(req.headers.range, size);
+  if (range && range.invalid) {
+    res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+    return res.end();
+  }
 
   if (range) {
-    const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-    let start = parseInt(startStr, 10);
-    let end   = endStr ? parseInt(endStr, 10) : size - 1;
-    if (Number.isNaN(start)) start = 0;
-    if (Number.isNaN(end)) end = size - 1;
-    if (start < 0 || end >= size || start > end) {
-      res.writeHead(416, { 'Content-Range': `bytes */${size}` });
-      return res.end();
-    }
+    const { start, end } = range;
     res.writeHead(206, {
       'Content-Range':  `bytes ${start}-${end}/${size}`,
       'Accept-Ranges':  'bytes',
@@ -156,7 +153,9 @@ function apiFileDownload(req, res, id) {
     'Content-Length':      stat.size,
     'Content-Disposition': `attachment; filename="${path.basename(absPath).replace(/"/g, '')}"`,
   });
-  fs.createReadStream(absPath).pipe(res);
+  const rs = fs.createReadStream(absPath);
+  rs.on('error', () => { try { res.destroy(); } catch {} });
+  rs.pipe(res);
 }
 
 function apiFileDelete(req, res, id) {
@@ -170,7 +169,7 @@ function apiFileDelete(req, res, id) {
 }
 
 async function apiFileFolderSet(req, res) {
-  const body = await _readBody(req);
+  const body = await readBody(req);
   const { id, folder } = body;
   if (!id) return json(res, { error: 'id required' }, 400);
   setFileVirtualFolder(id, folder || null);
@@ -178,7 +177,7 @@ async function apiFileFolderSet(req, res) {
 }
 
 async function apiFileFolderRename(req, res) {
-  const body = await _readBody(req);
+  const body = await readBody(req);
   const { oldName, newName } = body;
   if (!oldName || !newName) return json(res, { error: 'oldName and newName required' }, 400);
   renameFileVirtualFolder(oldName, newName);
@@ -186,20 +185,11 @@ async function apiFileFolderRename(req, res) {
 }
 
 async function apiFileFolderDelete(req, res) {
-  const body = await _readBody(req);
+  const body = await readBody(req);
   const { name } = body;
   if (!name) return json(res, { error: 'name required' }, 400);
   deleteFileVirtualFolder(name);
   json(res, { ok: true });
-}
-
-function _readBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', c => chunks.push(c));
-    req.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString())); } catch { resolve({}); } });
-    req.on('error', reject);
-  });
 }
 
 module.exports = {

@@ -10,7 +10,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { MEDIA_DIR, AUDIO_EXT, MIME } = require('./config-server');
-const { json, formatBytes, toId, fromId, isAllowedMediaPath } = require('./helpers-server');
+const { json, formatBytes, toId, fromId, isAllowedMediaPath, parseRange } = require('./helpers-server');
 const { loadAudioMeta, saveAudioMeta, loadMediaIndex } = require('./db-server');
 
 function _invalidate() { try { require('./videos-server').invalidateScanCache(); } catch {} }
@@ -35,7 +35,8 @@ function apiAudioList(req, res) {
 }
 
 async function apiAudioUpload(req, res) {
-  const filename     = decodeURIComponent(req.headers['x-filename'] || 'audio.mp3');
+  let filename = req.headers['x-filename'] || 'audio.mp3';
+  try { filename = decodeURIComponent(filename); } catch {}
   const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
   const ext          = path.extname(safeFilename).toLowerCase();
   if (!AUDIO_EXT.has(ext)) return json(res, { error: 'Unsupported type. Allowed: mp3, flac, wav, ogg, aac, m4a, wma, opus, aiff' }, 400);
@@ -69,17 +70,13 @@ function apiAudioStream(req, res, id) {
   const size  = stat.size;
   const ext   = path.extname(fp).toLowerCase();
   const ct    = MIME[ext] || 'application/octet-stream';
-  const range = req.headers.range;
+  const range = parseRange(req.headers.range, size);
+  if (range && range.invalid) {
+    res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+    return res.end();
+  }
   if (range) {
-    const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-    let start = parseInt(startStr, 10);
-    let end   = endStr ? parseInt(endStr, 10) : size - 1;
-    if (Number.isNaN(start)) start = 0;
-    if (Number.isNaN(end)) end = size - 1;
-    if (start < 0 || end >= size || start > end) {
-      res.writeHead(416, { 'Content-Range': `bytes */${size}` });
-      return res.end();
-    }
+    const { start, end } = range;
     res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': ct });
     const rs = fs.createReadStream(fp, { start, end });
     rs.on('error', () => { try { res.destroy(); } catch {} });

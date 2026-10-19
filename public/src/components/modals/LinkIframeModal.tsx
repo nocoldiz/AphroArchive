@@ -1,5 +1,5 @@
-﻿import { useEffect } from 'preact/hooks';
-import { linkIframeModalState } from '../../store';
+﻿import { linkIframeModalState } from '../../store';
+import { useEscape } from './useEscape';
 
 export const LinkIframeModal = () => {
   const state = linkIframeModalState.value;
@@ -9,15 +9,7 @@ export const LinkIframeModal = () => {
     linkIframeModalState.value = { visible: false, url: '', title: '' };
   };
 
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && state.visible) {
-        handleClose();
-      }
-    };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [state.visible]);
+  useEscape(state.visible, () => handleClose());
 
   if (!state.visible) return null;
 

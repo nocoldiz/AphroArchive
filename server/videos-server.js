@@ -15,14 +15,14 @@ const {
 const { pipeline } = require('stream');
 const { promisify } = require('util');
 const pipe = promisify(pipeline);
-const { toId, fromId, safePath, formatBytes, formatDuration, parseRange, json, readBody, wordMatch, wordMatchAny, channelMatchAny, actorMatchesAny, LIMITS } = require('./helpers-server');
+const { toId, fromId, safePath, isInside, formatBytes, formatDuration, parseRange, json, readBody, wordMatch, wordMatchAny, channelMatchAny, actorMatchesAny, LIMITS } = require('./helpers-server');
 const {
   loadFavs, saveFavs,
   loadHistory, saveHistory,
   loadPrefs,
   getDefaultWriteRoot,
   resolveCategoryPhysicalPath,
-  loadVideoMeta, saveVideoMeta, setVideoMetaFields,
+  loadVideoMeta, saveVideoMeta, setVideoMetaFields, moveVideoMeta, moveStashId,
   loadThumbsCache, saveThumbsCache,
   loadActors, loadFolderMappings, loadChannels,
   loadAudioMeta, saveAudioMeta,
@@ -142,6 +142,24 @@ let _encryptionCancel = false;
 let _categorizerJob = null;
 let _categorizerCancel = false;
 
+// Video id for a file on disk, matching scan(): files under VIDEOS_DIR use
+// their path.relative() (native separators, as scan emits them), everything
+// else its absolute path. Moves used to re-encode with '/' — on Windows that
+// id never matched the rescan, so favourites/metadata were orphaned.
+function _idForPath(fp) {
+  return isInside(fp, VIDEOS_DIR, true)
+    ? toId(path.relative(VIDEOS_DIR, fp))
+    : toId(fp);
+}
+
+// True when `p` resolves strictly inside a library root (write root,
+// VIDEOS_DIR or a configured source folder) — guards folder ops against
+// '..' segments in client-supplied category paths.
+function _isInsideLibrary(p) {
+  return [getDefaultWriteRoot(), VIDEOS_DIR, ...(loadPrefs().sourceFolders || [])]
+    .filter(Boolean).some(root => isInside(p, root, true));
+}
+
 // Move a scanned video into `folder` (relative, may be nested; '' = root),
 // reusing the physical folder when it already exists on any library root.
 // Carries subtitle sidecars, favourites and metadata over. Returns the new id.
@@ -177,15 +195,11 @@ function moveVideoToFolder(id, folder) {
     }
   } catch {}
 
-  const resolved = path.resolve(dest);
-  const newId = resolved.startsWith(path.resolve(VIDEOS_DIR) + path.sep)
-    ? toId(path.relative(VIDEOS_DIR, dest).replace(/\\/g, '/'))
-    : toId(dest);
+  const newId = _idForPath(dest);
   try {
     const favs = loadFavs(); const fi = favs.indexOf(id);
     if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
-    const meta = loadVideoMeta();
-    if (meta[id]) { meta[newId] = meta[id]; delete meta[id]; saveVideoMeta(meta); }
+    moveVideoMeta(id, newId);
   } catch {}
   return newId;
 }
@@ -289,6 +303,9 @@ async function runEncryptFolder(catPath) {
   // take far longer than the auto-lock window, and locking mid-job corrupts the
   // vault metadata.
   suspendAutoLock();
+  // Claim the job before the first await: otherwise a second request arriving
+  // during the scan passes the `running` check and starts a parallel job.
+  updateEncryptionProgress({ running: true, type: 'encrypt', category: catPath, total: 0, done: 0, current: '', error: '', ok: false });
   try {
     const ck = getCatKey(catPath);
     const videos = (await cachedScan()).filter(v => {
@@ -308,7 +325,8 @@ async function runEncryptFolder(catPath) {
         return false;
       }
       if (v.encrypted) continue;
-      const full = path.join(VIDEOS_DIR, v.rel);
+      // External (source-folder) entries carry an absolute path in `rel`.
+      const full = v.isExternal ? v.rel : path.join(VIDEOS_DIR, v.rel);
       if (!fs.existsSync(full)) continue;
 
       let vaultId;
@@ -399,10 +417,7 @@ async function runDecryptFolder(catPath) {
       doneCount++;
       console.log(`[DEC] ${item.originalName || item.name} (${doneCount}/${total}, ${total - doneCount} left)`);
 
-      const newRel = path.resolve(targetFilePath).startsWith(path.resolve(VIDEOS_DIR))
-        ? path.relative(VIDEOS_DIR, targetFilePath).replace(/\\/g, '/')
-        : targetFilePath;
-      const newId = toId(newRel);
+      const newId = _idForPath(targetFilePath);
 
       if (item.videoMeta) {
         setVideoMetaFields(newId, item.videoMeta);
@@ -1372,7 +1387,7 @@ async function apiFolderCreate(req, res) {
   if (name.length > LIMITS.name) return json(res, { error: `Name is too long (max ${LIMITS.name} characters)` }, 400);
   const base = getDefaultWriteRoot();
   const dir = parentPath ? path.join(base, parentPath, name) : path.join(base, name);
-  if (!dir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid path' }, 400);
+  if (!isInside(dir, base, true)) return json(res, { error: 'Invalid path' }, 400);
   if (fs.existsSync(dir)) return json(res, { error: 'Already exists' }, 409);
   try { fs.mkdirSync(dir, { recursive: true }); invalidateScanCache(); json(res, { ok: true }); }
   catch (e) { json(res, { error: e.message }, 500); }
@@ -1383,7 +1398,9 @@ async function apiFolderRename(req, res) {
   const oldPath = body.path;
   const newName = (body.newName || '').trim().replace(/[<>:"|?*]/g, '_');
   if (!oldPath || !newName) return json(res, { error: 'path and newName required' }, 400);
+  if (/[/\\]/.test(newName) || newName === '.' || newName === '..') return json(res, { error: 'Invalid name' }, 400);
   const oldDir = resolveCategoryPhysicalPath(oldPath);
+  if (!_isInsideLibrary(oldDir)) return json(res, { error: 'Invalid path' }, 400);
   if (!fs.existsSync(oldDir)) return json(res, { error: 'Folder not found' }, 404);
   const newDir = path.join(path.dirname(oldDir), newName);
   if (fs.existsSync(newDir)) return json(res, { error: 'Target name already exists' }, 409);
@@ -1402,7 +1419,9 @@ async function apiFolderDelete(req, res) {
   if (!fs.existsSync(dir)) return json(res, { error: 'Folder not found' }, 404);
   const parentDir = path.dirname(dir);
   const base = getDefaultWriteRoot();
-  if (!dir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid path' }, 400);
+  // Strictly inside: path '.' resolved to the root itself and would have
+  // emptied the whole library into its parent, then removed it.
+  if (!isInside(dir, base, true)) return json(res, { error: 'Invalid path' }, 400);
   try {
     const moveContents = (src, dst) => {
       for (const ent of fs.readdirSync(src, { withFileTypes: true })) {
@@ -1430,10 +1449,11 @@ async function apiFolderMove(req, res) {
   if (!fromPath) return json(res, { error: 'fromPath required' }, 400);
   const base = getDefaultWriteRoot();
   const fromDir = resolveCategoryPhysicalPath(fromPath);
+  if (!_isInsideLibrary(fromDir)) return json(res, { error: 'Invalid path' }, 400);
   if (!fs.existsSync(fromDir)) return json(res, { error: 'Source folder not found' }, 404);
   const folderName = path.basename(fromDir);
   const toDir = toParentPath ? path.join(base, toParentPath, folderName) : path.join(base, folderName);
-  if (!toDir.startsWith(path.resolve(base))) return json(res, { error: 'Invalid target path' }, 400);
+  if (!isInside(toDir, base, true)) return json(res, { error: 'Invalid target path' }, 400);
   if (toDir === fromDir) return json(res, { error: 'Source and destination are the same' }, 400);
   if (toDir.startsWith(fromDir + path.sep)) return json(res, { error: 'Cannot move folder into itself' }, 400);
   if (fs.existsSync(toDir)) return json(res, { error: 'Target already exists' }, 409);
@@ -1475,10 +1495,10 @@ async function apiVideoDetail(req, res, id) {
   const v      = videos.find(x => x.id === id);
   if (!v) return json(res, { error: 'Not found' }, 404);
 
-  const favs  = loadFavs();
+  const favs  = new Set(loadFavs());
   const meta  = loadVideoMeta();
   const vMeta = meta[v.id] || {};
-  const video = { ...v, fav: favs.includes(v.id), rating: vMeta.rating ?? null, language: vMeta.language || '', chapters: vMeta.chapters || [] };
+  const video = { ...v, fav: favs.has(v.id), rating: vMeta.rating ?? null, language: vMeta.language || '', chapters: vMeta.chapters || [] };
 
   const actors         = loadActors();
   const metaActors     = vMeta.actors || [];
@@ -1526,7 +1546,7 @@ async function apiVideoDetail(req, res, id) {
   const suggested = scored
     .sort((a, b) => b.score - a.score || (a.video.id < b.video.id ? -1 : 1))
     .slice(0, 12)
-    .map(item => ({ ...item.video, fav: favs.includes(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
+    .map(item => ({ ...item.video, fav: favs.has(item.video.id), rating: meta[item.video.id]?.rating ?? null }));
 
   json(res, { video, suggested, actors: combinedActors, tags: metaTags, allCategories: [...allTagSet].sort(), channel: vMeta.channel || '' });
 }
@@ -1543,12 +1563,12 @@ async function apiVideoDetailFast(req, res, id) {
 
   // Enrich with metadata, favs, duration
   const meta = db.getSingleVideoMeta(id);
-  const favs = db.loadFavs();
+  const favs = new Set(db.loadFavs());
   const thumbsCache = db.loadThumbsCache();
   const actors = db.loadActors();
   const cats = db.loadFolderMappings();
 
-  const fav = favs.includes(id);
+  const fav = favs.has(id);
   const cached = thumbsCache[id];
   const duration = cached?.duration || null;
   const vMeta = meta || {};
@@ -1558,8 +1578,9 @@ async function apiVideoDetailFast(req, res, id) {
   const combinedActors = [...new Set([...metaActors, ...filenameActors])];
 
   // Build allCategories set
-  const allTagSet = new Set();
-  allTagSet.add(...metaTags);
+  // Set#add takes one value: add(...tags) kept only the first tag, and with no
+  // tags inserted `undefined` (→ null in allCategories).
+  const allTagSet = new Set(metaTags);
   cats.forEach(e => allTagSet.add(e.displayName));
 
   // Build suggested using inverted actor index over bulk-loaded meta (avoids N SQLite reads).
@@ -1592,7 +1613,7 @@ async function apiVideoDetailFast(req, res, id) {
 
     if (x.category === v.category) score += 1;
 
-    if (score > 0) scored.push({ video: { ...x, fav: favs.includes(x.id), rating: xm.rating ?? null }, score });
+    if (score > 0) scored.push({ video: { ...x, fav: favs.has(x.id), rating: xm.rating ?? null }, score });
   }
 
   const suggested = scored
@@ -1642,22 +1663,24 @@ async function apiStream(req, res, id) {
   const fp = safePath(id);
   if (!fp) { res.writeHead(404); res.end('Not found'); return; }
   
-  // Optimize: Just check if encrypted without loading all videos
+  // Encrypted-folder files are only ever `.enc` on disk (see scan()), so plain
+  // files skip the library lookup entirely. The old check read
+  // meta[id].encrypted, a field video meta never has — encrypted videos were
+  // streamed as raw ciphertext.
   let isEnc = false;
   let key = null;
-  try {
-    const meta = loadVideoMeta();
-    if (meta[id]?.encrypted) {
-      isEnc = true;
-      // Get category path for this specific video
-      const all = await cachedScan();
-      const v = all.find(v => v.id === id);
-      if (v) {
-        key = isEnc ? getUnlockKey(v.catPath) : null;
+  let realExt = path.extname(fp).toLowerCase();
+  if (realExt === '.enc') {
+    try {
+      const v = (await cachedScan()).find(x => x.id === id);
+      if (v && v.encrypted) {
+        isEnc = true;
+        key = getUnlockKey(v.catPath);
+        realExt = String(v.ext || '').toLowerCase();
       }
-    }
-  } catch {}
-  
+    } catch {}
+  }
+
   if (isEnc && !key) {
     res.writeHead(401);
     return res.end('Category locked');
@@ -1665,8 +1688,7 @@ async function apiStream(req, res, id) {
 
   const stat = await fs.promises.stat(fp);
   const size = stat.size;
-  const ext  = path.extname(fp).toLowerCase();
-  const ct   = MIME[ext] || 'application/octet-stream';
+  const ct   = MIME[realExt] || 'application/octet-stream';
 
   if (isEnc) {
     // Stream decrypt from file
@@ -1795,7 +1817,6 @@ function apiDelete(req, res, id) {
   if (!fp) {
     const { deleteVideoMetaEverywhere } = require('./db-server');
     deleteVideoMetaEverywhere(id);
-    const { THUMBS_DIR } = require('./config-server');
     const thumbDir = path.join(THUMBS_DIR, id);
     if (fs.existsSync(thumbDir)) try { fs.rmSync(thumbDir, { recursive: true, force: true }); } catch {}
     invalidateScanCache();
@@ -1805,16 +1826,13 @@ function apiDelete(req, res, id) {
   try {
     fs.unlinkSync(fp);
     invalidateScanCache();
-    const favs = loadFavs();
-    const fi   = favs.indexOf(id);
-    if (fi !== -1) { favs.splice(fi, 1); saveFavs(favs); }
-    const cache = loadThumbsCache();
-    if (cache[id]) { delete cache[id]; saveThumbsCache(cache); }
-    const { THUMBS_DIR } = require('./config-server');
+    // Row-level purge (meta, tags, actors, favourites, history, thumb cache,
+    // collections) — the old path rewrote the entire videos + thumbs_cache
+    // tables to drop a single id.
+    const { deleteVideoMetaEverywhere } = require('./db-server');
+    deleteVideoMetaEverywhere(id);
     const thumbDir = path.join(THUMBS_DIR, id);
     if (fs.existsSync(thumbDir)) fs.rmSync(thumbDir, { recursive: true, force: true });
-    const meta = loadVideoMeta();
-    if (meta[id]) { delete meta[id]; saveVideoMeta(meta); }
     json(res, { ok: true });
   } catch (e) {
     // The file vanished between the existence check and unlink — treat it as a
@@ -1830,16 +1848,26 @@ function apiDelete(req, res, id) {
 }
 
 async function apiRename(req, res, id) {
-  const body    = await readBody(req);
-  const newName = (body.newName || '').trim();
-  if (!newName) return json(res, { error: 'Name required' }, 400);
+  const body = await readBody(req);
+  const r = renameVideo(id, body.newName);
+  if (r.error) return json(res, { error: r.error }, r.status || 500);
+  json(res, { ok: true, newId: r.newId });
+}
+
+// Renames a video file in place (keeping its extension) together with its
+// subtitle sidecars, favourite, metadata and stash-box identification.
+// Returns { newId } or { error, status }.
+function renameVideo(id, newName) {
+  newName = String(newName || '').trim();
+  if (!newName) return { error: 'Name required', status: 400 };
   const fp  = safePath(id);
-  if (!fp) return json(res, { error: 'Not found' }, 404);
+  if (!fp) return { error: 'Not found', status: 404 };
   const dir  = path.dirname(fp);
   const ext  = path.extname(fp);
   const safe = newName.replace(/[<>:"/\\|?*]/g, '_');
   const np   = path.join(dir, safe + ext);
-  if (fs.existsSync(np) && np !== fp) return json(res, { error: 'Name already exists' }, 409);
+  if (np === fp) return { newId: id };
+  if (fs.existsSync(np)) return { error: 'Name already exists', status: 409 };
   try {
     fs.renameSync(fp, np);
 
@@ -1859,15 +1887,16 @@ async function apiRename(req, res, id) {
     } catch {}
 
     invalidateScanCache();
-    const newRel = path.relative(VIDEOS_DIR, np);
-    const newId  = toId(newRel);
+    // _idForPath: source-folder files are keyed by absolute path, not by a
+    // '../..' path relative to VIDEOS_DIR.
+    const newId  = _idForPath(np);
     const favs = loadFavs();
     const fi   = favs.indexOf(id);
     if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
-    const meta = loadVideoMeta();
-    if (meta[id]) { meta[newId] = { ...meta[id], title: safe }; delete meta[id]; saveVideoMeta(meta); }
-    json(res, { ok: true, newId });
-  } catch (e) { json(res, { error: e.message }, 500); }
+    moveVideoMeta(id, newId, { title: safe });
+    moveStashId(id, newId);
+    return { newId };
+  } catch (e) { return { error: e.message, status: 500 }; }
 }
 
 async function apiMove(req, res, id) {
@@ -1908,11 +1937,7 @@ async function apiMove(req, res, id) {
     try {
       fs.copyFileSync(fp, newPath);
       invalidateScanCache();
-      const newResolved = path.resolve(newPath);
-      const newId = newResolved.startsWith(path.resolve(VIDEOS_DIR))
-        ? toId(path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/'))
-        : toId(newPath);
-      return json(res, { ok: true, newId, copied: true });
+      return json(res, { ok: true, newId: _idForPath(newPath), copied: true });
     } catch (e) { return json(res, { error: e.message }, 500); }
   }
 
@@ -1953,22 +1978,14 @@ async function apiMove(req, res, id) {
 
     invalidateScanCache();
 
-    // Compute rel/id based on the scan root the *new* file lives under (main uses relative; sources use abs)
-    const newResolved = path.resolve(newPath);
-    let newRel, newId;
-    if (newResolved.startsWith(path.resolve(VIDEOS_DIR))) {
-      newRel = path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/');
-      newId = toId(newRel);
-    } else {
-      newRel = newPath;
-      newId = toId(newPath);
-    }
+    // Id based on the scan root the *new* file lives under (main uses relative; sources use abs)
+    const newId = _idForPath(newPath);
 
     const favs = loadFavs();
     const fi = favs.indexOf(id);
     if (fi !== -1) { favs[fi] = newId; saveFavs(favs); }
-    const meta = loadVideoMeta();
-    if (meta[id]) { meta[newId] = { ...meta[id], category: targetCategory }; delete meta[id]; saveVideoMeta(meta); }
+    moveVideoMeta(id, newId, { category: targetCategory });
+    moveStashId(id, newId);
     json(res, { ok: true, newId });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -2009,9 +2026,9 @@ async function apiAutoSort(req, res) {
 // ── Favourites / History / Ratings ───────────────────────────────────
 
 async function apiFavourites(req, res) {
-  const favs   = loadFavs();
+  const favs   = new Set(loadFavs());
   const videos = await allVideos();
-  json(res, videos.filter(v => favs.includes(v.id)).map(v => ({ ...v, fav: true })));
+  json(res, videos.filter(v => favs.has(v.id)).map(v => ({ ...v, fav: true })));
 }
 
 function apiToggleFav(req, res, id) {
@@ -2054,8 +2071,16 @@ function apiClearThumbs(req, res) {
   saveThumbsCache({});
   try {
     if (fs.existsSync(THUMBS_DIR)) {
-      for (const f of fs.readdirSync(THUMBS_DIR)) {
-        try { fs.unlinkSync(path.join(THUMBS_DIR, f)); } catch {}
+      // Thumbs live in one directory per video — unlinkSync() failed on every
+      // one of them, so nothing was ever cleared. Encrypted-folder thumbs
+      // (*.enc) are kept: they can't be regenerated from an encrypted video.
+      for (const ent of fs.readdirSync(THUMBS_DIR, { withFileTypes: true })) {
+        const full = path.join(THUMBS_DIR, ent.name);
+        try {
+          if (!ent.isDirectory()) { fs.unlinkSync(full); continue; }
+          if (fs.readdirSync(full).some(f => f.endsWith('.enc'))) continue;
+          fs.rmSync(full, { recursive: true, force: true });
+        } catch {}
       }
     }
   } catch {}
@@ -2133,14 +2158,14 @@ async function apiDuplicates(req, res) {
     category: m.category || m.mediaType || 'Uncategorized',
   }));
   const all = [...videos, ...media];
-  const favs   = loadFavs();
+  const favs   = new Set(loadFavs());
   const thumbs = db.loadThumbsCache();
   const bySize = new Map();
   for (const v of all) {
     if (!v.size || v.size <= 0) continue;
     if (!bySize.has(v.size)) bySize.set(v.size, []);
     const th = thumbs[v.id] || {};
-    bySize.get(v.size).push({ ...v, fav: favs.includes(v.id), width: th.width || null, height: th.height || null });
+    bySize.get(v.size).push({ ...v, fav: favs.has(v.id), width: th.width || null, height: th.height || null });
   }
   const groups = [...bySize.values()]
     .filter(g => g.length > 1)
@@ -2314,7 +2339,7 @@ async function apiTagVideos(req, res, tagName) {
   const enabledPaths = loadEnabledFolders();
   const allVids = await allVideos();
   const videos = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
-  const favs   = loadFavs();
+  const favs   = new Set(loadFavs());
   const tagLo  = tagName.toLowerCase();
 
   const parsed = require('url').parse(req.url, true);
@@ -2322,7 +2347,7 @@ async function apiTagVideos(req, res, tagName) {
 
   let list = videos
     .filter(v => (meta[v.id]?.tags || []).some(t => t.toLowerCase() === tagLo))
-    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
+    .map(v => ({ ...v, fav: favs.has(v.id), rating: meta[v.id]?.rating ?? null }));
   
   if (fav) list = list.filter(v => v.fav);
   
@@ -2368,7 +2393,7 @@ async function apiDbTagVideos(req, res, name) {
   const enabledPaths = loadEnabledFolders();
   const allVids = await allVideos();
   const videos  = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
-  const favs    = loadFavs();
+  const favs    = new Set(loadFavs());
   const termsLo = cat.terms.map(t => t.toLowerCase());
 
   const parsed = require('url').parse(req.url, true);
@@ -2379,7 +2404,7 @@ async function apiDbTagVideos(req, res, name) {
       const vTagsLo = (meta[v.id]?.tags || []).map(t => t.toLowerCase());
       return vTagsLo.some(t => termsLo.includes(t)) || wordMatchAny(v.name, cat.terms);
     })
-    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
+    .map(v => ({ ...v, fav: favs.has(v.id), rating: meta[v.id]?.rating ?? null }));
 
   if (fav) list = list.filter(v => v.fav);
 
@@ -2460,7 +2485,7 @@ async function apiChannelVideos(req, res, channelName) {
   const enabledPaths = loadEnabledFolders();
   const videos = enabledPaths.length ? allVids.filter(v => isFolderEnabled(v.catPath, enabledPaths)) : allVids;
   const meta     = loadVideoMeta();
-  const favs     = loadFavs();
+  const favs     = new Set(loadFavs());
   const channelLo = entry.name.toLowerCase();
 
   const parsed = require('url').parse(req.url, true);
@@ -2471,7 +2496,7 @@ async function apiChannelVideos(req, res, channelName) {
       const ms = (meta[v.id]?.channel || '').toLowerCase();
       return ms === channelLo || wordMatchAny(v.name, entry.terms);
     })
-    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
+    .map(v => ({ ...v, fav: favs.has(v.id), rating: meta[v.id]?.rating ?? null }));
 
   if (fav) list = list.filter(v => v.fav);
 
@@ -2745,36 +2770,34 @@ async function apiImport(req, res) {
     outName = path.basename(safeFilename, ext) + ` (${counter++})` + ext;
   }
 
-  const chunks = [];
-  await new Promise((resolve, reject) => {
-    req.on('data', c => chunks.push(c));
-    req.on('end', resolve);
-    req.on('error', reject);
-  });
-  const data = Buffer.concat(chunks);
-  fs.writeFileSync(path.join(destDir, outName), data);
+  // Stream straight to disk: buffering the whole upload in memory meant a
+  // multi-GB video import could exhaust the heap and take the server down.
+  const outPath = path.join(destDir, outName);
+  try {
+    await pipe(req, fs.createWriteStream(outPath));
+  } catch (e) {
+    try { fs.unlinkSync(outPath); } catch {}
+    return json(res, { error: 'Upload failed: ' + e.message }, 500);
+  }
+  const size = fs.statSync(outPath).size;
 
   let videoId = null;
   if (kind === 'video') {
     invalidateScanCache();
-    const outFile = path.join(destDir, outName);
-    const oRes = path.resolve(outFile);
-    videoId = oRes.startsWith(path.resolve(VIDEOS_DIR))
-      ? toId( path.relative(VIDEOS_DIR, outFile).replace(/\\/g, '/') )
-      : toId(outFile);
+    videoId = _idForPath(path.join(destDir, outName));
   }
 
   if (kind === 'audio') {
     const meta = loadAudioMeta();
-    meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now() };
+    meta[outName] = { title: path.basename(outName, ext), ext, size, sizeF: formatBytes(size), date: Date.now() };
     saveAudioMeta(meta);
   } else if (kind === 'book') {
     const meta = loadBooksMeta();
-    meta[outName] = { title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), type: 'upload' };
+    meta[outName] = { title: path.basename(outName, ext), ext, size, sizeF: formatBytes(size), date: Date.now(), type: 'upload' };
     saveBooksMeta(meta);
   } else if (kind === 'file') {
     const absPath = path.join(FILES_DIR, outName);
-    upsertFileMeta({ id: toId(absPath), filename: outName, title: path.basename(outName, ext), ext, size: data.length, sizeF: formatBytes(data.length), date: Date.now(), absPath });
+    upsertFileMeta({ id: toId(absPath), filename: outName, title: path.basename(outName, ext), ext, size, sizeF: formatBytes(size), date: Date.now(), absPath });
   }
   json(res, { ok: true, kind, name: outName, id: videoId });
 }
@@ -2787,15 +2810,15 @@ async function apiAddChapter(req, res, id) {
   if (time === undefined) return json(res, { error: 'Time required' }, 400);
 
   const meta = loadVideoMeta();
-  if (!meta[id]) meta[id] = { title: '', actors: [], tags: [], channel: '', rating: null, category: '', note: '', date: '' };
-  if (!meta[id].chapters) meta[id].chapters = [];
-  
+  const chapters = [...(meta[id]?.chapters || [])];
+
   const chapterId = Date.now().toString();
-  meta[id].chapters.push({ id: chapterId, time, title: title || `Chapter ${meta[id].chapters.length + 1}` });
-  meta[id].chapters.sort((a, b) => a.time - b.time);
-  
-  saveVideoMeta(meta);
-  
+  chapters.push({ id: chapterId, time, title: title || `Chapter ${chapters.length + 1}` });
+  chapters.sort((a, b) => a.time - b.time);
+
+  // Single-row write (persists chapters) instead of rewriting every video.
+  setVideoMetaFields(id, { chapters });
+
   const thumbnails = require('./thumbnails-server');
   await thumbnails.genChapterThumb(id, fp, time, chapterId);
   
@@ -2808,10 +2831,9 @@ async function apiDeleteChapter(req, res, id, chapterId) {
   
   const idx = meta[id].chapters.findIndex(c => c.id === chapterId);
   if (idx === -1) return json(res, { error: 'Chapter not found' }, 404);
-  
-  meta[id].chapters.splice(idx, 1);
-  saveVideoMeta(meta);
-  
+
+  setVideoMetaFields(id, { chapters: meta[id].chapters.filter((_, i) => i !== idx) });
+
   const { THUMBS_DIR } = require('./config-server');
   const thumbPath = path.join(THUMBS_DIR, id, 'chapters', `${chapterId}.jpg`);
   if (fs.existsSync(thumbPath)) try { fs.unlinkSync(thumbPath); } catch {}
@@ -2827,39 +2849,47 @@ async function apiRenameFolder(req, res) {
   if (!oldPath || !newName) return json(res, { error: 'oldPath and newName required' }, 400);
   
   const oldDir = resolveCategoryPhysicalPath(oldPath);
+  if (!_isInsideLibrary(oldDir)) return json(res, { error: 'Invalid path' }, 400);
   if (!fs.existsSync(oldDir)) return json(res, { error: 'Category not found' }, 404);
-  
+
   const parentDir = path.dirname(oldDir);
-  const newDir = path.join(parentDir, newName.replace(/[<>:"/\\|?*]/g, '_'));
-  
+  const safeName = String(newName).replace(/[<>:"/\\|?*]/g, '_').trim();
+  if (!safeName || safeName === '.' || safeName === '..') return json(res, { error: 'Invalid name' }, 400);
+  const newDir = path.join(parentDir, safeName);
+
   if (fs.existsSync(newDir)) return json(res, { error: 'Target name already exists' }, 409);
-  
+
   try {
     fs.renameSync(oldDir, newDir);
     invalidateScanCache();
-    
-    // Update metadata for all videos in this category (best-effort; id migration works reliably for videos under main VIDEOS_DIR root)
+
+    // Update metadata + favourites for all videos in this category (best-effort;
+    // id migration works for videos under the main VIDEOS_DIR root). New ids go
+    // through _idForPath so they match what the rescan produces.
     const meta = loadVideoMeta();
+    const favs = loadFavs();
     const oldPathFwd = oldPath.replace(/\\/g, '/');
     const wroot = getDefaultWriteRoot();
     const newBase = path.resolve(newDir).startsWith(path.resolve(wroot)) ? wroot : VIDEOS_DIR;
     const newPathRel = path.relative(newBase, newDir).replace(/\\/g, '/');
-    
-    let changed = false;
+
+    let changed = false, favsChanged = false;
     for (const id of Object.keys(meta)) {
       const rel = fromId(id).replace(/\\/g, '/');
       if (rel.startsWith(oldPathFwd + '/') || rel === oldPathFwd) {
         const suffix = rel.substring(oldPathFwd.length);
-        const newRel = newPathRel + suffix;
-        const newId = toId(newRel);
-        const newCatPath = path.dirname(newRel).replace(/\\/g, '/');
+        const newId = _idForPath(path.join(newDir, suffix));
+        const newCatPath = path.dirname(newPathRel + suffix).replace(/\\/g, '/');
         meta[newId] = { ...meta[id], category: newCatPath === '.' ? '' : newCatPath };
         delete meta[id];
+        const fi = favs.indexOf(id);
+        if (fi !== -1) { favs[fi] = newId; favsChanged = true; }
         changed = true;
       }
     }
     if (changed) saveVideoMeta(meta);
-    
+    if (favsChanged) saveFavs(favs);
+
     json(res, { ok: true });
   } catch (e) { json(res, { error: e.message }, 500); }
 }
@@ -2870,11 +2900,13 @@ async function apiDeleteFolder(req, res) {
   if (!catPath) return json(res, { error: 'path required' }, 400);
   
   const dir = resolveCategoryPhysicalPath(catPath);
+  // Never purge a library root itself (or anything outside one) — '.' or '..'
+  // in the path would otherwise rm -rf the whole library.
+  if (!_isInsideLibrary(dir)) return json(res, { error: 'Invalid path' }, 400);
   if (!fs.existsSync(dir)) return json(res, { error: 'Category not found' }, 404);
-  
+
   try {
     const writeRoot = getDefaultWriteRoot();
-    const resolvedVidDir = path.resolve(VIDEOS_DIR);
     const moves = [];
 
     // 1. Move all videos in this folder to the root of the current default write path (making them uncategorized there)
@@ -2894,17 +2926,9 @@ async function apiDeleteFolder(req, res) {
           while (fs.existsSync(dst)) {
             dst = path.join(writeRoot, `${base} (${counter++})${ext}`);
           }
-          const resolvedSrc = path.resolve(fullPath);
-          const oldRel = resolvedSrc.startsWith(resolvedVidDir)
-            ? path.relative(VIDEOS_DIR, fullPath).replace(/\\/g, '/')
-            : fullPath;
+          const oldId = _idForPath(fullPath);
           fs.renameSync(fullPath, dst);
-          const resolvedDst = path.resolve(dst);
-          const newRel = resolvedDst.startsWith(resolvedVidDir)
-            ? path.relative(VIDEOS_DIR, dst).replace(/\\/g, '/')
-            : dst;
-          const oldId = toId(oldRel);
-          const newId = toId(newRel);
+          const newId = _idForPath(dst);
           if (oldId !== newId) moves.push({ oldId, newId });
         }
       }
@@ -3463,14 +3487,16 @@ function apiVideosUpload(req, res) {
   const safeName = path.basename(rawName).replace(/[^a-zA-Z0-9._\-\s]/g, '_');
   
   const dest = path.join(writeRoot, safeName);
-  const chunks = [];
-  req.on('data', c => chunks.push(c));
-  req.on('end', () => {
-    try {
-      fs.writeFileSync(dest, Buffer.concat(chunks));
-      invalidateScanCache();
-      json(res, { ok: true, file: safeName });
-    } catch (e) { json(res, { error: e.message }, 500); }
+  // Stream to disk instead of buffering the whole video in memory; an aborted
+  // upload used to leave the handler (and its buffered chunks) hanging forever.
+  pipeline(req, fs.createWriteStream(dest), (err) => {
+    if (err) {
+      try { fs.unlinkSync(dest); } catch {}
+      try { json(res, { error: err.message }, 500); } catch {}
+      return;
+    }
+    invalidateScanCache();
+    json(res, { ok: true, file: safeName });
   });
 }
 
@@ -3611,10 +3637,14 @@ async function apiCategorizeExecute(req, res) {
     const { srcPath, destFolder, root } = move;
     if (!srcPath || !destFolder || !root) continue;
     if (!allowedRoots.has(path.resolve(root))) { errors.push(`${path.basename(srcPath)}: root not allowed`); continue; }
+    // srcPath and destFolder come from the client: both must stay inside a
+    // library root, or this endpoint could move arbitrary files on disk.
+    if (![...allowedRoots].some(r => isInside(srcPath, r, true))) { errors.push(`${path.basename(srcPath)}: source not allowed`); continue; }
     const ext = path.extname(srcPath).toLowerCase();
     const stem = path.basename(srcPath, ext);
     // destFolder may be a nested path like "Performers/Jane Doe"
     const destDir = path.join(root, ...destFolder.split('/'));
+    if (!isInside(destDir, root, true)) { errors.push(`${path.basename(srcPath)}: invalid target folder`); continue; }
     try {
       // never create new folders for auto-categorize; only move into existing ones
       if (!fs.existsSync(destDir)) {
@@ -3695,7 +3725,7 @@ module.exports = {
   apiVideos, apiFolders, apiFoldersOverview, apiMainFolders, apiCreateFolder,
   apiFolderCreate, apiFolderRename, apiFolderDelete, apiFolderMove,
   apiGetAllFolders, apiSetEnabledFolders,
-  apiVideoDetail, apiVideoDetailFast, apiPreload, apiStream, apiDelete, apiRename, apiMove, apiAutoSort,
+  apiVideoDetail, apiVideoDetailFast, apiPreload, apiStream, apiDelete, apiRename, renameVideo, apiMove, apiAutoSort,
   apiFavourites, apiToggleFav,
   apiAddHistory, apiGetHistory, apiClearHistory, apiClearFavourites, apiClearThumbs,
   apiSetRating, apiDeleteRating,

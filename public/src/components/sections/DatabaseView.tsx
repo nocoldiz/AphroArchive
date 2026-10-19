@@ -158,8 +158,8 @@ export const DatabaseView = () => {
 
   const handleDelete = async (name: string) => {
     if (!confirm(`Delete "${name}"?`)) return;
-    const r = await fetch(`/api/db/${activeTab}/${encodeURIComponent(name)}`, { method: 'DELETE' });
-    if (r.ok) {
+    const r = await fetch(`/api/db/${activeTab}/${encodeURIComponent(name)}`, { method: 'DELETE' }).catch(() => null);
+    if (r?.ok) {
       loadTab(activeTab);
       const w = window as any;
       if (w.toast) w.toast('Deleted');
@@ -185,9 +185,9 @@ export const DatabaseView = () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, oldName: editName || undefined, data: formData })
-    });
-    
-    if (r.ok) {
+    }).catch(() => null);
+
+    if (r?.ok) {
       setModalOpen(false);
       loadTab(activeTab);
       const w = window as any;
@@ -392,10 +392,15 @@ export const DatabaseView = () => {
   };
 
   const openPresetImport = async () => {
-    const r = await fetch('/api/presets');
-    const data = await r.json();
-    setPresetList(data.profiles || []);
-    setPresetImportOpen(true);
+    try {
+      const r = await fetch('/api/presets');
+      const data = await r.json();
+      setPresetList(data.profiles || []);
+      setPresetImportOpen(true);
+    } catch {
+      const w = window as any;
+      if (w.toast) w.toast('Failed to load presets');
+    }
   };
 
   const applyPresetImport = async (id: string) => {
@@ -430,24 +435,25 @@ export const DatabaseView = () => {
 
   const handleWcSave = async (name: string) => {
     setWcEditSaving(true);
-    await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, {
+    const r = await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: wcEditContent }),
-    });
+    }).catch(() => null);
     setWcEditSaving(false);
+    const w = window as any;
+    if (!r?.ok) { if (w.toast) w.toast('Save failed'); return; }
     setWcExpanded(null);
     loadTab('wildcards');
-    const w = window as any;
     if (w.toast) w.toast('Saved');
   };
 
   const handleWcDelete = async (name: string) => {
     if (!confirm(`Delete wildcard "${name}"?`)) return;
-    await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    const r = await fetch(`/api/prompts/wildcards/${encodeURIComponent(name)}`, { method: 'DELETE' }).catch(() => null);
     loadTab('wildcards');
     const w = window as any;
-    if (w.toast) w.toast('Deleted');
+    if (w.toast) w.toast(r?.ok ? 'Deleted' : 'Delete failed');
   };
 
   const handleWcCreate = async () => {
@@ -522,24 +528,25 @@ export const DatabaseView = () => {
       if (!m) return null;
       return { season: +m[1], episode: +m[2], name: m[3].trim() || null, duration: m[4] ? +m[4] * 60 : null, videoId: null };
     }).filter(Boolean) as DbEpisode[];
-    await fetch('/api/db/series', {
+    const r = await fetch('/api/db/series', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, key, cover: seriesForm.cover, episodes }),
-    });
+    }).catch(() => null);
+    const w = window as any;
+    if (!r?.ok) { if (w.toast) w.toast('Save failed'); return; }
     setSeriesModalOpen(false);
     await loadDbSeries();
-    const w = window as any;
     if (w.toast) w.toast('Saved');
   };
 
   const handleSeriesDelete = async (key: string) => {
     const s = seriesList.find(s => s.key === key);
     if (!confirm(`Delete series "${s?.name || key}"?`)) return;
-    await fetch(`/api/db/series/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    const r = await fetch(`/api/db/series/${encodeURIComponent(key)}`, { method: 'DELETE' }).catch(() => null);
     await loadDbSeries();
     const w = window as any;
-    if (w.toast) w.toast('Deleted');
+    if (w.toast) w.toast(r?.ok ? 'Deleted' : 'Delete failed');
   };
 
   const handleSeriesExport = () => {
@@ -597,23 +604,24 @@ export const DatabaseView = () => {
       const duration = m[3] ? +m[3] * 60 + +m[4] : null;
       return { trackNumber: +m[1], title: m[2].trim(), duration };
     }).filter(Boolean) as AlbumTrack[];
-    await fetch('/api/db/albums', {
+    const r = await fetch('/api/db/albums', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, name, artist: albumForm.artist.trim(), year: albumForm.year ? +albumForm.year : null, tracks }),
-    });
+    }).catch(() => null);
+    const w = window as any;
+    if (!r?.ok) { if (w.toast) w.toast('Save failed'); return; }
     setAlbumModalOpen(false);
     loadTab('albums');
-    const w = window as any;
     if (w.toast) w.toast('Saved');
   };
 
   const handleAlbumDelete = async (id: string) => {
     const a = albumsList.find(a => a.id === id);
     if (!confirm(`Delete album "${a?.name || id}"?`)) return;
-    await fetch(`/api/db/albums/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const r = await fetch(`/api/db/albums/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null);
     loadTab('albums');
     const w = window as any;
-    if (w.toast) w.toast('Deleted');
+    if (w.toast) w.toast(r?.ok ? 'Deleted' : 'Delete failed');
   };
 
   const handleAlbumExport = () => {
@@ -674,24 +682,16 @@ export const DatabaseView = () => {
         {tabs.map(t => (
           <button
             key={t.id}
-            className={`db-tab ${activeTab === t.id ? 'on' : ''}`}
+            className={`ui-tab${activeTab === t.id ? ' on' : ''}`}
             onClick={() => setActiveTab(t.id)}
-            style={{
-              padding: '8px 16px',
-              background: activeTab === t.id ? 'var(--ac)' : 'transparent',
-              color: activeTab === t.id ? '#fff' : 'var(--tx2)',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
           >
             {t.name}
           </button>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
           <input ref={importAllRef} type="file" accept=".json" title="Import full DB" style={{ display: 'none' }} onChange={handleImportAll} />
-          <button className="modal-btn" onClick={handleExportAll} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Export DB</button>
-          <button className="modal-btn" onClick={() => importAllRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Import DB</button>
+          <button className="ui-btn" onClick={handleExportAll}>Export DB</button>
+          <button className="ui-btn" onClick={() => importAllRef.current?.click()}>Import DB</button>
         </div>
       </div>
 
@@ -699,37 +699,37 @@ export const DatabaseView = () => {
       {activeTab !== 'folders' && activeTab !== 'wildcards' && activeTab !== 'series' && activeTab !== 'albums' && (
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
           <input ref={importFileRef} type="file" accept=".json" title="Import JSON" style={{ display: 'none' }} onChange={handleImportJson} />
-          <button className="modal-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: true }; }} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import Preset</button>
-          <button className="modal-btn" onClick={handleReset} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Reset to Preset</button>
+          <button className="ui-btn" onClick={() => { presetPickerState.value = { visible: true, mergeMode: true }; }}>Import Preset</button>
+          <button className="ui-btn" onClick={handleReset}>Reset to Preset</button>
           {activeTab === 'actors' && (
-            <button className="modal-btn" onClick={() => setScraperModalOpen(true)} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Scrape Actor Data</button>
+            <button className="ui-btn" onClick={() => setScraperModalOpen(true)}>Scrape Actor Data</button>
           )}
           {activeTab === 'websites' && (
-            <button className="modal-btn" onClick={openLinkSites} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Add from Saved Links…</button>
+            <button className="ui-btn" onClick={openLinkSites}>Add from Saved Links…</button>
           )}
-          <button className="modal-btn" onClick={handleExportJson} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Export JSON</button>
-          <button className="modal-btn" onClick={() => importFileRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import JSON</button>
-          <button className="modal-btn" onClick={openPresetImport} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '8px 16px' }}>Import from Preset</button>
-          <button className="modal-btn modal-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
+          <button className="ui-btn" onClick={handleExportJson}>Export JSON</button>
+          <button className="ui-btn" onClick={() => importFileRef.current?.click()}>Import JSON</button>
+          <button className="ui-btn" onClick={openPresetImport}>Import from Preset</button>
+          <button className="ui-btn ui-btn--primary" onClick={() => openModal(null)}>+ Add Entry</button>
         </div>
       )}
 
       {/* Grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading…</div>
+        <div className="empty-state empty-state--sm">Loading…</div>
       ) : activeTab === 'series' ? (
         <div>
           {/* Series toolbar */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)', flex: 1 }}>{seriesList.length} series defined in database</span>
             <input ref={importSeriesRef} type="file" accept=".json" title="Import series JSON" style={{ display: 'none' }} onChange={handleSeriesImport} />
-            <button type="button" className="modal-btn" onClick={handleSeriesExport} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Export JSON</button>
-            <button type="button" className="modal-btn" onClick={() => importSeriesRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Import JSON</button>
-            <button type="button" className="modal-btn modal-btn--primary" onClick={() => openSeriesModal(null)}>+ Add Series</button>
+            <button type="button" className="ui-btn" onClick={handleSeriesExport}>Export JSON</button>
+            <button type="button" className="ui-btn" onClick={() => importSeriesRef.current?.click()}>Import JSON</button>
+            <button type="button" className="ui-btn ui-btn--primary" onClick={() => openSeriesModal(null)}>+ Add Series</button>
           </div>
 
           {seriesList.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
+            <div className="empty-state empty-state--sm">
               No series in database. Import a <code>series.json</code> or add one manually.
             </div>
           ) : (
@@ -755,8 +755,8 @@ export const DatabaseView = () => {
                         <button type="button" onClick={() => setSeriesExpandedKey(v => v === s.key ? null : s.key)} style={{ background: 'none', border: '1px solid var(--brd)', color: seriesExpandedKey === s.key ? 'var(--ac)' : 'var(--tx3)', borderRadius: '4px', padding: '2px 10px', cursor: 'pointer', fontSize: '0.78rem' }}>
                           {seriesExpandedKey === s.key ? 'Close' : 'View'}
                         </button>
-                        <button type="button" onClick={() => openSeriesModal(s)} style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>Edit</button>
-                        <button type="button" onClick={() => handleSeriesDelete(s.key)} style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>✕</button>
+                        <button type="button" className="ui-btn ui-btn--sm" onClick={() => openSeriesModal(s)}>Edit</button>
+                        <button type="button" className="ui-btn ui-btn--sm ui-btn--danger" title="Delete series" onClick={() => handleSeriesDelete(s.key)}>✕</button>
                       </div>
                     </div>
                     {seriesExpandedKey === s.key && (
@@ -782,13 +782,13 @@ export const DatabaseView = () => {
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)', flex: 1 }}>{albumsList.length} album{albumsList.length !== 1 ? 's' : ''} in database</span>
             <input ref={importAlbumsRef} type="file" accept=".json" title="Import albums JSON" style={{ display: 'none' }} onChange={handleAlbumImport} />
-            <button type="button" className="modal-btn" onClick={handleAlbumExport} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Export JSON</button>
-            <button type="button" className="modal-btn" onClick={() => importAlbumsRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Import JSON</button>
-            <button type="button" className="modal-btn modal-btn--primary" onClick={() => openAlbumModal(null)}>+ Add Album</button>
+            <button type="button" className="ui-btn" onClick={handleAlbumExport}>Export JSON</button>
+            <button type="button" className="ui-btn" onClick={() => importAlbumsRef.current?.click()}>Import JSON</button>
+            <button type="button" className="ui-btn ui-btn--primary" onClick={() => openAlbumModal(null)}>+ Add Album</button>
           </div>
 
           {albumsList.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
+            <div className="empty-state empty-state--sm">
               No albums in database. Import an <code>albums.json</code> or add one manually.
             </div>
           ) : (
@@ -810,8 +810,8 @@ export const DatabaseView = () => {
                       <button type="button" onClick={() => setAlbumExpandedId(v => v === a.id ? null : a.id)} style={{ background: 'none', border: '1px solid var(--brd)', color: albumExpandedId === a.id ? 'var(--ac)' : 'var(--tx3)', borderRadius: '4px', padding: '2px 10px', cursor: 'pointer', fontSize: '0.78rem' }}>
                         {albumExpandedId === a.id ? 'Close' : 'Tracks'}
                       </button>
-                      <button type="button" onClick={() => openAlbumModal(a)} style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>Edit</button>
-                      <button type="button" onClick={() => handleAlbumDelete(a.id)} style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>✕</button>
+                      <button type="button" className="ui-btn ui-btn--sm" onClick={() => openAlbumModal(a)}>Edit</button>
+                      <button type="button" className="ui-btn ui-btn--sm ui-btn--danger" title="Delete album" onClick={() => handleAlbumDelete(a.id)}>✕</button>
                     </div>
                   </div>
                   {albumExpandedId === a.id && a.tracks.length > 0 && (
@@ -835,10 +835,10 @@ export const DatabaseView = () => {
           {/* Wildcards toolbar */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--tx3)', flex: 1 }}>{wcList.length} wildcard{wcList.length !== 1 ? 's' : ''} in <code>db/wildcards/</code></span>
-            <button className="modal-btn" onClick={() => setWcCreating(v => !v)} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>+ New</button>
+            <button className="ui-btn" onClick={() => setWcCreating(v => !v)}>+ New</button>
             <input ref={importWcRef} type="file" accept=".json" title="Import wildcards JSON" style={{ display: 'none' }} onChange={handleWcImportAll} />
-            <button className="modal-btn" onClick={handleWcExportAll} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Export All</button>
-            <button className="modal-btn" onClick={() => importWcRef.current?.click()} style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', cursor: 'pointer', borderRadius: '4px', padding: '7px 14px', fontSize: '0.85rem' }}>Import All</button>
+            <button className="ui-btn" onClick={handleWcExportAll}>Export All</button>
+            <button className="ui-btn" onClick={() => importWcRef.current?.click()}>Import All</button>
           </div>
 
           {/* New wildcard form */}
@@ -849,7 +849,8 @@ export const DatabaseView = () => {
                 onInput={(e: any) => setWcNewName(e.target.value)}
                 onKeyDown={(e: any) => e.key === 'Enter' && handleWcCreate()}
                 placeholder="wildcard_name (letters, digits, _-)"
-                style={{ flex: 1, padding: '7px 10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+                className="ui-input"
+                style={{ flex: 1, width: 'auto' }}
               />
               <button className="modal-btn modal-btn--primary" onClick={handleWcCreate}>Create</button>
               <button className="modal-btn" onClick={() => { setWcCreating(false); setWcNewName(''); }}>Cancel</button>
@@ -858,7 +859,7 @@ export const DatabaseView = () => {
 
           {/* Wildcards table */}
           {wcList.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>No wildcard files found in <code>db/wildcards/</code>.</div>
+            <div className="empty-state empty-state--sm">No wildcard files found in <code>db/wildcards/</code>.</div>
           ) : (
             <div style={{ border: '1px solid var(--brd)', borderRadius: '8px', overflow: 'hidden' }}>
               {/* Header row */}
@@ -875,7 +876,7 @@ export const DatabaseView = () => {
                     <span style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--tx3)' }}>{wc.count}</span>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                       <button onClick={() => handleWcEdit(wc.name)} style={{ background: 'none', border: '1px solid var(--brd)', color: wcExpanded === wc.name ? 'var(--ac)' : 'var(--tx3)', borderRadius: '4px', padding: '2px 10px', cursor: 'pointer', fontSize: '0.78rem' }}>{wcExpanded === wc.name ? 'Close' : 'Edit'}</button>
-                      <button onClick={() => handleWcDelete(wc.name)} style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>✕</button>
+                      <button className="ui-btn ui-btn--sm ui-btn--danger" title="Delete wildcard" onClick={() => handleWcDelete(wc.name)}>✕</button>
                     </div>
                   </div>
                   {/* Inline editor */}
@@ -916,7 +917,7 @@ export const DatabaseView = () => {
               sourceFolders.map(f => (
                 <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', background: 'var(--bg3)', padding: '8px 10px', borderRadius: '4px' }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--tx)', wordBreak: 'break-all', marginRight: '8px' }}>{f}</span>
-                  <button onClick={() => handleRemoveSourceFolder(f)} style={{ flexShrink: 0, background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>Remove</button>
+                  <button className="ui-btn ui-btn--sm ui-btn--danger" onClick={() => handleRemoveSourceFolder(f)} style={{ flexShrink: 0 }}>Remove</button>
                 </div>
               ))
             )}
@@ -927,10 +928,11 @@ export const DatabaseView = () => {
                 onInput={(e: any) => setNewSourceFolder(e.target.value)}
                 onKeyDown={(e: any) => e.key === 'Enter' && handleAddSourceFolder()}
                 placeholder="C:\path\to\folder"
-                style={{ flex: 1, padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+                className="ui-input"
+                style={{ flex: 1, width: 'auto' }}
               />
-              <button onClick={handleBrowseNative} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>Browse</button>
-              <button onClick={handleAddSourceFolder} style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>Add</button>
+              <button className="ui-btn" onClick={handleBrowseNative}>Browse</button>
+              <button className="ui-btn ui-btn--primary" onClick={handleAddSourceFolder}>Add</button>
             </div>
             {/* Default write root selector */}
             <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--brd)' }}>
@@ -938,7 +940,7 @@ export const DatabaseView = () => {
               <select
                 value={defaultRoot}
                 onChange={(e: any) => handleSetDefaultRoot(e.target.value)}
-                style={{ width: '100%', padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', fontSize: '0.85rem' }}
+                className="ui-input"
               >
                 <option value="">Main videos folder (default)</option>
                 {sourceFolders.map(f => (
@@ -968,7 +970,7 @@ export const DatabaseView = () => {
             </div>
           </div>
           {folders.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>
+            <div className="empty-state empty-state--sm">
               No folders found in videos directory or source folders.
             </div>
           ) : (
@@ -994,7 +996,7 @@ export const DatabaseView = () => {
           )}
         </div>
       ) : entries.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>No entries found.</div>
+        <div className="empty-state empty-state--sm">No entries found.</div>
       ) : (
         <div className="db-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px' }}>
           {entries.map(([name, info]) => (
@@ -1041,51 +1043,49 @@ export const DatabaseView = () => {
 
       {/* Modal */}
       {modalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '400px', maxWidth: '90%' }}>
+        <div className="modal-overlay on" style={{ zIndex: 1000 }}>
+          <div className="modal-dialog">
             <h3 style={{ marginBottom: '20px' }}>{editName ? `Edit — ${editName}` : 'Add Entry'}</h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Name</label>
+                <label className="ui-label">Name</label>
                 <input
                   type="text"
                   value={activeTab === 'websites' ? (formData.name ?? editName ?? '') : (editName || formData.name || '')}
                   onInput={(e: any) => updateFormField('name', e.target.value)}
                   disabled={!!editName && activeTab !== 'websites'}
-                  style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }}
                 />
               </div>
 
               {activeTab === 'actors' && (
                 <>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>IMDb URL</label>
-                    <input type="text" value={formData.imdb_page || ''} onInput={(e: any) => updateFormField('imdb_page', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }} />
+                    <label className="ui-label">IMDb URL</label>
+                    <input type="text" value={formData.imdb_page || ''} onInput={(e: any) => updateFormField('imdb_page', e.target.value)} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Date of Birth</label>
-                    <input type="text" value={formData.date_of_birth || ''} onInput={(e: any) => updateFormField('date_of_birth', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }} />
+                    <label className="ui-label">Date of Birth</label>
+                    <input type="text" value={formData.date_of_birth || ''} onInput={(e: any) => updateFormField('date_of_birth', e.target.value)} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Nationality</label>
-                    <input type="text" value={formData.nationality || ''} onInput={(e: any) => updateFormField('nationality', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }} />
+                    <label className="ui-label">Nationality</label>
+                    <input type="text" value={formData.nationality || ''} onInput={(e: any) => updateFormField('nationality', e.target.value)} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Movies</label>
-                    <textarea value={formData.movies || ''} onInput={(e: any) => updateFormField('movies', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', minHeight: '70px' }} />
+                    <label className="ui-label">Movies</label>
+                    <textarea value={formData.movies || ''} onInput={(e: any) => updateFormField('movies', e.target.value)} className="ui-input" style={{ minHeight: '70px' }} />
                   </div>
                 </>
               )}
 
               {activeTab === 'categories' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Tags / Aliases (comma-separated)</label>
+                  <label className="ui-label">Tags / Aliases (comma-separated)</label>
                   <input 
                     type="text" 
                     value={Array.isArray(formData.tags) ? formData.tags.join(', ') : ''} 
                     onInput={(e: any) => updateFormField('tags', e.target.value.split(',').map((t: string) => t.trim()))}
-                    style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }}
                   />
                 </div>
               )}
@@ -1093,12 +1093,12 @@ export const DatabaseView = () => {
               {activeTab === 'channels' && (
                 <>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Website URL</label>
-                    <input type="text" value={formData.website || ''} onInput={(e: any) => updateFormField('website', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }} />
+                    <label className="ui-label">Website URL</label>
+                    <input type="text" value={formData.website || ''} onInput={(e: any) => updateFormField('website', e.target.value)} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Description</label>
-                    <textarea value={formData.short_description || ''} onInput={(e: any) => updateFormField('short_description', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', minHeight: '70px' }} />
+                    <label className="ui-label">Description</label>
+                    <textarea value={formData.short_description || ''} onInput={(e: any) => updateFormField('short_description', e.target.value)} className="ui-input" style={{ minHeight: '70px' }} />
                   </div>
                 </>
               )}
@@ -1106,16 +1106,16 @@ export const DatabaseView = () => {
               {activeTab === 'websites' && (
                 <>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>URL</label>
-                    <input type="text" value={formData.url || ''} onInput={(e: any) => updateFormField('url', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }} />
+                    <label className="ui-label">URL</label>
+                    <input type="text" value={formData.url || ''} onInput={(e: any) => updateFormField('url', e.target.value)} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Search URL</label>
-                    <input type="text" value={formData.searchURL || ''} onInput={(e: any) => updateFormField('searchURL', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }} />
+                    <label className="ui-label">Search URL</label>
+                    <input type="text" value={formData.searchURL || ''} onInput={(e: any) => updateFormField('searchURL', e.target.value)} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Scrape Method</label>
-                    <input type="text" value={formData.scrapeMethod || ''} onInput={(e: any) => updateFormField('scrapeMethod', e.target.value)} style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px' }} />
+                    <label className="ui-label">Scrape Method</label>
+                    <input type="text" value={formData.scrapeMethod || ''} onInput={(e: any) => updateFormField('scrapeMethod', e.target.value)} />
                   </div>
                 </>
               )}
@@ -1131,9 +1131,9 @@ export const DatabaseView = () => {
 
       {/* Scraper Modal */}
       {scraperModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '900px', maxWidth: '95%', maxHeight: '90%', overflowY: 'auto', position: 'relative' }}>
-            <button onClick={() => setScraperModalOpen(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+        <div className="modal-overlay on" style={{ zIndex: 1000 }}>
+          <div className="modal-dialog" style={{ width: '95%', maxWidth: '900px', maxHeight: '90%', overflowY: 'auto', position: 'relative' }}>
+            <button className="ui-btn ui-btn--ghost ui-btn--icon" title="Close" onClick={() => setScraperModalOpen(false)} style={{ position: 'absolute', top: '12px', right: '12px', fontSize: '1.5rem' }}>&times;</button>
             <ActorScraperView />
           </div>
         </div>
@@ -1141,11 +1141,11 @@ export const DatabaseView = () => {
 
       {/* Import from Preset Modal */}
       {presetImportOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '520px', maxWidth: '95%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="modal-overlay on" style={{ zIndex: 1000 }}>
+          <div className="modal-dialog" style={{ maxWidth: '520px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>Import from Preset</h3>
-              <button type="button" onClick={() => setPresetImportOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.3rem' }}>&times;</button>
+              <button type="button" className="ui-btn ui-btn--ghost ui-btn--icon" title="Close" onClick={() => setPresetImportOpen(false)} style={{ fontSize: '1.3rem' }}>&times;</button>
             </div>
             <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--tx3)' }}>Select a preset to merge its entries into your database.</p>
             <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1224,11 +1224,11 @@ export const DatabaseView = () => {
 
       {/* Series Add/Edit Modal */}
       {seriesModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '520px', maxWidth: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div className="modal-overlay on" style={{ zIndex: 1000 }}>
+          <div className="modal-dialog" style={{ maxWidth: '520px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>{seriesEditKey ? `Edit — ${seriesForm.name}` : 'Add Series'}</h3>
-              <button type="button" onClick={() => setSeriesModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '1.3rem' }}>&times;</button>
+              <button type="button" className="ui-btn ui-btn--ghost ui-btn--icon" title="Close" onClick={() => setSeriesModalOpen(false)} style={{ fontSize: '1.3rem' }}>&times;</button>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--tx3)', marginBottom: '4px' }}>Name</label>
@@ -1274,8 +1274,8 @@ export const DatabaseView = () => {
 
       {/* Albums Add/Edit Modal */}
       {albumModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '520px', maxWidth: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div className="modal-overlay on" style={{ zIndex: 1000 }}>
+          <div className="modal-dialog" style={{ maxWidth: '520px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--tx)' }}>{albumEditId ? 'Edit Album' : 'Add Album'}</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

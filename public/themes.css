@@ -68,7 +68,8 @@
 }
 
 /* Light theme overrides for elements with hardcoded dark colors */
-[data-theme="light"] .modal-overlay {
+[data-theme="light"] .modal-overlay,
+[data-theme="light"] .modal {
   background: rgba(0, 0, 0, 0.5);
 }
 

@@ -189,6 +189,9 @@ export const renameModalState = signal<{
   currentName: ''
 });
 
+// Mass rename from stash-box (StashDB) identification results.
+export const originalNamesModalState = signal<{ visible: boolean }>({ visible: false });
+
 export const moveModalState = signal<{
   visible: boolean;
   vidIds: string[];
@@ -233,13 +236,12 @@ export const linkVidIds = signal<Set<string>>(new Set());
 export function rebuildLinkVidIds(items: any[]) {
   const set = new Set<string>();
   const vids = (window as any).V || []; // Fallback to global V if videos signal is not populated yet
+  // Lowercase every URL once instead of once per video × link.
+  const urls: string[] = items.map((it: any) => (it.url || '').toLowerCase());
   for (const v of vids) {
     const vname = v.name.toLowerCase().replace(/\.[^.]+$/, '');
-    for (const it of items) {
-      if (it.url.toLowerCase().includes(vname)) {
-        set.add(v.id);
-      }
-    }
+    if (!vname) continue; // '' would match every URL
+    if (urls.some(u => u.includes(vname))) set.add(v.id);
   }
   linkVidIds.value = set;
 }
@@ -693,12 +695,20 @@ function _resolveResolutionTier(v: Video): string {
   return 'sd';
 }
 
+// Narrow dependencies for filteredVideos: a computed only notifies when its
+// value changes, so navigating views (browse → player) or saving unrelated
+// prefs no longer re-filters and re-sorts the whole library.
+const _isFavView = computed(() => currentView.value === 'favourites');
+const _hiddenFolders = computed(() => appPrefs.value.hiddenFolders);
+const _pinnedTagsOnly = computed(() => !!appPrefs.value.pinnedTagsOnly);
+const _pinnedTags = computed(() => appPrefs.value.pinnedTags);
+
 export const filteredVideos = computed(() => {
-  let list = [...videos.value];
+  let list = videos.value;
   const q = searchQuery.value;
 
   if (q) {
-    list = [...allVideos.value];
+    list = allVideos.value;
     const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
 
     // Exact token match first
@@ -735,20 +745,21 @@ export const filteredVideos = computed(() => {
 
     if (currentTag.value) {
       const tagLo = currentTag.value.toLowerCase();
-      const terms = currentTagTerms.value;
+      // Compile the term regexes once, not once per video.
+      const termRes = currentTagTerms.value.map(t =>
+        new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])')
+      );
       list = list.filter(v => {
         if (v.tags && (v.tags as string[]).some(t => t.toLowerCase() === tagLo)) return true;
-        if (terms.length > 0) {
+        if (termRes.length > 0) {
           const name = (v.name || '').toLowerCase();
-          return terms.some(t =>
-            new RegExp('(?:^|[^a-z0-9])' + t.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^a-z0-9])').test(name)
-          );
+          return termRes.some(re => re.test(name));
         }
         return false;
       });
     }
 
-    if (currentView.value === 'favourites' || favFilter.value) {
+    if (_isFavView.value || favFilter.value) {
       list = list.filter(v => v.starred || v.fav);
     }
   }
@@ -834,7 +845,7 @@ export const filteredVideos = computed(() => {
   // Hidden folders: exclude their videos from aggregate views (All Videos,
   // search, tags, favourites). Opening a hidden/pinned folder directly still
   // shows its contents because currentFolder short-circuits this.
-  const hiddenFolders = appPrefs.value.hiddenFolders || [];
+  const hiddenFolders = _hiddenFolders.value || [];
   if (hiddenFolders.length && !currentFolder.value) {
     const hidden = hiddenFolders.map(h => h.toLowerCase().replace(/\\/g, '/'));
     list = list.filter(v => {
@@ -847,8 +858,8 @@ export const filteredVideos = computed(() => {
 
   // Pinned-tags-only mode: exclude videos that don't carry any pinned tag.
   // Only active when not already browsing a specific folder or tag.
-  if (appPrefs.value.pinnedTagsOnly && !currentFolder.value && !currentTag.value) {
-    const pinned = new Set((appPrefs.value.pinnedTags || []).map((t: string) => t.toLowerCase()));
+  if (_pinnedTagsOnly.value && !currentFolder.value && !currentTag.value) {
+    const pinned = new Set((_pinnedTags.value || []).map((t: string) => t.toLowerCase()));
     if (pinned.size > 0) {
       list = list.filter(v => {
         if (v.isLink) return true;
@@ -856,6 +867,9 @@ export const filteredVideos = computed(() => {
       });
     }
   }
+
+  // Sorting is in place — never mutate the source signal arrays.
+  if (list === videos.value || list === allVideos.value) list = list.slice();
 
   // Apply sorting or shuffle
   if (isShuffle.value) {

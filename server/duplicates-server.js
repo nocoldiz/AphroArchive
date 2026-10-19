@@ -30,16 +30,12 @@ async function getVisualHash(videoId) {
   });
 }
 
-function calculateSimilarity(h1, h2) {
-  if (h1 === h2) return 1.0;
-  if (!h1 || !h2 || h1.length !== h2.length) return 0;
-
+// b1/b2: 64-byte grayscale hashes, pre-decoded from hex once per scan (the
+// grouping pass is O(n²), so per-pair hex parsing dominated it).
+function calculateSimilarity(b1, b2) {
+  if (!b1 || !b2 || b1.length !== b2.length) return 0;
   let diff = 0;
-  for (let i = 0; i < h1.length; i += 2) {
-    const v1 = parseInt(h1.substr(i, 2), 16);
-    const v2 = parseInt(h2.substr(i, 2), 16);
-    diff += Math.abs(v1 - v2);
-  }
+  for (let i = 0; i < b1.length; i++) diff += Math.abs(b1[i] - b2[i]);
   return 1 - (diff / (255 * 32 * 2));
 }
 
@@ -96,6 +92,7 @@ async function runScan(allVideos) {
   // Grouping
   const groups = [];
   const used = new Set();
+  const bufs = list.map(v => Buffer.from(v.hash, 'hex'));
 
   for (let i = 0; i < list.length; i++) {
     if (used.has(list[i].id)) continue;
@@ -103,7 +100,7 @@ async function runScan(allVideos) {
     for (let j = i + 1; j < list.length; j++) {
       if (used.has(list[j].id)) continue;
       
-      const sim = calculateSimilarity(list[i].hash, list[j].hash);
+      const sim = calculateSimilarity(bufs[i], bufs[j]);
       const nameSim = list[i].name.toLowerCase() === list[j].name.toLowerCase();
       const sizeSim = Math.abs(list[i].size - list[j].size) < 1024 * 1024; // 1MB diff
       

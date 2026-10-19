@@ -1,3 +1,4 @@
+import { Fragment } from 'preact';
 import { useState, useMemo } from 'preact/hooks';
 
 export interface FolderEntry {
@@ -115,18 +116,17 @@ export const FolderTree = ({
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
         <span
-          style={{ cursor: 'pointer', color: 'var(--accent)', fontSize: '0.9rem' }}
+          style={{ cursor: 'pointer', color: 'var(--ac)', fontSize: '0.9rem' }}
           onClick={() => onNavigate(null)}
         >Root</span>
         {breadcrumb.map(f => (
-          <>
+          <Fragment key={f.id}>
             <span style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>/</span>
             <span
-              key={f.id}
-              style={{ cursor: 'pointer', color: 'var(--accent)', fontSize: '0.9rem' }}
+              style={{ cursor: 'pointer', color: 'var(--ac)', fontSize: '0.9rem' }}
               onClick={() => onNavigate(f.id)}
             >{f.name}</span>
-          </>
+          </Fragment>
         ))}
       </div>
 
@@ -179,7 +179,7 @@ export const FolderTree = ({
           ].map(item => (
             <div
               key={item.label}
-              style={{ padding: '7px 14px', cursor: 'pointer', fontSize: '0.88rem', color: (item as any).danger ? '#e84040' : 'var(--tx)' }}
+              style={{ padding: '7px 14px', cursor: 'pointer', fontSize: '0.88rem', color: (item as any).danger ? 'var(--danger)' : 'var(--tx)' }}
               onClick={item.action}
             >{item.label}</div>
           ))}

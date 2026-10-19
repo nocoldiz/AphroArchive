@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { ensureQRCode } from '../../utils';
+import { useEscape } from './useEscape';
 
 interface Props {
   onClose: () => void;
@@ -11,6 +12,7 @@ export const ConnectModal = ({ onClose }: Props) => {
   const [localUrl, setLocalUrl] = useState('');
   const [verify, setVerify] = useState<{ ok?: boolean; error?: string; checking?: boolean }>({});
   const qrRef = useRef<HTMLDivElement>(null);
+  useEscape(true, onClose);
 
   useEffect(() => {
     // Fetch prefs
@@ -56,12 +58,20 @@ export const ConnectModal = ({ onClose }: Props) => {
   const toggleNetworkAccess = async () => {
     const next = !networkEnabled;
     setNetworkEnabled(next);
-    await fetch('/api/settings/prefs', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ networkEnabled: next })
-    });
     const w = window as any;
+    try {
+      const r = await fetch('/api/settings/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ networkEnabled: next })
+      });
+      if (!r.ok) throw new Error();
+    } catch {
+      // Revert so the toggle never shows a state the server didn't save.
+      setNetworkEnabled(!next);
+      w.toastError?.('Failed to change network access');
+      return;
+    }
     if (w.toast) w.toast(next ? 'Network access enabled' : 'Network access disabled');
   };
 
@@ -111,9 +121,9 @@ export const ConnectModal = ({ onClose }: Props) => {
   }, [localUrl, networkEnabled]);
 
   return (
-    <div class="collection-modal" id="connectModal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={(e: any) => e.target.id === 'connectModal' && onClose()}>
-      <div class="collection-modal-box" style={{ textAlign: 'center', width: '360px', maxWidth: '95vw' }}>
-        <h3 style={{ marginBottom: '12px' }}>Connect from another device</h3>
+    <div class="modal-overlay on" id="connectModal" onClick={(e: any) => e.target === e.currentTarget && onClose()}>
+      <div class="modal-dialog" style={{ textAlign: 'center', maxWidth: '360px' }}>
+        <div class="modal-header"><h2>Connect from another device</h2></div>
         
         {/* Network access toggle */}
         <div class="rm-row" onClick={toggleNetworkAccess} style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}>
@@ -137,7 +147,7 @@ export const ConnectModal = ({ onClose }: Props) => {
             {networkEnabled && (() => {
               if (verify.checking) return <div style={{ fontSize: '0.7rem', color: 'var(--tx3)', marginBottom: '8px' }}>Verifying…</div>;
               if (verify.ok) return <div style={{ fontSize: '0.7rem', color: '#4ade80', marginBottom: '8px' }}>✓ Remote URL verified</div>;
-              if (verify.error) return <div style={{ fontSize: '0.7rem', color: '#f87171', marginBottom: '8px' }}>✗ {verify.error}</div>;
+              if (verify.error) return <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginBottom: '8px' }}>✗ {verify.error}</div>;
               return null;
             })()}
           </div>

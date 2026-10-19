@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from 'preact/hooks';
+﻿import { useState, useEffect, useMemo } from 'preact/hooks';
+import { updatePrefs } from '../../store';
 
 interface Site {
   url: string;
@@ -47,8 +48,8 @@ export const SearchSitesView = () => {
         fetch('/api/websites/starred').then(r => r.json()),
         fetch('/api/settings/prefs').then(r => r.json()),
       ]);
-      setSites(sitesRes);
-      setStarredUrls(new Set(starredRes));
+      setSites(Array.isArray(sitesRes) ? sitesRes : []);
+      setStarredUrls(new Set(Array.isArray(starredRes) ? starredRes : []));
       setTrackingDisabled(!!prefsRes.disableSearchTracking);
     } catch (e) {
       console.error(e);
@@ -65,7 +66,7 @@ export const SearchSitesView = () => {
   };
 
   const saveHistory = (newHist: HistoryItem[]) => {
-    localStorage.setItem('ss_history', JSON.stringify(newHist));
+    try { localStorage.setItem('ss_history', JSON.stringify(newHist)); } catch {}
     setHistory(newHist);
   };
 
@@ -84,6 +85,7 @@ export const SearchSitesView = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       }).then(r => r.json());
+      if (!Array.isArray(res.urls)) throw new Error();
       setStarredUrls(new Set(res.urls));
     } catch {
       const newStarred = new Set(starredUrls);
@@ -137,18 +139,18 @@ export const SearchSitesView = () => {
     window.open(url, '_blank');
   };
 
-  const starredScrapable = sites.filter(s => s.scrapeMethod && starredUrls.has(s.url));
-  
+  const starredScrapable = useMemo(() => sites.filter(s => s.scrapeMethod && starredUrls.has(s.url)), [sites, starredUrls]);
+
   useEffect(() => {
     if (starredScrapable.length > 0 && !activeSite) {
       setActiveSite(starredScrapable[0]);
     }
   }, [starredScrapable, activeSite]);
 
-  const filteredSites = sites.filter(s => s.searchURL);
-  const starredSites = filteredSites.filter(s => starredUrls.has(s.url));
-  const unstarredSites = filteredSites.filter(s => !starredUrls.has(s.url));
-  const sortedSites = [...starredSites, ...unstarredSites];
+  const sortedSites = useMemo(() => {
+    const filteredSites = sites.filter(s => s.searchURL);
+    return [...filteredSites.filter(s => starredUrls.has(s.url)), ...filteredSites.filter(s => !starredUrls.has(s.url))];
+  }, [sites, starredUrls]);
 
   return (
     <div className="search-sites-view on">
@@ -179,7 +181,7 @@ export const SearchSitesView = () => {
             />
           </div>
           {tab === 'cards' && (
-            <button className="btn-primary" onClick={doSearch} style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '0.75rem' }}>Search</button>
+            <button className="ui-btn ui-btn--primary ui-btn--sm" onClick={doSearch} disabled={searching} style={{ borderRadius: '999px' }}>Search</button>
           )}
         </div>
       </div>
@@ -277,7 +279,13 @@ export const SearchSitesView = () => {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
             <button className="ss-hist-ctrl-btn" onClick={() => saveHistory([])} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}>Clear all</button>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--tx2)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={trackingDisabled} onChange={(e: any) => { setTrackingDisabled(e.target.checked); if(e.target.checked) saveHistory([]); }} />
+              <input type="checkbox" checked={trackingDisabled} onChange={(e: any) => {
+                const off = e.target.checked;
+                setTrackingDisabled(off);
+                if (off) saveHistory([]);
+                // Persist so the choice survives a remount (it was loaded from prefs).
+                updatePrefs({ disableSearchTracking: off }).catch(() => {});
+              }} />
               Disable tracking
             </label>
           </div>

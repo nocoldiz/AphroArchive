@@ -36,6 +36,7 @@ let _thumbs     = null;
 let _actors          = null;
 let _folderMappings  = null;
 let _channels         = null;
+let _prefsRaw;   // raw prefs JSON cache: undefined = not loaded, null = no row
 // FTS5 full-text index state (declared here so the DB init block — which runs
 // at module load — can touch it before the helper section below is reached).
 let _ftsDirty = true;
@@ -168,6 +169,20 @@ function ensureSchema(database) {
     CREATE TABLE IF NOT EXISTS visual_hashes (
       video_id TEXT PRIMARY KEY,
       hash TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS stash_ids (
+      video_id TEXT PRIMARY KEY,
+      oshash TEXT,
+      phash TEXT,
+      md5 TEXT,
+      size INTEGER,
+      mtime INTEGER,
+      duration REAL,
+      status TEXT,
+      scenes TEXT,
+      error TEXT,
+      checked_at INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS prompts (
@@ -337,6 +352,9 @@ function ensureSchema(database) {
   try { database.exec('ALTER TABLE links ADD COLUMN vault INTEGER DEFAULT 0'); } catch {}
   try { database.exec('ALTER TABLE videos ADD COLUMN language TEXT'); } catch {}
   try { database.exec('ALTER TABLE videos ADD COLUMN reencoded INTEGER DEFAULT 0'); } catch {}
+  // Manual chapters (JSON array) — previously lived only in the in-memory cache
+  // and vanished on restart.
+  try { database.exec('ALTER TABLE videos ADD COLUMN chapters TEXT'); } catch {}
   try { database.exec('ALTER TABLE media_index ADD COLUMN cat_path TEXT'); } catch {}
   try { database.exec('ALTER TABLE media_index ADD COLUMN title TEXT'); } catch {}
   try { database.exec('ALTER TABLE media_index ADD COLUMN note TEXT'); } catch {}
@@ -353,6 +371,7 @@ function _clearCaches() {
   _actors          = null;
   _folderMappings  = null;
   _channels         = null;
+  _prefsRaw         = undefined;
   _ftsDirty         = true;
 }
 
@@ -559,7 +578,7 @@ function saveFavs(f) {
   try {
     txn(() => {
       db.prepare('DELETE FROM favourites').run();
-      const insert = db.prepare('INSERT INTO favourites (video_id) VALUES (?)');
+      const insert = db.prepare('INSERT OR IGNORE INTO favourites (video_id) VALUES (?)'); // dup ids must not roll back the whole save
       for (const id of f) {
         insert.run(id);
       }
@@ -589,7 +608,7 @@ function saveHistory(h) {
   try {
     txn(() => {
       db.prepare('DELETE FROM history').run();
-      const insert = db.prepare('INSERT INTO history (video_id, timestamp) VALUES (?, ?)');
+      const insert = db.prepare('INSERT OR IGNORE INTO history (video_id, timestamp) VALUES (?, ?)'); // first (newest) wins on dup ids
       let ts = Date.now();
       for (const id of h) {
         insert.run(id, ts--); // Use decreasing timestamps to maintain order
@@ -602,10 +621,17 @@ function saveHistory(h) {
 
 // ── Prefs ────────────────────────────────────────────────────────────
 
+// loadPrefs() runs on hot paths (every remote request's network guard, every
+// safePath() miss, every stream). Cache the raw JSON so each call skips the
+// SQLite query; still parse per call so callers can mutate their copy freely.
+// Only savePrefs() writes the 'prefs' row.
 function loadPrefs() {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('prefs');
-    return row ? JSON.parse(row.value) : {};
+    if (_prefsRaw === undefined) {
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('prefs');
+      _prefsRaw = row ? row.value : null;
+    }
+    return _prefsRaw ? JSON.parse(_prefsRaw) : {};
   } catch (e) {
     console.error('Failed to load prefs from SQLite:', e);
     return {};
@@ -613,9 +639,12 @@ function loadPrefs() {
 }
 
 function savePrefs(p) {
+  const raw = JSON.stringify(p);
   try {
-    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('prefs', JSON.stringify(p));
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('prefs', raw);
+    _prefsRaw = raw;
   } catch (e) {
+    _prefsRaw = undefined;
     console.error('Failed to save prefs to SQLite:', e);
   }
 }
@@ -668,12 +697,29 @@ function saveRatings(r) { fs.writeFileSync(RATINGS_FILE, JSON.stringify(r)); }
 
 // ── Video meta ───────────────────────────────────────────────────────
 
+function _parseChapters(raw) {
+  if (!raw) return undefined;
+  try { const c = JSON.parse(raw); return Array.isArray(c) ? c : undefined; } catch { return undefined; }
+}
+
 function _readVideoMetaFromDb(database) {
   const out = {};
   const rows = database.prepare('SELECT * FROM videos').all();
-  const getActors = database.prepare('SELECT actor FROM video_actors WHERE video_id = ?');
-  const getTags = database.prepare('SELECT tag FROM video_tags WHERE video_id = ?');
+  // Two bulk reads grouped in JS instead of 2 queries per video (N+1).
+  // ORDER BY matches the PK index order the per-video lookups returned.
+  const group = (sql, col) => {
+    const m = new Map();
+    for (const r of database.prepare(sql).all()) {
+      let a = m.get(r.video_id);
+      if (!a) { a = []; m.set(r.video_id, a); }
+      a.push(r[col]);
+    }
+    return m;
+  };
+  const actorsBy = group('SELECT video_id, actor FROM video_actors ORDER BY video_id, actor', 'actor');
+  const tagsBy   = group('SELECT video_id, tag FROM video_tags ORDER BY video_id, tag', 'tag');
   for (const row of rows) {
+    const chapters = _parseChapters(row.chapters);
     out[row.id] = {
       title: row.title || '',
       channel: row.channel || '',
@@ -683,8 +729,9 @@ function _readVideoMetaFromDb(database) {
       date: row.date || '',
       language: row.language || '',
       reencoded: row.reencoded ? 1 : 0,
-      actors: getActors.all(row.id).map(r => r.actor),
-      tags: getTags.all(row.id).map(r => r.tag)
+      actors: actorsBy.get(row.id) || [],
+      tags: tagsBy.get(row.id) || [],
+      ...(chapters ? { chapters } : {}),
     };
   }
   return out;
@@ -759,12 +806,13 @@ function saveVideoMeta(m) {
       db.prepare('DELETE FROM video_tags').run();
       db.prepare('DELETE FROM videos').run();
 
-      const insertVideo = db.prepare('INSERT INTO videos (id, title, channel, category, rating, note, date, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+      // reencoded + chapters included: the full rewrite used to drop both.
+      const insertVideo = db.prepare('INSERT INTO videos (id, title, channel, category, rating, note, date, language, reencoded, chapters) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       const insertActor = db.prepare('INSERT INTO video_actors (video_id, actor) VALUES (?, ?)');
       const insertTag = db.prepare('INSERT INTO video_tags (video_id, tag) VALUES (?, ?)');
 
       for (const [id, data] of Object.entries(m)) {
-        insertVideo.run(id, data.title || '', data.channel || '', data.category || '', data.rating || null, data.note || '', data.date || '', data.language || '');
+        insertVideo.run(id, data.title || '', data.channel || '', data.category || '', data.rating || null, data.note || '', data.date || '', data.language || '', data.reencoded ? 1 : 0, _chaptersJson(data.chapters));
         if (Array.isArray(data.actors)) {
           for (const actor of [...new Set(data.actors)]) insertActor.run(id, actor);
         }
@@ -779,6 +827,29 @@ function saveVideoMeta(m) {
   }
 }
 
+function _chaptersJson(ch) {
+  return Array.isArray(ch) && ch.length ? JSON.stringify(ch) : null;
+}
+
+// Re-key one video's metadata (file rename/move) without the full-table
+// rewrite saveVideoMeta() does — that was O(library) per moved file, and
+// O(library × moves) for categorizer batches.
+function moveVideoMeta(oldId, newId, fields = {}) {
+  if (!oldId || !newId || oldId === newId) return;
+  const meta = loadVideoMeta();
+  if (!meta[oldId]) return;
+  const entry = { ...meta[oldId], ...fields };
+  delete meta[oldId];
+  try {
+    txn(() => {
+      db.prepare('DELETE FROM video_actors WHERE video_id = ?').run(oldId);
+      db.prepare('DELETE FROM video_tags WHERE video_id = ?').run(oldId);
+      db.prepare('DELETE FROM videos WHERE id = ?').run(oldId);
+    });
+  } catch (e) { console.error('Failed to move video meta:', e); }
+  setVideoMetaFields(newId, { ...entry, actors: entry.actors || [], tags: entry.tags || [] });
+}
+
 function setVideoMetaFields(id, fields) {
   _notifyVideoMetaChanged();
   const meta = loadVideoMeta();
@@ -788,9 +859,9 @@ function setVideoMetaFields(id, fields) {
 
   try {
     txn(() => {
-      const stmt = db.prepare('INSERT INTO videos (id, title, channel, category, rating, note, date, language, reencoded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, channel=excluded.channel, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date, language=excluded.language, reencoded=excluded.reencoded');
+      const stmt = db.prepare('INSERT INTO videos (id, title, channel, category, rating, note, date, language, reencoded, chapters) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, channel=excluded.channel, category=excluded.category, rating=excluded.rating, note=excluded.note, date=excluded.date, language=excluded.language, reencoded=excluded.reencoded, chapters=excluded.chapters');
       const current = meta[id];
-      stmt.run(id, current.title || '', current.channel || '', current.category || '', current.rating || null, current.note || '', current.date || '', current.language || '', current.reencoded ? 1 : 0);
+      stmt.run(id, current.title || '', current.channel || '', current.category || '', current.rating || null, current.note || '', current.date || '', current.language || '', current.reencoded ? 1 : 0, _chaptersJson(current.chapters));
 
       if (fields.actors) {
         db.prepare('DELETE FROM video_actors WHERE video_id = ?').run(id);
@@ -1258,6 +1329,46 @@ function setVisualHash(videoId, hash) {
   } catch (e) { console.error('Failed to set visual hash:', e); }
 }
 
+// ── Stash-box identification (identify-server.js) ────────────────────
+
+function loadStashIds() {
+  try {
+    const out = {};
+    for (const r of db.prepare('SELECT * FROM stash_ids').all()) {
+      let scenes = [];
+      try { scenes = JSON.parse(r.scenes || '[]'); } catch { }
+      out[r.video_id] = {
+        oshash: r.oshash || '', phash: r.phash || '', md5: r.md5 || '',
+        size: r.size, mtime: r.mtime, duration: r.duration,
+        status: r.status, scenes, error: r.error || '', checkedAt: r.checked_at,
+      };
+    }
+    return out;
+  } catch (e) { console.error('Failed to load stash ids:', e); return {}; }
+}
+
+function setStashId(videoId, e) {
+  try {
+    db.prepare(`INSERT INTO stash_ids (video_id, oshash, phash, md5, size, mtime, duration, status, scenes, error, checked_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(video_id) DO UPDATE SET oshash=excluded.oshash, phash=excluded.phash, md5=excluded.md5, size=excluded.size,
+        mtime=excluded.mtime, duration=excluded.duration, status=excluded.status, scenes=excluded.scenes, error=excluded.error, checked_at=excluded.checked_at`)
+      .run(videoId, e.oshash || null, e.phash || null, e.md5 || null, e.size ?? null, e.mtime ?? null, e.duration ?? null,
+        e.status || '', JSON.stringify(e.scenes || []), e.error || '', Date.now());
+  } catch (err) { console.error('Failed to set stash id:', err); }
+}
+
+// Keeps a video's identification when its file is renamed or moved (new id).
+function moveStashId(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) return;
+  try {
+    txn(() => {
+      db.prepare('DELETE FROM stash_ids WHERE video_id = ?').run(newId);
+      db.prepare('UPDATE stash_ids SET video_id = ? WHERE video_id = ?').run(newId, oldId);
+    });
+  } catch (e) { console.error('Failed to move stash id:', e); }
+}
+
 function saveVisualHashes(hashes) {
   try {
     txn(() => {
@@ -1647,6 +1758,7 @@ function getSingleVideoMeta(id) {
     if (!row) return null;
     const actors = db.prepare('SELECT actor FROM video_actors WHERE video_id = ?').all(id).map(r => r.actor);
     const tags = db.prepare('SELECT tag FROM video_tags WHERE video_id = ?').all(id).map(r => r.tag);
+    const chapters = _parseChapters(row.chapters);
     return {
       title: row.title || '',
       channel: row.channel || '',
@@ -1655,6 +1767,8 @@ function getSingleVideoMeta(id) {
       note: row.note || '',
       date: row.date || '',
       language: row.language || '',
+      reencoded: row.reencoded ? 1 : 0,
+      ...(chapters ? { chapters } : {}),
       actors,
       tags
     };
@@ -2109,7 +2223,7 @@ module.exports = {
   loadHistory, saveHistory,
   loadPrefs, savePrefs, getDefaultWriteRoot, resolveCategoryPhysicalPath,
   loadRatings, saveRatings,
-  loadVideoMeta, saveVideoMeta, setVideoMetaFields, deleteVideoMetaEverywhere,
+  loadVideoMeta, saveVideoMeta, setVideoMetaFields, moveVideoMeta, deleteVideoMetaEverywhere,
   loadThumbsCache, saveThumbsCache, setThumbCacheEntry,
   loadVaultConfig, saveVaultConfig, loadVaultMeta, saveVaultMeta, setVaultKey,
   loadCollections, saveCollections,
@@ -2123,6 +2237,7 @@ module.exports = {
   loadActors, saveActors, loadFolderMappings, saveFolderMappings, loadChannels, saveChannels, invalidateDbTypeCache, upsertChannelEntry,
   loadEnabledFolders, saveEnabledFolders,
   loadVisualHashes, setVisualHash, saveVisualHashes,
+  loadStashIds, setStashId, moveStashId,
   loadPrompts, savePrompt, updatePrompt, deletePrompt, deleteAllPrompts, reEncryptVaultSqlite,
   readDbFile, writeDbFile,
   loadVideoIndex, saveVideoIndex, clearVideoIndex, getVideoIndexEntry, getSingleVideoMeta,

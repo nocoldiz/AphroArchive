@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import { selectedVideoIds, videoSelMode } from '../store';
 
 export function useVideoSelection(gridRef: { current: HTMLDivElement | null }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const draggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -26,29 +26,39 @@ export function useVideoSelection(gridRef: { current: HTMLDivElement | null }) {
       videoSelMode.value = true;
     };
 
+    // Shift released while the window was unfocused never fires keyup —
+    // without this, hovering cards kept adding them to the selection.
+    const handleBlur = () => { (window as any).shiftKeyPressed = false; };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     document.addEventListener('mouseover', handleMouseOver);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
       document.removeEventListener('mouseover', handleMouseOver);
     };
   }, []);
 
   useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-
+    // Listen on the document and check containment at event time: the grid
+    // element doesn't exist on first mount (skeleton while loading) and the
+    // ref object never changes, so binding to `gridRef.current` here left
+    // drag-select dead after the initial load. Drag state lives in refs so the
+    // listeners are bound once instead of on every drag start/stop.
     const handleMouseDown = (e: MouseEvent) => {
+      const grid = gridRef.current;
+      if (!grid || !grid.contains(e.target as Node)) return;
       if (!e.shiftKey && !videoSelMode.value) return;
       if (e.button !== 0) return;
       if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.card-actions')) return;
 
       e.preventDefault();
-      setIsDragging(true);
-      setDragStart({ x: e.clientX, y: e.clientY });
+      draggingRef.current = true;
+      dragStartRef.current = { x: e.clientX, y: e.clientY };
 
       const box = document.getElementById('videoDragBox');
       if (box) {
@@ -61,7 +71,8 @@ export function useVideoSelection(gridRef: { current: HTMLDivElement | null }) {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+      if (!draggingRef.current) return;
+      const dragStart = dragStartRef.current;
 
       const x = Math.min(e.clientX, dragStart.x);
       const y = Math.min(e.clientY, dragStart.y);
@@ -97,20 +108,20 @@ export function useVideoSelection(gridRef: { current: HTMLDivElement | null }) {
     };
 
     const handleMouseUp = () => {
-      if (!isDragging) return;
-      setIsDragging(false);
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
       const box = document.getElementById('videoDragBox');
       if (box) box.style.display = 'none';
     };
 
-    grid.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
-      grid.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, gridRef]);
+  }, [gridRef]);
 }

@@ -271,15 +271,16 @@ export function App() {
           flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: '16px', backdropFilter: 'blur(6px)',
         }}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#e84040" strokeWidth="1.5">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="1.5">
             <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
           </svg>
           <div style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 700 }}>Connection lost</div>
           <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem' }}>The server stopped responding. Reconnecting…</div>
           <button
             type="button"
+            className="ui-btn ui-btn--primary"
             onClick={() => window.location.reload()}
-            style={{ marginTop: '8px', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '9px 22px', fontSize: '14px', cursor: 'pointer', fontWeight: 600 }}
+            style={{ marginTop: '8px' }}
           >
             Reload
           </button>

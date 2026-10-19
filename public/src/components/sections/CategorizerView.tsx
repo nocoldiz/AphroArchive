@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'preact/hooks';
+import { useState, useRef, useEffect, useMemo } from 'preact/hooks';
 import { allVideos, folders, loadFolders, loadVideos } from '../../store';
 import { Video } from '../../types';
 
@@ -34,7 +34,7 @@ function matchScore(target: string, query: string): number {
 // categorizer-server.js so downloads / auto-sort file videos the same way).
 type Move = {
   id: string; name: string; fromPath: string; toPath: string;
-  score: number; term: string; how: 'name' | 'metadata' | 'learned';
+  score: number; term: string; how: 'name' | 'tag' | 'metadata' | 'learned';
 };
 
 // 'auto'  → file videos sitting in the media root into the best nested folder.
@@ -43,7 +43,7 @@ type PlanMode = 'auto' | 'recat';
 type Plan = { mode: PlanMode; stage: 'scope' | 'loading' | 'preview' | 'error'; moves: Move[]; error?: string };
 
 const HOW_LABEL: Record<Move['how'], string> = {
-  name: 'name match', metadata: 'metadata match', learned: 'learned from folder',
+  name: 'folder name match', tag: 'category keyword match', metadata: 'metadata match', learned: 'learned from folder',
 };
 
 
@@ -101,7 +101,9 @@ export const CategorizerView = () => {
 
   // The categorizer files videos into folders; links are tag-sorted, not
   // foldered, so they never appear here.
-  const localVids = allVids.filter(v => !v.isLink);
+  const localVids = useMemo(() => allVids.filter(v => !v.isLink), [allVids]);
+  // id → video, for the drag checks that run on every dragover event
+  const vidById = useMemo(() => new Map(allVids.map(v => [v.id, v])), [allVids]);
 
   // Apply the global filter (improved relevance match) and drop non-matches.
   const applyGlobal = (vids: Video[]): Video[] => {
@@ -202,7 +204,7 @@ export const CategorizerView = () => {
       const targetCat = getCat(targetSide);
       if (targetCat) {
         const allSame = ids.every(id => {
-          const v = allVids.find(v => v.id === id);
+          const v = vidById.get(id);
           return v && (v.catPath || '') === targetCat;
         });
         if (allSame) return false;
@@ -258,7 +260,7 @@ export const CategorizerView = () => {
     const targetCat = getCat(targetSide);
     if (targetCat) {
       const allAlreadyThere = ids.every(id => {
-        const v = allVids.find(v => v.id === id);
+        const v = vidById.get(id);
         return v && (v.catPath || '') === targetCat;
       });
       if (allAlreadyThere) return;
@@ -294,7 +296,8 @@ export const CategorizerView = () => {
       parentParts[parentParts.length - 1] = newName;
       const newPath = parentParts.join('/');
       allVideos.value = allVids.map(v => {
-        if ((v.catPath || '').startsWith(oldPath)) {
+        const cp = v.catPath || '';
+        if (cp === oldPath || cp.startsWith(oldPath + '/')) {
           return { ...v, catPath: v.catPath?.replace(oldPath, newPath), category: v.category?.replace(oldPath.split('/').pop()!, newName) };
         }
         return v;
@@ -500,7 +503,7 @@ export const CategorizerView = () => {
                     ✎
                   </button>
                   <button type="button" title="Delete folder" onClick={() => deleteFolder(side)}
-                    style={{ padding: '3px 6px', background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>
+                    style={{ padding: '3px 6px', background: 'none', border: '1px solid var(--brd)', color: 'var(--danger)', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>
                     🗑
                   </button>
                 </>
@@ -791,7 +794,7 @@ export const CategorizerView = () => {
                   <button type="button" title="Rename folder" onClick={() => { setRenameSide('right'); setRenameName(cat.split('/').pop()!); }}
                     style={{ padding: '3px 6px', background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>✎</button>
                   <button type="button" title="Delete folder" onClick={() => deleteFolder('right')}
-                    style={{ padding: '3px 6px', background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>🗑</button>
+                    style={{ padding: '3px 6px', background: 'none', border: '1px solid var(--brd)', color: 'var(--danger)', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }}>🗑</button>
                 </>
               )}
               <button type="button" onClick={() => { setNewFolderSide('right'); setNewFolderName(''); }}
@@ -1095,7 +1098,7 @@ export const CategorizerView = () => {
                 ) : plan.stage === 'loading' ? (
                   <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>Matching video titles against folders…</div>
                 ) : plan.stage === 'error' ? (
-                  <div style={{ textAlign: 'center', color: '#c44', fontSize: '13px' }}>{plan.error}</div>
+                  <div style={{ textAlign: 'center', color: 'var(--danger)', fontSize: '13px' }}>{plan.error}</div>
                 ) : plan.moves.length === 0 ? (
                   <div style={{ textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
                     {plan.mode === 'auto' ? 'No uncategorized video matched a folder.' : 'Every video is already in its best matching folder.'}

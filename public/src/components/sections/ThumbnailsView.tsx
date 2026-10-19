@@ -23,9 +23,14 @@ export const ThumbnailsView = () => {
   useEffect(() => {
     async function init() {
       setLoading(true);
-      await loadThumbnails();
-      if (allVideos.value.length === 0) await loadVideos();
-      setLoading(false);
+      try {
+        await loadThumbnails();
+        if (allVideos.value.length === 0) await loadVideos();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
     }
     init();
   }, []);

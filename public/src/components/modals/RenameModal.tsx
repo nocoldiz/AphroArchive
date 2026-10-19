@@ -1,27 +1,36 @@
 import { useState, useEffect } from 'preact/hooks';
 import { renameModalState, videos, allVideos, currentVideo } from '../../store';
 import { renameVideo } from '../../api';
+import { useEscape } from './useEscape';
 
 export const RenameModal = () => {
   const state = renameModalState.value;
   const [name, setName] = useState(state.currentName);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
+  // Reset on every open, not only when the name changes — reopening for the
+  // same video previously kept the half-typed name and the old error.
   useEffect(() => {
+    if (!state.visible) return;
     setName(state.currentName);
     setError('');
-  }, [state.currentName]);
+    setSaving(false);
+  }, [state.visible, state.vidId, state.currentName]);
+
+  const handleClose = () => {
+    renameModalState.value = { ...renameModalState.value, visible: false };
+  };
+
+  useEscape(state.visible, () => { if (!saving) handleClose(); });
 
   if (!state.visible) return null;
 
-  const handleClose = () => {
-    renameModalState.value = { ...state, visible: false };
-  };
-
   const handleSave = async () => {
     const trimmedName = name.trim();
-    if (!trimmedName) return;
+    if (!trimmedName || saving) return;
 
+    setSaving(true);
     try {
       if (state.vidId) {
         const res = await renameVideo(state.vidId, trimmedName);
@@ -51,26 +60,29 @@ export const RenameModal = () => {
       handleClose();
     } catch (e: any) {
       setError(e.message || 'Failed to rename');
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div className="modal-overlay on" onClick={(e: any) => e.target === e.currentTarget && handleClose()} style={{ zIndex: 20000 }}>
-      <div className="modal-content" style={{ background: 'var(--bg2)', padding: '20px', borderRadius: '8px', width: '400px' }}>
-        <h3 style={{ marginTop: 0 }}>Rename</h3>
+    <div className="modal-overlay on" onClick={(e: any) => e.target === e.currentTarget && !saving && handleClose()} style={{ zIndex: 20000 }}>
+      <div className="modal-dialog" style={{ maxWidth: '400px' }}>
+        <div className="modal-header"><h2>Rename</h2></div>
         <input
           type="text"
           value={name}
           onInput={(e: any) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSave()}
           placeholder="New name..."
-          style={{ width: '100%', padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px' }}
           autoFocus
         />
-        {error && <div style={{ color: '#e84040', fontSize: '0.8rem', marginTop: '4px' }}>{error}</div>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-          <button onClick={handleClose} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={handleSave} style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Save</button>
+        {error && <div className="modal-error" style={{ display: 'block' }}>{error}</div>}
+        <div className="modal-footer">
+          <button className="modal-btn" onClick={handleClose} disabled={saving}>Cancel</button>
+          <button className="modal-btn modal-btn--primary" onClick={handleSave} disabled={saving || !name.trim()}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
         </div>
       </div>
     </div>

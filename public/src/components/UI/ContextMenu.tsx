@@ -33,9 +33,10 @@ export const ContextMenu = () => {
     };
   }, [visible]);
 
-  if (!visible && !showEncryptConfirm && !showEncryptVideoConfirm && !showUnlockModal && !showSubfoldersModal) return null;
+  // Stop a pending encryption-completion poller on unmount.
+  useEffect(() => () => clearInterval(encryptPollRef.current), []);
 
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  if (!visible && !showEncryptConfirm && !showEncryptVideoConfirm && !showUnlockModal && !showSubfoldersModal) return null;
 
   const refresh = () => {
     const w = window as any;
@@ -350,6 +351,7 @@ export const ContextMenu = () => {
   // Poll only to detect completion — the cards are already faded out, so there's
   // no per-tick list churn (the old "constant reload"). Hide them all at the end.
   const startEncryptPoller = (affected: Set<string>) => {
+    clearInterval(encryptPollRef.current); // never stack pollers on a repeat encrypt
     encryptPollRef.current = setInterval(async () => {
       try {
         const r = await fetch('/api/encryption/status');
@@ -486,7 +488,7 @@ export const ContextMenu = () => {
             {data.encrypted ? (
               <ContextItem label="Restore to Profile" icon="lock" onClick={handleUnlock} />
             ) : data.partial ? (
-              <ContextItem label="Finish Encryption" icon="lock" onClick={handleEncrypt} color="#e84040" />
+              <ContextItem label="Finish Encryption" icon="lock" onClick={handleEncrypt} color="var(--danger)" />
             ) : (
               <ContextItem label="Encrypt" icon="lock" onClick={handleEncrypt} />
             )}
@@ -504,12 +506,16 @@ export const ContextMenu = () => {
               const r = await fetch(`/api/favourites/${data.id}`, { method: 'POST' });
               const d = await r.json();
 
-              const currentVideos = [...videos.value];
-              const idx = currentVideos.findIndex(v => v.id === data.id);
-              if (idx !== -1) {
-                currentVideos[idx] = { ...currentVideos[idx], fav: d.fav };
-                videos.value = currentVideos;
-              }
+              // Patch both lists — allVideos feeds home widgets, search and tag views.
+              const patchFav = (list: typeof videos.value) => {
+                const idx = list.findIndex(v => v.id === data.id);
+                if (idx === -1) return list;
+                const next = [...list];
+                next[idx] = { ...next[idx], fav: d.fav };
+                return next;
+              };
+              videos.value = patchFav(videos.value);
+              allVideos.value = patchFav(allVideos.value);
 
               const w = window as any;
               if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
@@ -548,7 +554,7 @@ export const ContextMenu = () => {
                 setShowEncryptVideoConfirm(true);
               });
             }} />
-            <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
+            <ContextItem label="Delete" icon="trash" color="var(--danger)" onClick={async () => {
               if (!confirm(`Delete video "${data.name}" from disk?\nThis action cannot be undone.`)) return;
               const r = await fetch(`/api/videos/${data.id}`, { method: 'DELETE' });
               if (r.ok) {
@@ -661,7 +667,7 @@ export const ContextMenu = () => {
             )}
             <div className="ctx-sep" style={{ height: '1px', background: 'var(--brd)', margin: '5px 0' }} />
             <ContextItem label="Rename Tag" icon="edit" onClick={handleRenameTag} />
-            <ContextItem label="Remove from all videos" icon="trash" color="#ff4a4a" onClick={handleDeleteTag} />
+            <ContextItem label="Remove from all videos" icon="trash" color="var(--danger)" onClick={handleDeleteTag} />
           </>
         )}
         {type === 'text-selection' && (() => {
@@ -669,7 +675,15 @@ export const ContextMenu = () => {
           const short = text.length > 30 ? text.slice(0, 30) + '…' : text;
           const addEntry = async (dbType: 'actors' | 'channels', label: string) => {
             closeMenu();
-            const r = await fetch(`/api/db/${dbType}/upsert`, {
+            // Upsert replaces the whole entry, so never re-add an existing name
+            // (that would wipe its stored details).
+            const existing = await fetch(`/api/db/${dbType}`).then(r => r.json()).catch(() => null);
+            if (existing && typeof existing === 'object' && Object.prototype.hasOwnProperty.call(existing, text)) {
+              toast(`${label[0].toUpperCase() + label.slice(1)} "${short}" already exists`);
+              return;
+            }
+            // Route is POST /api/db/:type (there is no /upsert suffix).
+            const r = await fetch(`/api/db/${dbType}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ name: text, data: {} }),
@@ -696,7 +710,7 @@ export const ContextMenu = () => {
               }} />
             )}
             {data.onDelete && (
-              <ContextItem label="Delete" icon="trash" color="#ff4a4a" onClick={async () => {
+              <ContextItem label="Delete" icon="trash" color="var(--danger)" onClick={async () => {
                 await data.onDelete();
                 contextMenuState.value = { ...contextMenuState.value, visible: false };
               }} />
@@ -801,7 +815,7 @@ const ContextItem = ({ label, icon, onClick, color }: { label: string, icon: str
     padding: '8px 15px',
     cursor: 'pointer',
     fontSize: '0.9rem',
-    color: color || 'var(--text)'
+    color: color || 'var(--tx)'
   }}>
     <i className={`icon-${icon}`} style={{ width: '14px' }} />
     <span>{label}</span>

@@ -9,7 +9,7 @@ const http  = require('http');
 const https = require('https');
 const url   = require('url');
 const { ACTOR_PHOTOS_DIR } = require('./config-server');
-const { json, actorMatchesAny, toId } = require('./helpers-server');
+const { json, actorMatches, actorMatchesAny, toId } = require('./helpers-server');
 const { loadActors, saveActors, loadVideoMeta, loadFavs, invalidateDbTypeCache } = require('./db-server');
 const { allVideos } = require('./videos-server');
 
@@ -24,8 +24,12 @@ function httpsGet(reqUrl, headers) {
     const urlObj = new URL(reqUrl);
     const client = reqUrl.startsWith('https') ? https : http;
     client.get(urlObj, { headers }, res => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
-        return resolve(httpsGet(res.headers.location, headers));
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        let next;
+        try { next = new URL(res.headers.location, reqUrl).href; } catch (e) { return reject(e); }
+        return resolve(httpsGet(next, headers));
+      }
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => resolve({ status: res.statusCode, body: data, headers: res.headers }));
@@ -39,21 +43,28 @@ function httpsGetStream(reqUrl, headers, dest, allowedTypes) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(reqUrl);
     const client = reqUrl.startsWith('https') ? https : http;
+    // Close the file on every failure path so the caller can unlink it (Windows).
+    const fail = (err) => { try { dest.destroy(); } catch {} reject(err); };
+    dest.on('error', reject); // e.g. open failure before the response arrives
     client.get(urlObj, { headers }, res => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location)
-        return resolve(httpsGetStream(res.headers.location, headers, dest, allowedTypes));
-      if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        let next;
+        try { next = new URL(res.headers.location, reqUrl).href; } catch (e) { return fail(e); }
+        return resolve(httpsGetStream(next, headers, dest, allowedTypes));
+      }
+      if (res.statusCode !== 200) { res.resume(); return fail(new Error('HTTP ' + res.statusCode)); }
       if (allowedTypes) {
         const ct = (res.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
         if (!allowedTypes.has(ct)) {
           res.destroy();
-          return reject(new Error('Unexpected content-type: ' + ct));
+          return fail(new Error('Unexpected content-type: ' + ct));
         }
       }
+      res.on('error', fail);
       res.pipe(dest);
       dest.on('finish', resolve);
-      dest.on('error', reject);
-    }).on('error', reject);
+    }).on('error', fail);
   });
 }
 
@@ -79,12 +90,19 @@ async function apiActors(req, res) {
   const actors = loadActors();
   const videos = await allVideos();
   const meta   = loadVideoMeta();
+  // Lowercase names / tagged actors once instead of per actor×video pair.
+  const prepped = videos.map(v => ({
+    v,
+    name: typeof v.name === 'string' ? v.name.toLowerCase() : v.name,
+    tagged: new Set((meta[v.id]?.actors || []).map(a => String(a).toLowerCase())),
+  }));
   const result = actors
     .map(e => {
-      const matchingVideos = videos.filter(v => {
-        const ma = meta[v.id]?.actors || [];
-        return ma.some(a => a.toLowerCase() === e.name.toLowerCase()) || actorMatchesAny(v.name, e.terms);
-      });
+      const nameLo = e.name.toLowerCase();
+      const matchingVideos = [];
+      for (const p of prepped) {
+        if (p.tagged.has(nameLo) || e.terms.some(t => actorMatches(p.name, t))) matchingVideos.push(p.v);
+      }
       return {
         name: e.name,
         count: matchingVideos.length,
@@ -105,7 +123,7 @@ async function apiActorVideos(req, res, actorName) {
   if (!entry) return json(res, { error: 'Not found' }, 404);
   const videos   = await allVideos();
   const meta     = loadVideoMeta();
-  const favs     = loadFavs();
+  const favs     = new Set(loadFavs());
   const actorLo  = entry.name.toLowerCase();
 
   const parsed = require('url').parse(req.url, true);
@@ -116,7 +134,7 @@ async function apiActorVideos(req, res, actorName) {
       const ma = meta[v.id]?.actors || [];
       return ma.some(a => a.toLowerCase() === actorLo) || actorMatchesAny(v.name, entry.terms);
     })
-    .map(v => ({ ...v, fav: favs.includes(v.id), rating: meta[v.id]?.rating ?? null }));
+    .map(v => ({ ...v, fav: favs.has(v.id), rating: meta[v.id]?.rating ?? null }));
 
   if (fav) list = list.filter(v => v.fav);
 
@@ -161,7 +179,9 @@ async function apiActorPhotoImg(req, res, actorName) {
     if (fs.existsSync(photoPath)) {
       const stat = fs.statSync(photoPath);
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=86400' });
-      fs.createReadStream(photoPath).pipe(res);
+      const rs = fs.createReadStream(photoPath);
+      rs.on('error', () => { try { res.destroy(); } catch {} });
+      rs.pipe(res);
       return;
     }
   }
@@ -252,14 +272,17 @@ async function scrapeAndSaveActorInfo(actorName) {
   invalidateDbTypeCache('actors');
   
   if (info.imageUrl) {
-    const destPath = path.join(ACTOR_PHOTOS_DIR, actorName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '.jpg');
+    const destPath = path.join(ACTOR_PHOTOS_DIR, actorSlug(actorName) + '.jpg');
     if (!fs.existsSync(destPath)) {
       try {
+        fs.mkdirSync(ACTOR_PHOTOS_DIR, { recursive: true });
         const out = fs.createWriteStream(destPath);
         const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
         await httpsGetStream(info.imageUrl, { 'User-Agent': UA, 'Referer': 'https://www.imdb.com/' }, out, ALLOWED_IMAGE_TYPES);
       } catch (e) {
         console.error('Failed to download actor photo', e);
+        // A partial/empty file would be served as the photo and block future retries.
+        try { fs.unlinkSync(destPath); } catch {}
       }
     }
   }
@@ -282,7 +305,7 @@ async function apiActorsScrapeMissing(req, res) {
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
     console.log('Finished background scraping for actors');
-  })();
+  })().catch(e => console.error('[actors] scrape-missing failed:', e));
   
   json(res, { ok: true, count: missing.length });
 }

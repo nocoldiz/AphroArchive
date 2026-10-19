@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { isMuted, cardSize, contextMenuState } from '../../store';
 import { AudioFile, Album } from '../../types';
 
 type MusicTab = 'music' | 'albums' | 'artists';
+
+const COLORS = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+const getColor = (name: string) => { let h = 0; for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h); return COLORS[Math.abs(h) % COLORS.length]; };
 
 // ── Music tab ────────────────────────────────────────────────────────
 
@@ -19,7 +22,7 @@ const MusicTab = ({ curAudio, setCurAudio }: { curAudio: string | null; setCurAu
 
   const load = async () => {
     setLoading(true);
-    try { setAudioFiles(await fetch('/api/audio').then(r => r.json())); }
+    try { const d = await fetch('/api/audio').then(r => r.json()); setAudioFiles(Array.isArray(d) ? d : []); }
     catch { setAudioFiles([]); }
     finally { setLoading(false); }
   };
@@ -28,8 +31,8 @@ const MusicTab = ({ curAudio, setCurAudio }: { curAudio: string | null; setCurAu
 
   const deleteAudio = async (id: string) => {
     if (!confirm('Delete this audio file?')) return;
-    const r = await fetch(`/api/audio/${id}`, { method: 'DELETE' });
-    if (r.ok) { if (curAudio === id) setCurAudio(null); if (w.toast) w.toast('Deleted'); load(); }
+    const r = await fetch(`/api/audio/${id}`, { method: 'DELETE' }).catch(() => null);
+    if (r?.ok) { if (curAudio === id) setCurAudio(null); if (w.toast) w.toast('Deleted'); load(); }
     else if (w.toast) w.toast('Delete failed');
   };
 
@@ -53,11 +56,14 @@ const MusicTab = ({ curAudio, setCurAudio }: { curAudio: string | null; setCurAu
     if (done) { if (w.toast) w.toast(`${done} file${done !== 1 ? 's' : ''} added`); load(); }
   };
 
-  const sorted = [...audioFiles];
-  if (sort === 'name') sorted.sort((a, b) => a.title.localeCompare(b.title));
-  else if (sort === 'size') sorted.sort((a, b) => b.size - a.size);
-  else sorted.sort((a, b) => b.date - a.date);
-  const filtered = query ? sorted.filter(f => f.title.toLowerCase().includes(query.toLowerCase())) : sorted;
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    const list = q ? audioFiles.filter(f => f.title.toLowerCase().includes(q)) : [...audioFiles];
+    if (sort === 'name') list.sort((a, b) => a.title.localeCompare(b.title));
+    else if (sort === 'size') list.sort((a, b) => b.size - a.size);
+    else list.sort((a, b) => b.date - a.date);
+    return list;
+  }, [audioFiles, sort, query]);
 
   const auIcon = (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -76,9 +82,9 @@ const MusicTab = ({ curAudio, setCurAudio }: { curAudio: string | null; setCurAu
           sortOptions={[{ value: 'date', label: 'Date' }, { value: 'name', label: 'Name' }, { value: 'size', label: 'Size' }]}
         >
           <span className="sg-sep" />
-          <div className="ss-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg3)', padding: '2px', borderRadius: '8px' }}>
-            <button type="button" className={`ss-tab ${view === 'card' ? 'on' : ''}`} onClick={() => handleSetView('card')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: view === 'card' ? 'var(--ac)' : 'transparent', color: view === 'card' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>Grid</button>
-            <button type="button" className={`ss-tab ${view === 'list' ? 'on' : ''}`} onClick={() => handleSetView('list')} style={{ padding: '4px 8px', borderRadius: '4px', border: 'none', background: view === 'list' ? 'var(--ac)' : 'transparent', color: view === 'list' ? '#fff' : 'var(--tx2)', cursor: 'pointer', fontSize: '0.75rem' }}>List</button>
+          <div className="ui-tabs">
+            <button type="button" className={`ui-tab${view === 'card' ? ' on' : ''}`} onClick={() => handleSetView('card')}>Grid</button>
+            <button type="button" className={`ui-tab${view === 'list' ? ' on' : ''}`} onClick={() => handleSetView('list')}>List</button>
           </div>
           <span className="sg-sep" />
           <label className="vault-add-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '999px', background: 'var(--bg3)', border: '1px solid var(--brd)', fontSize: '0.75rem' }}>
@@ -90,7 +96,7 @@ const MusicTab = ({ curAudio, setCurAudio }: { curAudio: string | null; setCurAu
 
       <div className={view === 'list' ? 'au-list' : 'au-grid'} style={{ display: view === 'list' ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: view === 'card' ? `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))` : 'none', gap: '12px', padding: '16px 0' }}>
         {loading && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>Loading…</div>}
-        {!loading && filtered.length === 0 && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No audio files found.</div>}
+        {!loading && filtered.length === 0 && <div className="empty-state empty-state--sm" style={{ gridColumn: '1 / -1' }}>No audio files found.</div>}
         {!loading && filtered.map(f => (
           <div key={f.id} className={`${view === 'card' ? 'au-card' : 'au-row'} ${curAudio === f.id ? 'playing' : ''}`}
             onClick={() => setCurAudio(f.id)} onContextMenu={(e) => openCtx(e, f)}
@@ -126,9 +132,10 @@ const AlbumsTab = ({ onPlayTrack }: { onPlayTrack?: (title: string) => void }) =
     fetch('/api/db/albums').then(r => r.json()).then(d => setAlbums(d.albums || [])).catch(() => setAlbums([])).finally(() => setLoading(false));
   }, []);
 
-  const filtered = query
-    ? albums.filter(a => a.name.toLowerCase().includes(query.toLowerCase()) || a.artist.toLowerCase().includes(query.toLowerCase()))
-    : albums;
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return q ? albums.filter(a => a.name.toLowerCase().includes(q) || (a.artist || '').toLowerCase().includes(q)) : albums;
+  }, [albums, query]);
 
   const fmtDur = (s: number | null) => {
     if (!s) return '';
@@ -142,16 +149,13 @@ const AlbumsTab = ({ onPlayTrack }: { onPlayTrack?: (title: string) => void }) =
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
-  const colors = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  const getColor = (name: string) => { let h = 0; for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h); return colors[Math.abs(h) % colors.length]; };
-
   if (loading) return <div style={{ padding: '40px', color: 'var(--tx3)' }}>Loading…</div>;
 
   return (
     <div style={{ padding: '16px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-        <input type="text" value={query} title="Search albums" placeholder="Search albums or artists…" onInput={(e: any) => setQuery(e.target.value)}
-          style={{ flex: 1, maxWidth: 320, padding: '7px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', fontSize: '0.85rem' }} />
+        <input type="text" className="ui-input" value={query} title="Search albums" placeholder="Search albums or artists…" onInput={(e: any) => setQuery(e.target.value)}
+          style={{ flex: 1, maxWidth: 320 }} />
         <span style={{ fontSize: '0.8rem', color: 'var(--tx3)' }}>{filtered.length} album{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
@@ -189,7 +193,7 @@ const AlbumsTab = ({ onPlayTrack }: { onPlayTrack?: (title: string) => void }) =
                       <div key={t.trackNumber} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 16px', borderBottom: i < a.tracks.length - 1 ? '1px solid var(--brd)' : 'none', fontSize: '0.85rem' }}>
                         <span style={{ width: 24, textAlign: 'right', color: 'var(--tx3)', fontSize: '0.75rem', flexShrink: 0 }}>{t.trackNumber}</span>
                         <span style={{ flex: 1, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
-                        {t.duration && <span style={{ color: 'var(--tx3)', fontSize: '0.75rem', flexShrink: 0 }}>{fmtDur(t.duration)}</span>}
+                        {!!t.duration && <span style={{ color: 'var(--tx3)', fontSize: '0.75rem', flexShrink: 0 }}>{fmtDur(t.duration)}</span>}
                       </div>
                     ))}
                   </div>
@@ -213,18 +217,17 @@ const ArtistsTab = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/actors').then(r => r.json()).then(d => setArtists(d)).catch(() => setArtists([])).finally(() => setLoading(false));
+    fetch('/api/actors').then(r => r.json()).then(d => setArtists(Array.isArray(d) ? d : [])).catch(() => setArtists([])).finally(() => setLoading(false));
   }, []);
 
-  const filtered = query ? artists.filter(a => a.name.toLowerCase().includes(query.toLowerCase())) : artists;
-  const colors = ['#e84040','#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
-  const getColor = (n: string) => { let h = 0; for (const c of n) h = c.charCodeAt(0) + ((h << 5) - h); return colors[Math.abs(h) % colors.length]; };
+  const { filtered, withFiles, withoutFiles } = useMemo(() => {
+    const q = query.toLowerCase();
+    const filtered = q ? artists.filter(a => a.name.toLowerCase().includes(q)) : artists;
+    const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+    return { filtered, withFiles: sorted.filter(a => a.count > 0), withoutFiles: sorted.filter(a => a.count === 0) };
+  }, [artists, query]);
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--tx3)' }}>Loading…</div>;
-
-  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
-  const withFiles = sorted.filter(a => a.count > 0);
-  const withoutFiles = sorted.filter(a => a.count === 0);
 
   const renderCard = (a: Artist) => {
     const color = getColor(a.name);
@@ -252,8 +255,8 @@ const ArtistsTab = () => {
   return (
     <div style={{ padding: '16px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-        <input type="text" value={query} title="Search artists" placeholder="Search artists…" onInput={(e: any) => setQuery(e.target.value)}
-          style={{ flex: 1, maxWidth: 320, padding: '7px 12px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', fontSize: '0.85rem' }} />
+        <input type="text" className="ui-input" value={query} title="Search artists" placeholder="Search artists…" onInput={(e: any) => setQuery(e.target.value)}
+          style={{ flex: 1, maxWidth: 320 }} />
         <span style={{ fontSize: '0.8rem', color: 'var(--tx3)' }}>{filtered.length} artist{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
@@ -289,19 +292,14 @@ export const AudioView = () => {
 
   const setTabPersist = (t: MusicTab) => { setTab(t); localStorage.setItem('audioMainTab', t); };
 
-  const tabStyle = (active: boolean) => ({
-    padding: '7px 18px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.88rem', fontWeight: active ? 600 : 400,
-    background: active ? 'var(--ac)' : 'var(--bg3)', color: active ? '#fff' : 'var(--tx2)',
-  });
-
   return (
     <div className="audio-view on">
       {/* Tab bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '16px 0 0', marginBottom: '4px' }}>
+      <div className="ui-tabs" style={{ alignItems: 'center', gap: '6px', padding: '16px 0 0', marginBottom: '4px' }}>
         <h2 style={{ margin: '0 16px 0 0', fontSize: '1.3rem' }}>Music</h2>
-        <button type="button" style={tabStyle(tab === 'music')} onClick={() => setTabPersist('music')}>Files</button>
-        <button type="button" style={tabStyle(tab === 'albums')} onClick={() => setTabPersist('albums')}>Albums</button>
-        <button type="button" style={tabStyle(tab === 'artists')} onClick={() => setTabPersist('artists')}>Artists</button>
+        <button type="button" className={`ui-tab${tab === 'music' ? ' on' : ''}`} onClick={() => setTabPersist('music')}>Files</button>
+        <button type="button" className={`ui-tab${tab === 'albums' ? ' on' : ''}`} onClick={() => setTabPersist('albums')}>Albums</button>
+        <button type="button" className={`ui-tab${tab === 'artists' ? ' on' : ''}`} onClick={() => setTabPersist('artists')}>Artists</button>
       </div>
 
       {tab === 'music' && <MusicTab curAudio={curAudio} setCurAudio={setCurAudio} />}
@@ -317,7 +315,7 @@ export const AudioView = () => {
             </svg>
           </div>
           <audio ref={audioRef} src={`/api/audio/${curAudio}/stream`} controls autoPlay style={{ flex: 1, height: '30px' }} muted={isMuted.value} />
-          <button type="button" onClick={() => setCurAudio(null)} title="Close" style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '4px' }}>
+          <button type="button" className="ui-btn ui-btn--ghost ui-btn--icon" onClick={() => setCurAudio(null)} title="Close">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>

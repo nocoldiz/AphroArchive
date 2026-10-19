@@ -14,12 +14,23 @@ export interface Progress {
 
 type ProgressMap = Record<string, Progress>;
 
+// Parsed once and kept in memory: every grid card reads its progress on
+// render, so re-parsing the blob each time was O(cards × entries) per render.
+let _cache: ProgressMap | null = null;
+
 function read(): ProgressMap {
+  if (_cache) return _cache;
   try {
-    return JSON.parse(localStorage.getItem(KEY) || '{}') || {};
+    _cache = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
   } catch {
-    return {};
+    _cache = {};
   }
+  return _cache!;
+}
+
+// Another tab wrote progress — drop the cache so the next read re-parses.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', e => { if (e.key === KEY || e.key === null) _cache = null; });
 }
 
 function write(m: ProgressMap) {
@@ -29,7 +40,7 @@ function write(m: ProgressMap) {
 }
 
 export function getAllProgress(): ProgressMap {
-  return read();
+  return { ...read() }; // copy: callers must not mutate the cache
 }
 
 export function getProgress(id: string): Progress | null {

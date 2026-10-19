@@ -1,5 +1,5 @@
-import { signal } from '@preact/signals';
-import { allVideos, currentFolder, linkVidIds, currentView, currentVideo } from './store';
+import { signal, effect } from '@preact/signals';
+import { allVideos, currentFolder, currentTag, currentTagTerms, filteredVideos, linkVidIds, currentView, currentVideo } from './store';
 
 // When non-null, refillZapQueue picks from this pool instead of using currentFolder.
 export const zapFilteredPool = signal<any[] | null>(null);
@@ -41,12 +41,12 @@ function getRandomVidForZapping(excludeIds?: Set<string>) {
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
-  const cat = currentFolder.value;
+  const cat = currentFolder.value || '';
   const V = allVideos.value;
   const isStreamable = (v: any) => !v.isLink && !bms.has(v.id) && (!excludeIds || !excludeIds.has(v.id));
 
+  const cl = cat.toLowerCase().replace(/\\/g, '/');
   let list = cat ? V.filter(v => {
-    const cl = cat.toLowerCase().replace(/\\/g, '/');
     const vp = (v.catPath || '').toLowerCase().replace(/\\/g, '/');
     return isStreamable(v) && (vp === cl || vp.startsWith(cl + '/') || v.category === cat);
   }) : V.filter(isStreamable);
@@ -80,7 +80,7 @@ function preloadZapItem(item: ZapQueueItem | undefined) {
   if (!item) return;
   const preload = document.getElementById('zap-preload') as HTMLVideoElement;
   if (!preload) return;
-  const src = item.video.isVault ? '/api/vault/stream/' + item.video.id : '/api/stream/' + item.video.id;
+  const src = item.video.isVault ? '/api/vault/stream/' + item.video.id : (item.video.streamUrl || '/api/stream/' + item.video.id);
   if (preload.dataset.vid === item.video.id) return;
   preload.dataset.vid = item.video.id;
   preload.src = src;
@@ -190,7 +190,45 @@ export function jumpToPrevZap() {
   startZapTimer();
 }
 
+// The videos the sidebar folder/tag selection currently displays, or null when
+// nothing is selected (zap then draws from the whole library).
+function sidebarSelectionPool(): any[] | null {
+  if (!currentFolder.peek() && !currentTag.peek()) return null;
+  const bms = linkVidIds.peek();
+  return filteredVideos.peek().filter(v => !v.isLink && !bms.has(v.id));
+}
+
+// Sidebar folder/tag clicks switch to the browse view. While zapping, keep the
+// zap player up instead and re-draw the queue from the new selection.
+let lastSelection = '';
+function applySidebarSelection() {
+  if (!zapOn.value) return;
+  currentView.value = 'player';
+  const pool = sidebarSelectionPool();
+  if (pool && !pool.length) {
+    toast('No playable videos in this selection');
+    return;
+  }
+  zapFilteredPool.value = pool;
+  zapQueue.value = [];
+  if (pool) setZapQueueFromList(pool);
+  else refillZapQueue();
+  doZapSwitch();
+}
+
+effect(() => {
+  const sel = JSON.stringify([currentFolder.value, currentTag.value, currentTagTerms.value]);
+  if (sel === lastSelection) return;
+  lastSelection = sel;
+  // Let the click handler finish (it sets currentView = 'browse' and other
+  // filters) before taking the view back and reading the filtered list.
+  if (zapOn.peek()) queueMicrotask(applySidebarSelection);
+});
+
 export async function startZapping() {
+  // toggleZapping defers this by 300ms — bail if zapping was stopped meanwhile,
+  // or the preload element would start streaming a video nobody will watch.
+  if (!zapOn.value) return;
   refillZapQueue();
   startZapTimer();
 }
@@ -203,6 +241,10 @@ export function toggleZapping() {
 
   const w = window as any;
   if (w.mosaicOn && w.stopMosaic) w.stopMosaic();
+
+  // Start from what the sidebar folder/tag selection is showing, if any.
+  const pool = sidebarSelectionPool();
+  zapFilteredPool.value = pool && pool.length ? pool : null;
 
   const firstVid = getRandomVidForZapping();
   if (!firstVid) {

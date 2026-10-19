@@ -14,7 +14,7 @@ export const ActorScraperView = () => {
     fetch('/api/actor-photos')
       .then(r => r.json())
       .then(data => {
-        setActors(data);
+        setActors(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -80,7 +80,7 @@ export const ActorScraperView = () => {
             {actors.length} actor{actors.length !== 1 ? 's' : ''} 
             {missing ? ` · ${missing} missing photo${missing !== 1 ? 's' : ''}` : ' · all photos cached'}
           </span>
-          <button className="vault-lock-btn" onClick={scrapeAll}>
+          <button className="ui-btn ui-btn--primary" onClick={scrapeAll}>
             {missing ? `Scrape All Missing (${missing})` : 'Refresh All'}
           </button>
         </div>
@@ -124,11 +124,10 @@ export const ActorScraperView = () => {
                     {a.hasPhoto ? '✓ Cached' : '✗ Missing'}
                   </div>
                 </div>
-                <button 
-                  className="scraper-btn" 
-                  onClick={() => scrape(a.name)} 
+                <button
+                  className="ui-btn ui-btn--sm ui-btn--primary"
+                  onClick={() => scrape(a.name)}
                   disabled={isScraping}
-                  style={{ padding: '4px 10px', fontSize: '0.8rem', borderRadius: '4px', background: isScraping ? 'var(--bg3)' : 'var(--ac)', color: isScraping ? 'var(--tx3)' : '#fff', border: 'none', cursor: isScraping ? 'default' : 'pointer' }}
                 >
                   {isScraping ? 'Scraping…' : (a.hasPhoto ? 'Refresh' : 'Scrape')}
                 </button>

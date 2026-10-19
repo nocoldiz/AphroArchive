@@ -4,7 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { VIDEOS_DIR, THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN } = require('./config-server');
 const { cachedScan, invalidateScanCache } = require('./videos-server');
-const { toId } = require('./helpers-server');
+const { json } = require('./helpers-server');
+const { setThumbCacheEntry } = require('./db-server');
 const { genThumbs } = require('./thumbnails-server');
 const { ensureAutoChaptersForVideo, hasAutoChapters } = require('./auto-chapters-server');
 const { execFile } = require('child_process');
@@ -25,12 +26,10 @@ function setStatus(task, detail = '') {
 }
 
 function apiBackgroundWorkerPoll(req, res) {
-  const { json } = require('./helpers-server');
   json(res, { ..._status, enabled: _workerEnabled });
 }
 
 function apiBackgroundWorkerStart(req, res) {
-  const { json } = require('./helpers-server');
   if (!_workerEnabled) {
     console.log('[Sync] Starting Background Worker');
     _workerEnabled = true;
@@ -42,7 +41,6 @@ function apiBackgroundWorkerStart(req, res) {
 }
 
 function apiBackgroundWorkerStop(req, res) {
-  const { json } = require('./helpers-server');
   if (_workerEnabled) console.log('[Sync] Stopping Background Worker');
   _workerEnabled = false;
   if (_intervalId) { clearInterval(_intervalId); _intervalId = null; }
@@ -101,6 +99,8 @@ async function scanAndProcess() {
     let processedCount = 0;
 
     for (const file of files) {
+      // Stop requested: the run used to keep processing the whole library.
+      if (!_workerEnabled) break;
       const fp = path.join(VIDEOS_DIR, file.rel.replace(/\\/g, path.sep));
       const id = file.id;
 
@@ -110,7 +110,11 @@ async function scanAndProcess() {
         const hasThumbs = fs.existsSync(thumbDir) && fs.readdirSync(thumbDir).some(f => f.endsWith('.jpg'));
         if (!hasThumbs) {
           setStatus('Generating thumbnails', file.rel);
-          await genThumbs(id, fp);
+          const r = await genThumbs(id, fp);
+          // Record it like apiThumbGen does, or the grid regenerates them on first view.
+          if (r && r.duration) {
+            try { setThumbCacheEntry(id, { mtime: fs.statSync(fp).mtimeMs, ...r }); } catch {}
+          }
           processedCount++;
         }
 
@@ -150,6 +154,7 @@ async function scanAndProcess() {
 
     let scrapedAny = false;
     for (const actor of actorsList) {
+      if (!_workerEnabled) break;
       if (actor.age === null && !actor.nationality && !actor.imdb_page) {
         setStatus('Scraping actor info', actor.name);
         const success = await scrapeAndSaveActorInfo(actor.name);

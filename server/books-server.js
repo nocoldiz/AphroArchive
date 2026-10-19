@@ -15,6 +15,11 @@ const { loadBooksMeta, saveBooksMeta, loadMediaIndex } = require('./db-server');
 function bookToId(p) { return toId(p); }
 function bookFromId(id) { return fromId(id); }
 function _invalidate() { try { require('./videos-server').invalidateScanCache(); } catch {} }
+// CBZ page cache dir keyed by book id. The id comes straight from the URL, so
+// only base64url is accepted (a `..` or backslash would escape CACHE_DIR/cbz).
+function _cbzCacheDir(id) {
+  return /^[A-Za-z0-9_-]+$/.test(String(id || '')) ? path.join(CACHE_DIR, 'cbz', id) : null;
+}
 
 // ── HTML → plain text ────────────────────────────────────────────────
 
@@ -46,7 +51,9 @@ function fetchUrl(rawUrl, redirects = 0) {
     const req  = mod.get(rawUrl, opts, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
-        return resolve(fetchUrl(res.headers.location, redirects + 1));
+        let next;
+        try { next = new URL(res.headers.location, rawUrl).href; } catch (e) { return reject(e); }
+        return resolve(fetchUrl(next, redirects + 1));
       }
       const chunks = [];
       res.on('data', c => chunks.push(c));
@@ -141,7 +148,8 @@ function apiBooksList(req, res) {
 }
 
 async function apiBooksUpload(req, res) {
-  const filename     = decodeURIComponent(req.headers['x-filename'] || 'book.txt');
+  let filename = req.headers['x-filename'] || 'book.txt';
+  try { filename = decodeURIComponent(filename); } catch {}
   const safeFilename = path.basename(filename).replace(/[^a-zA-Z0-9.\-_ ()]/g, '_');
   const ext          = path.extname(safeFilename).toLowerCase();
   const allowed      = new Set(['.pdf', '.txt', '.doc', '.docx', '.md', '.epub', '.cbz']);
@@ -221,7 +229,9 @@ function apiBooksRead(req, res, id) {
     const stat = fs.statSync(filePath);
     const mime = ext === '.pdf' ? 'application/pdf' : 'application/epub+zip';
     res.writeHead(200, { 'Content-Type': mime, 'Content-Length': stat.size, 'Content-Disposition': `inline; filename="${encodeURIComponent(filename)}"` });
-    fs.createReadStream(filePath).pipe(res);
+    const rs = fs.createReadStream(filePath);
+    rs.on('error', () => { try { res.destroy(); } catch {} });
+    rs.pipe(res);
   } else {
     const content = fs.readFileSync(filePath, 'utf-8');
     const meta    = loadBooksMeta();
@@ -251,8 +261,8 @@ function apiBooksDelete(req, res, id) {
   try { fs.unlinkSync(filePath); } catch {}
 
   // Clean up CBZ cache if it exists (cache dir keyed by the stable id)
-  const cacheDir = path.join(CACHE_DIR, 'cbz', id);
-  if (fs.existsSync(cacheDir)) {
+  const cacheDir = _cbzCacheDir(id);
+  if (cacheDir && fs.existsSync(cacheDir)) {
     try { fs.rmSync(cacheDir, { recursive: true, force: true }); } catch (e) { console.error('Failed to clean CBZ cache:', e); }
   }
 
@@ -267,6 +277,10 @@ function apiBooksDelete(req, res, id) {
 
 function extractCbz(filePath, outDir) {
   const fd = fs.openSync(filePath, 'r');
+  try { return _extractCbzFd(fd, outDir); } finally { try { fs.closeSync(fd); } catch {} }
+}
+
+function _extractCbzFd(fd, outDir) {
   const stat = fs.fstatSync(fd);
   const size = stat.size;
   
@@ -283,7 +297,6 @@ function extractCbz(filePath, outDir) {
   }
   
   if (eocdOffset === -1) {
-    fs.closeSync(fd);
     throw new Error('Not a valid ZIP file (EOCD not found)');
   }
   
@@ -345,7 +358,6 @@ function extractCbz(filePath, outDir) {
     }
   }
   
-  fs.closeSync(fd);
   return files.sort();
 }
 
@@ -354,7 +366,8 @@ function apiBooksCbzFiles(req, res, id) {
   if (!filePath || !isAllowedMediaPath(filePath)) return json(res, { error: 'Invalid path' }, 403);
   if (!fs.existsSync(filePath)) return json(res, { error: 'Not found' }, 404);
   
-  const cacheDir = path.join(CACHE_DIR, 'cbz', id);
+  const cacheDir = _cbzCacheDir(id);
+  if (!cacheDir) return json(res, { error: 'Invalid id' }, 400);
   try {
     let files;
     if (fs.existsSync(cacheDir)) {
@@ -364,13 +377,18 @@ function apiBooksCbzFiles(req, res, id) {
     }
     json(res, { files });
   } catch (e) {
+    // Don't leave a half-extracted cache that later requests would treat as complete.
+    try { fs.rmSync(cacheDir, { recursive: true, force: true }); } catch {}
     json(res, { error: 'Failed to extract CBZ: ' + e.message }, 500);
   }
 }
 
 function apiBooksCbzFile(req, res, id, filepath) {
-  const cacheDir = path.join(CACHE_DIR, 'cbz', id);
-  const fp = path.join(cacheDir, path.basename(filepath));
+  const cacheDir = _cbzCacheDir(id);
+  if (!cacheDir) return json(res, { error: 'Invalid id' }, 400);
+  let name = filepath;
+  try { name = decodeURIComponent(filepath); } catch {}
+  const fp = path.join(cacheDir, path.basename(name));
   if (!fs.existsSync(fp)) return json(res, { error: 'Not found' }, 404);
   
   const ext = path.extname(filepath).toLowerCase();
@@ -382,7 +400,9 @@ function apiBooksCbzFile(req, res, id, filepath) {
   
   const stat = fs.statSync(fp);
   res.writeHead(200, { 'Content-Type': mime, 'Content-Length': stat.size });
-  fs.createReadStream(fp).pipe(res);
+  const rs = fs.createReadStream(fp);
+  rs.on('error', () => { try { res.destroy(); } catch {} });
+  rs.pipe(res);
 }
 
 module.exports = {

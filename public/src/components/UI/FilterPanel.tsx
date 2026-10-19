@@ -78,13 +78,16 @@ export const FilterPanel = () => {
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
-  const actorOpts = useMemo(() => actors.value.map(a => a.name).sort((a, b) => a.localeCompare(b)), [actors.value]);
-  const channelOpts = useMemo(() => channels.value.map(c => c.name).sort((a, b) => a.localeCompare(b)), [channels.value]);
+  // Option lists only feed the open panel — skip the full-library tag scan
+  // (rerun on every allVideos change) while it's closed.
+  const actorOpts = useMemo(() => open ? actors.value.map(a => a.name).sort((a, b) => a.localeCompare(b)) : [], [open, actors.value]);
+  const channelOpts = useMemo(() => open ? channels.value.map(c => c.name).sort((a, b) => a.localeCompare(b)) : [], [open, channels.value]);
   const tagOpts = useMemo(() => {
+    if (!open) return [];
     const set = new Set<string>();
     for (const v of allVideos.value) for (const t of (v.tags || [])) set.add(t);
     return [...set].sort((a, b) => a.localeCompare(b));
-  }, [allVideos.value]);
+  }, [open, allVideos.value]);
 
   const active = hasActiveFilters.value;
   const count =

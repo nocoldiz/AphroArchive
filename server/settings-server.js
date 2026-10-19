@@ -22,7 +22,7 @@ function apiSettingsLists(req, res) {
 async function apiSettingsSave(req, res, file) {
   if (file !== 'hidden') return json(res, { error: 'Unknown file' }, 400);
   const data  = await readBody(req);
-  const lines = (data.content || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const lines = String(data.content || '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
   saveHidden(lines);
   json(res, { ok: true, count: lines.length });
 }
@@ -41,6 +41,7 @@ function apiGetPrefs(req, res) {
 
 async function apiSavePrefs(req, res) {
   const body  = await readBody(req);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json(res, { error: 'Invalid request body' }, 400);
   const prefs = loadPrefs();
   const CHRON_MODES = new Set(['keep', 'delete-on-startup', 'dont-save']);
   if ('chronologyMode' in body) {
@@ -57,6 +58,9 @@ async function apiSavePrefs(req, res) {
   if ('anthropicApiKey' in body) prefs.anthropicApiKey = String(body.anthropicApiKey || '').trim();
   if ('openrouterApiKey' in body) prefs.openrouterApiKey = String(body.openrouterApiKey || '').trim();
   if ('openrouterModel' in body) prefs.openrouterModel = String(body.openrouterModel || '').trim();
+  if ('stashboxEndpoint' in body) prefs.stashboxEndpoint = String(body.stashboxEndpoint || '').trim();
+  if ('stashboxApiKey' in body) prefs.stashboxApiKey = String(body.stashboxApiKey || '').trim();
+  if ('stashboxUseMd5' in body) prefs.stashboxUseMd5 = !!body.stashboxUseMd5;
   if ('networkEnabled' in body)   prefs.networkEnabled   = !!body.networkEnabled;
   if ('sourceFolders' in body) {
     if (Array.isArray(body.sourceFolders)) {

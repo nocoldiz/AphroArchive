@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { folders, loadVideos, currentView } from '../../store';
+import { folders, currentView } from '../../store';
 
 interface DownloadJob {
   id: string;
@@ -31,7 +31,7 @@ function suggestCategory(title: string, cats: any[]): string {
 }
 
 const DL_STATUS_COLOR: Record<string, string> = {
-  done: '#1a7a3a', error: '#a11', running: 'var(--ac)', queued: 'var(--bg3)', paused: '#b45309',
+  done: '#1a7a3a', error: 'var(--danger)', running: 'var(--ac)', queued: 'var(--bg3)', paused: '#b45309',
 };
 
 interface ModelDownload {
@@ -49,7 +49,6 @@ export const DownloadManager = () => {
   const [newUrls, setNewUrls] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
-  const prevJobStatuses = useRef<Record<string, string>>({});
 
   const busyRef = useRef(false);
   const openRef = useRef(false);
@@ -67,15 +66,25 @@ export const DownloadManager = () => {
       if (busyRef.current || openRef.current) return 2000;
       return currentView.value === 'player' ? 20000 : 10000;
     };
-    const schedule = () => { if (!stopped) timer = setTimeout(async () => { await poll(); schedule(); }, nextDelay()); };
-    const onVisible = () => { if (!document.hidden) { clearTimeout(timer); poll().then(schedule); } };
+    // Single pending timer: a kick/visibility re-poll replaces the queued tick
+    // instead of forking a second, never-cancelled polling chain, and a later
+    // reschedule never pushes back a sooner poll that is already queued.
+    let due = 0;
+    const schedule = (delay = nextDelay()) => {
+      if (stopped) return;
+      const at = Date.now() + delay;
+      if (timer && due <= at) return;
+      clearTimeout(timer);
+      due = at;
+      timer = setTimeout(async () => { timer = null; await poll(); schedule(); }, delay);
+    };
+    const onVisible = () => { if (!document.hidden) schedule(0); };
     const poll = async () => {
       let busy = false;
       try {
         const dlRes = await fetch('/api/download/jobs');
         if (dlRes.ok) {
           const newJobs: DownloadJob[] = await dlRes.json();
-          for (const job of newJobs) prevJobStatuses.current[job.id] = job.status;
           busy = newJobs.some(j => j.status === 'queued' || j.status === 'running');
           const jj = JSON.stringify(newJobs);
           if (jj !== lastJobs) { lastJobs = jj; setJobs(newJobs); }
@@ -94,9 +103,9 @@ export const DownloadManager = () => {
       busyRef.current = busy;
     };
     // Adding a download elsewhere (link cards, player) should switch to fast polling
-    const onKick = () => { clearTimeout(timer); poll().then(schedule); };
+    const onKick = () => schedule(0);
     window.addEventListener('downloads-changed', onKick);
-    poll().then(schedule);
+    poll().then(() => schedule());
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       stopped = true; clearTimeout(timer);
@@ -141,6 +150,14 @@ export const DownloadManager = () => {
   const cancelAll = async () => {
     await fetch('/api/download/cancel-all', { method: 'POST' });
     setJobs(prev => prev.filter(j => j.status === 'done' || j.status === 'error'));
+  };
+
+  // Remove finished jobs on the server too — a client-only filter made them
+  // reappear on the next poll that returned a changed job list.
+  const clearFinished = async () => {
+    const finished = jobs.filter(j => j.status === 'done' || j.status === 'error').map(j => j.id);
+    setJobs(prev => prev.filter(j => !finished.includes(j.id)));
+    await Promise.all(finished.map(id => fetch(`/api/download/jobs/${id}`, { method: 'DELETE' }).catch(() => {})));
   };
 
   const removeAll = async () => {
@@ -257,14 +274,14 @@ export const DownloadManager = () => {
             {activeDlCount > 0 && (
               <button
                 onClick={cancelAll}
-                style={{ background: 'none', border: '1px solid var(--brd)', color: '#e55', cursor: 'pointer', fontSize: '0.72rem', borderRadius: '4px', padding: '2px 7px', whiteSpace: 'nowrap' }}
+                style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.72rem', borderRadius: '4px', padding: '2px 7px', whiteSpace: 'nowrap' }}
               >
                 Stop all
               </button>
             )}
             {jobs.some(j => j.status === 'done' || j.status === 'error') && (
               <button
-                onClick={() => setJobs(prev => prev.filter(j => j.status === 'queued' || j.status === 'running'))}
+                onClick={clearFinished}
                 style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', fontSize: '0.72rem' }}
               >
                 Clear finished
@@ -274,7 +291,7 @@ export const DownloadManager = () => {
               <button
                 onClick={removeAll}
                 title="Remove all downloads from the queue"
-                style={{ background: 'none', border: 'none', color: '#e55', cursor: 'pointer', fontSize: '0.72rem' }}
+                style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.72rem' }}
               >
                 Clear all
               </button>
@@ -340,7 +357,7 @@ export const DownloadManager = () => {
                       </div>
                     )}
                     {job.status === 'error' && job.error && (
-                      <div style={{ fontSize: '0.7rem', color: '#e55', wordBreak: 'break-all' }}>{job.error}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--danger)', wordBreak: 'break-all' }}>{job.error}</div>
                     )}
                     {job.status === 'done' && job.videoId && !isMoved && (
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -376,7 +393,7 @@ export const DownloadManager = () => {
                     <span style={{ flex: 1, fontSize: '0.78rem' }}>{m.model} model</span>
                     <span style={{
                       fontSize: '0.68rem', padding: '1px 5px', borderRadius: '3px', flexShrink: 0,
-                      background: m.status === 'error' ? '#a11' : m.status === 'done' ? '#1a7a3a' : 'var(--ac)',
+                      background: m.status === 'error' ? 'var(--danger)' : m.status === 'done' ? '#1a7a3a' : 'var(--ac)',
                       color: '#fff',
                     }}>
                       {m.status === 'downloading' ? `${Math.round(m.progress || 0)}%` : m.status}
@@ -388,7 +405,7 @@ export const DownloadManager = () => {
                     </div>
                   )}
                   {m.status === 'error' && m.error && (
-                    <div style={{ fontSize: '0.7rem', color: '#e55', wordBreak: 'break-word' }}>{m.error}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--danger)', wordBreak: 'break-word' }}>{m.error}</div>
                   )}
                 </div>
               ))}

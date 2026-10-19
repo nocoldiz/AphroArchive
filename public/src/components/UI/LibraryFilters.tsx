@@ -256,18 +256,18 @@ export const FoldersFilter = ({ onNavigate, filter = '', controlRef }: { onNavig
             e.currentTarget.classList.remove('drop-over');
             const id = e.dataTransfer.getData('text/plain');
             if (!id) return;
+            // Server route is PATCH-only; a POST here 404'd so drops never moved.
+            // The library refresh arrives via the scan SSE stream after the move.
             fetch(`/api/videos/${id}/move`, {
-              method: 'POST',
+              method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ category: c.path })
             })
-            .then(r => r.json())
+            .then(r => r.json().catch(() => ({ error: `HTTP ${r.status}` })))
             .then(data => {
-              if (data.ok) {
-                if ((window as any).loadVideos) (window as any).loadVideos();
-              } else {
-                alert(data.error || 'Move failed');
-              }
+              const w = window as any;
+              if (data.ok) w.toast?.(`Moved to ${c.name}`);
+              else alert(data.error || 'Move failed');
             })
             .catch(err => console.error('Move failed', err));
           } : undefined}
@@ -549,12 +549,6 @@ export const SectionDropdowns = () => {
   const [open, setOpen] = useState<NavSection | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  const activeSections = sectionOrder.filter(s => sectionPlacementFor(s) === 'topbar');
-  if (!activeSections.length) return null;
-
-  const navItems = getNavItems();
-  const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
-
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -568,6 +562,13 @@ export const SectionDropdowns = () => {
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  // Early return only after hooks (rules of hooks).
+  const activeSections = sectionOrder.filter(s => sectionPlacementFor(s) === 'topbar');
+  if (!activeSections.length) return null;
+
+  const navItems = getNavItems();
+  const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;
 
   return (
     <div className="filter-dropdowns" ref={ref}>

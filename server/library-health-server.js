@@ -6,7 +6,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { VIDEOS_DIR, THUMBS_DIR } = require('./config-server');
-const { json, fromId } = require('./helpers-server');
+const { json, fromId, readBody } = require('./helpers-server');
 const { loadVideoIndex, loadVideoMeta, loadThumbsCache, deleteVideoMetaEverywhere } = require('./db-server');
 
 const THUMB_COUNT = 5; // expected number of thumbnails per video
@@ -148,18 +148,9 @@ function apiHealthResults(req, res) {
 }
 
 async function apiHealthFix(req, res) {
-  let body = {};
-  try {
-    body = await new Promise((resolve, reject) => {
-      let d = '';
-      req.on('data', c => d += c);
-      req.on('end', () => { try { resolve(JSON.parse(d || '{}')); } catch { resolve({}); } });
-      req.on('error', reject);
-    });
-  } catch {}
-
-  const { action, ids } = body;
+  const { action, ids } = await readBody(req);
   if (!action || !Array.isArray(ids)) return json(res, { error: 'action and ids required' }, 400);
+  const idSet = new Set(ids);
 
   let fixed = 0;
 
@@ -168,7 +159,7 @@ async function apiHealthFix(req, res) {
       try { deleteVideoMetaEverywhere(id); fixed++; } catch (e) { console.error('[health] delete meta', id, e.message); }
     }
     // Update in-memory results
-    if (_scan) _scan.results = _scan.results.filter(r => !ids.includes(r.id) || r.type !== 'orphaned_meta');
+    if (_scan) _scan.results = _scan.results.filter(r => !idSet.has(r.id) || r.type !== 'orphaned_meta');
   }
 
   if (action === 'delete_missing_files') {
@@ -178,7 +169,7 @@ async function apiHealthFix(req, res) {
       try { deleteVideoMetaEverywhere(id); fixed++; } catch {}
     }
     try { invalidateScanCache(); } catch {}
-    if (_scan) _scan.results = _scan.results.filter(r => !ids.includes(r.id) || r.type !== 'missing_file');
+    if (_scan) _scan.results = _scan.results.filter(r => !idSet.has(r.id) || r.type !== 'missing_file');
   }
 
   json(res, { ok: true, fixed });

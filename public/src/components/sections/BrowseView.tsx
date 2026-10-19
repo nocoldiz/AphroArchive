@@ -64,7 +64,8 @@ export const BrowseView = () => {
           showClearHistory={currentView.value === 'recent'}
           onClearHistory={async () => {
             if (confirm('Clear watch history?')) {
-              await fetch('/api/history', { method: 'DELETE' });
+              const r = await fetch('/api/history', { method: 'DELETE' }).catch(() => null);
+              if (!r?.ok) { if ((window as any).toast) (window as any).toast('Failed to clear history'); return; }
               recentVideos.value = [];
               if ((window as any).toast) (window as any).toast('History cleared');
             }

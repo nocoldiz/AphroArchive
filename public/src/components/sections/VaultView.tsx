@@ -167,20 +167,6 @@ export const VaultView = () => {
     };
   }, [lightboxIdx, photoFiles]);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        setRenderLimit(prev => prev + 100);
-      }
-    }, { rootMargin: '200px' });
-
-    if (sentinelRef.current) {
-      observer.observe(sentinelRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [sentinelRef.current, renderLimit]);
-
   const fetchStatus = async () => {
     try {
       const res = await fetch('/api/vault/status');
@@ -292,9 +278,9 @@ export const VaultView = () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
+    }).catch(() => null);
+    if (!r?.ok) {
+      const err: any = r ? await r.json().catch(() => ({})) : {};
       if (w.toast) w.toast('Encryption failed: ' + (err.error || 'Unknown error'));
       setEncrypting(false);
       setEncryptingIds(new Set());
@@ -477,7 +463,7 @@ export const VaultView = () => {
       alert(err.error || 'Delete failed');
       return;
     }
-    setFiles(files.filter(f => f.id !== id));
+    setFiles(prev => prev.filter(f => f.id !== id));
     const w = window as any;
     if (w.toast) w.toast('Deleted');
   };
@@ -492,7 +478,7 @@ export const VaultView = () => {
       alert('Move failed');
       return;
     }
-    setFiles(files.map(f => f.id === fileId ? { ...f, folder: folderId } : f));
+    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, folder: folderId } : f));
     const w = window as any;
     if (w.toast) w.toast('Moved');
   };
@@ -503,7 +489,7 @@ export const VaultView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, parent: parentId })
     });
-    const d = await res.json();
+    const d = await res.json().catch(() => ({}));
     if (!res.ok) { (window as any).toast?.(d.error || 'Failed to create folder'); return; }
     setFolders(prev => [...prev, { id: d.id, name: d.name, parent: parentId, type: 'folder', mtime: Date.now() }]);
     (window as any).toast?.('Folder created');
@@ -515,7 +501,7 @@ export const VaultView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: newName })
     });
-    if (!res.ok) { const d = await res.json(); (window as any).toast?.(d.error || 'Rename failed'); return; }
+    if (!res.ok) { const d = await res.json().catch(() => ({})); (window as any).toast?.(d.error || 'Rename failed'); return; }
     setFolders(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f));
     (window as any).toast?.('Folder renamed');
   };
@@ -537,7 +523,7 @@ export const VaultView = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ parent: newParentId })
     });
-    if (!res.ok) { const d = await res.json(); (window as any).toast?.(d.error || 'Move failed'); return; }
+    if (!res.ok) { const d = await res.json().catch(() => ({})); (window as any).toast?.(d.error || 'Move failed'); return; }
     setFolders(prev => prev.map(f => f.id === id ? { ...f, parent: newParentId } : f));
     (window as any).toast?.('Folder moved');
   };
@@ -597,10 +583,12 @@ export const VaultView = () => {
   };
 
   const handleToggleSelect = (id: string) => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedIds(next);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const handleDeleteSelected = async () => {
@@ -609,14 +597,16 @@ export const VaultView = () => {
     if (!ids.length) return;
     if (!confirm(`Delete ${ids.length} selected items?`)) return;
 
+    const deleted = new Set<string>();
     for (const id of ids) {
-      await fetch(`/api/vault/files/${id}`, { method: 'DELETE' });
+      const r = await fetch(`/api/vault/files/${id}`, { method: 'DELETE' }).catch(() => null);
+      if (r?.ok) deleted.add(id);
     }
 
-    setFiles(files.filter(f => !selectedIds.has(f.id)));
+    setFiles(prev => prev.filter(f => !deleted.has(f.id)));
     setSelectedIds(new Set());
     const w = window as any;
-    if (w.toast) w.toast(`Deleted ${ids.length} items`);
+    if (w.toast) w.toast(deleted.size === ids.length ? `Deleted ${ids.length} items` : `Deleted ${deleted.size} of ${ids.length} items`);
   };
 
   // Bulk-decrypt the selected vault files back to their original folders.
@@ -626,13 +616,15 @@ export const VaultView = () => {
     if (!ids.length) return;
     if (!confirm(`Decrypt & restore ${ids.length} selected file${ids.length !== 1 ? 's' : ''}?`)) return;
 
-    let ok = 0;
+    const restored = new Set<string>();
     for (const id of ids) {
-      const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' });
-      if (res.ok) ok++;
+      const res = await fetch(`/api/vault/files/${id}/restore-to-origin`, { method: 'POST' }).catch(() => null);
+      if (res?.ok) restored.add(id);
     }
+    const ok = restored.size;
 
-    setFiles(prev => prev.filter(f => !selectedIds.has(f.id)));
+    // Failed restores stay in the vault list.
+    setFiles(prev => prev.filter(f => !restored.has(f.id)));
     setSelectedIds(new Set());
     const w = window as any;
     // SSE scan_changed fires when files land in VIDEOS_DIR — no manual reload needed
@@ -747,12 +739,13 @@ export const VaultView = () => {
       return;
     }
     if (!confirm(`Delete ${dupes.length} duplicate file${dupes.length > 1 ? 's' : ''}? (Keeps newest copy of each)`)) return;
+    const dupeIds = new Set<string>();
     for (const f of dupes) {
-      await fetch('/api/vault/files/' + f.id, { method: 'DELETE' });
+      const r = await fetch('/api/vault/files/' + f.id, { method: 'DELETE' }).catch(() => null);
+      if (r?.ok) dupeIds.add(f.id);
     }
-    const dupeIds = new Set(dupes.map(f => f.id));
     setFiles(prev => prev.filter(f => !dupeIds.has(f.id)));
-    if (w.toast) w.toast(`Deleted ${dupes.length} duplicate${dupes.length > 1 ? 's' : ''}`);
+    if (w.toast) w.toast(`Deleted ${dupeIds.size} duplicate${dupeIds.size !== 1 ? 's' : ''}`);
   };
 
   const shuffleVault = () => {
@@ -850,14 +843,15 @@ export const VaultView = () => {
   const categoryMap = useMemo(() => {
     if (!categories || Object.keys(categories).length === 0) return {};
     const map: { [key: string]: { displayName: string, count: number } } = {};
+    const catTerms = (Object.entries(categories) as [string, any][]).map(([key, cat]) => ({
+      key, cat,
+      terms: [cat.displayName, ...(cat.tags || [])].filter(Boolean).map((t: string) => t.toLowerCase()),
+    }));
     for (const f of files) {
       const name = (f.name || f.originalName || '').toLowerCase();
       if (!name) continue;
-      for (const [key, cat] of Object.entries(categories) as [string, any][]) {
-        const terms = [cat.displayName, ...(cat.tags || [])]
-          .filter(Boolean)
-          .map(t => t.toLowerCase());
-        if (terms.some(t => name.includes(t))) {
+      for (const { key, cat, terms } of catTerms) {
+        if (terms.some((t: string) => name.includes(t))) {
           if (!map[key]) map[key] = { displayName: cat.displayName, count: 0 };
           map[key].count++;
         }
@@ -869,10 +863,12 @@ export const VaultView = () => {
   const handleToggleFav = async (id: string) => {
     const res = await fetch('/api/vault/favs/' + id, { method: 'POST' }).then(r => r.json()).catch(() => null);
     if (!res) return;
-    const next = new Set(favIds);
-    if (res.fav) next.add(id);
-    else next.delete(id);
-    setFavIds(next);
+    setFavIds(prev => {
+      const next = new Set(prev);
+      if (res.fav) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   };
 
   const currentFolderName = useMemo(() => {
@@ -884,6 +880,23 @@ export const VaultView = () => {
   const visibleFiles = useMemo(() => {
     return filteredFiles.slice(0, renderLimit);
   }, [filteredFiles, renderLimit]);
+  const hasMore = filteredFiles.length > renderLimit;
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setRenderLimit(prev => prev + 100);
+      }
+    }, { rootMargin: '200px' });
+
+    if (sentinelRef.current) {
+      observer.observe(sentinelRef.current);
+    }
+
+    return () => observer.disconnect();
+    // hasMore (not sentinelRef.current, which is read during render before the
+    // sentinel mounts) so the observer attaches as soon as the sentinel appears.
+  }, [hasMore, renderLimit, status.unlocked]);
 
   if (status.unlocked) {
     return (
@@ -891,7 +904,7 @@ export const VaultView = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {curFolder && (
-              <button onClick={() => { setCurFolder(null); setRenderLimit(100); }} style={{ background: 'transparent', border: 'none', color: 'var(--tx)', cursor: 'pointer' }}>
+              <button className="ui-btn ui-btn--ghost" onClick={() => { setCurFolder(null); setRenderLimit(100); }}>
                 ⬅️ Back
               </button>
             )}
@@ -906,12 +919,13 @@ export const VaultView = () => {
               value={searchQuery}
               onInput={(e: any) => { setSearchQuery(e.target.value); setRenderLimit(100); }}
               placeholder="Search vault..."
-              style={{ padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px' }}
+              className="ui-input"
+              style={{ width: 'auto' }}
             />
             
             <label
               htmlFor="vaultFileIn"
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              className="ui-btn"
             >
               + Add Files
             </label>
@@ -925,7 +939,7 @@ export const VaultView = () => {
 
             <label
               htmlFor="vaultZipIn"
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              className="ui-btn"
               title="Import a .zip (supports password-protected archives)"
             >
               Import ZIP
@@ -940,7 +954,7 @@ export const VaultView = () => {
 
             <button
               onClick={() => setShowLinkImport(true)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              className="ui-btn"
               title="Import links from browser bookmarks or JSON — saved encrypted in the Vault"
             >
               Import Links
@@ -948,7 +962,7 @@ export const VaultView = () => {
 
             <button
               onClick={createNewVaultTextFile}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              className="ui-btn"
               title="New Text File"
             >
               New File
@@ -961,7 +975,7 @@ export const VaultView = () => {
                   w.startMosaicWithPhotos(files.filter(f => VAULT_PHOTO_EXTS.has((f.ext || '').toLowerCase())));
                 }
               }}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              className="ui-btn"
               title="Dynamic Mosaic"
             >
               Mosaic
@@ -969,7 +983,7 @@ export const VaultView = () => {
 
             <button
               onClick={shuffleVault}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              className="ui-btn"
               title="Shuffle Vault"
             >
               Shuffle
@@ -977,7 +991,7 @@ export const VaultView = () => {
 
             <button
               onClick={deleteVaultDuplicates}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              className="ui-btn"
               title="Remove duplicate files"
             >
               Dedup
@@ -985,7 +999,7 @@ export const VaultView = () => {
 
             <button
               onClick={importFromVaultDropDir}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              className="ui-btn"
               title="Import files from the process folder"
             >
               Import
@@ -993,7 +1007,7 @@ export const VaultView = () => {
 
             <button
               onClick={() => setShowSettings(true)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              className="ui-btn"
               title="Vault Settings"
             >
               Settings
@@ -1003,7 +1017,8 @@ export const VaultView = () => {
               <button
                 onClick={encryptSelectedPublic}
                 disabled={encrypting}
-                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: encrypting ? 'wait' : 'pointer', fontWeight: 600 }}
+                className="ui-btn ui-btn--primary"
+                style={{ fontWeight: 600 }}
                 title="Encrypt all selected unencrypted files into the Vault"
               >
                 {encrypting ? 'Encrypting…' : `🔒 Encrypt Selected (${publicFiles.filter(f => selectedIds.has(f.id)).length})`}
@@ -1015,7 +1030,8 @@ export const VaultView = () => {
             {!isGlobal && files.some(f => selectedIds.has(f.id)) && (
               <button
                 onClick={handleDecryptSelected}
-                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+                className="ui-btn ui-btn--primary"
+                style={{ fontWeight: 600 }}
                 title="Decrypt the selected files back to their original folders"
               >
                 🔓 Decrypt Selected ({files.filter(f => selectedIds.has(f.id)).length})
@@ -1024,7 +1040,7 @@ export const VaultView = () => {
             {selectedIds.size > 0 && (
               <button
                 onClick={() => (window as any).openVaultZipModal(Array.from(selectedIds))}
-                style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+                className="ui-btn ui-btn--primary"
               >
                 Download ZIP
               </button>
@@ -1032,7 +1048,8 @@ export const VaultView = () => {
             {selectedIds.size > 0 && (
               <button
                 onClick={handleDeleteSelected}
-                style={{ background: '#e84040', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+                className="ui-btn"
+                style={{ background: 'var(--danger)', borderColor: 'var(--danger)', color: '#fff' }}
               >
                 Delete Selected
               </button>
@@ -1042,14 +1059,14 @@ export const VaultView = () => {
               onClick={startThumbGen}
               disabled={thumbGen.running}
               title="Generate encrypted poster thumbnails for vault videos"
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: thumbGen.running ? 'default' : 'pointer', opacity: thumbGen.running ? 0.6 : 1 }}
+              className="ui-btn"
             >
               {thumbGen.running ? `Thumbnails… ${thumbGen.done}/${thumbGen.total}` : 'Generate Thumbnails'}
             </button>
 
             <button
-              onClick={async () => { await fetch('/api/vault/lock', { method: 'POST' }); fetchStatus(); }}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              onClick={async () => { await fetch('/api/vault/lock', { method: 'POST' }).catch(() => {}); fetchStatus(); }}
+              className="ui-btn"
             >
               Lock Vault
             </button>
@@ -1263,7 +1280,7 @@ export const VaultView = () => {
         </div>
 
         {filteredFiles.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx2)' }}>
+          <div className="empty-state empty-state--sm">
             No files found.
           </div>
         )}
@@ -1309,12 +1326,14 @@ export const VaultView = () => {
 
         {showLinkImport && (
           <div
+            className="modal-overlay on"
             onClick={() => setShowLinkImport(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ zIndex: 10000 }}
           >
             <div
+              className="modal-dialog"
               onClick={(e) => e.stopPropagation()}
-              style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: '460px', maxWidth: '92vw', padding: '24px' }}
+              style={{ maxWidth: '460px' }}
             >
               <h3 style={{ marginTop: 0 }}>Import Links into the Vault</h3>
               <p style={{ color: 'var(--tx2)', fontSize: '0.85rem', marginTop: 0 }}>
@@ -1329,7 +1348,8 @@ export const VaultView = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
                 <label
                   htmlFor="vaultLinkImportFile"
-                  style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                  className="modal-btn modal-btn--sm"
+                  style={{ cursor: 'pointer' }}
                   title="Load a bookmarks .html / .json / .txt file"
                 >
                   Load file…
@@ -1343,15 +1363,15 @@ export const VaultView = () => {
                 />
                 <div style={{ flex: 1 }} />
                 <button
+                  className="modal-btn"
                   onClick={() => { setShowLinkImport(false); setLinkImportText(''); }}
-                  style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={submitLinkImport}
                   disabled={!linkImportText.trim()}
-                  style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '6px', cursor: linkImportText.trim() ? 'pointer' : 'default', fontWeight: 600, opacity: linkImportText.trim() ? 1 : 0.5 }}
+                  className="modal-btn modal-btn--primary"
                 >
                   Import & Encrypt
                 </button>
@@ -1397,7 +1417,8 @@ export const VaultView = () => {
             onInput={(e: any) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (status.configured ? handleUnlock() : handleSetup())}
             placeholder="Password"
-            style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
+            className="ui-input"
+            style={{ padding: '10px' }}
           />
 
           {!status.configured && (
@@ -1408,7 +1429,8 @@ export const VaultView = () => {
                 onInput={(e: any) => setConfirmPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
                 placeholder="Confirm Password"
-                style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
+                className="ui-input"
+                style={{ padding: '10px' }}
               />
 
               {/* Salt mode selection */}
@@ -1445,12 +1467,13 @@ export const VaultView = () => {
             </>
           )}
 
-          {error && <div style={{ color: '#e84040', fontSize: '0.8rem' }}>{error}</div>}
+          {error && <div style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>{error}</div>}
 
           <button
             onClick={status.configured ? handleUnlock : handleSetup}
             disabled={loading}
-            style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginTop: '12px' }}
+            className="ui-btn ui-btn--primary"
+            style={{ padding: '12px', fontWeight: 'bold', marginTop: '12px' }}
           >
             {loading ? 'Processing...' : (status.configured ? 'Unlock' : 'Create Vault')}
           </button>

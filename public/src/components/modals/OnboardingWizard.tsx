@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import { checkInstall, linkInstall, InstallCheck } from '../../install';
 
 interface Preset {
   id: string;
@@ -30,9 +31,17 @@ const THEMES = [
   { id: 'chan',      name: '4chan',         bg: '#eef2ff', ac: '#800000' },
 ];
 
+// Join a server-provided absolute path with a child name using that path's own
+// separator (the browse API returns native paths, so '\' only on Windows).
+const joinPath = (base: string, name: string) => {
+  const sep = base.includes('\\') ? '\\' : '/';
+  return base.endsWith(sep) ? base + name : base + sep + name;
+};
+
 const PRESET_COLORS = ['#e8503a', '#3a7be8', '#3abf7a', '#e8a53a', '#9d5cff', '#e83a88', '#3ae8d4', '#8be83a'];
 
-type Step = 'welcome' | 'preset' | 'mediaPaths' | 'theme';
+// 'existing' sits outside the progress dots: it links an installation and restarts.
+type Step = 'welcome' | 'existing' | 'preset' | 'mediaPaths' | 'theme';
 const STEPS: Step[] = ['welcome', 'preset', 'mediaPaths', 'theme'];
 const STEP_LABELS: Partial<Record<Step, string>> = {
   preset: 'Preset', mediaPaths: 'Folders', theme: 'Theme',
@@ -53,6 +62,12 @@ export const OnboardingWizard = () => {
   const [dirs, setDirs] = useState<string[]>([]);
   const [drives, setDrives] = useState<string[]>([]);
   const [parentDir, setParentDir] = useState<string | null>(null);
+  // Which field the folder browser fills.
+  const [browseFor, setBrowseFor] = useState<'media' | 'install'>('media');
+
+  const [installPath, setInstallPath] = useState('');
+  const [installCheck, setInstallCheck] = useState<InstallCheck | null>(null);
+  const [linking, setLinking] = useState(false);
 
   const [selectedTheme, setSelectedTheme] = useState('default');
   const [creating, setCreating] = useState(false);
@@ -74,6 +89,7 @@ export const OnboardingWizard = () => {
 
   const go = (s: Step) => { setStep(s); setError(''); };
   const prevStep = () => {
+    if (step === 'existing') return go('welcome');
     const idx = STEPS.indexOf(step);
     if (idx > 0) go(STEPS[idx - 1] as Step);
   };
@@ -82,24 +98,32 @@ export const OnboardingWizard = () => {
   const selectPreset = (id: string) => { setPresetMode('preset'); setSelectedPreset(id); };
 
   // ── Folder browser ─────────────────────────────────────────────────────
-  const openFolderBrowser = async (dir?: string) => {
+  const openFolderBrowser = async (dir?: string, target?: 'media' | 'install') => {
+    if (target) setBrowseFor(target);
     setBrowsingPath(true); setError('');
     try {
       const params = new URLSearchParams();
       if (dir) params.set('path', dir);
-      const r = await fetch('/api/settings/browse-folders?' + params.toString());
+      // The route is /api/browse-folders; /api/settings/browse-folders never existed.
+      const r = await fetch('/api/browse-folders?' + params.toString());
       const data = await r.json();
+      if (!r.ok || data.error) throw new Error(data.error);
       setCurrentDir(data.currentPath);
       setParentDir(data.parent);
       setDirs(data.dirs || []);
       setDrives(data.drives || []);
-    } catch {
-      setError('Failed to browse folders');
+    } catch (e: any) {
+      setError(e?.message ? `Failed to browse folders: ${e.message}` : 'Failed to browse folders');
       setBrowsingPath(false);
     }
   };
 
   const confirmBrowsedPath = () => {
+    if (browseFor === 'install') {
+      setBrowsingPath(false);
+      if (currentDir) pickInstall(currentDir);
+      return;
+    }
     if (currentDir && !mediaPaths.includes(currentDir))
       setMediaPaths(prev => [...prev, currentDir]);
     setBrowsingPath(false);
@@ -110,6 +134,19 @@ export const OnboardingWizard = () => {
     if (!val || mediaPaths.includes(val)) return;
     setMediaPaths(prev => [...prev, val]);
     setPathInput('');
+  };
+
+  const pickInstall = async (dir: string) => {
+    setInstallPath(dir); setInstallCheck(null); setError('');
+    if (!dir.trim()) return;
+    try { setInstallCheck(await checkInstall(dir.trim())); }
+    catch { setInstallCheck({ valid: false, reason: 'Could not check this folder' }); }
+  };
+
+  const handleLink = async () => {
+    setLinking(true); setError('');
+    try { await linkInstall(installPath.trim()); }
+    catch (e: any) { setError(e.message || 'Linking failed'); setLinking(false); }
   };
 
   const removePath = (idx: number) => setMediaPaths(prev => prev.filter((_, i) => i !== idx));
@@ -154,7 +191,7 @@ export const OnboardingWizard = () => {
   if (browsingPath) {
     return (
       <div class="modal-overlay on" style={overlayStyle}>
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '12px', width: '480px', maxWidth: '90vw', padding: '20px' }}>
+        <div class="modal-dialog" style={{ maxWidth: '480px', padding: '20px' }}>
           <div style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '12px' }}>Select Folder</div>
           <div style={{ fontSize: '0.78rem', color: 'var(--tx3)', marginBottom: '12px' }}>{currentDir || 'Loading…'}</div>
           <div style={{ maxHeight: '260px', overflowY: 'auto', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -172,15 +209,15 @@ export const OnboardingWizard = () => {
               </button>
             ))}
             {dirs.map(d => (
-              <button key={d} type="button" onClick={() => openFolderBrowser(currentDir + '\\' + d)}
+              <button key={d} type="button" onClick={() => openFolderBrowser(joinPath(currentDir, d))}
                 style={{ textAlign: 'left', background: 'none', border: 'none', color: 'var(--tx)', padding: '6px 8px', cursor: 'pointer', fontSize: '0.85rem' }}>
                 📁 {d}
               </button>
             ))}
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <button type="button" onClick={() => setBrowsingPath(false)} style={ghostBtn}>Cancel</button>
-            <button type="button" onClick={confirmBrowsedPath} style={accentBtn}>Add This Folder</button>
+            <button type="button" className="ui-btn" onClick={() => setBrowsingPath(false)}>Cancel</button>
+            <button type="button" className="ui-btn ui-btn--primary" onClick={confirmBrowsedPath} disabled={!currentDir}>{browseFor === 'install' ? 'Use This Folder' : 'Add This Folder'}</button>
           </div>
         </div>
       </div>
@@ -192,7 +229,7 @@ export const OnboardingWizard = () => {
   const nonWelcomeSteps = STEPS.slice(1);
 
   const renderProgress = () => {
-    if (step === 'welcome') return null;
+    if (step === 'welcome' || step === 'existing') return null;
     return (
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: '28px' }}>
         {nonWelcomeSteps.map((s, i) => {
@@ -258,6 +295,49 @@ export const OnboardingWizard = () => {
               style={{ ...accentBtn, padding: '12px 36px', fontSize: '0.95rem', borderRadius: '8px', fontWeight: 700 }}>
               Get Started →
             </button>
+            <div style={{ marginTop: '14px' }}>
+              <button type="button" className="ui-btn ui-btn--ghost" onClick={() => go('existing')}>
+                Load an existing installation…
+              </button>
+            </div>
+          </div>
+        );
+
+      case 'existing':
+        return (
+          <div>
+            <h3 style={stepTitle}>Load an existing installation</h3>
+            <p style={stepDesc}>
+              Pick the folder of an AphroArchive installation already on disk (the one holding its <code>db</code> folder).
+              Its library, settings and data are used from now on, and AphroArchive restarts to load it.
+              You can unlink it later in Settings → Storage.
+            </p>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+              <input type="text" value={installPath} className="ui-input" placeholder="D:\AphroArchive"
+                aria-label="Installation folder"
+                style={{ flex: 1, width: 'auto', minWidth: 0 }}
+                onInput={(e: any) => { setInstallPath(e.target.value); setInstallCheck(null); }}
+                onBlur={() => pickInstall(installPath)}
+                onKeyDown={(e: any) => { if (e.key === 'Enter') pickInstall(installPath); }}
+              />
+              <button type="button" className="ui-btn" onClick={() => openFolderBrowser(installPath || undefined, 'install')}>Browse…</button>
+            </div>
+            {installCheck && (installCheck.valid ? (
+              <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--tx2)', lineHeight: 1.6 }}>
+                ✓ Installation found<br />
+                Database: <code>{installCheck.dbFile}</code>
+                {installCheck.mediaDir && <><br />Media: <code>{installCheck.mediaDir}</code></>}
+              </p>
+            ) : (
+              <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: 'var(--danger)' }}>{installCheck.reason}</p>
+            ))}
+            {error && <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: 'var(--danger)' }}>{error}</p>}
+            <div style={stepFooter}>
+              <button type="button" onClick={prevStep} style={backBtn} disabled={linking}>← Back</button>
+              <button type="button" onClick={handleLink} disabled={!installCheck?.valid || linking} style={nextBtn(!!installCheck?.valid && !linking)}>
+                {linking ? 'Restarting…' : 'Load installation →'}
+              </button>
+            </div>
           </div>
         );
 
@@ -368,7 +448,7 @@ export const OnboardingWizard = () => {
                   <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px 10px' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--tx)', wordBreak: 'break-all' }}>📁 {p}</span>
                     <button type="button" onClick={() => removePath(i)}
-                      style={{ background: 'none', border: 'none', color: '#e84040', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px', flexShrink: 0, marginLeft: '8px' }}>
+                      style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px', flexShrink: 0, marginLeft: '8px' }}>
                       ×
                     </button>
                   </div>
@@ -378,14 +458,17 @@ export const OnboardingWizard = () => {
 
             <div style={{ display: 'flex', gap: '6px', marginBottom: '20px' }}>
               <input type="text" value={pathInput}
+                className="ui-input"
                 onInput={(e: any) => setPathInput(e.target.value)}
                 placeholder="C:\Videos"
-                style={{ ...inputStyle, flex: 1 }}
+                style={{ flex: 1, width: 'auto', minWidth: 0 }}
                 onKeyDown={(e: any) => { if (e.key === 'Enter') addPathFromInput(); }}
               />
-              <button type="button" onClick={() => openFolderBrowser()} style={ghostBtn}>Browse…</button>
+              <button type="button" className="ui-btn" onClick={() => openFolderBrowser(undefined, 'media')}>Browse…</button>
               <button type="button" onClick={addPathFromInput} disabled={!pathInput.trim()} style={nextBtn(!!pathInput.trim())}>Add</button>
             </div>
+
+            {error && <p style={{ margin: '-8px 0 12px', fontSize: '0.8rem', color: 'var(--danger)' }}>{error}</p>}
 
             <div style={stepFooter}>
               <button type="button" onClick={prevStep} style={backBtn}>← Back</button>
@@ -430,7 +513,7 @@ export const OnboardingWizard = () => {
               })}
             </div>
 
-            {error && <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: '#e84040' }}>{error}</p>}
+            {error && <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: 'var(--danger)' }}>{error}</p>}
 
             <div style={stepFooter}>
               <button type="button" onClick={prevStep} style={backBtn}>← Back</button>
@@ -448,11 +531,7 @@ export const OnboardingWizard = () => {
 
   return (
     <div class="modal-overlay on" style={overlayStyle}>
-      <div style={{
-        background: 'var(--bg2)', border: '1px solid var(--brd)', borderRadius: '14px',
-        width: '540px', maxWidth: '94vw', maxHeight: '92vh', overflowY: 'auto',
-        padding: '28px', boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
-      }}>
+      <div class="modal-dialog" style={{ maxWidth: '540px', maxHeight: '92vh', overflowY: 'auto', padding: '28px' }}>
         {renderProgress()}
         {renderStep()}
       </div>
@@ -461,32 +540,17 @@ export const OnboardingWizard = () => {
 };
 
 // ── Shared styles ──────────────────────────────────────────────────────────
-const overlayStyle: any = {
-  zIndex: 40000, display: 'flex', position: 'fixed', inset: 0,
-  alignItems: 'center', justifyContent: 'center',
-  background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(8px)',
-};
+// Positioning/backdrop come from .modal-overlay; only the stacking order is custom.
+const overlayStyle: any = { zIndex: 40000 };
 
 const stepTitle: any  = { margin: '0 0 6px', fontSize: '1.05rem', fontWeight: 700, color: 'var(--tx)' };
 const stepDesc: any   = { margin: '0 0 18px', fontSize: '0.8rem', color: 'var(--tx3)', lineHeight: 1.65 };
 const stepFooter: any = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' };
 
-const inputStyle: any = {
-  width: '100%', boxSizing: 'border-box',
-  background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)',
-  borderRadius: '6px', padding: '10px 12px', fontSize: '0.85rem', outline: 'none',
-};
-
 const accentBtn: any = {
   background: 'var(--ac)', border: 'none', color: '#fff',
   padding: '9px 20px', borderRadius: '6px', cursor: 'pointer',
   fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap',
-};
-
-const ghostBtn: any = {
-  background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)',
-  padding: '9px 14px', borderRadius: '6px', cursor: 'pointer',
-  fontSize: '0.8rem', whiteSpace: 'nowrap',
 };
 
 const backBtn: any = {

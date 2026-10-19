@@ -46,10 +46,15 @@ export const PhotoLightbox = ({
   isAi,
   aiPrompt
 }: Props) => {
-  if (!isOpen) return null;
-
+  // Hook must run on every render: it used to sit after the `!isOpen` early
+  // return, so closing skipped its cleanup and the stale key listener kept
+  // firing onPrev/onNext/onClose after the lightbox was gone.
   useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack keys while typing (e.g. the slideshow seconds field).
+      const t = e.target as HTMLElement | null;
+      if (e.key !== 'Escape' && t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft' && onPrev) onPrev();
       if (e.key === 'ArrowRight' && onNext) onNext();
@@ -60,7 +65,9 @@ export const PhotoLightbox = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, onPrev, onNext, onToggleSlideshow]);
+  }, [isOpen, onClose, onPrev, onNext, onToggleSlideshow]);
+
+  if (!isOpen) return null;
 
   return (
     <div id="photosLightbox" className="ph-lightbox on" onClick={(e: any) => { if (e.target.id === 'photosLightbox') onClose(); }} style={{ zIndex: 10000 }}>
@@ -96,7 +103,7 @@ export const PhotoLightbox = ({
                 min="1" 
                 max="60" 
                 value={slideSecs} 
-                onChange={(e: any) => onSlideSecsChange(parseInt(e.target.value, 10))}
+                onChange={(e: any) => { const n = parseInt(e.target.value, 10); if (n > 0) onSlideSecsChange(n); }}
                 style={{ width: '40px', background: 'transparent', border: 'none', color: '#fff', textAlign: 'center', fontSize: '13px' }}
               />
               <span style={{ fontSize: '12px', color: '#aaa' }}>s</span>
@@ -144,7 +151,7 @@ export const PhotoLightbox = ({
           )}
 
           {onDelete && (
-            <button className="ph-lb-action-btn" onClick={onDelete} style={{ color: '#ff4d4d' }} title="Delete">
+            <button className="ph-lb-action-btn" onClick={onDelete} style={{ color: 'var(--danger)' }} title="Delete">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="3 6 5 6 21 6"></polyline>
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>

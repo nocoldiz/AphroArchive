@@ -22,8 +22,9 @@ const scrapeMethods        = require('./scrapeMethods-server');
 const _ogCache = loadOgThumbCache();
 const OG_TTL   = 1000 * 60 * 60 * 24 * 7; // 7 days
 
-function fetchOgImage(targetUrl) {
+function fetchOgImage(targetUrl, hops = 0) {
   return new Promise((resolve) => {
+    if (hops > 5) return resolve(null); // redirect loop
     try {
       const parsed = new URL(targetUrl);
       const lib    = parsed.protocol === 'https:' ? https : http;
@@ -37,7 +38,10 @@ function fetchOgImage(targetUrl) {
       };
       const req = lib.request(opts, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return fetchOgImage(res.headers.location).then(resolve).catch(() => resolve(null));
+          res.resume();
+          let next;
+          try { next = new URL(res.headers.location, targetUrl).href; } catch { return resolve(null); }
+          return fetchOgImage(next, hops + 1).then(resolve).catch(() => resolve(null));
         }
         let data = '';
         res.on('data', chunk => { data += chunk; if (data.length > 200000) req.destroy(); });
@@ -91,6 +95,9 @@ function broadcastBm(ev) {
 
 async function takeScreenshot(url, outPath) {
   if (!fs.existsSync(EDGE_BIN)) throw new Error('Edge browser not found at ' + EDGE_BIN);
+  // The url is a positional argv entry: anything else (e.g. "--flag=...") would
+  // be parsed by Edge as a command-line switch.
+  if (typeof url !== 'string' || !/^(https?|file):/i.test(url)) throw new Error('Unsupported URL for screenshot');
   return new Promise((resolve, reject) => {
     // Edge headless screenshot command
     const args = [
@@ -116,7 +123,8 @@ async function takeScreenshot(url, outPath) {
 function getYtDlpThumbnail(targetUrl) {
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(YT_DLP_BIN)) return reject(new Error('yt-dlp not found'));
-    execFile(YT_DLP_BIN, ['--get-thumbnail', targetUrl], (err, stdout) => {
+    // '--' ends option parsing so a url like "--exec=..." can't inject yt-dlp options.
+    execFile(YT_DLP_BIN, ['--get-thumbnail', '--', targetUrl], { timeout: 30000 }, (err, stdout) => {
       if (err) return reject(err);
       const url = stdout.trim();
       if (url && url.startsWith('http')) resolve(url);
@@ -246,6 +254,7 @@ async function generateSmartThumbnail(targetUrl, outPath) {
 }
 
 function apiLinkThumbImg(req, res, id) {
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) { res.writeHead(404); return res.end('Not found'); }
   const fpPng = path.join(LINK_THUMBS_DIR, id + '.png');
   const fpJpg = path.join(LINK_THUMBS_DIR, id + '.jpg');
   const fp = fs.existsSync(fpPng) ? fpPng : (fs.existsSync(fpJpg) ? fpJpg : null);
@@ -258,13 +267,15 @@ function apiLinkThumbImg(req, res, id) {
   const ext = path.extname(fp).toLowerCase();
   const ct  = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' }[ext] || 'image/png';
   res.writeHead(200, { 'Content-Type': ct, 'Cache-Control': 'public, max-age=86400' });
-  fs.createReadStream(fp).pipe(res);
+  const rs = fs.createReadStream(fp);
+  rs.on('error', () => { try { res.destroy(); } catch {} });
+  rs.pipe(res);
 }
 
 async function apiGenerateLinkThumb(req, res) {
   const body = await readBody(req);
   const url = body.url;
-  if (!url) return json(res, { error: 'url required' }, 400);
+  if (!url || typeof url !== 'string') return json(res, { error: 'url required' }, 400);
 
   const id = Buffer.from(url).toString('base64url');
   const outPath = path.join(LINK_THUMBS_DIR, id + '.png'); // Edge uses png
@@ -307,7 +318,7 @@ async function apiGenerateAllLinkThumbs(req, res) {
     }
     _bmJob.running = false;
     broadcastBm({ type: 'done', done: _bmJob.done, failed: _bmJob.failed, total: _bmJob.total });
-  })();
+  })().catch(e => { console.error('[links] thumb job failed:', e); _bmJob.running = false; });
 
   json(res, { ok: true });
 }
@@ -348,8 +359,9 @@ const EMBED_HOSTS = [
   'x.com', 'twitter.com',
 ];
 
-function extractEmbedUrl(pageUrl) {
+function extractEmbedUrl(pageUrl, hops = 0) {
   return new Promise((resolve) => {
+    if (hops > 5) return resolve(null); // redirect loop
     try {
       const parsed = new URL(pageUrl);
       const lib = parsed.protocol === 'https:' ? https : http;
@@ -363,7 +375,10 @@ function extractEmbedUrl(pageUrl) {
       };
       const req = lib.request(opts, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return extractEmbedUrl(res.headers.location).then(resolve);
+          res.resume();
+          let next;
+          try { next = new URL(res.headers.location, pageUrl).href; } catch { return resolve(null); }
+          return extractEmbedUrl(next, hops + 1).then(resolve);
         }
         let data = '';
         res.on('data', chunk => { data += chunk; if (data.length > 300000) req.destroy(); });
@@ -398,7 +413,8 @@ function scrapeLink(pageUrl) {
       extractEmbedUrl(pageUrl).then(embedUrl => resolve({ thumbUrl: null, videoUrl: null, embedUrl }));
       return;
     }
-    execFile(YT_DLP_BIN, ['-j', pageUrl], { timeout: 30000 }, async (err, stdout) => {
+    // maxBuffer: `-j` JSON (format lists) often exceeds the 1 MB default.
+    execFile(YT_DLP_BIN, ['-j', '--', pageUrl], { timeout: 30000, maxBuffer: 32 * 1024 * 1024 }, async (err, stdout) => {
       if (err) {
         // yt-dlp failed — try embed extraction as fallback
         const embedUrl = await extractEmbedUrl(pageUrl);
@@ -530,7 +546,7 @@ function startScrapingWorker({ reset = false } = {}) {
     saveLinksCache(finalCache);
     console.log(`[scrape] done — ${_scrapeJob.done} ok, ${_scrapeJob.failed} failed`);
     _scrapeJob.running = false;
-  })();
+  })().catch(e => { console.error('[scrape] worker failed:', e); _scrapeJob.running = false; });
 }
 
 function apiScrapeStatus(req, res) {
@@ -565,11 +581,11 @@ function apiGetLinksCache(req, res) {
 
   const enabledPaths = loadEnabledFolders();
   if (enabledPaths.length > 0) {
-    const enabledSet = new Set(enabledPaths.map(p => p.toLowerCase()));
+    const enabled = [...new Set(enabledPaths.map(p => p.toLowerCase()))];
     items = items.filter(item => {
       if (!item.category) return true;
       const catLo = item.category.toLowerCase();
-      return enabledSet.size === 0 || Array.from(enabledSet).some(ep => catLo === ep || catLo.startsWith(ep + '/'));
+      return enabled.some(ep => catLo === ep || catLo.startsWith(ep + '/'));
     });
   }
 
@@ -1108,7 +1124,7 @@ async function apiImportLinksJson(req, res) {
   let incoming = [];
   if (Array.isArray(body)) {
     incoming = body;
-  } else if (Array.isArray(body.items)) {
+  } else if (body && Array.isArray(body.items)) {
     incoming = body.items;
   } else {
     return json(res, { error: 'Invalid format: expected { items: [...] } or an array' }, 400);
@@ -1122,7 +1138,7 @@ async function apiImportLinksJson(req, res) {
   const VALID_FIELDS = ['url','title','category','img','scrapedVideoUrl','hasVideo','embedUrl','hasEmbed','addedAt','tags','downloaded','localVideoId','fav'];
 
   for (const item of incoming) {
-    if (!item.url || typeof item.url !== 'string') continue;
+    if (!item || !item.url || typeof item.url !== 'string') continue;
 
     // Sanitise: only allow known fields
     const clean = {};

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'preact/hooks';
 import { importModalState, currentView, currentFolder, isVaultUnlocked } from '../../store';
+import { useEscape } from './useEscape';
 
 type Tab = 'links' | 'files' | 'folder';
 
@@ -24,6 +25,12 @@ export const ImportModal = () => {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // User-initiated close is blocked mid-import: closing reset `importing`
+  // while the upload loop kept running, so the modal could be reopened and a
+  // second import started on top of the first.
+  const dismiss = () => { if (!importing) close(); };
+  useEscape(state.visible, () => dismiss());
 
   if (!state.visible) return null;
 
@@ -68,14 +75,18 @@ export const ImportModal = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls }),
       });
-      const d = await r.json();
+      const d = await r.json().catch(() => ({}));
+      const w = window as any;
       if (r.ok) {
         setLinkResult({ added: d.added, skipped: d.skipped });
         setLinkText('');
-        const w = window as any;
         if (w.toast) w.toast(inVaultMode ? `Saved ${d.added} link(s) to Vault` : `Saved ${d.added} link(s) to Web/Links`);
+      } else {
+        w.toastError?.(d.error || 'Failed to save links');
       }
-    } catch {}
+    } catch {
+      (window as any).toastError?.('Failed to save links');
+    }
     setImporting(false);
   };
 
@@ -252,24 +263,21 @@ export const ImportModal = () => {
   return (
     <div
       className="modal-overlay on"
-      onClick={(e: any) => e.target === e.currentTarget && close()}
+      onClick={(e: any) => e.target === e.currentTarget && dismiss()}
       style={{ zIndex: 20000 }}
     >
-      <div style={{
-        background: 'var(--bg2)', border: '1px solid var(--brd)',
-        borderRadius: '10px', width: '480px', maxWidth: '96vw', overflow: 'hidden',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
-      }}>
+      <div className="modal-dialog" style={{ padding: 0, maxWidth: '480px', overflow: 'hidden' }}>
 
         {/* Header */}
         <div style={{ padding: '16px 20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Import{inVaultMode ? ' to Vault' : ''}</span>
           <button
             type="button"
-            onClick={close}
+            className="ui-btn ui-btn--ghost ui-btn--icon"
+            onClick={dismiss}
+            disabled={importing}
             aria-label="Close"
             title="Close"
-            style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', padding: '2px', display: 'flex' }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -311,12 +319,8 @@ export const ImportModal = () => {
                 onInput={(e: any) => { setLinkText(e.target.value); setLinkResult(null); }}
                 placeholder={'https://example.com/video1\nhttps://example.com/video2'}
                 rows={7}
-                style={{
-                  width: '100%', boxSizing: 'border-box', resize: 'vertical',
-                  background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)',
-                  borderRadius: '6px', padding: '8px 10px', fontSize: '0.78rem',
-                  fontFamily: 'monospace', lineHeight: 1.5, outline: 'none',
-                }}
+                className="ui-input"
+                style={{ fontSize: '0.78rem', fontFamily: 'monospace' }}
               />
               {linkResult && (
                 <div style={{ marginTop: '8px', fontSize: '0.78rem', color: linkResult.added > 0 ? '#1a7' : 'var(--tx3)' }}>
@@ -329,13 +333,9 @@ export const ImportModal = () => {
                 <span style={{ fontSize: '0.72rem', color: 'var(--tx3)' }}>{urlCount} URL{urlCount !== 1 ? 's' : ''}</span>
                 <button
                   type="button"
+                  className="ui-btn ui-btn--primary"
                   onClick={importLinks}
                   disabled={!urlCount || importing}
-                  style={{
-                    background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px',
-                    padding: '7px 20px', fontSize: '0.82rem', cursor: urlCount && !importing ? 'pointer' : 'default',
-                    opacity: !urlCount || importing ? 0.5 : 1,
-                  }}
                 >
                   {importing ? 'Saving…' : 'Save to Links'}
                 </button>
@@ -368,16 +368,16 @@ export const ImportModal = () => {
                     <button
                       type="button"
                       onClick={() => { setFilesList([]); setProgress(null); }}
+                      className="ui-btn"
                       disabled={importing}
-                      style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '6px', padding: '7px 14px', fontSize: '0.8rem', cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.4 : 1 }}
                     >
                       Clear
                     </button>
                     <button
                       type="button"
                       onClick={() => runImport(filesList, false)}
+                      className="ui-btn ui-btn--primary"
                       disabled={importing}
-                      style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '7px 20px', fontSize: '0.82rem', cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.6 : 1 }}
                     >
                       {importing
                         ? `Importing… ${progress ? `(${progress.done}/${progress.total})` : ''}`
@@ -420,16 +420,16 @@ export const ImportModal = () => {
                     <button
                       type="button"
                       onClick={() => { setFolderFiles([]); setProgress(null); }}
+                      className="ui-btn"
                       disabled={importing}
-                      style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '6px', padding: '7px 14px', fontSize: '0.8rem', cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.4 : 1 }}
                     >
                       Clear
                     </button>
                     <button
                       type="button"
                       onClick={() => runImport(folderFiles, true)}
+                      className="ui-btn ui-btn--primary"
                       disabled={importing}
-                      style={{ background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '7px 20px', fontSize: '0.82rem', cursor: importing ? 'default' : 'pointer', opacity: importing ? 0.6 : 1 }}
                     >
                       {importing
                         ? `Importing… ${progress ? `(${progress.done}/${progress.total})` : ''}`

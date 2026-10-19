@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 
 // URL patterns that identify a media stream
 const AUDIO_EXTS = new Set(['.mp3', '.aac', '.ogg', '.opus', '.flac', '.wav', '.m4a', '.wma']);
@@ -124,6 +124,7 @@ export const RadioModeView = () => {
         body: JSON.stringify({ urls: streamUrls }),
       });
       const d = await r.json();
+      if (!r.ok) throw new Error(d?.error);
       setAddResult({ added: d.added || 0, skipped: d.skipped || 0 });
       setPasteText('');
       await loadStreams();
@@ -133,14 +134,17 @@ export const RadioModeView = () => {
     setAdding(false);
   }
 
-  const filtered = channels.filter(ch => {
-    if (filter !== 'all' && ch.type !== filter) return false;
-    if (search && !ch.title.toLowerCase().includes(search.toLowerCase()) && !ch.url.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return channels.filter(ch => {
+      if (filter !== 'all' && ch.type !== filter) return false;
+      if (q && !ch.title.toLowerCase().includes(q) && !ch.url.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [channels, filter, search]);
 
-  const audioChannels = channels.filter(c => c.type === 'audio');
-  const videoChannels = channels.filter(c => c.type === 'video');
+  const audioCount = useMemo(() => channels.filter(c => c.type === 'audio').length, [channels]);
+  const videoCount = channels.length - audioCount;
 
   return (
     <div style={{ display: 'flex', height: '100vh', flexDirection: 'column', background: 'var(--bg)', color: 'var(--tx)' }}>
@@ -154,7 +158,7 @@ export const RadioModeView = () => {
             </svg>
             <h1 style={{ margin: 0, fontSize: '1.3rem' }}>Radio &amp; Live Streams</h1>
             <span style={{ fontSize: '0.8rem', color: 'var(--tx3)', background: 'var(--bg3)', borderRadius: '10px', padding: '2px 8px' }}>
-              {audioChannels.length} radio · {videoChannels.length} video
+              {audioCount} radio · {videoCount} video
             </span>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -163,7 +167,8 @@ export const RadioModeView = () => {
               placeholder="Search streams…"
               value={search}
               onInput={(e: any) => setSearch(e.target.value)}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '6px', color: 'var(--tx)', padding: '6px 10px', fontSize: '0.85rem', width: '180px' }}
+              className="ui-input"
+              style={{ padding: '6px 10px', width: '180px' }}
             />
             <div style={{ display: 'flex', border: '1px solid var(--brd)', borderRadius: '6px', overflow: 'hidden' }}>
               {(['all', 'audio', 'video'] as const).map(f => (
@@ -199,14 +204,15 @@ export const RadioModeView = () => {
               onInput={(e: any) => setPasteText(e.target.value)}
               placeholder={'https://stream.example.com/radio.mp3\nhttps://live.example.com/stream.m3u8\n…'}
               rows={5}
-              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '8px', fontSize: '0.82rem', fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box' }}
+              className="ui-input"
+              style={{ padding: '8px', fontSize: '0.82rem', fontFamily: 'monospace', boxSizing: 'border-box' }}
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
               <button
                 type="button"
                 onClick={addStreams}
                 disabled={adding || !pasteText.trim()}
-                style={{ background: 'var(--ac, #ff4a4a)', color: '#fff', border: 'none', borderRadius: '6px', padding: '7px 16px', cursor: adding ? 'default' : 'pointer', opacity: adding || !pasteText.trim() ? 0.5 : 1, fontSize: '0.85rem' }}
+                className="ui-btn ui-btn--primary"
               >
                 {adding ? 'Adding…' : 'Add to Library'}
               </button>
@@ -240,7 +246,7 @@ export const RadioModeView = () => {
                 <div
                   key={ch.url}
                   onClick={() => playChannel(ch)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer', background: isCurrent ? 'rgba(var(--ac-rgb,255,74,74),0.1)' : 'transparent', borderLeft: isCurrent ? '3px solid var(--ac, #ff4a4a)' : '3px solid transparent', transition: 'background 0.15s' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer', background: isCurrent ? 'var(--acg)' : 'transparent', borderLeft: isCurrent ? '3px solid var(--ac, #ff4a4a)' : '3px solid transparent', transition: 'background 0.15s' }}
                 >
                   {/* Thumb / icon */}
                   <div style={{ width: '40px', height: '40px', borderRadius: '8px', flexShrink: 0, overflow: 'hidden', background: `${c}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>

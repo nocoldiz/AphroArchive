@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from 'preact/hooks';
 import { presetPickerState } from '../../store';
+import { useEscape } from './useEscape';
 
 interface Preset {
   id: string;
@@ -23,6 +24,7 @@ export const PresetPicker = () => {
   const [importLinks, setImportLinks] = useState(true);
   const [linkCount, setLinkCount] = useState(0); // 0 = import all
   const [status, setStatus] = useState('');
+  const [applying, setApplying] = useState(false);
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'orange');
 
   useEffect(() => {
@@ -30,6 +32,7 @@ export const PresetPicker = () => {
     setLoading(true);
     setFetchError('');
     setStatus('');
+    setApplying(false);
     setSelected(new Set());
     setImportLinks(true);
     setLinkCount(0);
@@ -48,7 +51,15 @@ export const PresetPicker = () => {
       .finally(() => setLoading(false));
   }, [state.visible]);
 
+  // Manual "change preset" (merge mode) can be dismissed; the first-run picker
+  // stays modal and is left via Start Blank / Use All / Apply.
+  const canDismiss = state.mergeMode && !applying;
+  const close = () => { presetPickerState.value = { ...presetPickerState.value, visible: false }; };
+  useEscape(state.visible, () => { if (canDismiss) close(); });
+
   const handleApply = async (selection: string[] | 'all' | 'blank', merge: boolean = state.mergeMode) => {
+    if (applying) return;
+    setApplying(true);
     setStatus('Applying…');
     try {
       const res = await fetch('/api/presets/apply', {
@@ -62,6 +73,7 @@ export const PresetPicker = () => {
       window.location.reload();
     } catch (e: any) {
       setStatus('Error: ' + e.message);
+      setApplying(false);
     }
   };
 
@@ -75,10 +87,10 @@ export const PresetPicker = () => {
   if (!state.visible) return null;
 
   return (
-    <div className="modal-overlay on" style={{ zIndex: 30000, display: 'flex', position: 'fixed', inset: 0, alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)' }}>
-      <div className="preset-dialog" style={{ background: 'var(--bg2)', padding: '20px', borderRadius: '8px', width: '500px', maxWidth: '90vw' }}>
-        <div className="preset-dialog-hd">
-          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{state.mergeMode ? 'Change Database Preset' : 'Choose a Database Preset'}</h2>
+    <div className="modal-overlay on" style={{ zIndex: 30000 }} onClick={(e: any) => e.target === e.currentTarget && canDismiss && close()}>
+      <div className="modal-dialog" style={{ maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="modal-header">
+          <h2>{state.mergeMode ? 'Change Database Preset' : 'Choose a Database Preset'}</h2>
           <p style={{ margin: '6px 0 0', fontSize: '0.83rem', color: 'var(--tx2)' }}>
             {state.mergeMode
               ? 'Pick presets to apply. Your custom entries will be preserved and merged.'
@@ -93,7 +105,7 @@ export const PresetPicker = () => {
                 type="checkbox"
                 checked={selected.has(p.id)}
                 onChange={() => toggleSelect(p.id)}
-                style={{ alignSelf: 'flex-start', marginTop: '4px' }}
+                style={{ width: 'auto', padding: 0, flexShrink: 0, alignSelf: 'flex-start', marginTop: '4px' }}
               />
               <div className="preset-card-body" style={{ flex: 1 }}>
                 <div className="preset-card-name" style={{ fontWeight: '500', color: 'var(--tx)' }}>{p.name}</div>
@@ -147,7 +159,7 @@ export const PresetPicker = () => {
           return (
             <div style={{ margin: '0 0 12px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: 'var(--tx2)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={importLinks} onChange={(e: any) => setImportLinks(e.target.checked)} />
+                <input type="checkbox" checked={importLinks} onChange={(e: any) => setImportLinks(e.target.checked)} style={{ width: 'auto', padding: 0 }} />
                 Import curated bookmark links from selected presets
               </label>
               {importLinks && (
@@ -157,7 +169,7 @@ export const PresetPicker = () => {
                     type="number" min={0} max={totalLinks} value={linkCount}
                     title="Number of links to import (0 = all)" placeholder="0"
                     onInput={(e: any) => setLinkCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    style={{ width: '70px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px', padding: '4px 6px' }}
+                    style={{ width: '70px', padding: '4px 6px' }}
                   />
                   <span>{linkCount > 0 ? `of ${totalLinks}` : `all ${totalLinks}`}</span>
                 </div>
@@ -168,12 +180,13 @@ export const PresetPicker = () => {
 
         <div className="preset-dialog-footer" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--tx3)', flex: 1 }}>{status}</span>
-          <button onClick={() => handleApply('blank', false)} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Start Blank</button>
-          <button onClick={() => handleApply('all')} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Use All</button>
+          {state.mergeMode && <button className="modal-btn modal-btn--sm" onClick={close} disabled={applying}>Cancel</button>}
+          <button className="modal-btn modal-btn--sm" onClick={() => handleApply('blank', false)} disabled={applying}>Start Blank</button>
+          <button className="modal-btn modal-btn--sm" onClick={() => handleApply('all')} disabled={applying}>Use All</button>
           <button
+            className="modal-btn modal-btn--sm modal-btn--primary"
             onClick={() => handleApply(Array.from(selected))}
-            disabled={selected.size === 0}
-            style={{ background: selected.size === 0 ? 'var(--bg3)' : 'var(--ac)', border: 'none', color: selected.size === 0 ? 'var(--tx3)' : '#fff', padding: '6px 12px', borderRadius: '4px', cursor: selected.size === 0 ? 'default' : 'pointer' }}
+            disabled={selected.size === 0 || applying}
           >
             {state.mergeMode ? 'Apply & Merge' : 'Apply Selected'}
           </button>

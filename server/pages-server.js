@@ -34,7 +34,9 @@ function apiPageStream(req, res, id) {
   const fp = fromId(id);
   if (!fp || !isAllowedMediaPath(fp) || !fs.existsSync(fp)) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  fs.createReadStream(fp).pipe(res);
+  const rs = fs.createReadStream(fp);
+  rs.on('error', () => { try { res.destroy(); } catch {} });
+  rs.pipe(res);
 }
 
 async function apiPageDelete(req, res, id) {

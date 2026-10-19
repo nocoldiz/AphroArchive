@@ -30,7 +30,7 @@ function sectionState(key: string, defaultOpen = true): boolean {
 function persistSection(key: string, open: boolean) {
   const s = loadSections();
   s[key] = open;
-  localStorage.setItem(LS_KEY, JSON.stringify(s));
+  try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch {}
 }
 
 function makeToggle(key: string, setter: (fn: (v: boolean) => boolean) => void) {
@@ -70,8 +70,6 @@ export const Sidebar = () => {
     return () => window.removeEventListener('dragend', clear);
   }, []);
 
-  if (view === 'reddit') return null;
-
   const [libraryOpen, setLibraryOpen] = useState(() => sectionState('library'));
   const [manageOpen, setManageOpen] = useState(() => sectionState('manage'));
   const [mediaOpen, setMediaOpen] = useState(() => sectionState('media'));
@@ -98,12 +96,20 @@ export const Sidebar = () => {
 
   const inVaultMode = isVaultUnlocked.value && currentView.value === 'vault';
 
+  // Photo sub-folders only render while the Photos view is active, so fetch
+  // them lazily on first visit instead of on every app start.
+  const photoFoldersLoaded = useRef(false);
   useEffect(() => {
+    if (view !== 'photos' || photoFoldersLoaded.current) return;
+    photoFoldersLoaded.current = true;
     fetch('/api/photos/folders')
       .then(r => r.json())
-      .then(setPhotoFolders)
+      .then(d => { if (Array.isArray(d)) setPhotoFolders(d); })
       .catch(() => {});
-  }, []);
+  }, [view]);
+
+  // Early return only after every hook has run (rules of hooks).
+  if (view === 'reddit') return null;
 
   const navItems = getNavItems();
   const placements = (appPrefs.value.itemPlacements || {}) as Record<string, string>;

@@ -1,7 +1,7 @@
 import { formatVideoTitle } from '../../utils';
 
 /** @jsxImportSource preact */
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { duplicatesDeleteProgress, refreshLibraryQuietly } from '../../store';
 
 interface VideoItem {
@@ -64,6 +64,15 @@ function pickBestName(group: VideoItem[]): VideoItem {
 function pickBest(group: VideoItem[]): string {
   return pickBestQuality(group).id;
 }
+
+// Give the kept file the better name. Runs after the other copies are deleted
+// so a same-folder duplicate can't block the rename with "Name already exists".
+const renameVideo = (id: string, name: string) =>
+  fetch(`/api/videos/${id}/rename`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newName: name.replace(/\.[^.]+$/, '') }),
+  }).then(r => r.ok).catch(() => false);
 
 export const DuplicatesView = () => {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -149,7 +158,7 @@ export const DuplicatesView = () => {
   };
 
   const stopScan = async () => {
-    await fetch('/api/duplicates/stop', { method: 'POST' });
+    await fetch('/api/duplicates/stop', { method: 'POST' }).catch(() => {});
     esRef.current?.close();
     setScanning(false);
     setScanProgress(null);
@@ -164,16 +173,6 @@ export const DuplicatesView = () => {
     const renameNote = needsRename ? `\n\nWill rename to "${bestName.name}" (better-named file).` : '';
     if (!confirm(`Keep "${bestQuality.name}"${resLabel} and permanently delete the other ${toDelete.length} file${toDelete.length !== 1 ? 's' : ''}?${renameNote}`)) return;
     setKeepingGroup(groupIdx);
-    if (needsRename) {
-      const stem = bestName.name.replace(/\.[^.]+$/, '');
-      try {
-        await fetch(`/api/rename/${bestQuality.id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: stem }),
-        });
-      } catch {}
-    }
     const newDeleted = new Set(deleted);
     for (const v of toDelete) {
       try {
@@ -181,12 +180,13 @@ export const DuplicatesView = () => {
         if (r.ok) newDeleted.add(v.id);
       } catch {}
     }
+    const renamed = needsRename && newDeleted.has(bestName.id) && await renameVideo(bestQuality.id, bestName.name);
     setDeleted(newDeleted);
     setKeepingGroup(null);
     refreshLibraryQuietly();
     const w = window as any;
     const deletedCount = [...newDeleted].filter(id => toDelete.some(v => v.id === id)).length;
-    if (w.toast) w.toast(`Kept best, deleted ${deletedCount} duplicate${deletedCount !== 1 ? 's' : ''}${needsRename ? ', renamed to better name' : ''}`);
+    if (w.toast) w.toast(`Kept best, deleted ${deletedCount} duplicate${deletedCount !== 1 ? 's' : ''}${renamed ? ', renamed to better name' : ''}`);
   };
 
   const handleKeepBestAll = async () => {
@@ -211,17 +211,8 @@ export const DuplicatesView = () => {
     duplicatesDeleteProgress.value = { running: true, done: 0, total: totalToDelete };
     const newDeleted = new Set(deleted);
     let deletedCount = 0;
+    let renamedCount = 0;
     for (const t of targets) {
-      if (t.needsRename) {
-        const stem = t.bestName.name.replace(/\.[^.]+$/, '');
-        try {
-          await fetch(`/api/rename/${t.bestQuality.id}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: stem }),
-          });
-        } catch {}
-      }
       for (const v of t.toDelete) {
         try {
           const r = await fetch(`/api/videos/${v.id}`, { method: 'DELETE' });
@@ -232,13 +223,14 @@ export const DuplicatesView = () => {
           }
         } catch {}
       }
+      if (t.needsRename && newDeleted.has(t.bestName.id) && await renameVideo(t.bestQuality.id, t.bestName.name)) renamedCount++;
     }
     setDeleted(newDeleted);
     setKeepingAll(false);
     duplicatesDeleteProgress.value = { running: false, done: 0, total: 0 };
     refreshLibraryQuietly();
     const w = window as any;
-    if (w.toast) w.toast(`Kept best in ${targets.length} group${targets.length !== 1 ? 's' : ''}, deleted ${totalToDelete} duplicate${totalToDelete !== 1 ? 's' : ''}${renameCount > 0 ? `, renamed ${renameCount}` : ''}`);
+    if (w.toast) w.toast(`Kept best in ${targets.length} group${targets.length !== 1 ? 's' : ''}, deleted ${deletedCount} duplicate${deletedCount !== 1 ? 's' : ''}${renamedCount > 0 ? `, renamed ${renamedCount}` : ''}`);
   };
 
   const handleDelete = async (video: VideoItem) => {
@@ -263,55 +255,46 @@ export const DuplicatesView = () => {
     }
   };
 
-  const visibleGroups = groups
+  const visibleGroups = useMemo(() => groups
     .map(g => g.filter(v => !deleted.has(v.id)))
-    .filter(g => g.length > 1);
+    .filter(g => g.length > 1), [groups, deleted]);
 
-  const totalWasted = visibleGroups.reduce((sum, g) => {
+  const totalWasted = useMemo(() => visibleGroups.reduce((sum, g) => {
     const maxSize = Math.max(...g.map(v => v.size));
     return sum + g.reduce((s, v) => s + v.size, 0) - maxSize;
-  }, 0);
+  }, 0), [visibleGroups]);
 
   return (
     <div style={{ padding: '24px', maxWidth: '1000px' }}>
       <h2 style={{ margin: '0 0 20px', color: 'var(--ac)' }}>Duplicate Finder</h2>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--brd)', paddingBottom: '10px' }}>
         <button
-          className={`db-tab ${mode === 'size' ? 'on' : ''}`}
+          className={`ui-tab${mode === 'size' ? ' on' : ''}`}
           onClick={() => { if (!scanning) setMode('size'); }}
-          style={{ padding: '8px 16px', background: mode === 'size' ? 'var(--ac)' : 'transparent', color: mode === 'size' ? '#fff' : 'var(--tx2)', border: 'none', borderRadius: '4px', cursor: scanning ? 'not-allowed' : 'pointer' }}
+          disabled={scanning}
         >
           Quick (size)
         </button>
         <button
-          className={`db-tab ${mode === 'visual' ? 'on' : ''}`}
+          className={`ui-tab${mode === 'visual' ? ' on' : ''}`}
           onClick={() => { if (!scanning) setMode('visual'); }}
-          style={{ padding: '8px 16px', background: mode === 'visual' ? 'var(--ac)' : 'transparent', color: mode === 'visual' ? '#fff' : 'var(--tx2)', border: 'none', borderRadius: '4px', cursor: scanning ? 'not-allowed' : 'pointer' }}
+          disabled={scanning}
         >
           Visual scan
         </button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
           {mode === 'visual' && !scanning && (
-            <button
-              onClick={startVisualScan}
-              style={{ padding: '7px 14px', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
+            <button className="ui-btn ui-btn--primary" onClick={startVisualScan}>
               Run Scan
             </button>
           )}
           {scanning && (
-            <button
-              onClick={stopScan}
-              style={{ padding: '7px 14px', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
+            <button className="ui-btn" onClick={stopScan}>
               Stop
             </button>
           )}
           {mode === 'size' && (
-            <button
-              onClick={loadSizeBased}
-              style={{ padding: '7px 14px', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
+            <button className="ui-btn" onClick={loadSizeBased}>
               Refresh
             </button>
           )}
@@ -355,10 +338,11 @@ export const DuplicatesView = () => {
             {totalWasted > 0 && <> · <span style={{ color: 'var(--ac)' }}>{fmt(totalWasted)} potentially recoverable</span></>}
           </div>
           <button
+            className="ui-btn ui-btn--primary"
             onClick={handleKeepBestAll}
             disabled={keepingAll}
             title="Keep the highest-resolution file in every group and delete all other duplicates"
-            style={{ marginLeft: 'auto', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: keepingAll ? 'wait' : 'pointer', fontSize: '0.82rem', fontWeight: 600, opacity: keepingAll ? 0.6 : 1 }}
+            style={{ marginLeft: 'auto' }}
           >
             {keepingAll ? 'Cleaning up…' : 'Keep Best in All Groups'}
           </button>
@@ -366,9 +350,9 @@ export const DuplicatesView = () => {
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--tx3)' }}>Loading…</div>
+        <div className="empty-state">Loading…</div>
       ) : visibleGroups.length === 0 && !scanning ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--tx3)' }}>
+        <div className="empty-state">
           {mode === 'size' ? 'No duplicate files found (by file size).' : 'No visual duplicates found. Run a scan to check.'}
         </div>
       ) : (
@@ -385,10 +369,11 @@ export const DuplicatesView = () => {
                 <span>·</span>
                 <span>{fmt(group[0].size)} each</span>
                 <button
+                  className="ui-btn ui-btn--sm ui-btn--primary"
                   onClick={() => handleKeepBest(group, gi)}
                   disabled={isKeeping}
                   title="Keep highest-resolution file and delete the rest"
-                  style={{ marginLeft: 'auto', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '5px', padding: '4px 12px', cursor: isKeeping ? 'wait' : 'pointer', fontSize: '0.78rem', fontWeight: 600, opacity: isKeeping ? 0.6 : 1 }}
+                  style={{ marginLeft: 'auto' }}
                 >
                   {isKeeping ? 'Deleting…' : 'Keep Best & Delete Rest'}
                 </button>
@@ -421,18 +406,18 @@ export const DuplicatesView = () => {
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                     <button
-                      onClick={() => { const w = window as any; if (w.playVideo) w.playVideo(video.id, video.name); }}
+                      className="ui-btn ui-btn--sm"
+                      onClick={() => { const w = window as any; if (w.openVid) w.openVid(video.id); }}
                       title="Preview"
-                      style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '0.78rem' }}
                     >
                       ▶
                     </button>
                     {!isBest && (
                       <button
+                        className="ui-btn ui-btn--sm ui-btn--danger"
                         onClick={() => handleDelete(video)}
                         disabled={deletingId === video.id}
                         title="Delete this file"
-                        style={{ background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '0.78rem' }}
                       >
                         {deletingId === video.id ? '…' : 'Delete'}
                       </button>

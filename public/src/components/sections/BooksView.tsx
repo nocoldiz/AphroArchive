@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useMemo } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { contextMenuState } from '../../store';
 import { Book } from '../../types';
@@ -12,8 +12,6 @@ export const BooksView = () => {
   const [readingBook, setReadingBook] = useState<any | null>(null);
   const [editContent, setEditContent] = useState('');
   const [saving, setSaving] = useState(false);
-  const [urlInput, setUrlInput] = useState('');
-  const [importing, setImporting] = useState(false);
   const [cbzFiles, setCbzFiles] = useState<string[]>([]);
   const [cbzView, setCbzView] = useState<'vertical' | 'paged'>('vertical');
   const [cbzPage, setCbzPage] = useState(0);
@@ -29,7 +27,7 @@ export const BooksView = () => {
     try {
       const res = await fetch('/api/books');
       const data = await res.json();
-      setBooks(data);
+      setBooks(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
       setBooks([]);
@@ -39,13 +37,20 @@ export const BooksView = () => {
   };
 
   const openBook = async (id: string, isVault: boolean = false) => {
+    const bObj = books.find(b => b.id === id);
+    const ext = (bObj?.ext || '').toLowerCase();
+    // PDF/EPUB are streamed by the browser: open directly (synchronously, so the
+    // popup isn't blocked) instead of downloading the whole file just to sniff it.
+    if (!isVault && (ext === '.pdf' || ext === '.epub')) {
+      window.open(`/api/books/read/${id}`, '_blank');
+      return;
+    }
     setReadingBook({ loading: true });
     try {
-      const bObj = books.find(b => b.id === id);
-      const ext = (bObj?.ext || '').toLowerCase();
       
       if (ext === '.cbz') {
         const filesRes = await fetch(`/api/books/cbz/${id}/files`);
+        if (!filesRes.ok) throw new Error(`HTTP ${filesRes.status}`);
         const filesData = await filesRes.json();
         setCbzFiles(filesData.files || []);
         setCbzPage(0);
@@ -58,12 +63,14 @@ export const BooksView = () => {
       
       if (res.headers.get('content-type')?.includes('application/pdf') ||
           res.headers.get('content-type')?.includes('epub')) {
+        res.body?.cancel().catch(() => {});
         setReadingBook(null);
         window.open(url, '_blank');
         return;
       }
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setReadingBook({ ...data, id, isVault });
       const dataExt = (data.ext || '').toLowerCase();
       if (dataExt === '.txt' || dataExt === '.md') {
@@ -95,30 +102,6 @@ export const BooksView = () => {
       if (w.toast) w.toast('Save failed');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const importBook = async () => {
-    if (!urlInput.trim()) return;
-    setImporting(true);
-    try {
-      const r = await fetch('/api/books/import-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: urlInput.trim() })
-      });
-      const d = await r.json();
-      if (!r.ok) {
-        if (w.toast) w.toast(d.error || 'Import failed');
-        return;
-      }
-      setUrlInput('');
-      if (w.toast) w.toast(`Imported: ${d.title}`);
-      loadBooks();
-    } catch (e: any) {
-      if (w.toast) w.toast(e.message);
-    } finally {
-      setImporting(false);
     }
   };
 
@@ -207,14 +190,14 @@ export const BooksView = () => {
       }).join('\n');
   };
 
-  const sortedBooks = [...books];
-  if (sort === 'name') sortedBooks.sort((a, b) => (a.title || a.filename).localeCompare(b.title || b.filename));
-  else if (sort === 'size') sortedBooks.sort((a, b) => (b.size || 0) - (a.size || 0));
-  else sortedBooks.sort((a, b) => (b.date || 0) - (a.date || 0));
-
-  const filteredBooks = query
-    ? sortedBooks.filter(b => (b.title || b.filename || '').toLowerCase().includes(query.toLowerCase()))
-    : sortedBooks;
+  const filteredBooks = useMemo(() => {
+    const q = query.toLowerCase();
+    const list = q ? books.filter(b => (b.title || b.filename || '').toLowerCase().includes(q)) : [...books];
+    if (sort === 'name') list.sort((a, b) => (a.title || a.filename).localeCompare(b.title || b.filename));
+    else if (sort === 'size') list.sort((a, b) => (b.size || 0) - (a.size || 0));
+    else list.sort((a, b) => (b.date || 0) - (a.date || 0));
+    return list;
+  }, [books, sort, query]);
 
   return (
     <div className="books-view on">
@@ -250,7 +233,7 @@ export const BooksView = () => {
       <div id="booksGrid" className="books-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', padding: '16px 0' }}>
         {loading && <div style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>Loading…</div>}
         {!loading && filteredBooks.length === 0 && (
-          <div id="booksEmpty" style={{ color: 'var(--tx2)', fontSize: '0.85rem' }}>No books found.</div>
+          <div id="booksEmpty" className="empty-state empty-state--sm" style={{ gridColumn: '1 / -1' }}>No books found.</div>
         )}
         {!loading && filteredBooks.map(b => (
           <div key={b.id} className="bk-card" onClick={() => openBook(b.id)} onContextMenu={(e) => openCtx(e, b)} style={{ display: 'flex', gap: '12px', padding: '12px', background: 'var(--bg2)', borderRadius: '8px', cursor: 'pointer', position: 'relative' }}>
@@ -269,7 +252,7 @@ export const BooksView = () => {
                 {b.type === 'fanfiction' && <span className="bk-badge bk-badge--ff" style={{ background: 'var(--bg3)', padding: '2px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>FF.net</span>}
                 {b.type === 'url' && <span className="bk-badge bk-badge--url" style={{ background: 'var(--bg3)', padding: '2px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>Web</span>}
                 {b.ext && <span className="bk-badge" style={{ background: 'var(--bg3)', padding: '2px 4px', borderRadius: '4px', fontSize: '0.65rem' }}>{b.ext.replace('.','').toUpperCase()}</span>}
-                {b.chapters && <span className="bk-chapters">{b.chapters} ch.</span>}
+                {!!b.chapters && <span className="bk-chapters">{b.chapters} ch.</span>}
                 <span>{b.sizeF || ''}</span>
               </div>
             </div>
@@ -286,10 +269,10 @@ export const BooksView = () => {
       </div>
 
       {readingBook && (
-        <div className="books-reader on" style={{ position: 'fixed', inset: 0, background: 'var(--bg1)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
+        <div className="books-reader on" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
           <div className="reader-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--brd)' }}>
             <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{readingBook.title || 'Reading'}</h2>
-            <button className="btn-icon" onClick={() => setReadingBook(null)} style={{ background: 'none', border: 'none', color: 'var(--tx)', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+            <button className="ui-btn ui-btn--ghost ui-btn--icon" onClick={() => setReadingBook(null)} title="Close" style={{ fontSize: '1.5rem' }}>×</button>
           </div>
           <div className="reader-body" style={{ flex: 1, overflowY: 'auto', padding: '16px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
             {readingBook.loading ? (
@@ -298,8 +281,8 @@ export const BooksView = () => {
               readingBook.ext === '.cbz' ? (
                 <div>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', justifyContent: 'center' }}>
-                    <button onClick={() => setCbzView('vertical')} style={{ background: cbzView === 'vertical' ? 'var(--ac)' : 'var(--bg2)', color: cbzView === 'vertical' ? '#fff' : 'var(--tx)', border: '1px solid var(--brd)', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Vertical</button>
-                    <button onClick={() => setCbzView('paged')} style={{ background: cbzView === 'paged' ? 'var(--ac)' : 'var(--bg2)', color: cbzView === 'paged' ? '#fff' : 'var(--tx)', border: '1px solid var(--brd)', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>Paged</button>
+                    <button className={`ui-tab${cbzView === 'vertical' ? ' on' : ''}`} onClick={() => setCbzView('vertical')}>Vertical</button>
+                    <button className={`ui-tab${cbzView === 'paged' ? ' on' : ''}`} onClick={() => setCbzView('paged')}>Paged</button>
                   </div>
                   
                   {cbzView === 'vertical' ? (
@@ -330,10 +313,11 @@ export const BooksView = () => {
                   <textarea 
                     value={editContent}
                     onInput={(e: any) => setEditContent(e.target.value)}
-                    style={{ width: '100%', height: '60vh', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '12px', fontFamily: 'monospace', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
+                    className="ui-input"
+                    style={{ height: '60vh', background: 'var(--bg2)', padding: '12px', fontFamily: 'monospace', fontSize: '13px' }}
                   />
                   <div style={{ display: 'flex', gap: '8px', marginTop: '10px', alignItems: 'center' }}>
-                    <button onClick={saveBookEdit} disabled={saving} style={{ background: 'var(--ac)', color: '#fff', border: 'none', padding: '7px 18px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                    <button className="ui-btn ui-btn--primary" onClick={saveBookEdit} disabled={saving}>
                       {saving ? 'Saving…' : 'Save'}
                     </button>
                   </div>

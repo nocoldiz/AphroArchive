@@ -27,13 +27,21 @@ export function CategoryTagsModal({ folderPath, onClose }: Props) {
     setSaving(true);
     const tags = tagsText.split(',').map(t => t.trim()).filter(Boolean);
     try {
-      await fetch('/api/db/folder-tags', {
+      const r = await fetch('/api/db/folder-tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folderPath, tags }),
       });
+      // Keep the modal (and the user's edits) open when the server rejects the save.
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        (window as any).toast?.('Save failed: ' + (d.error || `HTTP ${r.status}`));
+        setSaving(false);
+        return;
+      }
       onClose();
     } catch {
+      (window as any).toast?.('Save failed');
       setSaving(false);
     }
   };
@@ -46,59 +54,29 @@ export function CategoryTagsModal({ folderPath, onClose }: Props) {
 
   return (
     <div
+      className="modal-overlay on"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.65)',
-        zIndex: 10000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '16px',
-      }}
+      style={{ zIndex: 10000, padding: '16px' }}
     >
-      <div style={{
-        background: 'var(--bg2)',
-        border: '1px solid var(--brd)',
-        borderRadius: '12px',
-        width: '100%', maxWidth: '480px',
-        boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
-        display: 'flex', flexDirection: 'column',
-      }}>
-
-        {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--brd)' }}>
-          <span style={{ fontWeight: 700, fontSize: '0.92rem' }}>
-            {folderIcon}{catName}
-          </span>
-          <div style={{ fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '3px' }}>
+      <div className="modal-dialog" style={{ maxWidth: '480px' }}>
+        <div className="modal-header">
+          <h2>{folderIcon}{catName}</h2>
+          <div className="ui-label" style={{ marginTop: '3px', marginBottom: 0 }}>
             Tags for auto-categorization
           </div>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: '16px 18px' }}>
+        <div className="modal-body">
           {loading ? (
-            <div style={{ color: 'var(--tx3)', fontSize: '0.82rem', textAlign: 'center', padding: '16px 0' }}>Loading…</div>
+            <div className="empty-state empty-state--sm" style={{ padding: '16px 0', fontSize: '0.82rem' }}>Loading…</div>
           ) : (
             <>
               <textarea
+                className="ui-input"
                 value={tagsText}
                 onInput={(e: any) => setTagsText(e.target.value)}
                 placeholder="tag1, tag2, tag3…"
                 rows={4}
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  background: 'var(--bg3)',
-                  border: '1px solid var(--brd)',
-                  borderRadius: '6px',
-                  color: 'var(--tx1)',
-                  padding: '8px 10px',
-                  fontSize: '0.82rem',
-                  resize: 'vertical',
-                  outline: 'none',
-                  fontFamily: 'inherit',
-                }}
-                onFocus={(e: any) => { e.target.style.borderColor = 'var(--ac)'; }}
-                onBlur={(e: any) => { e.target.style.borderColor = 'var(--brd)'; }}
               />
               <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', marginTop: '6px' }}>
                 Separate tags with commas. Videos whose filenames contain any tag will be moved here during auto-categorization.
@@ -107,35 +85,11 @@ export function CategoryTagsModal({ folderPath, onClose }: Props) {
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{
-          padding: '12px 18px',
-          borderTop: '1px solid var(--brd)',
-          display: 'flex', justifyContent: 'flex-end', gap: '8px',
-        }}>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            style={{
-              background: 'none', border: '1px solid var(--brd)',
-              color: 'var(--tx2)', borderRadius: '6px',
-              padding: '5px 14px', fontSize: '0.8rem', cursor: 'pointer',
-            }}
-          >
+        <div className="modal-footer">
+          <button className="modal-btn" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={loading || saving}
-            style={{
-              background: loading || saving ? 'var(--bg3)' : 'var(--ac)',
-              color: loading || saving ? 'var(--tx3)' : '#fff',
-              border: 'none', borderRadius: '6px',
-              padding: '5px 14px', fontSize: '0.8rem',
-              cursor: loading || saving ? 'default' : 'pointer',
-              fontWeight: 600,
-            }}
-          >
+          <button className="modal-btn modal-btn--primary" onClick={handleSave} disabled={loading || saving}>
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>

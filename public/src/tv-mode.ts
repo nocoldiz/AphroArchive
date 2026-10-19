@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals';
 import { Video } from './types';
 import { currentVideo, currentView, allVideos, folders } from './store';
+import { zapOn, stopZapping } from './zap';
 
 export interface TVChannel {
   id: string;
@@ -166,9 +167,8 @@ export function toggleTVMode() {
     stopTVMode();
     return;
   }
-  // Stop zapping if active
-  const w = window as any;
-  if (w.zapOn?.value && w.stopZapping) w.stopZapping();
+  // Stop zapping if active (window.zapOn was never bridged, so this never fired)
+  if (zapOn.value) stopZapping();
 
   const ok = initTVMode();
   if (!ok) return;

@@ -1,4 +1,4 @@
-﻿import { currentView, currentVideo } from '../../store';
+﻿import { currentView, currentVideo, originalNamesModalState } from '../../store';
 import { SettingsView } from '../sections/SettingsView';
 import { ThumbnailsView } from '../sections/ThumbnailsView';
 import { CategoriesView } from '../sections/CategoriesView';
@@ -42,6 +42,7 @@ const AssistantView = lazy(() => import('../../../../plugins/assistant/Assistant
 const CategorizerView = lazy(() => import('../sections/CategorizerView').then(m => ({ default: m.CategorizerView })));
 const PromptsView = lazy(() => import('../../../../plugins/prompts/PromptsView').then(m => ({ default: m.PromptsView })));
 const DuplicatesView = lazy(() => import('../sections/DuplicatesView').then(m => ({ default: m.DuplicatesView })));
+const OriginalNamesModal = lazy(() => import('../modals/OriginalNamesModal').then(m => ({ default: m.OriginalNamesModal })));
 const CorruptedView = lazy(() => import('../sections/CorruptedView').then(m => ({ default: m.CorruptedView })));
 const LibraryHealthView = lazy(() => import('../sections/LibraryHealthView').then(m => ({ default: m.LibraryHealthView })));
 const ChaptersView = lazy(() => import('../sections/ChaptersView').then(m => ({ default: m.ChaptersView })));
@@ -51,6 +52,17 @@ const SubtitlesView = lazy(() => import('../sections/SubtitlesView').then(m => (
 const SubtitleEditorModal = lazy(() => import('../modals/SubtitleEditorModal').then(m => ({ default: m.SubtitleEditorModal })));
 const GuideView = lazy(() => import('../sections/GuideView').then(m => ({ default: m.GuideView })));
 const RadioModeView = lazy(() => import('../sections/RadioModeView').then(m => ({ default: m.RadioModeView })));
+
+// mosaic.ts lives in the lazy MosaicView chunk and only registers its window
+// bridges once loaded, so the topbar Mosaic toggle and the Photos/Vault
+// "Mosaic" buttons silently did nothing until /mosaic had been visited. Stub
+// the entry points to load the module on first use (it then overwrites them).
+{
+  const w = window as any;
+  for (const fn of ['toggleMosaic', 'startMosaicWithPhotos'] as const) {
+    if (!w[fn]) w[fn] = (...args: any[]) => import('../../mosaic').then(m => (m[fn] as (...a: any[]) => void)(...args));
+  }
+}
 
 const ViewLoading = () => <div className="skeleton" style={{ margin: '40px auto', width: '120px', height: '24px' }} />;
 
@@ -164,6 +176,11 @@ export const MainContent = () => {
       <Suspense fallback={null}>
         <SubtitleEditorModal />
       </Suspense>
+      {originalNamesModalState.value.visible && (
+        <Suspense fallback={null}>
+          <OriginalNamesModal />
+        </Suspense>
+      )}
     </>
   );
 };

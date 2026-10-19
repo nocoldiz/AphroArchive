@@ -76,8 +76,9 @@ export const SeriesView = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      const d = await r.json();
-      setImportStatus(`Imported ${d.count} series`);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setImportStatus(d.error || 'Import failed'); return; }
+      setImportStatus(`Imported ${d.count ?? 0} series`);
       await loadDbSeries();
       setTimeout(() => setImportStatus(''), 3000);
     } catch { setImportStatus('Import failed'); }
@@ -100,14 +101,14 @@ export const SeriesView = () => {
           <button
             type="button"
             onClick={() => importRef.current?.click()}
-            style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.82rem' }}
+            className="ui-btn ui-btn--sm"
           >
             Import JSON
           </button>
           <button
             type="button"
             onClick={handleExport}
-            style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.82rem' }}
+            className="ui-btn ui-btn--sm"
           >
             Export JSON
           </button>

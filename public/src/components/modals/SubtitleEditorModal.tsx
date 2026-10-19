@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'preact/hooks';
 import { subtitleEditorModalState } from '../../store';
+import { useEscape } from './useEscape';
 
 interface Cue {
   id: string;
@@ -86,12 +87,17 @@ export const SubtitleEditorModal = () => {
 
   useEffect(() => {
     if (!state.visible || !state.videoId) return;
+    // Ignore a late response from a previously opened video.
+    let stale = false;
     setLoading(true);
     setError('');
     setDirty(false);
+    setRawMode(false);
+    setCues([]);
     fetch(`/api/subtitles/${state.videoId}/content`)
       .then(r => r.json())
       .then(data => {
+        if (stale) return;
         if (data.error) { setError(data.error); setLoading(false); return; }
         const fileExt = data.ext || '.vtt';
         setExt(fileExt);
@@ -99,7 +105,8 @@ export const SubtitleEditorModal = () => {
         setCues(fileExt === '.srt' ? parseSrt(data.content) : parseVtt(data.content));
         setLoading(false);
       })
-      .catch(() => { setError('Failed to load subtitle file'); setLoading(false); });
+      .catch(() => { if (!stale) { setError('Failed to load subtitle file'); setLoading(false); } });
+    return () => { stale = true; };
   }, [state.visible, state.videoId]);
 
   const close = () => {
@@ -110,6 +117,8 @@ export const SubtitleEditorModal = () => {
     setDirty(false);
     setError('');
   };
+
+  useEscape(state.visible, () => { if (!saving) close(); });
 
   const updateCue = useCallback((idx: number, field: keyof Cue, val: string) => {
     setCues(prev => {
@@ -148,6 +157,7 @@ export const SubtitleEditorModal = () => {
   };
 
   const save = async () => {
+    if (saving) return;
     setSaving(true);
     const content = rawMode ? rawText : (ext === '.srt' ? serializeSrt(cues) : serializeVtt(cues));
     try {
@@ -172,8 +182,8 @@ export const SubtitleEditorModal = () => {
   if (!state.visible) return null;
 
   return (
-    <div class="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) close(); }}>
-      <div class="modal-box" style={{ width: '90vw', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div class="modal-overlay on" style={{ zIndex: 20000 }} onClick={e => { if (e.target === e.currentTarget && !saving) close(); }}>
+      <div class="modal-dialog" style={{ padding: 0, width: '90vw', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', gap: 0 }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid var(--brd)', flexShrink: 0 }}>
           <div>
@@ -190,14 +200,14 @@ export const SubtitleEditorModal = () => {
               disabled={saving || !dirty}
               style={{ fontSize: '12px', padding: '4px 14px', background: dirty ? 'var(--ac)' : 'var(--bg3)', color: dirty ? '#fff' : 'var(--tx3)', border: 'none', borderRadius: '4px', cursor: dirty ? 'pointer' : 'default', fontWeight: 600 }}
             >{saving ? 'Saving…' : 'Save'}</button>
-            <button onClick={close} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--tx2)', lineHeight: 1 }}>✕</button>
+            <button className="ui-btn ui-btn--ghost ui-btn--icon" onClick={close} aria-label="Close" title="Close">✕</button>
           </div>
         </div>
 
         {/* Body */}
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 18px' }}>
           {loading && <p style={{ color: 'var(--tx3)', textAlign: 'center', paddingTop: '40px' }}>Loading…</p>}
-          {error && <p style={{ color: 'var(--err, #e84040)', textAlign: 'center', paddingTop: '40px' }}>{error}</p>}
+          {error && <p style={{ color: 'var(--danger)', textAlign: 'center', paddingTop: '40px' }}>{error}</p>}
 
           {!loading && !error && rawMode && (
             <textarea

@@ -63,7 +63,8 @@ function apiDbGet(req, res, type) {
 
 async function apiDbUpsert(req, res, type) {
   const body = await readBody(req);
-  const { name, data, oldName } = body;
+  const { name, oldName } = body;
+  const data = (body.data && typeof body.data === 'object') ? body.data : {};
   if (!name || typeof name !== 'string') return jsonError(res, 'Name required');
   if (name.length > LIMITS.name) return jsonError(res, `Name is too long (max ${LIMITS.name} characters)`);
 
@@ -97,8 +98,9 @@ async function apiDbUpsert(req, res, type) {
   if (type === 'actors') {
     const actors = loadActors();
     const raw = {};
-    actors.forEach(a => { raw[a.name] = { date_of_birth: null, nationality: a.nationality, imdb_page: a.imdb_page }; });
-    raw[name] = data || {};
+    actors.forEach(a => { raw[a.name] = { date_of_birth: a.date_of_birth, nationality: a.nationality, imdb_page: a.imdb_page }; });
+    // Merge: the edit form (apiDbGet) doesn't carry date_of_birth, so keep it.
+    raw[name] = { ...(raw[name] || {}), ...data };
     saveActors(raw);
     invalidateDbTypeCache(type);
     return json(res, { ok: true });
@@ -133,7 +135,7 @@ async function apiDbDelete(req, res, type, name) {
   if (type === 'actors') {
     const actors = loadActors();
     const raw = {};
-    actors.forEach(a => { raw[a.name] = { date_of_birth: null, nationality: a.nationality, imdb_page: a.imdb_page }; });
+    actors.forEach(a => { raw[a.name] = { date_of_birth: a.date_of_birth, nationality: a.nationality, imdb_page: a.imdb_page }; });
     delete raw[name];
     saveActors(raw);
     invalidateDbTypeCache(type);
@@ -144,7 +146,7 @@ async function apiDbDelete(req, res, type, name) {
 
 async function apiDbImport(req, res) {
   const body  = await readBody(req);
-  const paths = Array.isArray(body.paths) ? body.paths.map(p => p.trim()).filter(Boolean) : [];
+  const paths = Array.isArray(body.paths) ? body.paths.map(p => String(p || '').trim()).filter(Boolean) : [];
   if (!paths.length) return json(res, { error: 'No paths provided' }, 400);
   const results = [];
   for (const src of paths) {
@@ -230,11 +232,11 @@ async function apiDbImportJson(req, res, type) {
     if (!Array.isArray(body)) return json(res, { error: 'Expected array' }, 400);
     const sites = loadWebsites();
     const existing = new Map(sites.map(s => [s.name || s.url, s]));
-    for (const s of body) { existing.set(s.name || s.url, s); }
+    for (const s of body) { if (s && (s.name || s.url)) existing.set(s.name || s.url, s); }
     saveWebsites(Array.from(existing.values()));
     return json(res, { ok: true, count: body.length });
   }
-  if (typeof body !== 'object' || Array.isArray(body)) return json(res, { error: 'Expected object' }, 400);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json(res, { error: 'Expected object' }, 400);
   if (type === 'actors') {
     const actors = loadActors();
     const raw = {};

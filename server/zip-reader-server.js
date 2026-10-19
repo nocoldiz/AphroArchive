@@ -131,29 +131,24 @@ function _parseAesExtra(extra) {
  * List the entries of a ZIP without decrypting payloads.
  * Returns: [{ name, isDir, encrypted, encryption, method, size, compressedSize }]
  */
-function listEntries(buf) {
-  if (!Buffer.isBuffer(buf) || buf.length < 22) throw new Error('Not a ZIP file');
-  const eocd = _findEOCD(buf);
-  if (eocd < 0) throw new Error('Not a valid ZIP (no EOCD record)');
-
-  const count    = buf.readUInt16LE(eocd + 10);
-  let cdOffset   = buf.readUInt32LE(eocd + 16);
-  const entries  = [];
-
-  let p = cdOffset;
+// Parse `count` central-directory records of `cd` starting at offset `p`.
+// Shared by listEntries (whole archive in memory) and listEntriesFromPath.
+function _parseCentralDir(cd, p, count) {
+  const entries = [];
   for (let i = 0; i < count; i++) {
-    if (buf.readUInt32LE(p) !== 0x02014b50) break;
-    const flags     = buf.readUInt16LE(p + 8);
-    const method    = buf.readUInt16LE(p + 10);
-    const crc       = buf.readUInt32LE(p + 16);
-    const compSize  = buf.readUInt32LE(p + 20);
-    const uncompSize = buf.readUInt32LE(p + 24);
-    const nameLen   = buf.readUInt16LE(p + 28);
-    const extraLen  = buf.readUInt16LE(p + 30);
-    const commentLen = buf.readUInt16LE(p + 32);
-    const localOff  = buf.readUInt32LE(p + 42);
-    const name      = buf.slice(p + 46, p + 46 + nameLen).toString('utf-8');
-    const extra     = buf.slice(p + 46 + nameLen, p + 46 + nameLen + extraLen);
+    if (p + 46 > cd.length || cd.readUInt32LE(p) !== 0x02014b50) break;
+    const flags      = cd.readUInt16LE(p + 8);
+    const method     = cd.readUInt16LE(p + 10);
+    const modTime    = cd.readUInt16LE(p + 12);
+    const crc        = cd.readUInt32LE(p + 16);
+    const compSize   = cd.readUInt32LE(p + 20);
+    const uncompSize = cd.readUInt32LE(p + 24);
+    const nameLen    = cd.readUInt16LE(p + 28);
+    const extraLen   = cd.readUInt16LE(p + 30);
+    const commentLen = cd.readUInt16LE(p + 32);
+    const localOff   = cd.readUInt32LE(p + 42);
+    const name       = cd.slice(p + 46, p + 46 + nameLen).toString('utf-8');
+    const extra      = cd.slice(p + 46 + nameLen, p + 46 + nameLen + extraLen);
 
     const encrypted = (flags & 0x0001) !== 0;
     let encryption = encrypted ? 'zipcrypto' : null;
@@ -163,11 +158,18 @@ function listEntries(buf) {
     entries.push({
       name, isDir: name.endsWith('/'), encrypted,
       encryption, method, crc, size: uncompSize, compressedSize: compSize,
-      _localOff: localOff, _flags: flags, _aes: aes,
+      _localOff: localOff, _flags: flags, _aes: aes, _modTime: modTime,
     });
     p += 46 + nameLen + extraLen + commentLen;
   }
   return entries;
+}
+
+function listEntries(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 22) throw new Error('Not a ZIP file');
+  const eocd = _findEOCD(buf);
+  if (eocd < 0) throw new Error('Not a valid ZIP (no EOCD record)');
+  return _parseCentralDir(buf, buf.readUInt32LE(eocd + 16), buf.readUInt16LE(eocd + 10));
 }
 
 /** Read the raw stored bytes of a single entry from its local header offset. */
@@ -204,7 +206,9 @@ function extractEntry(buf, entry, password) {
     if (!password) throw new Error('WRONG_PASSWORD');
     // For data-descriptor entries (flag bit 3) the check byte is the high
     // byte of the mod-time; otherwise it is the high byte of the CRC.
-    const checkByte = (entry._flags & 0x0008) ? 0 : ((entry.crc >>> 24) & 0xFF);
+    const checkByte = (entry._flags & 0x0008)
+      ? (((entry._modTime || 0) >>> 8) & 0xFF)
+      : ((entry.crc >>> 24) & 0xFF);
     data = _zipCryptoDecrypt(data, password, checkByte);
   }
 
@@ -263,35 +267,7 @@ function listEntriesFromPath(zipPath) {
     const cd = Buffer.allocUnsafe(cdSize);
     fs.readSync(fd, cd, 0, cdSize, cdOffset);
 
-    const entries = [];
-    let p = 0;
-    for (let i = 0; i < count; i++) {
-      if (p + 46 > cd.length || cd.readUInt32LE(p) !== 0x02014b50) break;
-      const flags      = cd.readUInt16LE(p + 8);
-      const method     = cd.readUInt16LE(p + 10);
-      const crc        = cd.readUInt32LE(p + 16);
-      const compSize   = cd.readUInt32LE(p + 20);
-      const uncompSize = cd.readUInt32LE(p + 24);
-      const nameLen    = cd.readUInt16LE(p + 28);
-      const extraLen   = cd.readUInt16LE(p + 30);
-      const commentLen = cd.readUInt16LE(p + 32);
-      const localOff   = cd.readUInt32LE(p + 42);
-      const name       = cd.slice(p + 46, p + 46 + nameLen).toString('utf-8');
-      const extra      = cd.slice(p + 46 + nameLen, p + 46 + nameLen + extraLen);
-
-      const encrypted = (flags & 0x0001) !== 0;
-      let encryption = encrypted ? 'zipcrypto' : null;
-      let aes = null;
-      if (method === 99) { aes = _parseAesExtra(extra); encryption = 'aes'; }
-
-      entries.push({
-        name, isDir: name.endsWith('/'), encrypted,
-        encryption, method, crc, size: uncompSize, compressedSize: compSize,
-        _localOff: localOff, _flags: flags, _aes: aes,
-      });
-      p += 46 + nameLen + extraLen + commentLen;
-    }
-    return entries;
+    return _parseCentralDir(cd, 0, count);
   } finally {
     fs.closeSync(fd);
   }

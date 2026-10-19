@@ -73,6 +73,9 @@ export interface AppPrefs {
   videosDirExists?: boolean;
   openrouterApiKey?: string;
   openrouterModel?: string;
+  stashboxEndpoint?: string;
+  stashboxApiKey?: string;
+  stashboxUseMd5?: boolean;
   isMuted?: boolean;
   thumbBlurMode?: string;
   hideEmptyFolders?: boolean;

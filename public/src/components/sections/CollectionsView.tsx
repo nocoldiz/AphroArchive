@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
-import { currentVideo } from '../../store';
+import { useState, useEffect, useRef } from 'preact/hooks';
 
 interface Collection {
   name: string;
@@ -11,15 +10,19 @@ export const CollectionsView = () => {
   const [newCollectionName, setNewCollectionName] = useState('');
   const [currentCollection, setCurrentCollection] = useState<string | null>(null);
   const [collectionVideos, setCollectionVideos] = useState<any[]>([]);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const openSeq = useRef(0);
 
   useEffect(() => {
     loadCollections();
   }, []);
 
   const loadCollections = async () => {
-    const r = await fetch('/api/collections');
-    const data = await r.json();
-    setCollections(data);
+    try {
+      const r = await fetch('/api/collections');
+      const data = await r.json();
+      setCollections(Array.isArray(data) ? data : []);
+    } catch { setCollections([]); }
   };
 
   const handleCreate = async () => {
@@ -29,14 +32,15 @@ export const CollectionsView = () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
-    });
+    }).catch(() => null);
+    if (!r) { const w = window as any; if (w.toast) w.toast('Failed'); return; }
     if (r.ok) {
       setNewCollectionName('');
       loadCollections();
       const w = window as any;
       if (w.toast) w.toast(`Playlist "${name}" created`);
     } else {
-      const d = await r.json();
+      const d = await r.json().catch(() => ({}));
       const w = window as any;
       if (w.toast) w.toast(d.error || 'Failed');
     }
@@ -44,8 +48,8 @@ export const CollectionsView = () => {
 
   const handleDelete = async (name: string) => {
     if (!confirm(`Delete playlist "${name}"?`)) return;
-    const r = await fetch(`/api/collections/${encodeURIComponent(name)}`, { method: 'DELETE' });
-    if (r.ok) {
+    const r = await fetch(`/api/collections/${encodeURIComponent(name)}`, { method: 'DELETE' }).catch(() => null);
+    if (r?.ok) {
       loadCollections();
       const w = window as any;
       if (w.toast) w.toast('Playlist deleted');
@@ -56,10 +60,20 @@ export const CollectionsView = () => {
   };
 
   const openDetail = async (name: string) => {
+    // Clear the previous playlist's videos and drop out-of-order responses
+    const seq = ++openSeq.current;
     setCurrentCollection(name);
-    const r = await fetch(`/api/collections/${encodeURIComponent(name)}/videos`);
-    const data = await r.json();
-    setCollectionVideos(data);
+    setCollectionVideos([]);
+    setLoadingVideos(true);
+    try {
+      const r = await fetch(`/api/collections/${encodeURIComponent(name)}/videos`);
+      const data = await r.json();
+      if (seq === openSeq.current) setCollectionVideos(Array.isArray(data) ? data : []);
+    } catch {
+      if (seq === openSeq.current) setCollectionVideos([]);
+    } finally {
+      if (seq === openSeq.current) setLoadingVideos(false);
+    }
   };
 
   if (currentCollection) {
@@ -72,7 +86,9 @@ export const CollectionsView = () => {
 
         <h2 style={{ marginBottom: '24px', color: 'var(--ac)' }}>{currentCollection}</h2>
 
-        {collectionVideos.length === 0 ? (
+        {loadingVideos ? (
+          <div className="cv-loading">Loading…</div>
+        ) : collectionVideos.length === 0 ? (
           <div className="collection-empty">No videos in this playlist.</div>
         ) : (
           <div className="video-grid">
@@ -103,12 +119,14 @@ export const CollectionsView = () => {
       <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
         <input
           type="text"
+          className="ui-input"
           value={newCollectionName}
           onInput={(e: any) => setNewCollectionName(e.target.value)}
+          onKeyDown={(e: any) => { if (e.key === 'Enter') handleCreate(); }}
           placeholder="New playlist name..."
-          style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }}
+          style={{ flex: 1, width: 'auto' }}
         />
-        <button class="modal-btn modal-btn--primary" onClick={handleCreate}>Create</button>
+        <button className="ui-btn ui-btn--primary" onClick={handleCreate}>Create</button>
       </div>
 
       {collections.length === 0 ? (
@@ -126,8 +144,8 @@ export const CollectionsView = () => {
               <div className="collection-card-count" style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>{col.count} videos</div>
               <button
                 className="collection-delete"
+                title="Delete playlist"
                 onClick={(e) => { e.stopPropagation(); handleDelete(col.name); }}
-                style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>

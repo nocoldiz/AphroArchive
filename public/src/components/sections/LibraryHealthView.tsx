@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { currentView } from '../../store';
 
 type IssueType = 'missing_file' | 'zero_duration' | 'missing_thumbs' | 'orphaned_meta';
 
@@ -60,6 +59,16 @@ export const LibraryHealthView = () => {
     setScanning(true);
 
     if (sseRef.current) sseRef.current.close();
+    // Start the scan before subscribing: the status stream replays the last
+    // finished scan (or 'idle') to new subscribers, which would end this one early.
+    try {
+      await fetch('/api/library/health/scan', { method: 'POST' });
+    } catch {
+      setScanning(false);
+      setProgress(null);
+      toast('Failed to start scan');
+      return;
+    }
     const sse = new EventSource('/api/library/health/status');
     sseRef.current = sse;
 
@@ -77,9 +86,10 @@ export const LibraryHealthView = () => {
           const r = await fetch('/api/library/health/results');
           if (r.ok) {
             const data = await r.json();
-            setResults(data.results);
+            const list: HealthIssue[] = Array.isArray(data.results) ? data.results : [];
+            setResults(list);
             const s: Summary = { missing_file: 0, zero_duration: 0, missing_thumbs: 0, orphaned_meta: 0 };
-            for (const issue of data.results) s[issue.type as IssueType]++;
+            for (const issue of list) s[issue.type as IssueType]++;
             setSummary(s);
           }
           setProgress(null);
@@ -89,8 +99,6 @@ export const LibraryHealthView = () => {
       } catch {}
     };
     sse.onerror = () => { sse.close(); setScanning(false); };
-
-    await fetch('/api/library/health/scan', { method: 'POST' }).catch(() => {});
   };
 
   useEffect(() => () => { sseRef.current?.close(); }, []);
@@ -152,14 +160,12 @@ export const LibraryHealthView = () => {
     toast('Thumbnail generation started');
   };
 
-  const s = { base: { fontFamily: 'inherit', fontSize: '13px' } };
-
   return (
     <div class="section-content" style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, fontWeight: 600, fontSize: '1.15rem' }}>Library Health</h2>
         <button
-          class="btn-primary"
+          class="ui-btn ui-btn--primary"
           disabled={scanning}
           onClick={startScan}
           style={{ marginLeft: 'auto' }}
@@ -208,7 +214,7 @@ export const LibraryHealthView = () => {
       )}
 
       {results !== null && filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--tx3)' }}>
+        <div className="empty-state empty-state--sm">
           {results.length === 0
             ? <><div style={{ fontSize: '2rem', marginBottom: '8px' }}>✓</div><div>No issues found — library looks healthy!</div></>
             : <div>No issues matching this filter.</div>
@@ -232,7 +238,7 @@ export const LibraryHealthView = () => {
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
               {(activeFilter === 'all' || activeFilter === 'orphaned_meta') && selected.size > 0 && (
                 <button
-                  class="btn-sm"
+                  class="ui-btn ui-btn--sm"
                   disabled={fixing}
                   onClick={() => fix('delete_orphaned_meta', 'orphaned_meta')}
                 >
@@ -241,7 +247,7 @@ export const LibraryHealthView = () => {
               )}
               {(activeFilter === 'all' || activeFilter === 'missing_file') && selected.size > 0 && (
                 <button
-                  class="btn-sm btn-danger"
+                  class="ui-btn ui-btn--sm ui-btn--danger"
                   disabled={fixing}
                   onClick={() => {
                     if (!confirm('Remove selected missing-file entries from the database?')) return;
@@ -253,7 +259,7 @@ export const LibraryHealthView = () => {
               )}
               {(activeFilter === 'all' || activeFilter === 'missing_thumbs') && selected.size > 0 && (
                 <button
-                  class="btn-sm"
+                  class="ui-btn ui-btn--sm"
                   disabled={fixing}
                   onClick={genThumbs}
                 >
@@ -275,7 +281,7 @@ export const LibraryHealthView = () => {
                     display: 'flex', alignItems: 'flex-start', gap: '10px',
                     padding: '10px 14px',
                     borderBottom: i < filtered.length - 1 ? '1px solid var(--brd)' : 'none',
-                    background: isSelected ? 'rgba(var(--ac-rgb, 100,100,200), 0.08)' : 'transparent',
+                    background: isSelected ? 'var(--acg)' : 'transparent',
                     cursor: 'pointer',
                   }}
                 >
@@ -315,7 +321,7 @@ export const LibraryHealthView = () => {
       )}
 
       {!scanning && results === null && (
-        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--tx3)' }}>
+        <div className="empty-state empty-state--sm">
           <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>🔍</div>
           <div style={{ marginBottom: '4px' }}>Run a scan to check for problems in your library.</div>
           <div style={{ fontSize: '12px' }}>Checks for missing files, broken metadata, zero-duration entries, and missing thumbnails.</div>

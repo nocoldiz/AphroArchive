@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const { CACHE_DIR, FFMPEG_BIN, VIDEOS_DIR } = require('./config-server');
-const { json, safePath, fromId } = require('./helpers-server');
+const { json, safePath } = require('./helpers-server');
 
 const AUTO_CHAPTERS_FILE = path.join(CACHE_DIR, '.AphroArchive-auto-chapters.json');
 const SCENE_THRESHOLD = 0.4;
@@ -17,15 +17,22 @@ const CONCURRENCY = 1;       // ffmpeg is CPU-heavy; keep at 1
 
 // ── Cache I/O ─────────────────────────────────────────────────────────
 
+// Memoized: hasAutoChapters / ensureAutoChaptersForVideo run per video from
+// the background worker, and re-parsing the whole JSON file each time was
+// sync work proportional to library size. This module is the only writer.
+let _memo = null;
 function loadAutoChaptersCache() {
+  if (_memo) return _memo;
   try {
     if (fs.existsSync(AUTO_CHAPTERS_FILE))
-      return JSON.parse(fs.readFileSync(AUTO_CHAPTERS_FILE, 'utf8'));
+      _memo = JSON.parse(fs.readFileSync(AUTO_CHAPTERS_FILE, 'utf8'));
   } catch {}
-  return {};
+  if (!_memo || typeof _memo !== 'object') _memo = {};
+  return _memo;
 }
 
 function saveAutoChaptersCache(cache) {
+  _memo = cache;
   try {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
     fs.writeFileSync(AUTO_CHAPTERS_FILE, JSON.stringify(cache), 'utf8');
@@ -73,6 +80,7 @@ let _currentChild = null;
 function detectAutoChaptersForVideo(id, fp, track = false) {
   return new Promise(resolve => {
     const args = [
+      '-nostats',
       '-i', fp,
       '-vf', `select='gt(scene,${SCENE_THRESHOLD})',showinfo`,
       '-vsync', 'drop',
@@ -124,11 +132,6 @@ async function apiDetectAutoChapters(req, res, id) {
 }
 
 // ── Batch processing ──────────────────────────────────────────────────
-
-function videoFpFromId(id) {
-  const rel = fromId(id);
-  return path.isAbsolute(rel) ? rel : path.join(VIDEOS_DIR, rel);
-}
 
 const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
 

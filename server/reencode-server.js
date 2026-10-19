@@ -7,7 +7,7 @@ const fs   = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const { FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
-const { json, fromId } = require('./helpers-server');
+const { json, fromId, readBody, safePath } = require('./helpers-server');
 const { setVideoMetaFields, loadVideoMeta, loadPrefs, loadVideoIndex } = require('./db-server');
 
 const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts']);
@@ -41,9 +41,10 @@ function buildCandidates(ids, category) {
   const index = loadVideoIndex() || [];
 
   if (ids && ids.length > 0) {
+    // Client-supplied ids: guard to library roots, since the file gets replaced.
     return ids
-      .map(id => ({ id, fp: resolveFilePath(id) }))
-      .filter(v => fs.existsSync(v.fp) && !v.fp.endsWith('.enc'));
+      .map(id => ({ id, fp: typeof id === 'string' ? safePath(id) : null }))
+      .filter(v => v.fp && !v.fp.endsWith('.enc'));
   }
 
   return index
@@ -140,7 +141,10 @@ async function runBatch(ids, category) {
 
       // Build ffmpeg args depending on container
       const isMp4 = ext === '.mp4' || ext === '.m4v';
+      // -nostats/-loglevel error: execFile buffers stderr (1 MB cap), and hours of
+      // progress lines would overflow it and kill the encode.
       const ffArgs = [
+        '-nostats', '-loglevel', 'error',
         '-i', item.fp,
         '-c:v', 'libx265',
         '-crf', '28',
@@ -198,16 +202,7 @@ async function runBatch(ids, category) {
 async function apiReencodeStart(req, res) {
   if (_job && _job.running) return json(res, { ok: false, error: 'Already running' });
   console.log('[Sync] Starting Re-encode to H.265');
-  const body = await (async () => {
-    try {
-      return await new Promise((resolve, reject) => {
-        let data = '';
-        req.on('data', c => data += c);
-        req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch { resolve({}); } });
-        req.on('error', reject);
-      });
-    } catch { return {}; }
-  })();
+  const body = (await readBody(req)) || {};
   const ids      = Array.isArray(body.ids) ? body.ids : null;
   const category = body.category || null;
   runBatch(ids, category).catch(console.error);

@@ -5,25 +5,16 @@
 
 const fs = require('fs');
 const path = require('path');
-const { VIDEOS_DIR } = require('./config-server');
-const { json, safePath, readBody } = require('./helpers-server');
+const { VIDEOS_DIR, VIDEO_EXT } = require('./config-server');
+const { json, safePath, readBody, toId } = require('./helpers-server');
 const { loadPrefs } = require('./db-server');
 
-const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
 const SUBTITLE_EXT = new Set(['.vtt', '.srt', '.ass', '.ssa', '.sub', '.smi']);
 
-function toId(rel) { return Buffer.from(rel).toString('base64url'); }
-function fromId(id) { try { return Buffer.from(id, 'base64url').toString(); } catch { return null; } }
-
+// Guarded to VIDEOS_DIR / sourceFolders / opened roots: the id reaches
+// readFile / writeFile / unlink, so `../` or arbitrary absolute paths must fail.
 function resolveVideoPath(id) {
-  const decoded = fromId(id);
-  if (!decoded) return null;
-  // Try as relative path inside VIDEOS_DIR first
-  const relCandidate = path.join(VIDEOS_DIR, decoded);
-  if (fs.existsSync(relCandidate)) return relCandidate;
-  // Try as absolute (external folder)
-  if (path.isAbsolute(decoded) && fs.existsSync(decoded)) return decoded;
-  return null;
+  try { return safePath(id); } catch { return null; }
 }
 
 function findSubtitleFiles(videoFp) {
@@ -136,7 +127,8 @@ async function apiSaveSubtitleContent(req, res, id) {
     // Create new VTT file alongside the video
     const dir = path.dirname(fp);
     const base = path.basename(fp, path.extname(fp));
-    targetFp = path.join(dir, base + (ext || '.vtt'));
+    const outExt = SUBTITLE_EXT.has(ext) ? ext : '.vtt';
+    targetFp = path.join(dir, base + outExt);
   }
 
   try {

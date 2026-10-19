@@ -64,8 +64,9 @@ export const Search = () => {
       .then(r => r.json())
       .then(d => {
         const parse = (s: string) => (s || '').split('\n').map(l => l.trim()).filter(Boolean);
-        const hiddenTerms = parse(d.hidden);
-        const isHiddenTerm = (name: string) => hiddenTerms.some(t => new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(name));
+        // Compile each hidden term once, not once per candidate term.
+        const hiddenRes = parse(d.hidden).map(t => new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'));
+        const isHiddenTerm = (name: string) => hiddenRes.some(re => re.test(name));
         const terms = [...parse(d.actors), ...parse(d.channels), ...parse(d.categories)].filter(t => !isHiddenTerm(t));
         setAcTerms(terms);
       })
@@ -86,7 +87,8 @@ export const Search = () => {
   // Fetch grouped autocomplete suggestions from the FTS-backed endpoint.
   const fetchSuggestions = (val: string) => {
     const q = val.trim();
-    if (q.length < 2) { setSuggestions([]); setAcOpen(false); return; }
+    // Bump the sequence so an in-flight response can't reopen the menu after the box was cleared.
+    if (q.length < 2) { suggestSeq.current++; setSuggestions([]); setAcOpen(false); return; }
     const seq = ++suggestSeq.current;
     fetch(`/api/search/suggest?q=${encodeURIComponent(q)}&limit=6`)
       .then(r => r.json())
@@ -232,11 +234,16 @@ export const Search = () => {
   useEffect(() => {
     const ghost = document.getElementById('search-ghost');
     if (!ghost) return;
-    if (!hint || !localQuery) {
-      ghost.innerHTML = '';
-      return;
-    }
-    ghost.innerHTML = `<span class="ghost-typed">${localQuery}</span><span class="ghost-hint">${hint}</span>`;
+    ghost.textContent = '';
+    if (!hint || !localQuery) return;
+    // Build with textContent — the query and DB-sourced hint must never be parsed as HTML.
+    const typed = document.createElement('span');
+    typed.className = 'ghost-typed';
+    typed.textContent = localQuery;
+    const rest = document.createElement('span');
+    rest.className = 'ghost-hint';
+    rest.textContent = hint;
+    ghost.append(typed, rest);
   }, [hint, localQuery]);
 
   const scopes = searchScopes.value;

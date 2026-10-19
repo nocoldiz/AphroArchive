@@ -150,7 +150,7 @@ function getOpenedFolderEntries() {
 
 async function apiOpenedOpen(req, res) {
   const body = await readBody(req);
-  const target = (body.path || '').trim();
+  const target = String(body.path || '').trim();
   if (!target) return json(res, { error: 'path required' }, 400);
   const resolved = path.resolve(target);
   let stat;
@@ -173,7 +173,7 @@ function apiOpenedList(req, res) {
 
 async function apiOpenedClose(req, res) {
   const body = await readBody(req);
-  const target = (body.path || '').trim();
+  const target = String(body.path || '').trim();
   if (!target) return json(res, { error: 'path required' }, 400);
   const resolved = path.resolve(target);
   ensureLoaded();

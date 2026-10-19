@@ -34,10 +34,15 @@ export interface WidgetDef {
   render: (instance: WidgetInstance) => ComponentChildren;
 }
 
-// Shortcut renderer for view/toggle plugins without a widget.tsx.
+// Shortcut renderer for view/toggle plugins without a widget.tsx. Cached per
+// plugin object: Dashboard mounts `render` as a component, so a fresh closure
+// on every render would remount the widget each time.
+const _genericCache = new WeakMap<PluginMeta, (i: WidgetInstance) => ComponentChildren>();
 function genericRenderer(plugin: PluginMeta): (i: WidgetInstance) => ComponentChildren {
+  const cached = _genericCache.get(plugin);
+  if (cached) return cached;
   const hw = plugin.homeWidget || {};
-  return () => (
+  const render = () => (
     <div className="dw-shell dw-center">
       <button className="dw-big-btn" onClick={() => runPluginAction(plugin, currentView)}>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -49,6 +54,8 @@ function genericRenderer(plugin: PluginMeta): (i: WidgetInstance) => ComponentCh
       </button>
     </div>
   );
+  _genericCache.set(plugin, render);
+  return render;
 }
 
 function defFor(plugin: PluginMeta): WidgetDef | null {

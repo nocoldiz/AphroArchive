@@ -172,7 +172,8 @@ function runDirectFileDownload(job, target, url = job.url, redirects = 0) {
     const req = client.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, res => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         res.resume();
-        const nextUrl = new URL(res.headers.location, url).toString();
+        let nextUrl;
+        try { nextUrl = new URL(res.headers.location, url).toString(); } catch (e) { return reject(e); }
         return runDirectFileDownload(job, target, nextUrl, redirects + 1).then(resolve, reject);
       }
       if (res.statusCode !== 200) {
@@ -184,9 +185,12 @@ function runDirectFileDownload(job, target, url = job.url, redirects = 0) {
 
       let filename = '';
       try {
-        filename = decodeURIComponent(path.basename(new URL(url).pathname));
+        // basename *after* decoding: an encoded %2F..%2F must not escape target.dir.
+        filename = path.basename(decodeURIComponent(new URL(url).pathname))
+          .replace(/[<>:"|?*]/g, '_')
+          .split('').filter(c => c.charCodeAt(0) >= 32).join('').trim();
       } catch {}
-      if (!filename) filename = 'download-' + job.id;
+      if (!filename || filename === '.' || filename === '..') filename = 'download-' + job.id;
       if (!path.extname(filename)) filename += target.ext;
 
       let destPath = path.join(target.dir, filename);
@@ -202,6 +206,8 @@ function runDirectFileDownload(job, target, url = job.url, redirects = 0) {
 
       const out = fs.createWriteStream(destPath);
       job._kill = () => { req.destroy(); out.destroy(); };
+      // Drop the partial file on failure / cancel (it would be picked up by the scan).
+      const fail = (err) => { out.destroy(); fs.unlink(destPath, () => {}); reject(err); };
 
       res.on('data', chunk => {
         received += chunk.length;
@@ -223,8 +229,9 @@ function runDirectFileDownload(job, target, url = job.url, redirects = 0) {
         job.progress = 100;
         resolve();
       });
-      out.on('error', reject);
-      res.on('error', reject);
+      out.on('error', fail);
+      res.on('error', fail);
+      req.on('error', fail);
     });
     req.on('error', reject);
   });
@@ -244,7 +251,7 @@ async function runJob(next) {
     } catch (e) {
       if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
     } finally {
-      dlActive--;
+      dlActive = Math.max(0, dlActive - 1);
       saveJobs();
       processDownloadQueue();
     }
@@ -258,7 +265,8 @@ async function runJob(next) {
     if (next.outputPath && fs.existsSync(next.outputPath)) {
       const outRes = path.resolve(next.outputPath);
       if (outRes.startsWith(path.resolve(VIDEOS_DIR))) {
-        const rel = path.relative(VIDEOS_DIR, next.outputPath).replace(/\\/g, '/');
+        // Native separators: must equal the scan's id (videos-server _idForPath).
+        const rel = path.relative(VIDEOS_DIR, next.outputPath);
         next.videoId = toId(rel);
       } else {
         next.videoId = toId(next.outputPath);
@@ -284,7 +292,7 @@ async function runJob(next) {
           if (fs.existsSync(newPath)) {
             const npRes = path.resolve(newPath);
             next.videoId = npRes.startsWith(path.resolve(VIDEOS_DIR))
-              ? toId(path.relative(VIDEOS_DIR, newPath).replace(/\\/g, '/'))
+              ? toId(path.relative(VIDEOS_DIR, newPath))
               : toId(newPath);
           }
         }
@@ -294,7 +302,7 @@ async function runJob(next) {
   } catch (e) {
     if (downloadJobs.has(next.id) && next.status !== 'paused') { next.status = 'error'; next.error = e.message; }
   } finally {
-    dlActive--;
+    dlActive = Math.max(0, dlActive - 1);
     saveJobs();
     processDownloadQueue();
   }
@@ -370,7 +378,7 @@ function runYtdlpFallback(job) {
     const proc = spawn(YT_DLP_BIN, [
       '--no-playlist', '--merge-output-format', 'mp4',
       '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-      '-o', outtmpl, job.url,
+      '-o', outtmpl, '--', job.url, // '--': a url like "--exec=..." must not parse as an option
     ]);
     job._kill = () => proc.kill('SIGKILL');
 
@@ -453,15 +461,16 @@ async function runAllVideoMethods(job) {
 async function apiDownloadAdd(req, res) {
   const body = await readBody(req);
   if (Array.isArray(body.items)) {
-    const valid = body.items.filter(i => i?.url);
+    const valid = body.items.filter(i => i && typeof i.url === 'string' && i.url.trim());
     if (!valid.length) return json(res, { error: 'No valid items' }, 400);
     const ids = valid.map(i => enqueueDownload(i.url, i.category || '', i.pendingCategory || i.category || ''));
     return json(res, { ok: true, ids });
   }
-  const urls = Array.isArray(body.urls) ? body.urls : (body.url ? [body.url] : []);
+  const urls = (Array.isArray(body.urls) ? body.urls : (body.url ? [body.url] : []))
+    .filter(u => typeof u === 'string' && u.trim());
   if (!urls.length) return json(res, { error: 'URL required' }, 400);
-  const folder        = (body.category || '').trim();
-  const pendingFolder = (body.pendingCategory || folder).trim();
+  const folder        = String(body.category || '').trim();
+  const pendingFolder = String(body.pendingCategory || folder).trim();
   const ids           = urls.map(u => enqueueDownload(u, folder, pendingFolder));
   json(res, { ok: true, ids });
 }
@@ -476,7 +485,9 @@ function apiDownloadJobs(req, res) {
 function apiDownloadRemove(req, res, id) {
   const job = downloadJobs.get(id);
   if (!job) return json(res, { error: 'Not found' }, 404);
-  if (job.status === 'running' && job._kill) { job._kill(); dlActive = Math.max(0, dlActive - 1); }
+  // The killed job's runJob `finally` releases its dlActive slot; decrementing
+  // here too drove the counter negative and lifted the concurrency limit.
+  if (job.status === 'running' && job._kill) job._kill();
   downloadJobs.delete(id);
   saveJobs();
   json(res, { ok: true });
@@ -489,7 +500,6 @@ function apiDownloadCancelAll(req, res) {
       downloadJobs.delete(id);
     }
   }
-  dlActive = 0;
   saveJobs();
   json(res, { ok: true });
 }
@@ -499,7 +509,6 @@ function apiDownloadRemoveAll(req, res) {
     if (job.status === 'running' && job._kill) job._kill();
   }
   downloadJobs.clear();
-  dlActive = 0;
   saveJobs();
   json(res, { ok: true });
 }
@@ -651,6 +660,7 @@ async function apiBulkDownloadStart(req, res) {
     return json(res, { error: e.message }, 500);
   }
 
+  bulkProc.stdin.on('error', () => {}); // EPIPE if python is missing; reported via 'error' below
   bulkProc.stdin.write(urls.join('\n') + '\ndone\n');
   bulkProc.stdin.end();
 

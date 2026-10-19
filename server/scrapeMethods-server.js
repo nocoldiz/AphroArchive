@@ -5,7 +5,7 @@
 const https = require('https');
 const http = require('http');
 
-function httpGet(rawUrl, opts = {}) {
+function httpGet(rawUrl, opts = {}, hops = 0) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(rawUrl);
     const mod = parsed.protocol === 'https:' ? https : http;
@@ -19,11 +19,16 @@ function httpGet(rawUrl, opts = {}) {
     }, res => {
       // Follow redirects
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return httpGet(res.headers.location, opts).then(resolve).catch(reject);
+        res.resume();
+        if (hops >= 5) return reject(new Error('Too many redirects'));
+        let next;
+        try { next = new URL(res.headers.location, rawUrl).href; } catch (e) { return reject(e); }
+        return httpGet(next, opts, hops + 1).then(resolve).catch(reject);
       }
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => resolve(data));
+      res.on('error', reject);
     });
     req.on('error', reject);
     req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });

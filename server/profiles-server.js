@@ -221,8 +221,11 @@ async function apiApplyPreset(req, res) {
     presetIds = listProfileTemplates().map(p => p.id);
     merged = mergePresets(presetIds);
   } else if (Array.isArray(selection) && selection.length > 0) {
-    presetIds = selection;
-    merged = mergePresets(selection);
+    // Only known preset folders: ids are joined onto PRESETS_DIR.
+    const known = new Set(listProfileTemplates().map(p => p.id));
+    presetIds = selection.filter(id => known.has(id));
+    if (!presetIds.length) return json(res, { error: 'Invalid selection' }, 400);
+    merged = mergePresets(presetIds);
   } else {
     return json(res, { error: 'Invalid selection' }, 400);
   }

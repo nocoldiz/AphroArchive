@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { ComponentChildren } from 'preact';
 import {
-  searchQuery, searchScopes, searchAllVideos, currentView, thumbBlurMode, selectedVideoIds,
+  searchQuery, searchScopes, searchAllVideos, currentView, thumbBlurMode, selectedVideoIds, allVideos,
 } from '../../store';
 import { VideoCard, VideoSelBar } from '../UI/VideoGrid';
 
@@ -26,9 +26,11 @@ async function fetchScope(key: string): Promise<any[]> {
   const url = ASYNC_URLS[key];
   if (!url) return [];
   try {
-    const d = await fetch(url).then(r => r.json());
+    const r = await fetch(url);
+    const d = await r.json();
     const arr = Array.isArray(d) ? d : (d.items || []);
-    scopeCache[key] = arr;
+    // Don't pin a failed/locked response (e.g. vault-gated prompts) for the session.
+    if (r.ok) scopeCache[key] = arr;
     return arr;
   } catch {
     return [];
@@ -103,7 +105,9 @@ export const SearchResultsView = () => {
   const on = (k: string) => scopes.has(k);
 
   // Media (videos + links) come straight from the in-memory library list.
-  const mediaMatches = useMemo(() => (q ? searchAllVideos(q) : []), [q]);
+  // allVideos is a dep so results refresh when the library (re)loads.
+  const library = allVideos.value;
+  const mediaMatches = useMemo(() => (q ? searchAllVideos(q) : []), [q, library]);
   const videoMatches = useMemo(() => mediaMatches.filter(v => !v.isLink), [mediaMatches]);
   const linkMatches = useMemo(() => mediaMatches.filter(v => v.isLink), [mediaMatches]);
 
@@ -119,22 +123,27 @@ export const SearchResultsView = () => {
     return () => { cancelled = true; };
   }, [scopeKey]);
 
+  // Memoized so selection changes (which re-render every card) don't re-filter
+  // the full async lists.
+  const { actors, channels, websites, books, audio, photos, pages, prompts, collections } = useMemo(() => {
+    const filt = (key: string, textOf: (x: any) => string) =>
+      on(key) && tokens.length ? (data[key] || []).filter(x => matchTokens(textOf(x), tokens)) : [];
+    return {
+      actors: filt('actors', a => `${a.name} ${a.nationality || ''}`),
+      channels: filt('channels', c => c.name),
+      websites: filt('websites', s => `${s.name || ''} ${s.url || ''} ${s.description || ''} ${(s.tags || []).join(' ')}`),
+      books: filt('books', b => `${b.title || ''} ${b.filename || ''}`),
+      audio: filt('audio', a => a.title),
+      photos: filt('photos', p => `${p.filename || ''} ${p.folder || ''} ${p.aiPrompt || ''}`),
+      pages: filt('pages', p => p.name),
+      prompts: filt('prompts', p => p.text || ''),
+      collections: filt('collections', c => c.name),
+    };
+  }, [data, tokens, scopeKey]);
+
   if (!tokens.length) {
     return <div className="empty-state"><h3>Universal search</h3><p>Type to search across your library.</p></div>;
   }
-
-  const filt = (key: string, textOf: (x: any) => string) =>
-    (data[key] || []).filter(x => matchTokens(textOf(x), tokens));
-
-  const actors = on('actors') ? filt('actors', a => `${a.name} ${a.nationality || ''}`) : [];
-  const channels = on('channels') ? filt('channels', c => c.name) : [];
-  const websites = on('websites') ? filt('websites', s => `${s.name || ''} ${s.url || ''} ${s.description || ''} ${(s.tags || []).join(' ')}`) : [];
-  const books = on('books') ? filt('books', b => `${b.title || ''} ${b.filename || ''}`) : [];
-  const audio = on('audio') ? filt('audio', a => a.title) : [];
-  const photos = on('photos') ? filt('photos', p => `${p.filename || ''} ${p.folder || ''} ${p.aiPrompt || ''}`) : [];
-  const pages = on('pages') ? filt('pages', p => p.name) : [];
-  const prompts = on('prompts') ? filt('prompts', p => p.text || '') : [];
-  const collections = on('collections') ? filt('collections', c => c.name) : [];
 
   const total = videoMatches.length + linkMatches.length + actors.length + channels.length +
     websites.length + books.length + audio.length + photos.length + pages.length + prompts.length + collections.length;

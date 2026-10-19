@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { ImportLinksToQueueModal } from '../modals/ImportLinksToQueueModal';
 
 interface LinkItem {
@@ -72,16 +72,18 @@ export const DownloadQueueView = () => {
   const [loading, setLoading] = useState(true);
   const [importOpen, setImportOpen] = useState(false);
   const pollerRef = useRef<any>(null);
+  const doneCountRef = useRef(-1);
 
-  const loadData = async () => {
-    setLoading(true);
+  // quiet = background refresh after a download finishes: keep the list on screen
+  const loadData = async (quiet = false) => {
+    if (!quiet) setLoading(true);
     try {
       const [lr, cr] = await Promise.all([
         fetch('/api/links/cache?limit=0').then(r => r.json()),
         fetch('/api/folders').then(r => r.json()),
       ]);
       setLinks((lr.items || []).map((i: any) => ({ ...i, tags: typeof i.tags === 'string' ? JSON.parse(i.tags || '[]') : (i.tags || []) })));
-      setCategories(cr || []);
+      setCategories(Array.isArray(cr) ? cr : []);
     } catch {}
     setLoading(false);
   };
@@ -89,12 +91,16 @@ export const DownloadQueueView = () => {
   const pollJobs = async () => {
     try {
       const d = await fetch('/api/download/jobs').then(r => r.json());
+      if (!Array.isArray(d)) return;
       setJobs(d);
       const active = d.some((j: DownloadJob) => j.status === 'queued' || j.status === 'running');
       if (!active && pollerRef.current) { clearInterval(pollerRef.current); pollerRef.current = null; }
-      // Refresh links when jobs complete
-      const hasNewDone = d.some((j: DownloadJob) => j.status === 'done');
-      if (hasNewDone) loadData();
+      // Refresh links only when another job has finished (not on every poll
+      // while any finished job is still listed). The first poll just records
+      // the baseline since loadData() already runs on mount.
+      const doneCount = d.filter((j: DownloadJob) => j.status === 'done').length;
+      if (doneCountRef.current >= 0 && doneCount > doneCountRef.current) loadData(true);
+      doneCountRef.current = doneCount;
     } catch {}
   };
 
@@ -104,17 +110,29 @@ export const DownloadQueueView = () => {
 
   useEffect(() => { loadData(); pollJobs(); return () => { if (pollerRef.current) clearInterval(pollerRef.current); }; }, []);
 
-  const visible = links.filter(item => {
-    if (filter === 'starred' && !item.fav) return false;
-    if (filter === 'playable' && !item.scrapedVideoUrl && !item.embedUrl) return false;
-    if (filter === 'noplay' && (item.scrapedVideoUrl || item.embedUrl)) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const tags = (item.tags || []).join(' ').toLowerCase();
-      if (!item.title.toLowerCase().includes(q) && !item.url.toLowerCase().includes(q) && !tags.includes(q)) return false;
-    }
-    return true;
-  });
+  const visible = useMemo(() => {
+    const q = search.toLowerCase();
+    return links.filter(item => {
+      if (filter === 'starred' && !item.fav) return false;
+      if (filter === 'playable' && !item.scrapedVideoUrl && !item.embedUrl) return false;
+      if (filter === 'noplay' && (item.scrapedVideoUrl || item.embedUrl)) return false;
+      if (q) {
+        const tags = (item.tags || []).join(' ').toLowerCase();
+        if (!(item.title || '').toLowerCase().includes(q) && !item.url.toLowerCase().includes(q) && !tags.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [links, filter, search]);
+
+  // Folder resolution builds regexes per tag × folder — compute once per data
+  // change instead of for every row on every render / 1.5s job poll.
+  const folderByUrl = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of links) m.set(l.url, resolveTargetFolder(l, categories));
+    return m;
+  }, [links, categories]);
+  const linkByUrl = useMemo(() => new Map(links.map(l => [l.url, l])), [links]);
+  const jobByUrl = useMemo(() => new Map(jobs.map(j => [j.url, j])), [jobs]);
 
   const toggleSelect = (url: string) => {
     setSelected(prev => {
@@ -128,10 +146,7 @@ export const DownloadQueueView = () => {
   const selectNone = () => setSelected(new Set());
 
   const downloadSelected = async () => {
-    const items = [...selected].map(url => {
-      const link = links.find(l => l.url === url)!;
-      return { url, category: resolveTargetFolder(link, categories) };
-    });
+    const items = [...selected].filter(url => linkByUrl.has(url)).map(url => ({ url, category: folderByUrl.get(url) || '' }));
     if (!items.length) return;
     try {
       await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
@@ -142,7 +157,7 @@ export const DownloadQueueView = () => {
   };
 
   const downloadOne = async (link: LinkItem) => {
-    const category = resolveTargetFolder(link, categories);
+    const category = folderByUrl.get(link.url) ?? resolveTargetFolder(link, categories);
     try {
       await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: [{ url: link.url, category }] }) });
       window.dispatchEvent(new Event('downloads-changed'));
@@ -169,10 +184,11 @@ export const DownloadQueueView = () => {
     try {
       await fetch('/api/download/jobs', { method: 'DELETE' });
       setJobs([]);
+      doneCountRef.current = 0;
     } catch (e) { console.error(e); }
   };
 
-  const getJobForUrl = (url: string) => jobs.find(j => j.url === url);
+  const getJobForUrl = (url: string) => jobByUrl.get(url);
 
   const activeJobs = jobs.filter(j => j.status === 'queued' || j.status === 'running');
 
@@ -183,28 +199,26 @@ export const DownloadQueueView = () => {
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={() => setImportOpen(true)}
-            className="modal-btn modal-btn--secondary"
-            style={{ padding: '6px 12px', fontSize: '13px' }}
+            className="ui-btn ui-btn--sm"
             title="Pick links from your library to add to the Download Queue"
           >
             Import Links
           </button>
           <input
-            type="text" placeholder="Search…" value={search} onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
-            style={{ background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '6px 10px', width: '200px' }}
+            type="text" className="ui-input" placeholder="Search…" value={search} onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
+            style={{ width: '200px', padding: '6px 10px' }}
           />
           {(['all', 'starred', 'playable', 'noplay'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)} className={`modal-btn ${filter === f ? 'modal-btn--primary' : 'modal-btn--secondary'}`} style={{ padding: '6px 12px', fontSize: '12px' }}>
+            <button key={f} onClick={() => setFilter(f)} className={`ui-btn ui-btn--sm${filter === f ? ' ui-btn--primary' : ''}`}>
               {f === 'all' ? 'All' : f === 'starred' ? '★ Starred' : f === 'playable' ? 'Has Video' : 'No Video'}
             </button>
           ))}
-          <button onClick={selectAll} className="modal-btn modal-btn--secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>Select All</button>
-          <button onClick={selectNone} className="modal-btn modal-btn--secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>None</button>
+          <button onClick={selectAll} className="ui-btn ui-btn--sm">Select All</button>
+          <button onClick={selectNone} className="ui-btn ui-btn--sm">None</button>
           <button
             onClick={downloadSelected}
-            className="modal-btn modal-btn--primary"
+            className="ui-btn ui-btn--sm ui-btn--primary"
             disabled={selected.size === 0}
-            style={{ padding: '6px 14px', fontSize: '13px', opacity: selected.size === 0 ? 0.5 : 1 }}
           >
             ↓ Download {selected.size > 0 ? `(${selected.size})` : ''}
           </button>
@@ -229,8 +243,7 @@ export const DownloadQueueView = () => {
           <button
             type="button"
             onClick={clearAllJobs}
-            className="modal-btn modal-btn--secondary"
-            style={{ padding: '4px 10px', fontSize: '12px', color: '#f44336', borderColor: '#f44336' }}
+            className="ui-btn ui-btn--sm ui-btn--danger"
             title="Cancel running jobs and remove all entries from the queue"
           >
             Clear Queue
@@ -239,9 +252,9 @@ export const DownloadQueueView = () => {
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>Loading links…</div>
+        <div className="empty-state empty-state--sm">Loading links…</div>
       ) : visible.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--tx3)' }}>No links found.</div>
+        <div className="empty-state empty-state--sm">No links found.</div>
       ) : (
         <div style={{ background: 'var(--bg2)', borderRadius: '10px', border: '1px solid var(--brd)', overflow: 'hidden' }}>
           {/* Header */}
@@ -259,7 +272,7 @@ export const DownloadQueueView = () => {
           {visible.map(item => {
             const job = getJobForUrl(item.url);
             const isSelected = selected.has(item.url);
-            const folder = resolveTargetFolder(item, categories);
+            const folder = folderByUrl.get(item.url) || '';
             const hostname = (() => { try { return new URL(item.url).hostname.replace('www.', ''); } catch { return item.url; } })();
             const tags: string[] = item.tags || [];
 
@@ -316,7 +329,7 @@ export const DownloadQueueView = () => {
                     ) : job.status === 'done' ? (
                       <span style={{ color: '#4caf50' }}>✓ Done</span>
                     ) : (
-                      <span style={{ color: '#f44336' }} title={job.error || ''}>✗ Error</span>
+                      <span style={{ color: 'var(--danger)' }} title={job.error || ''}>✗ Error</span>
                     )
                   ) : (
                     <span style={{ color: 'var(--tx3)' }}>—</span>
@@ -326,8 +339,7 @@ export const DownloadQueueView = () => {
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: '4px' }}>
                   <button
-                    className="modal-btn modal-btn--primary"
-                    style={{ padding: '3px 8px', fontSize: '11px' }}
+                    className="ui-btn ui-btn--sm ui-btn--primary"
                     onClick={() => downloadOne(item)}
                     title="Download"
                   >↓</button>

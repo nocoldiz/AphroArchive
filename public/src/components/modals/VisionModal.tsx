@@ -1,22 +1,28 @@
 import { visionModalText } from '../../store';
+import { useEscape } from './useEscape';
+
+const close = () => { visionModalText.value = null; };
 
 export const VisionModal = () => {
   const text = visionModalText.value;
+  useEscape(!!text, close);
 
   if (!text) return null;
 
   return (
-    <div className="modal on" id="visionModal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
-        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h3 style={{ margin: 0 }}>AI Description</h3>
-          <button className="close-btn" onClick={() => visionModalText.value = null} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--tx3)' }}>×</button>
+    <div className="modal-overlay on" id="visionModal" style={{ zIndex: 10000 }} onClick={(e: any) => e.target === e.currentTarget && close()}>
+      <div className="modal-dialog" style={{ maxWidth: '500px' }}>
+        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>AI Description</h2>
+          <button className="ui-btn ui-btn--ghost ui-btn--icon" onClick={close} aria-label="Close" title="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
         </div>
-        <div className="modal-body" id="visionModalBody" style={{ whiteSpace: 'pre-wrap', marginBottom: '20px', color: 'var(--tx2)' }}>
+        <div className="modal-body" id="visionModalBody" style={{ whiteSpace: 'pre-wrap', color: 'var(--tx2)' }}>
           {text}
         </div>
-        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn" onClick={() => visionModalText.value = null}>Close</button>
+        <div className="modal-footer">
+          <button className="modal-btn" onClick={close}>Close</button>
         </div>
       </div>
     </div>

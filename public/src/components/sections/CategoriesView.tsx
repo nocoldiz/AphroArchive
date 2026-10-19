@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { currentFolder, currentTag, currentView, cardSize, appPrefs } from '../../store';
 import { SectionControls } from '../UI/SectionControls';
 
@@ -23,7 +23,7 @@ export const CategoriesView = () => {
     fetch('/api/folders-overview')
       .then(r => r.json())
       .then(d => {
-        setData(d);
+        setData(Array.isArray(d) ? d : []);
         setLoading(false);
       })
       .catch(() => {
@@ -49,34 +49,38 @@ export const CategoriesView = () => {
     return () => clearInterval(poll);
   }, []);
 
-  const hiddenFolderSet = new Set((appPrefs.value.hiddenFolders || []).map(s => s.toLowerCase()));
-  const hiddenTagSet = new Set((appPrefs.value.hiddenTags || []).map(s => s.toLowerCase()));
-
-  const filteredData = data
-    .filter(item =>
-      item.type === 'cat'
-        ? !hiddenFolderSet.has(item.path.toLowerCase())
-        : !hiddenTagSet.has(item.name.toLowerCase())
-    )
-    .filter(item => !filter.trim() || item.name.toLowerCase().includes(filter.toLowerCase()));
-
-  const sortedData = [...filteredData];
-  if (sort === 'name') {
-    sortedData.sort((a, b) => a.name.localeCompare(b.name));
-  } else if (sort === 'count-desc') {
-    sortedData.sort((a, b) => b.count - a.count);
-  } else if (sort === 'count-asc') {
-    sortedData.sort((a, b) => a.count - b.count);
-  } else if (sort === 'duration-desc') {
-    sortedData.sort((a, b) => ((b as any).duration || 0) - ((a as any).duration || 0));
-  }
+  const hiddenFolders = appPrefs.value.hiddenFolders;
+  const hiddenTags = appPrefs.value.hiddenTags;
+  const sortedData = useMemo(() => {
+    const hiddenFolderSet = new Set((hiddenFolders || []).map(s => s.toLowerCase()));
+    const hiddenTagSet = new Set((hiddenTags || []).map(s => s.toLowerCase()));
+    const q = filter.trim().toLowerCase();
+    const sorted = data
+      .filter(item =>
+        item.type === 'cat'
+          ? !hiddenFolderSet.has(item.path.toLowerCase())
+          : !hiddenTagSet.has(item.name.toLowerCase())
+      )
+      .filter(item => !q || item.name.toLowerCase().includes(q));
+    if (sort === 'name') {
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sort === 'count-desc') {
+      sorted.sort((a, b) => b.count - a.count);
+    } else if (sort === 'count-asc') {
+      sorted.sort((a, b) => a.count - b.count);
+    } else if (sort === 'duration-desc') {
+      sorted.sort((a, b) => ((b as any).duration || 0) - ((a as any).duration || 0));
+    }
+    return sorted;
+  }, [data, filter, sort, hiddenFolders, hiddenTags]);
 
   const w = window as any;
 
   return (
     <div id="categories-view" class="categories-view on" style={{ padding: '20px' }}>
-      <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>Folders & Tags</h1>
+      <div class="ui-toolbar">
+        <h1 class="ui-title">Folders & Tags</h1>
+        <div class="ui-toolbar__actions">
         <SectionControls
           showStarred={false}
           showShuffle={false}
@@ -93,6 +97,7 @@ export const CategoriesView = () => {
           currentFilter={filter}
           onFilterChange={setFilter}
         />
+        </div>
       </div>
 
       {loading ? (
@@ -132,14 +137,15 @@ export const CategoriesView = () => {
             };
 
             return (
-              <div 
+              <div
+                key={`${item.type}:${item.path || item.name}`}
                 class="cv-card" 
                 onClick={onclick} 
                 onContextMenu={onContextMenu}
                 style={{ cursor: 'pointer' }}
               >
                 {item.partial ? (
-                  <svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e84040" stroke-width="3" style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 2, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+                  <svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="3" style={{ stroke: 'var(--danger)', position: 'absolute', top: '10px', right: '10px', zIndex: 2, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
                     <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="2" y1="2" x2="22" y2="22"/>
                   </svg>
                 ) : item.encrypted ? (

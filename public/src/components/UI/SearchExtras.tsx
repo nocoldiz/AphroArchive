@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'preact/hooks';
 import { searchQuery } from '../../store';
 
+// The full photo/audio/book lists were refetched on every query change; share
+// one fetch across keystrokes for a short window instead.
+const LIST_TTL_MS = 30000;
+let listCache: { at: number; p: Promise<any[][]> } | null = null;
+const loadLists = () => {
+  if (!listCache || Date.now() - listCache.at > LIST_TTL_MS) {
+    const get = (url: string) => fetch(url).then(r => r.json()).then(d => Array.isArray(d) ? d : []).catch(() => []);
+    listCache = { at: Date.now(), p: Promise.all([get('/api/photos'), get('/api/audio'), get('/api/books')]) };
+  }
+  return listCache.p;
+};
+
 export const SearchExtras = () => {
   const q = searchQuery.value;
   const [photos, setPhotos] = useState<any[]>([]);
@@ -15,16 +27,15 @@ export const SearchExtras = () => {
       return;
     }
 
-    Promise.all([
-      fetch('/api/photos').then(r => r.json()).catch(() => []),
-      fetch('/api/audio').then(r => r.json()).catch(() => []),
-      fetch('/api/books').then(r => r.json()).catch(() => []),
-    ]).then(([ph, au, bk]) => {
+    let cancelled = false; // drop results for a query that has since changed
+    loadLists().then(([ph, au, bk]) => {
+      if (cancelled) return;
       const ql = q.toLowerCase();
-      setPhotos(ph.filter((p: any) => p.filename.toLowerCase().includes(ql)));
+      setPhotos(ph.filter((p: any) => (p.filename || '').toLowerCase().includes(ql)));
       setAudio(au.filter((a: any) => (a.title || '').toLowerCase().includes(ql)));
       setBooks(bk.filter((b: any) => (b.title || b.filename || '').toLowerCase().includes(ql)));
     });
+    return () => { cancelled = true; };
   }, [q]);
 
   if (!q || (!photos.length && !audio.length && !books.length)) return null;

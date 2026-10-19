@@ -1,6 +1,6 @@
-import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { vaultUnlockModalState, isVaultUnlocked } from '../../store';
+import { useEscape } from './useEscape';
 
 export const VaultUnlockModal = () => {
   const state = vaultUnlockModalState.value;
@@ -11,14 +11,21 @@ export const VaultUnlockModal = () => {
   const [selfDestructPassword, setSelfDestructPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<any>({});
+  const [status, setStatus] = useState<any>(null);
   // Salt mode: 'static' (default, portable) | 'random' (more secure, not portable)
   const [saltMode, setSaltMode] = useState<'static' | 'random'>('static');
 
   useEffect(() => {
-    if (visible) {
-      fetchStatus();
-    }
+    if (!visible) return;
+    // Fresh state on every open: a cancelled attempt must not leave its typed
+    // password or error behind for the next prompt.
+    setPassword('');
+    setConfirmPassword('');
+    setSelfDestructPassword('');
+    setError('');
+    setLoading(false);
+    setStatus(null);
+    fetchStatus();
   }, [visible]);
 
   const fetchStatus = async () => {
@@ -28,10 +35,16 @@ export const VaultUnlockModal = () => {
       setStatus(data);
     } catch (e) {
       console.error('Failed to fetch vault status', e);
+      setStatus({});
+      setError('Failed to fetch vault status');
     }
   };
 
+  const close = () => { vaultUnlockModalState.value = { visible: false }; };
+  useEscape(visible, () => { if (!loading) close(); });
+
   const handleUnlock = async () => {
+    if (loading) return;
     setError('');
     setLoading(true);
     try {
@@ -56,6 +69,7 @@ export const VaultUnlockModal = () => {
   };
 
   const handleSetup = async () => {
+    if (loading) return;
     setError('');
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
@@ -97,13 +111,18 @@ export const VaultUnlockModal = () => {
 
   if (!visible) return null;
 
-  const isSetup = !status.configured;
+  // Until status arrives we don't know which form applies; previously the
+  // empty status rendered "Create Vault" and Enter could call setup on an
+  // already-configured vault.
+  const statusReady = status !== null;
+  const isSetup = statusReady && !status.configured;
+  const submit = () => { if (!statusReady) return; isSetup ? handleSetup() : handleUnlock(); };
 
   return (
-    <div className="modal-overlay on">
+    <div className="modal-overlay on" onClick={(e: any) => e.target === e.currentTarget && !loading && close()}>
       <div className="modal-dialog">
         <div className="modal-header">
-          <h2>{isSetup ? 'Create Vault' : 'Vault Locked'}</h2>
+          <h2>{!statusReady ? 'Vault' : isSetup ? 'Create Vault' : 'Vault Locked'}</h2>
         </div>
         <div className="modal-body">
           <p style={{ color: 'var(--tx2)', fontSize: '0.9rem', marginBottom: '24px' }}>
@@ -117,9 +136,9 @@ export const VaultUnlockModal = () => {
               type="password"
               value={password}
               onInput={(e: any) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (isSetup ? handleSetup() : handleUnlock())}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
               placeholder="Password"
-              style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
+              autoFocus
             />
 
             {isSetup && (
@@ -130,7 +149,6 @@ export const VaultUnlockModal = () => {
                   onInput={(e: any) => setConfirmPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
                   placeholder="Confirm Password"
-                  style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
                 />
 
                 <input
@@ -139,7 +157,6 @@ export const VaultUnlockModal = () => {
                   onInput={(e: any) => setSelfDestructPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSetup()}
                   placeholder="Self-destruct password (optional)"
-                  style={{ padding: '10px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px' }}
                 />
                 <div style={{ fontSize: '0.72rem', color: 'var(--tx3)', marginTop: '-4px' }}>
                   Optional. Typing this password at unlock <strong style={{ color: '#f59e0b' }}>permanently wipes the vault</strong> while showing a normal "wrong password" error — a self-destruct for coercion.
@@ -156,7 +173,7 @@ export const VaultUnlockModal = () => {
                       name="saltMode"
                       checked={saltMode === 'static'}
                       onChange={() => setSaltMode('static')}
-                      style={{ marginTop: '2px', accentColor: 'var(--ac)', cursor: 'pointer' }}
+                      style={{ width: 'auto', padding: 0, flexShrink: 0, marginTop: '2px', accentColor: 'var(--ac)', cursor: 'pointer' }}
                     />
                     <div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--tx)', fontWeight: 'bold' }}>Static salt <span style={{ fontWeight: 'normal', color: 'var(--ac)', fontSize: '0.75rem' }}>— Recommended</span></div>
@@ -174,7 +191,7 @@ export const VaultUnlockModal = () => {
                       name="saltMode"
                       checked={saltMode === 'random'}
                       onChange={() => setSaltMode('random')}
-                      style={{ marginTop: '2px', accentColor: 'var(--ac)', cursor: 'pointer' }}
+                      style={{ width: 'auto', padding: 0, flexShrink: 0, marginTop: '2px', accentColor: 'var(--ac)', cursor: 'pointer' }}
                     />
                     <div>
                       <div style={{ fontSize: '0.85rem', color: 'var(--tx)', fontWeight: 'bold' }}>Random salt <span style={{ fontWeight: 'normal', color: '#f59e0b', fontSize: '0.75rem' }}>⚠ Portability limited</span></div>
@@ -188,20 +205,21 @@ export const VaultUnlockModal = () => {
               </>
             )}
 
-            {error && <div style={{ color: '#e84040', fontSize: '0.8rem' }}>{error}</div>}
+            {error && <div className="modal-error" style={{ display: 'block', marginTop: 0 }}>{error}</div>}
           </div>
         </div>
         <div className="modal-footer">
           <button
             class="modal-btn modal-btn--primary"
-            onClick={isSetup ? handleSetup : handleUnlock}
-            disabled={loading}
+            onClick={submit}
+            disabled={loading || !statusReady}
           >
             {loading ? 'Processing...' : (isSetup ? 'Create Vault' : 'Unlock')}
           </button>
           <button
             class="modal-btn"
-            onClick={() => vaultUnlockModalState.value = { visible: false }}
+            onClick={close}
+            disabled={loading}
           >
             Cancel
           </button>

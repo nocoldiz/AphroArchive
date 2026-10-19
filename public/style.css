@@ -26,6 +26,16 @@
   --m: 'Space Mono', monospace;
   --sh: 0 8px 32px rgba(0, 0, 0, 0.45);
   --tr: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --danger: #e5484d;
+  /* Aliases: names components reference that were never defined (resolve per theme) */
+  --accent: var(--ac);
+  --acc: var(--ac);
+  --border: var(--brd);
+  --text: var(--tx);
+  --tx1: var(--tx);
+  --text-muted: var(--tx2);
+  --bg1: var(--bg);
+  --err: var(--danger);
 }
 
 html {
@@ -387,7 +397,8 @@ input {
   gap: 5px
 }
 
-.filter-pill {
+.filter-pill,
+.ui-chip {
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--brd);
@@ -398,11 +409,13 @@ input {
   transition: all var(--tr)
 }
 
-.filter-pill:hover {
+.filter-pill:hover,
+.ui-chip:hover {
   border-color: var(--tx3)
 }
 
-.filter-pill.on {
+.filter-pill.on,
+.ui-chip.on {
   background: var(--ac);
   border-color: var(--ac);
   color: #fff
@@ -2269,13 +2282,16 @@ input {
   }
 }
 
-/* View fade transition */
+/* View fade transition — opacity only, and no `forwards`. Any transform left on
+   this wrapper (even translateY(0)) makes it the containing block for every
+   position:fixed descendant, so full-screen views (Zap, TV mode, lightboxes…)
+   collapse to the wrapper's size and the video renders 0px tall. */
 @keyframes viewFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .view-fade {
-  animation: viewFadeIn 150ms ease forwards;
+  animation: viewFadeIn 150ms ease;
 }
 
 /* Progress bar fill animation */
@@ -2292,10 +2308,12 @@ input {
 /* Modal enter animation */
 @keyframes modalIn {
   from { opacity: 0; transform: scale(0.97) translateY(-6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 1; transform: none; }
 }
+/* No `forwards`: a lingering transform would trap position:fixed children
+   (popups, pickers) inside the dialog box. */
 .modal-dialog, .modal-content {
-  animation: modalIn 180ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: modalIn 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -6343,13 +6361,15 @@ input {
   display: block
 }
 
-.ss-tabs {
+.ss-tabs,
+.ui-tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 2px
 }
 
-.ss-tab {
+.ss-tab,
+.ui-tab {
   padding: 6px 16px;
   border-radius: 6px;
   border: 1px solid var(--brd);
@@ -6360,7 +6380,8 @@ input {
   transition: all .15s
 }
 
-.ss-tab.on {
+.ss-tab.on,
+.ui-tab.on {
   background: var(--ac);
   color: #fff;
   border-color: var(--ac)
@@ -9465,4 +9486,237 @@ body:has(#vaultPageResizeHandle.vp-resizing) {
   transition: color 0.15s;
 }
 
-.zap-filter-clear:hover { color: #fff; }
+.zap-filter-clear:hover { color: #fff; }
+
+/* ── Shared UI kit (ui-*) ──────────────────────────────────────────────────
+   Token-only building blocks for replacing inline styles. Legacy names that
+   components already use but that were never defined (.btn, .btn-sm,
+   .btn-danger, .modal, .modal-content, .modal-body, .modal-input,
+   .modal-btn--secondary/--danger) are aliased here. Modals: prefer the themed
+   .modal-overlay.on + .modal-dialog + .modal-header/-body/-footer + .modal-btn. */
+
+.ui-btn,
+.btn,
+.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--brd);
+  color: var(--tx);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--tr), border-color var(--tr), color var(--tr), filter var(--tr)
+}
+
+.ui-btn:hover,
+.btn:hover,
+.btn-sm:hover {
+  background: var(--bg4);
+  border-color: var(--tx3)
+}
+
+.ui-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none
+}
+
+.ui-btn--primary,
+.ui-btn--primary:hover {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: #fff
+}
+
+.ui-btn--primary:hover {
+  filter: brightness(1.1)
+}
+
+.ui-btn--danger,
+.btn-danger,
+.modal-btn--danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger)
+}
+
+.ui-btn--danger:hover,
+.btn-danger:hover,
+.modal-btn--danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--tx2)
+}
+
+.ui-btn--ghost:hover {
+  background: var(--bg3);
+  border-color: transparent;
+  color: var(--tx)
+}
+
+.ui-btn--sm,
+.btn-sm,
+.modal-btn--sm {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  border-radius: 5px;
+  gap: 4px
+}
+
+.ui-btn--icon {
+  padding: 6px;
+  line-height: 1
+}
+
+/* Inputs: works on input, select and textarea */
+.ui-input,
+.modal-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--brd);
+  border-radius: 6px;
+  color: var(--tx);
+  font-family: inherit;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color var(--tr)
+}
+
+.ui-input:focus,
+.modal-input:focus {
+  border-color: var(--ac)
+}
+
+.ui-input::placeholder,
+.modal-input::placeholder {
+  color: var(--tx3)
+}
+
+textarea.ui-input,
+textarea.modal-input {
+  resize: vertical;
+  line-height: 1.5
+}
+
+select.ui-input {
+  cursor: pointer
+}
+
+select.ui-input option {
+  background: var(--bg2);
+  color: var(--tx)
+}
+
+.ui-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--tx3);
+  margin-bottom: 4px
+}
+
+/* Legacy overlay/panel pair (.modal.on > .modal-content) — never had styles */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px)
+}
+
+.modal.on {
+  display: flex
+}
+
+.modal-content {
+  background: var(--bg2);
+  color: var(--tx);
+  border: 1px solid var(--brd);
+  border-radius: var(--rl);
+  padding: 24px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: var(--sh)
+}
+
+.modal-body p {
+  line-height: 1.5
+}
+
+.modal-body p + p {
+  margin-top: 8px
+}
+
+/* View header row: title left, actions pushed right */
+.ui-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px
+}
+
+.ui-toolbar__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto
+}
+
+.ui-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.3px
+}
+
+/* Non-interactive badge (counts, status); interactive pills use .ui-chip */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg3);
+  color: var(--tx2);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap
+}
+
+.ui-badge--ac {
+  background: var(--acg);
+  color: var(--ac)
+}
+
+.ui-badge--danger {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger)
+}
+
+.ui-tab:not(.on):hover {
+  color: var(--tx);
+  border-color: var(--tx3)
+}
+
+.empty-state--sm {
+  padding: 40px 20px
+}

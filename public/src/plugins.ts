@@ -29,14 +29,24 @@ export interface PluginMeta {
 
 export const pluginsList = signal<PluginMeta[]>([]);
 
-export async function loadPlugins() {
-  try {
-    const res = await fetch('/api/plugins');
-    const data = await res.json();
-    pluginsList.value = data.plugins || [];
-  } catch (e) {
-    console.error('Failed to load plugins', e);
-  }
+// Sidebar, Topbar and Settings all call this on mount — share one in-flight
+// request instead of fetching /api/plugins once per caller.
+let _loading: Promise<void> | null = null;
+
+export function loadPlugins(): Promise<void> {
+  if (_loading) return _loading;
+  _loading = (async () => {
+    try {
+      const res = await fetch('/api/plugins');
+      const data = await res.json();
+      pluginsList.value = data.plugins || [];
+    } catch (e) {
+      console.error('Failed to load plugins', e);
+    } finally {
+      _loading = null;
+    }
+  })();
+  return _loading;
 }
 
 export function isPluginEnabled(id: string): boolean {

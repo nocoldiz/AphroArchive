@@ -30,7 +30,8 @@ interface LinkCardProps {
 }
 
 const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selected, onToggleSelect, activeCats, onTagClick, onChannelClick }: LinkCardProps & { onVault?: (url: string) => void }) => {
-  const hostname = new URL(item.url).hostname;
+  // A malformed stored URL must not take down the whole grid render
+  const hostname = (() => { try { return new URL(item.url).hostname; } catch { return item.url; } })();
   const hasPlayable = !!(item.scrapedVideoUrl || item.embedUrl);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(item.title);
@@ -74,12 +75,12 @@ const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selecte
   };
 
   return (
-    <div class="bf-card" style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', cursor: editing ? 'default' : 'pointer', position: 'relative' }} onClick={editing ? undefined : openPlayer}>
-      <div style={{ height: '120px', background: 'var(--border)', position: 'relative' }}>
+    <div class="bf-card" style={{ border: '1px solid var(--brd)', borderRadius: '8px', overflow: 'hidden', cursor: editing ? 'default' : 'pointer', position: 'relative' }} onClick={editing ? undefined : openPlayer}>
+      <div style={{ height: '120px', background: 'var(--brd)', position: 'relative' }}>
         {item.img ? (
           <img src={item.img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>No Thumb</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--tx2)' }}>No Thumb</div>
         )}
         {/* External-link indicator when no playable source */}
         {!hasPlayable && (
@@ -95,7 +96,7 @@ const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selecte
         <button 
           class={`bm-star-btn ${item.fav ? 'st' : ''}`} 
           onClick={(e) => { e.stopPropagation(); onToggleStar(item.url); }}
-          style={{ position: 'absolute', top: '10px', right: '40px', background: 'rgba(0,0,0,0.5)', border: 'none', color: item.fav ? 'var(--accent)' : 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'absolute', top: '10px', right: '40px', background: 'rgba(0,0,0,0.5)', border: 'none', color: item.fav ? 'var(--ac)' : 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill={item.fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -128,13 +129,13 @@ const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selecte
               value={editTitle}
               onInput={(e: any) => setEditTitle(e.target.value)}
               aria-label="Link title"
-              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }}
+              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }}
             />
             <select
               value={editCategory}
               onChange={(e: any) => setEditCategory(e.target.value)}
               aria-label="Link category"
-              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.8rem' }}
+              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.8rem' }}
             >
               <option value="">Uncategorized</option>
               {(activeCats || []).map(c => (
@@ -147,7 +148,7 @@ const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selecte
               onInput={(e: any) => setEditTags(e.target.value)}
               placeholder="tags, comma separated"
               aria-label="Link tags"
-              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.8rem', boxSizing: 'border-box' }}
+              style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.8rem', boxSizing: 'border-box' }}
             />
             <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
               <button type="button" class="sort-btn" onClick={cancelEdit} style={{ fontSize: '0.75rem', padding: '3px 8px' }}>Cancel</button>
@@ -162,7 +163,7 @@ const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selecte
                 type="button"
                 onClick={startEdit}
                 title="Edit title / category"
-                style={{ flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                style={{ flexShrink: 0, background: 'none', border: 'none', color: 'var(--tx2)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -170,7 +171,7 @@ const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selecte
                 </svg>
               </button>
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--tx2)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
               <img src={`https://www.google.com/s2/favicons?sz=12&domain_url=${encodeURIComponent(item.url)}`} width="12" height="12" loading="lazy" alt="" />
               {hostname}
             </div>
@@ -181,7 +182,7 @@ const LinkCardImpl = ({ item, onRemove, onToggleStar, onUpdate, onVault, selecte
                     key={t}
                     onClick={onTagClick ? (e: any) => { e.stopPropagation(); onTagClick(t); } : undefined}
                     title={onTagClick ? `Filter by "${t}"` : t}
-                    style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85, cursor: onTagClick ? 'pointer' : 'default' }}
+                    style={{ fontSize: '10px', background: 'var(--acg)', color: 'var(--ac)', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac)', opacity: 0.85, cursor: onTagClick ? 'pointer' : 'default' }}
                   >
                     {t}
                   </span>
@@ -468,7 +469,7 @@ const BookmarkPickerModal = ({ browser, existingUrls, activeCats, onImport, onCl
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)' }}>Loading bookmarks…</div>
           ) : error ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#e53935', fontSize: '13px' }}>{error}</div>
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--danger)', fontSize: '13px' }}>{error}</div>
           ) : bookmarks.length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--tx3)', fontSize: '13px' }}>
               No new bookmarks found — all are already imported
@@ -676,14 +677,16 @@ export const LinksView = () => {
         setScrapeJob(d);
         if (d.running && !scrapePollerRef.current) {
           scrapePollerRef.current = setInterval(async () => {
-            const r2 = await fetch('/api/links/scrape-status');
-            const d2 = await r2.json();
-            setScrapeJob(d2);
-            if (!d2.running && scrapePollerRef.current) {
-              clearInterval(scrapePollerRef.current);
-              scrapePollerRef.current = null;
-              loadLinks();
-            }
+            try {
+              const r2 = await fetch('/api/links/scrape-status');
+              const d2 = await r2.json();
+              setScrapeJob(d2);
+              if (!d2.running && scrapePollerRef.current) {
+                clearInterval(scrapePollerRef.current);
+                scrapePollerRef.current = null;
+                loadLinks();
+              }
+            } catch {}
           }, 1500);
         }
       } catch (e) {}
@@ -759,17 +762,14 @@ export const LinksView = () => {
 
   const updateMatches = (items: LinkItem[]) => {
     rebuildLinkVidIds(items);
-    // Count matches
+    // Count matches. Normalise the video names once instead of per link × video
+    // (this runs on every edit/delete and was O(links × videos) allocations).
     const w = window as any;
-    const vids = w.V || [];
+    const fnames: string[] = (w.V || []).map((v: any) => (v.name || '').toLowerCase().replace(/\.[^.]+$/, ''));
     let count = 0;
     for (const item of items) {
       const haystack = item.url.toLowerCase();
-      const isMatch = vids.some((v: any) => {
-        const fname = v.name.toLowerCase().replace(/\.[^.]+$/, '');
-        return haystack.includes(fname);
-      });
-      if (isMatch) count++;
+      if (fnames.some(f => haystack.includes(f))) count++;
     }
     setMatchedCount(count);
   };
@@ -787,10 +787,11 @@ export const LinksView = () => {
 
   const favCount = useMemo(() => items.filter(it => it.fav).length, [items]);
 
+  const websiteHostList = useMemo(() => [...websiteHostnames], [websiteHostnames]);
   const isRecognizedUrl = (url: string) => {
     try {
       const h = new URL(url).hostname;
-      return websiteHostnames.has(h) || [...websiteHostnames].some(wh => h === wh || h.endsWith('.' + wh));
+      return websiteHostnames.has(h) || websiteHostList.some(wh => h.endsWith('.' + wh));
     } catch { return false; }
   };
 
@@ -858,6 +859,10 @@ export const LinksView = () => {
     if (allLoaded) syncLinkCache(items, items.length);
   }, [items, allLoaded]);
 
+  // The scroll containers only mount once loading is done and there are rows,
+  // so re-attach the observers then too (otherwise the default 600px height
+  // sticks and rows below it stay blank on tall windows).
+  const hasRows = !loading && visibleItems.length > 0;
   useEffect(() => {
     const el = tableScrollRef.current;
     if (!el || viewMode !== 'table') return;
@@ -866,7 +871,7 @@ export const LinksView = () => {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [viewMode]);
+  }, [viewMode, hasRows]);
 
   useEffect(() => {
     const el = gridScrollRef.current;
@@ -876,7 +881,7 @@ export const LinksView = () => {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [viewMode]);
+  }, [viewMode, hasRows]);
 
   // Download poller
   useEffect(() => {
@@ -884,6 +889,7 @@ export const LinksView = () => {
       try {
         const r = await fetch('/api/download/jobs');
         const d = await r.json();
+        if (!Array.isArray(d)) return;
         setJobs(d);
         const active = d.some((j: any) => j.status === 'queued' || j.status === 'running');
         if (!active && dlPollerRef.current) {
@@ -898,8 +904,10 @@ export const LinksView = () => {
       dlPollerRef.current = setInterval(checkJobs, 1500);
     }
 
+    // Null the ref too, otherwise the next run sees a stale (cleared) id and
+    // never restarts the poller, so progress froze after the first update.
     return () => {
-      if (dlPollerRef.current) clearInterval(dlPollerRef.current);
+      if (dlPollerRef.current) { clearInterval(dlPollerRef.current); dlPollerRef.current = null; }
     };
   }, [jobs]);
 
@@ -941,6 +949,9 @@ export const LinksView = () => {
   };
 
   const handlePickerImport = async (picked: { title: string; url: string }[]) => {
+    // POST /api/links/cache replaces the whole table: saving while later pages
+    // are still loading would delete every link not yet fetched.
+    if (!allLoaded) { toast('Links are still loading — try again in a moment'); return; }
     setBmPickerBrowser(null);
     if (!picked.length) return;
     const existingUrls = new Set(items.map(it => it.url));
@@ -1311,9 +1322,9 @@ export const LinksView = () => {
 
   return (
     <div class="import-favs-view on" style={{ padding: '20px' }}>
-      <div class="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ margin: 0 }}>Links</h1>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div class="ui-toolbar">
+        <h1 class="ui-title">Links</h1>
+        <div class="ui-toolbar__actions">
           <button type="button" class={`sort-btn${showAdd ? ' on' : ''}`} onClick={() => setShowAdd(v => !v)} title="Add a bookmark by URL">+ Add Bookmark</button>
           <button type="button" class="sort-btn" onClick={() => setBmPickerBrowser('chrome')}>Import from Chrome</button>
           <button type="button" class="sort-btn" onClick={() => setBmPickerBrowser('firefox')}>Import from Firefox</button>
@@ -1497,14 +1508,14 @@ export const LinksView = () => {
             type="button"
             onClick={() => setTagFilter('')}
             title="Clear tag filter"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', border: '1px solid var(--ac, var(--accent))', borderRadius: '12px', padding: '2px 10px', cursor: 'pointer' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', background: 'var(--acg)', color: 'var(--ac)', border: '1px solid var(--ac)', borderRadius: '12px', padding: '2px 10px', cursor: 'pointer' }}
           >
             tag: {tagFilter} ✕
           </button>
         )}
         <div class="bf-pct-wrap" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-          <div class="bf-pct-bar" style={{ width: '200px', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
-            <div class="bf-pct-fill" style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}></div>
+          <div class="bf-pct-bar" style={{ width: '200px', height: '10px', background: 'var(--brd)', borderRadius: '5px', overflow: 'hidden' }}>
+            <div class="bf-pct-fill" style={{ width: `${pct}%`, height: '100%', background: 'var(--ac)' }}></div>
           </div>
           <span>{pct}% in library</span>
         </div>
@@ -1513,11 +1524,11 @@ export const LinksView = () => {
         )}
         {scrapeJob && scrapeJob.running && (
           <div class="scrape-progress" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Scraping: {scrapeJob.done}/{scrapeJob.total}</span>
-            <div style={{ width: '150px', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
-              <div style={{ width: `${Math.round((scrapeJob.done / (scrapeJob.total || 1)) * 100)}%`, height: '100%', background: 'var(--accent)' }}></div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--tx2)' }}>Scraping: {scrapeJob.done}/{scrapeJob.total}</span>
+            <div style={{ width: '150px', height: '10px', background: 'var(--brd)', borderRadius: '5px', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round((scrapeJob.done / (scrapeJob.total || 1)) * 100)}%`, height: '100%', background: 'var(--ac)' }}></div>
             </div>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={scrapeJob.current}>{scrapeJob.current}</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--tx2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={scrapeJob.current}>{scrapeJob.current}</span>
           </div>
         )}
       </div>
@@ -1603,7 +1614,7 @@ export const LinksView = () => {
                         {item.tags && item.tags.length > 0 && (
                           <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
                             {item.tags.slice(0, 3).map(t => (
-                              <span key={t} onClick={(e: any) => { e.stopPropagation(); setTagFilter(t); }} title={`Filter by "${t}"`} style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85, whiteSpace: 'nowrap', cursor: 'pointer' }}>{t}</span>
+                              <span key={t} onClick={(e: any) => { e.stopPropagation(); setTagFilter(t); }} title={`Filter by "${t}"`} style={{ fontSize: '10px', background: 'var(--acg)', color: 'var(--ac)', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac)', opacity: 0.85, whiteSpace: 'nowrap', cursor: 'pointer' }}>{t}</span>
                             ))}
                           </div>
                         )}
@@ -1721,7 +1732,7 @@ export const LinksView = () => {
                               {item.tags && item.tags.length > 0 && (
                                 <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
                                   {item.tags.slice(0, 3).map(t => (
-                                    <span key={t} style={{ fontSize: '10px', background: 'var(--acg, rgba(255,255,255,0.06))', color: 'var(--ac, var(--accent))', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac, var(--accent))', opacity: 0.85, whiteSpace: 'nowrap' }}>{t}</span>
+                                    <span key={t} style={{ fontSize: '10px', background: 'var(--acg)', color: 'var(--ac)', borderRadius: '4px', padding: '1px 5px', border: '1px solid var(--ac)', opacity: 0.85, whiteSpace: 'nowrap' }}>{t}</span>
                                   ))}
                                 </div>
                               )}
@@ -1807,7 +1818,7 @@ export const LinksView = () => {
           ) : (
             <button class="sort-btn" onClick={moveSelectedToVault} title="Move selected links to Vault">🔒 Vault</button>
           )}
-          <button class="sort-btn" onClick={deleteSelected} style={{ color: '#e53935', borderColor: '#e53935' }} title="Delete all selected links">Delete</button>
+          <button class="sort-btn" onClick={deleteSelected} style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} title="Delete all selected links">Delete</button>
         </div>
       )}
 
@@ -1817,12 +1828,12 @@ export const LinksView = () => {
           <h3>Download Queue</h3>
           <div class="dl-queue-list">
             {jobs.map(j => (
-              <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+              <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '10px 0', borderBottom: '1px solid var(--brd)' }}>
                 <span style={{ flex: 1 }}>{j.title}</span>
-                <span style={{ color: j.status === 'done' ? 'green' : j.status === 'error' ? 'red' : 'inherit' }}>{j.status}</span>
+                <span style={{ color: j.status === 'done' ? '#4caf50' : j.status === 'error' ? 'var(--danger)' : 'inherit' }}>{j.status}</span>
                 {j.status === 'running' && (
-                  <div style={{ width: '100px', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
-                    <div style={{ width: `${j.progress || 0}%`, height: '100%', background: 'var(--accent)' }}></div>
+                  <div style={{ width: '100px', height: '10px', background: 'var(--brd)', borderRadius: '5px', overflow: 'hidden' }}>
+                    <div style={{ width: `${j.progress || 0}%`, height: '100%', background: 'var(--ac)' }}></div>
                   </div>
                 )}
               </div>

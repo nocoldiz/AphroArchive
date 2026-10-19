@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { loadVideos, appPrefs, refreshLibraryQuietly, isLoadingVideos, duplicatesDeleteProgress, currentView } from '../../store';
+import { loadVideos, refreshLibraryQuietly, isLoadingVideos, duplicatesDeleteProgress, currentView, originalNamesModalState } from '../../store';
 
 interface ScraperStatus {
   running: boolean;
@@ -103,6 +103,7 @@ export const SyncManager = () => {
     whisper: ScraperStatus & { enabled?: boolean };
     sceneDetect: ScraperStatus;
     categorizerJob: ScraperStatus;
+    identify: ScraperStatus & { matched?: number; error?: string };
   }>({
     videoThumbs: { running: false },
     bmMeta: { running: false },
@@ -111,6 +112,7 @@ export const SyncManager = () => {
     whisper: { running: false, enabled: true },
     sceneDetect: { running: false },
     categorizerJob: { running: false },
+    identify: { running: false },
   });
   const [encProgress, setEncProgress] = useState<EncProgress>({
     running: false, type: '', category: '', total: 0, done: 0, current: '',
@@ -123,6 +125,9 @@ export const SyncManager = () => {
   const busyRef = useRef(false);
   const openRef = useRef(false);
   openRef.current = open;
+  // Re-polls immediately (set by the polling effect) so Start/Stop clicks
+  // reflect at once instead of after the next scheduled tick.
+  const kickRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     let stopped = false;
@@ -137,11 +142,22 @@ export const SyncManager = () => {
       if (busyRef.current || openRef.current) return 2000;
       return currentView.value === 'player' ? 20000 : 10000;
     };
-    const schedule = () => { if (!stopped) timer = setTimeout(async () => { await poll(); schedule(); }, nextDelay()); };
-    const onVisible = () => { if (!document.hidden) { clearTimeout(timer); poll().then(schedule); } };
+    // Single pending timer: a kick/visibility re-poll replaces the queued tick
+    // instead of forking a second, never-cancelled polling chain, and a later
+    // reschedule never pushes back a sooner poll that is already queued.
+    let due = 0;
+    const schedule = (delay = nextDelay()) => {
+      if (stopped) return;
+      const at = Date.now() + delay;
+      if (timer && due <= at) return;
+      clearTimeout(timer);
+      due = at;
+      timer = setTimeout(async () => { timer = null; await poll(); schedule(); }, delay);
+    };
+    const onVisible = () => { if (!document.hidden) schedule(0); };
     const poll = async () => {
       try {
-        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes, whisperRes, sceneRes, workerRes, catRes] = await Promise.all([
+        const [vtRes, bmMetaRes, bmThRes, encRes, reencRes, whisperRes, sceneRes, workerRes, catRes, idRes] = await Promise.all([
           fetch('/api/gen-thumbs/poll'),
           fetch('/api/links/scrape-status'),
           fetch('/api/links/thumb-status'),
@@ -151,6 +167,7 @@ export const SyncManager = () => {
           fetch('/api/gen-chapters/poll'),
           fetch('/api/background-worker/poll'),
           fetch('/api/categorizer/poll'),
+          fetch('/api/identify/poll'),
         ]);
         const vt   = vtRes.ok    ? await vtRes.json()    : { running: false };
         const bm   = bmMetaRes.ok ? await bmMetaRes.json() : { running: false };
@@ -159,15 +176,16 @@ export const SyncManager = () => {
         const wh   = whisperRes.ok ? await whisperRes.json() : { running: false, enabled: true };
         const scene = sceneRes.ok ? await sceneRes.json() : { running: false };
         const cat  = catRes.ok ? await catRes.json() : { running: false };
+        const ident = idRes.ok ? await idRes.json() : { running: false };
         // Only set state when something changed — fresh objects every poll
         // re-rendered the whole topbar each time.
-        const nextScrapers = { videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh, sceneDetect: scene, categorizerJob: cat };
+        const nextScrapers = { videoThumbs: vt, bmMeta: bm, bmThumbs: bt, reencode: reenc, whisper: wh, sceneDetect: scene, categorizerJob: cat, identify: ident };
         const sj = JSON.stringify(nextScrapers);
         if (sj !== lastScrapers) { lastScrapers = sj; setScrapers(nextScrapers); }
         const w = workerRes.ok ? await workerRes.json() : { active: false, task: '', detail: '' };
         const wj = JSON.stringify(w);
         if (wj !== lastWorker) { lastWorker = wj; setWorker(w); }
-        busyRef.current = !!(vt.running || bm.running || bt.running || reenc.running || wh.running || scene.running || cat.running || w.active);
+        busyRef.current = !!(vt.running || bm.running || bt.running || reenc.running || wh.running || scene.running || cat.running || ident.running || w.active);
         if (prevCatRunning.current && !cat.running) refreshLibraryQuietly();
         prevCatRunning.current = cat.running;
         if (encRes.ok) {
@@ -194,7 +212,8 @@ export const SyncManager = () => {
         }
       } catch {}
     };
-    poll().then(schedule);
+    kickRef.current = () => schedule(150); // short delay coalesces stopAll's burst of actions
+    poll().then(() => schedule());
     document.addEventListener('visibilitychange', onVisible);
     return () => { stopped = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
@@ -208,11 +227,12 @@ export const SyncManager = () => {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode, scrapers.whisper, scrapers.sceneDetect, scrapers.categorizerJob].filter(s => s.running).length
+  const activeCount = [scrapers.videoThumbs, scrapers.bmMeta, scrapers.bmThumbs, scrapers.reencode, scrapers.whisper, scrapers.sceneDetect, scrapers.categorizerJob, scrapers.identify].filter(s => s.running).length
     + (rescanning ? 1 : 0) + (encProgress.running ? 1 : 0) + (worker.active ? 1 : 0) + (duplicatesDeleteProgress.value.running ? 1 : 0);
 
   const scraperAction = async (url: string, method = 'POST') => {
     await fetch(url, { method }).catch(() => {});
+    kickRef.current();
   };
 
   const stopAll = async () => {
@@ -223,6 +243,7 @@ export const SyncManager = () => {
     if (scrapers.reencode.running) stops.push(scraperAction('/api/reencode/stop'));
     if (scrapers.sceneDetect.running) stops.push(scraperAction('/api/gen-chapters/stop'));
     if (scrapers.whisper.running) stops.push(scraperAction('/api/gen-whisper/stop'));
+    if (scrapers.identify.running) stops.push(scraperAction('/api/identify/stop'));
     if (worker.enabled) stops.push(scraperAction('/api/background-worker/stop'));
     if (stops.length) await Promise.all(stops);
   };
@@ -397,6 +418,33 @@ export const SyncManager = () => {
               onStop={() => scraperAction('/api/gen-chapters/stop')}
               disabled={isLoadingVideos.value}
             />
+
+            <ScraperRow
+              label="Scrape original data"
+              icon={
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M8 11h6M11 8v6"/>
+                </svg>
+              }
+              status={scrapers.identify}
+              onStart={() => startExclusive('/api/identify/start')}
+              onStop={() => scraperAction('/api/identify/stop')}
+              disabled={isLoadingVideos.value}
+              extraActions={
+                <button
+                  title="Mass rename videos with their original names"
+                  onClick={() => { originalNamesModalState.value = { visible: true }; setOpen(false); }}
+                  style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '2px 6px', fontSize: '0.68rem', cursor: 'pointer' }}
+                >
+                  Rename…
+                </button>
+              }
+            />
+            {!scrapers.identify.running && scrapers.identify.error && (
+              <div style={{ padding: '0 14px 8px', fontSize: '0.68rem', color: 'var(--danger, #e55)', borderBottom: '1px solid var(--brd)' }}>
+                {scrapers.identify.error}
+              </div>
+            )}
 
             {/* Whisper Subtitles — shown only when running, like Encryption */}
             {scrapers.whisper.running && (

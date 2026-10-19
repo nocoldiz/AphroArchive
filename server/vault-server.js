@@ -197,6 +197,8 @@ function _streamDecrypt(req, res, id, meta, isDownload) {
     dec.setAuthTag(tag);
     const src = fs.createReadStream(encPath, { start: ivLen, end: total - tagLen - 1 });
     src.on('error', () => { try { res.end(); } catch { } });
+    // Client cancelled the download: stop reading/decrypting (fd would stay open).
+    res.on('close', () => { try { src.destroy(); } catch {} try { dec.destroy(); } catch {} });
     src.pipe(dec).pipe(res);
     dec.on('error', () => { try { res.end(); } catch { } });
     return;
@@ -1021,7 +1023,8 @@ async function apiVaultAdd(req, res) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
   resetVaultTimer();
   if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
-  const filename = decodeURIComponent(req.headers['x-filename'] || 'video');
+  let filename = req.headers['x-filename'] || 'video';
+  try { filename = decodeURIComponent(filename); } catch {}
   const id = crypto.randomUUID();
   const outPath = path.join(VAULT_DIR, id + '.enc');
   const iv = crypto.randomBytes(12);
@@ -1029,23 +1032,40 @@ async function apiVaultAdd(req, res) {
   const out = fs.createWriteStream(outPath);
   out.write(iv);
   let size = 0;
-  await new Promise((resolve, reject) => {
-    req.on('data', chunk => {
-      size += chunk.length;
-      const enc = cipher.update(chunk);
-      if (enc.length && !out.write(enc)) { req.pause(); out.once('drain', () => req.resume()); }
+  // Hold auto-lock for the upload (same reason as _encryptLocalFileToVault):
+  // locking mid-stream would make saveVaultMeta below clobber the vault meta.
+  suspendAutoLock();
+  try {
+    await new Promise((resolve, reject) => {
+      req.on('data', chunk => {
+        size += chunk.length;
+        const enc = cipher.update(chunk);
+        if (enc.length && !out.write(enc)) { req.pause(); out.once('drain', () => req.resume()); }
+      });
+      req.on('end', () => {
+        try {
+          const fin = cipher.final();
+          if (fin.length) out.write(fin);
+          out.write(cipher.getAuthTag());
+          out.end(resolve);
+        } catch (e) { reject(e); }
+      });
+      req.on('aborted', () => reject(new Error('Upload aborted')));
+      req.on('error', reject);
+      out.on('error', reject);
     });
-    req.on('end', () => {
-      try {
-        const fin = cipher.final();
-        if (fin.length) out.write(fin);
-        out.write(cipher.getAuthTag());
-        out.end(resolve);
-      } catch (e) { reject(e); }
-    });
-    req.on('error', reject);
-    out.on('error', reject);
-  });
+  } catch (e) {
+    try { out.destroy(); } catch {}
+    try { fs.unlinkSync(outPath); } catch {}
+    resumeAutoLock();
+    return json(res, { error: 'Upload failed: ' + e.message }, 500);
+  }
+  resumeAutoLock();
+  // A manual lock can still land mid-upload: don't write meta without the key.
+  if (!vaultKey) {
+    try { fs.unlinkSync(outPath); } catch {}
+    return json(res, { error: 'locked' }, 401);
+  }
   const ext = path.extname(filename).toLowerCase();
   const folder = req.headers['x-folder'] || null;
   const meta = loadVaultMeta();
@@ -1093,6 +1113,7 @@ function apiVaultDownload(req, res, id) {
 
 function apiVaultDelete(req, res, id) {
   if (!vaultKey) return json(res, { error: 'locked' }, 401);
+  if (!_safeId(id)) return json(res, { error: 'Bad id' }, 400);
 
   const meta = loadVaultMeta();
   if (!meta[id]) return json(res, { error: 'Not found' }, 404);
@@ -1248,7 +1269,9 @@ async function apiVaultRestoreFile(req, res, id) {
     }
   }
 
-  const originalName = meta[id].originalName || (id + (meta[id].ext || ''));
+  // basename: originalName comes from the upload's X-Filename header and may
+  // carry separators / `..`, which would restore outside destDir.
+  const originalName = path.basename(meta[id].originalName || (id + (meta[id].ext || ''))) || id;
   const destPath = path.join(destDir, originalName);
 
   // Resolve collisions by appending a counter
@@ -1692,7 +1715,7 @@ async function apiVaultRestoreToOrigin(req, res, id) {
     }
   }
 
-  const originalName = entry.originalName || (id + (entry.ext || ''));
+  const originalName = path.basename(entry.originalName || (id + (entry.ext || ''))) || id;
   let finalDest = path.join(destDir, originalName);
   if (fs.existsSync(finalDest)) {
     const ext = path.extname(originalName);

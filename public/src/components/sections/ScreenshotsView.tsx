@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
 import { contextMenuState } from '../../store';
@@ -21,7 +21,7 @@ export const ScreenshotsView = () => {
     fetch('/api/screenshots')
       .then(r => r.json())
       .then(d => {
-        setScreenshots(d);
+        setScreenshots(Array.isArray(d) ? d : []);
         setLoading(false);
       })
       .catch(() => {
@@ -45,7 +45,7 @@ export const ScreenshotsView = () => {
     return files;
   };
 
-  const files = getSortedFilteredScreenshots();
+  const files = useMemo(getSortedFilteredScreenshots, [screenshots, sort, search]);
 
   // Slideshow effect
   useEffect(() => {
@@ -82,10 +82,10 @@ export const ScreenshotsView = () => {
   const deleteScreenshot = async (id: string) => {
     if (!confirm('Delete this screenshot?')) return;
     const w = window as any;
-    const r = await fetch(`/api/screenshots/${id}`, { method: 'DELETE' });
-    if (r.ok) {
+    const r = await fetch(`/api/screenshots/${id}`, { method: 'DELETE' }).catch(() => null);
+    if (r?.ok) {
       if (w.toast) w.toast('Screenshot deleted');
-      setScreenshots(screenshots.filter(f => f.id !== id));
+      setScreenshots(prev => prev.filter(f => f.id !== id));
       if (lightboxIdx !== null) closeLightbox();
     } else {
       if (w.toast) w.toast('Delete failed');
@@ -132,7 +132,7 @@ export const ScreenshotsView = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxIdx, slideshowOn]);
+  }, [lightboxIdx, slideshowOn, files]);
 
   const currentScreenshot = lightboxIdx !== null ? files[lightboxIdx] : null;
 

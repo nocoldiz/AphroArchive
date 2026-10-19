@@ -56,6 +56,20 @@ const formatDuration = (seconds: number) => {
 const THUMB_RETRY_DELAYS = [1500, 4000, 10000];
 const thumbGenRequested = new Set<string>();
 
+// Apply a favourite toggle to both lists: the grid reads `videos`, while
+// search, home widgets and the player read `allVideos`.
+function applyFav(id: string, fav: boolean) {
+  const patch = (list: Video[]) => {
+    const i = list.findIndex(v => v.id === id);
+    if (i === -1) return list;
+    const next = list.slice();
+    next[i] = { ...next[i], fav };
+    return next;
+  };
+  videos.value = patch(videos.value);
+  allVideos.value = patch(allVideos.value);
+}
+
 function requestThumbGen(id: string) {
   if (thumbGenRequested.has(id)) return;
   thumbGenRequested.add(id);
@@ -265,6 +279,8 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
     clearTimeout(timerRef.current);
     setShowVideo(false);
   };
+  // Card unmounted mid-hover (grid re-filtered/scrolled away): drop the timer.
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   // Hard teardown for this card's preview <video>: abort the stream socket and
   // hide the preview. Registered as the single app-wide active preview so a
@@ -292,14 +308,8 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
     e.stopPropagation();
     const r = await fetch(`/api/favourites/${video.id}`, { method: 'POST' });
     const d = await r.json();
-    
-    const currentVideos = [...videos.value];
-    const idx = currentVideos.findIndex(v => v.id === video.id);
-    if (idx !== -1) {
-      currentVideos[idx] = { ...currentVideos[idx], fav: d.fav };
-      videos.value = currentVideos;
-    }
-    
+    applyFav(video.id, d.fav);
+
     const w = window as any;
     if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
   };
@@ -338,6 +348,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
     if (r.ok) {
       if ((window as any).toast) (window as any).toast('Video encrypted and moved to Vault');
       videos.value = videos.value.filter(v => v.id !== video.id);
+      allVideos.value = allVideos.value.filter(v => v.id !== video.id);
     } else {
       const err = await r.json();
       if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
@@ -388,7 +399,7 @@ export const VideoCard = ({ video, isSelected, index, isRelated, selectionList }
         {video.isLink && !(video.img || linkThumb) ? (
           <div
             className="video-thumb link-thumb-placeholder"
-            style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--border)' }}
+            style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--brd)' }}
           >
             <img
               src={`https://www.google.com/s2/favicons?sz=32&domain_url=${encodeURIComponent(video.linkUrl || video.relPath || '')}`}
@@ -572,12 +583,10 @@ const VideoListRow = ({ video, isSelected, index }: { video: Video; isSelected: 
     e.stopPropagation();
     const r = await fetch(`/api/favourites/${video.id}`, { method: 'POST' });
     const d = await r.json();
-    const list = [...videos.value];
-    const i = list.findIndex(v => v.id === video.id);
-    if (i !== -1) { list[i] = { ...list[i], fav: d.fav }; videos.value = list; }
+    applyFav(video.id, d.fav);
   };
 
-  const date = new Date(video.mtime * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const date = new Date(video.mtime).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const sizeMb = video.size > 0 ? `${(video.size / 1_048_576).toFixed(1)} MB` : '—';
 
   return (
@@ -729,18 +738,23 @@ export const VideoSelBar = () => {
   const deleteSelected = async () => {
     if (!confirm(`Delete ${count} video${count !== 1 ? 's' : ''} from disk?\nThis action cannot be undone.`)) return;
     const ids = [...selectedVideoIds.value];
-    let deleted = 0;
+    // Only drop the ones the server actually deleted — failed ones stay
+    // visible (and selected) instead of vanishing until the next reload.
+    const gone = new Set<string>();
     for (const id of ids) {
       try {
         const r = await fetch(`/api/videos/${id}`, { method: 'DELETE' });
-        if (r.ok) deleted++;
+        if (r.ok) gone.add(id);
       } catch {}
     }
-    videos.value = videos.value.filter(v => !selectedVideoIds.value.has(v.id));
-    allVideos.value = allVideos.value.filter(v => !selectedVideoIds.value.has(v.id));
-    selectedVideoIds.value = new Set();
-    videoSelMode.value = false;
-    if ((window as any).toast) (window as any).toast(`Deleted ${deleted} video${deleted !== 1 ? 's' : ''}`);
+    const deleted = gone.size;
+    videos.value = videos.value.filter(v => !gone.has(v.id));
+    allVideos.value = allVideos.value.filter(v => !gone.has(v.id));
+    const left = new Set([...selectedVideoIds.value].filter(id => !gone.has(id)));
+    selectedVideoIds.value = left;
+    videoSelMode.value = left.size > 0;
+    const failed = ids.length - deleted;
+    if ((window as any).toast) (window as any).toast(`Deleted ${deleted} video${deleted !== 1 ? 's' : ''}${failed ? ` — ${failed} failed` : ''}`);
   };
 
   const downloadSelected = async () => {
@@ -803,7 +817,7 @@ export const VideoSelBar = () => {
       
       <button
         onClick={deleteSelected}
-        style={{ background: '#c0392b', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+        style={{ background: 'var(--danger)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="3 6 5 6 21 6" />
@@ -939,8 +953,8 @@ export const VideoSelBar = () => {
     )}
 
     {showEncryptConfirm && (
-      <div className="modal on" style={{ display: 'flex' }}>
-        <div className="modal-content">
+      <div className="modal-overlay on" onClick={() => setShowEncryptConfirm(false)}>
+        <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <h2>Encrypt Videos</h2>
           </div>
@@ -949,11 +963,11 @@ export const VideoSelBar = () => {
             <p>Originals will be securely deleted and removed from the public database.</p>
           </div>
           <div className="modal-footer">
-            <button class="modal-btn modal-btn--primary" onClick={() => {
+            <button className="modal-btn" onClick={() => setShowEncryptConfirm(false)}>Cancel</button>
+            <button className="modal-btn modal-btn--primary" onClick={() => {
               setShowEncryptConfirm(false);
               runEncryptSelected();
             }}>Encrypt</button>
-            <button class="modal-btn" onClick={() => setShowEncryptConfirm(false)}>Cancel</button>
           </div>
         </div>
       </div>
@@ -1097,7 +1111,7 @@ export const VideoGrid = () => {
   if (groupMode !== 'none') {
     const groupMap = new Map<string, Video[]>();
     for (const v of visible) {
-      const year = new Date(v.mtime * 1000).getFullYear();
+      const year = new Date(v.mtime).getFullYear();
       const label = groupMode === 'decade' ? `${Math.floor(year / 10) * 10}s` : String(year);
       if (!groupMap.has(label)) groupMap.set(label, []);
       groupMap.get(label)!.push(v);

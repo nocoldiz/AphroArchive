@@ -35,7 +35,8 @@ export const CorruptedView = () => {
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
-  const sseRef = useRef<EventSource | null>(null);
+  // One stream per mode so switching tabs mid-scan doesn't orphan the other scan
+  const sseRef = useRef<Record<'videos' | 'vault', EventSource | null>>({ videos: null, vault: null });
 
   const toast = (msg: string) => (window as any).toast?.(msg);
 
@@ -44,15 +45,32 @@ export const CorruptedView = () => {
   const setState = isVault ? setVlt : setVid;
 
   const base = isVault ? '/api/corrupted/vault' : '/api/corrupted';
-  const deleteUrl = (id: string) => isVault ? `/api/vault/${id}` : `/api/videos/${id}`;
+  const deleteUrl = (id: string) => isVault ? `/api/vault/files/${id}` : `/api/videos/${id}`;
 
   const startScan = async () => {
-    sseRef.current?.close();
+    const m = mode;
+    sseRef.current[m]?.close();
     setDeleted(new Set());
     setState({ scanning: true, progress: { done: 0, total: 0 }, results: null, skipped: 0 });
 
+    // Start the job before subscribing: the status stream replays the previous
+    // job's 'done' event to new subscribers, which would show stale results.
+    try {
+      const r = await fetch(`${base}/scan`, { method: 'POST' });
+      // 400 = already running; keep going and attach to it
+      if (!r.ok && r.status !== 400) {
+        const d = await r.json().catch(() => ({}));
+        toast(d.error || 'Scan failed to start');
+        setState(prev => ({ ...prev, scanning: false, progress: null }));
+        return;
+      }
+    } catch {
+      setState(prev => ({ ...prev, scanning: false, progress: null }));
+      return;
+    }
+
     const sse = new EventSource(`${base}/status`);
-    sseRef.current = sse;
+    sseRef.current[m] = sse;
 
     sse.onmessage = (e) => {
       try {
@@ -72,20 +90,15 @@ export const CorruptedView = () => {
         .then(d => setState({ scanning: false, progress: null, results: Array.isArray(d) ? d : (d.results || []), skipped: d.skipped || 0 }))
         .catch(() => setState(prev => ({ ...prev, scanning: false, progress: null })));
     };
-
-    await fetch(`${base}/scan`, { method: 'POST' }).catch(() => {
-      sse.close();
-      setState(prev => ({ ...prev, scanning: false, progress: null }));
-    });
   };
 
   const stopScan = async () => {
-    await fetch(`${base}/stop`, { method: 'POST' });
-    sseRef.current?.close();
+    await fetch(`${base}/stop`, { method: 'POST' }).catch(() => {});
+    sseRef.current[mode]?.close();
     setState(prev => ({ ...prev, scanning: false, progress: null }));
   };
 
-  useEffect(() => () => { sseRef.current?.close(); }, []);
+  useEffect(() => () => { sseRef.current.videos?.close(); sseRef.current.vault?.close(); }, []);
 
   const handleDelete = async (item: CorruptedItem) => {
     if (!confirm(`Permanently delete "${item.name}"?`)) return;
@@ -130,26 +143,16 @@ export const CorruptedView = () => {
         <h2 style={{ margin: 0, fontWeight: 600, fontSize: '1.15rem', color: 'var(--ac)' }}>Corrupted Finder</h2>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
           {state.scanning ? (
-            <button
-              onClick={stopScan}
-              style={{ padding: '7px 14px', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
+            <button className="ui-btn" onClick={stopScan}>
               Stop
             </button>
           ) : (
-            <button
-              onClick={startScan}
-              style={{ padding: '7px 14px', background: 'var(--ac)', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
+            <button className="ui-btn ui-btn--primary" onClick={startScan}>
               {state.results !== null ? 'Re-scan' : 'Run Scan'}
             </button>
           )}
           {!state.scanning && visible.length > 0 && (
-            <button
-              onClick={handleDeleteAll}
-              disabled={deletingAll}
-              style={{ padding: '7px 14px', background: 'transparent', color: '#c44', border: '1px solid #c44', borderRadius: '6px', cursor: deletingAll ? 'wait' : 'pointer', fontSize: '0.85rem', opacity: deletingAll ? 0.6 : 1 }}
-            >
+            <button className="ui-btn ui-btn--danger" onClick={handleDeleteAll} disabled={deletingAll}>
               {deletingAll ? 'Deleting…' : `Delete All (${visible.length})`}
             </button>
           )}
@@ -157,18 +160,12 @@ export const CorruptedView = () => {
       </div>
 
       {/* Mode tabs */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', borderBottom: '1px solid var(--brd)', paddingBottom: '12px' }}>
-        <button
-          onClick={() => { sseRef.current?.close(); setMode('videos'); }}
-          style={{ padding: '6px 14px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', background: mode === 'videos' ? 'var(--ac)' : 'var(--bg2)', color: mode === 'videos' ? '#fff' : 'var(--tx2)' }}
-        >
+      <div className="ui-tabs" style={{ gap: '6px', marginBottom: '20px', borderBottom: '1px solid var(--brd)', paddingBottom: '12px' }}>
+        <button className={`ui-tab${mode === 'videos' ? ' on' : ''}`} onClick={() => setMode('videos')}>
           Videos
         </button>
         {vaultUnlocked && (
-          <button
-            onClick={() => { sseRef.current?.close(); setMode('vault'); }}
-            style={{ padding: '6px 14px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '0.85rem', background: mode === 'vault' ? 'var(--ac)' : 'var(--bg2)', color: mode === 'vault' ? '#fff' : 'var(--tx2)' }}
-          >
+          <button className={`ui-tab${mode === 'vault' ? ' on' : ''}`} onClick={() => setMode('vault')}>
             Vault
           </button>
         )}
@@ -198,7 +195,7 @@ export const CorruptedView = () => {
         <div style={{ fontSize: '0.85rem', color: 'var(--tx3)', marginBottom: '16px' }}>
           {visible.length === 0
             ? 'No corrupted files found.'
-            : <><span style={{ color: '#e84040', fontWeight: 600 }}>{visible.length}</span> corrupted or unreadable file{visible.length !== 1 ? 's' : ''} found</>
+            : <><span style={{ color: 'var(--danger)', fontWeight: 600 }}>{visible.length}</span> corrupted or unreadable file{visible.length !== 1 ? 's' : ''} found</>
           }
           {state.skipped > 0 && (
             <span style={{ marginLeft: '10px', color: 'var(--tx3)' }}>· {state.skipped} large file{state.skipped !== 1 ? 's' : ''} skipped (too large to fully verify)</span>
@@ -207,7 +204,7 @@ export const CorruptedView = () => {
       )}
 
       {state.results === null && !state.scanning && (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--tx3)' }}>
+        <div className="empty-state">
           <div style={{ fontSize: '2rem', marginBottom: '10px' }}>⚠</div>
           <div style={{ marginBottom: '4px' }}>
             {isVault
@@ -247,16 +244,17 @@ export const CorruptedView = () => {
                   {item.name}
                 </div>
                 <div style={{ display: 'flex', gap: '10px', fontSize: '0.75rem', color: 'var(--tx3)', marginTop: '2px', flexWrap: 'wrap' }}>
-                  <span style={{ color: '#e84040' }}>{item.error}</span>
+                  <span style={{ color: 'var(--danger)' }}>{item.error}</span>
                   {item.category && <span>{item.category}</span>}
                   {item.folder && <span>{item.folder}</span>}
                   {item.size ? <span>{fmt(item.size)}</span> : null}
                 </div>
               </div>
               <button
+                className="ui-btn ui-btn--sm ui-btn--danger"
                 onClick={() => handleDelete(item)}
                 disabled={deletingId === item.id}
-                style={{ flexShrink: 0, background: 'none', border: '1px solid var(--brd)', color: '#c44', borderRadius: '4px', padding: '5px 12px', cursor: deletingId === item.id ? 'wait' : 'pointer', fontSize: '0.8rem' }}
+                style={{ flexShrink: 0 }}
               >
                 {deletingId === item.id ? '…' : 'Delete'}
               </button>

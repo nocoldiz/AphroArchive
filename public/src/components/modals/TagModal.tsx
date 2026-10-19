@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'preact/hooks';
 import { tagModalState } from '../../store';
+import { useEscape } from './useEscape';
 
 export const TagModal = () => {
   const state = tagModalState.value;
@@ -9,65 +10,57 @@ export const TagModal = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (state.visible) {
-      loadTags();
-      loadSuggestions();
-      if (inputRef.current) inputRef.current.focus();
-    }
-  }, [state.visible, state.vidId, state.linkUrl]);
-
-  const loadTags = async () => {
+    if (!state.visible) return;
+    // Reset per-open state so the previous video's tags never flash, and drop
+    // late responses when the modal is reopened for another video.
+    let stale = false;
+    setTags([]);
+    setQuery('');
     if (state.vidId) {
-      const r = await fetch(`/api/videos/${state.vidId}/tags`);
-      const data = await r.json();
-      setTags(data.tags || []);
-    } else if (state.linkUrl) {
-      // Handle link tags if needed, or assume empty for now
-      setTags([]);
+      fetch(`/api/videos/${state.vidId}/tags`)
+        .then(r => r.json())
+        .then(data => { if (!stale) setTags(data.tags || []); })
+        .catch(() => {});
     }
-  };
-
-  const loadSuggestions = async () => {
-    const r = await fetch('/api/tag-suggestions');
-    const data = await r.json();
-    setSuggestions(data || []);
-  };
+    fetch('/api/tag-suggestions')
+      .then(r => r.json())
+      .then(data => { if (!stale) setSuggestions(Array.isArray(data) ? data : []); })
+      .catch(() => {});
+    inputRef.current?.focus();
+    return () => { stale = true; };
+  }, [state.visible, state.vidId, state.linkUrl]);
 
   const handleClose = () => {
     tagModalState.value = { visible: false, vidId: null, linkUrl: null };
     setQuery('');
   };
 
+  useEscape(state.visible, handleClose);
+
+  const saveTags = async (newTags: string[]) => {
+    setTags(newTags);
+    if (!state.vidId) return;
+    try {
+      const r = await fetch(`/api/videos/${state.vidId}/meta`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      });
+      if (!r.ok) throw new Error();
+    } catch {
+      (window as any).toastError?.('Failed to save tags');
+    }
+  };
+
   const handleAddTag = async (tag: string) => {
     tag = tag.trim();
     if (!tag || tags.some(t => t.toLowerCase() === tag.toLowerCase())) return;
-
-    const newTags = [...tags, tag];
-    setTags(newTags);
-
-    if (state.vidId) {
-      await fetch(`/api/videos/${state.vidId}/meta`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags: newTags }),
-      });
-    }
-
     setQuery('');
+    await saveTags([...tags, tag]);
   };
 
-  const handleRemoveTag = async (tag: string) => {
-    const newTags = tags.filter(t => t.toLowerCase() !== tag.toLowerCase());
-    setTags(newTags);
-
-    if (state.vidId) {
-      await fetch(`/api/videos/${state.vidId}/meta`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags: newTags }),
-      });
-    }
-  };
+  const handleRemoveTag = (tag: string) =>
+    saveTags(tags.filter(t => t.toLowerCase() !== tag.toLowerCase()));
 
   const filteredSuggestions = suggestions.filter(s => {
     if (tags.some(t => t.toLowerCase() === s.toLowerCase())) return false;
@@ -78,11 +71,11 @@ export const TagModal = () => {
   if (!state.visible) return null;
 
   return (
-    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-      <div className="modal-content" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '400px', maxWidth: '90%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0 }}>Manage Tags</h3>
-          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
+    <div className="modal-overlay on" style={{ zIndex: 1000 }} onClick={(e: any) => e.target === e.currentTarget && handleClose()}>
+      <div className="modal-dialog" style={{ maxWidth: '400px' }}>
+        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>Manage Tags</h2>
+          <button className="ui-btn ui-btn--ghost ui-btn--icon" onClick={handleClose} aria-label="Close" title="Close">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </div>
@@ -92,7 +85,7 @@ export const TagModal = () => {
           {tags.map(t => (
             <span key={t} className="p-tag" style={{ background: 'var(--bg3)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
               {t}
-              <button onClick={() => handleRemoveTag(t)} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <button onClick={() => handleRemoveTag(t)} aria-label={`Remove ${t}`} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>
             </span>
@@ -106,15 +99,8 @@ export const TagModal = () => {
             type="text"
             value={query}
             onInput={(e: any) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && query.trim()) {
-                handleAddTag(query.trim());
-              } else if (e.key === 'Escape') {
-                handleClose();
-              }
-            }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && query.trim()) handleAddTag(query.trim()); }}
             placeholder="Add or search tags..."
-            style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }}
           />
         </div>
 
@@ -130,13 +116,13 @@ export const TagModal = () => {
               {s}
             </span>
           ))}
-          {query && !suggestions.some(s => s.toLowerCase() === query.toLowerCase()) && (
+          {query.trim() && !suggestions.some(s => s.toLowerCase() === query.trim().toLowerCase()) && (
             <span
               className="p-tag-picker-item"
               onClick={() => handleAddTag(query)}
               style={{ background: 'var(--ac)', color: '#fff', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
             >
-              Add "{query}"
+              Add "{query.trim()}"
             </span>
           )}
         </div>

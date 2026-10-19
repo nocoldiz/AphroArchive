@@ -11,9 +11,9 @@ const { VIDEOS_DIR, PUBLIC_DIR, STATIC_MIME, IS_PKG } = require('./config-server
 // ── Formatting ───────────────────────────────────────────────────────
 
 function formatBytes(b) {
-  if (b === 0) return '0 B';
+  if (!(b > 0)) return '0 B';   // also 0/undefined/NaN/negative (was "NaN undefined")
   const k = 1024, s = ['B','KB','MB','GB','TB'];
-  const i = Math.floor(Math.log(b) / Math.log(k));
+  const i = Math.min(s.length - 1, Math.floor(Math.log(b) / Math.log(k)));
   return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
 }
 
@@ -57,6 +57,16 @@ function parseRange(rangeHeader, size) {
 function toId(rel)  { return Buffer.from(rel).toString('base64url'); }
 function fromId(id) { return Buffer.from(id, 'base64url').toString('utf-8'); }
 
+// True when `p` resolves to `root` or below it, on a path-segment boundary
+// ("/media2" is not inside "/media"). strict = must be below, not the root itself.
+// Handles drive roots ("D:\\") whose resolved form already ends in a separator.
+function isInside(p, root, strict = false) {
+  const r = path.resolve(root);
+  const f = path.resolve(p);
+  if (f === r) return !strict;
+  return f.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
+}
+
 function safePath(id) {
   const rel  = fromId(id);
   let full;
@@ -66,7 +76,11 @@ function safePath(id) {
     full = path.resolve(VIDEOS_DIR, rel);
   }
 
-  if (full.startsWith(path.resolve(VIDEOS_DIR))) {
+  // Boundary-aware containment: a bare startsWith() let a sibling such as
+  // "<media>2/..." or "<source>-old/..." pass as inside the root.
+  const inside = (root) => isInside(full, root);
+
+  if (inside(VIDEOS_DIR)) {
     if (fs.existsSync(full)) return full;
     return null;
   }
@@ -76,7 +90,7 @@ function safePath(id) {
     const prefs = loadPrefs();
     if (prefs.sourceFolders) {
       for (const folder of prefs.sourceFolders) {
-        if (full.startsWith(path.resolve(folder))) {
+        if (folder && inside(folder)) {
           if (fs.existsSync(full)) return full;
         }
       }
@@ -107,10 +121,7 @@ function safePath(id) {
 function isAllowedMediaPath(fp) {
   if (!fp) return false;
   const resolved = path.resolve(fp);
-  const inside = (root) => {
-    const r = path.resolve(root);
-    return resolved === r || resolved.startsWith(r + path.sep);
-  };
+  const inside = (root) => isInside(resolved, root);
   if (inside(VIDEOS_DIR)) return true;            // VIDEOS_DIR === MEDIA_DIR
   try {
     const { loadPrefs } = require('./db-server');
@@ -285,6 +296,10 @@ function readBody(req) {
     req.on('end', () => {
       try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8'))); } catch { resolve({}); }
     });
+    // Aborted/errored request: 'end' never fires — without this the handler
+    // awaiting the body (and its buffered chunks) hung forever.
+    req.on('error', () => resolve({}));
+    req.on('aborted', () => resolve({}));
   });
 }
 
@@ -340,7 +355,7 @@ function _sendFile(req, res, resolved, stat, ct) {
 
 function serveStatic(req, res, filePath) {
   const resolved = path.resolve(PUBLIC_DIR, filePath);
-  if (!resolved.startsWith(path.resolve(PUBLIC_DIR))) {
+  if (!isInside(resolved, PUBLIC_DIR)) {
     res.writeHead(403); res.end('Forbidden'); return;
   }
   let stat = null;
@@ -363,7 +378,7 @@ function serveStatic(req, res, filePath) {
 
 module.exports = {
   formatBytes, formatDuration, parseRange,
-  toId, fromId, safePath, isAllowedMediaPath,
+  toId, fromId, safePath, isInside, isAllowedMediaPath,
   wordMatch, wordMatchAny, channelMatchAny, actorMatches, actorMatchesAny,
   json, jsonError, readBody, validateBody, LIMITS,
   serveStatic,

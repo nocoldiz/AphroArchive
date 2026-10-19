@@ -88,6 +88,8 @@ async function apiAssistantChat(req, res) {
   });
 
   r.on('error', (e) => { send(`data: ${JSON.stringify({ error: e.message })}\n\n`); done(); });
+  // Client closed the chat stream: stop the upstream completion too.
+  res.on('close', () => { if (!r.destroyed) r.destroy(); });
   r.write(payload);
   r.end();
 }

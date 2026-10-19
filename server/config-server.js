@@ -9,21 +9,47 @@ const os = require('os');
 
 const ROOT_DIR = path.join(__dirname, '..');          // project root (parent of server/)
 const IS_PKG = typeof process.pkg !== 'undefined';
-const DATA_DIR = IS_PKG ? path.dirname(process.execPath) : ROOT_DIR;
+// Where the app itself lives (the exe's folder when packaged, else the repo).
+const APP_DIR = IS_PKG ? path.dirname(process.execPath) : ROOT_DIR;
 const PLUGINS_DIR = path.join(ROOT_DIR, 'plugins');
 const WIDGETS_DIR = path.join(ROOT_DIR, 'widgets');
 
+function _readJson(file) {
+  try { return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}; }
+  catch (e) { return {}; }
+}
+
+// ── Linked installation ─────────────────────────────────────────────
+// APP_DIR/paths.json may hold `installDir`: an existing AphroArchive
+// installation on disk whose data (db, cache, media, feeds…) this app then
+// always uses. DATA_DIR is that folder, or APP_DIR when nothing is linked.
+const APP_PATHS_FILE = path.join(APP_DIR, 'paths.json');
+const _appCfg = _readJson(APP_PATHS_FILE);
+const LINKED_INSTALL_DIR = (() => {
+  if (!_appCfg.installDir) return '';
+  const p = path.resolve(_appCfg.installDir);
+  try { if (fs.statSync(p).isDirectory() && p !== path.resolve(APP_DIR)) return p; } catch {}
+  console.warn(`[paths] linked installation '${p}' not found, using ${APP_DIR}`);
+  return '';
+})();
+const DATA_DIR = LINKED_INSTALL_DIR || APP_DIR;
+
+// Binaries next to the app first, then inside the linked installation.
 function resolveBin(name) {
   const winName = process.platform === 'win32' ? name + '.exe' : name;
-  const local = path.join(DATA_DIR, winName);
-  return fs.existsSync(local) ? local : (process.platform === 'win32' ? winName : name);
+  for (const dir of new Set([APP_DIR, DATA_DIR])) {
+    const local = path.join(dir, winName);
+    if (fs.existsSync(local)) return local;
+  }
+  return process.platform === 'win32' ? winName : name;
 }
 
 // ── Custom storage paths (paths.json) ───────────────────────────────
+// The installation's own paths.json (the same file as APP_PATHS_FILE when
+// nothing is linked).
 const PATHS_FILE = path.join(DATA_DIR, 'paths.json');
 function _loadPathsCfg() {
-  try { return fs.existsSync(PATHS_FILE) ? JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8')) : {}; }
-  catch (e) { return {}; }
+  return PATHS_FILE === APP_PATHS_FILE ? _appCfg : _readJson(PATHS_FILE);
 }
 function _resolveCustomDir(custom, defaultDir) {
   if (!custom) return defaultDir;
@@ -196,7 +222,7 @@ function getLocalIP() {
 }
 
 module.exports = {
-  ROOT_DIR, IS_PKG, DATA_DIR, LINK_DIR,
+  ROOT_DIR, IS_PKG, DATA_DIR, APP_DIR, APP_PATHS_FILE, LINKED_INSTALL_DIR, LINK_DIR,
   FFMPEG_BIN, FFPROBE_BIN, YT_DLP_BIN, WHISPER_BIN, WHISPER_MODELS_DIR,
   MEDIA_DIR, VIDEOS_DIR, AUDIO_DIR, PORT, PUBLIC_DIR, CACHE_DIR,
   THUMBS_DIR, ACTOR_PHOTOS_DIR, VAULT_DIR, PROCESS_DIR, IGNORED_DIR,

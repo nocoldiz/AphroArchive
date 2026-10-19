@@ -58,7 +58,9 @@ function apiScreenshotServe(req, res, id) {
   const ct   = MIME[ext] || 'image/jpeg';
   const stat = fs.statSync(fp);
   res.writeHead(200, { 'Content-Type': ct, 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=3600' });
-  fs.createReadStream(fp).pipe(res);
+  const rs = fs.createReadStream(fp);
+  rs.on('error', () => { try { res.destroy(); } catch {} });
+  rs.pipe(res);
 }
 
 function apiScreenshotDelete(req, res, id) {
@@ -80,13 +82,17 @@ function apiScreenshotDownload(req, res, id) {
     'Content-Length':      stat.size,
     'Content-Disposition': 'attachment; filename="' + filename + '"',
   });
-  fs.createReadStream(fp).pipe(res);
+  const rs = fs.createReadStream(fp);
+  rs.on('error', () => { try { res.destroy(); } catch {} });
+  rs.pipe(res);
 }
 
 function apiScreenshotsUpload(req, res) {
   fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
   const rawName  = req.headers['x-filename'] || 'screenshot.jpg';
   const safeName = path.basename(rawName).replace(/[^a-zA-Z0-9._\-\s]/g, '_');
+  // Images only: this folder is served same-origin with a MIME taken from the extension.
+  if (!IMAGE_EXT.has(path.extname(safeName).toLowerCase())) return json(res, { error: 'Only image files allowed' }, 400);
 
   const dest = path.join(SCREENSHOTS_DIR, safeName);
   const chunks = [];

@@ -56,7 +56,8 @@ function fetchText(url, redirects = 0) {
         const loc = res.headers.location;
         if (res.statusCode >= 300 && res.statusCode < 400 && loc) {
           res.resume();
-          const next = loc.startsWith('http') ? loc : new URL(loc, url).toString();
+          let next;
+          try { next = new URL(loc, url).toString(); } catch { return resolve(''); }
           return resolve(fetchText(next, redirects + 1));
         }
         if (res.statusCode !== 200) { res.resume(); return resolve(''); }

@@ -87,8 +87,13 @@ export const PlayerView = () => {
           return;
         }
         if (cancelled) return;
-        const job = jobs.find((j: any) => j.id === downloadJobId);
-        if (job) {
+        const job = Array.isArray(jobs) ? jobs.find((j: any) => j.id === downloadJobId) : null;
+        if (!job) {
+          // Job was removed from the queue elsewhere — stop polling.
+          clearInterval(timer);
+          setDownloadJobId(null);
+          setIsDownloading(false);
+        } else {
           setDownloadProgress(job.progress);
           if (job.status === 'done') {
             clearInterval(timer);
@@ -152,14 +157,17 @@ export const PlayerView = () => {
     }
 
     setIsDownloading(true);
-    const r = await fetch('/api/download', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: downloadUrl, category: targetCat })
-    });
-    window.dispatchEvent(new Event('downloads-changed'));
-    const d = await r.json();
-    if (d.ok && d.ids && d.ids.length > 0) {
+    let d: any = null;
+    try {
+      const r = await fetch('/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: downloadUrl, category: targetCat })
+      });
+      window.dispatchEvent(new Event('downloads-changed'));
+      d = await r.json();
+    } catch { /* handled below */ }
+    if (d?.ok && d.ids && d.ids.length > 0) {
       setDownloadJobId(d.ids[0]);
     } else {
       setIsDownloading(false);
@@ -245,6 +253,11 @@ export const PlayerView = () => {
   useEffect(() => {
     if (video) setCardThumb(getThumbPref(video.id));
     setNextUpLimit(NEXT_UP_PAGE);
+    // A download started on the previous video must not keep polling (and later
+    // swap currentVideo) after the user has moved on; the server job continues.
+    setDownloadJobId(null);
+    setIsDownloading(false);
+    setDownloadProgress(0);
     // Opening a video should always start at the top — reset both the window
     // (normal layout) and the .main-content pane (dual mode) scroll positions.
     window.scrollTo({ top: 0 });
@@ -357,13 +370,19 @@ export const PlayerView = () => {
     if (!next) setAutoChapters([]);
   };
 
+  const batchEsRef = useRef<EventSource | null>(null);
+  useEffect(() => () => { batchEsRef.current?.close(); }, []);
+
   const startBatchDetect = async () => {
     setShowPlayerOptions(false);
     setBatchStatus({ running: true, done: 0, total: 0 });
     await fetch('/api/gen-chapters/start', { method: 'POST' }).catch(() => {});
+    batchEsRef.current?.close();
     const es = new EventSource('/api/gen-chapters/status');
+    batchEsRef.current = es;
     es.onmessage = (e) => {
-      const ev = JSON.parse(e.data);
+      let ev: any;
+      try { ev = JSON.parse(e.data); } catch { return; }
       if (ev.type === 'done') { setBatchStatus({ running: false, done: ev.done, total: ev.total }); es.close(); }
       else if (ev.type === 'progress') setBatchStatus({ running: true, done: ev.done, total: ev.total });
     };
@@ -412,8 +431,15 @@ export const PlayerView = () => {
 
   const toggleFav = async () => {
     if (!video) return;
-    const r = await fetch(`/api/favourites/${video.id}`, { method: 'POST' });
-    const d = await r.json();
+    let d: any;
+    try {
+      const r = await fetch(`/api/favourites/${video.id}`, { method: 'POST' });
+      if (!r.ok) throw new Error();
+      d = await r.json();
+    } catch {
+      (window as any).toast?.('Failed to update favourite');
+      return;
+    }
     currentVideo.value = { ...video, fav: d.fav };
     const w = window as any;
     if (w.toast) w.toast(d.fav ? '★ Added to favourites' : 'Removed from favourites');
@@ -657,12 +683,12 @@ export const PlayerView = () => {
   const handleEncrypt = async () => {
     if (!video) return;
 
-    const r = await fetch(`/api/videos/${video.id}/encrypt`, { method: 'POST' });
-    if (r.ok) {
+    const r = await fetch(`/api/videos/${video.id}/encrypt`, { method: 'POST' }).catch(() => null);
+    if (r?.ok) {
       if ((window as any).toast) (window as any).toast('Video encrypted and moved to Vault');
       currentView.value = 'hub';
     } else {
-      const err = await r.json();
+      const err = r ? await r.json().catch(() => ({})) : {};
       if ((window as any).toast) (window as any).toast('Encryption failed: ' + (err.error || 'Unknown error'));
     }
   };
@@ -870,7 +896,7 @@ export const PlayerView = () => {
               </button>
 
               {subtitles.length > 0 && (
-                <button onClick={openTranscript} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: showTranscript ? '1px solid var(--ac)' : '1px solid var(--brd)', background: showTranscript ? 'rgba(var(--ac-rgb,255,74,74),0.1)' : 'var(--bg2)', color: showTranscript ? 'var(--ac)' : 'var(--tx)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <button onClick={openTranscript} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: showTranscript ? '1px solid var(--ac)' : '1px solid var(--brd)', background: showTranscript ? 'var(--acg)' : 'var(--bg2)', color: showTranscript ? 'var(--ac)' : 'var(--tx)', cursor: 'pointer', fontSize: '0.85rem' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="18" height="18" rx="2" />
                     <line x1="7" y1="8" x2="17" y2="8" />
@@ -960,16 +986,16 @@ export const PlayerView = () => {
 
               <button onClick={async () => {
                 if (!confirm(`Delete video "${video.name}" from disk?\nThis action cannot be undone.`)) return;
-                const r = await fetch(`/api/videos/${video.id}`, { method: 'DELETE' });
-                if (r.ok) {
+                const r = await fetch(`/api/videos/${video.id}`, { method: 'DELETE' }).catch(() => null);
+                if (r?.ok) {
                   if ((window as any).toast) (window as any).toast('Video deleted');
                   currentView.value = 'hub';
                   allVideos.value = allVideos.value.filter((v: any) => v.id !== video.id);
                 } else {
-                  const err = await r.json();
+                  const err: any = r ? await r.json().catch(() => ({})) : {};
                   if ((window as any).toast) (window as any).toast('Delete failed: ' + (err.error || 'Unknown error'));
                 }
-              }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: '#ff4a4a' }}>
+              }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--danger)' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
                 </svg>
@@ -982,8 +1008,8 @@ export const PlayerView = () => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: video.id })
-                  });
-                  if (!r.ok && (window as any).toast) (window as any).toast('Failed to open folder');
+                  }).catch(() => null);
+                  if (!r?.ok && (window as any).toast) (window as any).toast('Failed to open folder');
                 }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--brd)', background: 'var(--bg2)', cursor: 'pointer', fontSize: '0.85rem' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
@@ -1293,7 +1319,8 @@ export const PlayerView = () => {
                 placeholder="Private note for this video…"
                 rows={8}
                 autoFocus
-                style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 12px', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                className="ui-input"
+                style={{ padding: '10px 12px', fontSize: '0.9rem', boxSizing: 'border-box' }}
               />
             </div>
             <div className="modal-footer">
@@ -1327,10 +1354,3 @@ export const PlayerView = () => {
     </>
   );
 };
-
-const PlayerAction = ({ label, icon, onClick }: { label: string, icon: string, onClick: () => void }) => (
-  <button onClick={onClick}>
-    <i className={`icon-${icon}`} />
-    <span>{label}</span>
-  </button>
-);

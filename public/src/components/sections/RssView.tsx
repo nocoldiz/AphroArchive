@@ -31,6 +31,7 @@ export const RssView = () => {
     try {
       const r = await fetch('/api/rss/refresh', { method: 'POST' });
       const d = await r.json();
+      if (!r.ok) throw new Error(d?.error);
       setStatus(d.imported ? `Imported ${d.imported} new item(s) from ${d.feeds} feed(s).` : `Up to date (${d.feeds} feed(s)).`);
     } catch {
       setStatus('Failed to refresh feeds.');
@@ -97,13 +98,13 @@ export const RssView = () => {
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
         <input type="text" value={url} placeholder="https://example.com/feed.xml"
           onInput={(e: any) => setUrl(e.target.value)}
-          style={{ flex: '2 1 240px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', padding: '8px 10px' }} />
+          className="ui-input" style={{ flex: '2 1 240px', width: 'auto', padding: '8px 10px' }} />
         <input type="text" value={name} placeholder="Name (optional)"
           onInput={(e: any) => setName(e.target.value)}
-          style={{ flex: '1 1 120px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', padding: '8px 10px' }} />
+          className="ui-input" style={{ flex: '1 1 120px', width: 'auto', padding: '8px 10px' }} />
         <input type="text" value={category} placeholder="Category (optional)"
           onInput={(e: any) => setCategory(e.target.value)}
-          style={{ flex: '1 1 120px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', padding: '8px 10px' }} />
+          className="ui-input" style={{ flex: '1 1 120px', width: 'auto', padding: '8px 10px' }} />
         <button className="modal-btn modal-btn--primary" onClick={addFeed}>Add feed</button>
       </div>
 
@@ -118,7 +119,7 @@ export const RssView = () => {
                 {f.url}{f.category ? ` · ${f.category}` : ''}
               </div>
             </div>
-            <button className="modal-btn modal-btn--danger" style={{ padding: '4px 8px', fontSize: '12px', flexShrink: 0 }} onClick={() => removeFeed(i)}>Remove</button>
+            <button className="modal-btn modal-btn--danger modal-btn--sm" style={{ flexShrink: 0 }} onClick={() => removeFeed(i)}>Remove</button>
           </div>
         ))}
       </div>
@@ -132,14 +133,14 @@ export const RssView = () => {
         {feedFolders.map((folder, idx) => (
           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '6px' }}>
             <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all' }}>{folder}</span>
-            <button className="modal-btn modal-btn--danger" style={{ padding: '4px 8px', fontSize: '12px', flexShrink: 0, marginLeft: '8px' }} onClick={() => removeFeedFolder(idx)}>Remove</button>
+            <button className="modal-btn modal-btn--danger modal-btn--sm" style={{ flexShrink: 0, marginLeft: '8px' }} onClick={() => removeFeedFolder(idx)}>Remove</button>
           </div>
         ))}
       </div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '28px' }}>
         <input type="text" value={feedFolder} placeholder="C:\Users\…\Downloads"
           onInput={(e: any) => setFeedFolder(e.target.value)}
-          style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', padding: '8px 10px' }} />
+          className="ui-input" style={{ flex: 1, width: 'auto', padding: '8px 10px' }} />
         <button className="modal-btn modal-btn--secondary" onClick={async () => { const p = await browseNative(); if (p) setFeedFolder(p); }}>Browse…</button>
         <button className="modal-btn modal-btn--primary" onClick={async () => { await addFeedFolder(feedFolder); setFeedFolder(''); }}>Add</button>
       </div>
@@ -156,7 +157,7 @@ export const RssView = () => {
           <div style={{ display: 'flex', gap: '8px' }}>
             <input type="text" value={prefs.vaultFeedFolder || ''} placeholder="Vault drop folder"
               onInput={(e: any) => setVaultFeedFolder(e.target.value)}
-              style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '6px', padding: '8px 10px' }} />
+              className="ui-input" style={{ flex: 1, width: 'auto', padding: '8px 10px' }} />
             <button className="modal-btn modal-btn--secondary" onClick={async () => { const p = await browseNative(); if (p) await setVaultFeedFolder(p); }}>Browse…</button>
           </div>
         </div>

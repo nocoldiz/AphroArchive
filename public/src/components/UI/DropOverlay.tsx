@@ -82,7 +82,8 @@ export const DropOverlay = () => {
     }
 
     // 2. STANDARD IMPORTER
-    const counts: Record<string, number> = { video: 0, audio: 0, book: 0, photo: 0, skip: 0 };
+    // /api/import answers kind: video | audio | book | photo | file
+    const counts: Record<string, number> = { video: 0, audio: 0, book: 0, photo: 0, file: 0, skip: 0 };
 
     for (const file of arr) {
       try {
@@ -92,7 +93,7 @@ export const DropOverlay = () => {
           body: file
         });
         const d = await r.json();
-        if (r.ok) counts[d.kind]++;
+        if (r.ok) counts[d.kind] = (counts[d.kind] || 0) + 1;
         else {
           counts.skip++;
           if (w.toast) w.toast('Skipped ' + file.name + ': ' + (d.error || 'unsupported'));
@@ -102,7 +103,7 @@ export const DropOverlay = () => {
       }
     }
 
-    const imported = counts.video + counts.audio + counts.book + (counts.photo || 0);
+    const imported = counts.video + counts.audio + counts.book + counts.photo + counts.file;
     if (!imported) return;
 
     const parts = [];
@@ -110,6 +111,7 @@ export const DropOverlay = () => {
     if (counts.audio) parts.push(counts.audio + ' audio');
     if (counts.book) parts.push(counts.book + ' book' + (counts.book > 1 ? 's' : ''));
     if (counts.photo) parts.push(counts.photo + ' photo' + (counts.photo > 1 ? 's' : ''));
+    if (counts.file) parts.push(counts.file + ' file' + (counts.file > 1 ? 's' : ''));
     if (w.toast) w.toast('Imported: ' + parts.join(', '));
 
     if (counts.video && w.refresh) w.refresh(true);

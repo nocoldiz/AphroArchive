@@ -22,7 +22,7 @@ async function apiGetPrompts(req, res) {
 
 async function apiAddPrompt(req, res) {
   const body = await readBody(req);
-  const text = (body.text || '').trim();
+  const text = String(body.text || '').trim();
   if (!text) return json(res, { error: 'text required' }, 400);
   const prompt = {
     id: randomUUID(),
@@ -37,7 +37,7 @@ async function apiAddPrompt(req, res) {
 async function apiUpdatePrompt(req, res, id) {
   const body = await readBody(req);
   const fields = {};
-  if (body.text !== undefined) fields.text = body.text.trim();
+  if (body.text !== undefined) fields.text = String(body.text ?? '').trim();
   if (Array.isArray(body.sites)) fields.sites = body.sites;
   const ok = dbUpdatePrompt(id, fields);
   if (!ok) return json(res, { error: 'not found' }, 404);
@@ -81,7 +81,7 @@ function findComfyTextNodeId(graph, preferredId) {
 
 async function apiSendComfyUI(req, res) {
   const body = await readBody(req);
-  const text = (body.text || '').trim();
+  const text = String(body.text || '').trim();
   if (!text) return json(res, { error: 'text required' }, 400);
 
   const prefs = loadPrefs();

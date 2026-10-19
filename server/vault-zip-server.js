@@ -240,7 +240,9 @@ async function apiFolderDownloadZip(req, res) {
   const fs = require('fs');
 
   for (const v of list) {
-    const fp = path.join(VIDEOS_DIR, v.rel);
+    // External (sourceFolder) videos carry an absolute rel.
+    if (!v.rel) continue;
+    const fp = path.isAbsolute(v.rel) ? v.rel : path.join(VIDEOS_DIR, v.rel);
     if (!fs.existsSync(fp)) continue;
 
     const stat = fs.statSync(fp);

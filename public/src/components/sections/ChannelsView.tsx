@@ -1,5 +1,5 @@
 ﻿/** @jsxImportSource preact */
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useMemo } from 'preact/hooks';
 import { VideoCard } from '../UI/VideoGrid';
 import { Video } from '../../types';
 import { currentChannel, cardSize } from '../../store';
@@ -28,7 +28,7 @@ export const ChannelsView = () => {
       fetch('/api/channels')
         .then(r => r.json())
         .then(d => {
-          setChannels(d);
+          setChannels(Array.isArray(d) ? d : []);
           setLoading(false);
         })
         .catch(() => {
@@ -39,34 +39,40 @@ export const ChannelsView = () => {
   }, [activeChannelName]);
 
   useEffect(() => {
-    if (activeChannelName) {
-      setLoadingVideos(true);
-      fetch(`/api/channels/${encodeURIComponent(activeChannelName)}`)
-        .then(r => r.json())
-        .then(d => {
-          setChannelVideos(d.videos || []);
-          setLoadingVideos(false);
-        })
-        .catch(() => {
-          setChannelVideos([]);
-          setLoadingVideos(false);
-        });
-    }
+    if (!activeChannelName) return;
+    // Ignore a stale response when the user switches channel before it lands
+    let stale = false;
+    setLoadingVideos(true);
+    fetch(`/api/channels/${encodeURIComponent(activeChannelName)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (stale) return;
+        setChannelVideos(d.videos || []);
+        setLoadingVideos(false);
+      })
+      .catch(() => {
+        if (stale) return;
+        setChannelVideos([]);
+        setLoadingVideos(false);
+      });
+    return () => { stale = true; };
   }, [activeChannelName]);
 
-  const filteredChannels = search.trim()
-    ? channels.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
-    : channels;
-
-  const sortedChannels = [...filteredChannels];
-  if (sort === 'name') {
-    sortedChannels.sort((a, b) => a.name.localeCompare(b.name));
-  } else if (sort === 'count-desc') {
-    sortedChannels.sort((a, b) => b.count - a.count);
-  }
-
-  const activeChannels = sortedChannels.filter(s => s.count > 0);
-  const otherChannels = sortedChannels.filter(s => s.count === 0);
+  const { filteredChannels, activeChannels, otherChannels } = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filteredChannels = q ? channels.filter(s => s.name.toLowerCase().includes(q)) : channels;
+    const sortedChannels = [...filteredChannels];
+    if (sort === 'name') {
+      sortedChannels.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sort === 'count-desc') {
+      sortedChannels.sort((a, b) => b.count - a.count);
+    }
+    return {
+      filteredChannels,
+      activeChannels: sortedChannels.filter(s => s.count > 0),
+      otherChannels: sortedChannels.filter(s => s.count === 0),
+    };
+  }, [channels, search, sort]);
 
   const colors = ['#e84040', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
   const getColor = (name: string) => {
@@ -109,11 +115,11 @@ export const ChannelsView = () => {
   if (activeChannelName) {
     return (
       <div id="channel-detail-view" className="channel-detail-view on" style={{ padding: '20px' }}>
-        <div className="view-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-          <button className="btn" onClick={() => currentChannel.value = null} style={{ marginRight: '15px' }}>
+        <div className="ui-toolbar">
+          <button className="ui-btn" onClick={() => currentChannel.value = null}>
             ← Back
           </button>
-          <h1 style={{ margin: 0 }}>{activeChannelName}</h1>
+          <h1 className="ui-title">{activeChannelName}</h1>
         </div>
 
         {loadingVideos ? (
@@ -131,8 +137,9 @@ export const ChannelsView = () => {
 
   return (
     <div id="channels-view" className="channels-view on" style={{ padding: '20px' }}>
-      <div className="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ margin: 0 }}>Channels</h1>
+      <div className="ui-toolbar">
+        <h1 className="ui-title">Channels</h1>
+        <div className="ui-toolbar__actions">
         <SectionControls
           showStarred={false}
           showShuffle={false}
@@ -147,6 +154,7 @@ export const ChannelsView = () => {
           currentFilter={search}
           onFilterChange={setSearch}
         />
+        </div>
       </div>
 
       {loading ? (
@@ -163,8 +171,8 @@ export const ChannelsView = () => {
 
           {otherChannels.length > 0 && (
             <>
-              <div className="actor-section-sep" style={{ margin: '20px 0', borderBottom: '1px solid var(--border)', paddingBottom: '5px' }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Other Channels</span>
+              <div className="actor-section-sep" style={{ margin: '20px 0', borderBottom: '1px solid var(--brd)', paddingBottom: '5px' }}>
+                <span style={{ fontWeight: 600, color: 'var(--tx2)' }}>Other Channels</span>
               </div>
               <div className="cv-grid" id="cvGrid" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize.value}px, 1fr))`, gap: '20px' }}>
                 {otherChannels.map(renderChannelCard)}

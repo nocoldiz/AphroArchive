@@ -6,13 +6,12 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile, spawn } = require('child_process');
-const { VIDEOS_DIR, WHISPER_BIN, WHISPER_MODELS_DIR } = require('./config-server');
-const { json, safePath } = require('./helpers-server');
+const { VIDEOS_DIR, VIDEO_EXT, WHISPER_BIN, WHISPER_MODELS_DIR } = require('./config-server');
+const { json, safePath, toId, readBody } = require('./helpers-server');
 const { loadPrefs, setVideoMetaFields } = require('./db-server');
 
 try { fs.mkdirSync(WHISPER_MODELS_DIR, { recursive: true }); } catch {}
 
-const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
 const SUBTITLE_EXT = new Set(['.vtt', '.srt', '.ass', '.ssa', '.sub', '.smi']);
 
 // Common language names whisper outputs → 2-letter codes
@@ -34,13 +33,13 @@ const LANG_NAME_TO_CODE = {
   welsh: 'cy', yoruba: 'yo',
 };
 
-function toId(rel) { return Buffer.from(rel).toString('base64url'); }
-
+// Must match the library scan's ids (native separators, like videos-server
+// _idForPath), or detected languages land on an id no video has.
 function fpToId(fp) {
   const resolved = path.resolve(fp);
   const videosResolved = path.resolve(VIDEOS_DIR);
   if (resolved.startsWith(videosResolved + path.sep) || resolved === videosResolved) {
-    return toId(path.relative(VIDEOS_DIR, fp).replace(/\\/g, '/'));
+    return toId(path.relative(VIDEOS_DIR, fp));
   }
   return toId(fp);
 }
@@ -107,7 +106,9 @@ function runWhisper(fp, model, language, track = false) {
     const dir = path.dirname(fp);
     const args = [fp, '--output_format', 'vtt', '--output_dir', dir, '--model', model || 'base', '--model_dir', WHISPER_MODELS_DIR];
     if (language && language !== 'auto') args.push('--language', language);
-    const child = execFile(WHISPER_BIN, args, { timeout: 15 * 60 * 1000 }, (err, stdout, stderr) => {
+    // Whisper prints every transcribed segment to stdout: the 1 MB default
+    // maxBuffer would kill long transcriptions part-way.
+    const child = execFile(WHISPER_BIN, args, { timeout: 15 * 60 * 1000, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (track && _currentChild === child) _currentChild = null;
       if (err) { err.stderr = stderr; reject(err); return; }
       const combined = (stdout || '') + (stderr || '');
@@ -228,19 +229,23 @@ let _singleRunning = false;
 async function processSingleQueue() {
   if (_singleRunning) return;
   _singleRunning = true;
-  while (_singleQueue.length) {
-    const { fp } = _singleQueue.shift();
-    if (hasSubtitle(fp)) continue;
-    const prefs = loadPrefs();
-    const language = prefs.whisperLanguage || 'auto';
-    try {
-      const detectedLang = await runWhisper(fp, prefs.whisperModel || 'base', language);
-      if (!language || language === 'auto') saveDetectedLanguage(fp, detectedLang);
-    } catch (e) {
-      console.error('[whisper] Single-video failed:', fp, e.message);
+  try {
+    while (_singleQueue.length) {
+      const { fp, force } = _singleQueue.shift();
+      // Forced (regenerate) items overwrite an existing subtitle.
+      if (!force && hasSubtitle(fp)) continue;
+      const prefs = loadPrefs();
+      const language = prefs.whisperLanguage || 'auto';
+      try {
+        const detectedLang = await runWhisper(fp, prefs.whisperModel || 'base', language);
+        if (!language || language === 'auto') saveDetectedLanguage(fp, detectedLang);
+      } catch (e) {
+        console.error(`[whisper] ${force ? 'Force-enqueue' : 'Single-video'} failed:`, fp, e.message);
+      }
     }
+  } finally {
+    _singleRunning = false;
   }
-  _singleRunning = false;
 }
 
 // ── Model download ────────────────────────────────────────────────────
@@ -398,37 +403,18 @@ async function apiWhisperEnqueue(_req, res, id) {
   json(res, { ok: true, queued: true });
 }
 
-// Force-enqueue ignores hasSubtitle so it overwrites existing subtitle files
+// Force-enqueue ignores hasSubtitle so it overwrites existing subtitle files.
+// Shares the single-video worker: a second worker on the same queue used to run
+// whisper concurrently and could drop forced items as "already subtitled".
 function forceEnqueue(fp) {
-  if (!_singleQueue.some(q => q.fp === fp)) {
-    _singleQueue.unshift({ fp, force: true });
-  }
-  processSingleQueueForce().catch(console.error);
-}
-
-let _singleRunningForce = false;
-
-async function processSingleQueueForce() {
-  if (_singleRunningForce) return;
-  _singleRunningForce = true;
-  while (_singleQueue.length) {
-    const item = _singleQueue.shift();
-    if (!item) continue;
-    if (!item.force && hasSubtitle(item.fp)) continue;
-    const prefs = loadPrefs();
-    const language = prefs.whisperLanguage || 'auto';
-    try {
-      const detectedLang = await runWhisper(item.fp, prefs.whisperModel || 'base', language);
-      if (!language || language === 'auto') saveDetectedLanguage(item.fp, detectedLang);
-    } catch (e) {
-      console.error('[whisper] Force-enqueue failed:', item.fp, e.message);
-    }
-  }
-  _singleRunningForce = false;
+  const queued = _singleQueue.find(q => q.fp === fp);
+  if (queued) queued.force = true;
+  else _singleQueue.unshift({ fp, force: true });
+  processSingleQueue().catch(console.error);
 }
 
 async function apiWhisperDownloadModel(req, res) {
-  const body = await require('./helpers-server').readBody(req);
+  const body = await readBody(req);
   const model = body.model;
   if (!VALID_MODELS.has(model)) return json(res, { error: 'Invalid model' }, 400);
   const existing = _modelDownloads.get(model);

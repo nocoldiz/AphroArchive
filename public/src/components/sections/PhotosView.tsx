@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useState, useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { SectionControls } from '../UI/SectionControls';
 import { PhotoLightbox } from '../modals/PhotoLightbox';
 import { contextMenuState, currentPhotoFolder } from '../../store';
@@ -23,7 +23,7 @@ export const PhotosView = () => {
     fetch('/api/photos')
       .then(r => r.json())
       .then(d => {
-        setPhotos(d);
+        setPhotos(Array.isArray(d) ? d : []);
         setLoading(false);
       })
       .catch(() => {
@@ -71,8 +71,8 @@ export const PhotosView = () => {
     return files;
   };
 
-  const files = getSortedFilteredPhotos();
-  const subfolders = search ? [] : getSubfolders();
+  const files = useMemo(getSortedFilteredPhotos, [photos, activeFolder, search, sort, aiFilter]);
+  const subfolders = useMemo(() => search ? [] : getSubfolders(), [photos, activeFolder, search]);
   const crumbs = activeFolder ? activeFolder.split('/') : [];
   const goTo = (path: string) => { currentPhotoFolder.value = path; setLightboxIdx(null); };
   const goUp = () => goTo(crumbs.slice(0, -1).join('/'));
@@ -115,10 +115,10 @@ export const PhotosView = () => {
   const deletePhoto = async (id: string) => {
     if (!confirm('Delete this photo?')) return;
     const w = window as any;
-    const r = await fetch(`/api/photos/${id}`, { method: 'DELETE' });
-    if (r.ok) {
+    const r = await fetch(`/api/photos/${id}`, { method: 'DELETE' }).catch(() => null);
+    if (r?.ok) {
       if (w.toast) w.toast('Photo deleted');
-      setPhotos(photos.filter(f => f.id !== id));
+      setPhotos(prev => prev.filter(f => f.id !== id));
       if (lightboxIdx !== null) closeLightbox();
     } else {
       if (w.toast) w.toast('Delete failed');
@@ -190,7 +190,7 @@ export const PhotosView = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxIdx, slideshowOn]);
+  }, [lightboxIdx, slideshowOn, files]);
 
   const currentPhoto = lightboxIdx !== null ? files[lightboxIdx] : null;
 
@@ -220,7 +220,8 @@ export const PhotosView = () => {
           <select 
             value={aiFilter} 
             onChange={(e: any) => setAiFilter(e.target.value)} 
-            style={{ background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', padding: '5px', cursor: 'pointer' }}
+            className="ui-input"
+            style={{ width: 'auto', padding: '5px' }}
           >
             <option value="all">All Photos</option>
             <option value="ai">AI Only</option>

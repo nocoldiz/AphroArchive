@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'preact/hooks';
 import { moveModalState, loadVideos, videos, allVideos, selectedVideoIds, videoSelMode } from '../../store';
 import { moveVideo } from '../../api';
 import { Video } from '../../types';
+import { useEscape } from './useEscape';
 
 interface MainFolder { name: string; path: string; isExternal?: boolean }
 interface VaultFolder { id: string; name: string; parent: string | null }
@@ -56,6 +57,10 @@ const buildVaultTree = (folders: VaultFolder[]): TreeNode[] => {
   sortTree(roots);
   return roots;
 };
+
+const Badge = ({ text }: { text: string }) => (
+  <span style={{ marginLeft: 'auto', fontSize: '0.65rem', padding: '1px 6px', borderRadius: '8px', border: '1px solid var(--brd)', color: 'inherit', opacity: 0.75, flexShrink: 0 }}>{text}</span>
+);
 
 const FolderIcon = ({ open }: { open?: boolean }) => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
@@ -143,11 +148,13 @@ export const MoveModal = () => {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [filter, state.isVault, mainCats, vaultFolders]);
 
-  if (!state.visible) return null;
-
   const handleClose = () => {
-    moveModalState.value = { ...state, visible: false };
+    moveModalState.value = { ...moveModalState.value, visible: false };
   };
+
+  useEscape(state.visible, () => { if (!busy) handleClose(); });
+
+  if (!state.visible) return null;
 
   const doMove = async (targetCat: string) => {
     const w = window as any;
@@ -250,10 +257,6 @@ export const MoveModal = () => {
     userSelect: 'none' as const,
   });
 
-  const Badge = ({ text }: { text: string }) => (
-    <span style={{ marginLeft: 'auto', fontSize: '0.65rem', padding: '1px 6px', borderRadius: '8px', border: '1px solid var(--brd)', color: 'inherit', opacity: 0.75, flexShrink: 0 }}>{text}</span>
-  );
-
   const renderRow = (opts: { key: string; label: string; target: string; depth: number; hasChildren?: boolean; isOpen?: boolean; isExternal?: boolean }) => {
     const isCurRow = cur !== null && opts.target === cur;
     const disabled = isCurRow;
@@ -296,8 +299,8 @@ export const MoveModal = () => {
 
   return (
     <div className="modal-overlay on" onClick={(e: any) => e.target === e.currentTarget && !busy && handleClose()} style={{ zIndex: 20000 }}>
-      <div className="modal-content" style={{ background: 'var(--bg2)', padding: '20px', borderRadius: '8px', width: '440px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '4px' }}>Move {count} {noun} to…{state.isVault ? ' (Vault)' : ''}</h3>
+      <div className="modal-dialog" style={{ maxWidth: '440px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="modal-header" style={{ marginBottom: '10px' }}><h2>Move {count} {noun} to…{state.isVault ? ' (Vault)' : ''}</h2></div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
           <input
@@ -306,13 +309,13 @@ export const MoveModal = () => {
             onInput={(e: any) => setFilter(e.target.value)}
             placeholder="Filter folders..."
             autoFocus
-            style={{ flex: 1, boxSizing: 'border-box', padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px' }}
+            style={{ flex: 1, width: 'auto', minWidth: 0 }}
           />
           {allBranchKeys.length > 0 && !filter.trim() && (
             <button
               type="button"
+              className="ui-btn ui-btn--sm"
               onClick={() => setExpanded(allExpanded ? new Set() : new Set(allBranchKeys))}
-              style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx2)', padding: '7px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
             >
               {allExpanded ? 'Collapse all' : 'Expand all'}
             </button>
@@ -343,29 +346,29 @@ export const MoveModal = () => {
               onInput={(e: any) => setNewCat(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !busy && handleMoveNew()}
               placeholder="New folder… (use / to nest)"
-              style={{ flex: 1, padding: '8px', background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', borderRadius: '4px' }}
+              style={{ flex: 1, width: 'auto', minWidth: 0 }}
             />
             <button
               type="button"
+              className="ui-btn ui-btn--primary"
               onClick={handleMoveNew}
               disabled={!newCat.trim() || !!busy}
-              style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 12px', borderRadius: '4px', cursor: newCat.trim() && !busy ? 'pointer' : 'default', opacity: newCat.trim() && !busy ? 1 : 0.5 }}
             >
               Create & Move
             </button>
           </div>
         )}
 
-        {error && <div style={{ color: '#e84040', fontSize: '0.8rem', marginBottom: '8px' }}>{error}</div>}
+        {error && <div className="modal-error" style={{ display: 'block', marginTop: 0, marginBottom: '8px' }}>{error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px' }}>
           {busy && <span style={{ marginRight: 'auto', color: 'var(--tx2)', fontSize: '0.85rem' }}>{busy}</span>}
-          <button type="button" onClick={handleClose} disabled={!!busy} style={{ background: 'var(--bg3)', border: '1px solid var(--brd)', color: 'var(--tx)', padding: '8px 14px', borderRadius: '4px', cursor: busy ? 'default' : 'pointer' }}>Cancel</button>
+          <button type="button" className="modal-btn" onClick={handleClose} disabled={!!busy}>Cancel</button>
           <button
             type="button"
-            onClick={() => selected !== null && doMove(selected)}
+            className="modal-btn modal-btn--primary"
+            onClick={() => selected !== null && !busy && doMove(selected)}
             disabled={selected === null || !!busy}
-            style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: selected !== null && !busy ? 'pointer' : 'default', opacity: selected !== null && !busy ? 1 : 0.5, fontWeight: 600 }}
           >
             Move here
           </button>

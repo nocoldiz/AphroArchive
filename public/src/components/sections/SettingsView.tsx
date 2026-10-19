@@ -4,6 +4,7 @@ import { JSX } from 'preact';
 import { ensureQRCode } from '../../utils';
 import { CategorizeModal, PlanItem, Move } from '../UI/CategorizeModal';
 import { pluginsList, isPluginEnabled, loadPlugins, togglePlugin } from '../../plugins';
+import { getInstallStatus, checkInstall, linkInstall, unlinkInstall, InstallStatus, InstallCheck } from '../../install';
 
 declare global {
   interface Window {
@@ -123,7 +124,14 @@ export const SettingsView = () => {
   const abortAiRef = useRef(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState(prefs.theme || localStorage.getItem('theme') || 'default');
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    if (prefs.theme) return prefs.theme;
+    try { return localStorage.getItem('theme') || 'default'; } catch { return 'default'; }
+  });
+  // Bumped when a panic key is captured so the (localStorage-backed) list re-renders.
+  const [, setPanicVer] = useState(0);
+  const panicCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { panicCleanupRef.current?.(); }, []);
 
   useEffect(() => {
     if (prefs.theme) setCurrentTheme(prefs.theme);
@@ -175,6 +183,13 @@ export const SettingsView = () => {
       setVerifyStatus(prev => ({ ...prev, [idx]: { ok: false, error: msg } }));
     }
   };
+
+  // Linked installation (Settings → Storage).
+  const [install, setInstall] = useState<InstallStatus | null>(null);
+  const [installInput, setInstallInput] = useState('');
+  const [installCheckRes, setInstallCheckRes] = useState<InstallCheck | null>(null);
+  const [installBusy, setInstallBusy] = useState(false);
+  useEffect(() => { getInstallStatus().then(setInstall).catch(() => {}); }, []);
 
   useEffect(() => {
     fetch('/api/settings/paths').then(r => r.json()).then(data => {
@@ -256,10 +271,12 @@ export const SettingsView = () => {
         }
       } catch {}
     };
+    // Only the Cache tab shows these statuses — don't poll 3 endpoints every 2s otherwise.
+    if (activeTab !== 'cache') return;
     poll();
     const id = setInterval(poll, 2000);
     return () => clearInterval(id);
-  }, []);
+  }, [activeTab]);
 
   const scraperAction = (url: string, method = 'POST') => fetch(url, { method }).catch(() => {});
 
@@ -268,8 +285,9 @@ export const SettingsView = () => {
     setL(true);
     try {
       const r = await fetch('/api/videos/categorize-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+      if (!r.ok) throw new Error();
       const { uncategorized, categorized, categories } = await r.json();
-      setCatModal({ mode, uncategorized: uncategorized || [], categorized: categorized || [], categories, confirming: false });
+      setCatModal({ mode, uncategorized: uncategorized || [], categorized: categorized || [], categories: categories || [], confirming: false });
     } catch {
       if (mode === 'all') setRecatAllResult('error'); else setAutoCatResult('error');
     } finally { setL(false); }
@@ -280,8 +298,9 @@ export const SettingsView = () => {
     setCatModal(m => m ? { ...m, confirming: true } : null);
     try {
       const r = await fetch('/api/videos/categorize-execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ moves }) });
+      if (!r.ok) throw new Error();
       const d = await r.json();
-      const result = `${d.movedVideos} videos, ${d.movedLinks} links`;
+      const result = `${d.movedVideos ?? 0} videos, ${d.movedLinks ?? 0} links`;
       if (catModal.mode === 'all') setRecatAllResult(result); else setAutoCatResult(result);
       await loadVideos();
     } catch {
@@ -414,7 +433,7 @@ export const SettingsView = () => {
                   const isSelected = currentTheme === theme.id;
                   const bgStyle = theme.id === 'rainbow' ? { background: theme.ac } : { background: `linear-gradient(135deg, ${theme.bg}, ${theme.ac})` };
                   return (
-                    <div key={theme.id} onClick={() => { setCurrentTheme(theme.id); document.documentElement.setAttribute('data-theme', theme.id); localStorage.setItem('theme', theme.id); updatePrefs({ theme: theme.id }); }}
+                    <div key={theme.id} onClick={() => { setCurrentTheme(theme.id); document.documentElement.setAttribute('data-theme', theme.id); try { localStorage.setItem('theme', theme.id); } catch {} updatePrefs({ theme: theme.id }); }}
                       style={{ display: 'flex', alignItems: 'center', padding: '12px', background: 'var(--bg3)', border: isSelected ? '2px solid var(--ac)' : '1px solid var(--brd)', borderRadius: '8px', cursor: 'pointer', transition: 'border-color 0.2s' }}>
                       <div style={{ width: '24px', height: '24px', borderRadius: '4px', marginRight: '12px', flexShrink: 0, ...bgStyle }} />
                       <span style={{ flex: 1, fontSize: '14px', color: 'var(--tx)' }}>{theme.name}</span>
@@ -608,11 +627,15 @@ export const SettingsView = () => {
                         onClick={() => {
                           setDownloadingModels(prev => new Set([...prev, m.id]));
                           fetch('/api/whisper/download-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.id }) })
-                            .then(() => {
+                            .then(r => {
+                              if (!r.ok) throw new Error();
                               setDownloadingModels(prev => { const s = new Set(prev); s.delete(m.id); return s; });
                               setAvailableModels(prev => new Set([...prev, m.id]));
                             })
-                            .catch(() => setDownloadingModels(prev => { const s = new Set(prev); s.delete(m.id); return s; }));
+                            .catch(() => {
+                              setDownloadingModels(prev => { const s = new Set(prev); s.delete(m.id); return s; });
+                              if (window.toast) window.toast(`Failed to download model ${m.id}`);
+                            });
                         }}
                         style={{ fontSize: '11px', padding: '3px 10px', background: downloadingModels.has(m.id) ? 'var(--bg3)' : 'var(--bg2)', color: downloadingModels.has(m.id) ? 'var(--tx3)' : 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: whisperEnabled && !downloadingModels.has(m.id) ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
                       >
@@ -676,7 +699,7 @@ export const SettingsView = () => {
                 {(prefs.sourceFolders || []).map((folder: string, idx: number) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '8px' }}>
                     <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all' }}>{folder}</span>
-                    <button className="modal-btn modal-btn--danger" style={{ padding: '4px 8px', fontSize: '12px', flexShrink: 0, marginLeft: '8px' }}
+                    <button className="modal-btn modal-btn--danger modal-btn--sm" style={{ flexShrink: 0, marginLeft: '8px' }}
                       onClick={async () => { const updated = prefs.sourceFolders!.filter((_: any, i: number) => i !== idx); await updatePrefs({ sourceFolders: updated }); loadVideos(); }}>
                       Remove
                     </button>
@@ -705,7 +728,7 @@ export const SettingsView = () => {
                     {(prefs.feedFolders || []).map((folder: string, idx: number) => (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', padding: '10px', borderRadius: '6px', marginBottom: '6px' }}>
                         <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all' }}>{folder}</span>
-                        <button className="modal-btn modal-btn--danger" style={{ padding: '4px 8px', fontSize: '12px', flexShrink: 0, marginLeft: '8px' }} onClick={async () => { const updated = (prefs.feedFolders || []).filter((_: any, i: number) => i !== idx); await updatePrefs({ feedFolders: updated }); }}>Remove</button>
+                        <button className="modal-btn modal-btn--danger modal-btn--sm" style={{ flexShrink: 0, marginLeft: '8px' }} onClick={async () => { const updated = (prefs.feedFolders || []).filter((_: any, i: number) => i !== idx); await updatePrefs({ feedFolders: updated }); }}>Remove</button>
                       </div>
                     ))}
                   </div>
@@ -727,7 +750,7 @@ export const SettingsView = () => {
                         <span style={{ fontSize: '14px', color: 'var(--tx)', wordBreak: 'break-all', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <i className="icon-lock" style={{ fontSize: '12px', color: 'var(--tx3)', flexShrink: 0 }} />{folder}
                         </span>
-                        <button className="modal-btn modal-btn--danger" style={{ padding: '4px 8px', fontSize: '12px', flexShrink: 0, marginLeft: '8px' }} onClick={async () => { const updated = (prefs.privateFeedFolders || []).filter((_: any, i: number) => i !== idx); await updatePrefs({ privateFeedFolders: updated }); }}>Remove</button>
+                        <button className="modal-btn modal-btn--danger modal-btn--sm" style={{ flexShrink: 0, marginLeft: '8px' }} onClick={async () => { const updated = (prefs.privateFeedFolders || []).filter((_: any, i: number) => i !== idx); await updatePrefs({ privateFeedFolders: updated }); }}>Remove</button>
                       </div>
                     ))}
                   </div>
@@ -758,6 +781,76 @@ export const SettingsView = () => {
                 </div>
               </div>
             </div>
+
+            {/* Linked installation */}
+            {install && (() => {
+              const check = async (dir: string) => {
+                setInstallInput(dir); setInstallCheckRes(null);
+                if (!dir.trim()) return;
+                try { setInstallCheckRes(await checkInstall(dir.trim())); }
+                catch { setInstallCheckRes({ valid: false, reason: 'Could not check this folder' }); }
+              };
+              const browse = async () => {
+                try {
+                  const r = await fetch('/api/browse-folders-native');
+                  const d = await r.json();
+                  if (d.path) check(d.path); else if (d.error) alert(d.error);
+                } catch {}
+              };
+              const run = async (fn: () => Promise<unknown>) => {
+                setInstallBusy(true);
+                try { await fn(); }
+                catch (e: any) { alert(e.message || 'Failed'); setInstallBusy(false); }
+              };
+              const link = () => {
+                if (!confirm(`Use the installation in "${installInput.trim()}"?\n\nAphroArchive will restart and load its library, settings and data.`)) return;
+                run(() => linkInstall(installInput.trim()));
+              };
+              const unlink = () => {
+                if (!confirm('Unlink this installation?\n\nAphroArchive will restart and use its own data folder again. Nothing is deleted from the linked folder.')) return;
+                run(unlinkInstall);
+              };
+              return (
+                <div style={sec}>
+                  <h3 style={{ ...secH, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="icon-database" /> Installation
+                  </h3>
+                  <p style={{ fontSize: '13px', color: 'var(--tx3)', marginBottom: '12px' }}>
+                    Link an existing AphroArchive installation on disk to always use its library, settings and data. AphroArchive restarts to apply it.
+                  </p>
+                  <div style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '10px', wordBreak: 'break-all', lineHeight: 1.7 }}>
+                    {install.linked
+                      ? <>Linked to: <code style={{ color: 'var(--tx2)' }}>{install.installDir}</code></>
+                      : <>Using this app's own data: <code style={{ color: 'var(--tx2)' }}>{install.dataDir}</code></>}
+                    <br />Database: <code style={{ color: 'var(--tx2)' }}>{install.dbDir}</code>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <input
+                      value={installInput}
+                      aria-label="Installation folder"
+                      placeholder={install.linked ? 'Link a different installation…' : 'D:\\AphroArchive'}
+                      onInput={(e: any) => { setInstallInput(e.target.value); setInstallCheckRes(null); }}
+                      onBlur={() => check(installInput)}
+                      onKeyDown={(e: any) => { if (e.key === 'Enter') check(installInput); }}
+                      style={{ ...inp, flex: 1, width: 'auto', minWidth: '200px', fontSize: '13px' }}
+                    />
+                    <button className="modal-btn" onClick={browse} disabled={installBusy}>Browse…</button>
+                    <button className="modal-btn modal-btn--primary" onClick={link} disabled={installBusy || !installCheckRes?.valid}>
+                      {installBusy ? 'Restarting…' : 'Link installation'}
+                    </button>
+                    {install.linked && (
+                      <button className="modal-btn modal-btn--danger" onClick={unlink} disabled={installBusy}>Unlink installation</button>
+                    )}
+                  </div>
+                  {installCheckRes && (
+                    <p style={{ fontSize: '12px', margin: '8px 0 0', color: installCheckRes.valid ? 'var(--tx2)' : 'var(--danger)', wordBreak: 'break-all' }}>
+                      {installCheckRes.valid ? <>✓ Installation found — database <code>{installCheckRes.dbFile}</code></> : installCheckRes.reason}
+                    </p>
+                  )}
+                  {!install.canRestart && <p style={{ fontSize: '12px', margin: '8px 0 0', color: 'var(--tx3)' }}>Restart AphroArchive manually after linking.</p>}
+                </div>
+              );
+            })()}
 
             {/* Storage Paths */}
             <div style={secLast}>
@@ -850,8 +943,8 @@ export const SettingsView = () => {
         {activeTab === 'cache' && (() => {
           const rowStyle: JSX.CSSProperties = { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0', borderBottom: '1px solid var(--brd)' };
           const lastRowStyle: JSX.CSSProperties = { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0' };
-          const btnSm = (color = 'var(--ac)'): JSX.CSSProperties => ({ background: color, color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' as const });
-          const btnOutline: JSX.CSSProperties = { background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '4px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' };
+          const btnSm = 'ui-btn ui-btn--sm ui-btn--primary';
+          const btnStop = 'ui-btn ui-btn--sm';
           const lbl: JSX.CSSProperties = { flex: 1, fontSize: '13px', fontWeight: 500 };
           const progBar = (pct: number) => (
             <div style={{ height: '3px', background: 'var(--bg3)', borderRadius: '2px', overflow: 'hidden', marginTop: '3px' }}>
@@ -871,10 +964,10 @@ export const SettingsView = () => {
                     {genRunning ? (
                       <>
                         <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{genStatus}</span>
-                        <button style={btnSm('var(--bg3)')} onClick={toggleGenThumbs} title="Stop">Stop</button>
+                        <button className={btnStop} onClick={toggleGenThumbs} title="Stop">Stop</button>
                       </>
                     ) : (
-                      <button style={btnSm()} onClick={toggleGenThumbs}>Generate All</button>
+                      <button className={btnSm} onClick={toggleGenThumbs}>Generate All</button>
                     )}
                   </div>
                   {genRunning && genProgress > 0 && progBar(genProgress)}
@@ -887,12 +980,12 @@ export const SettingsView = () => {
                       <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>
                         {scrapers.bmMeta.total ? `${scrapers.bmMeta.done}/${scrapers.bmMeta.total}` : 'running…'}
                       </span>
-                      <button style={btnSm('var(--bg3)')} onClick={() => scraperAction('/api/links/stop-scraping')}>Stop</button>
+                      <button className={btnStop} onClick={() => scraperAction('/api/links/stop-scraping')}>Stop</button>
                     </>
                   ) : (
                     <>
-                      <button style={btnOutline} onClick={() => scraperAction('/api/links/rescrape-all')}>Rescrape all</button>
-                      <button style={btnSm()} onClick={() => scraperAction('/api/links/start-scraping')}>Start</button>
+                      <button className={btnStop} onClick={() => scraperAction('/api/links/rescrape-all')}>Rescrape all</button>
+                      <button className={btnSm} onClick={() => scraperAction('/api/links/start-scraping')}>Start</button>
                     </>
                   )}
                 </div>
@@ -904,10 +997,10 @@ export const SettingsView = () => {
                       <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>
                         {scrapers.bmThumbs.total ? `${scrapers.bmThumbs.done}/${scrapers.bmThumbs.total}` : 'running…'}
                       </span>
-                      <button style={btnSm('var(--bg3)')} onClick={() => scraperAction('/api/links/stop-generating')}>Stop</button>
+                      <button className={btnStop} onClick={() => scraperAction('/api/links/stop-generating')}>Stop</button>
                     </>
                   ) : (
-                    <button style={btnSm()} onClick={() => scraperAction('/api/links/generate-all')}>Start</button>
+                    <button className={btnSm} onClick={() => scraperAction('/api/links/generate-all')}>Start</button>
                   )}
                 </div>
 
@@ -916,17 +1009,17 @@ export const SettingsView = () => {
                   {reencRunning ? (
                     <>
                       <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{reencStatus || 'running…'}</span>
-                      <button style={btnSm('var(--bg3)')} onClick={() => scraperAction('/api/reencode/stop')}>Stop</button>
+                      <button className={btnStop} onClick={() => scraperAction('/api/reencode/stop')}>Stop</button>
                     </>
                   ) : (
-                    <button style={btnSm()} onClick={() => scraperAction('/api/reencode/start')}>Re-encode all</button>
+                    <button className={btnSm} onClick={() => scraperAction('/api/reencode/start')}>Re-encode all</button>
                   )}
                 </div>
 
                 <div style={rowStyle}>
                   <span style={lbl}>Auto Categorize</span>
                   {autoCatResult && <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{autoCatResult}</span>}
-                  <button style={btnSm(autoCatLoading ? 'var(--bg3)' : undefined)} disabled={autoCatLoading}
+                  <button className={btnSm} disabled={autoCatLoading}
                     onClick={() => openCategorizeModal('uncategorized')}>
                     {autoCatLoading ? 'Loading…' : 'Run'}
                   </button>
@@ -935,7 +1028,7 @@ export const SettingsView = () => {
                 <div style={rowStyle}>
                   <span style={lbl}>Recategorize All</span>
                   {recatAllResult && <span style={{ fontSize: '11px', color: 'var(--tx3)' }}>{recatAllResult}</span>}
-                  <button style={btnSm(recatAllLoading ? 'var(--bg3)' : '#c07800')} disabled={recatAllLoading}
+                  <button className="ui-btn ui-btn--sm" style={{ background: '#c07800', borderColor: '#c07800', color: '#fff' }} disabled={recatAllLoading}
                     onClick={() => openCategorizeModal('all')}>
                     {recatAllLoading ? 'Loading…' : 'Run'}
                   </button>
@@ -943,15 +1036,15 @@ export const SettingsView = () => {
 
                 <div style={rowStyle}>
                   <span style={lbl}>Actor Data</span>
-                  <button style={btnSm()} onClick={() => scraperAction('/api/actors/scrape-missing')}>Scrape missing</button>
+                  <button className={btnSm} onClick={() => scraperAction('/api/actors/scrape-missing')}>Scrape missing</button>
                 </div>
 
                 <div style={lastRowStyle}>
                   <span style={lbl}>Local Videos</span>
-                  <button style={btnSm(rescanning ? 'var(--bg3)' : undefined)} disabled={rescanning}
+                  <button className={btnSm} disabled={rescanning}
                     onClick={async () => {
                       setRescanning(true);
-                      try { await fetch('/api/videos/rescan', { method: 'POST' }); await loadVideos(); if (window.toast) window.toast('Rescan complete'); } catch {}
+                      try { const r = await fetch('/api/videos/rescan', { method: 'POST' }); if (!r.ok) throw new Error(); await loadVideos(); if (window.toast) window.toast('Rescan complete'); } catch { if (window.toast) window.toast('Rescan failed'); }
                       setRescanning(false);
                     }}>
                     {rescanning ? 'Scanning…' : 'Rescan'}
@@ -965,16 +1058,16 @@ export const SettingsView = () => {
                 <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '16px' }}>Permanently remove cached or stored data. These actions cannot be undone.</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {([
-                    { label: 'All Thumbnails', desc: 'Deletes thumbnail images and cache entries', action: async () => { if (!confirm('Delete all thumbnails?')) return; await fetch('/api/thumbs/clear', { method: 'POST' }); if (window.toast) window.toast('Thumbnails cleared'); } },
-                    { label: 'All Favourites', desc: 'Removes all videos from your favourites list', action: async () => { if (!confirm('Clear all favourites?')) return; await fetch('/api/favourites', { method: 'DELETE' }); if (window.toast) window.toast('Favourites cleared'); } },
-                    { label: 'Recently Watched', desc: 'Clears the watch history', action: async () => { if (!confirm('Clear watch history?')) return; await fetch('/api/history', { method: 'DELETE' }); if (window.toast) window.toast('History cleared'); } },
+                    { label: 'All Thumbnails', desc: 'Deletes thumbnail images and cache entries', action: async () => { if (!confirm('Delete all thumbnails?')) return; const r = await fetch('/api/thumbs/clear', { method: 'POST' }).catch(() => null); if (window.toast) window.toast(r?.ok ? 'Thumbnails cleared' : 'Clear failed'); } },
+                    { label: 'All Favourites', desc: 'Removes all videos from your favourites list', action: async () => { if (!confirm('Clear all favourites?')) return; const r = await fetch('/api/favourites', { method: 'DELETE' }).catch(() => null); if (window.toast) window.toast(r?.ok ? 'Favourites cleared' : 'Clear failed'); } },
+                    { label: 'Recently Watched', desc: 'Clears the watch history', action: async () => { if (!confirm('Clear watch history?')) return; const r = await fetch('/api/history', { method: 'DELETE' }).catch(() => null); if (window.toast) window.toast(r?.ok ? 'History cleared' : 'Clear failed'); } },
                   ] as { label: string; desc: string; action: () => Promise<void> }[]).map(item => (
                     <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', background: 'var(--bg3)', borderRadius: '6px' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '13px', fontWeight: 500 }}>{item.label}</div>
                         <div style={{ fontSize: '11px', color: 'var(--tx3)', marginTop: '2px' }}>{item.desc}</div>
                       </div>
-                      <button style={{ ...btnSm('#c0392b'), padding: '5px 12px' }} onClick={item.action}>Clear</button>
+                      <button className="ui-btn ui-btn--sm ui-btn--danger" onClick={item.action}>Clear</button>
                     </div>
                   ))}
                 </div>
@@ -997,7 +1090,7 @@ export const SettingsView = () => {
                 <input type="password" placeholder="Confirm New Password" value={newPw2} onInput={(e) => setNewPw2((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '8px' }} />
                 <input type="password" placeholder="Self-destruct password (optional)" value={selfDestructPw} onInput={(e) => setSelfDestructPw((e.target as HTMLInputElement).value)} style={{ ...inp, marginBottom: '6px' }} />
                 <p style={{ fontSize: '11px', color: 'var(--tx3)', margin: '0 0 12px' }}>If set, entering this password at the unlock screen silently wipes the entire vault while showing a normal "wrong password" message.</p>
-                {error && <div style={{ color: '#e84040', fontSize: '0.85rem', marginBottom: '8px' }}>{error}</div>}
+                {error && <div style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '8px' }}>{error}</div>}
                 <button class="modal-btn modal-btn--primary" onClick={handleChangePw} style={{ width: '100%' }} disabled={loading}>{loading ? 'Processing…' : 'Change Password'}</button>
               </div>
 
@@ -1017,16 +1110,16 @@ export const SettingsView = () => {
 
               <hr style={{ border: 'none', borderTop: '1px solid var(--brd)', margin: '16px 0' }} />
               <div>
-                <label style={{ ...label, color: '#e84040' }}>Danger Zone</label>
+                <label style={{ ...label, color: 'var(--danger)' }}>Danger Zone</label>
                 <p style={{ fontSize: '12px', color: 'var(--tx3)', marginBottom: '10px' }}>Permanently delete the vault and all its contents. This action cannot be undone.</p>
                 {!showDeleteConfirm ? (
-                  <button className="modal-btn" onClick={() => setShowDeleteConfirm(true)} style={{ width: '100%', borderColor: '#e84040', color: '#e84040' }}>Delete Vault</button>
+                  <button className="modal-btn" onClick={() => setShowDeleteConfirm(true)} style={{ width: '100%', borderColor: 'var(--danger)', color: 'var(--danger)' }}>Delete Vault</button>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <p style={{ fontSize: '12px', color: '#e84040', margin: 0 }}>Type "DELETE" to confirm:</p>
+                    <p style={{ fontSize: '12px', color: 'var(--danger)', margin: 0 }}>Type "DELETE" to confirm:</p>
                     <input type="text" value={deleteConfirmText} onInput={(e) => setDeleteConfirmText((e.target as HTMLInputElement).value)} style={{ ...inp }} />
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="modal-btn modal-btn--primary" onClick={doVaultDeleteVault} style={{ flex: 1, background: '#e84040' }} disabled={deleteConfirmText !== 'DELETE' || loading}>Confirm Delete</button>
+                      <button className="modal-btn modal-btn--primary" onClick={doVaultDeleteVault} style={{ flex: 1, background: 'var(--danger)', borderColor: 'var(--danger)' }} disabled={deleteConfirmText !== 'DELETE' || loading}>Confirm Delete</button>
                       <button className="modal-btn" onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }} style={{ flex: 1 }}>Cancel</button>
                     </div>
                   </div>
@@ -1053,7 +1146,7 @@ export const SettingsView = () => {
                         return keys.map((key: string, idx: number) => (
                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--ac)' }}>
                             <span>{key}</span>
-                            <button className="modal-btn modal-btn--danger" style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            <button className="modal-btn modal-btn--danger modal-btn--sm"
                               onClick={() => { try { const k = JSON.parse(localStorage.getItem('panicKeys') || '[]'); k.splice(idx, 1); localStorage.setItem('panicKeys', JSON.stringify(k)); const list = document.getElementById('panic-keys-list'); if (list) list.style.opacity = '0.5'; setTimeout(() => window.location.reload(), 100); } catch {} }}>
                               Remove
                             </button>
@@ -1095,13 +1188,19 @@ export const SettingsView = () => {
                         };
                         const savePanicKey = (key: string) => {
                           if (!key) return;
-                          try { const keys = JSON.parse(localStorage.getItem('panicKeys') || '[]'); if (!keys.includes(key)) { keys.push(key); localStorage.setItem('panicKeys', JSON.stringify(keys)); } input.value = key; input.blur(); } catch {}
+                          try { const keys = JSON.parse(localStorage.getItem('panicKeys') || '[]'); if (!keys.includes(key)) { keys.push(key); localStorage.setItem('panicKeys', JSON.stringify(keys)); setPanicVer(v => v + 1); } input.value = key; input.blur(); } catch {}
                         };
-                        const cleanup = () => { document.removeEventListener('keydown', handleKey); document.removeEventListener('mousedown', handleMouse); };
+                        const cleanup = () => {
+                          document.removeEventListener('keydown', handleKey); document.removeEventListener('mousedown', handleMouse);
+                          if (panicCleanupRef.current === cleanup) panicCleanupRef.current = null;
+                        };
+                        // Drop listeners from a previous focus that never captured anything.
+                        panicCleanupRef.current?.();
+                        panicCleanupRef.current = cleanup;
                         document.addEventListener('keydown', handleKey, { once: false });
                         document.addEventListener('mousedown', handleMouse, { once: false });
                       }}
-                      onBlur={(e) => { if (e.currentTarget.value === 'Listening for keyboard/mouse...' || !e.currentTarget.value) e.currentTarget.value = ''; e.currentTarget.style.color = 'var(--tx)'; }}
+                      onBlur={(e) => { panicCleanupRef.current?.(); if (e.currentTarget.value === 'Listening for keyboard/mouse...' || !e.currentTarget.value) e.currentTarget.value = ''; e.currentTarget.style.color = 'var(--tx)'; }}
                       style={{ flex: 1, background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px', fontFamily: 'monospace', cursor: 'pointer', caretColor: 'transparent' }}
                     />
                     <button className="modal-btn modal-btn--danger" style={{ padding: '10px 16px', flexShrink: 0 }}
@@ -1142,7 +1241,7 @@ export const SettingsView = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                     <div style={{ display: 'flex', gap: '5px' }}>
                       {connectUrls.map((e, i) => (
-                        <button key={i} onClick={() => setConnectIdx(i)} style={{ padding: '4px 10px', borderRadius: '999px', fontSize: '0.75rem', border: '1px solid var(--brd)', background: i === connectIdx ? 'var(--ac)' : 'var(--bg3)', color: i === connectIdx ? '#fff' : 'var(--tx2)' }}>{e.name}</button>
+                        <button key={i} onClick={() => setConnectIdx(i)} className={`ui-chip${i === connectIdx ? ' on' : ''}`}>{e.name}</button>
                       ))}
                     </div>
                     <div style={{ fontSize: '0.82rem', color: 'var(--tx2)', display: 'flex', alignItems: 'center', gap: '6px' }}>

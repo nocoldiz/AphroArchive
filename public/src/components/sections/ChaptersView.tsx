@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef, useMemo } from 'preact/hooks';
 import { allVideos, currentVideo, currentView } from '../../store';
 import { zapStartTime } from '../../zap';
 
@@ -7,6 +7,7 @@ export const ChaptersView = () => {
   const [autoChaptersMap, setAutoChaptersMap] = useState<Record<string, any[]>>({});
   const [gen, setGen] = useState<{ running: boolean; done: number; total: number; current: string } | null>(null);
   const videos = allVideos.value;
+  const esRef = useRef<EventSource | null>(null);
 
   const loadAutoChapters = () =>
     fetch('/api/auto-chapters')
@@ -16,6 +17,8 @@ export const ChaptersView = () => {
 
   useEffect(() => {
     loadAutoChapters();
+    // Close the progress stream on unmount so it doesn't keep setting state
+    return () => { esRef.current?.close(); };
   }, []);
 
   const generateAll = () => {
@@ -28,7 +31,9 @@ export const ChaptersView = () => {
       .then(r => r.json())
       .then(res => {
         if (!res.ok) { setGen(null); return; }
+        esRef.current?.close();
         const es = new EventSource('/api/gen-chapters/status');
+        esRef.current = es;
         es.onmessage = (e) => {
           try {
             const ev = JSON.parse(e.data);
@@ -64,8 +69,9 @@ export const ChaptersView = () => {
     }
   };
 
-  // Merge manual chapters with auto-detected chapters per video
-  let list = videos
+  // Merge manual chapters with auto-detected chapters per video (memoized:
+  // walks the whole library, so don't redo it on every filter keystroke)
+  const withChapters = useMemo(() => videos
     .filter(v => !v.isLink)
     .map(v => {
       const manual = v.chapters || [];
@@ -73,7 +79,8 @@ export const ChaptersView = () => {
       const chapters = manual.length > 0 ? manual : auto;
       return { ...v, chapters };
     })
-    .filter(v => v.chapters.length > 0);
+    .filter(v => v.chapters.length > 0), [videos, autoChaptersMap]);
+  let list = withChapters;
 
   if (q) {
     const ql = q.toLowerCase().trim();

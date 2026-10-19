@@ -124,11 +124,12 @@ export const SubtitlesView = () => {
   const regenerateSingle = async (id: string, name: string) => {
     setRegenerating(prev => new Set([...prev, id]));
     try {
-      await fetch('/api/subtitles/regenerate', {
+      const r = await fetch('/api/subtitles/regenerate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: [id] }),
       });
+      if (!r.ok) throw new Error();
       (window as any).toast?.(`Queued regeneration for "${name}"`);
     } catch {
       (window as any).toastError?.('Failed to queue');
@@ -146,7 +147,8 @@ export const SubtitlesView = () => {
         body: JSON.stringify({ ids }),
       });
       const d = await r.json();
-      (window as any).toast?.(`Queued ${d.queued} video(s) for regeneration`);
+      if (!r.ok) throw new Error(d?.error);
+      (window as any).toast?.(`Queued ${d.queued ?? ids.length} video(s) for regeneration`);
       setSelected(new Set());
     } catch {
       (window as any).toastError?.('Failed to queue regeneration');
@@ -155,8 +157,9 @@ export const SubtitlesView = () => {
 
   const deleteSubtitle = async (id: string, name: string) => {
     if (!confirm(`Delete subtitle file(s) for "${name}"?`)) return;
-    await fetch(`/api/subtitles/${id}/delete`, { method: 'POST' });
-    (window as any).toast?.('Subtitle deleted');
+    const r = await fetch(`/api/subtitles/${id}/delete`, { method: 'POST' }).catch(() => null);
+    if (r?.ok) (window as any).toast?.('Subtitle deleted');
+    else (window as any).toastError?.('Failed to delete subtitle');
     loadItems();
   };
 
@@ -165,12 +168,14 @@ export const SubtitlesView = () => {
   };
 
   const startBatch = () => {
-    fetch('/api/gen-whisper/start', { method: 'POST' });
+    fetch('/api/gen-whisper/start', { method: 'POST' })
+      .then(r => { if (!r.ok) throw new Error(); })
+      .catch(() => (window as any).toastError?.('Failed to start generation'));
   };
 
   const stopBatch = () => {
     setBatchStatus('Stopping…');
-    fetch('/api/gen-whisper/stop', { method: 'POST' });
+    fetch('/api/gen-whisper/stop', { method: 'POST' }).catch(() => setBatchStatus('Stop request failed'));
   };
 
   const saveWhisperSettings = async (field: string, value: any) => {
@@ -214,7 +219,7 @@ export const SubtitlesView = () => {
             {batchRunning ? (
               <button
                 onClick={stopBatch}
-                style={{ padding: '6px 14px', background: '#e84040', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+                style={{ padding: '6px 14px', background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
               >Stop</button>
             ) : (
               <button
@@ -261,11 +266,15 @@ export const SubtitlesView = () => {
                       onClick={() => {
                         setDownloadingModels(prev => new Set([...prev, m.id]));
                         fetch('/api/whisper/download-model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.id }) })
-                          .then(() => {
+                          .then(r => {
+                            if (!r.ok) throw new Error();
                             setDownloadingModels(prev => { const s = new Set(prev); s.delete(m.id); return s; });
                             setAvailableModels(prev => new Set([...prev, m.id]));
                           })
-                          .catch(() => setDownloadingModels(prev => { const s = new Set(prev); s.delete(m.id); return s; }));
+                          .catch(() => {
+                            setDownloadingModels(prev => { const s = new Set(prev); s.delete(m.id); return s; });
+                            (window as any).toastError?.(`Failed to download model ${m.id}`);
+                          });
                       }}
                       style={{ fontSize: '10px', padding: '1px 5px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '3px', cursor: 'pointer', color: 'var(--tx2)', whiteSpace: 'nowrap' }}
                     >↓ download</button>
@@ -296,7 +305,8 @@ export const SubtitlesView = () => {
           placeholder="Search videos…"
           value={query}
           onInput={(e: any) => setQuery(e.target.value)}
-          style={{ padding: '6px 10px', fontSize: '13px', background: 'var(--bg2)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', minWidth: '200px' }}
+          className="ui-input"
+          style={{ width: 'auto', padding: '6px 10px', fontSize: '13px', background: 'var(--bg2)', minWidth: '200px' }}
         />
         {(['all', 'with', 'without'] as const).map(mode => (
           <button
@@ -315,9 +325,9 @@ export const SubtitlesView = () => {
 
       {/* Table */}
       {loading ? (
-        <div style={{ textAlign: 'center', paddingTop: '60px', color: 'var(--tx3)' }}>Loading…</div>
+        <div className="empty-state">Loading…</div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', paddingTop: '60px', color: 'var(--tx3)' }}>No videos found.</div>
+        <div className="empty-state">No videos found.</div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <thead>
@@ -382,20 +392,20 @@ export const SubtitlesView = () => {
                         <button
                           onClick={() => openEditor(item.id, item.name)}
                           title="Edit subtitle"
-                          style={{ padding: '3px 8px', fontSize: '11px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: 'var(--tx)' }}
+                          className="ui-btn ui-btn--sm"
                         >Edit</button>
                       )}
                       <button
                         onClick={() => regenerateSingle(item.id, item.name)}
                         disabled={isRegen || !whisperEnabled}
                         title={item.hasSubtitle ? 'Regenerate subtitle' : 'Generate subtitle'}
-                        style={{ padding: '3px 8px', fontSize: '11px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: whisperEnabled && !isRegen ? 'pointer' : 'default', color: whisperEnabled && !isRegen ? 'var(--tx)' : 'var(--tx3)', opacity: isRegen ? 0.6 : 1 }}
+                        className="ui-btn ui-btn--sm"
                       >{isRegen ? '…' : item.hasSubtitle ? 'Regen' : 'Generate'}</button>
                       {item.hasSubtitle && (
                         <button
                           onClick={() => deleteSubtitle(item.id, item.name)}
                           title="Delete subtitle file"
-                          style={{ padding: '3px 8px', fontSize: '11px', background: 'var(--bg3)', border: '1px solid var(--brd)', borderRadius: '4px', cursor: 'pointer', color: '#e84040' }}
+                          className="ui-btn ui-btn--sm ui-btn--danger"
                         >Delete</button>
                       )}
                     </div>

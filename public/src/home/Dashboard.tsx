@@ -4,6 +4,7 @@
 // resize grip that snaps the widget's column/row span to the grid. The
 // "Add widget" picker lists every built-in and plugin-provided widget.
 
+import { FunctionComponent } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import {
   dashboardLayout, dashEditMode, DASH_ROW_H, loadDashboard,
@@ -15,6 +16,11 @@ import { appPrefs } from '../store';
 import { pluginsList } from '../plugins';
 
 const GAP = 14;
+
+const WidgetBody = ({ render, inst }: { render: WidgetDef['render']; inst: WidgetInstance }) => {
+  const Render = render as unknown as FunctionComponent<WidgetInstance>;
+  return <Render {...inst} />;
+};
 
 function useCols(ref: { current: HTMLDivElement | null }) {
   const [cols, setCols] = useState(4);
@@ -115,7 +121,10 @@ export const Dashboard = () => {
                   <button className="dw-del" title="Remove" onClick={() => removeInstance(inst.iid)}>×</button>
                 </div>
               )}
-              <div className="dw-content">{def.render(inst)}</div>
+              {/* Mounted as a component (not called): widgets use hooks, and
+                  calling them inline put every widget's hooks on Dashboard's
+                  own hook list, which broke on add/remove/reorder. */}
+              <div className="dw-content"><WidgetBody render={def.render} inst={inst} /></div>
               {edit && (
                 <div className="dw-resize" title="Drag to resize" onPointerDown={(e) => startResize(e as any, inst.iid)} />
               )}

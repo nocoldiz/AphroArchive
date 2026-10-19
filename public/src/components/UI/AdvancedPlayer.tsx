@@ -327,11 +327,14 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
     };
     const onProgress = () => {
       const buf = vid.buffered;
-      const ranges = [];
+      const ranges: { start: number; end: number }[] = [];
       for (let i = 0; i < buf.length; i++) {
         ranges.push({ start: buf.start(i), end: buf.end(i) });
       }
-      setBuffered(ranges);
+      // 'progress' fires often with unchanged ranges — skip the full re-render then.
+      setBuffered(prev =>
+        prev.length === ranges.length && prev.every((r, i) => r.start === ranges[i].start && r.end === ranges[i].end)
+          ? prev : ranges);
     };
     // Stall watchdog: if the element gets stuck buffering and the playback
     // position stops advancing, force a reload instead of leaving it frozen.
@@ -1093,7 +1096,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
             <button
               onClick={() => setShowAbLoop(v => !v)}
               title={loopActive ? 'A/B repeat (active)' : 'A/B repeat'}
-              style={{ background: (showAbLoop || loopActive) ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'none', border: (showAbLoop || loopActive) ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', color: (showAbLoop || loopActive) ? 'var(--ac, #ff4a4a)' : '#fff', borderRadius: '3px', padding: '2px 6px', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}
+              style={{ background: (showAbLoop || loopActive) ? 'color-mix(in srgb, var(--ac) 20%, transparent)' : 'none', border: (showAbLoop || loopActive) ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', color: (showAbLoop || loopActive) ? 'var(--ac, #ff4a4a)' : '#fff', borderRadius: '3px', padding: '2px 6px', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
             </button>
@@ -1169,7 +1172,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
                       type="button"
                       onClick={() => { setShowChannelPicker(v => !v); setShowTVFavs(false); }}
                       title="Channel picker"
-                      style={{ background: showChannelPicker ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '4px', color: '#fff', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '5px', maxWidth: '150px' }}
+                      style={{ background: showChannelPicker ? 'color-mix(in srgb, var(--ac) 20%, transparent)' : 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '4px', color: '#fff', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '5px', maxWidth: '150px' }}
                     >
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1326,7 +1329,7 @@ export const AdvancedPlayer = ({ src, hlsSrc, videoId, subtitles, chapters, auto
                     type="button"
                     onClick={() => setShowChaptersDropdown(v => !v)}
                     title="Chapters"
-                    style={{ background: showChaptersDropdown ? 'rgba(var(--ac-rgb,255,74,74),0.2)' : 'none', border: showChaptersDropdown ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: showChaptersDropdown ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    style={{ background: showChaptersDropdown ? 'color-mix(in srgb, var(--ac) 20%, transparent)' : 'none', border: showChaptersDropdown ? '1px solid var(--ac, #ff4a4a)' : '1px solid rgba(255,255,255,0.4)', borderRadius: '3px', color: showChaptersDropdown ? 'var(--ac, #ff4a4a)' : '#fff', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '4px' }}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                     {allChaps.length}

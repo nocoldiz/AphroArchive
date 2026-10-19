@@ -1,51 +1,67 @@
 ﻿import { useState, useEffect, useRef } from 'preact/hooks';
 import { channelModalState } from '../../store';
+import { useEscape } from './useEscape';
 
 export const ChannelModal = () => {
   const state = channelModalState.value;
   const [channel, setChannel] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [query, setQuery] = useState('');
+  const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (state.visible) {
-      loadChannel();
-      loadSuggestions();
-      if (inputRef.current) inputRef.current.focus();
-    }
-  }, [state.visible, state.vidId]);
-
-  const loadChannel = async () => {
+    if (!state.visible) return;
+    // Reset per-open state and ignore late responses for a previous video.
+    let stale = false;
+    setChannel(null);
+    setQuery('');
+    setSaving(false);
     if (state.vidId) {
-      const r = await fetch(`/api/videos/${state.vidId}`);
-      const data = await r.json();
-      setChannel(data.channel || null);
-      setQuery(data.channel || '');
+      fetch(`/api/videos/${state.vidId}`)
+        .then(r => r.json())
+        .then(data => {
+          if (stale) return;
+          setChannel(data.channel || null);
+          setQuery(data.channel || '');
+        })
+        .catch(() => {});
     }
-  };
-
-  const loadSuggestions = async () => {
-    const r = await fetch('/api/channels');
-    const data = await r.json();
-    setSuggestions(data.map((s: any) => s.name) || []);
-  };
+    fetch('/api/channels')
+      .then(r => r.json())
+      .then(data => { if (!stale) setSuggestions(Array.isArray(data) ? data.map((s: any) => s.name) : []); })
+      .catch(() => {});
+    inputRef.current?.focus();
+    return () => { stale = true; };
+  }, [state.visible, state.vidId]);
 
   const handleClose = () => {
     channelModalState.value = { visible: false, vidId: null };
     setQuery('');
   };
 
+  useEscape(state.visible, handleClose);
+
   const handleSetChannel = async (selectedChannel: string) => {
+    if (saving) return;
     selectedChannel = selectedChannel.trim();
     setChannel(selectedChannel);
 
     if (state.vidId) {
-      await fetch(`/api/videos/${state.vidId}/meta`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel: selectedChannel }),
-      });
+      setSaving(true);
+      try {
+        const r = await fetch(`/api/videos/${state.vidId}/meta`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: selectedChannel }),
+        });
+        if (!r.ok) throw new Error();
+      } catch {
+        setSaving(false);
+        (window as any).toastError?.('Failed to set channel');
+        return;
+      }
+      setSaving(false);
     }
 
     handleClose();
@@ -59,11 +75,11 @@ export const ChannelModal = () => {
   if (!state.visible) return null;
 
   return (
-    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-      <div className="modal-content" style={{ background: 'var(--bg2)', padding: '24px', borderRadius: '12px', border: '1px solid var(--brd)', width: '400px', maxWidth: '90%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0 }}>Select Channel</h3>
-          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: 'var(--tx3)', cursor: 'pointer' }}>
+    <div className="modal-overlay on" style={{ zIndex: 1000 }} onClick={(e: any) => e.target === e.currentTarget && handleClose()}>
+      <div className="modal-dialog" style={{ maxWidth: '400px' }}>
+        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>Select Channel</h2>
+          <button className="ui-btn ui-btn--ghost ui-btn--icon" onClick={handleClose} aria-label="Close" title="Close">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </div>
@@ -75,20 +91,13 @@ export const ChannelModal = () => {
             type="text"
             value={query}
             onInput={(e: any) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && query.trim()) {
-                handleSetChannel(query.trim());
-              } else if (e.key === 'Escape') {
-                handleClose();
-              }
-            }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && query.trim()) handleSetChannel(query.trim()); }}
             placeholder="Type channel name..."
-            style={{ width: '100%', background: 'var(--bg3)', color: 'var(--tx)', border: '1px solid var(--brd)', borderRadius: '6px', padding: '10px' }}
           />
         </div>
 
         {/* Suggestions */}
-        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', maxHeight: '150px', overflowY: 'auto', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', maxHeight: '150px', overflowY: 'auto' }}>
           {filteredSuggestions.map(s => (
             <span
               key={s}
@@ -101,9 +110,9 @@ export const ChannelModal = () => {
           ))}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button className="btn-cancel" onClick={handleClose} style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx3)', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
-          <button className="btn-primary" onClick={() => handleSetChannel(query)} style={{ background: 'var(--ac)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>Set Channel</button>
+        <div className="modal-footer">
+          <button className="modal-btn" onClick={handleClose}>Cancel</button>
+          <button className="modal-btn modal-btn--primary" onClick={() => handleSetChannel(query)} disabled={saving}>Set Channel</button>
         </div>
       </div>
     </div>

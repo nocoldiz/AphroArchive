@@ -1,6 +1,6 @@
 import type { ComponentChildren, VNode } from 'preact';
 import {
-  currentView, isSidebarOpen, currentFolder, currentPhotoFolder,
+  currentView, isSidebarOpen, currentPhotoFolder,
   allVideos, mediaCounts, showConnectModal, sourceFilter,
   appPrefs, updatePrefs, currentActor, currentChannel,
 } from '../../store';
@@ -144,6 +144,18 @@ export function navIcon(paths: ComponentChildren, size: number, style?: any): VN
   );
 }
 
+// getNavItems runs on every Sidebar/Topbar/dropdown render; cache the local
+// video count per allVideos array so large libraries aren't re-scanned each time.
+let _countedVids: unknown[] | null = null;
+let _localVidCount = 0;
+const localVideoCount = (vids: unknown[]) => {
+  if (vids !== _countedVids) {
+    _countedVids = vids;
+    _localVidCount = vids.filter(v => !(v as any).isLink).length;
+  }
+  return _localVidCount;
+};
+
 /**
  * The full registry of movable navigation items. Reads signals on each call so
  * badges/active state stay reactive — call it from within a component render.
@@ -226,7 +238,7 @@ export function getNavItems(): NavItem[] {
       id: 'videos-media-sidebar', label: 'Videos', section: 'media', defaultLoc: 'sidebar',
       paths: <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />,
       onClick: () => { sourceFilter.value = 'local'; setView('browse'); }, isActive: view === 'browse',
-      badge: vids.filter(v => !(v as any).isLink).length || undefined,
+      badge: localVideoCount(vids) || undefined,
     },
     {
       id: 'photos-sidebar', label: 'Photos', section: 'media', defaultLoc: 'sidebar',

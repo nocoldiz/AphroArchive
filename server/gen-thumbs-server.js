@@ -5,16 +5,15 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
-const { THUMBS_DIR, FFMPEG_BIN, FFPROBE_BIN, VIDEOS_DIR } = require('./config-server');
-const { json } = require('./helpers-server');
-const { loadThumbsCache, saveThumbsCache, loadPrefs } = require('./db-server');
+const { THUMBS_DIR, VIDEOS_DIR, VIDEO_EXT } = require('./config-server');
+const { json, toId } = require('./helpers-server');
+const { setThumbCacheEntry, loadPrefs } = require('./db-server');
+// Same generator as on-demand thumbs: shares the global ffmpeg slot cap, so a
+// batch run no longer stacks 2 jobs × 5 parallel ffmpeg on top of grid requests.
+const { genThumbs } = require('./thumbnails-server');
 
-const VIDEO_EXT = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv', '.ts']);
-const THUMB_PCT = [0.1, 0.25, 0.5, 0.75, 0.9];
+const THUMB_COUNT = 5;   // genThumbs extracts 5 frames (0..4.jpg)
 const CONCURRENCY = 2;
-
-function toId(rel) { return Buffer.from(rel).toString('base64url'); }
 
 function scanVideos(dir, base, isExternal = false) {
   if (!base) base = dir;
@@ -53,7 +52,7 @@ function scanAllVideos() {
 function isComplete(id) {
   const dir = path.join(THUMBS_DIR, id);
   if (!fs.existsSync(dir)) return false;
-  for (let i = 0; i < THUMB_PCT.length; i++) {
+  for (let i = 0; i < THUMB_COUNT; i++) {
     if (!fs.existsSync(path.join(dir, `${i}.jpg`))) return false;
   }
   return true;
@@ -89,7 +88,6 @@ async function runBatch() {
     return;
   }
 
-  const cache = loadThumbsCache();
   const queue = [...pending];
 
   async function worker() {
@@ -99,32 +97,14 @@ async function runBatch() {
       broadcast({ type: 'progress', done: _job.done, total: _job.total, current: _job.current });
 
       try {
-        const dur = await new Promise(resolve => {
-          execFile(FFPROBE_BIN, ['-v', 'quiet', '-print_format', 'json', '-show_format', item.fp],
-            { timeout: 15000 },
-            (err, out) => {
-              if (err) { return resolve(null); }
-              try { resolve(parseFloat(JSON.parse(out).format.duration) || null); } catch { resolve(null); }
-            });
-        });
-
-        if (!dur) { _job.failed++; _job.done++; broadcast({ type: 'progress', done: _job.done, total: _job.total, current: _job.current }); continue; }
-
-        const dir = path.join(THUMBS_DIR, item.id);
-        fs.mkdirSync(dir, { recursive: true });
-        const times = THUMB_PCT.map(p => (dur * p).toFixed(2));
-        let n = 0;
-        await Promise.all(times.map((t, i) => new Promise(resolve => {
-          execFile(FFMPEG_BIN,
-            ['-ss', t, '-i', item.fp, '-vframes', '1', '-vf', 'scale=480:-1', '-q:v', '3', '-y', path.join(dir, `${i}.jpg`)],
-            { timeout: 30000 }, err => { if (!err) n++; resolve(); });
-        })));
-
-        try {
-          const stat = fs.statSync(item.fp);
-          cache[item.id] = { mtime: stat.mtimeMs, count: n, duration: dur };
-        } catch { }
-        if (n === 0) _job.failed++;
+        const r = await genThumbs(item.id, item.fp);
+        if (!r.duration || r.count === 0) _job.failed++;
+        if (r.duration) {
+          // Persist per item (row upsert): the old end-of-run saveThumbsCache()
+          // rewrote the whole table from a snapshot taken at start, dropping
+          // entries written meanwhile and losing everything on a stop/crash.
+          try { setThumbCacheEntry(item.id, { mtime: fs.statSync(item.fp).mtimeMs, ...r }); } catch { }
+        }
       } catch { _job.failed++; }
 
       _job.done++;
@@ -133,7 +113,6 @@ async function runBatch() {
   }
 
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-  saveThumbsCache(cache);
   _job.running = false;
   console.log(`[Sync] Video Thumbnails done: ${_job.done} generated, ${_job.failed} failed`);
   broadcast({ type: 'done', done: _job.done, failed: _job.failed, total: all.length, skipped: _job.skipped });

@@ -15,6 +15,14 @@ const { loadMediaIndex } = require('./db-server');
 
 function _invalidate() { try { require('./videos-server').invalidateScanCache(); } catch {} }
 
+// Stream a file; a read error (file vanished mid-request) drops the socket instead of crashing.
+function _pipeFile(fp, res) {
+  const rs = fs.createReadStream(fp);
+  rs.on('error', () => { try { res.destroy(); } catch {} });
+  res.on('close', () => rs.destroy());
+  rs.pipe(res);
+}
+
 // Stable-Diffusion / ComfyUI write the generation prompt into a PNG `parameters`
 // text chunk. Read it lazily (only for .png rows) when listing.
 function readPngMetadata(filePath) {
@@ -48,11 +56,21 @@ function readPngMetadata(filePath) {
   return null;
 }
 
+// absPath -> { mtime, meta }: avoids re-opening every PNG on each list call.
+const _pngMetaCache = new Map();
+function _pngMeta(absPath, mtime) {
+  const hit = _pngMetaCache.get(absPath);
+  if (hit && hit.mtime === mtime) return hit.meta;
+  const meta = readPngMetadata(absPath);
+  _pngMetaCache.set(absPath, { mtime, meta });
+  return meta;
+}
+
 function _listPhotos() {
   return loadMediaIndex('photo').map(m => {
     let isAi = false, aiPrompt = '';
     if (m.ext === '.png') {
-      const meta = readPngMetadata(m.absPath);
+      const meta = _pngMeta(m.absPath, m.mtime);
       if (meta) { isAi = true; aiPrompt = meta; }
     }
     return {
@@ -104,7 +122,7 @@ function apiPhotoServe(req, res, id) {
   const ct   = MIME[ext] || (ext === '.avif' ? 'image/avif' : ext === '.heic' ? 'image/heic' : 'image/jpeg');
   const stat = fs.statSync(fp);
   res.writeHead(200, { 'Content-Type': ct, 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=3600' });
-  fs.createReadStream(fp).pipe(res);
+  _pipeFile(fp, res);
 }
 
 function apiPhotoDelete(req, res, id) {
@@ -127,7 +145,7 @@ function apiPhotoDownload(req, res, id) {
     'Content-Length':      stat.size,
     'Content-Disposition': 'attachment; filename="' + filename + '"',
   });
-  fs.createReadStream(fp).pipe(res);
+  _pipeFile(fp, res);
 }
 
 function apiPhotosUpload(req, res) {

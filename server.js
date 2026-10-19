@@ -10,7 +10,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 
 // ── Process-level safety net ─────────────────────────────────────────
 // Node 24 terminates the process on an unhandled rejection by default, so a
@@ -59,6 +59,7 @@ const database = require('./server/database-server');
 const seriesDb = require('./server/series-server');
 const albumsDb = require('./server/albums-server');
 const presets = require('./server/profiles-server');
+const install = require('./server/install-server');
 const remote = require('./server/remote-server');
 const settings = require('./server/settings-server');
 const search = require('./server/search-server');
@@ -74,6 +75,7 @@ const feedWatcher = require('./server/feed-watcher-server');
 const rss = require('./server/rss-server');
 const assistant   = require('./server/assistant-server');
 const autoChapters = require('./server/auto-chapters-server');
+const identify = require('./server/identify-server');
 const hls = require('./server/hls-server');
 
 // ── Startup: create required directories ─────────────────────────────
@@ -174,7 +176,6 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/categorizer/execute-bg' && req.method === 'POST') return videos.apiCategorizerBgExecute(req, res);
   if (p === '/api/categorizer/poll' && req.method === 'GET') return videos.apiCategorizerPoll(req, res);
   if (p === '/api/categorizer/stop' && req.method === 'POST') return videos.apiCategorizerStop(req, res);
-  if (p === '/api/videos/recategorize-all' && req.method === 'POST') return videos.apiRecategorizeAll(req, res);
   if (p === '/api/videos' && req.method === 'GET') return videos.apiVideos(req, res, params);
   if (p === '/api/search/suggest' && req.method === 'GET') return search.apiSearchSuggest(req, res, params);
   if (p === '/api/search' && req.method === 'GET') return search.apiSearch(req, res, params);
@@ -230,7 +231,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/encryption/import-progress' && req.method === 'POST') return videos.apiVaultImportProgress(req, res);
 
   if (p === '/api/scan/events' && req.method === 'GET') return videos.apiScanEvents(req, res);
-  if (p === '/api/media-counts' && req.method === 'GET') { const { json: j } = require('./server/helpers-server'); return j(res, getMediaCounts()); }
+  if (p === '/api/media-counts' && req.method === 'GET') return json(res, getMediaCounts());
   if (p === '/api/preload' && req.method === 'GET') return videos.apiPreload(req, res);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'GET') return videos.apiVideoDetailFast(req, res, m[1]);
   if ((m = p.match(/^\/api\/videos\/([^/]+)$/)) && req.method === 'DELETE') return videos.apiDelete(req, res, m[1]);
@@ -261,6 +262,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/gen-chapters/stop' && req.method === 'POST') return autoChapters.apiGenChaptersStop(req, res);
   if (p === '/api/gen-chapters/status' && req.method === 'GET') return autoChapters.apiGenChaptersStatus(req, res);
   if (p === '/api/gen-chapters/poll' && req.method === 'GET') return autoChapters.apiGenChaptersPoll(req, res);
+  if (p === '/api/identify/start' && req.method === 'POST') return identify.apiIdentifyStart(req, res);
+  if (p === '/api/identify/stop' && req.method === 'POST') return identify.apiIdentifyStop(req, res);
+  if (p === '/api/identify/poll' && req.method === 'GET') return identify.apiIdentifyPoll(req, res);
+  if (p === '/api/identify/results' && req.method === 'GET') return identify.apiIdentifyResults(req, res);
+  if (p === '/api/identify/apply' && req.method === 'POST') return identify.apiIdentifyApply(req, res);
   if (p === '/api/background-worker/poll' && req.method === 'GET') return apiBackgroundWorkerPoll(req, res);
   if (p === '/api/background-worker/start' && req.method === 'POST') return apiBackgroundWorkerStart(req, res);
   if (p === '/api/background-worker/stop' && req.method === 'POST') return apiBackgroundWorkerStop(req, res);
@@ -443,6 +449,10 @@ const server = http.createServer(async (req, res) => {
 
   // ── Presets ──────────────────────────────────────────────────────────
   if (p === '/api/presets' && req.method === 'GET') return presets.apiGetPresets(req, res);
+  if (p === '/api/install' && req.method === 'GET') return install.apiStatus(req, res);
+  if (p === '/api/install/check' && req.method === 'GET') return install.apiCheck(req, res, params);
+  if (p === '/api/install/link' && req.method === 'POST') return install.apiLink(req, res);
+  if (p === '/api/install/unlink' && req.method === 'POST') return install.apiUnlink(req, res);
   if (p === '/api/presets/apply' && req.method === 'POST') return presets.apiApplyPreset(req, res);
 
   // ── RSS feeds ────────────────────────────────────────────────────────
@@ -643,7 +653,7 @@ server.on('clientError', (err, socket) => {
 // shred temp files), then exit. A hard-exit timer guards against a hung close.
 
 let _shuttingDown = false;
-function gracefulShutdown(signal) {
+function gracefulShutdown(signal, relaunch = false) {
   if (_shuttingDown) return;
   _shuttingDown = true;
   log.info(`received ${signal}, shutting down gracefully`);
@@ -659,10 +669,30 @@ function gracefulShutdown(signal) {
 
   server.close(() => {
     clearTimeout(hardExit);
+    if (relaunch) relaunchSelf();
     log.info('server closed, exiting');
     process.exit(0);
   });
+  // Keep-alive sockets would hold close() open until they time out.
+  if (server.closeAllConnections) server.closeAllConnections();
 }
+
+// Start a fresh copy of this process (same exe / script and args) once the
+// port is free, so a newly linked / unlinked installation is picked up.
+// The new copy must not open another browser tab: the page reloads itself.
+function relaunchSelf() {
+  if (process.env.APHRO_ELECTRON) {
+    try { const { app } = require('electron'); app.relaunch(); app.exit(0); return; } catch {}
+  }
+  const args = IS_PKG ? process.argv.slice(2) : process.argv.slice(1);
+  try {
+    spawn(process.execPath, args, {
+      cwd: process.cwd(), detached: true, stdio: 'ignore',
+      env: { ...process.env, APHRO_NO_BROWSER: '1' },
+    }).unref();
+  } catch (e) { log.error('relaunch failed', e && e.message || e); }
+}
+install.setRestartHandler(() => gracefulShutdown('restart', true));
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
@@ -675,7 +705,7 @@ server.listen(PORT, () => {
   if (localIP) console.log(`  \x1b[1;36m📡\x1b[0m  Network:  \x1b[4mhttp://${localIP}:${PORT}\x1b[0m`);
   console.log(`  \x1b[90m📁  Videos: ${VIDEOS_DIR}\x1b[0m`);
   console.log(`  \x1b[90m📂  Public: ${path.join(__dirname, 'public')}\x1b[0m\n`);
-  if (IS_PKG && !process.env.APHRO_ELECTRON) {
+  if (IS_PKG && !process.env.APHRO_ELECTRON && !process.env.APHRO_NO_BROWSER) {
     const openCmd = process.platform === 'win32' ? `start http://localhost:${PORT}`
       : process.platform === 'darwin' ? `open http://localhost:${PORT}`
         : `xdg-open http://localhost:${PORT}`;

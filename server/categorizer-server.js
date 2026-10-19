@@ -6,16 +6,23 @@
 //  page-load auto-sort and download / feed auto-filing, so every entry
 //  point files a video the same way.
 //
-//  Signals, strongest first:
-//   1. Folder name / alias / registered category tag found in the filename
-//      (exact phrase, then stemmed, glued "JaneDoe"/"jane_doe", unordered
-//      words, token prefix, then typo-tolerant fuzzy).
-//   2. The same match against the video's metadata (title, channel, actors, tags).
-//   3. Tokens learned from videos already filed: a word that almost only
-//      appears in one folder's filenames points new files to that folder.
-//  Deeper subfolders win over their parents when both match, a matching
-//  parent confirms a subfolder, and near-ties between unrelated folders
-//  lower the confidence instead of guessing silently.
+//  Every folder gets a keyword set:
+//   - its own name and spellings of it ("01 - Comedy", "Horror Movies" → "Horror"),
+//   - the tags of the DB category it corresponds to (matched loosely, so
+//     folder "Science Fiction" picks up category "Sci-Fi"), where a tag may
+//     list its own alternates as "Sci-Fi | SF",
+//   - built-in synonyms of any of those ("xmas" ↔ "christmas", "ww2" ↔ "wwii").
+//  Keywords are matched against the filename, then the video's metadata:
+//  exact phrase, plural-insensitive, inflection/spelling-insensitive
+//  ("whispering" ↔ "whisper", "colour" ↔ "color", "II" ↔ "2"), glued
+//  ("JaneDoe"), unordered words, token prefix, then typo-tolerant fuzzy.
+//  Several distinct keywords for the same folder add up as evidence. A tag
+//  shared by several categories counts for less, and so does a tag whose
+//  word the library has mostly filed in other folders.
+//  Tokens and video tags learned from videos already filed act as a
+//  fallback signal. Deeper subfolders win over their parents when both
+//  match, a matching parent confirms a subfolder, and near-ties between
+//  unrelated folders lower the confidence instead of guessing silently.
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
@@ -70,24 +77,92 @@ function stem(t) {
   return t;
 }
 
+// Number words and multi-letter roman numerals share a root with their digit.
+const NUM_ROOT = {
+  one: '1', two: '2', three: '3', four: '4', five: '5', six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
+  ii: '2', iii: '3', iv: '4', vi: '6', vii: '7', viii: '8', ix: '9',
+};
+
+// Aggressive root for inflection- and spelling-insensitive matching:
+// "whispering" / "whispered" / "whispers" → "whisper", "tingles" / "tingling"
+// → "tingl", "colour" → "color", "organise" → "organiz", "theatre" → "theater".
+// Only ever compared root-to-root, so an odd root is harmless as long as
+// both sides produce the same one.
+function root(t) {
+  if (NUM_ROOT[t]) return NUM_ROOT[t];
+  let w = stem(t);
+  if (w.length <= 4) return w;
+  const undouble = b => /([bdfgkmnprt])\1$/.test(b) ? b.slice(0, -1) : b;
+  if (w.length > 5 && w.endsWith('ing')) w = undouble(w.slice(0, -3));
+  else if (w.length > 5 && w.endsWith('ed')) w = undouble(w.slice(0, -2));
+  w = w.replace(/tre$/, 'ter');
+  if (w.length > 4 && w.endsWith('e')) w = w.slice(0, -1);
+  // 'zombies' stems to 'zomby', 'zombie' to 'zombie': both end up 'zombi'.
+  if (w.length > 3 && w.endsWith('y')) w = w.slice(0, -1) + 'i';
+  return w.replace(/our$/, 'or').replace(/is$/, 'iz').replace(/ys$/, 'yz');
+}
+
+// Built-in alternate keywords. Any folder keyword found in a group also
+// matches the rest of it (a little less strongly). Domain-specific
+// alternates belong in the category tags ("Sci-Fi | SF").
+const SYNONYM_GROUPS = [
+  ['science fiction', 'sci fi', 'scifi', 'sf'],
+  ['documentary', 'documentaries', 'docu', 'doc'],
+  ['behind the scenes', 'bts', 'making of'],
+  ['point of view', 'pov'],
+  ['do it yourself', 'diy'],
+  ['christmas', 'xmas'],
+  ['world war 2', 'world war ii', 'ww2', 'wwii', 'second world war'],
+  ['world war 1', 'world war i', 'ww1', 'wwi', 'first world war'],
+  ['versus', 'vs'],
+  ['television', 'tv'],
+  ['animation', 'animated', 'cartoon'],
+  ['movie', 'film'],
+  ['music video', 'official video', 'mv'],
+  ['lets play', 'playthrough', 'walkthrough', 'gameplay'],
+  ['tutorial', 'how to'],
+  ['compilation', 'best of', 'comp'],
+  ['remix', 'rmx'],
+  ['livestream', 'live stream', 'vod'],
+  ['blooper', 'outtake', 'gag reel'],
+  ['reaction', 'react'],
+  ['trailer', 'teaser'],
+  ['virtual reality', 'vr'],
+  ['youtube poop', 'ytp'],
+  ['asmr', 'tingles'],
+  ['homemade', 'amateur'],
+  ['japan', 'japanese'], ['korea', 'korean'], ['china', 'chinese'], ['italy', 'italian'],
+  ['france', 'french'], ['germany', 'german'], ['spain', 'spanish'], ['brazil', 'brazilian'],
+  ['russia', 'russian'], ['mexico', 'mexican'], ['india', 'indian'], ['britain', 'british', 'uk'],
+];
+const SYNONYMS = new Map();
+for (const g of SYNONYM_GROUPS) for (const w of g) SYNONYMS.set(w, g.filter(x => x !== w));
+
 function prepareText(raw) {
   const norm   = normalize(raw);
   const tokens = norm ? norm.split(' ') : [];
   const stems  = tokens.map(stem);
+  const roots  = tokens.map(root);
   // Character offset in `compact` where each token starts, so a glued match
   // ("janedoe") is only accepted when it begins on a word boundary.
   const starts = new Set();
   let off = 0;
   for (const t of tokens) { starts.add(off); off += t.length; }
   return {
-    tokens, stems, starts,
+    tokens, stems, roots, starts,
+    rootSet:    new Set(roots),
+    // First letters of every word / root: every match tier needs one of them.
+    initials:   new Set([...tokens, ...roots].map(t => t[0])),
     joined:     ' ' + tokens.join(' ') + ' ',
     stemJoined: ' ' + stems.join(' ') + ' ',
+    rootJoined: ' ' + roots.join(' ') + ' ',
     compact:    tokens.join(''),
   };
 }
 
-function prepareTerm(raw) {
+// kind: 'name' (the folder's own name / category name), 'tag' (a category
+// tag) — `weight` scales every score the term produces.
+function prepareTerm(raw, kind = 'name', weight = 1) {
   const norm = normalize(raw);
   if (!norm) return null;
   const tokens = norm.split(' ');
@@ -95,11 +170,13 @@ function prepareTerm(raw) {
   if (compact.length < 2) return null;
   if (tokens.length === 1 && (GENERIC_FOLDERS.has(norm) || NOISE.has(norm))) return null;
   if (GENERIC_FOLDERS.has(norm)) return null;
+  const roots = tokens.map(root);
   return {
-    raw: String(raw), norm, tokens, compact,
-    stems: tokens.map(stem),
+    raw: String(raw).trim(), norm, tokens, compact, kind, weight,
+    stems: tokens.map(stem), roots,
     phrase: ' ' + norm + ' ',
     stemPhrase: ' ' + tokens.map(stem).join(' ') + ' ',
+    rootPhrase: ' ' + roots.join(' ') + ' ',
   };
 }
 
@@ -134,12 +211,15 @@ function similarity(a, b) {
 // Score one folder term against a prepared text. 0 = no match.
 function scoreTerm(text, term) {
   if (!text.tokens.length) return 0;
+  if (!text.initials.has(term.compact[0]) && !text.initials.has(term.roots[0][0])) return 0;
   const len = term.compact.length;
   // Very short terms ("VR", "3D") only count as a whole word.
   if (len <= 3) return text.joined.includes(term.phrase) ? 92 : 0;
 
   if (text.joined.includes(term.phrase)) return 100;
   if (text.stemJoined.includes(term.stemPhrase)) return 95;
+  // Other inflection / spelling: "whispering" for "Whisper", "colour" for "color".
+  if (text.rootJoined.includes(term.rootPhrase)) return 90;
 
   // Glued words: "JaneDoe", "jane_doe", "janedoe2021" — must start on a word boundary.
   if (term.tokens.length > 1 && len >= 5) {
@@ -151,9 +231,8 @@ function scoreTerm(text, term) {
   }
 
   if (term.tokens.length > 1) {
-    // Every word present, any order ("Doe Jane").
-    const set = new Set(text.stems);
-    if (term.stems.every(s => set.has(s))) return 80;
+    // Every word present, any order ("Doe Jane", "sex anal" for "Anal Sex").
+    if (term.roots.every(r => text.rootSet.has(r))) return 80;
   } else {
     // Single-word term as the start of a longer token ("comedyclub").
     if (len >= 5 && text.tokens.some(t => t.length > len && t.startsWith(term.compact))) return 70;
@@ -216,7 +295,8 @@ function listFolders(roots = libraryRoots()) {
 }
 
 // Alternate spellings of a folder name: "01 - Comedy" → "Comedy",
-// "Jane Doe (2019)" → "Jane Doe", "The Office" → "Office", "Doe, Jane" → "Jane Doe".
+// "Jane Doe (2019)" → "Jane Doe", "The Office" → "Office", "Doe, Jane" → "Jane Doe",
+// "Horror Movies" → "Horror", "Cats & Dogs" → "Cats", "Dogs".
 function folderAliases(leaf) {
   const out = new Set([leaf]);
   const noNum = leaf.replace(/^\s*\d+\s*[-._)\]]\s*/, '');
@@ -227,34 +307,71 @@ function folderAliases(leaf) {
   const comma = noParen.match(/^([^,]+),\s*([^,]+)$/);
   if (comma) out.add(`${comma[2]} ${comma[1]}`);
   for (const part of noParen.split(/\s+(?:&|and|\+|\/)\s+|\s*[|;]\s*/i)) if (part && part !== noParen) out.add(part);
+  // Drop media filler words around the real subject ("Horror Movies", "Comedy Clips").
+  const words = normalize(noParen).split(' ');
+  const core = words.filter(w => !FOLDER_FILLER.has(w));
+  if (core.length && core.length < words.length && core.join('').length >= 3) out.add(core.join(' '));
   return [...out].filter(Boolean);
 }
 
+const FOLDER_FILLER = new Set([
+  'movie', 'movies', 'film', 'films', 'video', 'videos', 'clip', 'clips', 'collection', 'collections', 'stuff', 'misc',
+]);
+
+// Plural- and punctuation-insensitive key used to pair a folder with its DB
+// category: "Sci-Fi", "SciFi" and "sci fi" share one, as do "Comedy" / "Comedies".
+const matchKey = s => prepareText(s).stems.join('');
+
+// A tag may carry its own alternates: "Sci-Fi | SF | Science Fiction".
+const splitAlternates = tag => String(tag || '').split(/\s*[|;]\s*/).map(x => x.trim()).filter(Boolean);
+
 function buildCandidates(folderPaths) {
-  // Category DB rows: name / display name → registered tags.
-  const tagsByName = new Map();
-  for (const c of loadFolderMappings()) {
-    for (const k of [c.name, c.displayName]) if (k) {
-      const key = String(k).toLowerCase();
-      tagsByName.set(key, [...(tagsByName.get(key) || []), ...(c.terms || [])]);
+  // DB categories reachable by any spelling of their name / display name.
+  const mappings = loadFolderMappings();
+  const byKey = new Map();
+  // How many categories list each tag — a tag shared by several is weak evidence.
+  const tagOwners = new Map();
+  for (const c of mappings) {
+    const names = [c.name, c.displayName].filter(Boolean);
+    const nameKeys = new Set(names.map(n => normalize(n)));
+    const tags = (c.terms || []).filter(t => t && !nameKeys.has(normalize(t)));
+    const cat = { names, tags };
+    for (const n of names) for (const alias of folderAliases(n)) {
+      const k = matchKey(alias);
+      if (k) byKey.set(k, [...(byKey.get(k) || []), cat]);
     }
+    for (const t of new Set(tags.flatMap(splitAlternates).map(normalize))) tagOwners.set(t, (tagOwners.get(t) || 0) + 1);
   }
+
   return folderPaths.map(relPath => {
     const parts = relPath.split('/');
     const leaf  = parts[parts.length - 1];
-    const rawTerms = [
-      ...folderAliases(leaf),
-      ...(tagsByName.get(leaf.toLowerCase()) || []),
-      ...(tagsByName.get(relPath.toLowerCase()) || []),
-    ];
-    const seen = new Set();
-    const terms = [];
-    for (const t of rawTerms) {
-      const p = prepareTerm(t);
-      if (p && !seen.has(p.norm)) { seen.add(p.norm); terms.push(p); }
+    const aliases = folderAliases(leaf);
+    const cats = new Set();
+    for (const k of [...aliases.map(matchKey), matchKey(relPath)]) for (const c of byKey.get(k) || []) cats.add(c);
+
+    // Keep the strongest weight per distinct keyword.
+    const terms = new Map();
+    const add = (raw, kind, weight) => {
+      const p = prepareTerm(raw, kind, weight);
+      if (!p) return;
+      const prev = terms.get(p.norm);
+      if (!prev || prev.weight < weight) terms.set(p.norm, p);
+    };
+    for (const a of aliases) add(a, 'name', 1);
+    for (const c of cats) {
+      for (const n of c.names) add(n, 'name', 1);
+      for (const tag of c.tags) for (const alt of splitAlternates(tag)) {
+        add(alt, 'tag', (tagOwners.get(normalize(alt)) || 1) > 1 ? 0.8 : 0.92);
+      }
     }
+    // Built-in synonyms of every keyword, slightly weaker than the original.
+    for (const t of [...terms.values()]) {
+      for (const syn of SYNONYMS.get(t.norm) || []) add(syn, t.kind, t.weight * 0.94);
+    }
+
     const ancestors = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join('/'));
-    return { relPath, leaf, depth: parts.length - 1, terms, ancestors };
+    return { relPath, leaf, depth: parts.length - 1, terms: [...terms.values()], ancestors };
   });
 }
 
@@ -262,64 +379,126 @@ function buildCandidates(folderPaths) {
 
 const usefulToken = t => t.length >= 3 && !NOISE.has(t) && !/^\d+$/.test(t);
 
-// For every folder, the words that (almost) only appear in the names of
-// videos already filed there. Returns Map<folderPath, Map<token, precision>>.
-function learnTokens(videos) {
+// Evidence keys of a video: filename word roots plus its metadata tags ("#tag").
+function evidenceKeys(name, m) {
+  const keys = new Set(prepareText(name).roots.filter(usefulToken));
+  for (const tag of (m && m.tags) || []) { const n = normalize(tag); if (n) keys.add('#' + n); }
+  return keys;
+}
+
+// Counts of every evidence key per folder across the videos already filed,
+// plus, per folder, the keys that (almost) only appear there:
+// learned = Map<folderPath, Map<key, precision>>.
+function learnTokens(videos, meta) {
   const perFolder = new Map();
   const total = new Map();
   for (const v of videos) {
-    const toks = new Set(prepareText(v.name).stems.filter(usefulToken));
-    for (const t of toks) total.set(t, (total.get(t) || 0) + 1);
+    const keys = evidenceKeys(v.name, meta[v.id]);
+    for (const k of keys) total.set(k, (total.get(k) || 0) + 1);
     if (!v.catPath) continue;
     let m = perFolder.get(v.catPath);
     if (!m) { m = new Map(); perFolder.set(v.catPath, m); }
-    for (const t of toks) m.set(t, (m.get(t) || 0) + 1);
+    for (const k of keys) m.set(k, (m.get(k) || 0) + 1);
   }
-  const out = new Map();
+  const learned = new Map();
   for (const [folder, counts] of perFolder) {
     const keep = new Map();
-    for (const [t, c] of counts) {
+    for (const [k, c] of counts) {
       if (c < 3) continue;
-      const precision = c / total.get(t);
-      if (precision >= 0.85) keep.set(t, precision);
+      const precision = c / total.get(k);
+      if (precision >= 0.85) keep.set(k, precision);
     }
-    if (keep.size) out.set(folder, keep);
+    if (keep.size) learned.set(folder, keep);
   }
-  return out;
+  return { learned, perFolder };
 }
 
 // ── Matcher ───────────────────────────────────────────────────────────
 
 // Build a matcher over the current folder tree. `videos` (the scan) enables
-// learned-token matching; omit it for a quick name-only match.
+// learned-token matching and tag reliability; omit it for a quick keyword-only match.
 function createMatcher({ folders, videos } = {}) {
   const candidates = buildCandidates(folders || listFolders());
   const byPath = new Map(candidates.map(c => [c.relPath, c]));
-  const learned = videos ? learnTokens(videos) : new Map();
   let meta = {};
   try { meta = loadVideoMeta() || {}; } catch {}
+  const { learned, perFolder } = videos ? learnTokens(videos, meta) : { learned: new Map(), perFolder: new Map() };
 
-  // Direct term score of one candidate for the prepared texts.
-  const direct = (c, texts) => {
-    let best = 0, term = '', how = 'name';
-    for (const { text, weight, source } of texts) {
-      for (const t of c.terms) {
-        const s = scoreTerm(text, t) * lengthWeight(t) * weight;
-        if (s > best) { best = s; term = t.raw; how = source; }
+  // How far the library's own filing backs a tag for this folder: a tag
+  // whose word mostly sits in other folders' filenames is trusted less,
+  // one that mostly sits here a bit more. Cached per folder + keyword.
+  const reliabilityCache = new Map();
+  const reliability = (c, t) => {
+    if (t.kind !== 'tag' || !perFolder.size) return 1;
+    const key = c.relPath + '\0' + t.norm;
+    if (reliabilityCache.has(key)) return reliabilityCache.get(key);
+    let best = 1;
+    const words = t.roots.filter(usefulToken);
+    if (words.length) {
+      // The rarest word of the tag is its most telling one.
+      let filed = Infinity, inside = 0;
+      for (const w of words) {
+        let all = 0, here = 0;
+        for (const [folder, counts] of perFolder) {
+          const n = counts.get(w);
+          if (!n) continue;
+          all += n;
+          if (folder === c.relPath || folder.startsWith(c.relPath + '/')) here += n;
+        }
+        if (all && all < filed) { filed = all; inside = here; }
+      }
+      if (filed !== Infinity && filed >= 5) {
+        const ratio = inside / filed;
+        best = ratio < 0.15 ? 0.82 : ratio >= 0.5 ? 1.05 : 1;
       }
     }
-    return { score: best, term, how };
+    reliabilityCache.set(key, best);
+    return best;
   };
 
-  const learnedScore = (c, text) => {
+  // Keyword evidence for one candidate: the best keyword decides, every
+  // further distinct keyword (not just a longer/shorter form of one already
+  // counted) adds a small bonus.
+  const direct = (c, texts) => {
+    const hits = new Map();
+    for (const { text, weight, source } of texts) {
+      for (const t of c.terms) {
+        const raw = scoreTerm(text, t);
+        if (!raw) continue;
+        const s = raw * lengthWeight(t) * t.weight * weight * reliability(c, t);
+        const prev = hits.get(t.norm);
+        if (!prev || prev.s < s) hits.set(t.norm, { s, t, source });
+      }
+    }
+    if (!hits.size) return { score: 0, term: '', how: 'name' };
+    const sorted = [...hits.values()].sort((a, b) => b.s - a.s);
+    const top = sorted[0];
+    const counted = [top];
+    let score = top.s;
+    for (const h of sorted.slice(1)) {
+      if (counted.length >= 4) break;
+      const overlaps = counted.some(o => o.t.rootPhrase.includes(h.t.rootPhrase) || h.t.rootPhrase.includes(o.t.rootPhrase)
+        || o.t.roots.join('') === h.t.roots.join(''));
+      if (overlaps) continue;
+      score += Math.min(6, h.s * 0.08);
+      counted.push(h);
+    }
+    return {
+      score: Math.min(100, score),
+      term: counted.slice(0, 2).map(h => h.t.raw).join(' + '),
+      how: top.source === 'metadata' ? 'metadata' : top.t.kind === 'tag' ? 'tag' : 'name',
+    };
+  };
+
+  const learnedScore = (c, keys) => {
     const toks = learned.get(c.relPath);
     if (!toks) return { score: 0, term: '' };
     const hits = [];
-    for (const s of new Set(text.stems)) { const p = toks.get(s); if (p) hits.push([s, p]); }
+    for (const k of keys) { const p = toks.get(k); if (p) hits.push([k, p]); }
     if (!hits.length) return { score: 0, term: '' };
     hits.sort((a, b) => b[1] - a[1]);
     const score = Math.min(80, 52 + hits[0][1] * 14 + (hits.length - 1) * 5);
-    return { score, term: hits.slice(0, 3).map(h => h[0]).join(', ') };
+    return { score, term: hits.slice(0, 3).map(h => h[0].replace(/^#/, '')).join(', ') };
   };
 
   // Rank every folder for a video. Returns sorted [{ path, score, term, how }].
@@ -330,10 +509,11 @@ function createMatcher({ folders, videos } = {}) {
       const extra = [m.title, m.channel, ...(m.actors || []), ...(m.tags || [])].filter(Boolean).join(' | ');
       if (extra) texts.push({ text: prepareText(extra), weight: 0.95, source: 'metadata' });
     }
+    const keys = learned.size ? evidenceKeys(name, m) : null;
     const raw = new Map();
     for (const c of candidates) {
       const d = direct(c, texts);
-      const l = learnedScore(c, texts[0].text);
+      const l = keys ? learnedScore(c, keys) : { score: 0, term: '' };
       const r = l.score > d.score ? { score: l.score, term: l.term, how: 'learned' } : d;
       if (r.score > 0) raw.set(c.relPath, r);
     }

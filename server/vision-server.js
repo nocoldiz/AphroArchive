@@ -33,6 +33,8 @@ function _extractVideoFrame(videoBuffer) {
     ff.stderr.on('data', () => {});
     ff.on('error', e => done(e));
     ff.on('close', code => { if (code !== 0) done(new Error('ffmpeg exited with code ' + code)); });
+    // EPIPE when ffmpeg exits early / fails to spawn: handled via 'close'/'error'.
+    ff.stdin.on('error', () => {});
     try { ff.stdin.write(videoBuffer); ff.stdin.end(); } catch (e) { done(e); }
   });
 }
@@ -68,6 +70,10 @@ async function apiVisionDescribe(req, res) {
       const ext   = path.extname(fp).toLowerCase();
       mimeType    = PHOTO_MIME[ext] || 'image/jpeg';
     } else if (source === 'thumb') {
+      // id is a base64url video id and thumbIdx a small int: never path segments.
+      if (typeof id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(id) || !/^\d{1,3}$/.test(String(thumbIdx))) {
+        return json(res, { error: 'Invalid thumbnail' }, 400);
+      }
       const thumbPath = path.join(THUMBS_DIR, id, String(thumbIdx) + '.jpg');
       if (!fs.existsSync(thumbPath)) return json(res, { error: 'Thumbnail not found' }, 404);
       imageBuffer = fs.readFileSync(thumbPath);

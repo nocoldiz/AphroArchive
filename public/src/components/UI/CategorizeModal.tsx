@@ -110,23 +110,16 @@ export function CategorizeModal({ mode, uncategorized, categorized, categories, 
 
   return (
     <div
+      className="modal-overlay on"
       onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.65)',
-        zIndex: 10000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '16px',
-      }}
+      style={{ zIndex: 10000, padding: '16px' }}
     >
-      <div style={{
-        background: 'var(--bg2)', border: '1px solid var(--brd)',
-        borderRadius: '12px',
+      <div className="modal-dialog" style={{
         width: '100%', maxWidth: '1100px',
         height: 'calc(100vh - 32px)',
+        padding: 0,
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
-        boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
       }}>
 
         {/* Header */}
@@ -137,19 +130,13 @@ export function CategorizeModal({ mode, uncategorized, categorized, categories, 
           <span style={{ fontWeight: 700, fontSize: '0.9rem', flexShrink: 0 }}>{title}</span>
           <input
             type="text"
+            className="ui-input"
             placeholder="Search videos and links…"
             value={search}
             onInput={(e: any) => setSearch(e.target.value)}
-            style={{
-              flex: 1, background: 'var(--bg3)', border: '1px solid var(--brd)',
-              borderRadius: '6px', color: 'var(--tx1)', padding: '4px 10px',
-              fontSize: '0.8rem', outline: 'none',
-            }}
+            style={{ flex: 1, width: 'auto', padding: '4px 10px', fontSize: '0.8rem' }}
           />
-          <button
-            onClick={onCancel}
-            style={{ background: 'none', border: '1px solid var(--brd)', color: 'var(--tx2)', borderRadius: '6px', padding: '4px 12px', fontSize: '0.8rem', cursor: 'pointer', flexShrink: 0 }}
-          >
+          <button className="ui-btn ui-btn--sm" onClick={onCancel} style={{ flexShrink: 0 }}>
             Cancel
           </button>
         </div>
@@ -201,7 +188,7 @@ export function CategorizeModal({ mode, uncategorized, categorized, categories, 
                               onChange={(e: any) => setEdits(prev => ({ ...prev, [item.id]: e.target.value }))}
                               style={{
                                 background: 'var(--bg3)', border: '1px solid var(--brd)',
-                                borderRadius: '4px', color: skip ? 'var(--tx3)' : 'var(--tx1)',
+                                borderRadius: '4px', color: skip ? 'var(--tx3)' : 'var(--tx)',
                                 padding: '2px 4px', fontSize: '0.73rem', cursor: 'pointer', maxWidth: '150px',
                               }}
                             >
@@ -278,16 +265,10 @@ export function CategorizeModal({ mode, uncategorized, categorized, categories, 
             </span>
           )}
           <button
+            className="ui-btn ui-btn--primary"
             disabled={toMove.length === 0 || confirming}
             onClick={handleConfirm}
-            style={{
-              background: toMove.length === 0 || confirming ? 'var(--bg3)' : 'var(--ac)',
-              color: toMove.length === 0 || confirming ? 'var(--tx3)' : '#fff',
-              border: 'none', borderRadius: '6px',
-              padding: '6px 18px', fontSize: '0.8rem',
-              cursor: toMove.length === 0 || confirming ? 'default' : 'pointer',
-              fontWeight: 600,
-            }}
+            style={{ marginLeft: 'auto' }}
           >
             {confirming ? 'Moving…' : `Move ${toMove.length} item${toMove.length !== 1 ? 's' : ''}`}
           </button>

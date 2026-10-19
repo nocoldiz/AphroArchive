@@ -56,7 +56,10 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
   const remaining = zapRemaining.value;
   const total = zapTotalIv.value;
   const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
-  const src = video.isVault ? `/api/vault/stream/${video.id}` : `/api/stream/${video.id}`;
+  // Mirror PlayerView: honour streamUrl and offer the HLS transcode fallback so
+  // formats the browser can't decode directly (mkv/wmv/avi/HEVC…) still play.
+  const src = video.isVault ? `/api/vault/stream/${video.id}` : (video.streamUrl || `/api/stream/${video.id}`);
+  const hlsSrc = video.isVault || video.streamUrl ? undefined : `/api/hls/${video.id}/index.m3u8`;
 
   const [chips, setChips] = useState<ZapChip[]>([]);
   const [inputVal, setInputVal] = useState('');
@@ -189,6 +192,7 @@ export const ZapView = ({ video, videoRef, subtitles, chapters, language }: ZapV
           <AdvancedPlayer
             key={video.id}
             src={src}
+            hlsSrc={hlsSrc}
             videoId={video.id}
             subtitles={subtitles}
             chapters={chapters}

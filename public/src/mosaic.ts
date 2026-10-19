@@ -42,6 +42,29 @@ const toast = (msg: string) => {
   if (w.toast) w.toast(msg);
 };
 
+// Abort a tile video's stream. `src = ''` would make the browser request the
+// page URL as media; removing the attribute + load() releases the socket.
+const releaseVid = (el: HTMLVideoElement) => {
+  try { el.pause(); el.removeAttribute('src'); el.load(); } catch {}
+};
+
+// Random element of `src` whose id isn't `excludeId` — O(1) instead of
+// shuffling the whole pool for every tile swap.
+const pickOther = (src: any[], excludeId: string) => {
+  if (src.length === 1) return src[0];
+  for (let tries = 0; tries < 8; tries++) {
+    const v = src[Math.floor(Math.random() * src.length)];
+    if (v.id !== excludeId) return v;
+  }
+  return src.find(v => v.id !== excludeId) || src[0];
+};
+
+const photoSrc = (f: any) => f.isVault ? '/api/vault/stream/' + f.id : '/api/photos/' + f.id + '/img';
+
+// A tile is live while mosaic is on and it belongs to the current tile set —
+// deferred swap timers must not touch tiles torn down by stop/rebuild.
+const tileLive = (tile: any) => mosaicOn.value && mosTilesState.includes(tile);
+
 export function toggleMosaic() {
   if (mosaicOn.value) stopMosaic(); else startMosaic();
 }
@@ -132,7 +155,7 @@ export function stopMosaic() {
   clearTimeout(mosLayoutTimer);
 
   mosTilesState.forEach(t => {
-    if (!t.isPhoto) { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; }
+    if (!t.isPhoto) { releaseVid(t.a); releaseVid(t.b); }
   });
   mosTilesState = [];
   mosHoveredIdx = -1;
@@ -143,23 +166,32 @@ export function stopMosaic() {
   const cntLbl = document.getElementById('mosaic-count-label');
   if (cntLbl) cntLbl.textContent = 'Players';
   
-  currentView.value = 'hub';
+  // MosaicView also calls this on unmount — only go home when still on the
+  // mosaic, or navigating away (sidebar etc.) would be redirected to the hub.
+  if (currentView.value === 'mosaic') currentView.value = 'hub';
 }
 
+// n distinct random picks (repeating only when the pool is smaller than n).
+// Partial Fisher–Yates: O(n) instead of shuffling the whole library.
 function mosPick(n: number) {
   const src = _mosPool.length ? _mosPool : allVideos.value;
   if (!src.length) return [];
-  const a = [...src].sort(() => Math.random() - 0.5);
+  const a = src.slice();
+  const k = Math.min(n, a.length);
+  for (let i = 0; i < k; i++) {
+    const j = i + Math.floor(Math.random() * (a.length - i));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  const head = a.slice(0, k);
   const result = [];
-  while (result.length < n) result.push(...a);
+  while (result.length < n) result.push(...head);
   return result.slice(0, n);
 }
 
 function mosPickExcluding(excludeId: string) {
   const src = _mosPool.length ? _mosPool : allVideos.value;
   if (!src.length) return null;
-  const shuffled = [...src].sort(() => Math.random() - 0.5);
-  return shuffled.find(v => v.id !== excludeId) || shuffled[0];
+  return pickOther(src, excludeId);
 }
 
 function _mosPickPhotos(n: number) {
@@ -222,11 +254,15 @@ export function buildMosaicTiles() {
   if (!grid) return;
   
   mosTilesState.forEach(t => {
-    if (!t.isPhoto) { t.a.pause(); t.a.src = ''; t.b.pause(); t.b.src = ''; }
+    if (!t.isPhoto) { releaseVid(t.a); releaseVid(t.b); }
   });
   mosTilesState = [];
   mosHoveredIdx = -1;
   grid.innerHTML = '';
+
+  // The grid only exists while MosaicView is mounted, so reaching here means
+  // the mosaic is on screen (also when opened directly via /mosaic).
+  mosaicOn.value = true;
 
   const n = mosTileCount.value;
   if (n === 6) {
@@ -247,7 +283,7 @@ export function buildMosaicTiles() {
       wrap.className = 'mos-tile';
       const img = document.createElement('img');
       img.className = 'mos-v mos-v-active';
-      img.src = f.isVault ? '/api/vault/stream/' + f.id : '/api/photos/' + f.id + '/img';
+      img.src = photoSrc(f);
       wrap.appendChild(img);
       grid.appendChild(wrap);
       const tile = { wrap, img, photoId: f.id, isPhoto: true };
@@ -352,7 +388,8 @@ export function refreshMosaicTiles() {
       if (!next) return;
       tile.img.classList.remove('mos-v-active');
       setTimeout(() => {
-        tile.img.src = '/api/photos/' + next.id + '/img';
+        if (!tileLive(tile)) return;
+        tile.img.src = photoSrc(next);
         tile.img.classList.add('mos-v-active');
         tile.photoId = next.id;
       }, 450);
@@ -364,6 +401,7 @@ export function refreshMosaicTiles() {
     if (i === mosHoveredIdx) return;
 
     setTimeout(() => {
+      if (!tileLive(tile)) return;
       const nextEl = tile.active === 'a' ? tile.b : tile.a;
       const curEl  = tile.active === 'a' ? tile.a : tile.b;
 
@@ -376,6 +414,7 @@ export function refreshMosaicTiles() {
         applyMosaicAudio();
 
         setTimeout(() => {
+          if (!tileLive(tile)) return;
           curEl.pause();
           const nextV = mosPickExcluding(tile.vidId);
           if (nextV) preloadMosTile(tile, nextV);
@@ -480,6 +519,9 @@ if (typeof document !== 'undefined') {
 
 // Bridge to window
 if (typeof window !== 'undefined') {
+  // store.ts / zap.ts check `window.mosaicOn` before calling stopMosaic; it was
+  // a plain `false` that never changed, so mirror the real signal.
+  Object.defineProperty(window, 'mosaicOn', { get: () => mosaicOn.value, set: () => {}, configurable: true });
   (window as any).toggleMosaic = toggleMosaic;
   (window as any).startMosaic = startMosaic;
   (window as any).startMosaicWithPhotos = startMosaicWithPhotos;
